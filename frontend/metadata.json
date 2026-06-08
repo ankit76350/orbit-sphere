@@ -1,0 +1,6 @@
+{
+  "name": "Boarding School ERP",
+  "description": "A comprehensive, multi-role Boarding School ERP featuring administrative tools, hostel management, student wallets, CRM, and academic profiles for premium institution management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
