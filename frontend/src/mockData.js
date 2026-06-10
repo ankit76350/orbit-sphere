@@ -790,3 +790,127 @@ export const initialAnnouncements = [
   { id: "ann-2", title: "Uniform Compliance High Assembly Protocol", content: "As summer heat indices rise, linen blazers may be swapped for formal crest-stamped short-sleeve white shirts. Footwear rules remain strictly oxfords.", target: "All", date: "2026-05-27", sender: "Principal Arthur Pendelton" },
   { id: "ann-3", title: "Leave & Outpass Online Submissions Only", content: "Please register all terminal outpasses through the portal 48 hours prior. Physical chits are no longer routed for warden signature chains.", target: "Parents", date: "2026-05-26", sender: "HR Management Office" }
 ];
+
+export const initialBooks = [
+  {
+    id: "book-1",
+    title: "Advanced Algebraic Structures & Functions",
+    author: "Dr. Elizabeth Sharma",
+    category: "Mathematics",
+    grade: "Grade 12",
+    isbn: "978-3-16-148410-0",
+    publishedYear: 2024,
+    pages: 312,
+    coverGradient: "from-blue-600 to-indigo-800",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "An in-depth guide covering matrices, complex vectors, calculus progressions, and spatial coordinate geometries."
+  },
+  {
+    id: "book-2",
+    title: "Inorganic Chemistry: Principles & Lab Protocols",
+    author: "Prof. Diya Verma",
+    category: "Science",
+    grade: "Grade 12",
+    isbn: "978-0-12-345678-6",
+    publishedYear: 2025,
+    pages: 420,
+    coverGradient: "from-emerald-500 to-teal-700",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "Comprehensive textbook on transition metal chemistry, catalysis mechanisms, crystal field theory, and lab safety."
+  },
+  {
+    id: "book-3",
+    title: "A History of the Modern World (1789-Present)",
+    author: "Prof. Rohan Sen",
+    category: "History",
+    grade: "Grade 10",
+    isbn: "978-1-56619-909-4",
+    publishedYear: 2023,
+    pages: 560,
+    coverGradient: "from-amber-600 to-orange-850",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "Chronicles major historical events, from the French Revolution to the rise of globalization and digital society."
+  },
+  {
+    id: "book-4",
+    title: "Introduction to Computer Science & Algorithms",
+    author: "Prof. Chloe Smith",
+    category: "Computer Science",
+    grade: "Grade 9",
+    isbn: "978-0-262-03384-8",
+    publishedYear: 2024,
+    pages: 280,
+    coverGradient: "from-indigo-600 to-purple-800",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "Foundational programming logic, sorting/searching algorithms, data structure designs, and object-oriented paradigms."
+  },
+  {
+    id: "book-5",
+    title: "English Literature: The Anthology of Classics",
+    author: "Prof. Olivia Williams",
+    category: "Literature",
+    grade: "Grade 8",
+    isbn: "978-0-19-953556-9",
+    publishedYear: 2022,
+    pages: 340,
+    coverGradient: "from-rose-500 to-pink-700",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "Selected poetry, short stories, essays, and dramatic works from Shakespeare to Orwell with analysis frameworks."
+  },
+  {
+    id: "book-6",
+    title: "Introductory Biology: Evolution & Cell Anatomy",
+    author: "Prof. Mia Patel",
+    category: "Science",
+    grade: "Grade 7",
+    isbn: "978-0-03-054749-3",
+    publishedYear: 2023,
+    pages: 260,
+    coverGradient: "from-teal-600 to-emerald-800",
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    description: "Explore the living world: cell structure functions, genetic inheritance models, and modern evolutionary theories."
+  }
+];
+
+export const initialVehicles = [
+  { id: "veh-1", vehicleNo: "BUS-402X", capacity: 40, insuranceExpiry: "2026-12-15", fitnessExpiry: "2026-11-20", fuelType: "Diesel", status: "Operational", maintenanceSchedule: "2026-07-10" },
+  { id: "veh-2", vehicleNo: "COACH-77Y", capacity: 55, insuranceExpiry: "2027-02-10", fitnessExpiry: "2026-09-05", fuelType: "CNG", status: "Operational", maintenanceSchedule: "2026-07-22" },
+  { id: "veh-3", vehicleNo: "BUS-110A", capacity: 30, insuranceExpiry: "2026-08-30", fitnessExpiry: "2026-08-15", fuelType: "Diesel", status: "Maintenance", maintenanceSchedule: "2026-06-12" }
+];
+
+export const initialDrivers = [
+  { id: "drv-1", name: "Harlan Coben", phone: "555-092-2281", licenseNo: "DL-908234-A", licenseExpiry: "2026-06-25", vehicleId: "veh-1" },
+  { id: "drv-2", name: "Donald Sutherland", phone: "555-882-9382", licenseNo: "DL-381928-B", licenseExpiry: "2028-04-12", vehicleId: "veh-2" },
+  { id: "drv-3", name: "Winston Churchill", phone: "555-103-9122", licenseNo: "DL-120492-C", licenseExpiry: "2026-06-15", vehicleId: "veh-3" }
+];
+
+export const initialTransportAllocations = [
+  { id: "alloc-1", studentId: "student-1", studentName: "Liam Smith", routeId: "tr-1", pickupStopName: "Pines Terminal", dropStopName: "Academic Gate", feeAmount: 120, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-2", studentId: "student-2", studentName: "Noah Johnson", routeId: "tr-1", pickupStopName: "Whispering Valley Gate", dropStopName: "Academic Gate", feeAmount: 100, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-3", studentId: "student-3", studentName: "Oliver Williams", routeId: "tr-2", pickupStopName: "Union Grand Station", dropStopName: "Sandalwood Gate", feeAmount: 150, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-4", studentId: "student-4", studentName: "James Brown", routeId: "tr-2", pickupStopName: "West Side Crossing", dropStopName: "Sandalwood Gate", feeAmount: 140, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-5", studentId: "student-5", studentName: "Elijah Jones", routeId: "tr-3", pickupStopName: "Marine Crest Parade", dropStopName: "Academic Gate", feeAmount: 110, startDate: "2025-08-20", status: "Active" }
+];
+
+export const initialReviewCycles = [
+  { id: "cycle-1", name: "Term 1 Academic Feedback 2026", startDate: "2026-05-01", endDate: "2026-06-30", status: "Active" },
+  { id: "cycle-2", name: "Annual Performance Appraisal 2025", startDate: "2025-11-01", endDate: "2025-12-15", status: "Closed" }
+];
+
+export const initialTeacherReviews = [
+  { id: "tr-rev-1", teacherId: "staff-teacher-1", studentId: "student-1", parentId: null, reviewCycleId: "cycle-1", rating: 4.8, reviewText: "Explains complex mathematical induction processes with structured simplicity. Extremely helpful in assignment review hours.", anonymous: false, created_at: "2026-05-15" },
+  { id: "tr-rev-2", teacherId: "staff-teacher-1", studentId: null, parentId: "parent-2", reviewCycleId: "cycle-1", rating: 4.5, reviewText: "Very responsive during parent-teacher calls. Keeps track of student development metrics.", anonymous: true, created_at: "2026-05-20" },
+  { id: "tr-rev-3", teacherId: "staff-teacher-2", studentId: "student-3", parentId: null, reviewCycleId: "cycle-1", rating: 3.8, reviewText: "Strong literature critiques, but class exercises are sometimes overly rapid.", anonymous: false, created_at: "2026-05-18" }
+];
+
+export const initialStudentReviews = [
+  { id: "st-rev-1", studentId: "student-1", teacherId: "staff-teacher-1", reviewCycleId: "cycle-1", academicScore: 4.5, disciplineScore: 4.8, participationScore: 4.0, behaviorScore: 5.0, comments: "Outstanding diligence and focus on algebra homework completions. Highly cooperative.", created_at: "2026-05-22" },
+  { id: "st-rev-2", studentId: "student-2", teacherId: "staff-teacher-1", reviewCycleId: "cycle-1", academicScore: 3.8, disciplineScore: 4.0, participationScore: 4.5, behaviorScore: 4.2, comments: "Great classroom engagement. Needs slight improvement in homework timelines.", created_at: "2026-05-24" }
+];
+
+export const initialTeacherPerformanceReviews = [
+  { id: "perf-rev-1", teacherId: "staff-teacher-1", reviewerId: "staff-principal", reviewerRole: "Principal", rating: 4.7, comments: "Maintains exceptional classroom management. Administrative compliance and lesson plans submissions are outstanding.", reviewCycleId: "cycle-1" }
+];
+
+
+

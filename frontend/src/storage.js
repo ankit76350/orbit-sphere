@@ -18,7 +18,15 @@ import {
   initialRoutes,
   initialVisitors,
   initialOutPasses,
-  initialAnnouncements
+  initialAnnouncements,
+  initialBooks,
+  initialVehicles,
+  initialDrivers,
+  initialTransportAllocations,
+  initialReviewCycles,
+  initialTeacherReviews,
+  initialStudentReviews,
+  initialTeacherPerformanceReviews
 } from "./mockData";
 const KEYS = {
   SCHOOLS: "erp_schools",
@@ -35,6 +43,15 @@ const KEYS = {
   VISITORS: "erp_visitors",
   OUTPASSES: "erp_outpasses",
   ANNOUNCEMENTS: "erp_announcements",
+  BOOKS: "erp_books",
+  TRANSPORT_VEHICLES: "erp_transport_vehicles_v2",
+  DRIVERS: "erp_drivers_v2",
+  TRANSPORT_ALLOCATIONS: "erp_transport_allocations_v2",
+  TRANSPORT_ATTENDANCE: "erp_transport_attendance_v2",
+  REVIEW_CYCLES: "erp_review_cycles_v2",
+  TEACHER_REVIEWS: "erp_teacher_reviews_v2",
+  STUDENT_REVIEWS: "erp_student_reviews_v2",
+  TEACHER_PERFORMANCE_REVIEWS: "erp_teacher_performance_reviews_v2",
   ACTIONS_LOG: "erp_audit_logs",
   AUTH_USER: "erp_auth_user"
 };
@@ -101,6 +118,33 @@ export function initializeStorage() {
   }
   if (!localStorage.getItem("erp_homework")) {
     localStorage.setItem("erp_homework", JSON.stringify(mockHomework));
+  }
+  if (!localStorage.getItem(KEYS.BOOKS)) {
+    localStorage.setItem(KEYS.BOOKS, JSON.stringify(initialBooks));
+  }
+  if (!localStorage.getItem(KEYS.TRANSPORT_VEHICLES)) {
+    localStorage.setItem(KEYS.TRANSPORT_VEHICLES, JSON.stringify(initialVehicles));
+  }
+  if (!localStorage.getItem(KEYS.DRIVERS)) {
+    localStorage.setItem(KEYS.DRIVERS, JSON.stringify(initialDrivers));
+  }
+  if (!localStorage.getItem(KEYS.TRANSPORT_ALLOCATIONS)) {
+    localStorage.setItem(KEYS.TRANSPORT_ALLOCATIONS, JSON.stringify(initialTransportAllocations));
+  }
+  if (!localStorage.getItem(KEYS.TRANSPORT_ATTENDANCE)) {
+    localStorage.setItem(KEYS.TRANSPORT_ATTENDANCE, JSON.stringify([]));
+  }
+  if (!localStorage.getItem(KEYS.REVIEW_CYCLES)) {
+    localStorage.setItem(KEYS.REVIEW_CYCLES, JSON.stringify(initialReviewCycles));
+  }
+  if (!localStorage.getItem(KEYS.TEACHER_REVIEWS)) {
+    localStorage.setItem(KEYS.TEACHER_REVIEWS, JSON.stringify(initialTeacherReviews));
+  }
+  if (!localStorage.getItem(KEYS.STUDENT_REVIEWS)) {
+    localStorage.setItem(KEYS.STUDENT_REVIEWS, JSON.stringify(initialStudentReviews));
+  }
+  if (!localStorage.getItem(KEYS.TEACHER_PERFORMANCE_REVIEWS)) {
+    localStorage.setItem(KEYS.TEACHER_PERFORMANCE_REVIEWS, JSON.stringify(initialTeacherPerformanceReviews));
   }
   if (!localStorage.getItem("erp_results")) {
     localStorage.setItem("erp_results", JSON.stringify(generateAcademicResults(studentList)));
@@ -335,3 +379,78 @@ export function payInvoice(invoiceId, paymentAmount, method, operName, operRole)
   logAction(operName, operName, operRole, "Fee Invoice Paid", `Registered payment of $${pay} on Invoice #${invoiceId} under ${invoice.studentName}`);
   return true;
 }
+
+export function getBooks() {
+  return JSON.parse(localStorage.getItem(KEYS.BOOKS) || "[]");
+}
+
+export function saveBooks(books) {
+  localStorage.setItem(KEYS.BOOKS, JSON.stringify(books));
+}
+
+export function getTransportVehicles() {
+  return JSON.parse(localStorage.getItem(KEYS.TRANSPORT_VEHICLES) || "[]");
+}
+
+export function saveTransportVehicles(vehicles) {
+  localStorage.setItem(KEYS.TRANSPORT_VEHICLES, JSON.stringify(vehicles));
+}
+
+export function getDrivers() {
+  return JSON.parse(localStorage.getItem(KEYS.DRIVERS) || "[]");
+}
+
+export function saveDrivers(drivers) {
+  localStorage.setItem(KEYS.DRIVERS, JSON.stringify(drivers));
+}
+
+export function getTransportAllocations() {
+  return JSON.parse(localStorage.getItem(KEYS.TRANSPORT_ALLOCATIONS) || "[]");
+}
+
+export function saveTransportAllocations(allocations) {
+  localStorage.setItem(KEYS.TRANSPORT_ALLOCATIONS, JSON.stringify(allocations));
+}
+
+export function getTransportAttendance() {
+  return JSON.parse(localStorage.getItem(KEYS.TRANSPORT_ATTENDANCE) || "[]");
+}
+
+export function saveTransportAttendance(records) {
+  localStorage.setItem(KEYS.TRANSPORT_ATTENDANCE, JSON.stringify(records));
+}
+
+export function getReviewCycles() {
+  return JSON.parse(localStorage.getItem(KEYS.REVIEW_CYCLES) || "[]");
+}
+
+export function saveReviewCycles(cycles) {
+  localStorage.setItem(KEYS.REVIEW_CYCLES, JSON.stringify(cycles));
+}
+
+export function getTeacherReviews() {
+  return JSON.parse(localStorage.getItem(KEYS.TEACHER_REVIEWS) || "[]");
+}
+
+export function saveTeacherReviews(reviews) {
+  localStorage.setItem(KEYS.TEACHER_REVIEWS, JSON.stringify(reviews));
+}
+
+export function getStudentReviews() {
+  return JSON.parse(localStorage.getItem(KEYS.STUDENT_REVIEWS) || "[]");
+}
+
+export function saveStudentReviews(reviews) {
+  localStorage.setItem(KEYS.STUDENT_REVIEWS, JSON.stringify(reviews));
+}
+
+export function getTeacherPerformanceReviews() {
+  return JSON.parse(localStorage.getItem(KEYS.TEACHER_PERFORMANCE_REVIEWS) || "[]");
+}
+
+export function saveTeacherPerformanceReviews(reviews) {
+  localStorage.setItem(KEYS.TEACHER_PERFORMANCE_REVIEWS, JSON.stringify(reviews));
+}
+
+
+
