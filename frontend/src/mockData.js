@@ -912,5 +912,66 @@ export const initialTeacherPerformanceReviews = [
   { id: "perf-rev-1", teacherId: "staff-teacher-1", reviewerId: "staff-principal", reviewerRole: "Principal", rating: 4.7, comments: "Maintains exceptional classroom management. Administrative compliance and lesson plans submissions are outstanding.", reviewCycleId: "cycle-1" }
 ];
 
+export const initialAlumniProfiles = [
+  { id: "alum-1", name: "Sarah Jenkins", graduationYear: 2020, batch: "Class of 2020", profession: "Software Engineer", company: "Google", city: "San Francisco", country: "USA", linkedinUrl: "https://linkedin.com/in/sarah-jenkins", status: "Verified", coverGradient: "from-blue-600 to-indigo-800" },
+  { id: "alum-2", name: "David Hasselhoff", graduationYear: 2021, batch: "Class of 2021", profession: "Investment Analyst", company: "Goldman Sachs", city: "New York", country: "USA", linkedinUrl: "https://linkedin.com/in/david-h", status: "Verified", coverGradient: "from-emerald-500 to-teal-700" },
+  { id: "alum-3", name: "Marcus Brody", graduationYear: 2022, batch: "Class of 2022", profession: "Biotech Researcher", company: "Moderna", city: "Boston", country: "USA", linkedinUrl: "https://linkedin.com/in/marcus-b", status: "Verified", coverGradient: "from-amber-600 to-orange-850" },
+  { id: "alum-4", name: "Chloe Smith", graduationYear: 2023, batch: "Class of 2023", profession: "Product Manager", company: "Microsoft", city: "Seattle", country: "USA", linkedinUrl: "https://linkedin.com/in/chloe-s", status: "Verified", coverGradient: "from-indigo-600 to-purple-800" }
+];
+
+export const initialAlumniEvents = [
+  { id: "al-evt-1", title: "Decadal Grand Reunion 2026", eventType: "Annual Reunion", eventDate: "2026-11-20", location: "St. Jude Assembly Hall", description: "Celebrating a decade of excellence. Join us for banquets, networking grids, and panel discussions.", rsvps: 124 },
+  { id: "al-evt-2", title: "Career Insights: AI & Softwares", eventType: "Career Talk", eventDate: "2026-07-15", location: "Online (Webinar)", description: "Alumni panel discussing future trends in software engineering and artificial intelligence pathways.", rsvps: 68 }
+];
+
+export const initialAlumniDonations = [
+  { id: "don-1", alumniId: "alum-1", campaignId: "camp-scholarship", amount: 1500, donationDate: "2026-04-12", paymentReference: "REF-908234-X" },
+  { id: "don-2", alumniId: "alum-2", campaignId: "camp-library", amount: 2500, donationDate: "2026-05-01", paymentReference: "REF-238492-Y" },
+  { id: "don-3", alumniId: "alum-4", campaignId: "camp-scholarship", amount: 500, donationDate: "2026-05-18", paymentReference: "REF-103942-Z" }
+];
+
+export const initialMentorshipPrograms = [
+  { id: "ment-1", mentorAlumniId: "alum-1", studentId: "student-1", studentName: "Liam Smith", category: "Career Guidance", status: "Active", sessionDate: "2026-06-18" },
+  { id: "ment-2", mentorAlumniId: "alum-3", studentId: "student-2", studentName: "Noah Johnson", category: "College Admissions", status: "Completed", sessionDate: "2026-05-20" }
+];
+
+export const initialJobPostings = [
+  { id: "job-1", alumniId: "alum-1", title: "Software Engineering Internship", company: "Google", location: "San Francisco, CA", description: "Summer internship in Google Cloud systems. Requires foundational data structures proficiency and Python/Java skills.", expiryDate: "2026-08-30" },
+  { id: "job-2", alumniId: "alum-4", title: "Associate Product Manager", company: "Microsoft", location: "Redmond, WA", description: "Entry-level APM role focusing on cloud integrations and customer lifecycle tools.", expiryDate: "2026-09-15" }
+];
+
+export const initialDocumentTemplates = [
+  { id: "tmpl-student-id", name: "Standard Student ID Card", category: "ID Card", templateContent: "{\"layout\":\"portrait\",\"width\":250,\"height\":400,\"fields\":[\"logo\",\"photo\",\"name\",\"student_id\",\"class\",\"qr\"]}", status: "Active" },
+  { id: "tmpl-staff-id", name: "Corporate Staff ID Card", category: "ID Card", templateContent: "{\"layout\":\"portrait\",\"width\":250,\"height\":400,\"fields\":[\"logo\",\"photo\",\"name\",\"employee_id\",\"department\",\"qr\"]}", status: "Active" },
+  { id: "tmpl-bonafide", name: "Bonafide Study Certificate", category: "Student Certificate", templateContent: "This is to certify that {{student_name}} (Student ID: {{student_id}}) is a bonafide student of St. Jude's Boarding School in Class {{class}}, Section {{section}} for the academic year 2025-2026.", status: "Active" },
+  { id: "tmpl-transfer", name: "Transfer Certificate (TC)", category: "Student Certificate", templateContent: "Transfer Certificate for {{student_name}}. It is certified that the pupil has cleared all institutional fees and Hostel Boarding records and is hereby released for higher studies.", status: "Active" },
+  { id: "tmpl-salary", name: "Employment & Salary Certificate", category: "Staff HR", templateContent: "This certificate confirms that {{staff_name}} is employed at St. Jude's in the department of {{department}} as a {{designation}}. Monthly net salary package stands at {{salary}}.", status: "Active" },
+  { id: "tmpl-receipt", name: "Finance Fee Receipt", category: "Finance", templateContent: "Received with thanks from {{student_name}} (Admission No: {{admission_no}}) fee payment of {{amount}} for the term {{term}}.", status: "Active" }
+];
+
+export const initialGeneratedDocuments = [
+  { id: "doc-1", documentNumber: "DOC-2026-0001", documentType: "Bonafide Certificate", entityId: "student-1", entityType: "Student", pdfUrl: "Bonafide_Liam_Smith.pdf", verificationCode: "VCODE-48293", generatedAt: "2026-06-01", status: "Valid" },
+  { id: "doc-2", documentNumber: "DOC-2026-0002", documentType: "Transfer Certificate", entityId: "student-2", entityType: "Student", pdfUrl: "TC_Noah_Johnson.pdf", verificationCode: "VCODE-10294", generatedAt: "2026-06-03", status: "Valid" },
+  { id: "doc-3", documentNumber: "DOC-2026-0003", documentType: "Salary Certificate", entityId: "staff-teacher-1", entityType: "Staff", pdfUrl: "Salary_Teacher_1.pdf", verificationCode: "VCODE-99081", generatedAt: "2026-06-05", status: "Valid" }
+];
+
+export const initialIdCards = [
+  { id: "card-student-1", cardType: "Student", holderId: "student-1", holderName: "Liam Smith", details: "Grade 10 | Adm: STJ-1002", qrCode: "STJ-STUDENT-LIAM-SMITH", barcode: "10029384", issuedDate: "2026-01-10", expiryDate: "2027-06-30", status: "Active" },
+  { id: "card-staff-1", cardType: "Staff", holderId: "staff-teacher-1", holderName: "John Doe", details: "Teacher | Math Department", qrCode: "STJ-STAFF-JOHN-DOE", barcode: "90082348", issuedDate: "2026-01-10", expiryDate: "2028-12-31", status: "Active" },
+  { id: "card-parent-1", cardType: "Parent", holderId: "parent-1", holderName: "Margaret Thatcher", details: "Parent of Liam Smith", qrCode: "STJ-PARENT-MARGARET", barcode: "30082349", issuedDate: "2026-01-12", expiryDate: "2027-06-30", status: "Active" }
+];
+
+export const initialDocumentApprovals = [
+  { id: "appr-1", documentId: "doc-2", documentTitle: "Transfer Certificate (Noah Johnson)", requestorId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverId: "staff-principal", approverName: "Chloe Smith", status: "Approved", remarks: "All academic marks and clearance approved.", approvedAt: "2026-06-03" },
+  { id: "appr-2", documentId: "temp-doc-12", documentTitle: "Salary Increment Letter (John Doe)", requestorId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverId: "staff-principal", approverName: "Chloe Smith", status: "Pending", remarks: "Awaiting final review of HR appraisal parameters.", approvedAt: "" }
+];
+
+export const initialDocumentSignatures = [
+  { id: "sig-1", signerId: "staff-principal", signerName: "Chloe Smith", designation: "Principal", signatureUrl: "Principal_Signature_V3.png", active: true },
+  { id: "sig-2", signerId: "staff-accountant", signerName: "Liam Davies", designation: "Chief Accountant", signatureUrl: "Accountant_Signature_V2.png", active: true }
+];
+
+
+
 
 

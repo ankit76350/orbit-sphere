@@ -26,7 +26,17 @@ import {
   initialReviewCycles,
   initialTeacherReviews,
   initialStudentReviews,
-  initialTeacherPerformanceReviews
+  initialTeacherPerformanceReviews,
+  initialAlumniProfiles,
+  initialAlumniEvents,
+  initialAlumniDonations,
+  initialMentorshipPrograms,
+  initialJobPostings,
+  initialDocumentTemplates,
+  initialGeneratedDocuments,
+  initialIdCards,
+  initialDocumentApprovals,
+  initialDocumentSignatures
 } from "./mockData";
 const KEYS = {
   SCHOOLS: "erp_schools",
@@ -52,6 +62,16 @@ const KEYS = {
   TEACHER_REVIEWS: "erp_teacher_reviews_v2",
   STUDENT_REVIEWS: "erp_student_reviews_v2",
   TEACHER_PERFORMANCE_REVIEWS: "erp_teacher_performance_reviews_v2",
+  ALUMNI_PROFILES: "erp_alumni_profiles_v2",
+  ALUMNI_EVENTS: "erp_alumni_events_v2",
+  ALUMNI_DONATIONS: "erp_alumni_donations_v2",
+  MENTORSHIP_PROGRAMS: "erp_mentorship_programs_v2",
+  JOB_POSTINGS: "erp_job_postings_v2",
+  DOCUMENT_TEMPLATES: "erp_document_templates_v2",
+  GENERATED_DOCUMENTS: "erp_generated_documents_v2",
+  ID_CARDS: "erp_id_cards_v2",
+  DOCUMENT_APPROVALS: "erp_document_approvals_v2",
+  DOCUMENT_SIGNATURES: "erp_document_signatures_v2",
   ACTIONS_LOG: "erp_audit_logs",
   AUTH_USER: "erp_auth_user"
 };
@@ -145,6 +165,36 @@ export function initializeStorage() {
   }
   if (!localStorage.getItem(KEYS.TEACHER_PERFORMANCE_REVIEWS)) {
     localStorage.setItem(KEYS.TEACHER_PERFORMANCE_REVIEWS, JSON.stringify(initialTeacherPerformanceReviews));
+  }
+  if (!localStorage.getItem(KEYS.ALUMNI_PROFILES)) {
+    localStorage.setItem(KEYS.ALUMNI_PROFILES, JSON.stringify(initialAlumniProfiles));
+  }
+  if (!localStorage.getItem(KEYS.ALUMNI_EVENTS)) {
+    localStorage.setItem(KEYS.ALUMNI_EVENTS, JSON.stringify(initialAlumniEvents));
+  }
+  if (!localStorage.getItem(KEYS.ALUMNI_DONATIONS)) {
+    localStorage.setItem(KEYS.ALUMNI_DONATIONS, JSON.stringify(initialAlumniDonations));
+  }
+  if (!localStorage.getItem(KEYS.MENTORSHIP_PROGRAMS)) {
+    localStorage.setItem(KEYS.MENTORSHIP_PROGRAMS, JSON.stringify(initialMentorshipPrograms));
+  }
+  if (!localStorage.getItem(KEYS.JOB_POSTINGS)) {
+    localStorage.setItem(KEYS.JOB_POSTINGS, JSON.stringify(initialJobPostings));
+  }
+  if (!localStorage.getItem(KEYS.DOCUMENT_TEMPLATES)) {
+    localStorage.setItem(KEYS.DOCUMENT_TEMPLATES, JSON.stringify(initialDocumentTemplates));
+  }
+  if (!localStorage.getItem(KEYS.GENERATED_DOCUMENTS)) {
+    localStorage.setItem(KEYS.GENERATED_DOCUMENTS, JSON.stringify(initialGeneratedDocuments));
+  }
+  if (!localStorage.getItem(KEYS.ID_CARDS)) {
+    localStorage.setItem(KEYS.ID_CARDS, JSON.stringify(initialIdCards));
+  }
+  if (!localStorage.getItem(KEYS.DOCUMENT_APPROVALS)) {
+    localStorage.setItem(KEYS.DOCUMENT_APPROVALS, JSON.stringify(initialDocumentApprovals));
+  }
+  if (!localStorage.getItem(KEYS.DOCUMENT_SIGNATURES)) {
+    localStorage.setItem(KEYS.DOCUMENT_SIGNATURES, JSON.stringify(initialDocumentSignatures));
   }
   if (!localStorage.getItem("erp_results")) {
     localStorage.setItem("erp_results", JSON.stringify(generateAcademicResults(studentList)));
@@ -450,6 +500,86 @@ export function getTeacherPerformanceReviews() {
 
 export function saveTeacherPerformanceReviews(reviews) {
   localStorage.setItem(KEYS.TEACHER_PERFORMANCE_REVIEWS, JSON.stringify(reviews));
+}
+
+export function getAlumniProfiles() {
+  return JSON.parse(localStorage.getItem(KEYS.ALUMNI_PROFILES) || "[]");
+}
+
+export function saveAlumniProfiles(profiles) {
+  localStorage.setItem(KEYS.ALUMNI_PROFILES, JSON.stringify(profiles));
+}
+
+export function getAlumniEvents() {
+  return JSON.parse(localStorage.getItem(KEYS.ALUMNI_EVENTS) || "[]");
+}
+
+export function saveAlumniEvents(events) {
+  localStorage.setItem(KEYS.ALUMNI_EVENTS, JSON.stringify(events));
+}
+
+export function getAlumniDonations() {
+  return JSON.parse(localStorage.getItem(KEYS.ALUMNI_DONATIONS) || "[]");
+}
+
+export function saveAlumniDonations(donations) {
+  localStorage.setItem(KEYS.ALUMNI_DONATIONS, JSON.stringify(donations));
+}
+
+export function getMentorshipPrograms() {
+  return JSON.parse(localStorage.getItem(KEYS.MENTORSHIP_PROGRAMS) || "[]");
+}
+
+export function saveMentorshipPrograms(programs) {
+  localStorage.setItem(KEYS.MENTORSHIP_PROGRAMS, JSON.stringify(programs));
+}
+
+export function getJobPostings() {
+  return JSON.parse(localStorage.getItem(KEYS.JOB_POSTINGS) || "[]");
+}
+
+export function saveJobPostings(postings) {
+  localStorage.setItem(KEYS.JOB_POSTINGS, JSON.stringify(postings));
+}
+
+export function getDocumentTemplates() {
+  return JSON.parse(localStorage.getItem(KEYS.DOCUMENT_TEMPLATES) || "[]");
+}
+
+export function saveDocumentTemplates(templates) {
+  localStorage.setItem(KEYS.DOCUMENT_TEMPLATES, JSON.stringify(templates));
+}
+
+export function getGeneratedDocuments() {
+  return JSON.parse(localStorage.getItem(KEYS.GENERATED_DOCUMENTS) || "[]");
+}
+
+export function saveGeneratedDocuments(docs) {
+  localStorage.setItem(KEYS.GENERATED_DOCUMENTS, JSON.stringify(docs));
+}
+
+export function getIdCards() {
+  return JSON.parse(localStorage.getItem(KEYS.ID_CARDS) || "[]");
+}
+
+export function saveIdCards(cards) {
+  localStorage.setItem(KEYS.ID_CARDS, JSON.stringify(cards));
+}
+
+export function getDocumentApprovals() {
+  return JSON.parse(localStorage.getItem(KEYS.DOCUMENT_APPROVALS) || "[]");
+}
+
+export function saveDocumentApprovals(approvals) {
+  localStorage.setItem(KEYS.DOCUMENT_APPROVALS, JSON.stringify(approvals));
+}
+
+export function getDocumentSignatures() {
+  return JSON.parse(localStorage.getItem(KEYS.DOCUMENT_SIGNATURES) || "[]");
+}
+
+export function saveDocumentSignatures(sigs) {
+  localStorage.setItem(KEYS.DOCUMENT_SIGNATURES, JSON.stringify(sigs));
 }
 
 

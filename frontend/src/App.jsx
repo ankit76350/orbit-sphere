@@ -24,9 +24,13 @@ import ModSuperAdmin from "./modules/ModSuperAdmin";
 import ModLibrary from "./modules/ModLibrary";
 import ModTransport from "./modules/ModTransport";
 import ModFeedback from "./modules/ModFeedback";
+import ModAlumni from "./modules/ModAlumni";
+import ModDocGen from "./modules/ModDocGen";
 import {
   GraduationCap,
   Sparkles,
+  Trophy,
+  IdCard,
   Users,
   Home,
   Wallet,
@@ -112,6 +116,8 @@ function MainApp() {
     { id: "library", label: "Campus Library", icon: Book, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModLibrary },
     { id: "transport", label: "Transport Desk", icon: Bus, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent", "Driver"], comp: ModTransport },
     { id: "feedback", label: "Feedback Desk", icon: Award, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModFeedback },
+    { id: "alumni", label: "Alumni Directory", icon: Trophy, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModAlumni },
+    { id: "docgen", label: "Doc Gen & ID Cards", icon: IdCard, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModDocGen },
     { id: "discipline", label: "Curfew Discipline", icon: Scale, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModDiscipline },
     { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant"], comp: ModInventory },
     { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent"], comp: ModFoodMess },
