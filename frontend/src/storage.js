@@ -36,7 +36,17 @@ import {
   initialGeneratedDocuments,
   initialIdCards,
   initialDocumentApprovals,
-  initialDocumentSignatures
+  initialDocumentSignatures,
+  initialCameras,
+  initialCameraGroups,
+  initialCameraAssignments,
+  initialSecurityIncidents,
+  initialCameraRecordings,
+  initialOnlineClasses,
+  initialClassRecordings,
+  initialAiNotes,
+  initialGalleryAlbums,
+  initialGalleryMedia
 } from "./mockData";
 const KEYS = {
   SCHOOLS: "erp_schools",
@@ -72,6 +82,16 @@ const KEYS = {
   ID_CARDS: "erp_id_cards_v2",
   DOCUMENT_APPROVALS: "erp_document_approvals_v2",
   DOCUMENT_SIGNATURES: "erp_document_signatures_v2",
+  CAMERAS: "erp_cameras_v2",
+  CAMERA_GROUPS: "erp_camera_groups_v2",
+  CAMERA_ASSIGNMENTS: "erp_camera_assignments_v2",
+  SECURITY_INCIDENTS: "erp_security_incidents_v2",
+  CAMERA_RECORDINGS: "erp_camera_recordings_v2",
+  ONLINE_CLASSES: "erp_online_classes_v2",
+  CLASS_RECORDINGS: "erp_class_recordings_v2",
+  AI_NOTES: "erp_ai_notes_v2",
+  GALLERY_ALBUMS: "erp_gallery_albums_v2",
+  GALLERY_MEDIA: "erp_gallery_media_v2",
   ACTIONS_LOG: "erp_audit_logs",
   AUTH_USER: "erp_auth_user"
 };
@@ -195,6 +215,36 @@ export function initializeStorage() {
   }
   if (!localStorage.getItem(KEYS.DOCUMENT_SIGNATURES)) {
     localStorage.setItem(KEYS.DOCUMENT_SIGNATURES, JSON.stringify(initialDocumentSignatures));
+  }
+  if (!localStorage.getItem(KEYS.CAMERAS)) {
+    localStorage.setItem(KEYS.CAMERAS, JSON.stringify(initialCameras));
+  }
+  if (!localStorage.getItem(KEYS.CAMERA_GROUPS)) {
+    localStorage.setItem(KEYS.CAMERA_GROUPS, JSON.stringify(initialCameraGroups));
+  }
+  if (!localStorage.getItem(KEYS.CAMERA_ASSIGNMENTS)) {
+    localStorage.setItem(KEYS.CAMERA_ASSIGNMENTS, JSON.stringify(initialCameraAssignments));
+  }
+  if (!localStorage.getItem(KEYS.SECURITY_INCIDENTS)) {
+    localStorage.setItem(KEYS.SECURITY_INCIDENTS, JSON.stringify(initialSecurityIncidents));
+  }
+  if (!localStorage.getItem(KEYS.CAMERA_RECORDINGS)) {
+    localStorage.setItem(KEYS.CAMERA_RECORDINGS, JSON.stringify(initialCameraRecordings));
+  }
+  if (!localStorage.getItem(KEYS.ONLINE_CLASSES)) {
+    localStorage.setItem(KEYS.ONLINE_CLASSES, JSON.stringify(initialOnlineClasses));
+  }
+  if (!localStorage.getItem(KEYS.CLASS_RECORDINGS)) {
+    localStorage.setItem(KEYS.CLASS_RECORDINGS, JSON.stringify(initialClassRecordings));
+  }
+  if (!localStorage.getItem(KEYS.AI_NOTES)) {
+    localStorage.setItem(KEYS.AI_NOTES, JSON.stringify(initialAiNotes));
+  }
+  if (!localStorage.getItem(KEYS.GALLERY_ALBUMS)) {
+    localStorage.setItem(KEYS.GALLERY_ALBUMS, JSON.stringify(initialGalleryAlbums));
+  }
+  if (!localStorage.getItem(KEYS.GALLERY_MEDIA)) {
+    localStorage.setItem(KEYS.GALLERY_MEDIA, JSON.stringify(initialGalleryMedia));
   }
   if (!localStorage.getItem("erp_results")) {
     localStorage.setItem("erp_results", JSON.stringify(generateAcademicResults(studentList)));
@@ -580,6 +630,86 @@ export function getDocumentSignatures() {
 
 export function saveDocumentSignatures(sigs) {
   localStorage.setItem(KEYS.DOCUMENT_SIGNATURES, JSON.stringify(sigs));
+}
+
+export function getCameras() {
+  return JSON.parse(localStorage.getItem(KEYS.CAMERAS) || "[]");
+}
+
+export function saveCameras(cameras) {
+  localStorage.setItem(KEYS.CAMERAS, JSON.stringify(cameras));
+}
+
+export function getCameraGroups() {
+  return JSON.parse(localStorage.getItem(KEYS.CAMERA_GROUPS) || "[]");
+}
+
+export function saveCameraGroups(groups) {
+  localStorage.setItem(KEYS.CAMERA_GROUPS, JSON.stringify(groups));
+}
+
+export function getCameraAssignments() {
+  return JSON.parse(localStorage.getItem(KEYS.CAMERA_ASSIGNMENTS) || "[]");
+}
+
+export function saveCameraAssignments(assignments) {
+  localStorage.setItem(KEYS.CAMERA_ASSIGNMENTS, JSON.stringify(assignments));
+}
+
+export function getSecurityIncidents() {
+  return JSON.parse(localStorage.getItem(KEYS.SECURITY_INCIDENTS) || "[]");
+}
+
+export function saveSecurityIncidents(incidents) {
+  localStorage.setItem(KEYS.SECURITY_INCIDENTS, JSON.stringify(incidents));
+}
+
+export function getCameraRecordings() {
+  return JSON.parse(localStorage.getItem(KEYS.CAMERA_RECORDINGS) || "[]");
+}
+
+export function saveCameraRecordings(recordings) {
+  localStorage.setItem(KEYS.CAMERA_RECORDINGS, JSON.stringify(recordings));
+}
+
+export function getOnlineClasses() {
+  return JSON.parse(localStorage.getItem(KEYS.ONLINE_CLASSES) || "[]");
+}
+
+export function saveOnlineClasses(classes) {
+  localStorage.setItem(KEYS.ONLINE_CLASSES, JSON.stringify(classes));
+}
+
+export function getClassRecordings() {
+  return JSON.parse(localStorage.getItem(KEYS.CLASS_RECORDINGS) || "[]");
+}
+
+export function saveClassRecordings(recordings) {
+  localStorage.setItem(KEYS.CLASS_RECORDINGS, JSON.stringify(recordings));
+}
+
+export function getAiNotes() {
+  return JSON.parse(localStorage.getItem(KEYS.AI_NOTES) || "[]");
+}
+
+export function saveAiNotes(notes) {
+  localStorage.setItem(KEYS.AI_NOTES, JSON.stringify(notes));
+}
+
+export function getGalleryAlbums() {
+  return JSON.parse(localStorage.getItem(KEYS.GALLERY_ALBUMS) || "[]");
+}
+
+export function saveGalleryAlbums(albums) {
+  localStorage.setItem(KEYS.GALLERY_ALBUMS, JSON.stringify(albums));
+}
+
+export function getGalleryMedia() {
+  return JSON.parse(localStorage.getItem(KEYS.GALLERY_MEDIA) || "[]");
+}
+
+export function saveGalleryMedia(media) {
+  localStorage.setItem(KEYS.GALLERY_MEDIA, JSON.stringify(media));
 }
 
 

@@ -26,11 +26,16 @@ import ModTransport from "./modules/ModTransport";
 import ModFeedback from "./modules/ModFeedback";
 import ModAlumni from "./modules/ModAlumni";
 import ModDocGen from "./modules/ModDocGen";
+import ModCctv from "./modules/ModCctv";
+import ModVirtualClass from "./modules/ModVirtualClass";
+import ModGallery from "./modules/ModGallery";
 import {
   GraduationCap,
   Sparkles,
   Trophy,
   IdCard,
+  Video,
+  Laptop,
   Users,
   Home,
   Wallet,
@@ -50,7 +55,8 @@ import {
   LogOut,
   Bell,
   Search,
-  ChevronDown
+  ChevronDown,
+  Image
 } from "lucide-react";
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(getAuthUser());
@@ -118,6 +124,9 @@ function MainApp() {
     { id: "feedback", label: "Feedback Desk", icon: Award, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModFeedback },
     { id: "alumni", label: "Alumni Directory", icon: Trophy, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModAlumni },
     { id: "docgen", label: "Doc Gen & ID Cards", icon: IdCard, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModDocGen },
+    { id: "cctv", label: "Campus CCTV & Security", icon: Video, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModCctv },
+    { id: "virtual_class", label: "Virtual Class & AI Hub", icon: Laptop, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModVirtualClass },
+    { id: "gallery", label: "School Media Gallery", icon: Image, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModGallery },
     { id: "discipline", label: "Curfew Discipline", icon: Scale, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModDiscipline },
     { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant"], comp: ModInventory },
     { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent"], comp: ModFoodMess },

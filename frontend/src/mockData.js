@@ -971,6 +971,70 @@ export const initialDocumentSignatures = [
   { id: "sig-2", signerId: "staff-accountant", signerName: "Liam Davies", designation: "Chief Accountant", signatureUrl: "Accountant_Signature_V2.png", active: true }
 ];
 
+export const initialCameras = [
+  { id: "cam-101", name: "Classroom 5-A Camera", cameraType: "IP RTSP", location: "Class 5-A", streamUrl: "rtsp://streams.stjude.edu/class5a", status: "Online" },
+  { id: "cam-102", name: "Classroom 5-B Camera", cameraType: "ONVIF Cloud", location: "Class 5-B", streamUrl: "rtsp://streams.stjude.edu/class5b", status: "Online" },
+  { id: "cam-205", name: "Classroom 10-A Camera", cameraType: "IP RTSP", location: "Class 10-A", streamUrl: "rtsp://streams.stjude.edu/class10a", status: "Online" },
+  { id: "cam-hst-1", name: "Hostel Entrance A", cameraType: "NVR Local", location: "Hostel Entrance", streamUrl: "rtsp://streams.stjude.edu/hostel_ent_a", status: "Online" },
+  { id: "cam-hst-2", name: "Hostel Corridor B", cameraType: "NVR Local", location: "Hostel Corridor", streamUrl: "rtsp://streams.stjude.edu/hostel_cor_b", status: "Online" },
+  { id: "cam-hst-3", name: "Hostel Bathroom Common", cameraType: "ONVIF", location: "Hostel Bathroom Common (Restricted)", streamUrl: "rtsp://streams.stjude.edu/hostel_bath_common", status: "Online" },
+  { id: "cam-gate", name: "Main Gate Security", cameraType: "NVR Local", location: "Main Perimeter Gate", streamUrl: "rtsp://streams.stjude.edu/main_gate", status: "Online" },
+  { id: "cam-bus-12f", name: "Bus 12 Front Camera", cameraType: "4G Mobile Cam", location: "Bus 12 Front", streamUrl: "rtsp://streams.stjude.edu/bus12_front", status: "Online" },
+  { id: "cam-bus-12p", name: "Bus 12 Passenger Area", cameraType: "4G Mobile Cam", location: "Bus 12 Passenger", streamUrl: "rtsp://streams.stjude.edu/bus12_pass", status: "Online" }
+];
+
+export const initialCameraGroups = [
+  { id: "grp-academic", groupName: "Academic Building Wing", groupType: "Classrooms" },
+  { id: "grp-hostel", groupName: "Boys & Girls Dormitories", groupType: "Hostel Monitoring" },
+  { id: "grp-transport", groupName: "School Bus Fleet Cams", groupType: "Transit Cameras" },
+  { id: "grp-perimeter", groupName: "Security Gates & Fences", groupType: "Gate Monitoring" }
+];
+
+export const initialCameraAssignments = [
+  { id: "asg-1", cameraId: "cam-101", gradeId: "Grade 5", classId: "5-A", sectionId: "A" },
+  { id: "asg-2", cameraId: "cam-102", gradeId: "Grade 5", classId: "5-B", sectionId: "B" },
+  { id: "asg-3", cameraId: "cam-205", gradeId: "Grade 10", classId: "10-A", sectionId: "A" }
+];
+
+export const initialSecurityIncidents = [
+  { id: "inc-1", cameraId: "cam-hst-2", incidentType: "Fight / Violence", severity: "Critical", description: "Altercation detected in B-Wing corridor between two senior pupils.", status: "Investigation", detectedAt: "2026-06-08 14:32:00" },
+  { id: "inc-2", cameraId: "cam-gate", incidentType: "Unauthorized Entry", severity: "High", description: "Tailgating event registered at vehicle access gate barrier.", status: "Resolved", detectedAt: "2026-06-09 09:15:00" },
+  { id: "inc-3", cameraId: "cam-hst-1", incidentType: "Suspicious Activity", severity: "Low", description: "Loitering behavior flagged at hostel rear access door past midnight.", status: "Alert", detectedAt: "2026-06-10 01:04:00" }
+];
+
+export const initialCameraRecordings = [
+  { id: "rec-1", cameraId: "cam-205", recordingUrl: "recording_class10a_0609.mp4", startTime: "2026-06-09 09:00:00", endTime: "2026-06-09 10:30:00" },
+  { id: "rec-2", cameraId: "cam-gate", recordingUrl: "recording_gate_0608.mp4", startTime: "2026-06-08 08:00:00", endTime: "2026-06-08 18:00:00" }
+];
+
+export const initialOnlineClasses = [
+  { id: "class-1", subjectId: "Math", subjectName: "Grade 10 Mathematics", teacherId: "staff-teacher-1", teacherName: "John Doe", classId: "10-A", sectionId: "A", meetingLink: "https://meet.google.com/abc-defg-hij", date: "2026-06-12", startTime: "09:00", endTime: "10:00", status: "Upcoming" },
+  { id: "class-2", subjectId: "Science", subjectName: "Grade 10 Science", teacherId: "staff-teacher-1", teacherName: "John Doe", classId: "10-A", sectionId: "A", meetingLink: "https://meet.google.com/xyz-pdqk-wuv", date: "2026-06-10", startTime: "10:30", endTime: "11:30", status: "Live" },
+  { id: "class-3", subjectId: "History", subjectName: "Grade 5 History", teacherId: "staff-teacher-2", teacherName: "Jane Smith", classId: "5-A", sectionId: "A", meetingLink: "https://meet.google.com/mnp-qrst-uvw", date: "2026-06-09", startTime: "14:00", endTime: "15:00", status: "Completed" }
+];
+
+export const initialClassRecordings = [
+  { id: "rec-cls-3", classId: "class-3", recordingUrl: "https://storage.googleapis.com/stjude-classes/history_g5_0609.mp4", transcript: "Speaker 1 (Jane Smith): Welcome class. Today we discuss the origins of the Roman Republic, founded in 509 BC after the overthrow of the Roman monarchy. Speaker 2 (Liam Smith): Did they have elections back then? Speaker 1: Yes, the citizens elected their representatives, forming the early Senate.", summary: "Introduction to the Roman Republic. Key points: Founded in 509 BC, overthrow of monarchic rule, senate representation, and Roman citizen voting rights." }
+];
+
+export const initialAiNotes = [
+  { id: "note-cls-3", classId: "class-3", notesContent: "St. Jude's AI Notes Generator - Session G5 History. Key Concepts: Roman Republic. Important Dates: 509 BC (Republic Foundation). Definitions: Senate (Council of senior Roman representatives). Flashcards: 1. Q: When was Roman Republic founded? A: 509 BC. Mind Map: Early Rome -> Monarchy -> 509 BC Republic -> Senate -> Consuls.", generatedAt: "2026-06-09 15:15:00" }
+];
+
+export const initialGalleryAlbums = [
+  { id: "alb-annual", title: "Decadal Annual Day Celebration", eventType: "Cultural Program", coverImage: "annual_day_cover.jpg", status: "Approved" },
+  { id: "alb-sports", title: "Inter-House Sports Championship", eventType: "Sports Day", coverImage: "sports_day_cover.jpg", status: "Approved" },
+  { id: "alb-science", title: "Innovative Science Fair 2026", eventType: "Science Exhibition", coverImage: "science_fair_cover.jpg", status: "Pending" }
+];
+
+export const initialGalleryMedia = [
+  { id: "med-1", albumId: "alb-annual", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1511578314322-379afb476865" },
+  { id: "med-2", albumId: "alb-sports", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211" },
+  { id: "med-3", albumId: "alb-science", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf" }
+];
+
+
+
 
 
 
