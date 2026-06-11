@@ -1,0 +1,44 @@
+package com.orbitastra.backend.model;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.model.enums.AlumniStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Document(collection = "alumni_profiles")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AlumniProfile {
+
+    @Id
+    private String id;
+
+    private String schoolId;
+
+    private String name;
+
+    private Integer graduationYear;
+
+    private String batch;
+
+    private String profession;
+
+    private String company;
+
+    private String city;
+
+    private String country;
+
+    private String linkedinUrl;
+
+    private AlumniStatus status;
+
+    private String coverGradient;
+}
