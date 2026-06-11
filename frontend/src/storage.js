@@ -257,7 +257,7 @@ export function initializeStorage() {
     const defaultBirthdays = [
       {
         id: "event-foundation",
-        tenantId: "school-01",
+        schoolId: "school-01",
         title: "St. Jude's 75th Foundation Day",
         eventType: "School Foundation Day",
         date: "2026-06-18",
@@ -266,7 +266,7 @@ export function initializeStorage() {
       },
       {
         id: "event-teachers",
-        tenantId: "school-01",
+        schoolId: "school-01",
         title: "Annual Teacher's Day Tribute",
         eventType: "Teacher's Day",
         date: "2026-09-05",
@@ -275,7 +275,7 @@ export function initializeStorage() {
       },
       {
         id: "event-anniversary-principal",
-        tenantId: "school-01",
+        schoolId: "school-01",
         title: "Principal Pendleton 10-Year Work Anniversary",
         eventType: "Work Anniversary",
         date: "2026-06-15",
@@ -290,7 +290,7 @@ export function initializeStorage() {
     const defaultNotifications = [
       {
         id: "notif-seed-1",
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: "student",
         personId: "student-7",
         personName: "Henry Miller",
@@ -301,7 +301,7 @@ export function initializeStorage() {
       },
       {
         id: "notif-seed-2",
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: "student",
         personId: "student-7",
         personName: "Henry Miller",
@@ -312,7 +312,7 @@ export function initializeStorage() {
       },
       {
         id: "notif-seed-3",
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: "staff",
         personId: "staff-hrmanager",
         personName: "Eleanor Vance",
@@ -329,7 +329,7 @@ export function initializeStorage() {
     const defaultCards = [
       {
         id: "card-seed-1",
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: "student",
         personId: "student-7",
         personName: "Henry Miller",
@@ -346,7 +346,7 @@ export function initializeStorage() {
     const defaultBirthdayGallery = [
       {
         id: "bg-seed-1",
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: "student",
         personId: "student-7",
         personName: "Henry Miller",

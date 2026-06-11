@@ -125,10 +125,10 @@ export default function ModCelebrations({ user }) {
     if (parts.length !== 3) return null;
     const bMonth = parseInt(parts[1], 10) - 1;
     const bDay = parseInt(parts[2], 10);
-    
+
     const currentYear = today.getFullYear();
     const nextBDay = new Date(currentYear, bMonth, bDay);
-    
+
     // Set hours to zero for clean date comparisons
     today.setHours(0, 0, 0, 0);
     nextBDay.setHours(0, 0, 0, 0);
@@ -137,14 +137,14 @@ export default function ModCelebrations({ user }) {
     if (nextBDay < today && (today.getDate() !== bDay || today.getMonth() !== bMonth)) {
       nextBDay.setFullYear(currentYear + 1);
     }
-    
+
     const diffTime = nextBDay - today;
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
+
     const isToday = today.getDate() === bDay && today.getMonth() === bMonth;
     const isThisWeek = isToday || (diffDays > 0 && diffDays <= 7);
     const isThisMonth = bMonth === today.getMonth();
-    
+
     return {
       isToday,
       daysUntil: isToday ? 0 : diffDays,
@@ -176,9 +176,9 @@ export default function ModCelebrations({ user }) {
   const monthBirthdays = combinedRoster.filter(p => p.birthday.isThisMonth && !p.birthday.isToday && !p.birthday.isThisWeek);
 
   const filteredRoster = combinedRoster.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (p.type === "Student" && p.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                          (p.type === "Staff" && p.role.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.type === "Student" && p.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.type === "Staff" && p.role.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesType = rosterType === "all" || p.type.toLowerCase() === rosterType;
     return matchesSearch && matchesType;
   }).sort((a, b) => a.birthday.daysUntil - b.birthday.daysUntil);
@@ -203,7 +203,7 @@ export default function ModCelebrations({ user }) {
 
     const newEvent = {
       id: `event-${Date.now()}`,
-      tenantId: "school-01",
+      schoolId: "school-01",
       title: newEventTitle.trim(),
       eventType: newEventType,
       date: newEventDate,
@@ -259,15 +259,15 @@ export default function ModCelebrations({ user }) {
     setTimeout(() => {
       const newCard = {
         id: `card-${Date.now()}`,
-        tenantId: "school-01",
+        schoolId: "school-01",
         personType: selectedPerson.type.toLowerCase(),
         personId: selectedPerson.id,
         personName: selectedPerson.name,
-        cardUrl: cardTheme === "festive" 
-          ? "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=800" 
+        cardUrl: cardTheme === "festive"
+          ? "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=800"
           : cardTheme === "academic"
-          ? "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800"
-          : "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800",
+            ? "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800"
+            : "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800",
         message: cardMessage,
         theme: cardTheme,
         createdAt: new Date().toISOString().replace("T", " ").substring(0, 19)
@@ -356,7 +356,7 @@ export default function ModCelebrations({ user }) {
 
           const newNotif = {
             id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            tenantId: "school-01",
+            schoolId: "school-01",
             personType: person.type.toLowerCase(),
             personId: person.id,
             personName: person.name,
@@ -451,7 +451,7 @@ export default function ModCelebrations({ user }) {
     // Create record in birthday gallery
     const newPic = {
       id: `bg-${Date.now()}`,
-      tenantId: "school-01",
+      schoolId: "school-01",
       personType: "student",
       personId: st.id,
       personName: st.name,
@@ -505,11 +505,11 @@ export default function ModCelebrations({ user }) {
               Track student and staff birthdays, send automatic wishes across multi-channel SaaS streams, customized digital greeting certificates, and schedule hostel feasts.
             </p>
           </div>
-          
+
           <div className="flex flex-wrap gap-2 shrink-0">
             {isSuperAdmin && (
-              <Button 
-                onClick={handleRunScheduler} 
+              <Button
+                onClick={handleRunScheduler}
                 disabled={isSchedulerRunning}
                 className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-extrabold flex items-center gap-1.5 size-sm text-xs rounded-xl"
               >
@@ -592,27 +592,24 @@ export default function ModCelebrations({ user }) {
       <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-2xl overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab("dashboard")}
-          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeTab === "dashboard" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "dashboard" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           Overview & Calendar
         </button>
 
         <button
           onClick={() => setActiveTab("greeting_cards")}
-          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeTab === "greeting_cards" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "greeting_cards" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           Certificate & Card Canvas
         </button>
 
         <button
           onClick={() => setActiveTab("scheduler")}
-          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeTab === "scheduler" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "scheduler" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           Midnight Scheduler Logs
         </button>
@@ -620,9 +617,8 @@ export default function ModCelebrations({ user }) {
         {isWarden && (
           <button
             onClick={() => setActiveTab("warden_desk")}
-            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-              activeTab === "warden_desk" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-            }`}
+            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "warden_desk" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              }`}
           >
             Hostel Warden Desk
           </button>
@@ -631,9 +627,8 @@ export default function ModCelebrations({ user }) {
         {isTeacher && (
           <button
             onClick={() => setActiveTab("teacher_desk")}
-            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-              activeTab === "teacher_desk" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-            }`}
+            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "teacher_desk" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              }`}
           >
             Classroom Roster
           </button>
@@ -642,9 +637,8 @@ export default function ModCelebrations({ user }) {
         {isParent && (
           <button
             onClick={() => setActiveTab("parent_portal")}
-            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-              activeTab === "parent_portal" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-            }`}
+            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "parent_portal" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              }`}
           >
             Parent App
           </button>
@@ -652,9 +646,8 @@ export default function ModCelebrations({ user }) {
 
         <button
           onClick={() => setActiveTab("gallery")}
-          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeTab === "gallery" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "gallery" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           Celebration Gallery
         </button>
@@ -662,9 +655,8 @@ export default function ModCelebrations({ user }) {
         {isPrincipal && (
           <button
             onClick={() => setActiveTab("custom_events")}
-            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-              activeTab === "custom_events" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-            }`}
+            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "custom_events" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+              }`}
           >
             Custom Events Editor
           </button>
@@ -672,9 +664,8 @@ export default function ModCelebrations({ user }) {
 
         <button
           onClick={() => setActiveTab("api_docs")}
-          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeTab === "api_docs" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-          }`}
+          className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${activeTab === "api_docs" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+            }`}
         >
           Developer Console (API)
         </button>
@@ -687,7 +678,7 @@ export default function ModCelebrations({ user }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left / Middle: Celebrant Lists */}
           <div className="lg:col-span-2 space-y-6">
-            
+
             {/* Live Today Wishes Display */}
             {todayBirthdays.length > 0 ? (
               <div className="bg-rose-50/50 border border-rose-150 p-6 rounded-3xl space-y-4">
@@ -697,7 +688,7 @@ export default function ModCelebrations({ user }) {
                   </h3>
                   <Badge variant="danger" className="bg-rose-600 text-white font-extrabold uppercase animate-pulse">Celebration active</Badge>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {todayBirthdays.map((person) => (
                     <div key={person.id} className="bg-white border border-rose-100 p-4.5 rounded-2xl flex items-center justify-between shadow-2xs hover:shadow-xs transition duration-200">
@@ -707,24 +698,24 @@ export default function ModCelebrations({ user }) {
                         </div>
                         <div>
                           <p className="text-xs font-black text-slate-800 flex items-center gap-1">
-                            {person.name} 
+                            {person.name}
                             <Badge variant="secondary" className="text-[8px] px-1 py-0 px-2 rounded">{person.type}</Badge>
                           </p>
                           <p className="text-[10px] text-slate-450 font-bold mt-1">
-                            {person.type === "Student" 
+                            {person.type === "Student"
                               ? `${person.grade} • Bed ${person.hostelRoomNumber || "Day Boarder"}`
                               : `${person.department} • ${person.role}`}
                           </p>
                         </div>
                       </div>
-                      
-                      <Button 
-                        size="sm" 
+
+                      <Button
+                        size="sm"
                         onClick={() => {
                           setSelectedPerson(person);
                           setCardMessage(`Dear ${person.name}, St. Jude Boarding School wishes you a fabulous birthday filled with high marks and pleasant memories. Happy Birthday!`);
                           setActiveTab("greeting_cards");
-                        }} 
+                        }}
                         className="bg-rose-550 text-white hover:bg-rose-600 font-bold uppercase py-1 px-3 text-[10px] rounded-lg cursor-pointer"
                       >
                         Create Card
@@ -746,12 +737,12 @@ export default function ModCelebrations({ user }) {
                   <h3 className="text-xs font-black text-slate-808 uppercase tracking-widest">Celebrations Registry</h3>
                   <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">Filtered directory of student & staff profiles</p>
                 </div>
-                
+
                 <div className="flex gap-2 w-full md:w-auto">
                   <div className="relative flex-1 md:w-44">
                     <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Search celebrant..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -792,12 +783,12 @@ export default function ModCelebrations({ user }) {
                       </tr>
                     ) : (
                       filteredRoster.map((person) => {
-                        const statusColor = person.birthday.isToday 
+                        const statusColor = person.birthday.isToday
                           ? "bg-rose-50 text-rose-600 border-rose-200"
-                          : person.birthday.isThisWeek 
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : "bg-slate-100 text-slate-650 border-slate-200";
-                        
+                          : person.birthday.isThisWeek
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-slate-100 text-slate-650 border-slate-200";
+
                         return (
                           <tr key={person.id} className="hover:bg-slate-50/50 transition">
                             <td className="p-3 font-extrabold text-slate-800">{person.name}</td>
@@ -806,7 +797,7 @@ export default function ModCelebrations({ user }) {
                             </td>
                             <td className="p-3 font-mono text-slate-450">{person.dob}</td>
                             <td className="p-3 text-slate-500 font-bold">
-                              {person.type === "Student" 
+                              {person.type === "Student"
                                 ? `${person.grade} (Bed ${person.hostelRoomNumber || "N/A"})`
                                 : person.department}
                             </td>
@@ -835,7 +826,7 @@ export default function ModCelebrations({ user }) {
 
           {/* Right Column: Custom Celebration Events & Recently Celebrated */}
           <div className="space-y-6">
-            
+
             {/* Upcoming School Celebrations */}
             <div className="bg-white border border-slate-100 p-6 rounded-3xl space-y-4 shadow-2xs">
               <div className="flex justify-between items-center border-b pb-3 border-slate-50">
@@ -843,7 +834,7 @@ export default function ModCelebrations({ user }) {
                   <Gift className="h-4.5 w-4.5 text-indigo-650" /> Celebration Calendar
                 </h3>
                 {isPrincipal && (
-                  <button 
+                  <button
                     onClick={() => setIsAddEventOpen(true)}
                     className="p-1 text-indigo-655 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition shrink-0 cursor-pointer"
                     title="Add Custom Event"
@@ -857,7 +848,7 @@ export default function ModCelebrations({ user }) {
                 {customEvents.map((ev) => (
                   <div key={ev.id} className="p-3.5 bg-slate-50 border border-slate-150 rounded-2xl relative group hover:border-indigo-300 transition duration-200">
                     {isPrincipal && (
-                      <button 
+                      <button
                         onClick={() => handleDeleteEvent(ev.id, ev.title)}
                         className="absolute top-3 right-3 text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition duration-150 p-1 bg-white hover:bg-rose-50 border border-slate-100 rounded-lg"
                       >
@@ -883,7 +874,7 @@ export default function ModCelebrations({ user }) {
               <h3 className="text-xs font-black text-slate-808 uppercase tracking-widest flex items-center gap-1.5">
                 <CheckCircle className="h-4.5 w-4.5 text-emerald-600" /> Recently Celebrated
               </h3>
-              
+
               <div className="space-y-3.5">
                 {combinedRoster.filter(p => p.birthday.daysUntil > 330).slice(0, 3).map((p) => (
                   <div key={p.id} className="flex gap-3 items-center p-2 rounded-xl">
@@ -957,14 +948,14 @@ export default function ModCelebrations({ user }) {
                 />
               </div>
 
-              <Input 
+              <Input
                 label="Signatory Officer"
                 value={principalSig}
                 onChange={(e) => setPrincipalSig(e.target.value)}
               />
 
-              <Button 
-                onClick={handleGenerateCard} 
+              <Button
+                onClick={handleGenerateCard}
                 disabled={isGeneratingCard}
                 className="w-full bg-indigo-650 hover:bg-slate-900 text-white font-extrabold py-2.5 rounded-xl transition duration-200"
               >
@@ -986,22 +977,20 @@ export default function ModCelebrations({ user }) {
             <div className="flex justify-center items-center p-8 bg-slate-900 border border-slate-950 rounded-3xl relative overflow-hidden min-h-[460px]">
               {selectedPerson ? (
                 /* The custom themed card */
-                <div className={`w-full max-w-lg aspect-[1.6] bg-white rounded-2xl shadow-2xl p-8 relative flex flex-col justify-between border-8 overflow-hidden animate-scale-up ${
-                  cardTheme === "festive" 
-                    ? "border-amber-400 bg-radial-gradient from-amber-50 to-white" 
+                <div className={`w-full max-w-lg aspect-[1.6] bg-white rounded-2xl shadow-2xl p-8 relative flex flex-col justify-between border-8 overflow-hidden animate-scale-up ${cardTheme === "festive"
+                    ? "border-amber-400 bg-radial-gradient from-amber-50 to-white"
                     : cardTheme === "academic"
-                    ? "border-purple-800 bg-radial-gradient from-purple-50 to-white"
-                    : "border-blue-800 bg-radial-gradient from-blue-50 to-white"
-                }`}>
+                      ? "border-purple-800 bg-radial-gradient from-purple-50 to-white"
+                      : "border-blue-800 bg-radial-gradient from-blue-50 to-white"
+                  }`}>
                   {/* Backdrop subtle graphics */}
                   <div className="absolute top-0 right-0 -mt-16 -mr-16 h-36 w-36 rounded-full bg-blue-500/5 blur-xl pointer-events-none" />
-                  
+
                   {/* Card Top Branding Header */}
                   <div className="flex justify-between items-start border-b pb-4 border-slate-100">
                     <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-black text-white text-[11px] shadow-sm ${
-                        cardTheme === "festive" ? "bg-amber-500" : cardTheme === "academic" ? "bg-purple-800" : "bg-blue-600"
-                      }`}>
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-black text-white text-[11px] shadow-sm ${cardTheme === "festive" ? "bg-amber-500" : cardTheme === "academic" ? "bg-purple-800" : "bg-blue-600"
+                        }`}>
                         SJ
                       </div>
                       <div className="leading-tight text-left">
@@ -1027,7 +1016,7 @@ export default function ModCelebrations({ user }) {
                       <p className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Dated</p>
                       <p className="text-[9px] text-slate-800 mt-0.5">{new Date().toISOString().split("T")[0]}</p>
                     </div>
-                    
+
                     <div className="text-right">
                       {/* Signature graphic simulation */}
                       <p className="text-sm font-handwriting text-slate-800 italic pr-2 font-black leading-none">{principalSig}</p>
@@ -1065,8 +1054,8 @@ export default function ModCelebrations({ user }) {
                           <p className="text-[9px] text-slate-450 font-bold uppercase mt-1">Theme: {c.theme} • Date: {c.createdAt.split(" ")[0]}</p>
                         </div>
                       </div>
-                      
-                      <button 
+
+                      <button
                         onClick={() => {
                           const w = combinedRoster.find(x => x.id === c.personId);
                           if (w) setSelectedPerson(w);
@@ -1118,8 +1107,8 @@ export default function ModCelebrations({ user }) {
             </div>
 
             {isSuperAdmin && (
-              <Button 
-                onClick={handleRunScheduler} 
+              <Button
+                onClick={handleRunScheduler}
                 disabled={isSchedulerRunning}
                 className="w-full bg-rose-600 hover:bg-slate-900 text-white font-extrabold py-2.5 rounded-xl shadow-xs transition duration-200"
               >
@@ -1131,7 +1120,7 @@ export default function ModCelebrations({ user }) {
           {/* Interactive live logs console */}
           <div className="lg:col-span-8 bg-slate-950 rounded-3xl p-6 flex flex-col justify-between border border-slate-900 shadow-md relative overflow-hidden min-h-[460px]">
             <div className="absolute inset-0 bg-scanlines opacity-[0.08] pointer-events-none" />
-            
+
             {/* Header console */}
             <div className="flex justify-between items-center text-[10px] text-white font-mono bg-black/60 px-3.5 py-2 rounded-xl z-10 border border-slate-900">
               <span className="uppercase font-bold tracking-widest flex items-center gap-1.5">
@@ -1155,7 +1144,7 @@ export default function ModCelebrations({ user }) {
                   else if (log.includes("[Database]")) color = "text-purple-400";
                   else if (log.includes("[Channel Manager]")) color = "text-amber-400";
                   else if (log.includes("completed")) color = "text-emerald-400 font-black";
-                  
+
                   return (
                     <div key={idx} className={`${color}`}>
                       {log}
@@ -1168,7 +1157,7 @@ export default function ModCelebrations({ user }) {
             {/* Progress status indicators */}
             <div className="space-y-2 z-10 relative">
               <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="bg-indigo-500 h-full rounded-full transition-all duration-300"
                   style={{ width: `${schedulerProgress}%` }}
                 />
@@ -1198,7 +1187,7 @@ export default function ModCelebrations({ user }) {
               Warden Brody and Sarah Jenkins can request custom cakes and coordinate special dinners for hostellers celebrating their birthday.
             </p>
 
-            <Button 
+            <Button
               onClick={() => setIsMealRequestOpen(true)}
               className="w-full bg-indigo-650 hover:bg-slate-900 text-white font-extrabold py-2.5 rounded-xl shadow-xs text-xs"
             >
@@ -1261,7 +1250,7 @@ export default function ModCelebrations({ user }) {
                               {m.status}
                             </Badge>
                             {m.status === "Pending Warden" && (
-                              <button 
+                              <button
                                 onClick={() => handleCakeStatusUpdate(m.id, "Cake Ordered")}
                                 className="p-1 text-[8px] font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
                               >
@@ -1372,7 +1361,7 @@ export default function ModCelebrations({ user }) {
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-gradient-to-tr from-indigo-900 to-indigo-950 text-white rounded-3xl p-6 border border-slate-850 relative overflow-hidden shadow-md">
               <div className="absolute right-0 bottom-0 -mb-16 -mr-16 h-36 w-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-              
+
               <div className="flex items-center gap-4.5 z-10 relative">
                 <div className="h-14 w-14 rounded-full bg-indigo-600 border-2 border-indigo-400 text-white flex items-center justify-center text-lg font-black shrink-0 uppercase shadow-md">
                   {myChild.name.split(" ").map(n => n[0]).slice(0, 2).join("")}
@@ -1410,14 +1399,14 @@ export default function ModCelebrations({ user }) {
                 <Send className="h-4.5 w-4.5 text-indigo-650" /> Send Birthday Wish
               </h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Submit a personal wish that will show in your child's mobile app drawer.</p>
-              
+
               <div className="space-y-3 pt-1">
                 <textarea
                   rows={3}
                   className="w-full bg-slate-50 border border-slate-150 text-slate-808 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                   placeholder="Dear, Wishing you a wonderful birthday! Stay healthy and keep making us proud..."
                 />
-                <Button 
+                <Button
                   onClick={() => addToast("Wish Submitted", "Personal greeting wish queued to child portal display.")}
                   className="w-full bg-indigo-650 hover:bg-slate-900 text-white font-bold py-2 rounded-xl text-xs"
                 >
@@ -1448,11 +1437,11 @@ export default function ModCelebrations({ user }) {
                     </div>
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <p className="text-[11px] text-slate-650 leading-relaxed font-semibold italic">"{c.message}"</p>
-                      
+
                       <div className="border-t pt-3 flex justify-between items-center">
                         <span className="text-[8px] font-mono text-slate-400">{c.createdAt.split(" ")[0]}</span>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           onClick={() => addToast("PDF Download Initiated", "Simulated digital certificate download complete.")}
                           className="bg-indigo-650 hover:bg-slate-900 text-white text-[9px] font-bold uppercase py-1 px-3 rounded flex items-center gap-1 cursor-pointer"
                         >
@@ -1478,9 +1467,9 @@ export default function ModCelebrations({ user }) {
               <h3 className="text-xs font-black text-slate-808 uppercase tracking-widest">Birthday Media Gallery</h3>
               <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">Browse cake cutting photos and dorm party snapshots</p>
             </div>
-            
+
             {isWarden && (
-              <Button 
+              <Button
                 onClick={() => setIsUploadPhotoOpen(true)}
                 className="bg-indigo-650 hover:bg-slate-900 text-white font-extrabold py-1.5 px-4 rounded-xl text-xs flex items-center gap-1.5"
               >
@@ -1525,8 +1514,8 @@ export default function ModCelebrations({ user }) {
               <h3 className="text-xs font-black text-slate-808 uppercase tracking-widest">Custom Celebration Planner</h3>
               <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">Schedule institutional milestones and work anniversaries</p>
             </div>
-            
-            <Button 
+
+            <Button
               onClick={() => setIsAddEventOpen(true)}
               className="bg-indigo-650 hover:bg-slate-900 text-white font-extrabold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5"
             >
@@ -1667,7 +1656,7 @@ CREATE TABLE birthday_gallery (
       {/* =========================================================
           POPUPS & DIALOG DIALOG BOXES
           ========================================================= */}
-      
+
       {/* 1. Add Custom Event Dialog */}
       <Dialog
         isOpen={isAddEventOpen}
@@ -1675,7 +1664,7 @@ CREATE TABLE birthday_gallery (
         title="Schedule Custom Celebration Event"
       >
         <form onSubmit={handleAddCustomEvent} className="space-y-4 pt-1">
-          <Input 
+          <Input
             label="Celebration Title *"
             value={newEventTitle}
             onChange={(e) => setNewEventTitle(e.target.value)}
@@ -1684,7 +1673,7 @@ CREATE TABLE birthday_gallery (
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <Select 
+            <Select
               label="Event Category Type"
               options={[
                 { label: "School Foundation Day", value: "School Foundation Day" },
@@ -1697,7 +1686,7 @@ CREATE TABLE birthday_gallery (
               onChange={(e) => setNewEventType(e.target.value)}
             />
 
-            <Input 
+            <Input
               label="Scheduled Date *"
               type="date"
               value={newEventDate}
@@ -1717,7 +1706,7 @@ CREATE TABLE birthday_gallery (
             />
           </div>
 
-          <Select 
+          <Select
             label="Target Audience"
             options={[
               { label: "All School Members", value: "All" },
@@ -1742,7 +1731,7 @@ CREATE TABLE birthday_gallery (
         title="Upload Cake Cutting Photo"
       >
         <form onSubmit={handleUploadBirthdayPhoto} className="space-y-4 pt-1">
-          <Select 
+          <Select
             label="Select Birthday Student *"
             options={[
               { label: "-- Select Celebrant Student --", value: "" },
@@ -1753,7 +1742,7 @@ CREATE TABLE birthday_gallery (
             required
           />
 
-          <Input 
+          <Input
             label="Photo URL Reference *"
             value={photoUrl}
             onChange={(e) => setPhotoUrl(e.target.value)}
@@ -1761,7 +1750,7 @@ CREATE TABLE birthday_gallery (
             required
           />
 
-          <Input 
+          <Input
             label="Photo Caption Description"
             value={photoCaption}
             onChange={(e) => setPhotoCaption(e.target.value)}
@@ -1782,7 +1771,7 @@ CREATE TABLE birthday_gallery (
         title="Submit Hostel Feast & Cake Request"
       >
         <form onSubmit={handleAddMealRequest} className="space-y-4 pt-1">
-          <Select 
+          <Select
             label="Celebrant Student *"
             options={[
               { label: "-- Select Student --", value: "" },
@@ -1794,7 +1783,7 @@ CREATE TABLE birthday_gallery (
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <Select 
+            <Select
               label="Birthday Cake Flavor"
               options={[
                 { label: "Chocolate Fudge Premium", value: "Chocolate Fudge" },
@@ -1806,7 +1795,7 @@ CREATE TABLE birthday_gallery (
               onChange={(e) => setMealCakeFlavor(e.target.value)}
             />
 
-            <Select 
+            <Select
               label="Special Dietary/Allergy Notes"
               options={[
                 { label: "None (Standard menu)", value: "None" },
@@ -1819,7 +1808,7 @@ CREATE TABLE birthday_gallery (
             />
           </div>
 
-          <Input 
+          <Input
             label="Target Dinner Feast Date *"
             type="date"
             value={mealDate}
