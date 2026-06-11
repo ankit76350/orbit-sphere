@@ -1,0 +1,50 @@
+package com.orbitastra.backend.models.core;
+
+import java.time.LocalDateTime;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.core.SubscriptionTier;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Document(collection = "schools")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class School {
+
+    @Id
+    private String id;
+
+    private String schoolName;
+
+    @Indexed(unique = true)
+    private String subdomain;
+
+    private String logo;
+
+    private String address;
+
+    private String phone;
+
+    private String email;
+
+    private SubscriptionTier subscriptionTier;
+
+    private Integer maxStudents;
+
+    private Integer maxUsers;
+
+    @Builder.Default
+    private Boolean active = true;
+
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
