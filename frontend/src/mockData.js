@@ -118,6 +118,15 @@ export const mockSchools = [
 ];
 const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randomRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+export function getBirthdateWithOffset(offsetDays, birthYear) {
+  const target = new Date();
+  target.setDate(target.getDate() + offsetDays);
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const dd = String(target.getDate()).padStart(2, '0');
+  return `${birthYear}-${mm}-${dd}`;
+}
+
 export function generateStaff() {
   const staff = [
     {
@@ -132,7 +141,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 24,
       leavesTaken: 3,
-      reviewRating: 4.9
+      reviewRating: 4.9,
+      dob: getBirthdateWithOffset(0, 1968) // Birthday today
     },
     {
       id: "staff-warden-boys",
@@ -146,7 +156,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 18,
       leavesTaken: 4,
-      reviewRating: 4.6
+      reviewRating: 4.6,
+      dob: getBirthdateWithOffset(2, 1978) // Birthday in 2 days (this week)
     },
     {
       id: "staff-warden-girls",
@@ -160,7 +171,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 18,
       leavesTaken: 2,
-      reviewRating: 4.8
+      reviewRating: 4.8,
+      dob: getBirthdateWithOffset(0, 1982) // Birthday today
     },
     {
       id: "staff-accountant",
@@ -174,7 +186,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 18,
       leavesTaken: 1,
-      reviewRating: 4.5
+      reviewRating: 4.5,
+      dob: getBirthdateWithOffset(22, 1975) // Birthday in 22 days (this month)
     },
     {
       id: "staff-hrmanager",
@@ -188,7 +201,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 20,
       leavesTaken: 5,
-      reviewRating: 4.7
+      reviewRating: 4.7,
+      dob: getBirthdateWithOffset(-3, 1980) // Birthday 3 days ago (recently celebrated)
     },
     {
       id: "staff-storemanager",
@@ -202,7 +216,8 @@ export function generateStaff() {
       status: "Active",
       leavesAllowed: 15,
       leavesTaken: 0,
-      reviewRating: 4.4
+      reviewRating: 4.4,
+      dob: getBirthdateWithOffset(5, 1984) // Birthday in 5 days (this week)
     }
   ];
   const teacherSubjects = [
@@ -219,6 +234,8 @@ export function generateStaff() {
     const fn = randomItem(firstNames);
     const ln = randomItem(lastNames);
     const subjObj = teacherSubjects[i % teacherSubjects.length];
+    // Give teacher 1 a birthday today, others a spread of birthdays
+    const offset = i === 0 ? 0 : randomRange(-180, 180);
     staff.push({
       id: `staff-teacher-${i + 1}`,
       name: `Prof. ${fn} ${ln}`,
@@ -231,7 +248,8 @@ export function generateStaff() {
       status: i === 14 ? "On Leave" : "Active",
       leavesAllowed: 20,
       leavesTaken: randomRange(1, 10),
-      reviewRating: Number((parseFloat(String(Math.random() * 1.5)) + 3.5).toFixed(1))
+      reviewRating: Number((parseFloat(String(Math.random() * 1.5)) + 3.5).toFixed(1)),
+      dob: getBirthdateWithOffset(offset, randomRange(1975, 1993))
     });
   }
   return staff;
@@ -290,7 +308,14 @@ export function generateStudents() {
       gradeIndex: gradeIndex + 6,
       grade,
       gender,
-      dob: `201${randomRange(0, 4)}-0${randomRange(1, 9)}-${randomRange(10, 28)}`,
+      dob: i === 1 ? getBirthdateWithOffset(0, 2013) :
+           i === 2 ? getBirthdateWithOffset(0, 2014) :
+           i === 3 ? getBirthdateWithOffset(1, 2012) :
+           i === 4 ? getBirthdateWithOffset(3, 2011) :
+           i === 5 ? getBirthdateWithOffset(5, 2013) :
+           i === 6 ? getBirthdateWithOffset(15, 2014) :
+           i === 7 ? getBirthdateWithOffset(-2, 2012) :
+           getBirthdateWithOffset(randomRange(-180, 180), randomRange(2010, 2014)),
       parentName: `${randomItem(firstNames)} ${ln}`,
       parentEmail: `${fn.toLowerCase()}.${ln.toLowerCase()}.parent@gmail.com`,
       parentPhone: `+1 (555) 601-${randomRange(100, 999)}2`,

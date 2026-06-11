@@ -29,6 +29,7 @@ import ModDocGen from "./modules/ModDocGen";
 import ModCctv from "./modules/ModCctv";
 import ModVirtualClass from "./modules/ModVirtualClass";
 import ModGallery from "./modules/ModGallery";
+import ModCelebrations from "./modules/ModCelebrations";
 import {
   GraduationCap,
   Sparkles,
@@ -56,7 +57,8 @@ import {
   Bell,
   Search,
   ChevronDown,
-  Image
+  Image,
+  Cake
 } from "lucide-react";
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(getAuthUser());
@@ -93,6 +95,12 @@ function MainApp() {
     } else if (nextRole === "Parent") {
       swapName = "Guardian Margaret Thatcher";
       permissions = ["MY_CHILD_VIEW", "STUDENT_WALLET", "FEES", "ATTENDANCE", "ACADEMICS", "DISCIPLINE_LOGS", "KITCHEN_MESS"];
+    } else if (nextRole === "Teacher") {
+      swapName = "Prof. Liam Johnson";
+      permissions = ["STUDENT_ROSTER", "ATTENDANCE", "ACADEMICS"];
+    } else if (nextRole === "Student") {
+      swapName = "Liam Smith";
+      permissions = ["STUDENT_WALLET", "FEES", "ATTENDANCE", "ACADEMICS"];
     }
     const swapped = {
       ...currentUser,
@@ -127,6 +135,7 @@ function MainApp() {
     { id: "cctv", label: "Campus CCTV & Security", icon: Video, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModCctv },
     { id: "virtual_class", label: "Virtual Class & AI Hub", icon: Laptop, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModVirtualClass },
     { id: "gallery", label: "School Media Gallery", icon: Image, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModGallery },
+    { id: "celebrations", label: "Celebrations Desk", icon: Cake, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Warden", "Parent", "Student", "Accountant", "HR Manager", "Store Manager"], comp: ModCelebrations },
     { id: "discipline", label: "Curfew Discipline", icon: Scale, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModDiscipline },
     { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant"], comp: ModInventory },
     { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent"], comp: ModFoodMess },
@@ -276,6 +285,12 @@ function MainApp() {
                   </button>
                   <button onClick={() => handleSwapRole("Parent")} className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705">
                     👪 Parent / Guardian login
+                  </button>
+                  <button onClick={() => handleSwapRole("Teacher")} className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705">
+                    🍎 Teacher / Professor login
+                  </button>
+                  <button onClick={() => handleSwapRole("Student")} className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705">
+                    🎓 Student / Scholar login
                   </button>
                 </div>}
             </div>

@@ -92,6 +92,10 @@ const KEYS = {
   AI_NOTES: "erp_ai_notes_v2",
   GALLERY_ALBUMS: "erp_gallery_albums_v2",
   GALLERY_MEDIA: "erp_gallery_media_v2",
+  BIRTHDAYS: "erp_birthdays",
+  BIRTHDAY_NOTIFICATIONS: "erp_birthday_notifications",
+  BIRTHDAY_CARDS: "erp_birthday_cards",
+  BIRTHDAY_GALLERY: "erp_birthday_gallery",
   ACTIONS_LOG: "erp_audit_logs",
   AUTH_USER: "erp_auth_user"
 };
@@ -249,6 +253,111 @@ export function initializeStorage() {
   if (!localStorage.getItem("erp_results")) {
     localStorage.setItem("erp_results", JSON.stringify(generateAcademicResults(studentList)));
   }
+  if (!localStorage.getItem(KEYS.BIRTHDAYS)) {
+    const defaultBirthdays = [
+      {
+        id: "event-foundation",
+        tenantId: "school-01",
+        title: "St. Jude's 75th Foundation Day",
+        eventType: "School Foundation Day",
+        date: "2026-06-18",
+        description: "Celebrating three quarters of a century of academic excellence and holistic boarding care.",
+        targetAudience: "All"
+      },
+      {
+        id: "event-teachers",
+        tenantId: "school-01",
+        title: "Annual Teacher's Day Tribute",
+        eventType: "Teacher's Day",
+        date: "2026-09-05",
+        description: "Special high tea and awards ceremony recognizing our dedicated educators.",
+        targetAudience: "Staff"
+      },
+      {
+        id: "event-anniversary-principal",
+        tenantId: "school-01",
+        title: "Principal Pendleton 10-Year Work Anniversary",
+        eventType: "Work Anniversary",
+        date: "2026-06-15",
+        description: "Celebrating a decade of visionary leadership under Principal Pendelton.",
+        targetAudience: "All"
+      }
+    ];
+    localStorage.setItem(KEYS.BIRTHDAYS, JSON.stringify(defaultBirthdays));
+  }
+
+  if (!localStorage.getItem(KEYS.BIRTHDAY_NOTIFICATIONS)) {
+    const defaultNotifications = [
+      {
+        id: "notif-seed-1",
+        tenantId: "school-01",
+        personType: "student",
+        personId: "student-7",
+        personName: "Henry Miller",
+        notificationType: "Email",
+        recipient: "henry.miller.parent@gmail.com",
+        message: "Wishing Henry Miller a very Happy Birthday! Best wishes from St. Jude Boarding Academy.",
+        sentAt: "2026-06-09 00:00:01"
+      },
+      {
+        id: "notif-seed-2",
+        tenantId: "school-01",
+        personType: "student",
+        personId: "student-7",
+        personName: "Henry Miller",
+        notificationType: "WhatsApp",
+        recipient: "+1 (555) 601-2942",
+        message: "🎂 Happy Birthday Henry! St. Jude wishes you a wonderful year ahead.",
+        sentAt: "2026-06-09 00:00:05"
+      },
+      {
+        id: "notif-seed-3",
+        tenantId: "school-01",
+        personType: "staff",
+        personId: "staff-hrmanager",
+        personName: "Eleanor Vance",
+        notificationType: "Push",
+        recipient: "eleanor.vance@stjude.edu",
+        message: "Happy Birthday Eleanor Vance! Have a spectacular day.",
+        sentAt: "2026-06-08 00:00:00"
+      }
+    ];
+    localStorage.setItem(KEYS.BIRTHDAY_NOTIFICATIONS, JSON.stringify(defaultNotifications));
+  }
+
+  if (!localStorage.getItem(KEYS.BIRTHDAY_CARDS)) {
+    const defaultCards = [
+      {
+        id: "card-seed-1",
+        tenantId: "school-01",
+        personType: "student",
+        personId: "student-7",
+        personName: "Henry Miller",
+        cardUrl: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800",
+        message: "May your year be filled with learning, laughter, and high scores on and off the field!",
+        theme: "festive",
+        createdAt: "2026-06-09 00:00:00"
+      }
+    ];
+    localStorage.setItem(KEYS.BIRTHDAY_CARDS, JSON.stringify(defaultCards));
+  }
+
+  if (!localStorage.getItem(KEYS.BIRTHDAY_GALLERY)) {
+    const defaultBirthdayGallery = [
+      {
+        id: "bg-seed-1",
+        tenantId: "school-01",
+        personType: "student",
+        personId: "student-7",
+        personName: "Henry Miller",
+        mediaUrl: "https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600",
+        caption: "Henry cutting cake in the Vanguard Hall dining room with friends.",
+        createdAt: "2026-06-09 17:30:00"
+      }
+    ];
+    localStorage.setItem(KEYS.BIRTHDAY_GALLERY, JSON.stringify(defaultBirthdayGallery));
+  }
+
   if (!localStorage.getItem(KEYS.ACTIONS_LOG)) {
     const defaultLogs = [
       {
@@ -710,6 +819,38 @@ export function getGalleryMedia() {
 
 export function saveGalleryMedia(media) {
   localStorage.setItem(KEYS.GALLERY_MEDIA, JSON.stringify(media));
+}
+
+export function getBirthdays() {
+  return JSON.parse(localStorage.getItem(KEYS.BIRTHDAYS) || "[]");
+}
+
+export function saveBirthdays(birthdays) {
+  localStorage.setItem(KEYS.BIRTHDAYS, JSON.stringify(birthdays));
+}
+
+export function getBirthdayNotifications() {
+  return JSON.parse(localStorage.getItem(KEYS.BIRTHDAY_NOTIFICATIONS) || "[]");
+}
+
+export function saveBirthdayNotifications(notifications) {
+  localStorage.setItem(KEYS.BIRTHDAY_NOTIFICATIONS, JSON.stringify(notifications));
+}
+
+export function getBirthdayCards() {
+  return JSON.parse(localStorage.getItem(KEYS.BIRTHDAY_CARDS) || "[]");
+}
+
+export function saveBirthdayCards(cards) {
+  localStorage.setItem(KEYS.BIRTHDAY_CARDS, JSON.stringify(cards));
+}
+
+export function getBirthdayGallery() {
+  return JSON.parse(localStorage.getItem(KEYS.BIRTHDAY_GALLERY) || "[]");
+}
+
+export function saveBirthdayGallery(gallery) {
+  localStorage.setItem(KEYS.BIRTHDAY_GALLERY, JSON.stringify(gallery));
 }
 
 
