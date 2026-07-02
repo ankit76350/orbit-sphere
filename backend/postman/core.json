@@ -1,0 +1,536 @@
+{
+	"info": {
+		"_postman_id": "8b84d4b1-8b2b-4172-88f5-937227d81a94",
+		"name": "School Edu Sphere - Core APIs",
+		"description": "API collection for testing School, Announcement, and Notification endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Schools",
+			"item": [
+				{
+					"name": "Create School",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolName\": \"Orbitastra Academy\",\n  \"subdomain\": \"orbitastra\",\n  \"logo\": \"https://logo.url/orbitastra.png\",\n  \"address\": \"123 Education Lane, Tech City\",\n  \"phone\": \"+1234567890\",\n  \"email\": \"contact@orbitastra.edu\",\n  \"subscriptionTier\": \"PREMIUM\",\n  \"maxStudents\": 1000,\n  \"maxUsers\": 100,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/schools",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Schools",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/schools",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Schools",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/schools/active",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools",
+								"active"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get School By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/schools/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get School By Subdomain",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/schools/subdomain/orbitastra",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools",
+								"subdomain",
+								"orbitastra"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update School",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolName\": \"Orbitastra Academy International\",\n  \"subdomain\": \"orbitastra\",\n  \"logo\": \"https://logo.url/orbitastra.png\",\n  \"address\": \"456 Global Way, Tech City\",\n  \"phone\": \"+1987654321\",\n  \"email\": \"admin@orbitastra.edu\",\n  \"subscriptionTier\": \"ENTERPRISE\",\n  \"maxStudents\": 1500,\n  \"maxUsers\": 150,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/schools/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete School",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/schools/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"schools",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Announcements",
+			"item": [
+				{
+					"name": "Create Announcement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"title\": \"Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Monday. Please bring your student ID cards.\",\n  \"target\": \"all\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/announcements",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Announcements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/announcements",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Announcement By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/announcements/ANNOUNCEMENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements",
+								"ANNOUNCEMENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Announcements By School",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/announcements/school/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements",
+								"school",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Announcements By School And Target",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/announcements/school/SCHOOL_ID_HERE/target/student",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements",
+								"school",
+								"SCHOOL_ID_HERE",
+								"target",
+								"student"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Announcement",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"title\": \"Updated: Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Tuesday at 9 AM instead of Monday.\",\n  \"target\": \"student\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/announcements/ANNOUNCEMENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements",
+								"ANNOUNCEMENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Announcement",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/announcements/ANNOUNCEMENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"announcements",
+								"ANNOUNCEMENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Create Notification",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"recipientId\": \"USER_ID_HERE\",\n  \"channel\": \"EMAIL\",\n  \"message\": \"Your registration was successful!\",\n  \"sent\": false\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/notifications",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Notifications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"NOTIFICATION_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notifications By Recipient",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"recipient",
+								"USER_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unsent Notifications By Recipient",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE/unsent",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"recipient",
+								"USER_ID_HERE",
+								"unsent"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notifications By School",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/school/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"school",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Notification As Sent",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE/mark-sent",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"NOTIFICATION_ID_HERE",
+								"mark-sent"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notification",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"notifications",
+								"NOTIFICATION_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
