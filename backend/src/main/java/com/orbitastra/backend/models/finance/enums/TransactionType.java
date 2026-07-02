@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.finance;
+package com.orbitastra.backend.models.finance.enums;
 
 public enum TransactionType {
     CREDIT,

@@ -3,8 +3,8 @@ package com.orbitastra.backend.models.security;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.security.CameraStatus;
-import com.orbitastra.backend.models.security.CameraType;
+import com.orbitastra.backend.models.security.enums.CameraStatus;
+import com.orbitastra.backend.models.security.enums.CameraType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

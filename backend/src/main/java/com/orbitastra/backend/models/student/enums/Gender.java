@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.student;
+package com.orbitastra.backend.models.student.enums;
 
 public enum Gender {
     MALE,

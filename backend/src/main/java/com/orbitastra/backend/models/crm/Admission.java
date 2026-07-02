@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.crm.AdmissionStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -3,7 +3,7 @@ package com.orbitastra.backend.models.security;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.security.IncidentStatus;
+import com.orbitastra.backend.models.security.enums.IncidentStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

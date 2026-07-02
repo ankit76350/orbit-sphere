@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.transport.TransportVehicleStatus;
+import com.orbitastra.backend.models.transport.enums.TransportVehicleStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

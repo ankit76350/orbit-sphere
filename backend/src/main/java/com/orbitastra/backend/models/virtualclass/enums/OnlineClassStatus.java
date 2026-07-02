@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.virtualclass;
+package com.orbitastra.backend.models.virtualclass.enums;
 
 public enum OnlineClassStatus {
     UPCOMING,

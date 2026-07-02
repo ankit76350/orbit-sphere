@@ -3,7 +3,7 @@ package com.orbitastra.backend.models.virtualclass;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.virtualclass.OnlineClassStatus;
+import com.orbitastra.backend.models.virtualclass.enums.OnlineClassStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -6,8 +6,8 @@ import java.time.LocalDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.finance.FeeStatus;
-import com.orbitastra.backend.models.finance.FeeType;
+import com.orbitastra.backend.models.finance.enums.FeeStatus;
+import com.orbitastra.backend.models.finance.enums.FeeType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

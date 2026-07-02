@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.core.NotificationChannel;
+import com.orbitastra.backend.models.core.enums.NotificationChannel;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

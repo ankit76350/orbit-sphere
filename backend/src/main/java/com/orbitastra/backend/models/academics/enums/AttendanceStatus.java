@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.academics;
+package com.orbitastra.backend.models.academics.enums;
 
 public enum AttendanceStatus {
     PRESENT,

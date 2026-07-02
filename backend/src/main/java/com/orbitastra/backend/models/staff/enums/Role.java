@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.staff.enums;
 
 public enum Role {
     SUPER_ADMIN,

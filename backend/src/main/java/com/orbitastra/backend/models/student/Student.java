@@ -7,8 +7,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.student.Gender;
-import com.orbitastra.backend.models.student.StudentStatus;
+import com.orbitastra.backend.models.student.enums.Gender;
+import com.orbitastra.backend.models.student.enums.StudentStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

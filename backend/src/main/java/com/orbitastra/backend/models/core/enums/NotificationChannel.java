@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.core;
+package com.orbitastra.backend.models.core.enums;
 
 public enum NotificationChannel {
     PUSH,

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.transport;
+package com.orbitastra.backend.models.transport.enums;
 
 public enum TransportVehicleStatus {
     OPERATIONAL,

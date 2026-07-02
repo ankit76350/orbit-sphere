@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.academics.AttendanceStatus;
+import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
