@@ -1,6 +1,7 @@
 package com.orbitastra.backend.models.academics;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -18,8 +19,10 @@ public class Homework {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
+    @Indexed
     private String classId;
 
     private String className;

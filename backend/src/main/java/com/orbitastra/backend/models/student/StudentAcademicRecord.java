@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.student.enums.StudentStatus;
@@ -29,6 +30,7 @@ public class StudentAcademicRecord {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
     private String studentDocId; // References Student.id

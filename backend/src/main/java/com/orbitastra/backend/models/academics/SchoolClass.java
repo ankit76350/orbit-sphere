@@ -3,6 +3,7 @@ package com.orbitastra.backend.models.academics;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -20,6 +21,7 @@ public class SchoolClass {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
     private String name;
@@ -27,6 +29,8 @@ public class SchoolClass {
     private String classTeacher;
 
     private List<ClassSubject> subjects;
+
+    private String academicYearId;
 
     @Data
     @Builder

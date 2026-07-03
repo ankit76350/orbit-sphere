@@ -26,6 +26,7 @@ public class Student {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
     @Indexed(unique = true)

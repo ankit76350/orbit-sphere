@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -21,8 +22,10 @@ public class MedicalRecord {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
+    @Indexed
     private String studentId;
 
     private LocalDate visitDate;

@@ -1,6 +1,7 @@
 package com.orbitastra.backend.models.core;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -18,6 +19,7 @@ public class Announcement {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
     private String title;

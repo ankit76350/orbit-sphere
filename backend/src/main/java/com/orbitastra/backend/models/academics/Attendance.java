@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
@@ -23,8 +24,10 @@ public class Attendance {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
+    @Indexed
     private String studentId;
 
     private LocalDate date;

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -21,8 +22,10 @@ public class DisciplineLog {
     @Id
     private String id;
 
+    @Indexed
     private String schoolId;
 
+    @Indexed
     private String studentId;
 
     private String violation;
