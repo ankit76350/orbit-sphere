@@ -26,6 +26,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentAcademicRecord {
+    @org.springframework.data.annotation.CreatedDate
+    private java.time.LocalDateTime createdAt;
+
+    @org.springframework.data.annotation.LastModifiedDate
+    private java.time.LocalDateTime updatedAt;
+
 
     @Id
     private String id;
@@ -49,7 +55,5 @@ public class StudentAcademicRecord {
 
     private StudentStatus status;
 
-    private LocalDateTime createdAt;
 
-    private LocalDateTime updatedAt;
 }

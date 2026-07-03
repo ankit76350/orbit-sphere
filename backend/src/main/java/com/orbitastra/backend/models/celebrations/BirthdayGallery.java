@@ -14,6 +14,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BirthdayGallery {
+    @org.springframework.data.annotation.CreatedDate
+    private java.time.LocalDateTime createdAt;
+
+    @org.springframework.data.annotation.LastModifiedDate
+    private java.time.LocalDateTime updatedAt;
+
 
     @Id
     private String id;
@@ -30,5 +36,4 @@ public class BirthdayGallery {
 
     private String caption;
 
-    private String createdAt;
 }

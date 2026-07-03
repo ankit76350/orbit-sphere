@@ -19,6 +19,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class School {
+    @org.springframework.data.annotation.CreatedDate
+    private java.time.LocalDateTime createdAt;
+
+    @org.springframework.data.annotation.LastModifiedDate
+    private java.time.LocalDateTime updatedAt;
+
 
     @Id
     private String id;
@@ -45,6 +51,4 @@ public class School {
     @Builder.Default
     private Boolean active = true;
 
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
 }
