@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.Parent;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
@@ -44,6 +45,7 @@ public class StudentServiceTest {
 
     private Student student;
     private Parent parent;
+    private School school;
 
     @BeforeEach
     void setUp() {
@@ -60,11 +62,16 @@ public class StudentServiceTest {
         parent.setId("parent-id-123");
         parent.setSchoolId("school-id-123");
         parent.setStudentIds(new ArrayList<>());
+
+        school = new School();
+        school.setId("school-id-123");
+        school.setMaxStudents(100);
     }
 
     @Test
     void createStudent_Success() {
-        when(schoolRepository.existsById("school-id-123")).thenReturn(true);
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(parentRepository.existsById("parent-id-123")).thenReturn(true);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
         when(studentRepository.save(student)).thenReturn(student);
@@ -76,7 +83,7 @@ public class StudentServiceTest {
 
         assertNotNull(created);
         assertEquals("ADM-001", created.getAdmissionNo());
-        verify(schoolRepository, times(1)).existsById("school-id-123");
+        verify(schoolRepository, times(1)).findById("school-id-123");
         verify(parentRepository, times(1)).existsById("parent-id-123");
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
         verify(studentRepository, times(1)).save(student);
@@ -88,33 +95,35 @@ public class StudentServiceTest {
 
     @Test
     void createStudent_SchoolNotFound_ThrowsException() {
-        when(schoolRepository.existsById("school-id-123")).thenReturn(false);
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> {
             studentService.createStudent(student);
         });
 
-        verify(schoolRepository, times(1)).existsById("school-id-123");
+        verify(schoolRepository, times(1)).findById("school-id-123");
         verify(studentRepository, never()).save(any());
     }
 
     @Test
     void createStudent_ParentNotFound_ThrowsException() {
-        when(schoolRepository.existsById("school-id-123")).thenReturn(true);
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(parentRepository.existsById("parent-id-123")).thenReturn(false);
 
         assertThrows(ResourceNotFoundException.class, () -> {
             studentService.createStudent(student);
         });
 
-        verify(schoolRepository, times(1)).existsById("school-id-123");
+        verify(schoolRepository, times(1)).findById("school-id-123");
         verify(parentRepository, times(1)).existsById("parent-id-123");
         verify(studentRepository, never()).save(any());
     }
 
     @Test
     void createStudent_AdmissionNoDuplicate_ThrowsException() {
-        when(schoolRepository.existsById("school-id-123")).thenReturn(true);
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(parentRepository.existsById("parent-id-123")).thenReturn(true);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.of(new Student()));
 
@@ -123,6 +132,19 @@ public class StudentServiceTest {
         });
 
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void createStudent_LimitExceeded_ThrowsException() {
+        school.setMaxStudents(5);
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(5L);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            studentService.createStudent(student);
+        });
+
         verify(studentRepository, never()).save(any());
     }
 
@@ -258,5 +280,27 @@ public class StudentServiceTest {
 
         assertEquals(2, history.size());
         verify(studentAcademicRecordRepository, times(1)).findByStudentDocId("student-id-123");
+    }
+
+    @Test
+    void promoteStudent_Success() {
+        StudentAcademicRecord input = StudentAcademicRecord.builder()
+                .academicYearId("2027-2028")
+                .classId("class-new")
+                .build();
+
+        when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId("student-id-123", "2027-2028"))
+                .thenReturn(Optional.empty());
+        when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        StudentAcademicRecord record = studentService.promoteStudent("student-id-123", input);
+
+        assertNotNull(record);
+        assertEquals("class-new", record.getClassId());
+        assertEquals("2027-2028", record.getAcademicYearId());
+        verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
 }

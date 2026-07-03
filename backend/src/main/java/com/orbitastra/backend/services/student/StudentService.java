@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.student.StudentRepository;
@@ -49,8 +50,18 @@ public class StudentService {
     }
 
     public Student createStudent(Student student) {
-        if (student.getSchoolId() == null || !schoolRepository.existsById(student.getSchoolId())) {
-            throw new ResourceNotFoundException("School not found with id: " + student.getSchoolId());
+        if (student.getSchoolId() == null) {
+            throw new IllegalArgumentException("School ID cannot be null.");
+        }
+        School school = schoolRepository.findById(student.getSchoolId())
+                .orElseThrow(() -> new ResourceNotFoundException("School not found with id: " + student.getSchoolId()));
+
+        // Check if student count exceeds package limit
+        if (school.getMaxStudents() != null) {
+            long currentStudentCount = studentRepository.countBySchoolId(student.getSchoolId());
+            if (currentStudentCount >= school.getMaxStudents()) {
+                throw new IllegalArgumentException("You have exceeded the package limit for maximum students.");
+            }
         }
 
         if (student.getParentId() != null && !student.getParentId().isEmpty()) {
@@ -344,6 +355,13 @@ public class StudentService {
         record.setUpdatedAt(LocalDateTime.now());
         
         return studentAcademicRecordRepository.save(record);
+    }
+    
+    public StudentAcademicRecord promoteStudent(String studentId, StudentAcademicRecord promotionDetails) {
+        if (promotionDetails.getAcademicYearId() == null || promotionDetails.getAcademicYearId().isEmpty()) {
+            throw new IllegalArgumentException("Academic Year ID is required for promotion.");
+        }
+        return createOrUpdateAcademicRecord(studentId, promotionDetails);
     }
     
     public List<StudentAcademicRecord> getAcademicHistory(String studentId) {

@@ -93,4 +93,12 @@ public class StudentController {
         StudentAcademicRecord created = studentService.createOrUpdateAcademicRecord(id, recordDetails);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
+
+    @PostMapping("/{id}/promote")
+    public ResponseEntity<StudentAcademicRecord> promoteStudent(
+            @PathVariable String id, 
+            @RequestBody StudentAcademicRecord promotionDetails) {
+        StudentAcademicRecord promoted = studentService.promoteStudent(id, promotionDetails);
+        return ResponseEntity.ok(promoted);
+    }
 }
