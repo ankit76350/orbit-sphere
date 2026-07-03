@@ -1,0 +1,416 @@
+{
+	"info": {
+		"_postman_id": "9c12a4b1-9b2b-4272-99f5-937227d81b95",
+		"name": "School Edu Sphere - Student & Parent APIs",
+		"description": "API collection for testing Student and Parent endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Students",
+			"item": [
+				{
+					"name": "Create Student",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"admissionNo\": \"ADM-2026-001\",\n  \"studentId\": \"std-001\",\n  \"rollNo\": \"10A-01\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"dob\": \"2012-05-10\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"A+\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1513151233558-d860c5398176\",\n  \"classId\": \"class-10a\",\n  \"sectionId\": \"section-a\",\n  \"hostelRoomId\": \"hostel-room-101\",\n  \"walletId\": \"wallet-std-001\",\n  \"parentId\": \"PARENT_ID_HERE\",\n  \"medicalRecordId\": \"med-std-001\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-06-01\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/students",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Students",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Student By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"STUDENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Student By Admission No",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/admission/ADM-2026-001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"admission",
+								"ADM-2026-001"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Students By School",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/school/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"school",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Students By Class",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/class/class-10a",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"class",
+								"class-10a"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Students By Parent",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/parent/PARENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"parent",
+								"PARENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Students By Hostel Room",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/hostel/hostel-room-101",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"hostel",
+								"hostel-room-101"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Student",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"Johnny\",\n  \"status\": \"ACTIVE\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"STUDENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Student",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"students",
+								"STUDENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Parents",
+			"item": [
+				{
+					"name": "Create Parent",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"fatherName\": \"Robert Doe\",\n  \"motherName\": \"Alice Doe\",\n  \"phone\": \"1234567890\",\n  \"alternatePhone\": \"0987654321\",\n  \"email\": \"robert.doe@example.com\",\n  \"address\": \"123 Whispering Pines Road, Cityville\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/parents",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Parents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/parents",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Parent By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents",
+								"PARENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Parent By Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/parents/email/robert.doe@example.com",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents",
+								"email",
+								"robert.doe@example.com"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Parents By School",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/parents/school/SCHOOL_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents",
+								"school",
+								"SCHOOL_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Parent",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fatherName\": \"Robert Doe Sr.\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents",
+								"PARENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Parent",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5030",
+							"path": [
+								"api",
+								"parents",
+								"PARENT_ID_HERE"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

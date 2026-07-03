@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -30,9 +31,11 @@ public class Student {
     @Indexed(unique = true)
     private String admissionNo;
 
-    private String studentId;
+    @Transient
+    private String studentId; // will change every year
 
-    private String rollNo;
+    @Transient
+    private String rollNo; // will change every year
 
     private String firstName;
 
@@ -44,13 +47,19 @@ public class Student {
 
     private String bloodGroup;
 
-    private String photoUrl;
+    private String photoUrl; 
 
-    private String classId;
+    @Transient
+    private String classId; // will change every year
 
-    private String sectionId;
+    @Transient
+    private String sectionId; // will change every year
 
-    private String hostelRoomId;
+    @Transient
+    private String hostelRoomId; // may chnage every time or will change every year
+
+    @Transient
+    private String academicYearId; // transient field to capture desired academic year during request bindings
 
     private String walletId;
 
