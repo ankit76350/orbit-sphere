@@ -303,4 +303,23 @@ public class StudentServiceTest {
         assertEquals("2027-2028", record.getAcademicYearId());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
+
+    @Test
+    void getSiblings_Success() {
+        Student sibling = new Student();
+        sibling.setId("sibling-id-999");
+        sibling.setSchoolId("school-id-123");
+        sibling.setParentId("parent-id-123");
+        sibling.setAdmissionNo("ADM-999");
+
+        when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
+        when(studentRepository.findByParentId("parent-id-123")).thenReturn(List.of(student, sibling));
+
+        List<Student> siblings = studentService.getSiblings("student-id-123");
+
+        assertEquals(1, siblings.size());
+        assertEquals("sibling-id-999", siblings.get(0).getId());
+        verify(studentRepository, times(1)).findByParentId("parent-id-123");
+    }
 }

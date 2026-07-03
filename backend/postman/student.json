@@ -242,6 +242,28 @@
                 }
               },
               "response": []
+            },
+            {
+              "name": "Get Student Siblings",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/siblings",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE",
+                    "siblings"
+                  ]
+                }
+              },
+              "response": []
             }
           ]
         },

@@ -370,4 +370,18 @@ public class StudentService {
         }
         return studentAcademicRecordRepository.findByStudentDocId(studentId);
     }
+
+    public List<Student> getSiblings(String studentId) {
+        Student student = getStudentById(studentId);
+        
+        if (student.getParentId() == null || student.getParentId().isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        
+        List<Student> allChildren = studentRepository.findByParentId(student.getParentId());
+        
+        return allChildren.stream()
+                .filter(child -> !child.getId().equals(studentId))
+                .toList();
+    }
 }

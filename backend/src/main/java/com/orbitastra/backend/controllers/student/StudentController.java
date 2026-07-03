@@ -101,4 +101,10 @@ public class StudentController {
         StudentAcademicRecord promoted = studentService.promoteStudent(id, promotionDetails);
         return ResponseEntity.ok(promoted);
     }
+
+    @GetMapping("/{id}/siblings")
+    public ResponseEntity<List<Student>> getStudentSiblings(@PathVariable String id) {
+        List<Student> siblings = studentService.getSiblings(id);
+        return ResponseEntity.ok(siblings);
+    }
 }
