@@ -1,0 +1,83 @@
+package com.orbitastra.backend.services.academics;
+
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+import com.orbitastra.backend.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.models.academics.SchoolClass;
+import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.repositories.core.SchoolRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class SchoolClassService {
+
+    private final SchoolClassRepository schoolClassRepository;
+    private final SchoolRepository schoolRepository;
+
+    public SchoolClass createClass(SchoolClass schoolClass) {
+        if (schoolClass.getSchoolId() == null || !schoolRepository.existsById(schoolClass.getSchoolId())) {
+            throw new ResourceNotFoundException("School not found with id: " + schoolClass.getSchoolId());
+        }
+
+        if (schoolClass.getName() != null && 
+            schoolClassRepository.findByNameAndSchoolId(schoolClass.getName(), schoolClass.getSchoolId()).isPresent()) {
+            throw new IllegalArgumentException("Class with name '" + schoolClass.getName() + "' already exists in this school.");
+        }
+
+        return schoolClassRepository.save(schoolClass);
+    }
+
+    public List<SchoolClass> getAllClasses() {
+        return schoolClassRepository.findAll();
+    }
+
+    public SchoolClass getClassById(String id) {
+        return schoolClassRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + id));
+    }
+
+    public List<SchoolClass> getClassesBySchool(String schoolId) {
+        return schoolClassRepository.findBySchoolId(schoolId);
+    }
+
+    public SchoolClass updateClass(String id, SchoolClass classDetails) {
+        SchoolClass schoolClass = getClassById(id);
+
+        if (classDetails.getSchoolId() != null && !classDetails.getSchoolId().equals(schoolClass.getSchoolId())) {
+            if (!schoolRepository.existsById(classDetails.getSchoolId())) {
+                throw new ResourceNotFoundException("School not found with id: " + classDetails.getSchoolId());
+            }
+            schoolClass.setSchoolId(classDetails.getSchoolId());
+        }
+
+        if (classDetails.getName() != null && !classDetails.getName().equals(schoolClass.getName())) {
+            if (schoolClassRepository.findByNameAndSchoolId(classDetails.getName(), schoolClass.getSchoolId()).isPresent()) {
+                throw new IllegalArgumentException("Class with name '" + classDetails.getName() + "' already exists in this school.");
+            }
+            schoolClass.setName(classDetails.getName());
+        }
+
+        if (classDetails.getClassTeacher() != null) {
+            schoolClass.setClassTeacher(classDetails.getClassTeacher());
+        }
+
+        if (classDetails.getSubjects() != null) {
+            schoolClass.setSubjects(classDetails.getSubjects());
+        }
+
+        if (classDetails.getAcademicYearId() != null) {
+            schoolClass.setAcademicYearId(classDetails.getAcademicYearId());
+        }
+
+        return schoolClassRepository.save(schoolClass);
+    }
+
+    public void deleteClass(String id) {
+        SchoolClass schoolClass = getClassById(id);
+        schoolClassRepository.delete(schoolClass);
+    }
+}
