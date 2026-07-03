@@ -54,4 +54,12 @@ public class SchoolClassController {
         schoolClassService.deleteClass(id);
         return ResponseEntity.ok(Map.of("message", "Class deleted successfully."));
     }
+
+    @PostMapping("/{id}/subjects")
+    public ResponseEntity<SchoolClass> addSubject(
+            @PathVariable String id, 
+            @RequestBody SchoolClass.ClassSubject subject) {
+        SchoolClass updated = schoolClassService.addSubject(id, subject);
+        return ResponseEntity.ok(updated);
+    }
 }

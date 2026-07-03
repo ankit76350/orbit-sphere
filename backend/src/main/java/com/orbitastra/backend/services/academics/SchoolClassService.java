@@ -80,4 +80,20 @@ public class SchoolClassService {
         SchoolClass schoolClass = getClassById(id);
         schoolClassRepository.delete(schoolClass);
     }
+
+    public SchoolClass addSubject(String classId, SchoolClass.ClassSubject subject) {
+        SchoolClass schoolClass = getClassById(classId);
+        if (schoolClass.getSubjects() == null) {
+            schoolClass.setSubjects(new java.util.ArrayList<>());
+        }
+
+        boolean exists = schoolClass.getSubjects().stream()
+                .anyMatch(s -> s.getName() != null && s.getName().equalsIgnoreCase(subject.getName()));
+        if (exists) {
+            throw new IllegalArgumentException("Subject '" + subject.getName() + "' already exists in this class.");
+        }
+
+        schoolClass.getSubjects().add(subject);
+        return schoolClassRepository.save(schoolClass);
+    }
 }
