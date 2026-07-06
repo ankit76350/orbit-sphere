@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.staff.enums;
+package com.orbitastra.backend.models.user.enums;
 
 public enum Role {
     SUPER_ADMIN,
@@ -9,6 +9,7 @@ public enum Role {
     TEACHER,
     WARDEN,
     STORE_MANAGER,
+    DRIVER,
     PARENT,
     STUDENT
 }

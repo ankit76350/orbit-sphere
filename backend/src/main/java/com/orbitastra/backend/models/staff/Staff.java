@@ -6,8 +6,6 @@ import java.time.LocalDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.staff.enums.Role;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -42,8 +40,6 @@ public class Staff {
     private BigDecimal salary;
 
     private LocalDate joiningDate;
-
-    private Role role;
 
     private LocalDate dob;
 }
