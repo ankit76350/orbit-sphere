@@ -1,7 +1,6 @@
 package com.orbitastra.backend.models.finance;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
