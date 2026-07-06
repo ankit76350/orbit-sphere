@@ -14,6 +14,8 @@ import com.orbitastra.backend.services.student.utils.AcademicYearUtils;
 import com.orbitastra.backend.repositories.student.ParentRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
+import com.orbitastra.backend.models.academics.SchoolClass;
+import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +27,7 @@ public class StudentService {
     private final ParentRepository parentRepository;
     private final SchoolRepository schoolRepository;
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
+    private final SchoolClassRepository schoolClassRepository;
 
     private void populateAcademicFields(Student student) {
         if (student == null) return;
@@ -34,12 +37,7 @@ public class StudentService {
                 .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYearId, 
                     java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
                 .ifPresent(record -> {
-                    student.setAcademicYearId(record.getAcademicYearId());
-                    student.setStudentId(record.getStudentId());
-                    student.setRollNo(record.getRollNo());
-                    student.setClassId(record.getClassId());
-                    student.setSectionId(record.getSectionId());
-                    student.setHostelRoomId(record.getHostelRoomId());
+                    student.setCurrentAcademicRecord(record);
                 });
         }
     }
@@ -79,21 +77,36 @@ public class StudentService {
         Student saved = studentRepository.save(student);
 
         // Save academic record
-        String acadYear = student.getAcademicYearId() != null ? student.getAcademicYearId() : AcademicYearUtils.getCurrentAcademicYear();
-        StudentAcademicRecord record = StudentAcademicRecord.builder()
-                .schoolId(saved.getSchoolId())
-                .studentDocId(saved.getId())
-                .academicYearId(acadYear)
-                .studentId(student.getStudentId())
-                .rollNo(student.getRollNo())
-                .classId(student.getClassId())
-                .sectionId(student.getSectionId())
-                .hostelRoomId(student.getHostelRoomId())
-                .status(saved.getStatus())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        studentAcademicRecordRepository.save(record);
+        StudentAcademicRecord reqRecord = student.getCurrentAcademicRecord();
+        StudentAcademicRecord savedRecord = null;
+        if (reqRecord != null) {
+            String acadYear = reqRecord.getAcademicYearId() != null 
+                    ? reqRecord.getAcademicYearId() 
+                    : AcademicYearUtils.getCurrentAcademicYear();
+
+            if (reqRecord.getClassDocId() != null) {
+                SchoolClass schoolClass = schoolClassRepository.findById(reqRecord.getClassDocId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + reqRecord.getClassDocId()));
+                if (!schoolClass.getSchoolId().equals(saved.getSchoolId())) {
+                    throw new IllegalArgumentException("Class does not belong to the same school as the student.");
+                }
+            }
+
+            StudentAcademicRecord record = StudentAcademicRecord.builder()
+                    .schoolId(saved.getSchoolId())
+                    .studentDocId(saved.getId())
+                    .academicYearId(acadYear)
+                    .studentId(reqRecord.getStudentId())
+                    .rollNo(reqRecord.getRollNo())
+                    .classDocId(reqRecord.getClassDocId())
+                    .sectionId(reqRecord.getSectionId())
+                    .hostelRoomId(reqRecord.getHostelRoomId())
+                    .status(saved.getStatus())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            savedRecord = studentAcademicRecordRepository.save(record);
+        }
 
         // Update Parent's studentIds list
         if (saved.getParentId() != null && !saved.getParentId().isEmpty()) {
@@ -108,13 +121,8 @@ public class StudentService {
             });
         }
 
-        // Set transient academic fields on saved student object
-        saved.setAcademicYearId(acadYear);
-        saved.setStudentId(student.getStudentId());
-        saved.setRollNo(student.getRollNo());
-        saved.setClassId(student.getClassId());
-        saved.setSectionId(student.getSectionId());
-        saved.setHostelRoomId(student.getHostelRoomId());
+        // Set transient academic field on saved student object
+        saved.setCurrentAcademicRecord(savedRecord);
 
         return saved;
     }
@@ -146,7 +154,7 @@ public class StudentService {
     }
 
     public List<Student> getStudentsByClass(String classId) {
-        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassId(classId);
+        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassDocId(classId);
         List<String> studentIds = records.stream()
                 .map(StudentAcademicRecord::getStudentDocId)
                 .distinct()
@@ -235,7 +243,10 @@ public class StudentService {
         Student saved = studentRepository.save(student);
 
         // Update academic record
-        String targetAcademicYear = studentDetails.getAcademicYearId() != null ? studentDetails.getAcademicYearId() : student.getAcademicYearId();
+        StudentAcademicRecord detailsRecord = studentDetails.getCurrentAcademicRecord();
+        String targetAcademicYear = (detailsRecord != null && detailsRecord.getAcademicYearId() != null) 
+                ? detailsRecord.getAcademicYearId() 
+                : (student.getCurrentAcademicRecord() != null ? student.getCurrentAcademicRecord().getAcademicYearId() : null);
         if (targetAcademicYear == null) {
             targetAcademicYear = AcademicYearUtils.getCurrentAcademicYear();
         }
@@ -252,25 +263,32 @@ public class StudentService {
         record.setSchoolId(saved.getSchoolId());
         boolean academicChanged = false;
 
-        if (studentDetails.getStudentId() != null) {
-            record.setStudentId(studentDetails.getStudentId());
-            academicChanged = true;
-        }
-        if (studentDetails.getRollNo() != null) {
-            record.setRollNo(studentDetails.getRollNo());
-            academicChanged = true;
-        }
-        if (studentDetails.getClassId() != null) {
-            record.setClassId(studentDetails.getClassId());
-            academicChanged = true;
-        }
-        if (studentDetails.getSectionId() != null) {
-            record.setSectionId(studentDetails.getSectionId());
-            academicChanged = true;
-        }
-        if (studentDetails.getHostelRoomId() != null) {
-            record.setHostelRoomId(studentDetails.getHostelRoomId());
-            academicChanged = true;
+        if (detailsRecord != null) {
+            if (detailsRecord.getStudentId() != null) {
+                record.setStudentId(detailsRecord.getStudentId());
+                academicChanged = true;
+            }
+            if (detailsRecord.getRollNo() != null) {
+                record.setRollNo(detailsRecord.getRollNo());
+                academicChanged = true;
+            }
+            if (detailsRecord.getClassDocId() != null) {
+                SchoolClass schoolClass = schoolClassRepository.findById(detailsRecord.getClassDocId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + detailsRecord.getClassDocId()));
+                if (!schoolClass.getSchoolId().equals(saved.getSchoolId())) {
+                    throw new IllegalArgumentException("Class does not belong to the same school as the student.");
+                }
+                record.setClassDocId(detailsRecord.getClassDocId());
+                academicChanged = true;
+            }
+            if (detailsRecord.getSectionId() != null) {
+                record.setSectionId(detailsRecord.getSectionId());
+                academicChanged = true;
+            }
+            if (detailsRecord.getHostelRoomId() != null) {
+                record.setHostelRoomId(detailsRecord.getHostelRoomId());
+                academicChanged = true;
+            }
         }
         if (studentDetails.getStatus() != null) {
             record.setStatus(studentDetails.getStatus());
@@ -279,8 +297,9 @@ public class StudentService {
 
         if (academicChanged) {
             record.setUpdatedAt(LocalDateTime.now());
-            studentAcademicRecordRepository.save(record);
+            record = studentAcademicRecordRepository.save(record);
         }
+        saved.setCurrentAcademicRecord(record);
 
         // Adjust parent references
         if (newParentId != null && !newParentId.equals(oldParentId)) {
@@ -344,7 +363,14 @@ public class StudentService {
         record.setSchoolId(student.getSchoolId());
         if (recordDetails.getStudentId() != null) record.setStudentId(recordDetails.getStudentId());
         if (recordDetails.getRollNo() != null) record.setRollNo(recordDetails.getRollNo());
-        if (recordDetails.getClassId() != null) record.setClassId(recordDetails.getClassId());
+        if (recordDetails.getClassDocId() != null) {
+            SchoolClass schoolClass = schoolClassRepository.findById(recordDetails.getClassDocId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + recordDetails.getClassDocId()));
+            if (!schoolClass.getSchoolId().equals(student.getSchoolId())) {
+                throw new IllegalArgumentException("Class does not belong to the same school as the student.");
+            }
+            record.setClassDocId(recordDetails.getClassDocId());
+        }
         if (recordDetails.getSectionId() != null) record.setSectionId(recordDetails.getSectionId());
         if (recordDetails.getHostelRoomId() != null) record.setHostelRoomId(recordDetails.getHostelRoomId());
         if (recordDetails.getStatus() != null) {

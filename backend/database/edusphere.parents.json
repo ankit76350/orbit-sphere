@@ -1,0 +1,167 @@
+[{
+  "_id": {
+    "$oid": "6a475092826a1781db37539b"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc9",
+  "fatherName": "Robert Doe",
+  "motherName": "Alice Doe",
+  "phone": "1234567890",
+  "alternatePhone": "0987654321",
+  "email": "robert.doe@example.com",
+  "address": "123 Whispering Pines Road, Cityville",
+  "studentIds": [
+    "6a4750bd826a1781db37539c"
+  ],
+  "_class": "com.orbitastra.backend.models.student.Parent"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefcd"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc3",
+  "fatherName": "James Brown",
+  "motherName": "Olivia Brown",
+  "phone": "1234567893",
+  "alternatePhone": "0987654324",
+  "email": "james.brown@example.com",
+  "address": "101 Sunrise Avenue, Lakeview"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefd1"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc7",
+  "fatherName": "Christopher Moore",
+  "motherName": "Amelia Moore",
+  "phone": "1234567897",
+  "alternatePhone": "0987654328",
+  "email": "christopher.moore@example.com",
+  "address": "14 Maple Drive, Maple Town"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefcc"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc2",
+  "fatherName": "David Williams",
+  "motherName": "Emma Williams",
+  "phone": "1234567892",
+  "alternatePhone": "0987654323",
+  "email": "david.williams@example.com",
+  "address": "89 Future Road, Newtown"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefca"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc0",
+  "fatherName": "Robert Doe",
+  "motherName": "Alice Doe",
+  "phone": "1234567890",
+  "alternatePhone": "0987654321",
+  "email": "robert.doe@example.com",
+  "address": "123 Whispering Pines Road, Tech City"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefd3"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc9",
+  "fatherName": "Andrew Anderson",
+  "motherName": "Grace Anderson",
+  "phone": "1234567899",
+  "alternatePhone": "0987654330",
+  "email": "andrew.anderson@example.com",
+  "address": "99 Oak Avenue, Greenwood"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefcb"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc1",
+  "fatherName": "Michael Johnson",
+  "motherName": "Sarah Johnson",
+  "phone": "1234567891",
+  "alternatePhone": "0987654322",
+  "email": "michael.johnson@example.com",
+  "address": "45 Green Street, Springfield"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefcf"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc5",
+  "fatherName": "Joseph Miller",
+  "motherName": "Charlotte Miller",
+  "phone": "1234567895",
+  "alternatePhone": "0987654326",
+  "email": "joseph.miller@example.com",
+  "address": "77 Mountain View Road, Hilltown"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefce"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc4",
+  "fatherName": "William Davis",
+  "motherName": "Sophia Davis",
+  "phone": "1234567894",
+  "alternatePhone": "0987654325",
+  "email": "william.davis@example.com",
+  "address": "22 Pioneer Blvd, Riverdale"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefd0"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc6",
+  "fatherName": "Daniel Wilson",
+  "motherName": "Mia Wilson",
+  "phone": "1234567896",
+  "alternatePhone": "0987654327",
+  "email": "daniel.wilson@example.com",
+  "address": "56 Harmony Street, Oak City"
+},
+{
+  "_id": {
+    "$oid": "6a475192ae2722e4b9afefd2"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc8",
+  "fatherName": "Matthew Taylor",
+  "motherName": "Isabella Taylor",
+  "phone": "1234567898",
+  "alternatePhone": "0987654329",
+  "email": "matthew.taylor@example.com",
+  "address": "300 Innovation Park, Silicon City",
+  "studentIds": [
+    "6a475666826a1781db37539d",
+    "6a4756b5826a1781db37539e",
+    "6a476254826a1781db3753b7",
+    "6a476910826a1781db3753c1"
+  ],
+  "_class": "com.orbitastra.backend.models.student.Parent"
+},
+{
+  "_id": {
+    "$oid": "6a4b3585e2823debb8d54fd8"
+  },
+  "createdAt": {
+    "$date": "2026-07-06T04:56:37.087Z"
+  },
+  "updatedAt": {
+    "$date": "2026-07-06T05:39:34.780Z"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc2",
+  "fatherName": "Michael Smith",
+  "motherName": "Emma Smith",
+  "phone": "1234567801",
+  "alternatePhone": "0987654301",
+  "email": "michael.smith@example.com",
+  "address": "45 Green Valley Road, Lakeview City",
+  "studentIds": [
+    "6a4b35a2e2823debb8d54fd9",
+    "6a4b3800e2823debb8d54fdd",
+    "6a4b3f96e2823debb8d54fe3"
+  ],
+  "_class": "com.orbitastra.backend.models.student.Parent"
+}]

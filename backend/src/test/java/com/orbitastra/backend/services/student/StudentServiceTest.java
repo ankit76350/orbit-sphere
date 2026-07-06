@@ -24,6 +24,8 @@ import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.student.ParentRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
+import com.orbitastra.backend.models.academics.SchoolClass;
+import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 
 @ExtendWith(MockitoExtension.class)
 public class StudentServiceTest {
@@ -39,6 +41,9 @@ public class StudentServiceTest {
 
     @Mock
     private StudentAcademicRecordRepository studentAcademicRecordRepository;
+
+    @Mock
+    private SchoolClassRepository schoolClassRepository;
 
     @InjectMocks
     private StudentService studentService;
@@ -164,9 +169,10 @@ public class StudentServiceTest {
 
         assertNotNull(found);
         assertEquals("student-id-123", found.getId());
-        assertEquals("STU-001", found.getStudentId());
-        assertEquals("12", found.getRollNo());
-        assertEquals("2026-2027", found.getAcademicYearId());
+        assertNotNull(found.getCurrentAcademicRecord());
+        assertEquals("STU-001", found.getCurrentAcademicRecord().getStudentId());
+        assertEquals("12", found.getCurrentAcademicRecord().getRollNo());
+        assertEquals("2026-2027", found.getCurrentAcademicRecord().getAcademicYearId());
     }
 
     @Test
@@ -250,10 +256,13 @@ public class StudentServiceTest {
     void createOrUpdateAcademicRecord_Success() {
         StudentAcademicRecord input = StudentAcademicRecord.builder()
                 .academicYearId("2026-2027")
-                .classId("class-new")
+                .classDocId("class-new")
                 .build();
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
+                SchoolClass.builder().id("class-new").schoolId("school-id-123").build()
+        ));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
         when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId("student-id-123", "2026-2027"))
                 .thenReturn(Optional.empty());
@@ -263,7 +272,7 @@ public class StudentServiceTest {
         StudentAcademicRecord record = studentService.createOrUpdateAcademicRecord("student-id-123", input);
 
         assertNotNull(record);
-        assertEquals("class-new", record.getClassId());
+        assertEquals("class-new", record.getClassDocId());
         assertEquals("2026-2027", record.getAcademicYearId());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
@@ -286,10 +295,13 @@ public class StudentServiceTest {
     void promoteStudent_Success() {
         StudentAcademicRecord input = StudentAcademicRecord.builder()
                 .academicYearId("2027-2028")
-                .classId("class-new")
+                .classDocId("class-new")
                 .build();
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
+                SchoolClass.builder().id("class-new").schoolId("school-id-123").build()
+        ));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
         when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId("student-id-123", "2027-2028"))
                 .thenReturn(Optional.empty());
@@ -299,7 +311,7 @@ public class StudentServiceTest {
         StudentAcademicRecord record = studentService.promoteStudent("student-id-123", input);
 
         assertNotNull(record);
-        assertEquals("class-new", record.getClassId());
+        assertEquals("class-new", record.getClassDocId());
         assertEquals("2027-2028", record.getAcademicYearId());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }

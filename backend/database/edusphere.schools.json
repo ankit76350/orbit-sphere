@@ -1,0 +1,184 @@
+[{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc2"
+  },
+  "schoolName": "Bright Future Academy",
+  "subdomain": "brightfuture",
+  "logo": "https://logo.url/brightfuture.png",
+  "address": "89 Future Road, Newtown",
+  "phone": "+1234567892",
+  "email": "admin@brightfuture.edu",
+  "subscriptionTier": "BASIC",
+  "maxStudents": 500,
+  "maxUsers": 50,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc3"
+  },
+  "schoolName": "Sunrise Public School",
+  "subdomain": "sunrise",
+  "logo": "https://logo.url/sunrise.png",
+  "address": "101 Sunrise Avenue, Lakeview",
+  "phone": "+1234567893",
+  "email": "support@sunrise.edu",
+  "subscriptionTier": "PREMIUM",
+  "maxStudents": 1500,
+  "maxUsers": 150,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc0"
+  },
+  "schoolName": "Orbitastra Academy",
+  "subdomain": "orbitastra",
+  "logo": "https://logo.url/orbitastra.png",
+  "address": "123 Education Lane, Tech City",
+  "phone": "+1234567890",
+  "email": "contact@orbitastra.edu",
+  "subscriptionTier": "ENTERPRISE",
+  "maxStudents": 5000,
+  "maxUsers": 500,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc6"
+  },
+  "schoolName": "Harmony Public School",
+  "subdomain": "harmony",
+  "logo": "https://logo.url/harmony.png",
+  "address": "56 Harmony Street, Oak City",
+  "phone": "+1234567896",
+  "email": "office@harmony.edu",
+  "subscriptionTier": "BASIC",
+  "maxStudents": 750,
+  "maxUsers": 75,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc1"
+  },
+  "schoolName": "Green Valley School",
+  "subdomain": "greenvalley",
+  "logo": "https://logo.url/greenvalley.png",
+  "address": "45 Green Street, Springfield",
+  "phone": "+1234567891",
+  "email": "info@greenvalley.edu",
+  "subscriptionTier": "FREE",
+  "maxStudents": 100,
+  "maxUsers": 10,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc4"
+  },
+  "schoolName": "Pioneer Learning Center",
+  "subdomain": "pioneer",
+  "logo": "https://logo.url/pioneer.png",
+  "address": "22 Pioneer Blvd, Riverdale",
+  "phone": "+1234567894",
+  "email": "contact@pioneer.edu",
+  "subscriptionTier": "FREE",
+  "maxStudents": 100,
+  "maxUsers": 10,
+  "active": false
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc5"
+  },
+  "schoolName": "Everest International Academy",
+  "subdomain": "everest",
+  "logo": "https://logo.url/everest.png",
+  "address": "77 Mountain View Road, Hilltown",
+  "phone": "+1234567895",
+  "email": "hello@everest.edu",
+  "subscriptionTier": "ENTERPRISE",
+  "maxStudents": 10000,
+  "maxUsers": 1000,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc8"
+  },
+  "schoolName": "Future Minds School",
+  "subdomain": "futureminds",
+  "logo": "https://logo.url/futureminds.png",
+  "address": "300 Innovation Park, Silicon City",
+  "phone": "+1234567898",
+  "email": "contact@futureminds.edu",
+  "subscriptionTier": "ENTERPRISE",
+  "maxStudents": 2,
+  "maxUsers": 1,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc9"
+  },
+  "schoolName": "Silver Oak School",
+  "subdomain": "silveroak",
+  "logo": "https://logo.url/silveroak.png",
+  "address": "99 Oak Avenue, Greenwood",
+  "phone": "+1234567899",
+  "email": "admin@silveroak.edu",
+  "subscriptionTier": "BASIC",
+  "maxStudents": 600,
+  "maxUsers": 60,
+  "active": true
+},
+{
+  "_id": {
+    "$oid": "6a474d2517e9c40cf971ccc7"
+  },
+  "schoolName": "Maple Leaf Academy",
+  "subdomain": "mapleleaf",
+  "logo": "https://logo.url/mapleleaf.png",
+  "address": "14 Maple Drive, Maple Town",
+  "phone": "+1234567897",
+  "email": "info@mapleleaf.edu",
+  "subscriptionTier": "PREMIUM",
+  "maxStudents": 2000,
+  "maxUsers": 200,
+  "active": false
+},
+{
+  "_id": {
+    "$oid": "6a475140ae2722e4b9afefc0"
+  },
+  "schoolId": "6a474d2517e9c40cf971ccc0",
+  "fatherName": "Robert Doe",
+  "motherName": "Alice Doe",
+  "phone": "1234567890",
+  "alternatePhone": "0987654321",
+  "email": "robert.doe@example.com",
+  "address": "123 Whispering Pines Road, Tech City"
+},
+{
+  "_id": {
+    "$oid": "6a4b34ede2823debb8d54fd7"
+  },
+  "createdAt": {
+    "$date": "2026-07-06T04:54:05.370Z"
+  },
+  "updatedAt": {
+    "$date": "2026-07-06T04:54:05.370Z"
+  },
+  "schoolName": "Sunrise Modern Academy",
+  "subdomain": "sunriseacademy",
+  "logo": "https://logo.url/sunriseacademy.png",
+  "address": "89 Sunrise Boulevard, Maple Town",
+  "phone": "+1234567805",
+  "email": "admin@sunriseacademy.edu",
+  "subscriptionTier": "BASIC",
+  "maxStudents": 750,
+  "maxUsers": 75,
+  "active": false,
+  "_class": "com.orbitastra.backend.models.core.School"
+}]
