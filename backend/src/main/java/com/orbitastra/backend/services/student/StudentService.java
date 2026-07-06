@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.student.Parent;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.student.StudentRepository;
@@ -63,8 +64,10 @@ public class StudentService {
         }
 
         if (student.getParentId() != null && !student.getParentId().isEmpty()) {
-            if (!parentRepository.existsById(student.getParentId())) {
-                throw new ResourceNotFoundException("Parent not found with id: " + student.getParentId());
+            Parent parent = parentRepository.findById(student.getParentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent not found with id: " + student.getParentId()));
+            if (!student.getSchoolId().equals(parent.getSchoolId())) {
+                throw new IllegalArgumentException("Parent does not belong to the same school as the student.");
             }
         }
 
@@ -195,8 +198,12 @@ public class StudentService {
         String newParentId = studentDetails.getParentId();
 
         if (newParentId != null && !newParentId.equals(oldParentId)) {
-            if (!newParentId.isEmpty() && !parentRepository.existsById(newParentId)) {
-                throw new ResourceNotFoundException("Parent not found with id: " + newParentId);
+            if (!newParentId.isEmpty()) {
+                Parent parent = parentRepository.findById(newParentId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Parent not found with id: " + newParentId));
+                if (!student.getSchoolId().equals(parent.getSchoolId())) {
+                    throw new IllegalArgumentException("Parent does not belong to the same school as the student.");
+                }
             }
             student.setParentId(newParentId);
         }

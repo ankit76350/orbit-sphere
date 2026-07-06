@@ -18,6 +18,7 @@ import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
+import com.orbitastra.backend.repositories.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,17 +31,66 @@ public class HomeworkService {
     private final SchoolClassRepository schoolClassRepository;
     private final StudentRepository studentRepository;
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
+    private final StaffRepository staffRepository;
+
+    private void validateTeacher(String teacherId, String schoolId) {
+        if (teacherId == null || teacherId.isEmpty()) {
+            throw new IllegalArgumentException("Teacher ID cannot be null or empty.");
+        }
+        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(teacherId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + teacherId));
+        if (!teacher.getSchoolId().equals(schoolId)) {
+            throw new IllegalArgumentException("Teacher does not belong to the same school as the homework.");
+        }
+    }
+
+    private SchoolClass validateClass(String classId, String schoolId) {
+        if (classId == null || classId.isEmpty()) {
+            throw new IllegalArgumentException("Class ID cannot be null or empty.");
+        }
+        SchoolClass schoolClass = schoolClassRepository.findById(classId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + classId));
+        if (!schoolClass.getSchoolId().equals(schoolId)) {
+            throw new IllegalArgumentException("Class does not belong to the same school as the homework.");
+        }
+        return schoolClass;
+    }
+
+    private void validateStudentAssignments(String schoolId, String classId, List<Homework.StudentAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
+            return;
+        }
+
+        SchoolClass schoolClass = validateClass(classId, schoolId);
+        String targetAcademicYear = schoolClass.getAcademicYearId();
+
+        for (Homework.StudentAssignment assignment : assignments) {
+            String studentId = assignment.getStudentId();
+            Student student = studentRepository.findById(studentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+            
+            if (!student.getSchoolId().equals(schoolId)) {
+                throw new IllegalArgumentException("Student with ID " + studentId + " does not belong to the same school as the homework.");
+            }
+
+            StudentAcademicRecord academicRecord = studentAcademicRecordRepository
+                    .findByStudentDocIdAndAcademicYearId(studentId, targetAcademicYear)
+                    .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentId + " does not have an academic record for academic year " + targetAcademicYear));
+
+            if (!classId.equals(academicRecord.getClassDocId())) {
+                throw new IllegalArgumentException("Student with ID " + studentId + " is not currently enrolled in class " + classId + " for the academic year " + targetAcademicYear);
+            }
+        }
+    }
 
     public Homework createHomework(Homework homework) {
         if (homework.getSchoolId() == null || !schoolRepository.existsById(homework.getSchoolId())) {
             throw new ResourceNotFoundException("School not found with id: " + homework.getSchoolId());
         }
 
-        SchoolClass schoolClass = schoolClassRepository.findById(homework.getClassId())
-                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + homework.getClassId()));
-        if (!schoolClass.getSchoolId().equals(homework.getSchoolId())) {
-            throw new IllegalArgumentException("Class does not belong to the same school as the homework.");
-        }
+        validateTeacher(homework.getTeacherId(), homework.getSchoolId());
+
+        validateClass(homework.getClassId(), homework.getSchoolId());
 
         if (homework.getAssignmentScope() == null) {
             homework.setAssignmentScope(AssignmentScope.CLASS);
@@ -59,16 +109,8 @@ public class HomeworkService {
             homework.setStudentAssignments(assignments);
         } else {
             if (homework.getStudentAssignments() != null) {
+                validateStudentAssignments(homework.getSchoolId(), homework.getClassId(), homework.getStudentAssignments());
                 for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
-                    Student student = studentRepository.findById(assignment.getStudentId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + assignment.getStudentId()));
-                    if (!student.getSchoolId().equals(homework.getSchoolId())) {
-                        throw new IllegalArgumentException("Student with ID " + assignment.getStudentId() + " does not belong to the same school as the homework.");
-                    }
-                    boolean isEnrolled = studentAcademicRecordRepository.existsByStudentDocIdAndClassDocId(assignment.getStudentId(), homework.getClassId());
-                    if (!isEnrolled) {
-                        throw new IllegalArgumentException("Student with ID " + assignment.getStudentId() + " does not belong to class " + homework.getClassId());
-                    }
                     if (assignment.getStatus() == null) {
                         assignment.setStatus(HomeworkStatus.ASSIGNED);
                     }
@@ -85,11 +127,9 @@ public class HomeworkService {
             throw new ResourceNotFoundException("School not found with id: " + homework.getSchoolId());
         }
 
-        SchoolClass schoolClass = schoolClassRepository.findById(homework.getClassId())
-                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + homework.getClassId()));
-        if (!schoolClass.getSchoolId().equals(homework.getSchoolId())) {
-            throw new IllegalArgumentException("Class does not belong to the same school as the homework.");
-        }
+        validateTeacher(homework.getTeacherId(), homework.getSchoolId());
+
+        validateClass(homework.getClassId(), homework.getSchoolId());
 
         homework.setStudentAssignments(new ArrayList<>());
         homework.setSubmittedCount(0);
@@ -115,16 +155,8 @@ public class HomeworkService {
             if (providedAssignments == null || providedAssignments.isEmpty()) {
                 throw new IllegalArgumentException("Student assignments list must not be empty for GROUP or INDIVIDUAL scope.");
             }
+            validateStudentAssignments(homework.getSchoolId(), homework.getClassId(), providedAssignments);
             for (Homework.StudentAssignment assignment : providedAssignments) {
-                Student student = studentRepository.findById(assignment.getStudentId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + assignment.getStudentId()));
-                if (!student.getSchoolId().equals(homework.getSchoolId())) {
-                    throw new IllegalArgumentException("Student with ID " + assignment.getStudentId() + " does not belong to the same school as the homework.");
-                }
-                boolean isEnrolled = studentAcademicRecordRepository.existsByStudentDocIdAndClassDocId(assignment.getStudentId(), homework.getClassId());
-                if (!isEnrolled) {
-                    throw new IllegalArgumentException("Student with ID " + assignment.getStudentId() + " does not belong to class " + homework.getClassId());
-                }
                 if (assignment.getStatus() == null) {
                     assignment.setStatus(HomeworkStatus.ASSIGNED);
                 }
@@ -222,9 +254,7 @@ public class HomeworkService {
         }
 
         if (homeworkDetails.getClassId() != null && !homeworkDetails.getClassId().equals(homework.getClassId())) {
-            if (!schoolClassRepository.existsById(homeworkDetails.getClassId())) {
-                throw new ResourceNotFoundException("Class not found with id: " + homeworkDetails.getClassId());
-            }
+            validateClass(homeworkDetails.getClassId(), homework.getSchoolId());
             homework.setClassId(homeworkDetails.getClassId());
         }
 
@@ -246,7 +276,8 @@ public class HomeworkService {
         if (homeworkDetails.getMaxMarks() != null) {
             homework.setMaxMarks(homeworkDetails.getMaxMarks());
         }
-        if (homeworkDetails.getTeacherId() != null) {
+        if (homeworkDetails.getTeacherId() != null && !homeworkDetails.getTeacherId().equals(homework.getTeacherId())) {
+            validateTeacher(homeworkDetails.getTeacherId(), homework.getSchoolId());
             homework.setTeacherId(homeworkDetails.getTeacherId());
         }
 
