@@ -8,6 +8,7 @@ import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,10 +18,30 @@ public class SchoolClassService {
 
     private final SchoolClassRepository schoolClassRepository;
     private final SchoolRepository schoolRepository;
+    private final StaffRepository staffRepository;
+
+    private void validateTeacher(String teacherId, String schoolId) {
+        if (teacherId == null || teacherId.isEmpty()) {
+            return;
+        }
+        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(teacherId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + teacherId));
+        if (!teacher.getSchoolId().equals(schoolId)) {
+            throw new IllegalArgumentException("Teacher with ID " + teacherId + " does not belong to this school.");
+        }
+    }
 
     public SchoolClass createClass(SchoolClass schoolClass) {
         if (schoolClass.getSchoolId() == null || !schoolRepository.existsById(schoolClass.getSchoolId())) {
             throw new ResourceNotFoundException("School not found with id: " + schoolClass.getSchoolId());
+        }
+
+        validateTeacher(schoolClass.getClassTeacher(), schoolClass.getSchoolId());
+
+        if (schoolClass.getSubjects() != null) {
+            for (SchoolClass.ClassSubject sub : schoolClass.getSubjects()) {
+                validateTeacher(sub.getTeacher(), schoolClass.getSchoolId());
+            }
         }
 
         if (schoolClass.getName() != null && 
@@ -62,15 +83,23 @@ public class SchoolClassService {
         }
 
         if (classDetails.getClassTeacher() != null) {
+            validateTeacher(classDetails.getClassTeacher(), schoolClass.getSchoolId());
             schoolClass.setClassTeacher(classDetails.getClassTeacher());
         }
 
         if (classDetails.getSubjects() != null) {
+            for (SchoolClass.ClassSubject sub : classDetails.getSubjects()) {
+                validateTeacher(sub.getTeacher(), schoolClass.getSchoolId());
+            }
             schoolClass.setSubjects(classDetails.getSubjects());
         }
 
         if (classDetails.getAcademicYearId() != null) {
             schoolClass.setAcademicYearId(classDetails.getAcademicYearId());
+        }
+
+        if (classDetails.getSections() != null) {
+            schoolClass.setSections(classDetails.getSections());
         }
 
         return schoolClassRepository.save(schoolClass);
@@ -83,6 +112,9 @@ public class SchoolClassService {
 
     public SchoolClass addSubject(String classId, SchoolClass.ClassSubject subject) {
         SchoolClass schoolClass = getClassById(classId);
+
+        validateTeacher(subject.getTeacher(), schoolClass.getSchoolId());
+
         if (schoolClass.getSubjects() == null) {
             schoolClass.setSubjects(new java.util.ArrayList<>());
         }
@@ -94,6 +126,34 @@ public class SchoolClassService {
         }
 
         schoolClass.getSubjects().add(subject);
+        return schoolClassRepository.save(schoolClass);
+    }
+
+    public SchoolClass addSection(String classId, String section) {
+        SchoolClass schoolClass = getClassById(classId);
+        if (schoolClass.getSections() == null) {
+            schoolClass.setSections(new java.util.ArrayList<>());
+        }
+        if (schoolClass.getSections().contains(section)) {
+            throw new IllegalArgumentException("Section '" + section + "' already exists in this class.");
+        }
+        schoolClass.getSections().add(section);
+        return schoolClassRepository.save(schoolClass);
+    }
+
+    public SchoolClass removeSection(String classId, String section) {
+        SchoolClass schoolClass = getClassById(classId);
+        if (schoolClass.getSections() != null) {
+            schoolClass.getSections().remove(section);
+        }
+        return schoolClassRepository.save(schoolClass);
+    }
+
+    public SchoolClass removeSubject(String classId, String subjectName) {
+        SchoolClass schoolClass = getClassById(classId);
+        if (schoolClass.getSubjects() != null) {
+            schoolClass.getSubjects().removeIf(s -> s.getName() != null && s.getName().equalsIgnoreCase(subjectName));
+        }
         return schoolClassRepository.save(schoolClass);
     }
 }

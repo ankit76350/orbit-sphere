@@ -32,11 +32,13 @@ public class SchoolClass {
 
     private String name;
 
-    private String classTeacher;
+    private String classTeacher; // here store techer docs id from the staff database
 
     private List<ClassSubject> subjects;
 
     private String academicYearId;
+
+    private List<String> sections;
 
     @Data
     @Builder
@@ -44,6 +46,6 @@ public class SchoolClass {
     @AllArgsConstructor
     public static class ClassSubject {
         private String name;
-        private String teacher;
+        private String teacher; // here store techer docs id from the staff database
     }
 }

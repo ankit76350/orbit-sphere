@@ -62,4 +62,32 @@ public class SchoolClassController {
         SchoolClass updated = schoolClassService.addSubject(id, subject);
         return ResponseEntity.ok(updated);
     }
+
+    @PostMapping("/{id}/sections")
+    public ResponseEntity<SchoolClass> addSection(
+            @PathVariable String id, 
+            @RequestBody Map<String, String> body) {
+        String section = body.get("section");
+        if (section == null || section.isEmpty()) {
+            throw new IllegalArgumentException("Section name cannot be null or empty.");
+        }
+        SchoolClass updated = schoolClassService.addSection(id, section);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{id}/sections/{section}")
+    public ResponseEntity<SchoolClass> removeSection(
+            @PathVariable String id, 
+            @PathVariable String section) {
+        SchoolClass updated = schoolClassService.removeSection(id, section);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{id}/subjects/{subjectName}")
+    public ResponseEntity<SchoolClass> removeSubject(
+            @PathVariable String id, 
+            @PathVariable String subjectName) {
+        SchoolClass updated = schoolClassService.removeSubject(id, subjectName);
+        return ResponseEntity.ok(updated);
+    }
 }

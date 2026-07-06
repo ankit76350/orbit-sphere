@@ -1,0 +1,2873 @@
+{
+  "info": {
+    "_postman_id": "ef6e284f-15d4-4a02-a275-34544bc4424b",
+    "name": "School Edu Sphere",
+    "description": "Student API collection (Students, Parents, Academic Records).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "47336508",
+    "_collection_link": "https://go.postman.co/collection/47336508-ef6e284f-15d4-4a02-a275-34544bc4424b?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Student",
+      "item": [
+        {
+          "name": "Students",
+          "item": [
+            {
+              "name": "Create Student",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"parentId\": \"6a475192ae2722e4b9afefcc\",\n    \"admissionNo\": \"ADM-2026-0003\",\n    \"firstName\": \"Lucas\",\n    \"lastName\": \"Johnson\",\n    \"dob\": \"2015-06-19\",\n    \"gender\": \"MALE\",\n    \"bloodGroup\": \"AB+\",\n    \"status\": \"ACTIVE\",\n    \"admissionDate\": \"2026-07-06\",\n    \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Students",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/6a476254826a1781db3753b7",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a476254826a1781db3753b7"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student By Admission No",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/admission/ADM-2026-001",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "admission",
+                    "ADM-2026-001"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student Siblings",
+              "protocolProfileBehavior": {
+                "disableBodyPruning": true
+              },
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/siblings\n// http://localhost:5030/api/students/docs id here/siblings",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students/6a475666826a1781db37539d/siblings",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a475666826a1781db37539d",
+                    "siblings"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/school/6a474d2517e9c40cf971ccc8",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "school",
+                    "6a474d2517e9c40cf971ccc8"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Class",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/class/class-8c",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "class",
+                    "class-8c"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Parent",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/parent/PARENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "parent",
+                    "PARENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Hostel Room",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/hostel/hostel-room-101",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "hostel",
+                    "hostel-room-101"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Student",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Johnny\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Student",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Parents",
+          "item": [
+            {
+              "name": "Create Parent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"fatherName\": \"Michael Smith\",\n    \"motherName\": \"Emma Smith\",\n    \"phone\": \"1234567801\",\n    \"alternatePhone\": \"0987654301\",\n    \"email\": \"michael.smith@example.com\",\n    \"address\": \"45 Green Valley Road, Lakeview City\"\n  }"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/parents",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Parents",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/parents",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Parent By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents",
+                    "PARENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Parent By Email",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/parents/email/robert.doe@example.com",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents",
+                    "email",
+                    "robert.doe@example.com"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Parents By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/parents/school/6a474d2517e9c40cf971ccc8",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents",
+                    "school",
+                    "6a474d2517e9c40cf971ccc8"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Parent",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fatherName\": \"Robert Doe Sr.\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents",
+                    "PARENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Parent",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "parents",
+                    "PARENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Academic Records",
+          "item": [
+            {
+              "name": "Assign Academic Record",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n\n{\n  \"academicYearId\": \"2027-2028\",\n  \"studentId\": \"STD-003\", // not document it \n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students/6a4b4482e2823debb8d54fea/academic-records",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4b4482e2823debb8d54fea",
+                    "academic-records"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Promote Student",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n// http://localhost:5030/api/students/studentDocId/academic-records\n// 6a4750bd826a1781db37539c\n{\n  \"academicYearId\": \"2025-2026\",\n  \"studentId\": \"STD-004\",\n  \"rollNo\": \"105-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}\n\n// {\n//   \"academicYearId\": \"2027-2028\",\n//   \"studentId\": \"STD-003-PROMOTE\",\n//   \"rollNo\": \"10C-03\",\n//   \"classId\": \"class-10c\",\n//   \"sectionId\": \"section-c\",\n//   \"hostelRoomId\": \"hostel-room-303\",\n//   \"status\": \"ACTIVE\"\n// }"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students/6a4b3f96e2823debb8d54fe3/promote",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4b3f96e2823debb8d54fe3",
+                    "promote"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student Academic History",
+              "protocolProfileBehavior": {
+                "disableBodyPruning": true
+              },
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-history\n//http://localhost:5030/api/students/studentDocId/academic-history",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/students/6a4750bd826a1781db37539c/academic-history",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4750bd826a1781db37539c",
+                    "academic-history"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Core",
+      "item": [
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "Create Notification",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"recipientId\": \"USER_ID_HERE\",\n  \"channel\": \"EMAIL\",\n  \"message\": \"Your registration was successful!\",\n  \"sent\": false\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Notifications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Notification By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "NOTIFICATION_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Notifications By Recipient",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "recipient",
+                    "USER_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Unsent Notifications By Recipient",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE/unsent",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "recipient",
+                    "USER_ID_HERE",
+                    "unsent"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Notifications By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Mark Notification As Sent",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE/mark-sent",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "NOTIFICATION_ID_HERE",
+                    "mark-sent"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "notifications",
+                    "NOTIFICATION_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Announcements",
+          "item": [
+            {
+              "name": "Create Announcement",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n//   \"schoolId\": \"6a4660056ddd1ba253d631cb\",\n  \"schoolId\": \"6a465ffb6ddd1ba253d631ca\",\n  \"title\": \"Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Monday. Please bring your student ID cards.\",\n  \"target\": \"all\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Announcements",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Announcement By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements/6a46631098d3b7bfe4bd5f23",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements",
+                    "6a46631098d3b7bfe4bd5f23"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Announcements By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements/school/6a4660056ddd1ba253d631cb",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements",
+                    "school",
+                    "6a4660056ddd1ba253d631cb"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Announcements By School And Target",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements/school/6a465ffb6ddd1ba253d631ca/target/teacher",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements",
+                    "school",
+                    "6a465ffb6ddd1ba253d631ca",
+                    "target",
+                    "teacher"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Announcement",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"title\": \"Updated: Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Tuesday at 9 AM instead of Monday.\",\n  \"target\": \"student\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements/6a46643098d3b7bfe4bd5f27",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements",
+                    "6a46643098d3b7bfe4bd5f27"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Announcement",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/announcements/6a46643098d3b7bfe4bd5f27",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "announcements",
+                    "6a46643098d3b7bfe4bd5f27"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Schools",
+          "item": [
+            {
+              "name": "Create School",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// {\n//     \"schoolName\": \"Green Valley International School\",\n//     \"subdomain\": \"greenvalley\",\n//     \"logo\": \"https://logo.url/greenvalley.png\",\n//     \"address\": \"45 Green Park Road, Lake City\",\n//     \"phone\": \"+1234567801\",\n//     \"email\": \"admin@greenvalley.edu\",\n//     \"subscriptionTier\": \"FREE\",\n//     \"maxStudents\": 300,\n//     \"maxUsers\": 30,\n//     \"active\": true\n//   },\n//   {\n//     \"schoolName\": \"Bright Future Academy\",\n//     \"subdomain\": \"brightfuture\",\n//     \"logo\": \"https://logo.url/brightfuture.png\",\n//     \"address\": \"78 Knowledge Street, Sunrise City\",\n//     \"phone\": \"+1234567802\",\n//     \"email\": \"contact@brightfuture.edu\",\n//     \"subscriptionTier\": \"BASIC\",\n//     \"maxStudents\": 600,\n//     \"maxUsers\": 60,\n//     \"active\": true\n//   },\n//   {\n//     \"schoolName\": \"Horizon Public School\",\n//     \"subdomain\": \"horizon\",\n//     \"logo\": \"https://logo.url/horizon.png\",\n//     \"address\": \"120 Horizon Avenue, River Town\",\n//     \"phone\": \"+1234567803\",\n//     \"email\": \"admin@horizon.edu\",\n//     \"subscriptionTier\": \"PREMIUM\",\n//     \"maxStudents\": 1200,\n//     \"maxUsers\": 150,\n//     \"active\": true\n//   },\n//   {\n//     \"schoolName\": \"Royal Heritage School\",\n//     \"subdomain\": \"royalheritage\",\n//     \"logo\": \"https://logo.url/royalheritage.png\",\n//     \"address\": \"25 Heritage Road, Crown City\",\n//     \"phone\": \"+1234567804\",\n//     \"email\": \"info@royalheritage.edu\",\n//     \"subscriptionTier\": \"ENTERPRISE\",\n//     \"maxStudents\": 3000,\n//     \"maxUsers\": 500,\n//     \"active\": true\n//   },\n  {\n    \"schoolName\": \"Sunrise Modern Academy\",\n    \"subdomain\": \"sunriseacademy\",\n    \"logo\": \"https://logo.url/sunriseacademy.png\",\n    \"address\": \"89 Sunrise Boulevard, Maple Town\",\n    \"phone\": \"+1234567805\",\n    \"email\": \"admin@sunriseacademy.edu\",\n    \"subscriptionTier\": \"BASIC\",\n    \"maxStudents\": 750,\n    \"maxUsers\": 75,\n    \"active\": false\n  }\n"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/schools",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Schools",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/schools",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Active Schools",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/schools/active",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools",
+                    "active"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get School By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/schools/6a474d2517e9c40cf971ccc2",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools",
+                    "6a474d2517e9c40cf971ccc2"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get School By Subdomain",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/schools/subdomain/orbitastra",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools",
+                    "subdomain",
+                    "orbitastra"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update School",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n//   \"schoolName\": \"Orbitastra Academy International\",\n//   \"subdomain\": \"New orbitastra\",\n//   \"logo\": \"https://logo.url/orbitastra.png\",\n//   \"address\": \"456 Global Way, Tech City\",\n//   \"phone\": \"+1987654321\",\n//   \"email\": \"admin@orbitastra.edu\",\n//   \"subscriptionTier\": \"ENTERPRISE\",\n  \"maxStudents\": 300,\n  \"maxUsers\": 15\n//   \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/schools/6a4660056ddd1ba253d631cb",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools",
+                    "6a4660056ddd1ba253d631cb"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete School",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/schools/6a465d3c6ddd1ba253d631c1",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "schools",
+                    "6a465d3c6ddd1ba253d631c1"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Academics",
+      "item": [
+        {
+          "name": "Classes",
+          "item": [
+            {
+              "name": "Create Class",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacher\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacher\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacher\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacher\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYearId\": \"2026-2027\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Classes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/classes",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Class By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/6a4b870d83bf885978ca998b",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "6a4b870d83bf885978ca998b"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Classes By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/school/6a474d2517e9c40cf971ccc2",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Class",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"classTeacher\": \"What smith\",\n     \"subjects\": [\n        {\n            \"name\": \"Mathematics\",\n            \"teacher\": \"Alice Smith\"\n        },\n        {\n            \"name\": \"Physics\",\n            \"teacher\": \"Bob Jones\"\n        }\n    ]\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/6a478a518a00ec3e112aa03b",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "6a478a518a00ec3e112aa03b"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Class",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "CLASS_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Section from Class",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/sections/A",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "CLASS_ID_HERE",
+                    "sections",
+                    "A"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Subject from Class",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/subjects/Chemistry",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "CLASS_ID_HERE",
+                    "subjects",
+                    "Chemistry"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Add Subject to Class",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Chemistry\",\n  \"teacher\": \"David Miller\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/6a478ca18a00ec3e112aa040/subjects",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "6a478ca18a00ec3e112aa040",
+                    "subjects"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Add Section to Class",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n\"section\" :[\"section A\" , \"Section B\"]\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/sections",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "classes",
+                    "CLASS_ID_HERE",
+                    "sections"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Academic Results",
+          "item": [
+            {
+              "name": "Create Academic Result",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"grade\": \"10th Grade\",\n  \"examName\": \"Midterm Examination\",\n  \"marks\": [\n    {\n      \"subject\": \"Mathematics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 92,\n      \"grade\": \"A\"\n    },\n    {\n      \"subject\": \"Physics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 88,\n      \"grade\": \"B\"\n    }\n  ],\n  \"totalPercentage\": 90.0,\n  \"overallGrade\": \"A\",\n  \"feedback\": \"Excellent performance!\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Academic Results",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Academic Result By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "RESULT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Academic Results By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Academic Results By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Academic Results By School and Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Academic Result",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"feedback\": \"Keep up the great work!\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "RESULT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Academic Result",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "academic-results",
+                    "RESULT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Attendance",
+          "item": [
+            {
+              "name": "Create Attendance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"presentBy\": \"6a4b5524d763ecb377186650\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Attendance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Attendance By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "ATTENDANCE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Attendance By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Attendance By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Attendance By School and Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/school/SCHOOL_ID_HERE/date/2026-07-03",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "date",
+                    "2026-07-03"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Attendance By Student and Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/student/STUDENT_ID_HERE/date/2026-07-03",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "student",
+                    "STUDENT_ID_HERE",
+                    "date",
+                    "2026-07-03"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Attendance",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ABSENT\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "ATTENDANCE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Attendance",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "attendance",
+                    "ATTENDANCE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Discipline Logs",
+          "item": [
+            {
+              "name": "Create Discipline Log",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"violation\": \"Late arrival to class\",\n  \"fineAmount\": 10.00,\n  \"actionTaken\": \"Warning issued\",\n  \"incidentDate\": \"2026-07-03T10:30:00\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Discipline Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Discipline Log By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs",
+                    "LOG_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Discipline Logs By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Discipline Logs By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Discipline Log",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionTaken\": \"Suspension for 1 day\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs",
+                    "LOG_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Discipline Log",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "discipline-logs",
+                    "LOG_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Medical Records",
+          "item": [
+            {
+              "name": "Create Medical Record",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"visitDate\": \"2026-07-03\",\n  \"diagnosis\": \"Seasonal Flu\",\n  \"medicines\": [\n    \"Paracetamol\",\n    \"Vitamin C\"\n  ],\n  \"doctorName\": \"Dr. Davis\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Medical Records",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Medical Record By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records",
+                    "RECORD_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Medical Records By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Medical Records By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Medical Record",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"diagnosis\": \"Seasonal Flu (Recovered)\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records",
+                    "RECORD_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Medical Record",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "medical-records",
+                    "RECORD_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Timetable Events",
+          "item": [
+            {
+              "name": "Create Timetable Event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"className\": \"Class 10A\", // name no need \n  \"teacher\": \"Alice Smith\", // use here teacher id\n  \"subject\": \"Mathematics\",\n  \"day\": \"Monday\",\n  \"time\": \"09:00 AM - 10:00 AM\",\n  \"room\": \"Room 101\" // sectionId also add in the class with array also add in the acadmic record [\"Section A\", \"Section B\" etc...]\n}\n\n// for the time table creation i want to create for whole "
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Timetable Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Timetable Event By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "EVENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Timetable Events By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Timetable Events By Class and School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE/class/Class 10A",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "class",
+                    "Class 10A"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Timetable Events By Class ID and School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE/class-id/CLASS_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "class-id",
+                    "CLASS_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Timetable Event",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"room\": \"Room 102\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "EVENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Timetable Event",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "timetable-events",
+                    "EVENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Homework",
+          "item": [
+            {
+              "name": "Create Homework",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc1\",\n//   \"classId\": \"6a478ca18a00ec3e112aa040\",\n//   \"subject\": \"Mathematics\",\n//   \"title\": \"Algebra Basics\",\n//   \"instructions\": \"Read chapter 2 and solve exercises 1 through 10.\",\n//   \"dueDate\": \"2026-07-10\",\n//   \"assignmentScope\": \"CLASS\",\n//   \"maxMarks\": 100,\n//   \"teacherId\": \"TEACHER_ID_HERE\"\n// }\n\n\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc3\", // remove latter \n  \"classId\": \"6a4b42f7e2823debb8d54fe7\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Advanced Geometry Proofs\",\n  \"instructions\": \"Complete the group assignment questions on page 42.\",\n  \"dueDate\": \"2026-07-12\",\n  \"assignmentScope\": \"GROUP\",\n  \"maxMarks\": 50,\n  \"teacherId\": \"6a4b5524d763ecb377186650\", // teacher should be belong to the same school\n  \"studentAssignments\": [\n    {\n      \"studentId\": \"6a4750bd826a1781db37539c\"\n    },\n    {\n      \"studentId\": \"6a475666826a1781db37539d\"\n    }\n  ]\n}\n\n\n\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n//   \"classId\": \"6a4753c299c8785ab0c2b5c1\",\n//   \"subject\": \"Physics\",\n//   \"title\": \"Newtonian Dynamics Remediation\",\n//   \"instructions\": \"Solve problems in Section A.\",\n//   \"dueDate\": \"2026-07-10\",\n//   \"assignmentScope\": \"INDIVIDUAL\",\n//   \"maxMarks\": 100,\n//   \"teacherId\": \"TEACHER_ID_HERE\",\n//   \"studentAssignments\": [\n//     {\n//       \"studentId\": \"6a4750bd826a1781db37539c\",\n//       \"customInstructions\": \"Please focus on solving only questions 1 to 5 as we discussed in the extra help session.\"\n//     }\n//   ]\n// }\n\n"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Homework Definition Only",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"classId\": \"6a4b4048e2823debb8d54fe4\",\n  \"className\": \"Class 10A\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Trigonometry Basics\",\n  \"instructions\": \"Complete problems 1-5 on page 73.\",\n  \"dueDate\": \"2026-07-15\",\n  \"maxMarks\": 100,\n  \"teacherId\": \"6a4b5524d763ecb377186650\"\n}\n"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/definition",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "definition"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Homework",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// {\n//   \"assignmentScope\": \"CLASS\"\n// }\n\n\n{\n  \"assignmentScope\": \"GROUP\",\n  \"studentAssignments\": [\n    {\n      \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n      \"studentName\": \"Liam Williams\"\n    },\n    {\n      \"studentId\": \"6a4752c0de123456789fffff\",\n      \"studentName\": \"Emma Jones\"\n    }\n  ]\n}\n\n\n\n// {\n//   \"assignmentScope\": \"INDIVIDUAL\",\n//   \"studentAssignments\": [\n//     {\n//       \"studentId\": \"6a4752c0de123456789abcde\",\n//       \"studentName\": \"Liam Williams\",\n//       \"customInstructions\": \"Please complete questions 1 to 3 only (remedial instruction).\"\n//     },\n//     {\n//       \"studentId\": \"6a4752c0de123456789fffff\",\n//       \"studentName\": \"Emma Jones\",\n//       \"customInstructions\": \"Please solve all questions and show the step-by-step logic.\"\n//     }\n//   ]\n// }\n\n\n\n"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/6a4b5b4a83bf885978ca995d/assign",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "6a4b5b4a83bf885978ca995d",
+                    "assign"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Homework",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Homework By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "HOMEWORK_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Homework By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Homework By Class",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/class/CLASS_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "class",
+                    "CLASS_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Homework",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"submittedCount\": 5\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "HOMEWORK_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Homework",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "HOMEWORK_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Homework By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Homework By School and Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Submit Homework",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"submissionText\": \"Here is my completed Algebra homework solutions.\",\n  \"submissionFileUrl\": \"https://s3.amazonaws.com/submissions/algebra_homework_sol.pdf\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE/submit/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "HOMEWORK_ID_HERE",
+                    "submit",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Grade Homework",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"obtainedMarks\": 95,\n  \"feedback\": \"Excellent work, very clean calculations!\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE/grade/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "homework",
+                    "HOMEWORK_ID_HERE",
+                    "grade",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Staff",
+      "item": [
+        {
+          "name": "Create Staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "// {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-003\",\n//     \"name\": \"Michael Johnson\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Physics Teacher\",\n//     \"salary\": 52000,\n//     \"joiningDate\": \"2026-06-15\",\n//     \"dob\": \"1988-09-21\",\n//     \"role\": \"TEACHER\"\n//   }\n  {\n    \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n    \"employeeId\": \"EMP-TCH-005\",\n    \"name\": \"Emily Davis\",\n    \"department\": \"Academics\",\n    \"designation\": \"English Teacher\",\n    \"salary\": 48000,\n    \"joiningDate\": \"2026-05-10\",\n    \"dob\": \"1992-03-18\",\n    \"role\": \"TEACHER\"\n  }\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-005\",\n//     \"name\": \"Robert Wilson\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Chemistry Teacher\",\n//     \"salary\": 53000,\n//     \"joiningDate\": \"2026-04-20\",\n//     \"dob\": \"1987-11-05\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-006\",\n//     \"name\": \"Sophia Brown\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Biology Teacher\",\n//     \"salary\": 51000,\n//     \"joiningDate\": \"2026-03-12\",\n//     \"dob\": \"1991-07-14\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-007\",\n//     \"name\": \"Daniel Martinez\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Computer Science Teacher\",\n//     \"salary\": 55000,\n//     \"joiningDate\": \"2026-02-01\",\n//     \"dob\": \"1989-12-30\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-008\",\n//     \"name\": \"Olivia Taylor\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"History Teacher\",\n//     \"salary\": 47000,\n//     \"joiningDate\": \"2026-01-18\",\n//     \"dob\": \"1993-06-25\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-009\",\n//     \"name\": \"James Anderson\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Geography Teacher\",\n//     \"salary\": 49000,\n//     \"joiningDate\": \"2025-12-10\",\n//     \"dob\": \"1986-04-08\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-010\",\n//     \"name\": \"Emma Thomas\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Economics Teacher\",\n//     \"salary\": 50000,\n//     \"joiningDate\": \"2025-11-05\",\n//     \"dob\": \"1990-10-16\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-011\",\n//     \"name\": \"William Moore\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Physical Education Teacher\",\n//     \"salary\": 45000,\n//     \"joiningDate\": \"2025-10-22\",\n//     \"dob\": \"1985-08-11\",\n//     \"role\": \"TEACHER\"\n//   },\n//   {\n//     \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//     \"employeeId\": \"EMP-TCH-012\",\n//     \"name\": \"Isabella Clark\",\n//     \"department\": \"Academics\",\n//     \"designation\": \"Art Teacher\",\n//     \"salary\": 46000,\n//     \"joiningDate\": \"2025-09-15\",\n//     \"dob\": \"1994-02-27\",\n//     \"role\": \"TEACHER\"\n//   }"
+            },
+            "url": {
+              "raw": "http://localhost:5030/api/staff",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Staff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/STAFF_ID_HERE",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "STAFF_ID_HERE"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff By Employee ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/employee/EMPLOYEE_ID_HERE",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "employee",
+                "EMPLOYEE_ID_HERE"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff By School",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/school/SCHOOL_ID_HERE",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "school",
+                "SCHOOL_ID_HERE"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff By Role",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/role/TEACHER",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "role",
+                "TEACHER"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff By School and Role",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/school/SCHOOL_ID_HERE/role/TEACHER",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "school",
+                "SCHOOL_ID_HERE",
+                "role",
+                "TEACHER"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"designation\": \"Senior Mathematics Teacher\",\n  \"salary\": 55000\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5030/api/staff/STAFF_ID_HERE",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "STAFF_ID_HERE"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Staff",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5030/api/staff/STAFF_ID_HERE",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5030",
+              "path": [
+                "api",
+                "staff",
+                "STAFF_ID_HERE"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
