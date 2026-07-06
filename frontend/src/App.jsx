@@ -30,6 +30,14 @@ import ModCctv from "./modules/ModCctv";
 import ModVirtualClass from "./modules/ModVirtualClass";
 import ModGallery from "./modules/ModGallery";
 import ModCelebrations from "./modules/ModCelebrations";
+import ModExams from "./modules/ModExams";
+import ModCommunication from "./modules/ModCommunication";
+import ModCompliance from "./modules/ModCompliance";
+import ModAiHub from "./modules/ModAiHub";
+import ModFeeEngine from "./modules/ModFeeEngine";
+import ModPayroll from "./modules/ModPayroll";
+import ModReports from "./modules/ModReports";
+import ModFrontOffice from "./modules/ModFrontOffice";
 import {
   GraduationCap,
   Sparkles,
@@ -58,7 +66,15 @@ import {
   Search,
   ChevronDown,
   Image,
-  Cake
+  Cake,
+  FileText,
+  MessageSquare,
+  BadgeCheck,
+  Brain,
+  Receipt,
+  Banknote,
+  BarChart3,
+  Phone
 } from "lucide-react";
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(getAuthUser());
@@ -125,8 +141,9 @@ function MainApp() {
     { id: "wallet", label: "Pocket Wallet", icon: Wallet, roles: ["Super Admin", "Warden", "Accountant", "Parent"], comp: ModWallet },
     { id: "fees", label: "Fee Accounting", icon: DollarSign, roles: ["Super Admin", "Principal", "Accountant", "Parent"], comp: ModFees },
     { id: "staff", label: "Staff HRMS", icon: Briefcase, roles: ["Super Admin", "Principal", "Accountant"], comp: ModStaffHRMS },
-    { id: "attendance", label: "Class Attendance", icon: UserCheck, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModAttendance },
-    { id: "academics", label: "Academic Studies", icon: BookOpen, roles: ["Super Admin", "Principal", "Parent"], comp: ModAcademics },
+    { id: "attendance", label: "Class Attendance", icon: UserCheck, roles: ["Super Admin", "Principal", "Teacher", "Warden", "Parent", "Student"], comp: ModAttendance },
+    { id: "academics", label: "Academic Studies", icon: BookOpen, roles: ["Super Admin", "Principal", "Teacher", "Parent", "Student"], comp: ModAcademics },
+    { id: "exams", label: "Examination Cell", icon: FileText, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Parent", "Student"], comp: ModExams },
     { id: "library", label: "Campus Library", icon: Book, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModLibrary },
     { id: "transport", label: "Transport Desk", icon: Bus, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent", "Driver"], comp: ModTransport },
     { id: "feedback", label: "Feedback Desk", icon: Award, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModFeedback },
@@ -137,7 +154,14 @@ function MainApp() {
     { id: "gallery", label: "School Media Gallery", icon: Image, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModGallery },
     { id: "celebrations", label: "Celebrations Desk", icon: Cake, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Warden", "Parent", "Student", "Accountant", "HR Manager", "Store Manager"], comp: ModCelebrations },
     { id: "discipline", label: "Curfew Discipline", icon: Scale, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModDiscipline },
-    { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant"], comp: ModInventory },
+    { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant", "Store Manager"], comp: ModInventory },
+    { id: "fee_engine", label: "Fee Engine & Dues", icon: Receipt, roles: ["Super Admin", "School Admin", "Principal", "Accountant"], comp: ModFeeEngine },
+    { id: "payroll", label: "Payroll & Statutory", icon: Banknote, roles: ["Super Admin", "Principal", "Accountant", "HR Manager"], comp: ModPayroll },
+    { id: "communication", label: "Communication Hub", icon: MessageSquare, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Warden", "Accountant", "HR Manager"], comp: ModCommunication },
+    { id: "compliance", label: "Compliance & Boards", icon: BadgeCheck, roles: ["Super Admin", "School Admin", "Principal"], comp: ModCompliance },
+    { id: "ai_hub", label: "AI Suite", icon: Brain, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Parent"], comp: ModAiHub },
+    { id: "reports", label: "Reports & Analytics", icon: BarChart3, roles: ["Super Admin", "School Admin", "Principal", "Accountant", "HR Manager"], comp: ModReports },
+    { id: "front_office", label: "Front Office Desk", icon: Phone, roles: ["Super Admin", "School Admin", "Principal", "Accountant"], comp: ModFrontOffice },
     { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent"], comp: ModFoodMess },
     { id: "infirmary", label: "Infirmary Clinic", icon: HeartPulse, roles: ["Super Admin", "Principal", "Warden"], comp: ModInfirmary },
     { id: "security", label: "Security & Gate", icon: Shield, roles: ["Super Admin", "Principal", "Warden"], comp: ModSecurity },
