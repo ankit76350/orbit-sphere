@@ -1,7 +1,6 @@
 package com.orbitastra.backend.models.student;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -39,10 +38,7 @@ public class Student {
     private String admissionNo;
 
     @Transient
-    private String studentId; // will change every year
-
-    @Transient
-    private String rollNo; // will change every year
+    private StudentAcademicRecord currentAcademicRecord;
 
     private String firstName;
 
@@ -55,18 +51,6 @@ public class Student {
     private String bloodGroup;
 
     private String photoUrl; 
-
-    @Transient
-    private String classId; // will change every year
-
-    @Transient
-    private String sectionId; // will change every year
-
-    @Transient
-    private String hostelRoomId; // may chnage every time or will change every year
-
-    @Transient
-    private String academicYearId; // transient field to capture desired academic year during request bindings
 
     private String walletId;
 
