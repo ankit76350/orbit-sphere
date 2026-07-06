@@ -33,8 +33,6 @@ public class AcademicResult {
     @Indexed
     private String studentId;
 
-    private String studentName;
-
     private String grade;
 
     private String examName;
