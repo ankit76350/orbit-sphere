@@ -129,15 +129,20 @@ public class SchoolClassService {
         return schoolClassRepository.save(schoolClass);
     }
 
-    public SchoolClass addSection(String classId, String section) {
+    public SchoolClass addSections(String classId, List<String> sections) {
         SchoolClass schoolClass = getClassById(classId);
         if (schoolClass.getSections() == null) {
             schoolClass.setSections(new java.util.ArrayList<>());
         }
-        if (schoolClass.getSections().contains(section)) {
-            throw new IllegalArgumentException("Section '" + section + "' already exists in this class.");
+        for (String section : sections) {
+            if (section == null || section.trim().isEmpty()) {
+                continue;
+            }
+            if (schoolClass.getSections().contains(section)) {
+                throw new IllegalArgumentException("Section '" + section + "' already exists in this class.");
+            }
+            schoolClass.getSections().add(section);
         }
-        schoolClass.getSections().add(section);
         return schoolClassRepository.save(schoolClass);
     }
 

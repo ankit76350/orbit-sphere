@@ -66,12 +66,12 @@ public class SchoolClassController {
     @PostMapping("/{id}/sections")
     public ResponseEntity<SchoolClass> addSection(
             @PathVariable String id, 
-            @RequestBody Map<String, String> body) {
-        String section = body.get("section");
-        if (section == null || section.isEmpty()) {
-            throw new IllegalArgumentException("Section name cannot be null or empty.");
+            @RequestBody Map<String, List<String>> body) {
+        List<String> sections = body.get("section");
+        if (sections == null || sections.isEmpty()) {
+            throw new IllegalArgumentException("Section list cannot be null or empty.");
         }
-        SchoolClass updated = schoolClassService.addSection(id, section);
+        SchoolClass updated = schoolClassService.addSections(id, sections);
         return ResponseEntity.ok(updated);
     }
 
