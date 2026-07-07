@@ -534,6 +534,275 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Holidays",
+          "item": [
+            {
+              "name": "Create Holiday Calendar",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"academicYear\": \"2026-2027\",\n  \"holidays\": [\n    {\n      \"name\": \"Sunday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SUNDAY\"\n    },\n    {\n      \"name\": \"Saturday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SATURDAY\"\n    },\n    {\n      \"name\": \"Independence Day\",\n      \"description\": \"National holiday\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"description\": \"Festival of lights\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Annual Sports Day\",\n      \"description\": \"School event - no classes\",\n      \"type\": \"SCHOOL_EVENT\",\n      \"date\": \"2026-12-18\"\n    }\n  ]\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Holiday Calendars",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Holiday Calendar By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "CALENDAR_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Holiday Calendars By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Holiday Calendar By School & Academic Year",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "academic-year",
+                    "2026-2027"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Holidays In Date Range",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027/range?start=2026-11-01&end=2026-11-30",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "academic-year",
+                    "2026-2027",
+                    "range"
+                  ],
+                  "query": [
+                    {
+                      "key": "start",
+                      "value": "2026-11-01"
+                    },
+                    {
+                      "key": "end",
+                      "value": "2026-11-30"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Check If Date Is Holiday",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027/check?date=2026-11-08",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "academic-year",
+                    "2026-2027",
+                    "check"
+                  ],
+                  "query": [
+                    {
+                      "key": "date",
+                      "value": "2026-11-08"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Add Holiday To Calendar",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE/holidays",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "CALENDAR_ID_HERE",
+                    "holidays"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Holi\",\n  \"description\": \"Festival of colours\",\n  \"type\": \"FESTIVAL\",\n  \"date\": \"2027-03-22\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Holiday Calendar",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "CALENDAR_ID_HERE"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"academicYear\": \"2026-2027\",\n  \"holidays\": [\n    {\n      \"name\": \"Sunday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SUNDAY\"\n    },\n    {\n      \"name\": \"Saturday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SATURDAY\"\n    },\n    {\n      \"name\": \"Independence Day\",\n      \"description\": \"National holiday\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"description\": \"Festival of lights\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Annual Sports Day\",\n      \"description\": \"School event - no classes\",\n      \"type\": \"SCHOOL_EVENT\",\n      \"date\": \"2026-12-18\"\n    }\n  ]\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Holiday Calendar",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "5030",
+                  "path": [
+                    "api",
+                    "holidays",
+                    "CALENDAR_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }
