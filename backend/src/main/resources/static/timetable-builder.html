@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timetable — School Edu Sphere</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body { background: #f0f2f5; color: #1c1e21; padding: 16px; }
+  h1 { font-size: 20px; margin-bottom: 12px; }
+  .panel { background: #fff; border: 1px solid #dcdfe4; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+  select, input[type=date], input[type=time], input[type=text] {
+    padding: 6px 8px; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 13px; background: #fff;
+  }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab { padding: 8px 16px; border-radius: 8px 8px 0 0; border: 1px solid #dcdfe4; border-bottom: none;
+    background: #e4e6eb; cursor: pointer; font-size: 14px; font-weight: 600; color: #555; }
+  .tab.on { background: #fff; color: #1877f2; }
+  .days label { display: inline-flex; align-items: center; gap: 3px; font-weight: 400; margin-right: 8px; font-size: 13px; }
+  .layout { display: flex; gap: 12px; align-items: flex-start; }
+  .sidebar { width: 220px; flex-shrink: 0; position: sticky; top: 8px; }
+  .sidebar h3 { font-size: 13px; margin-bottom: 8px; color: #444; }
+  .teacher { background: #e7f0fe; border: 1px solid #b6d0f7; border-radius: 6px; padding: 6px 8px;
+    margin-bottom: 6px; font-size: 13px; cursor: grab; user-select: none; }
+  .teacher small { color: #667; display: block; font-size: 11px; }
+  .main { flex: 1; overflow-x: auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid #ccd0d5; border-radius: 14px; padding: 4px 10px; font-size: 12px;
+    cursor: pointer; background: #fff; }
+  .chip.on { background: #1877f2; color: #fff; border-color: #1877f2; }
+  .chip .badge { color: #1e6b31; font-weight: 700; }
+  .chip.on .badge { color: #baf7c9; }
+  .cols { display: flex; gap: 10px; align-items: flex-start; }
+  .col { width: 235px; flex-shrink: 0; background: #f8f9fb; border: 1px solid #dcdfe4; border-radius: 8px; padding: 8px; }
+  .col h4 { font-size: 13px; margin-bottom: 6px; text-align: center; }
+  .saved { background: #eef7f0; border: 1px solid #bfe3c8; border-radius: 6px; padding: 6px; margin-bottom: 8px; font-size: 11px; }
+  .saved b { font-size: 11px; color: #1e6b31; }
+  .saved ul { list-style: none; max-height: 110px; overflow-y: auto; margin-top: 4px; }
+  .saved li { padding: 1px 0; color: #444; }
+  .saved button { margin-top: 5px; width: 100%; background: #fdecea; color: #a12622; font-size: 11px; padding: 4px; }
+  .card { background: #fff; border: 1px solid #ccd0d5; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
+  .card.break { background: #fff7e6; border-color: #f0c36d; }
+  .card.conflict { outline: 2px solid #e0245e; outline-offset: -2px; background: #fdeef3; }
+  .card .times { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+  .card .times input { width: 76px; padding: 3px 4px; font-size: 12px; }
+  .card .times .del { margin-left: auto; cursor: pointer; color: #c33; font-weight: 700; padding: 0 4px; }
+  .card input[type=text] { width: 100%; margin-bottom: 4px; font-size: 12px; padding: 4px 6px; }
+  .drop { border: 1px dashed #b8bcc2; border-radius: 4px; min-height: 24px; font-size: 12px;
+    padding: 3px 6px; color: #888; display: flex; align-items: center; justify-content: space-between; }
+  .drop.filled { border-style: solid; background: #e7f0fe; color: #1c1e21; }
+  .drop.over { background: #d0e2fc; border-color: #1877f2; }
+  .drop .x, .saved .x { cursor: pointer; color: #c33; font-weight: 700; padding: 0 3px; }
+  .breaklabel { font-size: 12px; color: #8a6d1a; font-weight: 600; }
+  .addbtns { display: flex; gap: 6px; }
+  button { padding: 8px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; background: #e4e6eb; }
+  button.primary { background: #1877f2; color: #fff; font-weight: 600; }
+  button.small { padding: 3px 8px; font-size: 12px; flex: 1; }
+  #msg { margin-top: 10px; padding: 10px; border-radius: 6px; font-size: 13px; display: none; white-space: pre-wrap; }
+  #msg.ok { display: block; background: #e6f4ea; border: 1px solid #a8d5b3; color: #1e6b31; }
+  #msg.err { display: block; background: #fdecea; border: 1px solid #f5b7b1; color: #a12622; }
+  .hint { font-size: 12px; color: #777; margin-top: 6px; }
+  /* ---- viewer ---- */
+  .week { display: flex; gap: 8px; overflow-x: auto; }
+  .day { flex: 1; min-width: 150px; background: #f8f9fb; border: 1px solid #dcdfe4; border-radius: 8px; padding: 8px; }
+  .day h4 { font-size: 13px; text-align: center; margin-bottom: 8px; color: #333; }
+  .lesson { background: #e7f0fe; border-left: 4px solid #1877f2; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+  .lesson.brk { background: #fff7e6; border-left-color: #f0a020; }
+  .lesson .t { font-size: 11px; color: #555; }
+  .lesson .s { font-size: 13px; font-weight: 700; margin: 1px 0; }
+  .lesson .w { font-size: 11px; color: #446; }
+  .empty { text-align: center; color: #aaa; font-size: 12px; padding: 12px 0; }
+</style>
+</head>
+<body>
+<h1>🗓️ School Timetable</h1>
+
+<div class="panel">
+  <div class="row">
+    <div><label>School</label><select id="school"><option>Loading…</option></select></div>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" id="tabView">📖 View timetable</div>
+  <div class="tab" id="tabCreate">✏️ Create timetable</div>
+</div>
+
+<!-- ================= VIEW ================= -->
+<div id="viewPage">
+  <div class="panel">
+    <div class="row">
+      <div><label>Show timetable of a class</label><select id="viewSection"><option value="">— choose class &amp; section —</option></select></div>
+      <div><label>… or of a teacher</label><select id="viewTeacher"><option value="">— choose teacher —</option></select></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div id="week" class="week"><div class="empty">Choose a school, then a class &amp; section (or a teacher) to see its weekly timetable.</div></div>
+  </div>
+</div>
+
+<!-- ================= CREATE ================= -->
+<div id="createPage" style="display:none">
+  <div class="panel">
+    <div class="row">
+      <div><label>Timetable starts from</label><input type="date" id="startDate"></div>
+      <div><label>Runs until (leave empty = no end date)</label><input type="date" id="endDate"></div>
+      <div class="days"><label style="display:block">Repeats every week on</label><span id="days"></span></div>
+      <button class="primary" id="save">💾 Save timetable</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label>Step 1 — pick the class sections you want to build (✓ = already has a saved timetable)</label>
+    <div class="chips" id="sections"><span class="hint">Select a school first.</span></div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar panel">
+      <h3>👩‍🏫 Step 3 — drag a teacher onto each lesson</h3>
+      <div id="teachers"><span class="hint">Select a school first.</span></div>
+    </div>
+    <div class="main panel">
+      <label>Step 2 — set the periods and breaks (every section can have its own times)</label>
+      <div class="cols" id="cols" style="margin-top:8px"><span class="hint">Pick class sections above.</span></div>
+      <div class="hint">Red cards clash — with each other or with an already saved timetable (hover to see why).
+        Lessons without a subject or teacher are skipped when saving; breaks only need times.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  schools: [], classes: [], staff: [], slots: [],
+  cols: [],  // {classId, className, section, periods:[{start,end,type,subject,teacherId}]}
+};
+const $ = id => document.getElementById(id);
+const DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+const DAY_NICE = {MONDAY:'Monday',TUESDAY:'Tuesday',WEDNESDAY:'Wednesday',THURSDAY:'Thursday',FRIDAY:'Friday',SATURDAY:'Saturday',SUNDAY:'Sunday'};
+
+const defaultPeriods = () => [
+  {start:'09:00', end:'09:45', type:'LESSON', subject:'', teacherId:null},
+  {start:'09:45', end:'10:30', type:'LESSON', subject:'', teacherId:null},
+  {start:'10:30', end:'10:50', type:'BREAK',  subject:'Recess', teacherId:null},
+  {start:'10:50', end:'11:35', type:'LESSON', subject:'', teacherId:null},
+];
+
+const hhmm = t => (t || '').slice(0, 5);
+function staffName(id) { const s = state.staff.find(x => x.id === id); return s ? s.name : id; }
+function className(id) { const c = state.classes.find(x => x.id === id); return c ? (c.name || id) : id; }
+function overlaps(s1, e1, s2, e2) { return s1 < e2 && s2 < e1; }
+function sectionSlots(classId, section) {
+  return state.slots.filter(s => s.classId === classId && (s.section || '').toLowerCase() === section.toLowerCase());
+}
+
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body && body.message ? body.message : res.status + ' ' + res.statusText);
+  return body;
+}
+function msg(text, ok) { const m = $('msg'); m.textContent = text; m.className = ok ? 'ok' : 'err'; }
+function clearMsg() { const m = $('msg'); m.textContent = ''; m.className = ''; m.style.display = 'none'; }
+
+// ---------- tabs ----------
+$('tabView').onclick = () => switchTab(true);
+$('tabCreate').onclick = () => switchTab(false);
+function switchTab(view) {
+  $('tabView').classList.toggle('on', view);
+  $('tabCreate').classList.toggle('on', !view);
+  $('viewPage').style.display = view ? '' : 'none';
+  $('createPage').style.display = view ? 'none' : '';
+}
+
+// ---------- bootstrap ----------
+(function init() {
+  $('days').innerHTML = DAYS.map(d =>
+    `<label><input type="checkbox" value="${d}" ${['SATURDAY','SUNDAY'].includes(d)?'':'checked'}>${d.slice(0,3)}</label>`).join('');
+  $('startDate').value = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('#days input').forEach(i => i.onchange = markConflicts);
+  $('startDate').onchange = markConflicts;
+  $('endDate').onchange = markConflicts;
+})();
+
+(async function loadSchools() {
+  try {
+    state.schools = await fetchJson('/api/schools');
+    $('school').innerHTML = '<option value="">— choose —</option>' +
+      state.schools.map(s => `<option value="${s.id}">${s.schoolName || s.name || s.id}</option>`).join('');
+  } catch (e) { msg('Could not load schools: ' + e.message, false); }
+})();
+
+$('school').onchange = async () => {
+  const id = $('school').value;
+  state.cols = []; state.classes = []; state.staff = []; state.slots = [];
+  clearMsg();
+  if (id) {
+    try {
+      [state.classes, state.staff, state.slots] = await Promise.all([
+        fetchJson('/api/classes/school/' + id),
+        fetchJson('/api/staff/school/' + id),
+        fetchJson('/api/timetable-slots/school/' + id),
+      ]);
+    } catch (e) { msg('Could not load school data: ' + e.message, false); }
+  }
+  renderViewSelectors(); renderWeek(null);
+  renderSectionChips(); renderTeachers(); renderCols();
+};
+
+async function refreshSlots() {
+  const id = $('school').value;
+  if (!id) return;
+  state.slots = await fetchJson('/api/timetable-slots/school/' + id);
+  renderViewSelectors(); renderSectionChips(); renderCols();
+}
+
+// =================================================================
+// VIEW TAB
+// =================================================================
+function renderViewSelectors() {
+  const secSel = $('viewSection'), tSel = $('viewTeacher');
+  const opts = [];
+  state.classes.forEach(c => (c.sections || []).forEach(sec => {
+    const has = sectionSlots(c.id, sec).length > 0;
+    opts.push(`<option value="${c.id}|${sec}">${c.name || c.id} — Section ${sec}${has ? ' ✓' : ''}</option>`);
+  }));
+  secSel.innerHTML = '<option value="">— choose class & section —</option>' + opts.join('');
+  tSel.innerHTML = '<option value="">— choose teacher —</option>' +
+    state.staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  secSel.onchange = () => { tSel.value = ''; showSectionWeek(); };
+  tSel.onchange = () => { secSel.value = ''; showTeacherWeek(); };
+}
+
+function showSectionWeek() {
+  const v = $('viewSection').value;
+  if (!v) return renderWeek(null);
+  const [classId, section] = v.split('|');
+  renderWeek(sectionSlots(classId, section), s => s.type === 'BREAK'
+    ? '☕ ' + (s.subject || 'Break')
+    : s.subject, s => s.type === 'BREAK' ? '' : '👩‍🏫 ' + staffName(s.teacherId));
+}
+
+function showTeacherWeek() {
+  const v = $('viewTeacher').value;
+  if (!v) return renderWeek(null);
+  const mine = state.slots.filter(s => s.teacherId === v);
+  renderWeek(mine, s => s.subject, s => className(s.classId) + ' — ' + s.section);
+}
+
+function renderWeek(slots, mainText, subText) {
+  const box = $('week');
+  if (!slots) {
+    box.innerHTML = '<div class="empty">Choose a school, then a class &amp; section (or a teacher) to see its weekly timetable.</div>';
+    return;
+  }
+  if (!slots.length) {
+    box.innerHTML = '<div class="empty">No timetable saved yet. Go to the “Create timetable” tab to build one.</div>';
+    return;
+  }
+  const byDay = {};
+  slots.forEach(s => (byDay[s.dayOfWeek] = byDay[s.dayOfWeek] || []).push(s));
+  box.innerHTML = '';
+  DAYS.filter(d => byDay[d]).forEach(d => {
+    const col = document.createElement('div');
+    col.className = 'day';
+    col.innerHTML = `<h4>${DAY_NICE[d]}</h4>`;
+    byDay[d].sort((a, b) => a.startTime < b.startTime ? -1 : 1).forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'lesson' + (s.type === 'BREAK' ? ' brk' : '');
+      const until = s.effectiveTo ? ' → until ' + s.effectiveTo : '';
+      div.title = 'Valid from ' + s.effectiveFrom + until;
+      div.innerHTML = `<div class="t">${hhmm(s.startTime)} – ${hhmm(s.endTime)}</div>
+        <div class="s">${mainText(s)}</div><div class="w">${subText(s)}</div>`;
+      col.appendChild(div);
+    });
+    box.appendChild(col);
+  });
+}
+
+// =================================================================
+// CREATE TAB
+// =================================================================
+function renderSectionChips() {
+  const box = $('sections'); box.innerHTML = '';
+  let any = false;
+  state.classes.forEach(c => (c.sections || []).forEach(sec => {
+    any = true;
+    const has = sectionSlots(c.id, sec).length > 0;
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (state.cols.some(col => col.classId === c.id && col.section === sec) ? ' on' : '');
+    chip.innerHTML = `${c.name || c.id} — ${sec} ${has ? '<span class="badge">✓</span>' : ''}`;
+    chip.onclick = () => {
+      const i = state.cols.findIndex(col => col.classId === c.id && col.section === sec);
+      if (i >= 0) state.cols.splice(i, 1);
+      else state.cols.push({classId: c.id, className: c.name || c.id, section: sec, periods: defaultPeriods()});
+      chip.classList.toggle('on', i < 0);
+      renderCols();
+    };
+    box.appendChild(chip);
+  }));
+  if (!any) box.innerHTML = '<span class="hint">This school has no classes with sections yet.</span>';
+}
+
+function renderTeachers() {
+  const box = $('teachers'); box.innerHTML = '';
+  if (!state.staff.length) { box.innerHTML = '<span class="hint">No staff in this school.</span>'; return; }
+  state.staff.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'teacher'; div.draggable = true;
+    div.innerHTML = `${t.name || t.id}<small>${t.designation || ''}</small>`;
+    div.ondragstart = e => e.dataTransfer.setData('text/plain', t.id);
+    box.appendChild(div);
+  });
+}
+
+function renderCols() {
+  const box = $('cols'); box.innerHTML = '';
+  if (!state.cols.length) {
+    box.innerHTML = '<span class="hint">Pick class sections above.</span>';
+    return;
+  }
+  state.cols.forEach(col => {
+    const div = document.createElement('div');
+    div.className = 'col';
+    div.innerHTML = `<h4>${col.className} — Section ${col.section}</h4>`;
+
+    const saved = sectionSlots(col.classId, col.section);
+    if (saved.length) {
+      const days = [...new Set(saved.map(s => s.dayOfWeek))];
+      const uniq = [...new Map(saved.map(s => [hhmm(s.startTime) + s.subject,
+        `${hhmm(s.startTime)}–${hhmm(s.endTime)}  ${s.type === 'BREAK' ? '☕ ' : ''}${s.subject}`])).values()];
+      const el = document.createElement('div');
+      el.className = 'saved';
+      el.innerHTML = `<b>✓ Already has a timetable</b> (${days.map(d => d.slice(0,3)).join(', ')})
+        <ul>${uniq.map(u => `<li>${u}</li>`).join('')}</ul>
+        <button>🗑 Delete this saved timetable</button>`;
+      el.querySelector('button').onclick = async () => {
+        if (!confirm(`Delete the saved timetable of ${col.className} — Section ${col.section}?`)) return;
+        try {
+          await fetchJson(`/api/timetable-slots/school/${$('school').value}/class/${col.classId}/section/${col.section}`, {method: 'DELETE'});
+          msg(`Deleted the saved timetable of ${col.className} — Section ${col.section}.`, true);
+          await refreshSlots();
+        } catch (e) { msg('❌ ' + e.message, false); }
+      };
+      div.appendChild(el);
+    }
+
+    col.periods.forEach((p, i) => div.appendChild(renderCard(col, p, i)));
+    const btns = document.createElement('div');
+    btns.className = 'addbtns';
+    const addL = document.createElement('button');
+    addL.className = 'small'; addL.textContent = '+ Lesson';
+    addL.onclick = () => { col.periods.push(nextPeriod(col, 'LESSON')); renderCols(); };
+    const addB = document.createElement('button');
+    addB.className = 'small'; addB.textContent = '+ Break';
+    addB.onclick = () => { col.periods.push(nextPeriod(col, 'BREAK')); renderCols(); };
+    btns.appendChild(addL); btns.appendChild(addB);
+    div.appendChild(btns);
+    box.appendChild(div);
+  });
+  markConflicts();
+}
+
+function nextPeriod(col, type) {
+  const last = col.periods[col.periods.length - 1];
+  const start = last ? last.end : '09:00';
+  return {start, end: start, type, subject: type === 'BREAK' ? 'Break' : '', teacherId: null};
+}
+
+function renderCard(col, p, i) {
+  const card = document.createElement('div');
+  card.className = 'card' + (p.type === 'BREAK' ? ' break' : '');
+  card.dataset.col = col.classId + '|' + col.section;
+  card.dataset.idx = i;
+
+  const times = document.createElement('div');
+  times.className = 'times';
+  times.innerHTML = `<input type="time" value="${p.start}"> – <input type="time" value="${p.end}">
+    <span class="del" title="Remove">✕</span>`;
+  const [si, ei] = times.querySelectorAll('input');
+  si.onchange = () => { p.start = si.value; markConflicts(); };
+  ei.onchange = () => { p.end = ei.value; markConflicts(); };
+  times.querySelector('.del').onclick = () => { col.periods.splice(i, 1); renderCols(); };
+  card.appendChild(times);
+
+  if (p.type === 'BREAK') {
+    const lbl = document.createElement('div');
+    lbl.innerHTML = '<span class="breaklabel">☕ Break</span>';
+    const name = document.createElement('input');
+    name.type = 'text'; name.placeholder = 'Label (e.g. Lunch)'; name.value = p.subject || '';
+    name.oninput = () => { p.subject = name.value; };
+    card.appendChild(lbl); card.appendChild(name);
+  } else {
+    const subj = document.createElement('input');
+    subj.type = 'text'; subj.placeholder = 'Subject'; subj.value = p.subject;
+    subj.oninput = () => { p.subject = subj.value; };
+    const drop = document.createElement('div');
+    drop.className = 'drop' + (p.teacherId ? ' filled' : '');
+    renderDrop(drop, p);
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => {
+      e.preventDefault(); drop.classList.remove('over');
+      p.teacherId = e.dataTransfer.getData('text/plain');
+      drop.classList.add('filled'); renderDrop(drop, p); markConflicts();
+    };
+    card.appendChild(subj); card.appendChild(drop);
+  }
+  return card;
+}
+
+function renderDrop(drop, p) {
+  if (p.teacherId) {
+    drop.innerHTML = `<span>👩‍🏫 ${staffName(p.teacherId)}</span><span class="x" title="Remove teacher">✕</span>`;
+    drop.querySelector('.x').onclick = () => { p.teacherId = null; drop.classList.remove('filled'); renderDrop(drop, p); markConflicts(); };
+  } else {
+    drop.textContent = 'drop teacher here';
+  }
+}
+
+// ---------- live conflict highlighting (editor + saved slots) ----------
+function selectedDays() { return [...document.querySelectorAll('#days input:checked')].map(i => i.value); }
+function validityOverlapsWindow(slot) {
+  const winFrom = $('startDate').value || '0000-01-01';
+  const winTo = $('endDate').value || null;
+  return (winTo === null || winTo >= slot.effectiveFrom)
+      && (slot.effectiveTo == null || slot.effectiveTo >= winFrom);
+}
+
+function markConflicts() {
+  document.querySelectorAll('.card.conflict').forEach(c => { c.classList.remove('conflict'); c.title = ''; });
+  const days = selectedDays();
+  const all = [];
+  state.cols.forEach(col => col.periods.forEach((p, i) => {
+    if (p.start && p.end && p.start < p.end)
+      all.push({col, p, i, key: col.classId + '|' + col.section});
+  }));
+  const mark = (x, why) => {
+    const card = document.querySelector(`.card[data-col="${x.key}"][data-idx="${x.i}"]`);
+    if (card && !card.classList.contains('conflict')) { card.classList.add('conflict'); card.title = why; }
+  };
+
+  // editor vs editor
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const a = all[i], b = all[j];
+    if (!overlaps(a.p.start, a.p.end, b.p.start, b.p.end)) continue;
+    if (a.key === b.key) {
+      mark(a, 'Two overlapping periods in this section'); mark(b, 'Two overlapping periods in this section');
+    } else if (a.p.teacherId && a.p.teacherId === b.p.teacherId) {
+      const why = staffName(a.p.teacherId) + ' is placed in two overlapping periods';
+      mark(a, why); mark(b, why);
+    }
+  }
+
+  // editor vs saved timetable
+  const relevant = state.slots.filter(s => days.includes(s.dayOfWeek) && validityOverlapsWindow(s));
+  all.forEach(x => {
+    relevant.forEach(s => {
+      if (!overlaps(x.p.start, x.p.end, hhmm(s.startTime), hhmm(s.endTime))) return;
+      const sameSection = x.col.classId === s.classId && x.col.section.toLowerCase() === (s.section || '').toLowerCase();
+      const sameTeacher = x.p.teacherId && x.p.teacherId === s.teacherId;
+      if (sameSection) {
+        mark(x, `Clashes with the SAVED timetable of this section: ${s.subject} ${hhmm(s.startTime)}–${hhmm(s.endTime)}. Delete the saved timetable first, or change the time / start date.`);
+      } else if (sameTeacher) {
+        mark(x, `${staffName(s.teacherId)} is already teaching ${className(s.classId)} — ${s.section} at ${hhmm(s.startTime)}–${hhmm(s.endTime)} (saved timetable)`);
+      }
+    });
+  });
+}
+
+// ---------- save ----------
+$('save').onclick = async () => {
+  clearMsg();
+  const schoolId = $('school').value;
+  if (!schoolId) return msg('Choose a school first.', false);
+  if (!$('startDate').value) return msg('Choose the start date.', false);
+  if (!state.cols.length) return msg('Pick at least one class section.', false);
+  if (!selectedDays().length) return msg('Tick at least one weekday.', false);
+
+  const classTimetables = [];
+  const skipped = [];
+  state.cols.forEach(col => {
+    const periods = [];
+    col.periods.forEach(p => {
+      if (!p.start || !p.end) return;
+      if (p.type === 'BREAK') {
+        periods.push({type: 'BREAK', subject: (p.subject || 'Break').trim(), startTime: p.start, endTime: p.end});
+      } else if (p.subject.trim() && p.teacherId) {
+        periods.push({type: 'LESSON', subject: p.subject.trim(), teacherId: p.teacherId, startTime: p.start, endTime: p.end});
+      } else if (p.subject.trim() || p.teacherId) {
+        skipped.push(col.className + ' ' + col.section + ' @ ' + p.start);
+      }
+    });
+    if (periods.length) classTimetables.push({classId: col.classId, section: col.section, periods});
+  });
+  if (!classTimetables.length) return msg('Nothing to save — fill subject + teacher in at least one lesson.', false);
+
+  try {
+    const created = await fetchJson('/api/timetable-slots/bulk-school', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        schoolId,
+        effectiveFrom: $('startDate').value,
+        effectiveTo: $('endDate').value || null,
+        days: selectedDays(),
+        classTimetables,
+      }),
+    });
+    await refreshSlots();
+    msg('✅ Saved! Created ' + created.length + ' weekly slots. Open the “View timetable” tab to see the result.'
+      + (skipped.length ? '\n(Skipped incomplete lessons: ' + skipped.join(', ') + ')' : ''), true);
+  } catch (e) {
+    msg('❌ ' + e.message, false);
+  }
+};
+</script>
+</body>
+</html>
