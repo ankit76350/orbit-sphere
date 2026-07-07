@@ -8,7 +8,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.models.staff.Staff;
-import com.orbitastra.backend.models.user.enums.Role;
 import com.orbitastra.backend.services.staff.StaffService;
 
 import lombok.RequiredArgsConstructor;
@@ -47,20 +46,6 @@ public class StaffController {
     @GetMapping("/school/{schoolId}")
     public ResponseEntity<List<Staff>> getStaffBySchool(@PathVariable String schoolId) {
         List<Staff> staffList = staffService.getStaffBySchool(schoolId);
-        return ResponseEntity.ok(staffList);
-    }
-
-    @GetMapping("/role/{role}")
-    public ResponseEntity<List<Staff>> getStaffByRole(@PathVariable Role role) {
-        List<Staff> staffList = staffService.getStaffByRole(role);
-        return ResponseEntity.ok(staffList);
-    }
-
-    @GetMapping("/school/{schoolId}/role/{role}")
-    public ResponseEntity<List<Staff>> getStaffBySchoolAndRole(
-            @PathVariable String schoolId,
-            @PathVariable Role role) {
-        List<Staff> staffList = staffService.getStaffBySchoolAndRole(schoolId, role);
         return ResponseEntity.ok(staffList);
     }
 

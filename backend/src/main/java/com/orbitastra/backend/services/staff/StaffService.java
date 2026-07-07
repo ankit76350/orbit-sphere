@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.staff.Staff;
-import com.orbitastra.backend.models.user.enums.Role;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 
@@ -57,14 +56,6 @@ public class StaffService {
         return staffRepository.findBySchoolId(schoolId);
     }
 
-    public List<Staff> getStaffByRole(Role role) {
-        return staffRepository.findByRole(role);
-    }
-
-    public List<Staff> getStaffBySchoolAndRole(String schoolId, Role role) {
-        return staffRepository.findBySchoolIdAndRole(schoolId, role);
-    }
-
     public Staff updateStaff(String id, Staff staffDetails) {
         Staff staff = getStaffById(id);
 
@@ -96,9 +87,6 @@ public class StaffService {
         }
         if (staffDetails.getJoiningDate() != null) {
             staff.setJoiningDate(staffDetails.getJoiningDate());
-        }
-        if (staffDetails.getRole() != null) {
-            staff.setRole(staffDetails.getRole());
         }
         if (staffDetails.getDob() != null) {
             staff.setDob(staffDetails.getDob());
