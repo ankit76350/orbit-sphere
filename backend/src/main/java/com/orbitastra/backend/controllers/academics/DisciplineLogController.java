@@ -43,6 +43,13 @@ public class DisciplineLogController {
         return ResponseEntity.ok(logs);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<DisciplineLog>> getDisciplineLogsBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(disciplineLogService.getDisciplineLogsBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @GetMapping("/student/{studentId}")
     public ResponseEntity<List<DisciplineLog>> getDisciplineLogsByStudent(@PathVariable String studentId) {
         List<DisciplineLog> logs = disciplineLogService.getDisciplineLogsByStudent(studentId);

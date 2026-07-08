@@ -10,6 +10,7 @@ import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.academics.DisciplineLogRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +21,7 @@ public class DisciplineLogService {
     private final DisciplineLogRepository disciplineLogRepository;
     private final SchoolRepository schoolRepository;
     private final StudentRepository studentRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     private void validateStudent(String studentId, String schoolId) {
         if (studentId == null || studentId.isEmpty()) {
@@ -39,6 +41,13 @@ public class DisciplineLogService {
 
         validateStudent(log.getStudentId(), log.getSchoolId());
 
+        java.time.LocalDate incidentDay = log.getIncidentDate() != null
+                ? log.getIncidentDate().toLocalDate()
+                : null;
+        log.setAcademicYear(academicYearResolver
+                .resolve(log.getSchoolId(), log.getAcademicYear(), incidentDay)
+                .getName());
+
         return disciplineLogRepository.save(log);
     }
 
@@ -55,12 +64,17 @@ public class DisciplineLogService {
         return disciplineLogRepository.findBySchoolId(schoolId);
     }
 
+    public List<DisciplineLog> getDisciplineLogsBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return disciplineLogRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+    }
+
     public List<DisciplineLog> getDisciplineLogsByStudent(String studentId) {
         return disciplineLogRepository.findByStudentId(studentId);
     }
 
     public DisciplineLog updateDisciplineLog(String id, DisciplineLog logDetails) {
         DisciplineLog log = getDisciplineLogById(id);
+        academicYearResolver.assertImmutable(log.getAcademicYear(), logDetails.getAcademicYear());
 
         if (logDetails.getSchoolId() != null && !logDetails.getSchoolId().equals(log.getSchoolId())) {
             if (!schoolRepository.existsById(logDetails.getSchoolId())) {
