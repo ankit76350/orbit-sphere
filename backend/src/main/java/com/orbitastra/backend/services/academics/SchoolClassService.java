@@ -94,8 +94,8 @@ public class SchoolClassService {
             schoolClass.setSubjects(classDetails.getSubjects());
         }
 
-        if (classDetails.getAcademicYearId() != null) {
-            schoolClass.setAcademicYearId(classDetails.getAcademicYearId());
+        if (classDetails.getAcademicYear() != null) {
+            schoolClass.setAcademicYear(classDetails.getAcademicYear());
         }
 
         if (classDetails.getSections() != null) {

@@ -17,6 +17,9 @@ public interface DailyTimetableRepository extends MongoRepository<DailyTimetable
 
     List<DailyTimetable> findBySchoolIdAndDateIn(String schoolId, Collection<LocalDate> dates);
 
+    @Query(value = "{ 'schoolId': ?0, 'academicYear': ?1 }", sort = "{ 'date': 1 }")
+    List<DailyTimetable> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
+
     // Derived queries cannot express gte+lte on the same field, hence @Query.
     @Query(value = "{ 'schoolId': ?0, 'date': { '$gte': ?1, '$lte': ?2 } }", sort = "{ 'date': 1 }")
     List<DailyTimetable> findBySchoolIdAndDateRange(String schoolId, LocalDate startDate, LocalDate endDate);

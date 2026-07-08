@@ -45,6 +45,11 @@ public class DailyTimetable {
     @Indexed
     private String schoolId;
 
+    // References AcademicYear.name (unique per school), e.g. "2026-2027".
+    // Derived by the server from "date" — never taken from the request.
+    @Indexed
+    private String academicYear;
+
     @Indexed
     private LocalDate date;
 

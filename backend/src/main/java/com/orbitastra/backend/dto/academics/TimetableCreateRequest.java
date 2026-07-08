@@ -22,6 +22,10 @@ import lombok.NoArgsConstructor;
 public class TimetableCreateRequest {
     private String schoolId;
 
+    // References AcademicYear.name (unique per school), e.g. "2026-2027".
+    // Optional: when omitted the server derives the year from startDate.
+    private String academicYear;
+
     private LocalDate startDate;
 
     private LocalDate endDate;

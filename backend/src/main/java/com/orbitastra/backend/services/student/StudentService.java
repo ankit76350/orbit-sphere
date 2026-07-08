@@ -35,7 +35,7 @@ public class StudentService {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocId(student.getId());
         if (!records.isEmpty()) {
             records.stream()
-                .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYearId, 
+                .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYear, 
                     java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
                 .ifPresent(record -> {
                     student.setCurrentAcademicRecord(record);
@@ -83,8 +83,8 @@ public class StudentService {
         StudentAcademicRecord reqRecord = student.getCurrentAcademicRecord();
         StudentAcademicRecord savedRecord = null;
         if (reqRecord != null) {
-            String acadYear = reqRecord.getAcademicYearId() != null 
-                    ? reqRecord.getAcademicYearId() 
+            String acadYear = reqRecord.getAcademicYear() != null 
+                    ? reqRecord.getAcademicYear() 
                     : AcademicYearUtils.getCurrentAcademicYear();
 
             if (reqRecord.getClassDocId() != null) {
@@ -98,7 +98,7 @@ public class StudentService {
             StudentAcademicRecord record = StudentAcademicRecord.builder()
                     .schoolId(saved.getSchoolId())
                     .studentDocId(saved.getId())
-                    .academicYearId(acadYear)
+                    .academicYear(acadYear)
                     .studentId(reqRecord.getStudentId())
                     .rollNo(reqRecord.getRollNo())
                     .classDocId(reqRecord.getClassDocId())
@@ -251,19 +251,19 @@ public class StudentService {
 
         // Update academic record
         StudentAcademicRecord detailsRecord = studentDetails.getCurrentAcademicRecord();
-        String targetAcademicYear = (detailsRecord != null && detailsRecord.getAcademicYearId() != null) 
-                ? detailsRecord.getAcademicYearId() 
-                : (student.getCurrentAcademicRecord() != null ? student.getCurrentAcademicRecord().getAcademicYearId() : null);
+        String targetAcademicYear = (detailsRecord != null && detailsRecord.getAcademicYear() != null) 
+                ? detailsRecord.getAcademicYear() 
+                : (student.getCurrentAcademicRecord() != null ? student.getCurrentAcademicRecord().getAcademicYear() : null);
         if (targetAcademicYear == null) {
             targetAcademicYear = AcademicYearUtils.getCurrentAcademicYear();
         }
 
         final String finalAcadYear = targetAcademicYear;
         StudentAcademicRecord record = studentAcademicRecordRepository
-                .findByStudentDocIdAndAcademicYearId(student.getId(), finalAcadYear)
+                .findByStudentDocIdAndAcademicYear(student.getId(), finalAcadYear)
                 .orElseGet(() -> StudentAcademicRecord.builder()
                         .studentDocId(student.getId())
-                        .academicYearId(finalAcadYear)
+                        .academicYear(finalAcadYear)
                         .createdAt(LocalDateTime.now())
                         .build());
 
@@ -360,10 +360,10 @@ public class StudentService {
         Student student = getStudentById(studentId); // Throws if not found
         
         StudentAcademicRecord record = studentAcademicRecordRepository
-                .findByStudentDocIdAndAcademicYearId(studentId, recordDetails.getAcademicYearId())
+                .findByStudentDocIdAndAcademicYear(studentId, recordDetails.getAcademicYear())
                 .orElseGet(() -> StudentAcademicRecord.builder()
                         .studentDocId(studentId)
-                        .academicYearId(recordDetails.getAcademicYearId())
+                        .academicYear(recordDetails.getAcademicYear())
                         .createdAt(LocalDateTime.now())
                         .build());
                         
@@ -391,7 +391,7 @@ public class StudentService {
     }
     
     public StudentAcademicRecord promoteStudent(String studentId, StudentAcademicRecord promotionDetails) {
-        if (promotionDetails.getAcademicYearId() == null || promotionDetails.getAcademicYearId().isEmpty()) {
+        if (promotionDetails.getAcademicYear() == null || promotionDetails.getAcademicYear().isEmpty()) {
             throw new IllegalArgumentException("Academic Year ID is required for promotion.");
         }
         return createOrUpdateAcademicRecord(studentId, promotionDetails);

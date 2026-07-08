@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
  * 2027-03-31. Owns the school's holiday calendar (dated holidays and weekly
  * offs) for that year. Other collections (student academic records, classes,
  * timetables, ...) reference this year by its "name" (unique per school and
- * human readable) in their "academicYearId" field — not by the document id.
+ * human readable) in their "academicYear" field — not by the document id.
  * Renaming a year therefore orphans existing references; avoid renames once
  * a year is in use.
  */
@@ -46,7 +46,7 @@ public class AcademicYear {
     private String schoolId;
 
     // e.g. "2026-2027" — unique per school; this is what other collections
-    // store in their "academicYearId" field
+    // store in their "academicYear" field
     private String name;
 
     // First day of the academic year

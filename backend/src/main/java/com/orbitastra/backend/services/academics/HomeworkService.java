@@ -62,7 +62,7 @@ public class HomeworkService {
         }
 
         SchoolClass schoolClass = validateClass(classId, schoolId);
-        String targetAcademicYear = schoolClass.getAcademicYearId();
+        String targetAcademicYear = schoolClass.getAcademicYear();
 
         for (Homework.StudentAssignment assignment : assignments) {
             String studentId = assignment.getStudentId();
@@ -74,7 +74,7 @@ public class HomeworkService {
             }
 
             StudentAcademicRecord academicRecord = studentAcademicRecordRepository
-                    .findByStudentDocIdAndAcademicYearId(studentId, targetAcademicYear)
+                    .findByStudentDocIdAndAcademicYear(studentId, targetAcademicYear)
                     .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentId + " does not have an academic record for academic year " + targetAcademicYear));
 
             if (!classId.equals(academicRecord.getClassDocId())) {

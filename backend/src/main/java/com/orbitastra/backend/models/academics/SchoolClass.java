@@ -36,7 +36,7 @@ public class SchoolClass {
 
     private List<ClassSubject> subjects;
 
-    private String academicYearId; // References AcademicYear.name (unique per school), e.g. "2026-2027"
+    private String academicYear; // References AcademicYear.name (unique per school), e.g. "2026-2027"
 
     private List<String> sections;
 

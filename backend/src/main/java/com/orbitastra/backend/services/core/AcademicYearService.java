@@ -71,7 +71,7 @@ public class AcademicYearService {
         AcademicYear year = getAcademicYearById(id);
         validateYear(details);
 
-        // The name is the key other collections reference (academicYearId) —
+        // The name is the key other collections reference (academicYear) —
         // renaming would orphan those references, so it is immutable.
         if (!year.getName().equals(details.getName())) {
             throw new IllegalArgumentException("The name of an academic year cannot be changed once created ('"
