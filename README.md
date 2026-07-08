@@ -204,14 +204,6 @@ For support, questions, or feature requests, please open an issue on the GitHub 
 
 ---
 
-## 👥 Team
-
-- [Ankit Kumar Singh](https://github.com/ankit76350)
-- [Rohan Shinde](https://github.com/rohanshinde108)
-- [Ayush Kumar](https://github.com/)
-
----
-
 ## 📄 Documentation
 
 - [API Documentation](http://localhost:8080/swagger-ui.html)
