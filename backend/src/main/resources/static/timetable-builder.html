@@ -110,12 +110,13 @@
 <div id="createPage" style="display:none">
   <div class="panel">
     <div class="row">
+      <div><label>Academic year</label><select id="acadYear"><option value="">— choose school first —</option></select></div>
       <div><label>Timetable starts from</label><input type="date" id="startDate"></div>
       <div><label>Runs until (leave empty = only the start date)</label><input type="date" id="endDate"></div>
       <button class="primary" id="save">💾 Save timetable</button>
     </div>
-    <div class="hint">Holidays and weekly offs (e.g. Sundays) come from the school's holiday calendar and are
-      skipped automatically — you will see exactly which dates were skipped after saving.</div>
+    <div class="hint" id="yearHint">Holidays and weekly offs (e.g. Sundays) come from the academic year's holiday
+      calendar and are skipped automatically — you will see exactly which dates were skipped after saving.</div>
   </div>
 
   <div class="panel">
@@ -140,6 +141,7 @@
 <script>
 const state = {
   schools: [], classes: [], staff: [],
+  years: [],  // academic years of the selected school
   docs: [],   // saved DailyTimetable docs, window = today .. +60 days
   cols: [],   // {classId, className, section, periods:[{start,end,type,subject,teacherId}]}
 };
@@ -210,20 +212,59 @@ function switchTab(view) {
 
 $('school').onchange = async () => {
   const id = $('school').value;
-  state.cols = []; state.classes = []; state.staff = []; state.docs = [];
+  state.cols = []; state.classes = []; state.staff = []; state.docs = []; state.years = [];
   clearMsg();
   if (id) {
     try {
-      [state.classes, state.staff] = await Promise.all([
+      [state.classes, state.staff, state.years] = await Promise.all([
         fetchJson('/api/classes/school/' + id),
         fetchJson('/api/staff/school/' + id),
+        fetchJson('/api/academic-years/school/' + id),
       ]);
       await refreshDocs();
     } catch (e) { msg('Could not load school data: ' + e.message, false); }
   }
+  renderYearSelect();
   renderViewSelectors(); renderViewWeek();
   renderSectionChips(); renderTeachers(); renderCols();
 };
+
+// ---------- academic year selector ----------
+function renderYearSelect() {
+  const sel = $('acadYear');
+  if (!state.years.length) {
+    sel.innerHTML = '<option value="">— no academic year yet —</option>';
+    $('yearHint').textContent = '⚠ This school has no academic year. Create one first '
+      + '(POST /api/academic-years) — timetables can only be created inside an academic year.';
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  sel.innerHTML = state.years.map(y =>
+    `<option value="${y.name}">${y.name} (${y.startDate} → ${y.endDate})</option>`).join('');
+  const current = state.years.find(y => y.startDate <= today && today <= y.endDate) || state.years[0];
+  sel.value = current.name;
+  sel.onchange = applyYearBounds;
+  applyYearBounds();
+}
+
+function selectedYear() { return state.years.find(y => y.name === $('acadYear').value); }
+
+function applyYearBounds() {
+  const y = selectedYear();
+  if (!y) return;
+  const today = new Date().toISOString().slice(0, 10);
+  [$('startDate'), $('endDate')].forEach(i => { i.min = y.startDate; i.max = y.endDate; });
+  if ($('startDate').value < y.startDate || $('startDate').value > y.endDate) {
+    $('startDate').value = (today >= y.startDate && today <= y.endDate) ? today : y.startDate;
+  }
+  if ($('endDate').value && ($('endDate').value < y.startDate || $('endDate').value > y.endDate)) {
+    $('endDate').value = '';
+  }
+  const holidays = (y.holidays || []).length;
+  $('yearHint').textContent = `Academic year '${y.name}' runs ${y.startDate} → ${y.endDate} and has ${holidays} `
+    + 'holiday entr' + (holidays === 1 ? 'y' : 'ies') + ' (incl. weekly offs) — those dates are skipped automatically.';
+  markConflicts();
+}
 
 async function refreshDocs() {
   const id = $('school').value;
@@ -488,6 +529,8 @@ $('save').onclick = async () => {
   clearMsg();
   const schoolId = $('school').value;
   if (!schoolId) return msg('Choose a school first.', false);
+  const year = selectedYear();
+  if (!year) return msg('Choose an academic year — timetables can only be created inside one.', false);
   if (!$('startDate').value) {
     return msg($('endDate').value
       ? 'Please fill the start date ("Timetable starts from") — "Runs until" alone is not enough.'
@@ -495,6 +538,10 @@ $('save').onclick = async () => {
   }
   if ($('endDate').value && $('endDate').value < $('startDate').value) {
     return msg('"Runs until" (' + $('endDate').value + ') cannot be before "Timetable starts from" (' + $('startDate').value + ').', false);
+  }
+  const until = $('endDate').value || $('startDate').value;
+  if ($('startDate').value < year.startDate || until > year.endDate) {
+    return msg('The dates must stay inside academic year "' + year.name + '" (' + year.startDate + ' → ' + year.endDate + ').', false);
   }
   if (!state.cols.length) return msg('Pick at least one class section.', false);
 
@@ -521,6 +568,7 @@ $('save').onclick = async () => {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         schoolId,
+        academicYear: year.name,
         startDate: $('startDate').value,
         endDate: $('endDate').value || null,
         classTimetables,

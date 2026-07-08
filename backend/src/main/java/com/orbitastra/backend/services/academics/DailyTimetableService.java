@@ -84,6 +84,35 @@ public class DailyTimetableService {
                     "The date range is too long — it cannot be more than " + MAX_RANGE_DAYS + " days (one year).");
         }
 
+        // ---- the whole range must lie inside ONE academic year of the school ----
+        AcademicYear academicYear;
+        if (request.getAcademicYear() != null && !request.getAcademicYear().isBlank()) {
+            // The frontend names the year explicitly; validate the dates against it.
+            academicYear = academicYearRepository.findBySchoolIdAndName(schoolId, request.getAcademicYear())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Academic year '" + request.getAcademicYear() + "' not found for this school."));
+            if (startDate.isBefore(academicYear.getStartDate()) || startDate.isAfter(academicYear.getEndDate())) {
+                throw new IllegalArgumentException("'Timetable starts from' (" + startDate
+                        + ") is outside your academic year '" + academicYear.getName() + "', which runs "
+                        + academicYear.getStartDate() + " to " + academicYear.getEndDate() + ".");
+            }
+        } else {
+            academicYear = academicYearRepository.findBySchoolId(schoolId).stream()
+                    .filter(y -> y.getStartDate() != null && y.getEndDate() != null
+                            && !startDate.isBefore(y.getStartDate()) && !startDate.isAfter(y.getEndDate()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("'Timetable starts from' (" + startDate
+                            + ") does not fall in any academic year of this school. "
+                            + "Create the academic year (e.g. '2026-2027') with its start/end dates first."));
+        }
+
+        if (endDate.isAfter(academicYear.getEndDate())) {
+            throw new IllegalArgumentException("'Runs until' (" + endDate + ") goes beyond the academic year '"
+                    + academicYear.getName() + "', which ends on " + academicYear.getEndDate()
+                    + ". A timetable cannot cross academic years — create the next academic year and a separate "
+                    + "timetable for it.");
+        }
+
         List<ClassSectionTimetable> sections = request.getClassTimetables();
         if (sections == null || sections.isEmpty()) {
             throw new IllegalArgumentException("Please add the timetable of at least one class section.");
@@ -120,13 +149,10 @@ public class DailyTimetableService {
         Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
         raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
 
-        // ---- resolve dates: skip holidays (incl. dated weekly offs) from the academic years ----
+        // ---- resolve dates: skip holidays (incl. dated weekly offs) of THIS academic year ----
         Map<LocalDate, String> holidayByDate = new HashMap<>();
-        for (AcademicYear year : academicYearRepository.findBySchoolId(schoolId)) {
-            if (year.getHolidays() == null) {
-                continue;
-            }
-            for (HolidayDetail detail : year.getHolidays()) {
+        if (academicYear.getHolidays() != null) {
+            for (HolidayDetail detail : academicYear.getHolidays()) {
                 if (detail == null || detail.getDate() == null) {
                     continue;
                 }
@@ -201,7 +227,7 @@ public class DailyTimetableService {
         }
         raiseIfConflicts(conflicts);
 
-        // ---- write: one document per school per date ----
+        // ---- write: one document per school per date, linked to its academic year ----
         List<DailyTimetable> toSave = new ArrayList<>();
         for (LocalDate date : workingDates) {
             DailyTimetable doc = existingByDate.get(date);
@@ -210,6 +236,7 @@ public class DailyTimetableService {
             } else if (doc.getEntries() == null) {
                 doc.setEntries(new ArrayList<>());
             }
+            doc.setAcademicYear(academicYear.getName());
             for (TimetableEntry entry : template) {
                 doc.getEntries().add(TimetableEntry.builder()
                         .id(new ObjectId().toHexString())
@@ -244,6 +271,11 @@ public class DailyTimetableService {
         validateRange(startDate, endDate);
         return dailyTimetableRepository
                 .findBySchoolIdAndDateRange(schoolId, startDate, endDate);
+    }
+
+    /** All day documents belonging to one academic year (referenced by its name, e.g. "2026-2027"). */
+    public List<DailyTimetable> getByAcademicYear(String schoolId, String academicYearName) {
+        return dailyTimetableRepository.findBySchoolIdAndAcademicYear(schoolId, academicYearName);
     }
 
     /** One class section's lessons per date within a range. */

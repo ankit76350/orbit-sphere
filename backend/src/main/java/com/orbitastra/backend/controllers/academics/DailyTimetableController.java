@@ -52,6 +52,14 @@ public class DailyTimetableController {
         return ResponseEntity.ok(dailyTimetableService.getRange(schoolId, startDate, endDate));
     }
 
+    /** All day documents of one academic year (referenced by name, e.g. "2026-2027"). */
+    @GetMapping("/school/{schoolId}/academic-year/{academicYearName}")
+    public ResponseEntity<List<DailyTimetable>> getByAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYearName) {
+        return ResponseEntity.ok(dailyTimetableService.getByAcademicYear(schoolId, academicYearName));
+    }
+
     /** One class section's timetable per date within a range. */
     @GetMapping("/school/{schoolId}/class/{classId}/section/{section}")
     public ResponseEntity<List<DaySchedule>> getSectionSchedule(
