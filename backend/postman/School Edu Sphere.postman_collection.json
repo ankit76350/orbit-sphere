@@ -1561,6 +1561,30 @@
 							"response": []
 						},
 						{
+							"name": "Get Classes By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/classes/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"classes",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Update Class",
 							"request": {
 								"method": "PATCH",
@@ -1754,7 +1778,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"grade\": \"10th Grade\",\n  \"examName\": \"Midterm Examination\",\n  \"marks\": [\n    {\n      \"subject\": \"Mathematics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 92,\n      \"grade\": \"A\"\n    },\n    {\n      \"subject\": \"Physics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 88,\n      \"grade\": \"B\"\n    }\n  ],\n  \"totalPercentage\": 90.0,\n  \"overallGrade\": \"A\",\n  \"feedback\": \"Excellent performance!\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"grade\": \"10th Grade\",\n  \"examName\": \"Midterm Examination\",\n  \"marks\": [\n    {\n      \"subject\": \"Mathematics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 92,\n      \"grade\": \"A\"\n    },\n    {\n      \"subject\": \"Physics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 88,\n      \"grade\": \"B\"\n    }\n  ],\n  \"totalPercentage\": 90.0,\n  \"overallGrade\": \"A\",\n  \"feedback\": \"Excellent performance!\",\n  \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/academic-results",
@@ -1829,6 +1853,30 @@
 										"academic-results",
 										"school",
 										"SCHOOL_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Academic Results By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/academic-results/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"academic-results",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
 									]
 								}
 							},
@@ -1948,7 +1996,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"presentBy\": \"6a4b5524d763ecb377186650\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"presentBy\": \"6a4b5524d763ecb377186650\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\",\n  \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/attendance",
@@ -2023,6 +2071,30 @@
 										"attendance",
 										"school",
 										"SCHOOL_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Attendance By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/attendance/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"attendance",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
 									]
 								}
 							},
@@ -2166,7 +2238,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"violation\": \"Late arrival to class\",\n  \"fineAmount\": 10.00,\n  \"actionTaken\": \"Warning issued\",\n  \"incidentDate\": \"2026-07-03T10:30:00\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"violation\": \"Late arrival to class\",\n  \"fineAmount\": 10.00,\n  \"actionTaken\": \"Warning issued\",\n  \"incidentDate\": \"2026-07-03T10:30:00\",\n  \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/discipline-logs",
@@ -2241,6 +2313,30 @@
 										"discipline-logs",
 										"school",
 										"SCHOOL_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Discipline Logs By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/discipline-logs/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"discipline-logs",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
 									]
 								}
 							},
@@ -2989,6 +3085,30 @@
 							"response": []
 						},
 						{
+							"name": "Get Homework By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/homework/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"homework",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Get Homework By Class",
 							"request": {
 								"method": "GET",
@@ -3409,7 +3529,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.00,\n  \"dueDate\": \"2026-08-31\"\n}"
+									"raw": "{\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.00,\n  \"dueDate\": \"2026-08-31\",\n  \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/fees",
@@ -3486,6 +3606,30 @@
 										"fees",
 										"school",
 										"SCHOOL_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Fees By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
 									]
 								}
 							},
