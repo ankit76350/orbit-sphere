@@ -45,6 +45,13 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceList);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Attendance>> getAttendanceBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(attendanceService.getAttendanceBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @GetMapping("/student/{studentId}")
     public ResponseEntity<List<Attendance>> getAttendanceByStudent(@PathVariable String studentId) {
         List<Attendance> attendanceList = attendanceService.getAttendanceByStudent(studentId);

@@ -12,6 +12,7 @@ import com.orbitastra.backend.repositories.academics.AttendanceRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +24,7 @@ public class AttendanceService {
     private final SchoolRepository schoolRepository;
     private final StudentRepository studentRepository;
     private final StaffRepository staffRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     private void validatePresenter(String presentById, String schoolId) {
         if (presentById == null || presentById.isEmpty()) {
@@ -56,6 +58,10 @@ public class AttendanceService {
         validatePresenter(attendance.getPresentBy(), attendance.getSchoolId());
         attendance.setPresentTime(java.time.LocalDateTime.now());
 
+        attendance.setAcademicYear(academicYearResolver
+                .resolve(attendance.getSchoolId(), attendance.getAcademicYear(), attendance.getDate())
+                .getName());
+
         return attendanceRepository.save(attendance);
     }
 
@@ -72,6 +78,10 @@ public class AttendanceService {
         return attendanceRepository.findBySchoolId(schoolId);
     }
 
+    public List<Attendance> getAttendanceBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return attendanceRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+    }
+
     public List<Attendance> getAttendanceByStudent(String studentId) {
         return attendanceRepository.findByStudentId(studentId);
     }
@@ -86,6 +96,7 @@ public class AttendanceService {
 
     public Attendance updateAttendance(String id, Attendance attendanceDetails) {
         Attendance attendance = getAttendanceById(id);
+        academicYearResolver.assertImmutable(attendance.getAcademicYear(), attendanceDetails.getAcademicYear());
 
         if (attendanceDetails.getSchoolId() != null && !attendanceDetails.getSchoolId().equals(attendance.getSchoolId())) {
             if (!schoolRepository.existsById(attendanceDetails.getSchoolId())) {
