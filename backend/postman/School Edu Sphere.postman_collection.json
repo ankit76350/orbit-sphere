@@ -2675,6 +2675,76 @@
 							"response": []
 						},
 						{
+							"name": "Update One Section For One Date (replace)",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n  {\n    \"subject\": \"Mathematics\",\n    \"teacherId\": \"TEACHER_STAFF_ID_1\",\n    \"startTime\": \"09:00\",\n    \"endTime\": \"09:45\"\n  },\n  {\n    \"type\": \"BREAK\",\n    \"subject\": \"Recess\",\n    \"startTime\": \"09:45\",\n    \"endTime\": \"10:05\"\n  },\n  {\n    \"subject\": \"English\",\n    \"teacherId\": \"TEACHER_STAFF_ID_2\",\n    \"startTime\": \"10:05\",\n    \"endTime\": \"10:50\"\n  }\n]"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/date/2026-10-12/class/CLASS_ID_HERE/section/A",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"date",
+										"2026-10-12",
+										"class",
+										"CLASS_ID_HERE",
+										"section",
+										"A"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Whole Day For One Date (replace)",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"classTimetables\": [\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"English\",\n          \"teacherId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        }\n      ]\n    }\n  ]\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/date/2026-10-12",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"date",
+										"2026-10-12"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Delete Whole Day",
 							"request": {
 								"method": "DELETE",

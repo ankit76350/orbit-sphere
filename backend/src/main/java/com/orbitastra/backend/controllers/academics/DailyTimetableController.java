@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import com.orbitastra.backend.dto.academics.DaySchedule;
 import com.orbitastra.backend.dto.academics.TimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.TimetableCreationResult;
+import com.orbitastra.backend.dto.academics.TimetablePeriod;
 import com.orbitastra.backend.models.academics.DailyTimetable;
 import com.orbitastra.backend.services.academics.DailyTimetableService;
 
@@ -80,6 +81,35 @@ public class DailyTimetableController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ResponseEntity.ok(dailyTimetableService.getTeacherSchedule(schoolId, teacherId, startDate, endDate));
+    }
+
+    /**
+     * Replaces one class section's timetable on one date. Body: a JSON array
+     * of periods. Other sections of the day are kept and clash-checked.
+     */
+    @PutMapping("/school/{schoolId}/date/{date}/class/{classId}/section/{section}")
+    public ResponseEntity<DailyTimetable> updateSectionForDate(
+            @PathVariable String schoolId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @PathVariable String classId,
+            @PathVariable String section,
+            @RequestBody List<TimetablePeriod> periods) {
+        return ResponseEntity.ok(
+                dailyTimetableService.updateSectionForDate(schoolId, date, classId, section, periods));
+    }
+
+    /**
+     * Replaces the WHOLE timetable of one date for the school. Body:
+     * {"classTimetables": [{classId, section, periods}, ...]} — everything
+     * previously stored for the date is discarded.
+     */
+    @PutMapping("/school/{schoolId}/date/{date}")
+    public ResponseEntity<DailyTimetable> updateDay(
+            @PathVariable String schoolId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestBody TimetableCreateRequest body) {
+        return ResponseEntity.ok(
+                dailyTimetableService.updateDay(schoolId, date, body == null ? null : body.getClassTimetables()));
     }
 
     /** Deletes the whole timetable of one date. */

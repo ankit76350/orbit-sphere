@@ -291,6 +291,118 @@ public class DailyTimetableService {
         return filterRange(schoolId, startDate, endDate, e -> teacherId.equals(e.getTeacherId()));
     }
 
+    /**
+     * Replaces one class section's timetable on ONE date. The new periods are
+     * checked against the other sections of that day (teacher clashes); the
+     * section's old entries are discarded. Creates the day document if the
+     * date has none yet.
+     */
+    public DailyTimetable updateSectionForDate(String schoolId, LocalDate date, String classId, String section,
+            List<TimetablePeriod> periods) {
+        if (!schoolRepository.existsById(schoolId)) {
+            throw new ResourceNotFoundException("School not found with id: " + schoolId);
+        }
+        Map<String, SchoolClass> classCache = new HashMap<>();
+        validateClassSection(schoolId, classId, section, classCache);
+        String label = classLabel(classId, classCache) + " Section " + section;
+        validatePeriods(periods, label);
+        Set<String> teacherIds = new HashSet<>();
+        periods.stream().filter(p -> p.getTeacherId() != null).forEach(p -> teacherIds.add(p.getTeacherId()));
+        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
+
+        AcademicYear academicYear = requireWorkingDate(schoolId, date);
+
+        DailyTimetable doc = dailyTimetableRepository.findBySchoolIdAndDate(schoolId, date)
+                .orElse(DailyTimetable.builder().schoolId(schoolId).date(date).entries(new ArrayList<>()).build());
+        doc.setAcademicYear(academicYear.getName());
+        if (doc.getEntries() == null) {
+            doc.setEntries(new ArrayList<>());
+        }
+
+        // the section's own old entries are being replaced, so they cannot clash
+        List<TimetableEntry> others = doc.getEntries().stream()
+                .filter(e -> !(classId.equals(e.getClassId()) && section.equalsIgnoreCase(e.getSection())))
+                .collect(Collectors.toList());
+
+        List<String> conflicts = new ArrayList<>();
+        for (TimetablePeriod period : periods) {
+            if (period.getTeacherId() == null) {
+                continue;
+            }
+            for (TimetableEntry other : others) {
+                if (period.getTeacherId().equals(other.getTeacherId())
+                        && other.getStartTime() != null && other.getEndTime() != null
+                        && overlaps(period.getStartTime(), period.getEndTime(),
+                                other.getStartTime(), other.getEndTime())) {
+                    conflicts.add("Teacher " + teacherLabel(period.getTeacherId(), staffCache)
+                            + " is already scheduled for '" + other.getSubject() + "' (class "
+                            + classLabel(other.getClassId(), classCache) + ", section " + other.getSection()
+                            + ") on " + date + " " + other.getStartTime() + "-" + other.getEndTime());
+                }
+            }
+        }
+        raiseIfConflicts(conflicts);
+
+        others.addAll(buildEntries(classId, section, periods));
+        doc.setEntries(others);
+        return dailyTimetableRepository.save(doc);
+    }
+
+    /**
+     * Replaces the WHOLE timetable of one date for the school: every existing
+     * entry of that day is discarded and the given class sections become the
+     * day's complete timetable. Creates the day document if none exists yet.
+     */
+    public DailyTimetable updateDay(String schoolId, LocalDate date, List<ClassSectionTimetable> sections) {
+        if (!schoolRepository.existsById(schoolId)) {
+            throw new ResourceNotFoundException("School not found with id: " + schoolId);
+        }
+        if (sections == null || sections.isEmpty()) {
+            throw new IllegalArgumentException("Please add the timetable of at least one class section"
+                    + " (to remove the whole day use DELETE instead).");
+        }
+        Map<String, SchoolClass> classCache = new HashMap<>();
+        Set<String> seenClassSections = new HashSet<>();
+        Set<String> teacherIds = new HashSet<>();
+        for (int i = 0; i < sections.size(); i++) {
+            ClassSectionTimetable entry = sections.get(i);
+            if (entry == null) {
+                throw new IllegalArgumentException(
+                        "Timetable entry " + (i + 1) + " is empty — please fill it in or remove it.");
+            }
+            if (entry.getClassId() == null || entry.getClassId().isBlank()) {
+                throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a class.");
+            }
+            if (entry.getSection() == null || entry.getSection().isBlank()) {
+                throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a section.");
+            }
+            validateClassSection(schoolId, entry.getClassId(), entry.getSection(), classCache);
+            String label = classLabel(entry.getClassId(), classCache) + " Section " + entry.getSection();
+            if (!seenClassSections.add(entry.getClassId() + "::" + entry.getSection().toLowerCase())) {
+                throw new IllegalArgumentException(label
+                        + " was added more than once — each class section can only appear once per request.");
+            }
+            validatePeriods(entry.getPeriods(), label);
+            entry.getPeriods().stream()
+                    .filter(p -> p.getTeacherId() != null)
+                    .forEach(p -> teacherIds.add(p.getTeacherId()));
+        }
+        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
+        raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
+
+        AcademicYear academicYear = requireWorkingDate(schoolId, date);
+
+        DailyTimetable doc = dailyTimetableRepository.findBySchoolIdAndDate(schoolId, date)
+                .orElse(DailyTimetable.builder().schoolId(schoolId).date(date).build());
+        doc.setAcademicYear(academicYear.getName());
+        List<TimetableEntry> entries = new ArrayList<>();
+        for (ClassSectionTimetable entry : sections) {
+            entries.addAll(buildEntries(entry.getClassId(), entry.getSection(), entry.getPeriods()));
+        }
+        doc.setEntries(entries);
+        return dailyTimetableRepository.save(doc);
+    }
+
     /** Deletes the whole timetable of one date. */
     public void deleteDay(String schoolId, LocalDate date) {
         DailyTimetable doc = dailyTimetableRepository.findBySchoolIdAndDate(schoolId, date)
@@ -348,6 +460,50 @@ public class DailyTimetableService {
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
+
+    /**
+     * The date must fall inside an academic year of the school and must not be
+     * one of that year's holidays. Returns the academic year.
+     */
+    private AcademicYear requireWorkingDate(String schoolId, LocalDate date) {
+        AcademicYear academicYear = academicYearRepository.findBySchoolId(schoolId).stream()
+                .filter(y -> y.getStartDate() != null && y.getEndDate() != null
+                        && !date.isBefore(y.getStartDate()) && !date.isAfter(y.getEndDate()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("The date " + date
+                        + " does not fall in any academic year of this school. "
+                        + "Create the academic year (e.g. '2026-2027') with its start/end dates first."));
+        if (academicYear.getHolidays() != null) {
+            for (HolidayDetail detail : academicYear.getHolidays()) {
+                if (detail != null && date.equals(detail.getDate())) {
+                    throw new IllegalArgumentException(date + " is a holiday ('" + detail.getName()
+                            + "') in academic year '" + academicYear.getName()
+                            + "' — a timetable cannot be set on a holiday. "
+                            + "Remove the holiday first if school runs on this date.");
+                }
+            }
+        }
+        return academicYear;
+    }
+
+    /** Builds stored entries (with fresh ids) for one class section's periods. */
+    private static List<TimetableEntry> buildEntries(String classId, String section, List<TimetablePeriod> periods) {
+        List<TimetableEntry> entries = new ArrayList<>();
+        for (TimetablePeriod period : periods) {
+            boolean isBreak = period.getType() == SlotType.BREAK;
+            entries.add(TimetableEntry.builder()
+                    .id(new ObjectId().toHexString())
+                    .classId(classId)
+                    .section(section)
+                    .type(isBreak ? SlotType.BREAK : SlotType.LESSON)
+                    .subject(isBreak && isBlank(period.getSubject()) ? "Break" : period.getSubject())
+                    .teacherId(period.getTeacherId())
+                    .startTime(period.getStartTime())
+                    .endTime(period.getEndTime())
+                    .build());
+        }
+        return entries;
+    }
 
     private interface EntryFilter { boolean test(TimetableEntry e); }
 
