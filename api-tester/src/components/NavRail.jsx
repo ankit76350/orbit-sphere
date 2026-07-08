@@ -1,6 +1,7 @@
-import { CalendarRange, BookOpen, LayoutGrid } from 'lucide-react';
+import { CalendarRange, BookOpen, LayoutGrid, Cpu } from 'lucide-react';
 
 const ITEMS = [
+  { key: 'core', label: 'Core', icon: Cpu },
   { key: 'setup', label: 'Academic Year', icon: CalendarRange },
   { key: 'classes', label: 'Classes', icon: BookOpen },
   { key: 'timetable', label: 'Timetable', icon: LayoutGrid },

@@ -5,6 +5,7 @@ import SetupScreen from './screens/SetupScreen.jsx';
 import ClassesScreen from './screens/ClassesScreen.jsx';
 import TimetableBuilder from './screens/TimetableBuilder.jsx';
 import TimetableView from './screens/TimetableView.jsx';
+import CoreScreen from './screens/CoreScreen.jsx';
 import { api } from './api.js';
 import { ToastProvider } from './components/ui.jsx';
 
@@ -15,7 +16,7 @@ function AppContent() {
   const [year, setYear] = useState('');
   const [classes, setClasses] = useState([]);
   const [staff, setStaff] = useState([]);
-  const [activeTab, setActiveTab] = useState('setup');
+  const [activeTab, setActiveTab] = useState('core');
   const [timetableSubTab, setTimetableSubTab] = useState('view');
 
   // Load initial schools
@@ -153,6 +154,15 @@ function AppContent() {
                 )}
               </div>
             </div>
+          )}
+          {activeTab === 'core' && (
+            <CoreScreen
+              schoolId={schoolId}
+              schools={schools}
+              year={year}
+              years={years}
+              reload={handleReload}
+            />
           )}
         </main>
       </div>

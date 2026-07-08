@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { CalendarPlus, Plus, Trash2, PartyPopper, CalendarOff } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { CalendarPlus, Plus, Trash2, PartyPopper, CalendarOff, X, RefreshCw } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
 import { DAYS, DAY_LABEL, niceDate } from '../lib/date.js';
@@ -64,6 +64,32 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
   const [offDay, setOffDay] = useState('SUNDAY');
   const [busy, setBusy] = useState(false);
 
+  // New Academic Year modal states
+  const [showYearModal, setShowYearModal] = useState(false);
+  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '' });
+  const [busyYear, setBusyYear] = useState(false);
+
+  const handleYearFormChange = (k) => (e) => setYearForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submitNewAcademicYear = async () => {
+    if (!yearForm.name || !yearForm.startDate || !yearForm.endDate) {
+      toast.error("All fields are required to create a new academic year.");
+      return;
+    }
+    setBusyYear(true);
+    try {
+      await api.createAcademicYear({ schoolId, ...yearForm, holidays: [] });
+      toast.success(`Academic year “${yearForm.name}” created.`);
+      setShowYearModal(false);
+      setYearForm({ name: '', startDate: '', endDate: '' });
+      reload(yearForm.name); // Reload context and select new year
+    } catch (e) {
+      toast.error(e.message || "Failed to create academic year.");
+    } finally {
+      setBusyYear(false);
+    }
+  };
+
   const run = async (fn, ok) => {
     setBusy(true);
     try { await fn(); toast.success(ok); reload(yearDoc.name); }
@@ -81,6 +107,11 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
           <div className="flex justify-between"><dt className="text-slate-500">Holidays</dt><dd className="font-medium">{dated.length} dates</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">Weekly off</dt><dd className="font-medium">{weeklyOffNames.length ? weeklyOffNames.map((d) => DAY_LABEL[d].slice(0, 3)).join(', ') : '—'}</dd></div>
         </dl>
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <Button variant="primary" className="w-full justify-center" onClick={() => setShowYearModal(true)}>
+            <CalendarPlus size={15} /> New Academic Year
+          </Button>
+        </div>
       </Card>
 
       {/* add holiday + weekly off */}
@@ -158,6 +189,55 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
           </div>
         )}
       </Card>
+
+      {/* New Academic Year Modal */}
+      {showYearModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-md w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative">
+            <button 
+              onClick={() => setShowYearModal(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition"
+              title="Close modal"
+            >
+              <X size={16} />
+            </button>
+            
+            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+              <CalendarPlus size={18} className="text-blue-600" />
+              <span>Create academic year</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 mb-5">Set up a new academic year range for this school.</p>
+
+            <div className="space-y-4">
+              <Field label="Name" hint="e.g. 2026-2027 — cannot be changed later.">
+                <Input value={yearForm.name} onChange={handleYearFormChange('name')} placeholder="2026-2027" className="text-slate-800" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Starts on">
+                  <Input type="date" value={yearForm.startDate} onChange={handleYearFormChange('startDate')} className="text-slate-800" />
+                </Field>
+                <Field label="Ends on">
+                  <Input type="date" value={yearForm.endDate} onChange={handleYearFormChange('endDate')} className="text-slate-800" />
+                </Field>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 mt-5">
+                <Button variant="default" size="sm" onClick={() => setShowYearModal(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary" 
+                  size="sm" 
+                  onClick={submitNewAcademicYear}
+                  disabled={busyYear || !yearForm.name || !yearForm.startDate || !yearForm.endDate}
+                >
+                  {busyYear ? 'Creating…' : 'Create academic year'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
