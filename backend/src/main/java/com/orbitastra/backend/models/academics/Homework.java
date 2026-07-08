@@ -38,6 +38,11 @@ public class Homework {
     @Indexed
     private String schoolId;
 
+    // References AcademicYear.name (unique per school), e.g. "2026-2027" —
+    // scopes this record to one academic year of the school (SaaS: school -> year -> data)
+    @Indexed
+    private String academicYear;
+
     @Indexed
     private String classId;
 

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
@@ -28,6 +29,11 @@ public class TransportAllocation {
     private String id;
 
     private String schoolId;
+
+    // References AcademicYear.name (unique per school), e.g. "2026-2027" —
+    // scopes this record to one academic year of the school (SaaS: school -> year -> data)
+    @Indexed
+    private String academicYear;
 
     private String studentId;
 
