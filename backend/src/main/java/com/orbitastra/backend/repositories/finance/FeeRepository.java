@@ -13,5 +13,7 @@ public interface FeeRepository extends MongoRepository<Fee, String> {
     List<Fee> findBySchoolId(String schoolId);
     List<Fee> findByStudentId(String studentId);
     List<Fee> findBySchoolIdAndStudentId(String schoolId, String studentId);
+    List<Fee> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
+    List<Fee> findByStudentIdAndAcademicYear(String studentId, String academicYear);
     List<Fee> findByStudentIdAndStatus(String studentId, FeeStatus status);
 }

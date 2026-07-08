@@ -13,6 +13,7 @@ import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,12 +24,16 @@ public class FeeService {
     private final FeeRepository feeRepository;
     private final StudentRepository studentRepository;
     private final StudentWalletService studentWalletService;
+    private final AcademicYearResolver academicYearResolver;
 
     public Fee createFee(Fee fee) {
         Student student = studentRepository.findById(fee.getStudentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + fee.getStudentId()));
 
         fee.setSchoolId(student.getSchoolId());
+        fee.setAcademicYear(academicYearResolver
+                .resolve(fee.getSchoolId(), fee.getAcademicYear(), fee.getDueDate())
+                .getName());
         if (fee.getPaidAmount() == null) {
             fee.setPaidAmount(BigDecimal.ZERO);
         }
@@ -54,8 +59,13 @@ public class FeeService {
         return feeRepository.findBySchoolId(schoolId);
     }
 
+    public List<Fee> getFeesBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return feeRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+    }
+
     public Fee updateFee(String id, Fee feeDetails) {
         Fee fee = getFeeById(id);
+        academicYearResolver.assertImmutable(fee.getAcademicYear(), feeDetails.getAcademicYear());
 
         if (feeDetails.getType() != null) {
             fee.setType(feeDetails.getType());

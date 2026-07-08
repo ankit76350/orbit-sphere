@@ -51,6 +51,13 @@ public class FeeController {
         return ResponseEntity.ok(fees);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Fee>> getFeesBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(feeService.getFeesBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<Fee> updateFee(@PathVariable String id, @RequestBody Fee feeDetails) {
         Fee updated = feeService.updateFee(id, feeDetails);
