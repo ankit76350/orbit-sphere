@@ -3,6 +3,7 @@ import TopBar from './components/TopBar.jsx';
 import NavRail from './components/NavRail.jsx';
 import StudentScreen from './screens/StudentScreen.jsx';
 import StaffScreen from './screens/StaffScreen.jsx';
+import AcademicsScreen from './screens/AcademicsScreen.jsx';
 import ClassesScreen from './screens/ClassesScreen.jsx';
 import TimetableBuilder from './screens/TimetableBuilder.jsx';
 import TimetableView from './screens/TimetableView.jsx';
@@ -120,6 +121,15 @@ function AppContent() {
           {activeTab === 'staff' && (
             <StaffScreen
               schoolId={schoolId}
+              reload={handleReload}
+            />
+          )}
+
+          {activeTab === 'academics' && (
+            <AcademicsScreen
+              schoolId={schoolId}
+              years={years}
+              year={year}
               reload={handleReload}
             />
           )}
