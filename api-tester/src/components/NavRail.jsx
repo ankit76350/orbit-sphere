@@ -1,8 +1,9 @@
-import { BookOpen, LayoutGrid, Cpu, Users } from 'lucide-react';
+import { BookOpen, LayoutGrid, Cpu, Users, Briefcase } from 'lucide-react';
 
 const ITEMS = [
   { key: 'core', label: 'Core', icon: Cpu },
   { key: 'students', label: 'Students', icon: Users },
+  { key: 'staff', label: 'Staff', icon: Briefcase },
   { key: 'classes', label: 'Classes', icon: BookOpen },
   { key: 'timetable', label: 'Timetable', icon: LayoutGrid },
 ];

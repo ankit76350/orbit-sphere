@@ -27,6 +27,11 @@ export const api = {
   classes: (schoolId) => listOr(`/api/classes/school/${schoolId}`),
   classesByYear: (schoolId, year) => listOr(`/api/classes/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   staff: (schoolId) => listOr(`/api/staff/school/${schoolId}`),
+  createStaff: (payload) => call('POST', '/api/staff', payload),
+  updateStaff: (id, payload) => call('PATCH', `/api/staff/${id}`, payload),
+  deleteStaff: (id) => call('DELETE', `/api/staff/${id}`),
+  getStaffById: (id) => call('GET', `/api/staff/${id}`),
+  getStaffByEmployeeId: (employeeId) => call('GET', `/api/staff/employee/${employeeId}`),
 
   // ----- schools admin -----
   createSchool: (payload) => call('POST', '/api/schools', payload),
