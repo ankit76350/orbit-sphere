@@ -149,4 +149,19 @@ export const api = {
   createMedicalRecord: (payload) => call('POST', '/api/medical-records', payload),
   updateMedicalRecord: (id, payload) => call('PATCH', `/api/medical-records/${id}`, payload),
   deleteMedicalRecord: (id) => call('DELETE', `/api/medical-records/${id}`),
+
+  // ----- finance: fees -----
+  fees: (schoolId) => listOr(`/api/fees/school/${schoolId}`),
+  feesByYear: (schoolId, year) => listOr(`/api/fees/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  createFee: (payload) => call('POST', '/api/fees', payload),
+  updateFee: (id, payload) => call('PATCH', `/api/fees/${id}`, payload),
+  deleteFee: (id) => call('DELETE', `/api/fees/${id}`),
+  payFee: (id, amount) => call('POST', `/api/fees/${id}/pay`, { amount }),
+  payFeeViaWallet: (id, amount) => call('POST', `/api/fees/${id}/pay-wallet`, { amount }),
+
+  // ----- finance: student wallets -----
+  getWallet: (studentId) => call('GET', `/api/wallets/student/${studentId}`),
+  creditWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/credit`, { amount, remarks }),
+  debitWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/debit`, { amount, remarks }),
+  walletTransactions: (studentId) => listOr(`/api/wallets/student/${studentId}/transactions`),
 };

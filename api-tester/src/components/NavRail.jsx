@@ -1,10 +1,11 @@
-import { Cpu, Users, Briefcase, GraduationCap } from 'lucide-react';
+import { Cpu, Users, Briefcase, GraduationCap, Coins } from 'lucide-react';
 
 const ITEMS = [
   { key: 'core', label: 'Core', icon: Cpu },
   { key: 'students', label: 'Students', icon: Users },
   { key: 'staff', label: 'Staff', icon: Briefcase },
   { key: 'academics', label: 'Academics', icon: GraduationCap },
+  { key: 'finance', label: 'Finance', icon: Coins },
 ];
 
 export default function NavRail({ active, onChange }) {
