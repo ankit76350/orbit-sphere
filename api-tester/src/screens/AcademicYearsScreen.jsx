@@ -6,7 +6,7 @@ import { DAYS, DAY_LABEL, niceDate } from '../lib/date.js';
 
 const HOLIDAY_TYPES = ['PUBLIC_HOLIDAY', 'FESTIVAL', 'RELIGIOUS', 'SCHOOL_EVENT', 'VACATION', 'EXAM_BREAK', 'OTHER'];
 
-export default function SetupScreen({ schoolId, years, year, reload }) {
+export default function AcademicYearsScreen({ schoolId, years, year, reload }) {
   const toast = useToast();
   const current = useMemo(() => years.find((y) => y.name === year), [years, year]);
 

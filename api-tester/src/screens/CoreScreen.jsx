@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
+import AcademicYearsScreen from './AcademicYearsScreen.jsx';
 
 export default function CoreScreen({ schoolId, schools, year, years, reload }) {
   const toast = useToast();
@@ -348,6 +349,13 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
             Manage Schools
           </button>
           <button
+            onClick={() => setSubTab('academicYears')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'academicYears' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <Calendar size={16} />
+            Academic Years
+          </button>
+          <button
             onClick={() => setSubTab('announcements')}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'announcements' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >
@@ -375,6 +383,16 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
 
       {/* Main panel layout */}
       <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* ==================== ACADEMIC YEARS TAB ==================== */}
+        {subTab === 'academicYears' && (
+          <AcademicYearsScreen 
+            schoolId={schoolId} 
+            years={years} 
+            year={year} 
+            reload={reload} 
+          />
+        )}
+
         {/* ==================== SCHOOLS TAB ==================== */}
         {subTab === 'schools' && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import TopBar from './components/TopBar.jsx';
 import NavRail from './components/NavRail.jsx';
-import SetupScreen from './screens/SetupScreen.jsx';
+
 import ClassesScreen from './screens/ClassesScreen.jsx';
 import TimetableBuilder from './screens/TimetableBuilder.jsx';
 import TimetableView from './screens/TimetableView.jsx';
@@ -106,14 +106,7 @@ function AppContent() {
       <div className="flex flex-1 min-h-0">
         <NavRail active={activeTab} onChange={setActiveTab} />
         <main className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'setup' && (
-            <SetupScreen
-              schoolId={schoolId}
-              years={years}
-              year={year}
-              reload={handleReload}
-            />
-          )}
+
           {activeTab === 'classes' && (
             <ClassesScreen
               schoolId={schoolId}
