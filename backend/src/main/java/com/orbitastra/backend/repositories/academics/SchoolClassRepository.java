@@ -12,4 +12,6 @@ import com.orbitastra.backend.models.academics.SchoolClass;
 public interface SchoolClassRepository extends MongoRepository<SchoolClass, String> {
     List<SchoolClass> findBySchoolId(String schoolId);
     Optional<SchoolClass> findByNameAndSchoolId(String name, String schoolId);
+    List<SchoolClass> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
+    Optional<SchoolClass> findByNameAndSchoolIdAndAcademicYear(String name, String schoolId, String academicYear);
 }

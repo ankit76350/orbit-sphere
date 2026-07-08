@@ -9,6 +9,7 @@ import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,6 +20,7 @@ public class SchoolClassService {
     private final SchoolClassRepository schoolClassRepository;
     private final SchoolRepository schoolRepository;
     private final StaffRepository staffRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     private void validateTeacher(String teacherId, String schoolId) {
         if (teacherId == null || teacherId.isEmpty()) {
@@ -44,9 +46,19 @@ public class SchoolClassService {
             }
         }
 
-        if (schoolClass.getName() != null && 
-            schoolClassRepository.findByNameAndSchoolId(schoolClass.getName(), schoolClass.getSchoolId()).isPresent()) {
-            throw new IllegalArgumentException("Class with name '" + schoolClass.getName() + "' already exists in this school.");
+        // A class belongs to one academic year of the school (SaaS: school -> year -> class).
+        schoolClass.setAcademicYear(academicYearResolver
+                .resolve(schoolClass.getSchoolId(), schoolClass.getAcademicYear(), null)
+                .getName());
+
+        // Class name is unique per (school, academic year) — the same "Class 5"
+        // may exist in different years.
+        if (schoolClass.getName() != null && schoolClassRepository
+                .findByNameAndSchoolIdAndAcademicYear(schoolClass.getName(), schoolClass.getSchoolId(),
+                        schoolClass.getAcademicYear())
+                .isPresent()) {
+            throw new IllegalArgumentException("Class '" + schoolClass.getName()
+                    + "' already exists in this school for academic year " + schoolClass.getAcademicYear() + ".");
         }
 
         return schoolClassRepository.save(schoolClass);
@@ -65,8 +77,15 @@ public class SchoolClassService {
         return schoolClassRepository.findBySchoolId(schoolId);
     }
 
+    public List<SchoolClass> getClassesBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return schoolClassRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+    }
+
     public SchoolClass updateClass(String id, SchoolClass classDetails) {
         SchoolClass schoolClass = getClassById(id);
+        // A class cannot be moved between academic years — timetables, homework
+        // and student records reference it within its year.
+        academicYearResolver.assertImmutable(schoolClass.getAcademicYear(), classDetails.getAcademicYear());
 
         if (classDetails.getSchoolId() != null && !classDetails.getSchoolId().equals(schoolClass.getSchoolId())) {
             if (!schoolRepository.existsById(classDetails.getSchoolId())) {
@@ -76,8 +95,10 @@ public class SchoolClassService {
         }
 
         if (classDetails.getName() != null && !classDetails.getName().equals(schoolClass.getName())) {
-            if (schoolClassRepository.findByNameAndSchoolId(classDetails.getName(), schoolClass.getSchoolId()).isPresent()) {
-                throw new IllegalArgumentException("Class with name '" + classDetails.getName() + "' already exists in this school.");
+            if (schoolClassRepository.findByNameAndSchoolIdAndAcademicYear(
+                    classDetails.getName(), schoolClass.getSchoolId(), schoolClass.getAcademicYear()).isPresent()) {
+                throw new IllegalArgumentException("Class '" + classDetails.getName()
+                        + "' already exists in this school for academic year " + schoolClass.getAcademicYear() + ".");
             }
             schoolClass.setName(classDetails.getName());
         }
@@ -92,10 +113,6 @@ public class SchoolClassService {
                 validateTeacher(sub.getTeacher(), schoolClass.getSchoolId());
             }
             schoolClass.setSubjects(classDetails.getSubjects());
-        }
-
-        if (classDetails.getAcademicYear() != null) {
-            schoolClass.setAcademicYear(classDetails.getAcademicYear());
         }
 
         if (classDetails.getSections() != null) {

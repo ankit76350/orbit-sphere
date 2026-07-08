@@ -43,6 +43,13 @@ public class SchoolClassController {
         return ResponseEntity.ok(classes);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<SchoolClass>> getClassesBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(schoolClassService.getClassesBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<SchoolClass> updateClass(@PathVariable String id, @RequestBody SchoolClass classDetails) {
         SchoolClass updated = schoolClassService.updateClass(id, classDetails);
