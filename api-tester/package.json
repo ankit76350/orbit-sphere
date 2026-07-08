@@ -1,0 +1,22 @@
+{
+  "name": "school-edu-sphere-api-tester",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3100 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --port=3100"
+  },
+  "dependencies": {
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.14",
+    "vite": "^6.2.3"
+  }
+}

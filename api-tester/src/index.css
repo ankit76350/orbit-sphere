@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root { color-scheme: light; }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #eef1f5;
+  color: #0f172a;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* thin scrollbars */
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: #c7d0dc; border-radius: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
