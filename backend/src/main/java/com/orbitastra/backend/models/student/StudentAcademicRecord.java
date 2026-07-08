@@ -40,7 +40,7 @@ public class StudentAcademicRecord {
 
     private String studentDocId; // References Student.id
 
-    private String academicYearId; // e.g. "2026-2027"
+    private String academicYearId; // References AcademicYear.name (unique per school), e.g. "2026-2027"
 
     private String studentId; // year-specific student identifier
 

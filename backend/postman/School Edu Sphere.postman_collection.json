@@ -1084,10 +1084,10 @@
 					]
 				},
 				{
-					"name": "Holidays",
+					"name": "Academic Years",
 					"item": [
 						{
-							"name": "Create Holiday Calendar",
+							"name": "Create Academic Year (with holiday calendar)",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -1097,7 +1097,7 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays",
+									"raw": "http://localhost:5030/api/academic-years",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1105,23 +1105,23 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays"
+										"academic-years"
 									]
 								},
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"academicYear\": \"2026-2027\",\n  \"holidays\": [\n    {\n      \"name\": \"Sunday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SUNDAY\"\n    },\n    {\n      \"name\": \"Saturday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SATURDAY\"\n    },\n    {\n      \"name\": \"Independence Day\",\n      \"description\": \"National holiday\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"description\": \"Festival of lights\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Annual Sports Day\",\n      \"description\": \"School event - no classes\",\n      \"type\": \"SCHOOL_EVENT\",\n      \"date\": \"2026-12-18\"\n    }\n  ]\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"2026-2027\",\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2027-03-31\",\n  \"holidays\": [\n    {\n      \"name\": \"Independence Day\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Holi\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2027-03-23\"\n    }\n  ]\n}"
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Get All Holiday Calendars",
+							"name": "Get All Academic Years",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays",
+									"raw": "http://localhost:5030/api/academic-years",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1129,19 +1129,19 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays"
+										"academic-years"
 									]
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Get Holiday Calendar By ID",
+							"name": "Get Academic Year By ID",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1149,20 +1149,20 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
-										"CALENDAR_ID_HERE"
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE"
 									]
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Get Holiday Calendars By School",
+							"name": "Get Academic Years By School",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE",
+									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1170,7 +1170,7 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
+										"academic-years",
 										"school",
 										"SCHOOL_ID_HERE"
 									]
@@ -1179,12 +1179,12 @@
 							"response": []
 						},
 						{
-							"name": "Get Holiday Calendar By School & Academic Year",
+							"name": "Get Academic Year By School & Name",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE/name/2026-2027",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1192,11 +1192,35 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
+										"academic-years",
 										"school",
 										"SCHOOL_ID_HERE",
-										"academic-year",
+										"name",
 										"2026-2027"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Academic Year Containing A Date",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE/for-date/2026-08-15",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"academic-years",
+										"school",
+										"SCHOOL_ID_HERE",
+										"for-date",
+										"2026-08-15"
 									]
 								}
 							},
@@ -1208,7 +1232,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027/range?start=2026-11-01&end=2026-11-30",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/range?start=2026-08-01&end=2026-08-31",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1216,21 +1240,19 @@
 									"port": "5030",
 									"path": [
 										"api",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
 										"holidays",
-										"school",
-										"SCHOOL_ID_HERE",
-										"academic-year",
-										"2026-2027",
 										"range"
 									],
 									"query": [
 										{
 											"key": "start",
-											"value": "2026-11-01"
+											"value": "2026-08-01"
 										},
 										{
 											"key": "end",
-											"value": "2026-11-30"
+											"value": "2026-08-31"
 										}
 									]
 								}
@@ -1243,7 +1265,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/school/SCHOOL_ID_HERE/academic-year/2026-2027/check?date=2026-11-08",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/check?date=2026-08-15",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1251,17 +1273,15 @@
 									"port": "5030",
 									"path": [
 										"api",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
 										"holidays",
-										"school",
-										"SCHOOL_ID_HERE",
-										"academic-year",
-										"2026-2027",
 										"check"
 									],
 									"query": [
 										{
 											"key": "date",
-											"value": "2026-11-08"
+											"value": "2026-08-15"
 										}
 									]
 								}
@@ -1269,7 +1289,7 @@
 							"response": []
 						},
 						{
-							"name": "Add Holiday To Calendar",
+							"name": "Add Holidays To Academic Year (one or many)",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -1279,7 +1299,7 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE/holidays",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1287,20 +1307,108 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
-										"CALENDAR_ID_HERE",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
 										"holidays"
 									]
 								},
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"name\": \"Holi\",\n  \"description\": \"Festival of colours\",\n  \"type\": \"FESTIVAL\",\n  \"date\": \"2027-03-22\"\n}"
+									"raw": "[\n  {\n    \"name\": \"Annual Day\",\n    \"type\": \"SCHOOL_EVENT\",\n    \"date\": \"2026-12-20\"\n  },\n  {\n    \"name\": \"Sports Day\",\n    \"type\": \"SCHOOL_EVENT\",\n    \"date\": \"2026-12-21\"\n  },\n  {\n    \"name\": \"Makar Sankranti\",\n    \"type\": \"FESTIVAL\",\n    \"date\": \"2027-01-14\"\n  }\n]"
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Update Holiday Calendar",
+							"name": "Add Weekly Off (expands every SUNDAY into dated entries)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
+										"weekly-offs"
+									],
+									"query": [
+										{
+											"key": "dayOfWeek",
+											"value": "SUNDAY"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Remove Holiday By Date (optional name)",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays?date=2026-12-20&name=Annual Day",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
+										"holidays"
+									],
+									"query": [
+										{
+											"key": "date",
+											"value": "2026-12-20"
+										},
+										{
+											"key": "name",
+											"value": "Annual Day"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Remove Weekly Off Series (whole day of week)",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE",
+										"weekly-offs"
+									],
+									"query": [
+										{
+											"key": "dayOfWeek",
+											"value": "SUNDAY"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Academic Year",
 							"request": {
 								"method": "PUT",
 								"header": [
@@ -1310,7 +1418,7 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1318,24 +1426,24 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
-										"CALENDAR_ID_HERE"
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE"
 									]
 								},
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"academicYear\": \"2026-2027\",\n  \"holidays\": [\n    {\n      \"name\": \"Sunday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SUNDAY\"\n    },\n    {\n      \"name\": \"Saturday Weekly Off\",\n      \"description\": \"Weekly off day\",\n      \"type\": \"WEEKLY_OFF\",\n      \"dayOfWeek\": \"SATURDAY\"\n    },\n    {\n      \"name\": \"Independence Day\",\n      \"description\": \"National holiday\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"description\": \"Festival of lights\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Annual Sports Day\",\n      \"description\": \"School event - no classes\",\n      \"type\": \"SCHOOL_EVENT\",\n      \"date\": \"2026-12-18\"\n    }\n  ]\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"2026-2027\",\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2027-03-31\",\n  \"holidays\": [\n    {\n      \"name\": \"Independence Day\",\n      \"type\": \"PUBLIC_HOLIDAY\",\n      \"date\": \"2026-08-15\"\n    },\n    {\n      \"name\": \"Diwali\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2026-11-08\"\n    },\n    {\n      \"name\": \"Holi\",\n      \"type\": \"FESTIVAL\",\n      \"date\": \"2027-03-23\"\n    }\n  ]\n}"
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Delete Holiday Calendar",
+							"name": "Delete Academic Year",
 							"request": {
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/holidays/CALENDAR_ID_HERE",
+									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -1343,8 +1451,8 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"holidays",
-										"CALENDAR_ID_HERE"
+										"academic-years",
+										"ACADEMIC_YEAR_ID_HERE"
 									]
 								}
 							},
@@ -2384,10 +2492,10 @@
 					]
 				},
 				{
-					"name": "Timetable Slots",
+					"name": "Timetables",
 					"item": [
 						{
-							"name": "Create Timetable Slot (single weekly period)",
+							"name": "Create Timetable (date range, many class sections, skips holidays)",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -2397,7 +2505,7 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots",
+									"raw": "http://localhost:5030/api/timetables",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -2405,83 +2513,23 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"timetable-slots"
+										"timetables"
 									]
 								},
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"section\": \"A\",\n  \"subject\": \"Mathematics\",\n  \"teacherId\": \"TEACHER_STAFF_ID_HERE\",\n  \"dayOfWeek\": \"MONDAY\",\n  \"startTime\": \"09:00\",\n  \"endTime\": \"09:45\",\n  \"effectiveFrom\": \"2026-07-13\",\n  \"effectiveTo\": null\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"startDate\": \"2026-07-13\",\n  \"endDate\": \"2026-08-31\",\n  \"classTimetables\": [\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        },\n        {\n          \"subject\": \"English\",\n          \"teacherId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:45\",\n          \"endTime\": \"10:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:00\",\n          \"endTime\": \"12:40\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics (double)\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"10:00\",\n          \"endTime\": \"11:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:30\",\n          \"endTime\": \"13:10\"\n        }\n      ]\n    }\n  ]\n}"
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Bulk Create - One Class Section (weekly)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/bulk",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"bulk"
-									]
-								},
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"section\": \"A\",\n  \"days\": [\n    \"MONDAY\",\n    \"TUESDAY\",\n    \"WEDNESDAY\",\n    \"THURSDAY\",\n    \"FRIDAY\",\n    \"SATURDAY\"\n  ],\n  \"effectiveFrom\": \"2026-07-13\",\n  \"effectiveTo\": null,\n  \"periods\": [\n    {\n      \"subject\": \"Mathematics\",\n      \"teacherId\": \"TEACHER_STAFF_ID_1\",\n      \"startTime\": \"09:00\",\n      \"endTime\": \"09:45\"\n    },\n    {\n      \"subject\": \"English\",\n      \"teacherId\": \"TEACHER_STAFF_ID_2\",\n      \"startTime\": \"09:45\",\n      \"endTime\": \"10:30\"\n    },\n    {\n      \"type\": \"BREAK\",\n      \"subject\": \"Recess\",\n      \"startTime\": \"10:30\",\n      \"endTime\": \"10:50\"\n    },\n    {\n      \"subject\": \"Science\",\n      \"teacherId\": \"TEACHER_STAFF_ID_3\",\n      \"startTime\": \"10:50\",\n      \"endTime\": \"11:35\"\n    }\n  ]\n}"
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Bulk Create - Whole School (classes & sections)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/bulk-school",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"bulk-school"
-									]
-								},
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"days\": [\n    \"MONDAY\",\n    \"TUESDAY\",\n    \"WEDNESDAY\",\n    \"THURSDAY\",\n    \"FRIDAY\",\n    \"SATURDAY\"\n  ],\n  \"effectiveFrom\": \"2026-07-13\",\n  \"effectiveTo\": null,\n  \"classTimetables\": [\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:00\",\n          \"endTime\": \"12:40\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:50\",\n          \"endTime\": \"10:50\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:30\",\n          \"endTime\": \"13:10\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"NURSERY_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Rhymes\",\n          \"teacherId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:15\",\n          \"endTime\": \"09:50\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Snack Break\",\n          \"startTime\": \"09:50\",\n          \"endTime\": \"10:20\"\n        }\n      ]\n    }\n  ]\n}"
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get All Timetable Slots",
+							"name": "Get Whole School Timetable For One Date",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots",
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/date/2026-07-13",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -2489,86 +2537,23 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"timetable-slots"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Timetable Slot By ID",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/SLOT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"SLOT_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Timetable Slots By School",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/school/SCHOOL_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"school",
-										"SCHOOL_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Weekly Template Of Class",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/school/SCHOOL_ID_HERE/class/CLASS_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
+										"timetables",
 										"school",
 										"SCHOOL_ID_HERE",
-										"class",
-										"CLASS_ID_HERE"
+										"date",
+										"2026-07-13"
 									]
 								}
 							},
 							"response": []
 						},
 						{
-							"name": "Get Class Schedule For Date Range",
+							"name": "Get All Day Documents In Range",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/school/SCHOOL_ID_HERE/class/CLASS_ID_HERE/schedule?startDate=2026-07-13&endDate=2026-07-18",
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/range?startDate=2026-07-13&endDate=2026-07-19",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -2576,12 +2561,10 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"timetable-slots",
+										"timetables",
 										"school",
 										"SCHOOL_ID_HERE",
-										"class",
-										"CLASS_ID_HERE",
-										"schedule"
+										"range"
 									],
 									"query": [
 										{
@@ -2590,7 +2573,7 @@
 										},
 										{
 											"key": "endDate",
-											"value": "2026-07-18"
+											"value": "2026-07-19"
 										}
 									]
 								}
@@ -2598,12 +2581,12 @@
 							"response": []
 						},
 						{
-							"name": "Get Teacher Schedule For Date Range",
+							"name": "Get Class Section Timetable For Range",
 							"request": {
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/school/SCHOOL_ID_HERE/teacher/TEACHER_STAFF_ID_HERE/schedule?startDate=2026-07-13&endDate=2026-07-18",
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/class/CLASS_ID_HERE/section/A?startDate=2026-07-13&endDate=2026-07-19",
 									"protocol": "http",
 									"host": [
 										"localhost"
@@ -2611,99 +2594,143 @@
 									"port": "5030",
 									"path": [
 										"api",
-										"timetable-slots",
-										"school",
-										"SCHOOL_ID_HERE",
-										"teacher",
-										"TEACHER_STAFF_ID_HERE",
-										"schedule"
-									],
-									"query": [
-										{
-											"key": "startDate",
-											"value": "2026-07-13"
-										},
-										{
-											"key": "endDate",
-											"value": "2026-07-18"
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Update Timetable Slot",
-							"request": {
-								"method": "PATCH",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/SLOT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"SLOT_ID_HERE"
-									]
-								},
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"teacherId\": \"OTHER_TEACHER_STAFF_ID\",\n  \"startTime\": \"11:30\",\n  \"endTime\": \"12:15\"\n}"
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Delete Timetable Slot",
-							"request": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/SLOT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
-										"SLOT_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Clear Section Timetable",
-							"request": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/timetable-slots/school/SCHOOL_ID_HERE/class/CLASS_ID_HERE/section/A",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"timetable-slots",
+										"timetables",
 										"school",
 										"SCHOOL_ID_HERE",
 										"class",
 										"CLASS_ID_HERE",
 										"section",
 										"A"
+									],
+									"query": [
+										{
+											"key": "startDate",
+											"value": "2026-07-13"
+										},
+										{
+											"key": "endDate",
+											"value": "2026-07-19"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Teacher Timetable For Range",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/teacher/TEACHER_STAFF_ID_HERE?startDate=2026-07-13&endDate=2026-07-19",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"teacher",
+										"TEACHER_STAFF_ID_HERE"
+									],
+									"query": [
+										{
+											"key": "startDate",
+											"value": "2026-07-13"
+										},
+										{
+											"key": "endDate",
+											"value": "2026-07-19"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Whole Day",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/date/2026-07-13",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"date",
+										"2026-07-13"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Clear Section Timetable In Range",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/class/CLASS_ID_HERE/section/A?startDate=2026-07-13&endDate=2026-07-19",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"class",
+										"CLASS_ID_HERE",
+										"section",
+										"A"
+									],
+									"query": [
+										{
+											"key": "startDate",
+											"value": "2026-07-13"
+										},
+										{
+											"key": "endDate",
+											"value": "2026-07-19"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Single Entry From A Date",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/date/2026-07-13/entry/ENTRY_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"date",
+										"2026-07-13",
+										"entry",
+										"ENTRY_ID_HERE"
 									]
 								}
 							},
