@@ -76,6 +76,13 @@ public class HomeworkController {
         return ResponseEntity.ok(homeworkList);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Homework>> getHomeworkBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(homeworkService.getHomeworkBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @GetMapping("/class/{classId}")
     public ResponseEntity<List<Homework>> getHomeworkByClass(@PathVariable String classId) {
         List<Homework> homeworkList = homeworkService.getHomeworkByClass(classId);

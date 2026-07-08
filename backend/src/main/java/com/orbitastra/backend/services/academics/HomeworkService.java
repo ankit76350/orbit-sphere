@@ -90,7 +90,8 @@ public class HomeworkService {
 
         validateTeacher(homework.getTeacherId(), homework.getSchoolId());
 
-        validateClass(homework.getClassId(), homework.getSchoolId());
+        // Homework inherits the academic year from its class (the authoritative scope).
+        homework.setAcademicYear(validateClass(homework.getClassId(), homework.getSchoolId()).getAcademicYear());
 
         if (homework.getAssignmentScope() == null) {
             homework.setAssignmentScope(AssignmentScope.CLASS);
@@ -129,7 +130,8 @@ public class HomeworkService {
 
         validateTeacher(homework.getTeacherId(), homework.getSchoolId());
 
-        validateClass(homework.getClassId(), homework.getSchoolId());
+        // Homework inherits the academic year from its class (the authoritative scope).
+        homework.setAcademicYear(validateClass(homework.getClassId(), homework.getSchoolId()).getAcademicYear());
 
         homework.setStudentAssignments(new ArrayList<>());
         homework.setSubmittedCount(0);
@@ -179,6 +181,10 @@ public class HomeworkService {
 
     public List<Homework> getHomeworkBySchool(String schoolId) {
         return homeworkRepository.findBySchoolId(schoolId);
+    }
+
+    public List<Homework> getHomeworkBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return homeworkRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
     }
 
     public List<Homework> getHomeworkByClass(String classId) {
