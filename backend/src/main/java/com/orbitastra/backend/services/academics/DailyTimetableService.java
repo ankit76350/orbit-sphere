@@ -32,7 +32,7 @@ import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.academics.DailyTimetableRepository;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 
@@ -49,7 +49,7 @@ public class DailyTimetableService {
     private final SchoolRepository schoolRepository;
     private final SchoolClassRepository schoolClassRepository;
     private final StaffRepository staffRepository;
-    private final AcademicYearRepository academicYearRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     /**
      * Creates (or extends) the daily timetables of a school over a date range.
@@ -85,26 +85,9 @@ public class DailyTimetableService {
         }
 
         // ---- the whole range must lie inside ONE academic year of the school ----
-        AcademicYear academicYear;
-        if (request.getAcademicYear() != null && !request.getAcademicYear().isBlank()) {
-            // The frontend names the year explicitly; validate the dates against it.
-            academicYear = academicYearRepository.findBySchoolIdAndName(schoolId, request.getAcademicYear())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Academic year '" + request.getAcademicYear() + "' not found for this school."));
-            if (startDate.isBefore(academicYear.getStartDate()) || startDate.isAfter(academicYear.getEndDate())) {
-                throw new IllegalArgumentException("'Timetable starts from' (" + startDate
-                        + ") is outside your academic year '" + academicYear.getName() + "', which runs "
-                        + academicYear.getStartDate() + " to " + academicYear.getEndDate() + ".");
-            }
-        } else {
-            academicYear = academicYearRepository.findBySchoolId(schoolId).stream()
-                    .filter(y -> y.getStartDate() != null && y.getEndDate() != null
-                            && !startDate.isBefore(y.getStartDate()) && !startDate.isAfter(y.getEndDate()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("'Timetable starts from' (" + startDate
-                            + ") does not fall in any academic year of this school. "
-                            + "Create the academic year (e.g. '2026-2027') with its start/end dates first."));
-        }
+        // resolve() validates a supplied year (and that startDate falls in it),
+        // or derives the year from startDate when none is supplied.
+        AcademicYear academicYear = academicYearResolver.resolve(schoolId, request.getAcademicYear(), startDate);
 
         if (endDate.isAfter(academicYear.getEndDate())) {
             throw new IllegalArgumentException("'Runs until' (" + endDate + ") goes beyond the academic year '"
@@ -466,13 +449,7 @@ public class DailyTimetableService {
      * one of that year's holidays. Returns the academic year.
      */
     private AcademicYear requireWorkingDate(String schoolId, LocalDate date) {
-        AcademicYear academicYear = academicYearRepository.findBySchoolId(schoolId).stream()
-                .filter(y -> y.getStartDate() != null && y.getEndDate() != null
-                        && !date.isBefore(y.getStartDate()) && !date.isAfter(y.getEndDate()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("The date " + date
-                        + " does not fall in any academic year of this school. "
-                        + "Create the academic year (e.g. '2026-2027') with its start/end dates first."));
+        AcademicYear academicYear = academicYearResolver.byDate(schoolId, date);
         if (academicYear.getHolidays() != null) {
             for (HolidayDetail detail : academicYear.getHolidays()) {
                 if (detail != null && date.equals(detail.getDate())) {
