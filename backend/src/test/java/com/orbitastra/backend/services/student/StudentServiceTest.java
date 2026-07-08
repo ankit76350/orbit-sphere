@@ -75,9 +75,9 @@ public class StudentServiceTest {
 
     @Test
     void createStudent_Success() {
+        student.setCurrentAcademicRecord(StudentAcademicRecord.builder().build());
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
-        when(parentRepository.existsById("parent-id-123")).thenReturn(true);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
         when(studentRepository.save(student)).thenReturn(student);
         when(parentRepository.findById("parent-id-123")).thenReturn(Optional.of(parent));
@@ -89,10 +89,9 @@ public class StudentServiceTest {
         assertNotNull(created);
         assertEquals("ADM-001", created.getAdmissionNo());
         verify(schoolRepository, times(1)).findById("school-id-123");
-        verify(parentRepository, times(1)).existsById("parent-id-123");
+        verify(parentRepository, times(2)).findById("parent-id-123");
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
         verify(studentRepository, times(1)).save(student);
-        verify(parentRepository, times(1)).findById("parent-id-123");
         verify(parentRepository, times(1)).save(parent);
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
         assertTrue(parent.getStudentIds().contains("student-id-123"));
@@ -114,14 +113,14 @@ public class StudentServiceTest {
     void createStudent_ParentNotFound_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
-        when(parentRepository.existsById("parent-id-123")).thenReturn(false);
+        when(parentRepository.findById("parent-id-123")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> {
             studentService.createStudent(student);
         });
 
         verify(schoolRepository, times(1)).findById("school-id-123");
-        verify(parentRepository, times(1)).existsById("parent-id-123");
+        verify(parentRepository, times(1)).findById("parent-id-123");
         verify(studentRepository, never()).save(any());
     }
 
@@ -129,7 +128,7 @@ public class StudentServiceTest {
     void createStudent_AdmissionNoDuplicate_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
-        when(parentRepository.existsById("parent-id-123")).thenReturn(true);
+        when(parentRepository.findById("parent-id-123")).thenReturn(Optional.of(parent));
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.of(new Student()));
 
         assertThrows(IllegalArgumentException.class, () -> {
@@ -157,7 +156,7 @@ public class StudentServiceTest {
     void getStudentById_Success() {
         StudentAcademicRecord record = StudentAcademicRecord.builder()
                 .studentDocId("student-id-123")
-                .academicYearId("2026-2027")
+                .academicYear("2026-2027")
                 .studentId("STU-001")
                 .rollNo("12")
                 .build();
@@ -172,7 +171,7 @@ public class StudentServiceTest {
         assertNotNull(found.getCurrentAcademicRecord());
         assertEquals("STU-001", found.getCurrentAcademicRecord().getStudentId());
         assertEquals("12", found.getCurrentAcademicRecord().getRollNo());
-        assertEquals("2026-2027", found.getCurrentAcademicRecord().getAcademicYearId());
+        assertEquals("2026-2027", found.getCurrentAcademicRecord().getAcademicYear());
     }
 
     @Test
@@ -192,7 +191,7 @@ public class StudentServiceTest {
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId(anyString(), anyString())).thenReturn(Optional.empty());
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYear(anyString(), anyString())).thenReturn(Optional.empty());
         when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Student updated = studentService.updateStudent("student-id-123", details);
@@ -214,12 +213,12 @@ public class StudentServiceTest {
 
         Parent newParent = new Parent();
         newParent.setId("parent-new-id");
+        newParent.setSchoolId("school-id-123");
         newParent.setStudentIds(new ArrayList<>());
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId(anyString(), anyString())).thenReturn(Optional.empty());
-        when(parentRepository.existsById("parent-new-id")).thenReturn(true);
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYear(anyString(), anyString())).thenReturn(Optional.empty());
         when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(parentRepository.findById("parent-id-123")).thenReturn(Optional.of(oldParent));
         when(parentRepository.findById("parent-new-id")).thenReturn(Optional.of(newParent));
@@ -255,7 +254,7 @@ public class StudentServiceTest {
     @Test
     void createOrUpdateAcademicRecord_Success() {
         StudentAcademicRecord input = StudentAcademicRecord.builder()
-                .academicYearId("2026-2027")
+                .academicYear("2026-2027")
                 .classDocId("class-new")
                 .build();
 
@@ -264,7 +263,7 @@ public class StudentServiceTest {
                 SchoolClass.builder().id("class-new").schoolId("school-id-123").build()
         ));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYear("student-id-123", "2026-2027"))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -273,14 +272,14 @@ public class StudentServiceTest {
 
         assertNotNull(record);
         assertEquals("class-new", record.getClassDocId());
-        assertEquals("2026-2027", record.getAcademicYearId());
+        assertEquals("2026-2027", record.getAcademicYear());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
 
     @Test
     void getAcademicHistory_Success() {
-        StudentAcademicRecord r1 = StudentAcademicRecord.builder().academicYearId("2025-2026").build();
-        StudentAcademicRecord r2 = StudentAcademicRecord.builder().academicYearId("2026-2027").build();
+        StudentAcademicRecord r1 = StudentAcademicRecord.builder().academicYear("2025-2026").build();
+        StudentAcademicRecord r2 = StudentAcademicRecord.builder().academicYear("2026-2027").build();
 
         when(studentRepository.existsById("student-id-123")).thenReturn(true);
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(List.of(r1, r2));
@@ -294,7 +293,7 @@ public class StudentServiceTest {
     @Test
     void promoteStudent_Success() {
         StudentAcademicRecord input = StudentAcademicRecord.builder()
-                .academicYearId("2027-2028")
+                .academicYear("2027-2028")
                 .classDocId("class-new")
                 .build();
 
@@ -303,7 +302,7 @@ public class StudentServiceTest {
                 SchoolClass.builder().id("class-new").schoolId("school-id-123").build()
         ));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYearId("student-id-123", "2027-2028"))
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYear("student-id-123", "2027-2028"))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -312,7 +311,7 @@ public class StudentServiceTest {
 
         assertNotNull(record);
         assertEquals("class-new", record.getClassDocId());
-        assertEquals("2027-2028", record.getAcademicYearId());
+        assertEquals("2027-2028", record.getAcademicYear());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
 
