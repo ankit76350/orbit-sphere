@@ -3,9 +3,10 @@
 Orbit Sphere is a modern, comprehensive school management platform designed to bridge the gap between institutions, teachers, parents, and students. It digitizes every facet of school operations—from academics and attendance to finance and transport—delivered through seamless mobile and web interfaces.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
 ![Flutter](https://img.shields.io/badge/Flutter-14213d-02569B?logo=flutter)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F-6DB33F?logo=spring)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F?logo=spring)
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb)
 
 ## 🚀 Key Features
 
@@ -38,25 +39,29 @@ Orbit Sphere is a modern, comprehensive school management platform designed to b
 
 ## 🛠️ Technology Stack
 
-### 📱 Mobile (Frontend)
+### 💻 Web (Frontend)
+- **Framework**: [React 19](https://react.dev/) with [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Routing**: React Router
+- **Communication**: REST API with JSON Web Tokens (JWT)
+
+### 📱 Mobile (Planned)
 - **Framework**: [Flutter](https://flutter.dev/)
 - **State Management**: [Riverpod](https://riverpod.dev/)
 - **Architecture**: Clean Architecture with Domain, Data, and Presentation layers
 - **Communication**: REST API with JSON Web Tokens (JWT)
 
-### 💻 Backend
+### 🖥️ Backend
 - **Language**: [Java 17+](https://www.java.com/)
-- **Framework**: [Spring Boot 3](https://spring.io/projects/spring-boot)
+- **Framework**: [Spring Boot 4](https://spring.io/projects/spring-boot)
 - **Security**: Spring Security, JWT, OAuth2
-- **ORM**: Hibernate with JPA
-- **Database**: PostgreSQL
-- **Build Tool**: Gradle
+- **Build Tool**: [Maven](https://maven.apache.org/)
 - **Documentation**: Swagger UI & OpenAPI
 
 ### 🗄️ Database
-- **Engine**: [PostgreSQL](https://www.postgresql.org/)
-- **ORM**: [Hibernate](https://hibernate.org/)
-- **Design**: Clean Schema with proper normalization and indexing
+- **Engine**: [MongoDB](https://www.mongodb.com/)
+- **Data Access**: [Spring Data MongoDB](https://spring.io/projects/spring-data-mongodb)
+- **Design**: Document-oriented schema organized by domain
 
 ---
 
@@ -70,15 +75,19 @@ Orbit-Sphere/
 │   ├── src/
 │   │   ├── main/java/
 │   │   │   └── com/orbitastra/backend/
-│   │   │       ├── config/             # Security & Configuration
-│   │   │       ├── controllers/        # REST API Endpoints
-│   │   │       ├── models/             # JPA Entities
-│   │   │       ├── repositories/       # Spring Data Repositories
+│   │   │       ├── controllers/        # REST API Endpoints (by domain)
+│   │   │       ├── dto/                # Request/Response objects
+│   │   │       ├── exceptions/         # Exception handling
+│   │   │       ├── models/             # MongoDB Documents (by domain)
+│   │   │       ├── repositories/       # Spring Data MongoDB Repositories
 │   │   │       └── services/           # Business Logic
-│   │   └── resources/          # Application Properties & SQL
-│   └── build.gradle            # Build configuration
+│   │   └── resources/          # Application config & static assets
+│   └── pom.xml                 # Maven build configuration
 │
-├── flutter_app/                # Flutter mobile application
+├── frontend/                   # React + Vite web application
+│   └── src/                    # Components, pages, and app entry
+│
+├── flutter_app/                # Flutter mobile application (planned)
 │   ├── lib/
 │   │   ├── core/               # Utilities & Constants
 │   │   ├── data/               # Data Sources & Repositories
@@ -86,10 +95,10 @@ Orbit-Sphere/
 │   │   └── presentation/         # UI Screens & Widgets
 │   └── pubspec.yaml            # Dependencies
 │
-├── api-tester/                 # API testing frontend
-├── .gitignore                  # Gitignore files
-├── README.md                   # Project overview
-└── pom.xml                     # Root POM (if any)
+├── api-tester/                 # React app for exercising the API
+├── docs/                       # Project documentation
+├── .gitignore
+└── README.md                   # Project overview
 ```
 
 ---
@@ -98,8 +107,9 @@ Orbit-Sphere/
 
 ### Prerequisites
 - Java Development Kit (JDK) 17 or higher
-- PostgreSQL Database
-- Flutter SDK 3.0 or higher
+- MongoDB (local instance or connection URI)
+- Node.js 18+ (for the web frontend)
+- Flutter SDK 3.0 or higher (for the mobile app, once added)
 
 ### Backend Setup
 
@@ -109,21 +119,33 @@ Orbit-Sphere/
    cd backend
    ```
 
-2. Configure the database connection in `src/main/resources/application.properties`:
+2. Configure the MongoDB connection in `src/main/resources/application.properties`:
    ```properties
-   spring.datasource.url=jdbc:postgresql://localhost:5432/orbit_sphere
-   spring.datasource.username=your_username
-   spring.datasource.password=your_password
+   spring.data.mongodb.uri=mongodb://localhost:27017/orbit_sphere
    ```
 
 3. Run the application:
    ```bash
-   ./gradlew bootRun
+   ./mvnw spring-boot:run
    ```
    The API will be available at `http://localhost:8080`
    Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-### Flutter App Setup
+### Web Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd ../frontend
+   ```
+
+2. Install dependencies and start the dev server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   The app runs at `http://localhost:3000`.
+
+### Flutter App Setup (Planned)
 
 1. Navigate to the Flutter app directory:
    ```bash
