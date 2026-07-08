@@ -24,7 +24,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"name\": \"Class 10A\",\n  \"classTeacher\": \"John Doe\",\n  \"subjects\": [\n    {\n      \"name\": \"Mathematics\",\n      \"teacher\": \"Alice Smith\"\n    },\n    {\n      \"name\": \"Physics\",\n      \"teacher\": \"Bob Jones\"\n    }\n  ],\n  \"academicYearId\": \"2026-2027\"\n}"
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"name\": \"Class 10A\",\n  \"classTeacher\": \"John Doe\",\n  \"subjects\": [\n    {\n      \"name\": \"Mathematics\",\n      \"teacher\": \"Alice Smith\"\n    },\n    {\n      \"name\": \"Physics\",\n      \"teacher\": \"Bob Jones\"\n    }\n  ],\n  \"academicYear\": \"2026-2027\"\n}"
                 },
                 "url": {
                   "raw": "http://localhost:5030/api/classes",

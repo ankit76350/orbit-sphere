@@ -466,7 +466,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n\n{\n  \"academicYearId\": \"2027-2028\",\n  \"studentId\": \"STD-003\", // not document it \n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
+									"raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n\n{\n  \"academicYear\": \"2027-2028\",\n  \"studentId\": \"STD-003\", // not document it \n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/students/6a4b4482e2823debb8d54fea/academic-records",
@@ -497,7 +497,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n// http://localhost:5030/api/students/studentDocId/academic-records\n// 6a4750bd826a1781db37539c\n{\n  \"academicYearId\": \"2025-2026\",\n  \"studentId\": \"STD-004\",\n  \"rollNo\": \"105-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}\n\n// {\n//   \"academicYearId\": \"2027-2028\",\n//   \"studentId\": \"STD-003-PROMOTE\",\n//   \"rollNo\": \"10C-03\",\n//   \"classId\": \"class-10c\",\n//   \"sectionId\": \"section-c\",\n//   \"hostelRoomId\": \"hostel-room-303\",\n//   \"status\": \"ACTIVE\"\n// }"
+									"raw": "// http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records\n// http://localhost:5030/api/students/studentDocId/academic-records\n// 6a4750bd826a1781db37539c\n{\n  \"academicYear\": \"2025-2026\",\n  \"studentId\": \"STD-004\",\n  \"rollNo\": \"105-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}\n\n// {\n//   \"academicYear\": \"2027-2028\",\n//   \"studentId\": \"STD-003-PROMOTE\",\n//   \"rollNo\": \"10C-03\",\n//   \"classId\": \"class-10c\",\n//   \"sectionId\": \"section-c\",\n//   \"hostelRoomId\": \"hostel-room-303\",\n//   \"status\": \"ACTIVE\"\n// }"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/students/6a4b3f96e2823debb8d54fe3/promote",
@@ -1480,7 +1480,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacher\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacher\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacher\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacher\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYearId\": \"2026-2027\"\n}"
+									"raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacher\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacher\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacher\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacher\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/classes",
@@ -2518,7 +2518,7 @@
 								},
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"startDate\": \"2026-07-13\",\n  \"endDate\": \"2026-08-31\",\n  \"classTimetables\": [\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        },\n        {\n          \"subject\": \"English\",\n          \"teacherId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:45\",\n          \"endTime\": \"10:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:00\",\n          \"endTime\": \"12:40\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics (double)\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"10:00\",\n          \"endTime\": \"11:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:30\",\n          \"endTime\": \"13:10\"\n        }\n      ]\n    }\n  ]\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"startDate\": \"2026-07-13\",\n  \"endDate\": \"2026-08-31\",\n  \"classTimetables\": [\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        },\n        {\n          \"subject\": \"English\",\n          \"teacherId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:45\",\n          \"endTime\": \"10:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:00\",\n          \"endTime\": \"12:40\"\n        }\n      ]\n    },\n    {\n      \"classId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics (double)\",\n          \"teacherId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"10:00\",\n          \"endTime\": \"11:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:30\",\n          \"endTime\": \"13:10\"\n        }\n      ]\n    }\n  ]\n}"
 								}
 							},
 							"response": []
@@ -2575,6 +2575,30 @@
 											"key": "endDate",
 											"value": "2026-07-19"
 										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Day Documents By Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/timetables/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"timetables",
+										"school",
+										"SCHOOL_ID_HERE",
+										"academic-year",
+										"2026-2027"
 									]
 								}
 							},
