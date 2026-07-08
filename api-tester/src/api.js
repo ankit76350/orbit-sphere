@@ -112,4 +112,41 @@ export const api = {
   deleteParent: (id) => call('DELETE', `/api/parents/${id}`),
   getParentById: (id) => call('GET', `/api/parents/${id}`),
   getParentByEmail: (email) => call('GET', `/api/parents/email/${email}`),
+
+  // ----- academics: attendance -----
+  attendance: (schoolId) => listOr(`/api/attendance/school/${schoolId}`),
+  attendanceByYear: (schoolId, year) => listOr(`/api/attendance/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  createAttendance: (payload) => call('POST', '/api/attendance', payload),
+  updateAttendance: (id, payload) => call('PATCH', `/api/attendance/${id}`, payload),
+  deleteAttendance: (id) => call('DELETE', `/api/attendance/${id}`),
+
+  // ----- academics: homework -----
+  homework: (schoolId) => listOr(`/api/homework/school/${schoolId}`),
+  homeworkByYear: (schoolId, year) => listOr(`/api/homework/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  createHomework: (payload) => call('POST', '/api/homework', payload),
+  assignHomework: (id, scope, studentAssignments) => call('POST', `/api/homework/${id}/assign`, { assignmentScope: scope, studentAssignments }),
+  submitHomework: (id, studentId, text, fileUrl) => call('POST', `/api/homework/${id}/submit/${studentId}`, { submissionText: text, submissionFileUrl: fileUrl }),
+  gradeHomework: (id, studentId, obtainedMarks, feedback) => call('POST', `/api/homework/${id}/grade/${studentId}`, { obtainedMarks, feedback }),
+  updateHomework: (id, payload) => call('PATCH', `/api/homework/${id}`, payload),
+  deleteHomework: (id) => call('DELETE', `/api/homework/${id}`),
+
+  // ----- academics: results -----
+  academicResults: (schoolId) => listOr(`/api/academic-results/school/${schoolId}`),
+  academicResultsByYear: (schoolId, year) => listOr(`/api/academic-results/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  createAcademicResult: (payload) => call('POST', '/api/academic-results', payload),
+  updateAcademicResult: (id, payload) => call('PATCH', `/api/academic-results/${id}`, payload),
+  deleteAcademicResult: (id) => call('DELETE', `/api/academic-results/${id}`),
+
+  // ----- academics: discipline -----
+  disciplineLogs: (schoolId) => listOr(`/api/discipline-logs/school/${schoolId}`),
+  disciplineLogsByYear: (schoolId, year) => listOr(`/api/discipline-logs/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  createDisciplineLog: (payload) => call('POST', '/api/discipline-logs', payload),
+  updateDisciplineLog: (id, payload) => call('PATCH', `/api/discipline-logs/${id}`, payload),
+  deleteDisciplineLog: (id) => call('DELETE', `/api/discipline-logs/${id}`),
+
+  // ----- academics: medical records -----
+  medicalRecords: (schoolId) => listOr(`/api/medical-records/school/${schoolId}`),
+  createMedicalRecord: (payload) => call('POST', '/api/medical-records', payload),
+  updateMedicalRecord: (id, payload) => call('PATCH', `/api/medical-records/${id}`, payload),
+  deleteMedicalRecord: (id) => call('DELETE', `/api/medical-records/${id}`),
 };
