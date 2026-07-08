@@ -4,9 +4,6 @@ import NavRail from './components/NavRail.jsx';
 import StudentScreen from './screens/StudentScreen.jsx';
 import StaffScreen from './screens/StaffScreen.jsx';
 import AcademicsScreen from './screens/AcademicsScreen.jsx';
-import ClassesScreen from './screens/ClassesScreen.jsx';
-import TimetableBuilder from './screens/TimetableBuilder.jsx';
-import TimetableView from './screens/TimetableView.jsx';
 import CoreScreen from './screens/CoreScreen.jsx';
 import { api } from './api.js';
 import { ToastProvider } from './components/ui.jsx';
@@ -130,50 +127,9 @@ function AppContent() {
               schoolId={schoolId}
               years={years}
               year={year}
+              staff={staff}
               reload={handleReload}
             />
-          )}
-
-          {activeTab === 'classes' && (
-            <ClassesScreen
-              schoolId={schoolId}
-              year={year}
-            />
-          )}
-          {activeTab === 'timetable' && (
-            <div className="flex flex-col h-full gap-4">
-              <div className="flex border-b border-slate-200 bg-white px-4 pt-2 rounded-t-xl shadow-sm">
-                <button
-                  onClick={() => setTimetableSubTab('view')}
-                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${timetableSubTab === 'view' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                  View Schedule
-                </button>
-                <button
-                  onClick={() => setTimetableSubTab('build')}
-                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${timetableSubTab === 'build' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                  Build Timetable
-                </button>
-              </div>
-              <div className="flex-1">
-                {timetableSubTab === 'view' ? (
-                  <TimetableView
-                    schoolId={schoolId}
-                    classes={classes}
-                    staff={staff}
-                  />
-                ) : (
-                  <TimetableBuilder
-                    schoolId={schoolId}
-                    year={year}
-                    yearDoc={years.find((y) => y.name === year)}
-                    classes={classes}
-                    staff={staff}
-                  />
-                )}
-              </div>
-            </div>
           )}
           {activeTab === 'core' && (
             <CoreScreen

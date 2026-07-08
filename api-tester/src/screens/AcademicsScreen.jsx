@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   GraduationCap, Calendar, CheckSquare, BookOpen, Award, ShieldAlert, Heart, 
-  Plus, Trash2, Edit2, RefreshCw, X, User, DollarSign, CalendarCheck, BookOpenCheck, Activity
+  Plus, Trash2, Edit2, RefreshCw, X, User, DollarSign, CalendarCheck, BookOpenCheck, Activity, LayoutGrid
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
+import AcademicYearsScreen from './AcademicYearsScreen.jsx';
+import ClassesScreen from './ClassesScreen.jsx';
+import TimetableView from './TimetableView.jsx';
+import TimetableBuilder from './TimetableBuilder.jsx';
 
-export default function AcademicsScreen({ schoolId, years, year, reload }) {
+export default function AcademicsScreen({ schoolId, years, year, staff, reload }) {
   const toast = useToast();
-  const [subTab, setSubTab] = useState('attendance'); // 'attendance', 'homework', 'results', 'discipline', 'medical'
+  const [subTab, setSubTab] = useState('academicYears'); // 'academicYears', 'classes', 'timetable', 'attendance', ...
+  const [timetableSubTab, setTimetableSubTab] = useState('view'); // 'view', 'build'
 
   // Context lists
   const [students, setStudents] = useState([]);
@@ -463,6 +468,27 @@ export default function AcademicsScreen({ schoolId, years, year, reload }) {
       <div className="flex border-b border-slate-200 bg-white px-4 pt-2 rounded-t-xl shadow-sm justify-between items-center shrink-0">
         <div className="flex gap-1">
           <button
+            onClick={() => { setSubTab('academicYears'); handleCancelEdit(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'academicYears' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <Calendar size={16} />
+            Academic Years
+          </button>
+          <button
+            onClick={() => { setSubTab('classes'); handleCancelEdit(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'classes' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <BookOpenCheck size={16} />
+            Classes
+          </button>
+          <button
+            onClick={() => { setSubTab('timetable'); handleCancelEdit(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'timetable' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            <LayoutGrid size={16} />
+            Timetable
+          </button>
+          <button
             onClick={() => { setSubTab('attendance'); handleCancelEdit(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'attendance' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >
@@ -510,7 +536,60 @@ export default function AcademicsScreen({ schoolId, years, year, reload }) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">
+        {subTab === 'academicYears' && (
+          <AcademicYearsScreen 
+            schoolId={schoolId} 
+            years={years} 
+            year={year} 
+            reload={reload} 
+          />
+        )}
+
+        {subTab === 'classes' && (
+          <ClassesScreen 
+            schoolId={schoolId} 
+            year={year} 
+          />
+        )}
+
+        {subTab === 'timetable' && (
+          <div className="flex flex-col h-full gap-4">
+            <div className="flex border-b border-slate-200 bg-white px-4 pt-2 rounded-t-xl shadow-sm shrink-0">
+              <button
+                onClick={() => setTimetableSubTab('view')}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${timetableSubTab === 'view' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              >
+                View Schedule
+              </button>
+              <button
+                onClick={() => setTimetableSubTab('build')}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${timetableSubTab === 'build' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              >
+                Build Timetable
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0 bg-white border border-slate-200 rounded-b-xl p-4 shadow-sm">
+              {timetableSubTab === 'view' ? (
+                <TimetableView
+                  schoolId={schoolId}
+                  classes={classes}
+                  staff={staff || []}
+                />
+              ) : (
+                <TimetableBuilder
+                  schoolId={schoolId}
+                  year={year}
+                  yearDoc={years ? years.find((y) => y.name === year) : null}
+                  classes={classes}
+                  staff={staff || []}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {subTab !== 'academicYears' && subTab !== 'classes' && subTab !== 'timetable' && (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">
           {/* LEFT PANEL: TABLE DISPLAY LIST */}
           <div className="xl:col-span-8 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <header className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
@@ -1116,6 +1195,7 @@ export default function AcademicsScreen({ schoolId, years, year, reload }) {
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

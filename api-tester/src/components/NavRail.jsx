@@ -1,12 +1,10 @@
-import { BookOpen, LayoutGrid, Cpu, Users, Briefcase, GraduationCap } from 'lucide-react';
+import { Cpu, Users, Briefcase, GraduationCap } from 'lucide-react';
 
 const ITEMS = [
   { key: 'core', label: 'Core', icon: Cpu },
   { key: 'students', label: 'Students', icon: Users },
   { key: 'staff', label: 'Staff', icon: Briefcase },
   { key: 'academics', label: 'Academics', icon: GraduationCap },
-  { key: 'classes', label: 'Classes', icon: BookOpen },
-  { key: 'timetable', label: 'Timetable', icon: LayoutGrid },
 ];
 
 export default function NavRail({ active, onChange }) {
