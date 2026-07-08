@@ -12,4 +12,6 @@ public interface AcademicResultRepository extends MongoRepository<AcademicResult
     List<AcademicResult> findBySchoolId(String schoolId);
     List<AcademicResult> findByStudentId(String studentId);
     List<AcademicResult> findBySchoolIdAndStudentId(String schoolId, String studentId);
+    List<AcademicResult> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
+    List<AcademicResult> findByStudentIdAndAcademicYear(String studentId, String academicYear);
 }

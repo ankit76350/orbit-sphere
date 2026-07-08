@@ -43,6 +43,13 @@ public class AcademicResultController {
         return ResponseEntity.ok(results);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<AcademicResult>> getAcademicResultsBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(academicResultService.getAcademicResultsBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
     @GetMapping("/student/{studentId}")
     public ResponseEntity<List<AcademicResult>> getAcademicResultsByStudent(@PathVariable String studentId) {
         List<AcademicResult> results = academicResultService.getAcademicResultsByStudent(studentId);

@@ -10,6 +10,7 @@ import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.academics.AcademicResultRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +21,7 @@ public class AcademicResultService {
     private final AcademicResultRepository academicResultRepository;
     private final SchoolRepository schoolRepository;
     private final StudentRepository studentRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     private void validateStudent(String studentId, String schoolId) {
         if (studentId == null || studentId.isEmpty()) {
@@ -39,6 +41,11 @@ public class AcademicResultService {
 
         validateStudent(academicResult.getStudentId(), academicResult.getSchoolId());
 
+        // No natural date on a result — the academic year must be supplied.
+        academicResult.setAcademicYear(academicYearResolver
+                .resolve(academicResult.getSchoolId(), academicResult.getAcademicYear(), null)
+                .getName());
+
         return academicResultRepository.save(academicResult);
     }
 
@@ -55,6 +62,10 @@ public class AcademicResultService {
         return academicResultRepository.findBySchoolId(schoolId);
     }
 
+    public List<AcademicResult> getAcademicResultsBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        return academicResultRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+    }
+
     public List<AcademicResult> getAcademicResultsByStudent(String studentId) {
         return academicResultRepository.findByStudentId(studentId);
     }
@@ -65,6 +76,7 @@ public class AcademicResultService {
 
     public AcademicResult updateAcademicResult(String id, AcademicResult resultDetails) {
         AcademicResult academicResult = getAcademicResultById(id);
+        academicYearResolver.assertImmutable(academicResult.getAcademicYear(), resultDetails.getAcademicYear());
 
         if (resultDetails.getSchoolId() != null && !resultDetails.getSchoolId().equals(academicResult.getSchoolId())) {
             if (!schoolRepository.existsById(resultDetails.getSchoolId())) {
