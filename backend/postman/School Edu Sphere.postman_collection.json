@@ -3390,6 +3390,337 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "Finance",
+			"item": [
+				{
+					"name": "Fees",
+					"item": [
+						{
+							"name": "Create Fee Invoice",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.00,\n  \"dueDate\": \"2026-08-31\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/fees",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Fee By ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Fees By Student",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/student/STUDENT_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"student",
+										"STUDENT_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Fees By School",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/school/SCHOOL_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"school",
+										"SCHOOL_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Fee Details",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 550.00,\n  \"status\": \"UNPAID\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pay Fee (Standard)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 200.00\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/pay",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE",
+										"pay"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Pay Fee Via Wallet",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 300.00\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/pay-wallet",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE",
+										"pay-wallet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Fee",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Wallets",
+					"item": [
+						{
+							"name": "Get Student Wallet",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/wallets/student/STUDENT_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"wallets",
+										"student",
+										"STUDENT_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Credit Wallet",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 100.00,\n  \"remarks\": \"Pocket money allowance\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/wallets/student/STUDENT_ID_HERE/credit",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"wallets",
+										"student",
+										"STUDENT_ID_HERE",
+										"credit"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Debit Wallet",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 50.00,\n  \"remarks\": \"Bought canteen snacks\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/wallets/student/STUDENT_ID_HERE/debit",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"wallets",
+										"student",
+										"STUDENT_ID_HERE",
+										"debit"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Wallet Transactions",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/wallets/student/STUDENT_ID_HERE/transactions",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"wallets",
+										"student",
+										"STUDENT_ID_HERE",
+										"transactions"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
 		}
 	]
 }
