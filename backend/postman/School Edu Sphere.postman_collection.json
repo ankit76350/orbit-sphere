@@ -3553,7 +3553,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.00,\n  \"dueDate\": \"2026-08-31\",\n  \"academicYear\": \"2026-2027\"\n}"
+									"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.00,\n  \"dueDate\": \"2026-08-31\",\n  \"academicYear\": \"2026-2027\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/fees",
@@ -3671,7 +3671,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"amount\": 550.00,\n  \"status\": \"UNPAID\"\n}"
+									"raw": "{\n  \"type\": \"TUITION\",\n  \"amount\": 550.00,\n  \"dueDate\": \"2026-09-30\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE",
