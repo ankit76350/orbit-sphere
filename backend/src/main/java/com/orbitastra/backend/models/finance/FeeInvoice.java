@@ -15,12 +15,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "fees")
+@Document(collection = "fee_invoices")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Fee {
+public class FeeInvoice {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 

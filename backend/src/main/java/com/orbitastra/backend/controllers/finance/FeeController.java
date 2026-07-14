@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.models.finance.Fee;
+import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.services.finance.FeeService;
 
 import lombok.RequiredArgsConstructor;
@@ -26,39 +26,39 @@ public class FeeController {
     private final FeeService feeService;
 
     @PostMapping
-    public ResponseEntity<Fee> createFee(@RequestBody Fee fee) {
-        Fee created = feeService.createFee(fee);
+    public ResponseEntity<FeeInvoice> createFee(@RequestBody FeeInvoice fee) {
+        FeeInvoice created = feeService.createFee(fee);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Fee> getFeeById(@PathVariable String id) {
-        Fee fee = feeService.getFeeById(id);
+    public ResponseEntity<FeeInvoice> getFeeById(@PathVariable String id) {
+        FeeInvoice fee = feeService.getFeeById(id);
         return ResponseEntity.ok(fee);
     }
 
     @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<Fee>> getFeesByStudent(@PathVariable String studentId) {
-        List<Fee> fees = feeService.getFeesByStudent(studentId);
+    public ResponseEntity<List<FeeInvoice>> getFeesByStudent(@PathVariable String studentId) {
+        List<FeeInvoice> fees = feeService.getFeesByStudent(studentId);
         return ResponseEntity.ok(fees);
     }
 
     @GetMapping("/school/{schoolId}")
-    public ResponseEntity<List<Fee>> getFeesBySchool(@PathVariable String schoolId) {
-        List<Fee> fees = feeService.getFeesBySchool(schoolId);
+    public ResponseEntity<List<FeeInvoice>> getFeesBySchool(@PathVariable String schoolId) {
+        List<FeeInvoice> fees = feeService.getFeesBySchool(schoolId);
         return ResponseEntity.ok(fees);
     }
 
     @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
-    public ResponseEntity<List<Fee>> getFeesBySchoolAndAcademicYear(
+    public ResponseEntity<List<FeeInvoice>> getFeesBySchoolAndAcademicYear(
             @PathVariable String schoolId,
             @PathVariable String academicYear) {
         return ResponseEntity.ok(feeService.getFeesBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Fee> updateFee(@PathVariable String id, @RequestBody Fee feeDetails) {
-        Fee updated = feeService.updateFee(id, feeDetails);
+    public ResponseEntity<FeeInvoice> updateFee(@PathVariable String id, @RequestBody FeeInvoice feeDetails) {
+        FeeInvoice updated = feeService.updateFee(id, feeDetails);
         return ResponseEntity.ok(updated);
     }
 

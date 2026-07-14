@@ -3666,68 +3666,6 @@
 							"response": []
 						},
 						{
-							"name": "Pay Fee (Standard)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"amount\": 200.00\n}"
-								},
-								"url": {
-									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/pay",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"fees",
-										"FEE_ID_HERE",
-										"pay"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Pay Fee Via Wallet",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"amount\": 300.00\n}"
-								},
-								"url": {
-									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/pay-wallet",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"fees",
-										"FEE_ID_HERE",
-										"pay-wallet"
-									]
-								}
-							},
-							"response": []
-						},
-						{
 							"name": "Delete Fee",
 							"request": {
 								"method": "DELETE",
