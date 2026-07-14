@@ -1,5 +1,6 @@
 package com.orbitastra.backend.controllers.finance;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -14,8 +15,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.models.finance.FeeInvoice;
+import com.orbitastra.backend.models.finance.FeePayment;
+import com.orbitastra.backend.models.finance.enums.PaymentMode;
 import com.orbitastra.backend.services.finance.FeeService;
 
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -66,5 +70,30 @@ public class FeeController {
     public ResponseEntity<?> deleteFee(@PathVariable String id) {
         feeService.deleteFee(id);
         return ResponseEntity.ok(java.util.Map.of("message", "Fee deleted successfully."));
+    }
+
+    @PostMapping("/{id}/payments")
+    public ResponseEntity<FeeInvoice> recordPayment(@PathVariable String id, @RequestBody PaymentRequest request) {
+        FeeInvoice updated = feeService.recordPayment(
+                id, request.getAmount(), request.getPaymentMode(), request.getRemarks(), request.getCollectedBy());
+        return new ResponseEntity<>(updated, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{id}/payments")
+    public ResponseEntity<List<FeePayment>> getPaymentsByFee(@PathVariable String id) {
+        return ResponseEntity.ok(feeService.getPaymentsByFee(id));
+    }
+
+    @GetMapping("/payments/student/{studentId}")
+    public ResponseEntity<List<FeePayment>> getPaymentsByStudent(@PathVariable String studentId) {
+        return ResponseEntity.ok(feeService.getPaymentsByStudent(studentId));
+    }
+
+    @Data
+    public static class PaymentRequest {
+        private BigDecimal amount;
+        private PaymentMode paymentMode;
+        private String remarks;
+        private String collectedBy;
     }
 }

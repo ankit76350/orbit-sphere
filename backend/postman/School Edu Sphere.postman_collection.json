@@ -163,6 +163,30 @@
 							"response": []
 						},
 						{
+							"name": "Get Students By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/students/school/6a474d2517e9c40cf971ccc8/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"students",
+										"school",
+										"6a474d2517e9c40cf971ccc8",
+										"academic-year",
+										"2026-2027"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Get Students By Class",
 							"request": {
 								"method": "GET",
@@ -3681,6 +3705,82 @@
 										"api",
 										"fees",
 										"FEE_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Record Payment (Collect Fee)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 200.0,\n  \"paymentMode\": \"CASH\",\n  \"remarks\": \"Front desk cash collection\",\n  \"collectedBy\": \"admin\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE",
+										"payments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payments By Fee",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/FEE_ID_HERE/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"FEE_ID_HERE",
+										"payments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payments By Student",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/fees/payments/student/STUDENT_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"fees",
+										"payments",
+										"student",
+										"STUDENT_ID_HERE"
 									]
 								}
 							},

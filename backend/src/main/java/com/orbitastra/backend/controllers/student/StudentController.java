@@ -50,6 +50,14 @@ public class StudentController {
         return ResponseEntity.ok(students);
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Student>> getStudentsBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        List<Student> students = studentService.getStudentsBySchoolAndAcademicYear(schoolId, academicYear);
+        return ResponseEntity.ok(students);
+    }
+
     @GetMapping("/class/{classId}")
     public ResponseEntity<List<Student>> getStudentsByClass(@PathVariable String classId) {
         List<Student> students = studentService.getStudentsByClass(classId);

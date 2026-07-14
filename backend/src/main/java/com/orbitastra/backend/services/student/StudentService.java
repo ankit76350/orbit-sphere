@@ -156,6 +156,23 @@ public class StudentService {
         return students;
     }
 
+    public List<Student> getStudentsBySchoolAndAcademicYear(String schoolId, String academicYear) {
+        List<StudentAcademicRecord> records =
+                studentAcademicRecordRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
+        List<String> studentIds = records.stream()
+                .map(StudentAcademicRecord::getStudentDocId)
+                .distinct()
+                .toList();
+        List<Student> students = studentRepository.findAllById(studentIds);
+
+        // Attach the record for THIS academic year (not the latest, as populateAcademicFields would)
+        java.util.Map<String, StudentAcademicRecord> recordByStudent = records.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        StudentAcademicRecord::getStudentDocId, r -> r, (a, b) -> a));
+        students.forEach(s -> s.setCurrentAcademicRecord(recordByStudent.get(s.getId())));
+        return students;
+    }
+
     public List<Student> getStudentsByClass(String classId) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassDocId(classId);
         List<String> studentIds = records.stream()
