@@ -3,33 +3,31 @@ package com.orbitastra.backend.services.finance;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.finance.FeeInvoice;
-import com.orbitastra.backend.models.finance.FeePayment;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
-import com.orbitastra.backend.models.finance.enums.PaymentMode;
 import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Owns the fee invoice lifecycle (create / read / update / delete). Collecting
+ * payments against an invoice lives in {@link FeePaymentService}; the cached
+ * paidAmount/status fields here are derived from those payment records and are
+ * updated through {@link #applyPaidAmount(FeeInvoice, BigDecimal)}.
+ */
 @Service
 @RequiredArgsConstructor
 public class FeeService {
 
     private final FeeRepository feeRepository;
-    private final FeePaymentRepository feePaymentRepository;
     private final StudentRepository studentRepository;
-    private final StudentWalletService studentWalletService;
     private final AcademicYearResolver academicYearResolver;
 
     public FeeInvoice createFee(FeeInvoice fee) {
@@ -91,80 +89,22 @@ public class FeeService {
         return feeRepository.save(fee);
     }
 
-    /**
-     * Collect a payment against an invoice. This is the single entry point for all
-     * payment modes (cash, wallet, online, cheque). Every call produces a FeePayment
-     * (receipt) as the audit trail; the invoice's paidAmount/status are then recomputed
-     * from the sum of all its payments — the payments are the source of truth.
-     */
-    @Transactional
-    public FeeInvoice recordPayment(String feeId, BigDecimal amount, PaymentMode mode,
-                                    String remarks, String collectedBy) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Payment amount must be greater than zero.");
-        }
-        if (mode == null) {
-            throw new IllegalArgumentException("Payment mode is required.");
-        }
-        FeeInvoice fee = getFeeById(feeId);
-        if (fee.getStatus() == FeeStatus.PAID) {
-            throw new IllegalArgumentException("Invoice is already fully paid.");
-        }
-
-        BigDecimal alreadyPaid = fee.getPaidAmount() != null ? fee.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal newPaidAmount = alreadyPaid.add(amount);
-        if (newPaidAmount.compareTo(fee.getAmount()) > 0) {
-            throw new IllegalArgumentException("Payment amount exceeds remaining invoice balance.");
-        }
-
-        // Wallet mode debits the student's wallet, which records its own WalletTransaction.
-        if (mode == PaymentMode.WALLET) {
-            studentWalletService.debitWallet(
-                    fee.getStudentId(),
-                    amount,
-                    "Fee payment for invoice " + fee.getId() + " (" + fee.getType() + ")");
-        }
-
-        // Persist the collection record (receipt) — the audit trail for every mode.
-        FeePayment payment = FeePayment.builder()
-                .schoolId(fee.getSchoolId())
-                .academicYear(fee.getAcademicYear())
-                .studentId(fee.getStudentId())
-                .feeId(fee.getId())
-                .receiptNo("RCPT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                .amount(amount)
-                .paymentMode(mode)
-                .paidOn(LocalDateTime.now())
-                .collectedBy(collectedBy)
-                .remarks(remarks)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        feePaymentRepository.save(payment);
-
-        // Recompute the cached paidAmount from the source-of-truth payment records.
-        BigDecimal totalPaid = feePaymentRepository.findByFeeId(fee.getId()).stream()
-                .map(FeePayment::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        fee.setPaidAmount(totalPaid);
-        recalculateStatus(fee);
-        fee.setUpdatedAt(LocalDateTime.now());
-
-        return feeRepository.save(fee);
-    }
-
-    public List<FeePayment> getPaymentsByFee(String feeId) {
-        return feePaymentRepository.findByFeeId(feeId);
-    }
-
-    public List<FeePayment> getPaymentsByStudent(String studentId) {
-        return feePaymentRepository.findByStudentIdOrderByPaidOnDesc(studentId);
-    }
-
     public void deleteFee(String id) {
         FeeInvoice fee = getFeeById(id);
         feeRepository.delete(fee);
+    }
+
+    /**
+     * Sets the invoice's cached paidAmount to the given total (the sum of its
+     * payment records), recomputes the status and persists it. Called by
+     * {@link FeePaymentService} whenever a payment is collected — the payment
+     * records remain the source of truth.
+     */
+    public FeeInvoice applyPaidAmount(FeeInvoice fee, BigDecimal totalPaid) {
+        fee.setPaidAmount(totalPaid != null ? totalPaid : BigDecimal.ZERO);
+        recalculateStatus(fee);
+        fee.setUpdatedAt(LocalDateTime.now());
+        return feeRepository.save(fee);
     }
 
     private void recalculateStatus(FeeInvoice fee) {

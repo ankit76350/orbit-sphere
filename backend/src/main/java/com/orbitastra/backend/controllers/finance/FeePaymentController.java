@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.dto.finance.PaymentRequest;
 import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.models.finance.FeePayment;
-import com.orbitastra.backend.services.finance.FeeService;
+import com.orbitastra.backend.services.finance.FeePaymentService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,22 +23,22 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class FeePaymentController {
 
-    private final FeeService feeService;
+    private final FeePaymentService feePaymentService;
 
     @PostMapping("/{id}/payments")
     public ResponseEntity<FeeInvoice> recordPayment(@PathVariable String id, @RequestBody PaymentRequest request) {
-        FeeInvoice updated = feeService.recordPayment(
+        FeeInvoice updated = feePaymentService.recordPayment(
                 id, request.getAmount(), request.getPaymentMode(), request.getRemarks(), request.getCollectedBy());
         return new ResponseEntity<>(updated, HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}/payments")
     public ResponseEntity<List<FeePayment>> getPaymentsByFee(@PathVariable String id) {
-        return ResponseEntity.ok(feeService.getPaymentsByFee(id));
+        return ResponseEntity.ok(feePaymentService.getPaymentsByFee(id));
     }
 
     @GetMapping("/payments/student/{studentId}")
     public ResponseEntity<List<FeePayment>> getPaymentsByStudent(@PathVariable String studentId) {
-        return ResponseEntity.ok(feeService.getPaymentsByStudent(studentId));
+        return ResponseEntity.ok(feePaymentService.getPaymentsByStudent(studentId));
     }
 }
