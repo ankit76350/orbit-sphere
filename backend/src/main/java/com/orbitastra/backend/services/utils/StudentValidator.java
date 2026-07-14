@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.student.StudentRepository;
-import com.orbitastra.backend.services.core.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 

@@ -8,7 +8,7 @@ import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.AcademicResult;
 import com.orbitastra.backend.repositories.academics.AcademicResultRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.services.core.AcademicYearResolver;
+import com.orbitastra.backend.services.utils.AcademicYearResolver;
 import com.orbitastra.backend.services.utils.StudentValidator;
 
 import lombok.RequiredArgsConstructor;
