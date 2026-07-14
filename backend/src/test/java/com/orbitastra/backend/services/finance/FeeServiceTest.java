@@ -22,8 +22,8 @@ import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.finance.enums.FeeType;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.services.core.AcademicYearResolver;
+import com.orbitastra.backend.services.utils.StudentValidator;
 
 @ExtendWith(MockitoExtension.class)
 public class FeeServiceTest {
@@ -32,7 +32,7 @@ public class FeeServiceTest {
     private FeeRepository feeRepository;
 
     @Mock
-    private StudentRepository studentRepository;
+    private StudentValidator studentValidator;
 
     @Mock
     private AcademicYearResolver academicYearResolver;
@@ -63,7 +63,7 @@ public class FeeServiceTest {
     @Test
     void createFee_Success() {
         AcademicYear year = AcademicYear.builder().name("2026-2027").build();
-        when(studentRepository.findById("student-123")).thenReturn(Optional.of(student));
+        when(studentValidator.validateStudent("student-123", "school-123")).thenReturn(student);
         when(academicYearResolver.resolve(any(), any(), any())).thenReturn(year);
         when(feeRepository.save(fee)).thenReturn(fee);
 
@@ -74,13 +74,14 @@ public class FeeServiceTest {
         assertEquals("2026-2027", created.getAcademicYear());
         assertEquals(FeeStatus.UNPAID, created.getStatus());
         assertEquals(BigDecimal.ZERO, created.getPaidAmount());
-        verify(studentRepository, times(1)).findById("student-123");
+        verify(studentValidator, times(1)).validateStudent("student-123", "school-123");
         verify(feeRepository, times(1)).save(fee);
     }
 
     @Test
     void createFee_StudentNotFound_ThrowsException() {
-        when(studentRepository.findById("student-123")).thenReturn(Optional.empty());
+        when(studentValidator.validateStudent("student-123", "school-123"))
+                .thenThrow(new ResourceNotFoundException("Student not found with id: student-123"));
 
         assertThrows(ResourceNotFoundException.class, () -> {
             feeService.createFee(fee);

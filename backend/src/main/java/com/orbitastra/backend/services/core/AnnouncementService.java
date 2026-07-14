@@ -2,7 +2,6 @@ package com.orbitastra.backend.services.core;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
@@ -10,17 +9,14 @@ import com.orbitastra.backend.models.core.Announcement;
 import com.orbitastra.backend.repositories.core.AnnouncementRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class AnnouncementService {
 
     private final AnnouncementRepository announcementRepository;
     private final SchoolRepository schoolRepository;
-
-    @Autowired
-    public AnnouncementService(AnnouncementRepository announcementRepository, SchoolRepository schoolRepository) {
-        this.announcementRepository = announcementRepository;
-        this.schoolRepository = schoolRepository;
-    }
 
     public Announcement createAnnouncement(Announcement announcement) {
         String schoolId = announcement.getSchoolId();

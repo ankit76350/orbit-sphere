@@ -7,12 +7,11 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.Attendance;
-import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.academics.AttendanceRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 import com.orbitastra.backend.services.core.AcademicYearResolver;
+import com.orbitastra.backend.services.utils.StudentValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,7 +21,7 @@ public class AttendanceService {
 
     private final AttendanceRepository attendanceRepository;
     private final SchoolRepository schoolRepository;
-    private final StudentRepository studentRepository;
+    private final StudentValidator studentValidator;
     private final StaffRepository staffRepository;
     private final AcademicYearResolver academicYearResolver;
 
@@ -37,23 +36,13 @@ public class AttendanceService {
         }
     }
 
-    private void validateStudent(String studentId, String schoolId) {
-        if (studentId == null || studentId.isEmpty()) {
-            throw new IllegalArgumentException("Student ID cannot be null or empty.");
-        }
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
-        if (!student.getSchoolId().equals(schoolId)) {
-            throw new IllegalArgumentException("Student does not belong to the same school as the attendance record.");
-        }
-    }
 
     public Attendance createAttendance(Attendance attendance) {
         if (attendance.getSchoolId() == null || !schoolRepository.existsById(attendance.getSchoolId())) {
             throw new ResourceNotFoundException("School not found with id: " + attendance.getSchoolId());
         }
 
-        validateStudent(attendance.getStudentId(), attendance.getSchoolId());
+        studentValidator.validateStudent(attendance.getStudentId(), attendance.getSchoolId());
 
         validatePresenter(attendance.getPresentBy(), attendance.getSchoolId());
         attendance.setPresentTime(java.time.LocalDateTime.now());
@@ -106,7 +95,7 @@ public class AttendanceService {
         }
 
         if (attendanceDetails.getStudentId() != null && !attendanceDetails.getStudentId().equals(attendance.getStudentId())) {
-            validateStudent(attendanceDetails.getStudentId(), attendance.getSchoolId());
+            studentValidator.validateStudent(attendanceDetails.getStudentId(), attendance.getSchoolId());
             attendance.setStudentId(attendanceDetails.getStudentId());
         }
 

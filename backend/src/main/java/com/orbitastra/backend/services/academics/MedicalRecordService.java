@@ -6,10 +6,9 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.MedicalRecord;
-import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.academics.MedicalRecordRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.services.utils.StudentValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,25 +18,14 @@ public class MedicalRecordService {
 
     private final MedicalRecordRepository medicalRecordRepository;
     private final SchoolRepository schoolRepository;
-    private final StudentRepository studentRepository;
-
-    private void validateStudent(String studentId, String schoolId) {
-        if (studentId == null || studentId.isEmpty()) {
-            throw new IllegalArgumentException("Student ID cannot be null or empty.");
-        }
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
-        if (!student.getSchoolId().equals(schoolId)) {
-            throw new IllegalArgumentException("Student does not belong to the same school as the medical record.");
-        }
-    }
+    private final StudentValidator studentValidator;
 
     public MedicalRecord createMedicalRecord(MedicalRecord record) {
         if (record.getSchoolId() == null || !schoolRepository.existsById(record.getSchoolId())) {
             throw new ResourceNotFoundException("School not found with id: " + record.getSchoolId());
         }
 
-        validateStudent(record.getStudentId(), record.getSchoolId());
+        studentValidator.validateStudent(record.getStudentId(), record.getSchoolId());
 
         return medicalRecordRepository.save(record);
     }
@@ -70,7 +58,7 @@ public class MedicalRecordService {
         }
 
         if (recordDetails.getStudentId() != null && !recordDetails.getStudentId().equals(record.getStudentId())) {
-            validateStudent(recordDetails.getStudentId(), record.getSchoolId());
+            studentValidator.validateStudent(recordDetails.getStudentId(), record.getSchoolId());
             record.setStudentId(recordDetails.getStudentId());
         }
 

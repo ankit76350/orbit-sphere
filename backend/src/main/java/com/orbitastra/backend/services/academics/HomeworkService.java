@@ -11,13 +11,12 @@ import com.orbitastra.backend.models.academics.Homework;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.models.academics.enums.AssignmentScope;
 import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
-import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.academics.HomeworkRepository;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
+import com.orbitastra.backend.services.utils.StudentValidator;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -29,7 +28,7 @@ public class HomeworkService {
     private final HomeworkRepository homeworkRepository;
     private final SchoolRepository schoolRepository;
     private final SchoolClassRepository schoolClassRepository;
-    private final StudentRepository studentRepository;
+    private final StudentValidator studentValidator;
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
     private final StaffRepository staffRepository;
 
@@ -66,12 +65,7 @@ public class HomeworkService {
 
         for (Homework.StudentAssignment assignment : assignments) {
             String studentId = assignment.getStudentId();
-            Student student = studentRepository.findById(studentId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
-            
-            if (!student.getSchoolId().equals(schoolId)) {
-                throw new IllegalArgumentException("Student with ID " + studentId + " does not belong to the same school as the homework.");
-            }
+            studentValidator.validateStudent(studentId, schoolId);
 
             StudentAcademicRecord academicRecord = studentAcademicRecordRepository
                     .findByStudentDocIdAndAcademicYear(studentId, targetAcademicYear)

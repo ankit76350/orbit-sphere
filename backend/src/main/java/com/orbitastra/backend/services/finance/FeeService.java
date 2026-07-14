@@ -9,10 +9,9 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
-import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.services.core.AcademicYearResolver;
+import com.orbitastra.backend.services.utils.StudentValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,14 +26,12 @@ import lombok.RequiredArgsConstructor;
 public class FeeService {
 
     private final FeeRepository feeRepository;
-    private final StudentRepository studentRepository;
+    private final StudentValidator studentValidator;
     private final AcademicYearResolver academicYearResolver;
 
     public FeeInvoice createFee(FeeInvoice fee) {
-        Student student = studentRepository.findById(fee.getStudentId())
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + fee.getStudentId()));
+        studentValidator.validateStudent(fee.getStudentId(), fee.getSchoolId());
 
-        fee.setSchoolId(student.getSchoolId());
         fee.setAcademicYear(academicYearResolver
                 .resolve(fee.getSchoolId(), fee.getAcademicYear(), fee.getDueDate())
                 .getName());
