@@ -96,6 +96,7 @@ export const api = {
 
   // ----- students & academic records -----
   students: (schoolId) => listOr(`/api/students/school/${schoolId}`),
+  studentsByYear: (schoolId, year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
@@ -156,8 +157,11 @@ export const api = {
   createFee: (payload) => call('POST', '/api/fees', payload),
   updateFee: (id, payload) => call('PATCH', `/api/fees/${id}`, payload),
   deleteFee: (id) => call('DELETE', `/api/fees/${id}`),
-  payFee: (id, amount) => call('POST', `/api/fees/${id}/pay`, { amount }),
-  payFeeViaWallet: (id, amount) => call('POST', `/api/fees/${id}/pay-wallet`, { amount }),
+  // Unified fee collection: mode = CASH | WALLET | ONLINE | CHEQUE
+  recordPayment: (id, { amount, paymentMode, remarks, collectedBy }) =>
+    call('POST', `/api/fees/${id}/payments`, { amount, paymentMode, remarks, collectedBy }),
+  feePayments: (id) => listOr(`/api/fees/${id}/payments`),
+  feePaymentsByStudent: (studentId) => listOr(`/api/fees/payments/student/${studentId}`),
 
   // ----- finance: student wallets -----
   getWallet: (studentId) => call('GET', `/api/wallets/student/${studentId}`),
