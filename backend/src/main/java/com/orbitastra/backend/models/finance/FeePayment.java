@@ -42,6 +42,7 @@ public class FeePayment {
     // The Fee (invoice) this payment is collected against
     private String feeId;
 
+    @Indexed(unique = true)
     private String receiptNo;
 
     private BigDecimal amount;

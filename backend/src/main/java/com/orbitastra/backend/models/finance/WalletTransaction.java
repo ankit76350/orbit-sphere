@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.finance.enums.TransactionType;
@@ -39,6 +40,7 @@ public class WalletTransaction {
 
     private BigDecimal balanceAfter;
 
+    @Indexed(unique = true)
     private String referenceNo;
 
     private String remarks;
