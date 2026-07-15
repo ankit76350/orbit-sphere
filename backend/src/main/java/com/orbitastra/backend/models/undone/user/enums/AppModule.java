@@ -1,0 +1,19 @@
+package com.orbitastra.backend.models.undone.user.enums;
+
+public enum AppModule {
+    INQUIRY_CRM,
+    STUDENT_MASTER,
+    STAFF_HRMS,
+    FEES_WALLET,
+    ATTENDANCE,
+    ACADEMICS_HOMEWORK,
+    DISCIPLINE,
+    HOSTEL_MESS,
+    INVENTORY,
+    TRANSPORT,
+    LIBRARY,
+    SECURITY_CCTV_GATE,
+    ALUMNI_FEEDBACK_GALLERY_CELEBRATIONS,
+    DOC_GEN_ID_CARDS,
+    SUPERADMIN_SYSTEMS
+}

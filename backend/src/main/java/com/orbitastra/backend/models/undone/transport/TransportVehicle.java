@@ -1,24 +1,23 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.undone.transport;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.undone.user.enums.Role;
+import com.orbitastra.backend.models.undone.transport.enums.TransportVehicleStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "staffs")
+@Document(collection = "transport_vehicles")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
+public class TransportVehicle {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,19 +30,17 @@ public class Staff {
 
     private String schoolId;
 
-    private String employeeId;
+    private String vehicleNo;
 
-    private String name;
+    private Integer capacity;
 
-    private String department;
+    private LocalDate insuranceExpiry;
 
-    private String designation;
+    private LocalDate fitnessExpiry;
 
-    private BigDecimal salary;
+    private String fuelType;
 
-    private LocalDate joiningDate;
+    private TransportVehicleStatus status;
 
-    private Role role;
-
-    private LocalDate dob;
+    private LocalDate maintenanceSchedule;
 }

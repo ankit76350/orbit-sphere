@@ -1,24 +1,23 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.undone.crm;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.undone.user.enums.Role;
+import com.orbitastra.backend.models.undone.crm.enums.InquiryStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "staffs")
+@Document(collection = "inquiries")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
+public class Inquiry {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,19 +30,21 @@ public class Staff {
 
     private String schoolId;
 
-    private String employeeId;
+    private String parentName;
 
-    private String name;
+    private String studentName;
 
-    private String department;
+    private String phone;
 
-    private String designation;
+    private String email;
 
-    private BigDecimal salary;
+    private String source;
 
-    private LocalDate joiningDate;
+    private String counselorId;
 
-    private Role role;
+    private InquiryStatus status;
 
-    private LocalDate dob;
+    private LocalDate nextFollowUp;
+
+    private String notes;
 }

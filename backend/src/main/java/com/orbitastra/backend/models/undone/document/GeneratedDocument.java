@@ -1,24 +1,21 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.undone.document;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-
-import com.orbitastra.backend.models.undone.user.enums.Role;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "staffs")
+@Document(collection = "generated_documents")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
+public class GeneratedDocument {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,19 +28,19 @@ public class Staff {
 
     private String schoolId;
 
-    private String employeeId;
+    private String documentNumber;
 
-    private String name;
+    private String documentType;
 
-    private String department;
+    private String entityId; // studentId or staffId
 
-    private String designation;
+    private String entityType; // Student, Staff
 
-    private BigDecimal salary;
+    private String pdfUrl;
 
-    private LocalDate joiningDate;
+    private String verificationCode;
 
-    private Role role;
+    private LocalDateTime generatedAt;
 
-    private LocalDate dob;
+    private String status; // Valid, Expired, Revoked
 }

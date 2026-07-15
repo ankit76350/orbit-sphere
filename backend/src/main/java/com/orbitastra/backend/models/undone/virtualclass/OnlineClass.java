@@ -1,24 +1,21 @@
-package com.orbitastra.backend.models.staff;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
+package com.orbitastra.backend.models.undone.virtualclass;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.undone.user.enums.Role;
+import com.orbitastra.backend.models.undone.virtualclass.enums.OnlineClassStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "staffs")
+@Document(collection = "online_classes")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
+public class OnlineClass {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,19 +28,25 @@ public class Staff {
 
     private String schoolId;
 
-    private String employeeId;
+    private String subjectId;
 
-    private String name;
+    private String subjectName;
 
-    private String department;
+    private String teacherId;
 
-    private String designation;
+    private String teacherName;
 
-    private BigDecimal salary;
+    private String classId;
 
-    private LocalDate joiningDate;
+    private String sectionId;
 
-    private Role role;
+    private String meetingLink;
 
-    private LocalDate dob;
+    private String date;
+
+    private String startTime;
+
+    private String endTime;
+
+    private OnlineClassStatus status;
 }

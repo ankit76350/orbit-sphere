@@ -1,24 +1,19 @@
-package com.orbitastra.backend.models.staff;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
+package com.orbitastra.backend.models.undone.security;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-
-import com.orbitastra.backend.models.undone.user.enums.Role;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "staffs")
+@Document(collection = "camera_recordings")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
+public class CameraRecording {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,19 +26,11 @@ public class Staff {
 
     private String schoolId;
 
-    private String employeeId;
+    private String cameraId;
 
-    private String name;
+    private String recordingUrl;
 
-    private String department;
+    private String startTime;
 
-    private String designation;
-
-    private BigDecimal salary;
-
-    private LocalDate joiningDate;
-
-    private Role role;
-
-    private LocalDate dob;
+    private String endTime;
 }
