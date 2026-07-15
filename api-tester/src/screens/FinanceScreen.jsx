@@ -36,6 +36,7 @@ export default function FinanceScreen({ schoolId, year }) {
   const emptyFeeForm = {
     type: 'TUITION',
     amount: '',
+    discount: '',
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   };
   const [feeForm, setFeeForm] = useState(emptyFeeForm);
@@ -90,7 +91,8 @@ export default function FinanceScreen({ schoolId, year }) {
     return s ? `${s.firstName} ${s.lastName || ''}`.trim() : sid || '—';
   };
 
-  const dueOf = (f) => (f.amount || 0) - (f.paidAmount || 0);
+  // Net payable (amount - discount) minus what's already paid.
+  const dueOf = (f) => (f.amount || 0) - (f.discount || 0) - (f.paidAmount || 0);
 
   const feesByStudent = useMemo(() => {
     const map = {};
@@ -149,6 +151,7 @@ export default function FinanceScreen({ schoolId, year }) {
         studentId: selectedStudentId,
         type: feeForm.type,
         amount: parseFloat(feeForm.amount),
+        discount: feeForm.discount ? parseFloat(feeForm.discount) : 0,
         dueDate: feeForm.dueDate,
       };
       if (editingFee) {
@@ -172,6 +175,7 @@ export default function FinanceScreen({ schoolId, year }) {
     setFeeForm({
       type: fee.type || 'TUITION',
       amount: String(fee.amount || ''),
+      discount: fee.discount ? String(fee.discount) : '',
       dueDate: fee.dueDate || emptyFeeForm.dueDate,
     });
   };
@@ -414,11 +418,17 @@ export default function FinanceScreen({ schoolId, year }) {
                                   <tr key={f.id} className="hover:bg-slate-50/50 transition">
                                     <td className="px-4 py-3 font-semibold text-slate-800">
                                       {f.type}
+                                      <div className="text-[9px] text-slate-400 font-mono font-normal">{f.invoiceNo || ''}</div>
                                       <div className="text-[9px] text-slate-400 font-normal">
                                         Due {f.dueDate ? new Date(f.dueDate).toLocaleDateString() : '—'}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-right font-mono font-bold">${(f.amount || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-right font-mono font-bold">
+                                      ${(f.amount || 0).toLocaleString()}
+                                      {f.discount > 0 && (
+                                        <div className="text-[9px] text-amber-600 font-normal">−${f.discount.toLocaleString()} disc</div>
+                                      )}
+                                    </td>
                                     <td className="px-4 py-3 text-right font-mono text-green-700">${(f.paidAmount || 0).toLocaleString()}</td>
                                     <td className="px-4 py-3 text-right font-mono font-bold text-rose-700">${due > 0 ? due.toLocaleString() : '0'}</td>
                                     <td className="px-4 py-3 text-center"><Badge color={getStatusColor(f.status)}>{f.status}</Badge></td>
@@ -470,6 +480,17 @@ export default function FinanceScreen({ schoolId, year }) {
                           <Field label="Invoice Amount ($) *">
                             <Input type="number" value={feeForm.amount} onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })} placeholder="e.g. 1200" />
                           </Field>
+                          <Field label="Discount / Concession ($)">
+                            <Input type="number" value={feeForm.discount} onChange={(e) => setFeeForm({ ...feeForm, discount: e.target.value })} placeholder="e.g. 200 (sibling waiver)" />
+                          </Field>
+                          {feeForm.amount && (
+                            <div className="text-[11px] text-slate-500 flex justify-between px-1">
+                              <span>Net payable</span>
+                              <span className="font-mono font-bold text-slate-700">
+                                ${Math.max(0, (parseFloat(feeForm.amount) || 0) - (parseFloat(feeForm.discount) || 0)).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                           <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                             {editingFee && <Button variant="default" onClick={resetFeeForm}>Cancel</Button>}
                             <Button variant="primary" onClick={submitFee} disabled={busy || !feeForm.amount}>

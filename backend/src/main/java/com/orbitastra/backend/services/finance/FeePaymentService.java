@@ -47,9 +47,8 @@ public class FeePaymentService {
             throw new IllegalArgumentException("Invoice is already fully paid.");
         }
 
-        BigDecimal alreadyPaid = fee.getPaidAmount() != null ? fee.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal newPaidAmount = alreadyPaid.add(amount);
-        if (newPaidAmount.compareTo(fee.getAmount()) > 0) {
+        // Balance is measured against the net payable (amount - discount), owned by FeeService.
+        if (amount.compareTo(feeService.remainingBalance(fee)) > 0) {
             throw new IllegalArgumentException("Payment amount exceeds remaining invoice balance.");
         }
 

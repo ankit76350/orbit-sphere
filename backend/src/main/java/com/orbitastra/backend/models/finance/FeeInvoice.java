@@ -38,11 +38,20 @@ public class FeeInvoice {
     @Indexed
     private String academicYear;
 
+    // Human-readable invoice number (e.g. "INV-A1B2C3D4"), generated on creation.
+    // The Mongo id stays the technical key; this is what appears on the printed bill.
+    @Indexed
+    private String invoiceNo;
+
     private String studentId;
 
     private FeeType type;
 
     private BigDecimal amount;
+
+    // Concession applied to this invoice (sibling waiver, scholarship, staff-child, etc.).
+    // Net payable = amount - discount; paidAmount/status are measured against the net payable.
+    private BigDecimal discount;
 
     private BigDecimal paidAmount;
 
