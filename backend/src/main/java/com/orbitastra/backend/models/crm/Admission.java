@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.crm;
+package com.orbitastra.backend.models.crm;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -7,7 +7,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.undone.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

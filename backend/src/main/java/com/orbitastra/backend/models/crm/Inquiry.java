@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.undone.crm;
+package com.orbitastra.backend.models.crm;
 
 import java.time.LocalDate;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.undone.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

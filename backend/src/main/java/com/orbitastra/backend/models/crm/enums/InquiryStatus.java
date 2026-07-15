@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.crm.enums;
+package com.orbitastra.backend.models.crm.enums;
 
 public enum InquiryStatus {
     INQUIRY,
