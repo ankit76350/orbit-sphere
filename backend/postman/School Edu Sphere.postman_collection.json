@@ -3903,6 +3903,443 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "CRM",
+			"item": [
+				{
+					"name": "Inquiries",
+					"item": [
+						{
+							"name": "Create Inquiry",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"parentName\": \"Meera Nair\",\n  \"studentName\": \"Aarav Nair\",\n  \"phone\": \"+61-400-111-222\",\n  \"email\": \"meera@example.com\",\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"STAFF_ID_HERE\",\n  \"status\": \"INQUIRY\",\n  \"nextFollowUp\": \"2026-07-20\",\n  \"notes\": \"Interested in Grade 6, wants transport.\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inquiry By ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/INQUIRY_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"INQUIRY_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inquiries By School",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/school/6a474d2517e9c40cf971ccc2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"school",
+										"6a474d2517e9c40cf971ccc2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inquiries By School And Status",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/school/6a474d2517e9c40cf971ccc2/status/INQUIRY",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"school",
+										"6a474d2517e9c40cf971ccc2",
+										"status",
+										"INQUIRY"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inquiries By Counselor",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/counselor/STAFF_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"counselor",
+										"STAFF_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Follow-ups Due",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/school/6a474d2517e9c40cf971ccc2/follow-ups?asOf=2026-07-20",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"school",
+										"6a474d2517e9c40cf971ccc2",
+										"follow-ups"
+									],
+									"query": [
+										{
+											"key": "asOf",
+											"value": "2026-07-20"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Inquiry",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": \"COUNSELING\",\n  \"notes\": \"Called, scheduling a visit.\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/INQUIRY_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"INQUIRY_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Inquiry",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/INQUIRY_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"INQUIRY_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admissions",
+					"item": [
+						{
+							"name": "Create Admission",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/admissions",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admission By ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/ADMISSION_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"ADMISSION_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admissions By School",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/school/6a474d2517e9c40cf971ccc2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"school",
+										"6a474d2517e9c40cf971ccc2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admissions By School And Academic Year",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/school/6a474d2517e9c40cf971ccc2/academic-year/2026-2027",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"school",
+										"6a474d2517e9c40cf971ccc2",
+										"academic-year",
+										"2026-2027"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admissions By School And Status",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/school/6a474d2517e9c40cf971ccc2/status/PENDING",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"school",
+										"6a474d2517e9c40cf971ccc2",
+										"status",
+										"PENDING"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admissions By Inquiry",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/inquiry/INQUIRY_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"inquiry",
+										"INQUIRY_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Admission",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": \"APPROVED\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/ADMISSION_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"ADMISSION_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Convert Admission To Student",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"parentId\": \"PARENT_ID_HERE\",\n  \"firstName\": \"Aarav\",\n  \"lastName\": \"Nair\",\n  \"dob\": \"2015-04-11\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"O+\",\n  \"status\": \"ACTIVE\",\n  \"currentAcademicRecord\": {\n    \"classDocId\": \"CLASS_ID_HERE\",\n    \"sectionId\": \"SECTION_ID_HERE\",\n    \"rollNo\": \"7\"\n  }\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/ADMISSION_ID_HERE/convert",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"ADMISSION_ID_HERE",
+										"convert"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Admission",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/admissions/ADMISSION_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions",
+										"ADMISSION_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
 		}
 	]
 }
