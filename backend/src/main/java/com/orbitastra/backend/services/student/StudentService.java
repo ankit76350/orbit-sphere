@@ -11,7 +11,7 @@ import com.orbitastra.backend.models.student.Parent;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.student.StudentRepository;
-import com.orbitastra.backend.services.student.utils.AcademicYearUtils;
+import com.orbitastra.backend.services.utils.AcademicYearResolver;
 import com.orbitastra.backend.repositories.student.ParentRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
@@ -29,6 +29,7 @@ public class StudentService {
     private final SchoolRepository schoolRepository;
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
     private final SchoolClassRepository schoolClassRepository;
+    private final AcademicYearResolver academicYearResolver;
 
     private void populateAcademicFields(Student student) {
         if (student == null) return;
@@ -83,9 +84,9 @@ public class StudentService {
         StudentAcademicRecord reqRecord = student.getCurrentAcademicRecord();
         StudentAcademicRecord savedRecord = null;
         if (reqRecord != null) {
-            String acadYear = reqRecord.getAcademicYear() != null 
-                    ? reqRecord.getAcademicYear() 
-                    : AcademicYearUtils.getCurrentAcademicYear();
+            String acadYear = academicYearResolver
+                    .resolve(saved.getSchoolId(), reqRecord.getAcademicYear(), saved.getAdmissionDate())
+                    .getName();
 
             if (reqRecord.getClassDocId() != null) {
                 SchoolClass schoolClass = schoolClassRepository.findById(reqRecord.getClassDocId())
@@ -272,7 +273,9 @@ public class StudentService {
                 ? detailsRecord.getAcademicYear() 
                 : (student.getCurrentAcademicRecord() != null ? student.getCurrentAcademicRecord().getAcademicYear() : null);
         if (targetAcademicYear == null) {
-            targetAcademicYear = AcademicYearUtils.getCurrentAcademicYear();
+            targetAcademicYear = academicYearResolver
+                    .resolve(saved.getSchoolId(), null, saved.getAdmissionDate())
+                    .getName();
         }
 
         final String finalAcadYear = targetAcademicYear;
