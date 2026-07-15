@@ -5,6 +5,7 @@ import StudentScreen from './screens/StudentScreen.jsx';
 import StaffScreen from './screens/StaffScreen.jsx';
 import AcademicsScreen from './screens/AcademicsScreen.jsx';
 import FinanceScreen from './screens/FinanceScreen.jsx';
+import CrmScreen from './screens/CrmScreen.jsx';
 import CoreScreen from './screens/CoreScreen.jsx';
 import { api } from './api.js';
 import { ToastProvider } from './components/ui.jsx';
@@ -139,6 +140,14 @@ function AppContent() {
               years={years}
               year={year}
               reload={handleReload}
+            />
+          )}
+
+          {activeTab === 'crm' && (
+            <CrmScreen
+              schoolId={schoolId}
+              year={year}
+              staff={staff}
             />
           )}
           {activeTab === 'core' && (

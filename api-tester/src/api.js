@@ -163,6 +163,26 @@ export const api = {
   feePayments: (id) => listOr(`/api/fees/${id}/payments`),
   feePaymentsByStudent: (studentId) => listOr(`/api/fees/payments/student/${studentId}`),
 
+  // ----- crm: inquiries -----
+  inquiries: (schoolId) => listOr(`/api/inquiries/school/${schoolId}`),
+  inquiriesByStatus: (schoolId, status) => listOr(`/api/inquiries/school/${schoolId}/status/${status}`),
+  inquiryFollowUps: (schoolId, asOf) => listOr(`/api/inquiries/school/${schoolId}/follow-ups${asOf ? `?asOf=${asOf}` : ''}`),
+  getInquiry: (id) => call('GET', `/api/inquiries/${id}`),
+  createInquiry: (payload) => call('POST', '/api/inquiries', payload),
+  updateInquiry: (id, payload) => call('PATCH', `/api/inquiries/${id}`, payload),
+  deleteInquiry: (id) => call('DELETE', `/api/inquiries/${id}`),
+
+  // ----- crm: admissions -----
+  admissions: (schoolId) => listOr(`/api/admissions/school/${schoolId}`),
+  admissionsByYear: (schoolId, year) => listOr(`/api/admissions/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  admissionsByStatus: (schoolId, status) => listOr(`/api/admissions/school/${schoolId}/status/${status}`),
+  admissionsByInquiry: (inquiryId) => listOr(`/api/admissions/inquiry/${inquiryId}`),
+  getAdmission: (id) => call('GET', `/api/admissions/${id}`),
+  createAdmission: (payload) => call('POST', '/api/admissions', payload),
+  updateAdmission: (id, payload) => call('PATCH', `/api/admissions/${id}`, payload),
+  convertAdmission: (id, studentPayload) => call('POST', `/api/admissions/${id}/convert`, studentPayload),
+  deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),
+
   // ----- finance: student wallets -----
   getWallet: (studentId) => call('GET', `/api/wallets/student/${studentId}`),
   creditWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/credit`, { amount, remarks }),
