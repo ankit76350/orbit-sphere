@@ -30,10 +30,14 @@ public class Inquiry {
 
     private String schoolId;
 
-    private String parentName;
-
     private String studentName;
 
+    // Prospective guardians for this lead — name, relation, occupation and
+    // contact per person. Materialised into real Guardians on conversion.
+    @Builder.Default
+    private java.util.List<InquiryGuardian> guardians = new java.util.ArrayList<>();
+
+    // Primary lead contact (usually the main guardian's).
     private String phone;
 
     private String email;

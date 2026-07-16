@@ -67,7 +67,7 @@ public class InquiryService {
             validateCounselor(details.getCounselorId(), inquiry.getSchoolId());
             inquiry.setCounselorId(details.getCounselorId());
         }
-        if (details.getParentName() != null) inquiry.setParentName(details.getParentName());
+        if (details.getGuardians() != null) inquiry.setGuardians(details.getGuardians());
         if (details.getStudentName() != null) inquiry.setStudentName(details.getStudentName());
         if (details.getPhone() != null) inquiry.setPhone(details.getPhone());
         if (details.getEmail() != null) inquiry.setEmail(details.getEmail());

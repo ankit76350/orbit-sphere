@@ -3956,7 +3956,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"parentName\": \"Meera Nair\",\n  \"studentName\": \"Aarav Nair\",\n  \"phone\": \"+61-400-111-222\",\n  \"email\": \"meera@example.com\",\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"STAFF_ID_HERE\",\n  \"status\": \"INQUIRY\",\n  \"nextFollowUp\": \"2026-07-20\",\n  \"notes\": \"Interested in Grade 6, wants transport.\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentName\": \"Aarav Nair\",\n  \"guardians\": [\n    {\n      \"name\": \"Meera Nair\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-111-222\",\n      \"email\": \"meera@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Doctor\"\n    },\n    {\n      \"name\": \"Rajesh Nair\",\n      \"relation\": \"FATHER\",\n      \"phone\": \"+61-400-333-444\",\n      \"email\": \"rajesh@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Engineer\"\n    }\n  ],\n  \"phone\": \"+61-400-111-222\",\n  \"email\": \"meera@example.com\",\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"STAFF_ID_HERE\",\n  \"status\": \"INQUIRY\",\n  \"nextFollowUp\": \"2026-07-20\",\n  \"notes\": \"Interested in Grade 6, wants transport.\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/inquiries",
