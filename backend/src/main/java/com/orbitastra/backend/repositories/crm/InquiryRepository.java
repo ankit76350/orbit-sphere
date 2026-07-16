@@ -1,6 +1,5 @@
 package com.orbitastra.backend.repositories.crm;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -14,5 +13,4 @@ public interface InquiryRepository extends MongoRepository<Inquiry, String> {
     List<Inquiry> findBySchoolId(String schoolId);
     List<Inquiry> findBySchoolIdAndStatus(String schoolId, InquiryStatus status);
     List<Inquiry> findByCounselorId(String counselorId);
-    List<Inquiry> findBySchoolIdAndNextFollowUpLessThanEqual(String schoolId, LocalDate date);
 }

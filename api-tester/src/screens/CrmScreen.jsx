@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   UserPlus, Phone, Mail, Plus, Trash2, RefreshCw, X, Check,
-  ArrowRight, FileText, GraduationCap, User, ClipboardList
+  ArrowRight, FileText, GraduationCap, User, ClipboardList, History, Clock
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
@@ -30,10 +30,15 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const emptyInquiry = {
     studentName: '',
-    source: 'WALK_IN', counselorId: '', nextFollowUp: '', notes: '',
+    source: 'WALK_IN', counselorId: '',
+    note: '', nextFollowUp: '', // seed the first follow-up entry
     guardians: [{ name: '', relation: 'MOTHER', phone: '', email: '', address: '', occupation: '' }],
   };
   const [inquiryForm, setInquiryForm] = useState(emptyInquiry);
+
+  // Follow-up / status-change modal
+  const [followUpModal, setFollowUpModal] = useState(null); // the inquiry being worked
+  const [followUpForm, setFollowUpForm] = useState({ status: 'INQUIRY', note: '', nextFollowUp: '' });
 
   const setGuardian = (idx, patch) =>
     setInquiryForm((f) => ({ ...f, guardians: f.guardians.map((g, i) => (i === idx ? { ...g, ...patch } : g)) }));
@@ -91,7 +96,17 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     }
     setBusy(true);
     try {
-      await api.createInquiry({ schoolId, status: 'INQUIRY', ...inquiryForm, guardians, counselorId: inquiryForm.counselorId || null });
+      // Seed the follow-up timeline with the first entry.
+      const followUps = [{ status: 'INQUIRY', note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorId: inquiryForm.counselorId || null }];
+      await api.createInquiry({
+        schoolId,
+        status: 'INQUIRY',
+        studentName: inquiryForm.studentName,
+        source: inquiryForm.source,
+        counselorId: inquiryForm.counselorId || null,
+        guardians,
+        followUps,
+      });
       toast.success('Inquiry created.');
       setInquiryForm(emptyInquiry);
       fetchAll();
@@ -100,13 +115,28 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     } finally { setBusy(false); }
   };
 
-  const changeInquiryStatus = async (inq, status) => {
-    try {
-      await api.updateInquiry(inq.id, { status });
-      toast.success(`Inquiry → ${status}`);
-      fetchAll();
-    } catch (e) { toast.error(e.message || 'Update failed.'); }
+  const openFollowUp = (inq) => {
+    setFollowUpModal(inq);
+    setFollowUpForm({ status: inq.status || 'INQUIRY', note: '', nextFollowUp: '', counselorId: inq.counselorId || '' });
   };
+
+  const submitFollowUp = async () => {
+    setBusy(true);
+    try {
+      await api.recordInquiryFollowUp(followUpModal.id, {
+        status: followUpForm.status,
+        note: followUpForm.note || null,
+        nextFollowUp: followUpForm.nextFollowUp || null,
+        counselorId: followUpForm.counselorId || null,
+      });
+      toast.success(`Logged → ${followUpForm.status}`);
+      setFollowUpModal(null);
+      fetchAll();
+    } catch (e) { toast.error(e.message || 'Failed to record follow-up.'); }
+    finally { setBusy(false); }
+  };
+
+  const latestFollowUp = (inq) => (inq.followUps && inq.followUps.length ? inq.followUps[inq.followUps.length - 1] : null);
 
   const deleteInquiry = async (inq) => {
     if (!confirm(`Delete inquiry for ${inq.studentName || (inq.guardians && inq.guardians[0] && inq.guardians[0].name) || 'this lead'}?`)) return;
@@ -293,12 +323,18 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                           </td>
                           <td className="px-4 py-3 text-slate-500">{inq.counselorId ? staffName(inq.counselorId) : '—'}</td>
                           <td className="px-4 py-3">
-                            <Select value={inq.status} onChange={(e) => changeInquiryStatus(inq, e.target.value)} className="!py-1 !text-[11px]">
-                              {INQUIRY_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                            </Select>
+                            <Badge color={inquiryColor(inq.status)}>{(inq.status || '').replace('_', ' ')}</Badge>
+                            {latestFollowUp(inq)?.nextFollowUp && (
+                              <div className="text-[9px] text-slate-400 mt-1 flex items-center gap-0.5">
+                                <Clock size={8} /> next {new Date(latestFollowUp(inq).nextFollowUp).toLocaleDateString()}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-1 items-center">
+                              <button onClick={() => openFollowUp(inq)} className="flex items-center gap-0.5 bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-100 transition" title="Log follow-up / change stage">
+                                <History size={10} /> Log
+                              </button>
                               <button onClick={() => startAdmission(inq)} className="flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-100 transition" title="Create admission from this lead">
                                 <ArrowRight size={10} /> Admit
                               </button>
@@ -357,8 +393,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                       </Select>
                     </Field>
                   </div>
-                  <Field label="Next Follow-up"><Input type="date" value={inquiryForm.nextFollowUp} onChange={(e) => setInquiryForm({ ...inquiryForm, nextFollowUp: e.target.value })} /></Field>
-                  <Field label="Notes"><Input value={inquiryForm.notes} onChange={(e) => setInquiryForm({ ...inquiryForm, notes: e.target.value })} placeholder="Interested in Grade 6…" /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Initial Note"><Input value={inquiryForm.note} onChange={(e) => setInquiryForm({ ...inquiryForm, note: e.target.value })} placeholder="Interested in Grade 6…" /></Field>
+                    <Field label="Next Follow-up"><Input type="date" value={inquiryForm.nextFollowUp} onChange={(e) => setInquiryForm({ ...inquiryForm, nextFollowUp: e.target.value })} /></Field>
+                  </div>
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
                     <Button variant="primary" onClick={submitInquiry} disabled={busy}>
                       {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />} Create Inquiry
@@ -499,6 +537,74 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Enroll Student
               </Button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* FOLLOW-UP / STATUS-CHANGE MODAL */}
+      {followUpModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5"><History size={15} /> Follow-up Timeline</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">{followUpModal.studentName || (followUpModal.guardians && followUpModal.guardians[0] && followUpModal.guardians[0].name) || 'Lead'}</p>
+              </div>
+              <button onClick={() => setFollowUpModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </header>
+
+            {/* Existing timeline */}
+            <div className="px-5 py-4 overflow-y-auto min-h-0 flex-1">
+              {(followUpModal.followUps || []).length === 0 ? (
+                <Empty icon={Clock} title="No follow-ups yet" hint="Log the first one below." />
+              ) : (
+                <ol className="relative border-l border-slate-200 ml-2 space-y-4">
+                  {(followUpModal.followUps || []).map((f, i) => (
+                    <li key={i} className="ml-4">
+                      <div className="absolute -left-1.5 mt-1 w-3 h-3 rounded-full bg-blue-500 border-2 border-white" />
+                      <div className="flex items-center gap-2">
+                        <Badge color={inquiryColor(f.status)}>{(f.status || '').replace('_', ' ')}</Badge>
+                        <span className="text-[10px] text-slate-400">{f.recordedAt ? new Date(f.recordedAt).toLocaleString() : ''}</span>
+                      </div>
+                      {f.note && <div className="text-xs text-slate-700 mt-1">{f.note}</div>}
+                      <div className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-x-3">
+                        {f.nextFollowUp && <span className="flex items-center gap-0.5"><Clock size={9} /> next {new Date(f.nextFollowUp).toLocaleDateString()}</span>}
+                        {f.counselorId && <span className="flex items-center gap-0.5"><User size={9} /> {staffName(f.counselorId)}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            {/* New follow-up form */}
+            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="New Stage *">
+                  <Select value={followUpForm.status} onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })}>
+                    {INQUIRY_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Next Follow-up">
+                  <Input type="date" value={followUpForm.nextFollowUp} onChange={(e) => setFollowUpForm({ ...followUpForm, nextFollowUp: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Handled by">
+                <Select value={followUpForm.counselorId} onChange={(e) => setFollowUpForm({ ...followUpForm, counselorId: e.target.value })}>
+                  <option value="">— unassigned —</option>
+                  {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId}</option>)}
+                </Select>
+              </Field>
+              <Field label="Note">
+                <Input value={followUpForm.note} onChange={(e) => setFollowUpForm({ ...followUpForm, note: e.target.value })} placeholder="What happened on this touch-point?" />
+              </Field>
+              <div className="flex justify-end gap-2">
+                <Button variant="default" onClick={() => setFollowUpModal(null)}>Close</Button>
+                <Button variant="primary" onClick={submitFollowUp} disabled={busy}>
+                  {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Log follow-up
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

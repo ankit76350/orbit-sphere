@@ -3956,7 +3956,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentName\": \"Aarav Nair\",\n  \"guardians\": [\n    {\n      \"name\": \"Meera Nair\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-111-222\",\n      \"email\": \"meera@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Doctor\"\n    },\n    {\n      \"name\": \"Rajesh Nair\",\n      \"relation\": \"FATHER\",\n      \"phone\": \"+61-400-333-444\",\n      \"email\": \"rajesh@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Engineer\"\n    }\n  ],\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"STAFF_ID_HERE\",\n  \"status\": \"INQUIRY\",\n  \"nextFollowUp\": \"2026-07-20\",\n  \"notes\": \"Interested in Grade 6, wants transport.\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentName\": \"Aarav Nair\",\n  \"counselorId\": \"STAFF_ID_HERE\",\n  \"guardians\": [\n    {\n      \"name\": \"Meera Nair\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-111-222\",\n      \"email\": \"meera@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Doctor\"\n    }\n  ],\n  \"source\": \"WALK_IN\",\n  \"followUps\": [\n    {\n      \"status\": \"INQUIRY\",\n      \"note\": \"Walk-in, interested in Grade 6\",\n      \"nextFollowUp\": \"2026-07-20\",\n      \"counselorId\": \"STAFF_ID_HERE\"\n    }\n  ]\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/inquiries",
@@ -4103,7 +4103,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"status\": \"COUNSELING\",\n  \"notes\": \"Called, scheduling a visit.\"\n}"
+									"raw": "{\n  \"studentName\": \"Aarav Nair\",\n  \"source\": \"REFERRAL\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/inquiries/INQUIRY_ID_HERE",
@@ -4116,6 +4116,37 @@
 										"api",
 										"inquiries",
 										"INQUIRY_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Record Follow-up",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": \"COUNSELING\",\n  \"note\": \"Called parent, scheduled a campus visit\",\n  \"nextFollowUp\": \"2026-07-25\",\n  \"counselorId\": \"STAFF_ID_HERE\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/inquiries/INQUIRY_ID_HERE/follow-ups",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"inquiries",
+										"INQUIRY_ID_HERE",
+										"follow-ups"
 									]
 								}
 							},

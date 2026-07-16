@@ -172,6 +172,7 @@ export const api = {
   getInquiry: (id) => call('GET', `/api/inquiries/${id}`),
   createInquiry: (payload) => call('POST', '/api/inquiries', payload),
   updateInquiry: (id, payload) => call('PATCH', `/api/inquiries/${id}`, payload),
+  recordInquiryFollowUp: (id, entry) => call('POST', `/api/inquiries/${id}/follow-ups`, entry),
   deleteInquiry: (id) => call('DELETE', `/api/inquiries/${id}`),
 
   // ----- crm: admissions -----

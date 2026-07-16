@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.services.crm.InquiryService;
 
@@ -67,6 +68,12 @@ public class InquiryController {
     @PatchMapping("/{id}")
     public ResponseEntity<Inquiry> updateInquiry(@PathVariable String id, @RequestBody Inquiry details) {
         return ResponseEntity.ok(inquiryService.updateInquiry(id, details));
+    }
+
+    /** Records a follow-up / status change: {status, note, nextFollowUp}. */
+    @PostMapping("/{id}/follow-ups")
+    public ResponseEntity<Inquiry> recordFollowUp(@PathVariable String id, @RequestBody InquiryFollowUp entry) {
+        return ResponseEntity.ok(inquiryService.recordFollowUp(id, entry));
     }
 
     @DeleteMapping("/{id}")

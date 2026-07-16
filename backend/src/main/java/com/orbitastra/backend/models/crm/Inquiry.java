@@ -1,7 +1,5 @@
 package com.orbitastra.backend.models.crm;
 
-import java.time.LocalDate;
-
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -39,11 +37,15 @@ public class Inquiry {
 
     private String source;
 
+    // Current owner — mirrors the latest follow-up entry's counselor. Kept
+    // top-level so inquiries stay filterable by the counselor currently on them.
     private String counselorId;
 
+    // Current pipeline stage — mirrors the latest follow-up entry's status.
+    // Kept top-level so inquiries stay filterable by stage.
     private InquiryStatus status;
 
-    private LocalDate nextFollowUp;
-
-    private String notes;
+    // Follow-up timeline: each status change appends {status, note, nextFollowUp, counselorId, recordedAt}.
+    @Builder.Default
+    private java.util.List<InquiryFollowUp> followUps = new java.util.ArrayList<>();
 }
