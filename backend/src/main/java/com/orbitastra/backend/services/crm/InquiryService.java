@@ -79,7 +79,7 @@ public class InquiryService {
     /** Inquiries (still open) whose latest follow-up entry is due on or before the given date. */
     public List<Inquiry> getFollowUpsDue(String schoolId, LocalDate asOf) {
         return inquiryRepository.findBySchoolId(schoolId).stream()
-                .filter(i -> i.getStatus() != InquiryStatus.CLOSED)
+                .filter(i -> i.getStatus() != InquiryStatus.LOST && i.getStatus() != InquiryStatus.ADMITTED)
                 .filter(i -> {
                     LocalDate due = latestNextFollowUp(i);
                     return due != null && !due.isAfter(asOf);

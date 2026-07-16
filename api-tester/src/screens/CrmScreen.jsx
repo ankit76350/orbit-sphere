@@ -6,13 +6,13 @@ import {
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
 
-const INQUIRY_STAGES = ['INQUIRY', 'COUNSELING', 'VISIT', 'DOCUMENT_VERIFICATION', 'ADMISSION', 'CLOSED'];
+const INQUIRY_STAGES = ['INQUIRY', 'COUNSELING', 'VISIT', 'ADMITTED', 'LOST'];
 const ADMISSION_STAGES = ['PENDING', 'APPROVED', 'REJECTED', 'CONFIRMED'];
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
 
 const inquiryColor = (s) => ({
-  INQUIRY: 'slate', COUNSELING: 'blue', VISIT: 'blue',
-  DOCUMENT_VERIFICATION: 'amber', ADMISSION: 'green', CLOSED: 'slate',
+  INQUIRY: 'slate', COUNSELING: 'blue', VISIT: 'amber',
+  ADMITTED: 'green', LOST: 'rose',
 }[s] || 'slate');
 const admissionColor = (s) => ({
   PENDING: 'amber', APPROVED: 'blue', REJECTED: 'rose', CONFIRMED: 'green',
@@ -163,7 +163,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         documents: admissionForm.documents ? admissionForm.documents.split(',').map((d) => d.trim()).filter(Boolean) : [],
         admissionDate: admissionForm.admissionDate,
       });
-      toast.success('Admission created (inquiry auto-advanced to ADMISSION).');
+      toast.success('Admission created (inquiry auto-advanced to ADMITTED).');
       setAdmissionForm({ inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10) });
       fetchAll();
     } catch (e) {

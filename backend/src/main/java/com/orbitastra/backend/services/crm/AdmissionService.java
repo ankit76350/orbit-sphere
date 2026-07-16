@@ -49,7 +49,7 @@ public class AdmissionService {
             if (!inquiry.getSchoolId().equals(admission.getSchoolId())) {
                 throw new IllegalArgumentException("Inquiry does not belong to the same school as the admission.");
             }
-            inquiryService.advanceStatus(inquiry.getId(), InquiryStatus.ADMISSION);
+            inquiryService.advanceStatus(inquiry.getId(), InquiryStatus.ADMITTED);
         }
 
         if (admission.getStatus() == null) {
