@@ -4190,7 +4190,36 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"studentName\": \"Aarav Nair\",\n  \"dob\": \"2015-04-11\",\n  \"gender\": \"MALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Meera Nair\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-111-222\",\n      \"email\": \"meera@example.com\",\n      \"address\": \"12 Main St\",\n      \"occupation\": \"Doctor\"\n    }\n  ],\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/admissions",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"admissions"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Admission (Direct)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"studentName\": \"Direct Walk-in Kid\",\n  \"dob\": \"2016-02-01\",\n  \"gender\": \"FEMALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\"\n    }\n  ],\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-16\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/admissions",
@@ -4362,7 +4391,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"parentId\": \"PARENT_ID_HERE\",\n  \"firstName\": \"Aarav\",\n  \"lastName\": \"Nair\",\n  \"dob\": \"2015-04-11\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"O+\",\n  \"status\": \"ACTIVE\",\n  \"currentAcademicRecord\": {\n    \"classDocId\": \"CLASS_ID_HERE\",\n    \"sectionId\": \"SECTION_ID_HERE\",\n    \"rollNo\": \"7\"\n  }\n}"
+									"raw": "{\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"currentAcademicRecord\": {\n    \"classDocId\": \"CLASS_ID_HERE\",\n    \"sectionId\": \"SECTION_ID_HERE\",\n    \"rollNo\": \"7\"\n  }\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/admissions/ADMISSION_ID_HERE/convert",

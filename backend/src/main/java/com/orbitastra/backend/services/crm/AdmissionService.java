@@ -1,6 +1,7 @@
 package com.orbitastra.backend.services.crm;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -9,11 +10,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
+import com.orbitastra.backend.repositories.student.GuardianRepository;
 import com.orbitastra.backend.services.student.StudentService;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
 
@@ -33,6 +38,7 @@ public class AdmissionService {
     private final AdmissionRepository admissionRepository;
     private final InquiryService inquiryService;
     private final StudentService studentService;
+    private final GuardianRepository guardianRepository;
     private final AcademicYearResolver academicYearResolver;
 
     public Admission createAdmission(Admission admission) {
@@ -43,14 +49,23 @@ public class AdmissionService {
                 .resolve(admission.getSchoolId(), admission.getAcademicYear(), admission.getAdmissionDate())
                 .getName());
 
-        // Link to the originating inquiry and advance its stage to ADMISSION.
+        // Scenario A — via inquiry: carry the applicant snapshot over (as-is unless
+        // the admission already supplies its own), and advance the inquiry to ADMITTED.
         if (admission.getInquiryId() != null && !admission.getInquiryId().isBlank()) {
             Inquiry inquiry = inquiryService.getInquiryById(admission.getInquiryId());
             if (!inquiry.getSchoolId().equals(admission.getSchoolId())) {
                 throw new IllegalArgumentException("Inquiry does not belong to the same school as the admission.");
             }
+            if (admission.getStudentName() == null || admission.getStudentName().isBlank()) {
+                admission.setStudentName(inquiry.getStudentName());
+            }
+            if (admission.getGuardians() == null || admission.getGuardians().isEmpty()) {
+                admission.setGuardians(inquiry.getGuardians());
+            }
             inquiryService.advanceStatus(inquiry.getId(), InquiryStatus.ADMITTED);
         }
+        // Scenario B — direct admission: studentName/guardians/dob/gender come straight
+        // from the request; nothing to copy.
 
         if (admission.getStatus() == null) {
             admission.setStatus(AdmissionStatus.PENDING);
@@ -89,6 +104,10 @@ public class AdmissionService {
         if (details.getDocuments() != null) admission.setDocuments(details.getDocuments());
         if (details.getAdmissionDate() != null) admission.setAdmissionDate(details.getAdmissionDate());
         if (details.getInquiryId() != null) admission.setInquiryId(details.getInquiryId());
+        if (details.getStudentName() != null) admission.setStudentName(details.getStudentName());
+        if (details.getDob() != null) admission.setDob(details.getDob());
+        if (details.getGender() != null) admission.setGender(details.getGender());
+        if (details.getGuardians() != null) admission.setGuardians(details.getGuardians());
         // studentId is set only by convertToStudent — never edited directly here.
 
         admission.setUpdatedAt(LocalDateTime.now());
@@ -120,6 +139,49 @@ public class AdmissionService {
         }
         record.setAcademicYear(admission.getAcademicYear());
         studentPayload.setCurrentAcademicRecord(record);
+
+        // Prefill identity from the admission's applicant snapshot when not overridden.
+        if ((studentPayload.getFirstName() == null || studentPayload.getFirstName().isBlank())
+                && admission.getStudentName() != null && !admission.getStudentName().isBlank()) {
+            String[] parts = admission.getStudentName().trim().split("\\s+", 2);
+            studentPayload.setFirstName(parts[0]);
+            if (parts.length > 1 && (studentPayload.getLastName() == null || studentPayload.getLastName().isBlank())) {
+                studentPayload.setLastName(parts[1]);
+            }
+        }
+        if (studentPayload.getDob() == null) studentPayload.setDob(admission.getDob());
+        if (studentPayload.getGender() == null) studentPayload.setGender(admission.getGender());
+
+        // Materialise the admission's prospective guardians into real Guardian records,
+        // then link them to the student (first one flagged primary). Any guardian links
+        // already on the payload are preserved.
+        List<GuardianLink> links = new ArrayList<>();
+        if (studentPayload.getGuardians() != null) {
+            links.addAll(studentPayload.getGuardians());
+        }
+        if (admission.getGuardians() != null) {
+            int idx = 0;
+            for (InquiryGuardian pg : admission.getGuardians()) {
+                if (pg.getName() == null || pg.getName().isBlank()) continue;
+                Guardian guardian = guardianRepository.save(Guardian.builder()
+                        .schoolId(admission.getSchoolId())
+                        .name(pg.getName())
+                        .phone(pg.getPhone())
+                        .email(pg.getEmail())
+                        .address(pg.getAddress())
+                        .occupation(pg.getOccupation())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build());
+                links.add(GuardianLink.builder()
+                        .guardianId(guardian.getId())
+                        .relation(pg.getRelation())
+                        .primary(idx == 0)
+                        .build());
+                idx++;
+            }
+        }
+        studentPayload.setGuardians(links);
 
         Student saved = studentService.createStudent(studentPayload);
 

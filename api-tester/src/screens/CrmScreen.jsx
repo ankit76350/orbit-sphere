@@ -47,7 +47,29 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const removeGuardianRow = (idx) =>
     setInquiryForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
 
-  const [admissionForm, setAdmissionForm] = useState({ inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10) });
+  const emptyAdmission = {
+    inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10),
+    studentName: '', dob: '', gender: 'MALE',
+    guardians: [],
+  };
+  const [admissionForm, setAdmissionForm] = useState(emptyAdmission);
+  const setAdmGuardian = (idx, patch) =>
+    setAdmissionForm((f) => ({ ...f, guardians: f.guardians.map((g, i) => (i === idx ? { ...g, ...patch } : g)) }));
+  const addAdmGuardian = () =>
+    setAdmissionForm((f) => ({ ...f, guardians: [...f.guardians, { name: '', relation: 'FATHER', phone: '', email: '', address: '', occupation: '' }] }));
+  const removeAdmGuardian = (idx) =>
+    setAdmissionForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
+  // Selecting an inquiry pulls its applicant snapshot into the admission form; clearing it = direct admission.
+  const pickAdmissionInquiry = (inquiryId) => {
+    if (!inquiryId) { setAdmissionForm((f) => ({ ...f, inquiryId: '', studentName: '', guardians: [] })); return; }
+    const inq = inquiryById[inquiryId];
+    setAdmissionForm((f) => ({
+      ...f,
+      inquiryId,
+      studentName: inq?.studentName || '',
+      guardians: (inq?.guardians || []).map((g) => ({ ...g })),
+    }));
+  };
 
   const [convert, setConvert] = useState(null); // admission being converted
   const [convertForm, setConvertForm] = useState(null);
@@ -146,7 +168,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   // Jump to Admissions tab with this inquiry preselected in the create form.
   const startAdmission = (inq) => {
-    setAdmissionForm({ inquiryId: inq.id, documents: '', admissionDate: new Date().toISOString().slice(0, 10) });
+    setAdmissionForm({
+      ...emptyAdmission,
+      inquiryId: inq.id,
+      studentName: inq.studentName || '',
+      guardians: (inq.guardians || []).map((g) => ({ ...g })),
+    });
     setSubTab('admissions');
   };
 
@@ -159,12 +186,16 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         schoolId,
         academicYear: year,
         inquiryId: admissionForm.inquiryId || null,
+        studentName: admissionForm.studentName || null,
+        dob: admissionForm.dob || null,
+        gender: admissionForm.gender || null,
+        guardians: (admissionForm.guardians || []).filter((g) => g.name && g.name.trim()),
         status: 'PENDING',
         documents: admissionForm.documents ? admissionForm.documents.split(',').map((d) => d.trim()).filter(Boolean) : [],
         admissionDate: admissionForm.admissionDate,
       });
-      toast.success('Admission created (inquiry auto-advanced to ADMITTED).');
-      setAdmissionForm({ inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10) });
+      toast.success(admissionForm.inquiryId ? 'Admission created (inquiry auto-advanced to ADMITTED).' : 'Direct admission created.');
+      setAdmissionForm(emptyAdmission);
       fetchAll();
     } catch (e) {
       toast.error(e.message || 'Failed to create admission.');
@@ -186,15 +217,14 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   };
 
   const openConvert = (adm) => {
-    const inq = adm.inquiryId ? inquiryById[adm.inquiryId] : null;
-    const nameParts = (inq?.studentName || '').split(' ');
+    const nameParts = (adm.studentName || '').trim().split(/\s+/);
     setConvert(adm);
     setConvertForm({
       admissionNo: '',
       firstName: nameParts[0] || '',
       lastName: nameParts.slice(1).join(' ') || '',
-      dob: '',
-      gender: 'MALE',
+      dob: adm.dob || '',
+      gender: adm.gender || 'MALE',
       bloodGroup: '',
       classDocId: '',
       sectionId: '',
@@ -437,8 +467,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         return (
                           <tr key={adm.id} className="hover:bg-slate-50/50 transition">
                             <td className="px-4 py-3">
-                              <div className="font-bold text-slate-900">{inq?.studentName || '(no linked inquiry)'}</div>
-                              <div className="text-[10px] text-slate-400">{adm.admissionDate || '—'}</div>
+                              <div className="font-bold text-slate-900">{adm.studentName || inq?.studentName || '(unnamed applicant)'}</div>
+                              <div className="text-[10px] text-slate-400">
+                                {adm.inquiryId ? 'from inquiry' : 'direct'}
+                                {(adm.guardians && adm.guardians.length) ? ` · ${adm.guardians.length} guardian${adm.guardians.length === 1 ? '' : 's'}` : ''}
+                                {` · ${adm.admissionDate || '—'}`}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-slate-500">{(adm.documents || []).length}</td>
                             <td className="px-4 py-3">
@@ -474,12 +508,48 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             <div className="xl:col-span-1">
               <Card title="New Admission" subtitle={year ? `Formal application for ${year}.` : 'Select an academic year first.'}>
                 <div className="space-y-3">
-                  <Field label="From Inquiry" hint="Linking auto-advances the inquiry to ADMISSION.">
-                    <Select value={admissionForm.inquiryId} onChange={(e) => setAdmissionForm({ ...admissionForm, inquiryId: e.target.value })}>
-                      <option value="">— none (standalone) —</option>
+                  <Field label="From Inquiry" hint={admissionForm.inquiryId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
+                    <Select value={admissionForm.inquiryId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
+                      <option value="">— none (direct admission) —</option>
                       {inquiries.map((i) => <option key={i.id} value={i.id}>{i.studentName || (i.guardians && i.guardians[0] && i.guardians[0].name) || i.id}</option>)}
                     </Select>
                   </Field>
+
+                  <Field label="Student Name"><Input value={admissionForm.studentName} onChange={(e) => setAdmissionForm({ ...admissionForm, studentName: e.target.value })} placeholder="e.g. Aarav Nair" /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Date of Birth"><Input type="date" value={admissionForm.dob} onChange={(e) => setAdmissionForm({ ...admissionForm, dob: e.target.value })} /></Field>
+                    <Field label="Gender">
+                      <Select value={admissionForm.gender} onChange={(e) => setAdmissionForm({ ...admissionForm, gender: e.target.value })}>
+                        {['MALE', 'FEMALE', 'OTHER'].map((g) => <option key={g} value={g}>{g}</option>)}
+                      </Select>
+                    </Field>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-600">Guardians</span>
+                      <button onClick={addAdmGuardian} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"><Plus size={11} /> Add guardian</button>
+                    </div>
+                    {admissionForm.guardians.length === 0 && <p className="text-[11px] text-slate-400">None yet — pull from an inquiry above or add directly.</p>}
+                    {admissionForm.guardians.map((g, idx) => (
+                      <div key={idx} className="border border-slate-200 rounded-lg p-2.5 space-y-2 bg-slate-50/40">
+                        <div className="flex items-center gap-2">
+                          <Input value={g.name} onChange={(e) => setAdmGuardian(idx, { name: e.target.value })} placeholder="Full name" className="flex-1" />
+                          <Select value={g.relation || 'FATHER'} onChange={(e) => setAdmGuardian(idx, { relation: e.target.value })} className="!py-1.5 w-32 shrink-0">
+                            {RELATIONS.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                          </Select>
+                          <button onClick={() => removeAdmGuardian(idx)} className="text-slate-300 hover:text-rose-600 p-1 shrink-0" title="Remove"><X size={14} /></button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input value={g.phone || ''} onChange={(e) => setAdmGuardian(idx, { phone: e.target.value })} placeholder="Phone" />
+                          <Input value={g.email || ''} onChange={(e) => setAdmGuardian(idx, { email: e.target.value })} placeholder="Email" />
+                          <Input value={g.occupation || ''} onChange={(e) => setAdmGuardian(idx, { occupation: e.target.value })} placeholder="Occupation" />
+                          <Input value={g.address || ''} onChange={(e) => setAdmGuardian(idx, { address: e.target.value })} placeholder="Address" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   <Field label="Admission Date"><Input type="date" value={admissionForm.admissionDate} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionDate: e.target.value })} /></Field>
                   <Field label="Documents" hint="Comma-separated file names."><Input value={admissionForm.documents} onChange={(e) => setAdmissionForm({ ...admissionForm, documents: e.target.value })} placeholder="birth-cert.pdf, report-card.pdf" /></Field>
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
@@ -518,9 +588,22 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </Select>
                 </Field>
               </div>
-              <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                Link guardians after enrollment in the <span className="font-semibold text-slate-500">Guardians</span> tab (many-to-many, with roles &amp; flags).
-              </p>
+              {(convert.guardians && convert.guardians.length > 0) ? (
+                <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  <div className="text-[11px] font-semibold text-slate-500 mb-1">{convert.guardians.length} guardian{convert.guardians.length === 1 ? '' : 's'} will be created &amp; linked:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {convert.guardians.map((g, i) => (
+                      <span key={i} className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-600">
+                        {g.name}{g.relation ? ` · ${g.relation.replace('_', ' ')}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  No guardians on this admission — add them later in the <span className="font-semibold text-slate-500">Guardians</span> tab.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Class">
                   <Select value={convertForm.classDocId} onChange={(e) => setConvertForm({ ...convertForm, classDocId: e.target.value })}>
