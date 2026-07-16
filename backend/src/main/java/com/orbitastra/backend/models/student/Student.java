@@ -40,9 +40,7 @@ public class Student {
     @Transient
     private StudentAcademicRecord currentAcademicRecord;
 
-    private String firstName;
-
-    private String lastName;
+    private String name;
 
     private LocalDate dob;
 

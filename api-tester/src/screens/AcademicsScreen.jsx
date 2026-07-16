@@ -84,7 +84,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   // Helper getters
   const getStudentName = (sid) => {
     const s = students.find((x) => x.id === sid);
-    return s ? `${s.firstName} ${s.lastName || ''}` : sid || '—';
+    return s ? `${s.name || ''}` : sid || '—';
   };
 
   const getClassName = (cid) => {
@@ -838,7 +838,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         onChange={(e) => setAttForm({...attForm, studentId: e.target.value})}
                       >
                         {students.map(s => (
-                          <option key={s.id} value={s.id}>{s.firstName} {s.lastName || ''} ({s.admissionNo})</option>
+                          <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
                         ))}
                       </Select>
                     </Field>
@@ -986,7 +986,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         onChange={(e) => setResForm({...resForm, studentId: e.target.value})}
                       >
                         {students.map(s => (
-                          <option key={s.id} value={s.id}>{s.firstName} {s.lastName || ''} ({s.admissionNo})</option>
+                          <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
                         ))}
                       </Select>
                     </Field>
@@ -1077,7 +1077,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         onChange={(e) => setDiscForm({...discForm, studentId: e.target.value})}
                       >
                         {students.map(s => (
-                          <option key={s.id} value={s.id}>{s.firstName} {s.lastName || ''} ({s.admissionNo})</option>
+                          <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
                         ))}
                       </Select>
                     </Field>
@@ -1144,7 +1144,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         onChange={(e) => setMedForm({...medForm, studentId: e.target.value})}
                       >
                         {students.map(s => (
-                          <option key={s.id} value={s.id}>{s.firstName} {s.lastName || ''} ({s.admissionNo})</option>
+                          <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
                         ))}
                       </Select>
                     </Field>

@@ -22,8 +22,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // Student Form State
   const [editingStudent, setEditingStudent] = useState(null);
   const [studentForm, setStudentForm] = useState({
-    firstName: '',
-    lastName: '',
+    name: '',
     admissionNo: '',
     dob: '',
     gender: 'MALE',
@@ -93,8 +92,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const handleEditStudentClick = (s) => {
     setEditingStudent(s);
     setStudentForm({
-      firstName: s.firstName || '',
-      lastName: s.lastName || '',
+      name: s.name || '',
       admissionNo: s.admissionNo || '',
       dob: s.dob || '',
       gender: s.gender || 'MALE',
@@ -108,8 +106,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const handleCancelStudentEdit = () => {
     setEditingStudent(null);
     setStudentForm({
-      firstName: '',
-      lastName: '',
+      name: '',
       admissionNo: '',
       dob: '',
       gender: 'MALE',
@@ -121,19 +118,19 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const submitStudent = async () => {
-    if (!studentForm.firstName || !studentForm.admissionNo) {
-      toast.error("First Name and Admission Number are required.");
+    if (!studentForm.name || !studentForm.admissionNo) {
+      toast.error("Name and Admission Number are required.");
       return;
     }
     setBusyStudent(true);
     try {
       if (editingStudent) {
         await api.updateStudent(editingStudent.id, { schoolId, ...studentForm });
-        toast.success(`Student "${studentForm.firstName}" updated successfully.`);
+        toast.success(`Student "${studentForm.name}" updated successfully.`);
         setEditingStudent(null);
       } else {
         await api.createStudent({ schoolId, ...studentForm });
-        toast.success(`Student "${studentForm.firstName}" registered successfully.`);
+        toast.success(`Student "${studentForm.name}" registered successfully.`);
       }
       handleCancelStudentEdit();
       fetchStudents();
@@ -145,7 +142,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const deleteStudent = async (s) => {
-    if (!confirm(`Are you sure you want to delete student "${s.firstName} ${s.lastName || ''}"?`)) return;
+    if (!confirm(`Are you sure you want to delete student "${s.name || ''}"?`)) return;
     try {
       await api.deleteStudent(s.id);
       toast.success("Student record deleted.");
@@ -291,7 +288,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                   onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'; }} 
                                 />
                                 <div className="min-w-0">
-                                  <div className="font-bold text-slate-900 text-xs truncate">{s.firstName} {s.lastName}</div>
+                                  <div className="font-bold text-slate-900 text-xs truncate">{s.name}</div>
                                   <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
                                     {(s.guardians || []).length} guardian{(s.guardians || []).length === 1 ? '' : 's'} linked
                                   </div>
@@ -350,25 +347,16 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
             <div className="xl:col-span-4">
               <Card 
                 title={editingStudent ? "Edit Student Info" : "Register Student"} 
-                subtitle={editingStudent ? `Modifying profile: ${editingStudent.firstName}` : "Enroll a new student to the school roster."}
+                subtitle={editingStudent ? `Modifying profile: ${editingStudent.name}` : "Enroll a new student to the school roster."}
               >
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="First Name *">
-                      <Input 
-                        value={studentForm.firstName}
-                        onChange={(e) => setStudentForm({...studentForm, firstName: e.target.value})}
-                        placeholder="e.g. John"
-                      />
-                    </Field>
-                    <Field label="Last Name">
-                      <Input 
-                        value={studentForm.lastName}
-                        onChange={(e) => setStudentForm({...studentForm, lastName: e.target.value})}
-                        placeholder="e.g. Doe"
-                      />
-                    </Field>
-                  </div>
+                  <Field label="Full Name *">
+                    <Input
+                      value={studentForm.name}
+                      onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
+                      placeholder="e.g. John Doe"
+                    />
+                  </Field>
 
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Admission No *">
@@ -444,7 +432,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <Button 
                       variant="primary" 
                       onClick={submitStudent}
-                      disabled={busyStudent || !studentForm.firstName || !studentForm.admissionNo}
+                      disabled={busyStudent || !studentForm.name || !studentForm.admissionNo}
                     >
                       {busyStudent ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
                       {editingStudent ? 'Save Profile' : 'Enroll Student'}
@@ -472,7 +460,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <History size={18} className="text-blue-600" />
-              <span>Academic Records for {historyStudent.firstName} {historyStudent.lastName}</span>
+              <span>Academic Records for {historyStudent.name}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-1 mb-5">View promotions history or assign student to a new class and academic year.</p>
 
@@ -543,7 +531,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <GraduationCap size={18} className="text-blue-600" />
-              <span>Promote / Assign {historyStudent.firstName}</span>
+              <span>Promote / Assign {historyStudent.name}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-1 mb-5">Create or promote the student to a specific class and academic year.</p>
 

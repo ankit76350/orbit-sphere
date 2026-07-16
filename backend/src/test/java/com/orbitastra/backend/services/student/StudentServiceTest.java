@@ -63,8 +63,7 @@ public class StudentServiceTest {
         student.setId("student-id-123");
         student.setSchoolId("school-id-123");
         student.setAdmissionNo("ADM-001");
-        student.setFirstName("John");
-        student.setLastName("Doe");
+        student.setName("John Doe");
         student.setDob(LocalDate.of(2012, 5, 10));
 
         school = new School();
@@ -169,8 +168,7 @@ public class StudentServiceTest {
     @Test
     void updateStudent_Success() {
         Student details = new Student();
-        details.setFirstName("Jane");
-        details.setLastName("Doe");
+        details.setName("Jane Doe");
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
@@ -181,8 +179,7 @@ public class StudentServiceTest {
         Student updated = studentService.updateStudent("student-id-123", details);
 
         assertNotNull(updated);
-        assertEquals("Jane", updated.getFirstName());
-        assertEquals("Doe", updated.getLastName());
+        assertEquals("Jane Doe", updated.getName());
         assertEquals("ADM-001", updated.getAdmissionNo()); // unchanged
     }
 

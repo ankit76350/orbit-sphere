@@ -211,7 +211,7 @@ export default function GuardiansScreen({ schoolId }) {
                 </div>
                 <Select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="!py-1.5 max-w-[55%]">
                   {students.length === 0 && <option value="">No students</option>}
-                  {students.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName || ''} ({s.admissionNo})</option>)}
+                  {students.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>)}
                 </Select>
               </header>
               <div className="flex-1 overflow-x-auto">

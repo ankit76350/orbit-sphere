@@ -88,7 +88,7 @@ export default function FinanceScreen({ schoolId, year }) {
   // ---- Helpers ----
   const getStudentName = (sid) => {
     const s = students.find((x) => x.id === sid);
-    return s ? `${s.firstName} ${s.lastName || ''}`.trim() : sid || '—';
+    return s ? `${s.name || ''}`.trim() : sid || '—';
   };
 
   // Net payable (amount - discount) minus what's already paid.
@@ -112,7 +112,7 @@ export default function FinanceScreen({ schoolId, year }) {
     if (!q) return students;
     return students.filter(
       (s) =>
-        `${s.firstName} ${s.lastName || ''}`.toLowerCase().includes(q) ||
+        `${s.name || ''}`.toLowerCase().includes(q) ||
         (s.admissionNo || '').toLowerCase().includes(q)
     );
   }, [students, studentSearch]);
@@ -329,7 +329,7 @@ export default function FinanceScreen({ schoolId, year }) {
                       >
                         <div className="min-w-0">
                           <div className={`text-xs font-bold truncate ${active ? 'text-blue-700' : 'text-slate-800'}`}>
-                            {s.firstName} {s.lastName || ''}
+                            {s.name}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono">{s.admissionNo || '—'}</div>
                         </div>
@@ -359,7 +359,7 @@ export default function FinanceScreen({ schoolId, year }) {
               {/* Student header */}
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 py-4 flex items-center justify-between shrink-0">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">{selectedStudent.firstName} {selectedStudent.lastName || ''}</h3>
+                  <h3 className="font-bold text-slate-900 text-base">{selectedStudent.name}</h3>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">
                     {selectedStudent.admissionNo || '—'}
                     {selectedStudent.currentAcademicRecord?.rollNo ? ` · Roll ${selectedStudent.currentAcademicRecord.rollNo}` : ''}
@@ -461,7 +461,7 @@ export default function FinanceScreen({ schoolId, year }) {
                     <div className="lg:col-span-1">
                       <Card
                         title={editingFee ? 'Modify Invoice' : 'Issue Invoice'}
-                        subtitle={editingFee ? 'Update invoice parameters.' : `Generate a new invoice for ${selectedStudent.firstName}.`}
+                        subtitle={editingFee ? 'Update invoice parameters.' : `Generate a new invoice for ${selectedStudent.name}.`}
                       >
                         <div className="space-y-4">
                           <Field label="Fee Category *">

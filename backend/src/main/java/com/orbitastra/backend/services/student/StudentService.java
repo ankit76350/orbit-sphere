@@ -214,11 +214,8 @@ public class StudentService {
             student.setAdmissionNo(studentDetails.getAdmissionNo());
         }
 
-        if (studentDetails.getFirstName() != null) {
-            student.setFirstName(studentDetails.getFirstName());
-        }
-        if (studentDetails.getLastName() != null) {
-            student.setLastName(studentDetails.getLastName());
+        if (studentDetails.getName() != null) {
+            student.setName(studentDetails.getName());
         }
         if (studentDetails.getDob() != null) {
             student.setDob(studentDetails.getDob());

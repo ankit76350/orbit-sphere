@@ -141,13 +141,9 @@ public class AdmissionService {
         studentPayload.setCurrentAcademicRecord(record);
 
         // Prefill identity from the admission's applicant snapshot when not overridden.
-        if ((studentPayload.getFirstName() == null || studentPayload.getFirstName().isBlank())
+        if ((studentPayload.getName() == null || studentPayload.getName().isBlank())
                 && admission.getStudentName() != null && !admission.getStudentName().isBlank()) {
-            String[] parts = admission.getStudentName().trim().split("\\s+", 2);
-            studentPayload.setFirstName(parts[0]);
-            if (parts.length > 1 && (studentPayload.getLastName() == null || studentPayload.getLastName().isBlank())) {
-                studentPayload.setLastName(parts[1]);
-            }
+            studentPayload.setName(admission.getStudentName());
         }
         if (studentPayload.getDob() == null) studentPayload.setDob(admission.getDob());
         if (studentPayload.getGender() == null) studentPayload.setGender(admission.getGender());

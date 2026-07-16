@@ -217,12 +217,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   };
 
   const openConvert = (adm) => {
-    const nameParts = (adm.studentName || '').trim().split(/\s+/);
     setConvert(adm);
     setConvertForm({
       admissionNo: '',
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
+      name: adm.studentName || '',
       dob: adm.dob || '',
       gender: adm.gender || 'MALE',
       bloodGroup: '',
@@ -233,16 +231,15 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   };
 
   const submitConvert = async () => {
-    if (!convertForm.admissionNo || !convertForm.firstName) {
-      toast.error('Admission No. and First Name are required.');
+    if (!convertForm.admissionNo || !convertForm.name) {
+      toast.error('Admission No. and Name are required.');
       return;
     }
     setBusy(true);
     try {
       const payload = {
         admissionNo: convertForm.admissionNo,
-        firstName: convertForm.firstName,
-        lastName: convertForm.lastName || null,
+        name: convertForm.name,
         dob: convertForm.dob || null,
         gender: convertForm.gender,
         bloodGroup: convertForm.bloodGroup || null,
@@ -254,7 +251,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         },
       };
       const student = await api.convertAdmission(convert.id, payload);
-      toast.success(`Enrolled ${student.firstName} — admission CONFIRMED.`);
+      toast.success(`Enrolled ${student.name} — admission CONFIRMED.`);
       setConvert(null);
       fetchAll();
     } catch (e) {
@@ -579,8 +576,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Admission No. *"><Input value={convertForm.admissionNo} onChange={(e) => setConvertForm({ ...convertForm, admissionNo: e.target.value })} placeholder="ADM-2026-0007" /></Field>
                 <Field label="Roll No."><Input value={convertForm.rollNo} onChange={(e) => setConvertForm({ ...convertForm, rollNo: e.target.value })} /></Field>
-                <Field label="First Name *"><Input value={convertForm.firstName} onChange={(e) => setConvertForm({ ...convertForm, firstName: e.target.value })} /></Field>
-                <Field label="Last Name"><Input value={convertForm.lastName} onChange={(e) => setConvertForm({ ...convertForm, lastName: e.target.value })} /></Field>
+                <Field label="Full Name *"><Input value={convertForm.name} onChange={(e) => setConvertForm({ ...convertForm, name: e.target.value })} /></Field>
                 <Field label="Date of Birth"><Input type="date" value={convertForm.dob} onChange={(e) => setConvertForm({ ...convertForm, dob: e.target.value })} /></Field>
                 <Field label="Gender">
                   <Select value={convertForm.gender} onChange={(e) => setConvertForm({ ...convertForm, gender: e.target.value })}>
@@ -616,7 +612,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             </div>
             <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-end gap-2">
               <Button variant="default" onClick={() => setConvert(null)}>Cancel</Button>
-              <Button variant="primary" onClick={submitConvert} disabled={busy || !convertForm.admissionNo || !convertForm.firstName}>
+              <Button variant="primary" onClick={submitConvert} disabled={busy || !convertForm.admissionNo || !convertForm.name}>
                 {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Enroll Student
               </Button>
             </footer>

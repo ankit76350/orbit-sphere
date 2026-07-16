@@ -26,7 +26,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"parentId\": \"6a475192ae2722e4b9afefcc\",\n    \"admissionNo\": \"ADM-2026-0003\",\n    \"firstName\": \"Lucas\",\n    \"lastName\": \"Johnson\",\n    \"dob\": \"2015-06-19\",\n    \"gender\": \"MALE\",\n    \"bloodGroup\": \"AB+\",\n    \"status\": \"ACTIVE\",\n    \"admissionDate\": \"2026-07-06\",\n    \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"parentId\": \"6a475192ae2722e4b9afefcc\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\",\n  \"name\": \"Lucas Johnson\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/students",
@@ -264,7 +264,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"firstName\": \"Johnny\",\n  \"status\": \"ACTIVE\"\n}"
+									"raw": "{\n  \"status\": \"ACTIVE\",\n  \"name\": \"Johnny\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
