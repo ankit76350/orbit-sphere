@@ -57,7 +57,20 @@ export default function GuardiansScreen({ schoolId }) {
       else { await api.createGuardian({ schoolId, ...guardianForm }); toast.success('Guardian created.'); }
       resetGuardian();
       fetchAll();
-    } catch (e) { toast.error(e.message || 'Failed to save guardian.'); }
+    } catch (e) {
+      // Duplicate: backend returns 409 with the existing guardian — offer to link it instead.
+      if (e.status === 409 && e.data && e.data.existingGuardianId) {
+        const gid = e.data.existingGuardianId;
+        if (confirm(`${e.message}\n\nLink the existing guardian to a student instead?`)) {
+          await fetchAll();
+          resetGuardian();
+          setLinkForm((f) => ({ ...f, guardianId: gid }));
+          setSubTab('links');
+        }
+      } else {
+        toast.error(e.message || 'Failed to save guardian.');
+      }
+    }
     finally { setBusy(false); }
   };
 

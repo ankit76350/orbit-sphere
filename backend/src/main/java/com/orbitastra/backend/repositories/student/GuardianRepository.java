@@ -10,4 +10,5 @@ import com.orbitastra.backend.models.student.Guardian;
 @Repository
 public interface GuardianRepository extends MongoRepository<Guardian, String> {
     List<Guardian> findBySchoolId(String schoolId);
+    List<Guardian> findBySchoolIdAndName(String schoolId, String name);
 }

@@ -13,7 +13,10 @@ async function call(method, path, body) {
   try { data = JSON.parse(text); } catch { data = text; }
   if (!res.ok) {
     const msg = data && data.message ? data.message : `${res.status} ${res.statusText}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data; // structured error body (e.g. existingGuardianId on a 409)
+    throw err;
   }
   return data;
 }

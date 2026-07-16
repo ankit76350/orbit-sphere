@@ -18,7 +18,7 @@ import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
-import com.orbitastra.backend.repositories.student.GuardianRepository;
+import com.orbitastra.backend.services.student.GuardianService;
 import com.orbitastra.backend.services.student.StudentService;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
 
@@ -38,7 +38,7 @@ public class AdmissionService {
     private final AdmissionRepository admissionRepository;
     private final InquiryService inquiryService;
     private final StudentService studentService;
-    private final GuardianRepository guardianRepository;
+    private final GuardianService guardianService;
     private final AcademicYearResolver academicYearResolver;
 
     public Admission createAdmission(Admission admission) {
@@ -159,16 +159,15 @@ public class AdmissionService {
             int idx = 0;
             for (InquiryGuardian pg : admission.getGuardians()) {
                 if (pg.getName() == null || pg.getName().isBlank()) continue;
-                Guardian guardian = guardianRepository.save(Guardian.builder()
-                        .schoolId(admission.getSchoolId())
-                        .name(pg.getName())
-                        .phone(pg.getPhone())
-                        .email(pg.getEmail())
-                        .address(pg.getAddress())
-                        .occupation(pg.getOccupation())
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build());
+                // Reuse an existing guardian if this person already exists (dedup),
+                // otherwise create one — never store the same guardian twice.
+                Guardian guardian = guardianService.findOrCreate(
+                        admission.getSchoolId(), pg.getName(), pg.getPhone(),
+                        pg.getEmail(), pg.getAddress(), pg.getOccupation());
+                // Skip if this guardian is already linked (e.g. sibling already added it).
+                boolean alreadyLinked = links.stream()
+                        .anyMatch(l -> guardian.getId().equals(l.getGuardianId()));
+                if (alreadyLinked) continue;
                 links.add(GuardianLink.builder()
                         .guardianId(guardian.getId())
                         .relation(pg.getRelation())

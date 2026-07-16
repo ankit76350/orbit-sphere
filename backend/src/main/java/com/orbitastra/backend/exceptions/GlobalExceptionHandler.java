@@ -31,6 +31,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(DuplicateGuardianException.class)
+    public ResponseEntity<?> duplicateGuardianException(DuplicateGuardianException ex, WebRequest request) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("timestamp", new Date());
+        body.put("message", ex.getMessage());
+        body.put("existingGuardianId", ex.getExistingGuardianId());
+        body.put("existingGuardianName", ex.getExistingGuardianName());
+        body.put("details", request.getDescription(false));
+        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<?> messageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
         ErrorDetails errorDetails = new ErrorDetails(new Date(),
