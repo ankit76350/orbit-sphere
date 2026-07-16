@@ -37,11 +37,6 @@ public class Inquiry {
     @Builder.Default
     private java.util.List<InquiryGuardian> guardians = new java.util.ArrayList<>();
 
-    // Primary lead contact (usually the main guardian's).
-    private String phone;
-
-    private String email;
-
     private String source;
 
     private String counselorId;

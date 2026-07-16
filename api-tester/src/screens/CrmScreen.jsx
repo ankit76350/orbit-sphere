@@ -8,6 +8,7 @@ import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../c
 
 const INQUIRY_STAGES = ['INQUIRY', 'COUNSELING', 'VISIT', 'DOCUMENT_VERIFICATION', 'ADMISSION', 'CLOSED'];
 const ADMISSION_STAGES = ['PENDING', 'APPROVED', 'REJECTED', 'CONFIRMED'];
+const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
 
 const inquiryColor = (s) => ({
   INQUIRY: 'slate', COUNSELING: 'blue', VISIT: 'blue',
@@ -28,10 +29,18 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const [busy, setBusy] = useState(false);
 
   const emptyInquiry = {
-    parentName: '', studentName: '', phone: '', email: '',
+    studentName: '',
     source: 'WALK_IN', counselorId: '', nextFollowUp: '', notes: '',
+    guardians: [{ name: '', relation: 'MOTHER', phone: '', email: '', address: '', occupation: '' }],
   };
   const [inquiryForm, setInquiryForm] = useState(emptyInquiry);
+
+  const setGuardian = (idx, patch) =>
+    setInquiryForm((f) => ({ ...f, guardians: f.guardians.map((g, i) => (i === idx ? { ...g, ...patch } : g)) }));
+  const addGuardianRow = () =>
+    setInquiryForm((f) => ({ ...f, guardians: [...f.guardians, { name: '', relation: 'FATHER', phone: '', email: '', address: '', occupation: '' }] }));
+  const removeGuardianRow = (idx) =>
+    setInquiryForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
 
   const [admissionForm, setAdmissionForm] = useState({ inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10) });
 
@@ -75,13 +84,14 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   // ---- inquiry actions ----
   const submitInquiry = async () => {
-    if (!inquiryForm.studentName && !inquiryForm.parentName) {
-      toast.error('Enter at least a student or parent name.');
+    const guardians = (inquiryForm.guardians || []).filter((g) => g.name && g.name.trim());
+    if (!inquiryForm.studentName && guardians.length === 0) {
+      toast.error('Enter a student name or at least one guardian.');
       return;
     }
     setBusy(true);
     try {
-      await api.createInquiry({ schoolId, status: 'INQUIRY', ...inquiryForm, counselorId: inquiryForm.counselorId || null });
+      await api.createInquiry({ schoolId, status: 'INQUIRY', ...inquiryForm, guardians, counselorId: inquiryForm.counselorId || null });
       toast.success('Inquiry created.');
       setInquiryForm(emptyInquiry);
       fetchAll();
@@ -99,7 +109,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   };
 
   const deleteInquiry = async (inq) => {
-    if (!confirm(`Delete inquiry for ${inq.studentName || inq.parentName}?`)) return;
+    if (!confirm(`Delete inquiry for ${inq.studentName || (inq.guardians && inq.guardians[0] && inq.guardians[0].name) || 'this lead'}?`)) return;
     try { await api.deleteInquiry(inq.id); toast.success('Inquiry deleted.'); fetchAll(); }
     catch (e) { toast.error(e.message); }
   };
@@ -267,11 +277,19 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         <tr key={inq.id} className="hover:bg-slate-50/50 transition">
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900">{inq.studentName || '—'}</div>
-                            <div className="text-[10px] text-slate-400">Parent: {inq.parentName || '—'}</div>
+                            <div className="text-[10px] text-slate-400">
+                              {inq.guardians && inq.guardians.length
+                                ? `${inq.guardians[0].name}${inq.guardians[0].relation ? ` (${inq.guardians[0].relation.replace('_', ' ')})` : ''}${inq.guardians.length > 1 ? ` +${inq.guardians.length - 1} more` : ''}`
+                                : 'No guardian'}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-slate-500">
-                            {inq.phone && <div className="flex items-center gap-1"><Phone size={9} /> {inq.phone}</div>}
-                            {inq.email && <div className="flex items-center gap-1"><Mail size={9} /> {inq.email}</div>}
+                            {(() => { const g0 = inq.guardians && inq.guardians[0]; return g0 ? (
+                              <>
+                                {g0.phone && <div className="flex items-center gap-1"><Phone size={9} /> {g0.phone}</div>}
+                                {g0.email && <div className="flex items-center gap-1"><Mail size={9} /> {g0.email}</div>}
+                              </>
+                            ) : <span className="text-slate-300">—</span>; })()}
                           </td>
                           <td className="px-4 py-3 text-slate-500">{inq.counselorId ? staffName(inq.counselorId) : '—'}</td>
                           <td className="px-4 py-3">
@@ -300,10 +318,31 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <Card title="New Inquiry" subtitle="Capture a fresh lead (walk-in / call / online).">
                 <div className="space-y-3">
                   <Field label="Student Name"><Input value={inquiryForm.studentName} onChange={(e) => setInquiryForm({ ...inquiryForm, studentName: e.target.value })} placeholder="e.g. Aarav Nair" /></Field>
-                  <Field label="Parent Name"><Input value={inquiryForm.parentName} onChange={(e) => setInquiryForm({ ...inquiryForm, parentName: e.target.value })} placeholder="e.g. Meera Nair" /></Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Phone"><Input value={inquiryForm.phone} onChange={(e) => setInquiryForm({ ...inquiryForm, phone: e.target.value })} /></Field>
-                    <Field label="Email"><Input value={inquiryForm.email} onChange={(e) => setInquiryForm({ ...inquiryForm, email: e.target.value })} /></Field>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-600">Guardians</span>
+                      <button onClick={addGuardianRow} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"><Plus size={11} /> Add guardian</button>
+                    </div>
+                    {inquiryForm.guardians.map((g, idx) => (
+                      <div key={idx} className="border border-slate-200 rounded-lg p-2.5 space-y-2 bg-slate-50/40">
+                        <div className="flex items-center gap-2">
+                          <Input value={g.name} onChange={(e) => setGuardian(idx, { name: e.target.value })} placeholder="Full name" className="flex-1" />
+                          <Select value={g.relation} onChange={(e) => setGuardian(idx, { relation: e.target.value })} className="!py-1.5 w-32 shrink-0">
+                            {RELATIONS.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                          </Select>
+                          {inquiryForm.guardians.length > 1 && (
+                            <button onClick={() => removeGuardianRow(idx)} className="text-slate-300 hover:text-rose-600 p-1 shrink-0" title="Remove"><X size={14} /></button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input value={g.phone} onChange={(e) => setGuardian(idx, { phone: e.target.value })} placeholder="Phone" />
+                          <Input value={g.email} onChange={(e) => setGuardian(idx, { email: e.target.value })} placeholder="Email" />
+                          <Input value={g.occupation} onChange={(e) => setGuardian(idx, { occupation: e.target.value })} placeholder="Occupation" />
+                          <Input value={g.address} onChange={(e) => setGuardian(idx, { address: e.target.value })} placeholder="Address" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Source">
@@ -400,7 +439,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <Field label="From Inquiry" hint="Linking auto-advances the inquiry to ADMISSION.">
                     <Select value={admissionForm.inquiryId} onChange={(e) => setAdmissionForm({ ...admissionForm, inquiryId: e.target.value })}>
                       <option value="">— none (standalone) —</option>
-                      {inquiries.map((i) => <option key={i.id} value={i.id}>{i.studentName || i.parentName || i.id}</option>)}
+                      {inquiries.map((i) => <option key={i.id} value={i.id}>{i.studentName || (i.guardians && i.guardians[0] && i.guardians[0].name) || i.id}</option>)}
                     </Select>
                   </Field>
                   <Field label="Admission Date"><Input type="date" value={admissionForm.admissionDate} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionDate: e.target.value })} /></Field>

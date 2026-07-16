@@ -69,8 +69,6 @@ public class InquiryService {
         }
         if (details.getGuardians() != null) inquiry.setGuardians(details.getGuardians());
         if (details.getStudentName() != null) inquiry.setStudentName(details.getStudentName());
-        if (details.getPhone() != null) inquiry.setPhone(details.getPhone());
-        if (details.getEmail() != null) inquiry.setEmail(details.getEmail());
         if (details.getSource() != null) inquiry.setSource(details.getSource());
         if (details.getStatus() != null) inquiry.setStatus(details.getStatus());
         if (details.getNextFollowUp() != null) inquiry.setNextFollowUp(details.getNextFollowUp());
