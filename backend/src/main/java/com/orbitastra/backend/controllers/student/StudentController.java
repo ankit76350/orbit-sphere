@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.services.student.StudentService;
@@ -64,10 +65,19 @@ public class StudentController {
         return ResponseEntity.ok(students);
     }
 
-    @GetMapping("/parent/{parentId}")
-    public ResponseEntity<List<Student>> getStudentsByParent(@PathVariable String parentId) {
-        List<Student> students = studentService.getStudentsByParent(parentId);
-        return ResponseEntity.ok(students);
+    @GetMapping("/guardian/{guardianId}")
+    public ResponseEntity<List<Student>> getStudentsByGuardian(@PathVariable String guardianId) {
+        return ResponseEntity.ok(studentService.getStudentsByGuardian(guardianId));
+    }
+
+    @PostMapping("/{id}/guardians")
+    public ResponseEntity<Student> addGuardianLink(@PathVariable String id, @RequestBody GuardianLink link) {
+        return ResponseEntity.ok(studentService.addGuardianLink(id, link));
+    }
+
+    @DeleteMapping("/{id}/guardians/{guardianId}")
+    public ResponseEntity<Student> removeGuardianLink(@PathVariable String id, @PathVariable String guardianId) {
+        return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianId));
     }
 
     @GetMapping("/hostel/{hostelRoomId}")

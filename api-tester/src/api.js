@@ -106,13 +106,15 @@ export const api = {
   getStudentSiblings: (id) => listOr(`/api/students/${id}/siblings`),
   getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
 
-  // ----- parents -----
-  parents: (schoolId) => listOr(`/api/parents/school/${schoolId}`),
-  createParent: (payload) => call('POST', '/api/parents', payload),
-  updateParent: (id, payload) => call('PATCH', `/api/parents/${id}`, payload),
-  deleteParent: (id) => call('DELETE', `/api/parents/${id}`),
-  getParentById: (id) => call('GET', `/api/parents/${id}`),
-  getParentByEmail: (email) => call('GET', `/api/parents/email/${email}`),
+  // ----- guardians (many-to-many family) -----
+  guardians: (schoolId) => listOr(`/api/guardians/school/${schoolId}`),
+  getGuardian: (id) => call('GET', `/api/guardians/${id}`),
+  createGuardian: (payload) => call('POST', '/api/guardians', payload),
+  updateGuardian: (id, payload) => call('PATCH', `/api/guardians/${id}`, payload),
+  deleteGuardian: (id) => call('DELETE', `/api/guardians/${id}`),
+  studentsByGuardian: (guardianId) => listOr(`/api/students/guardian/${guardianId}`),
+  addGuardianLink: (studentId, link) => call('POST', `/api/students/${studentId}/guardians`, link),
+  removeGuardianLink: (studentId, guardianId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianId}`),
 
   // ----- academics: attendance -----
   attendance: (schoolId) => listOr(`/api/attendance/school/${schoolId}`),

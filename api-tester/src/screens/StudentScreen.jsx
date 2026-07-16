@@ -8,20 +8,16 @@ import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../c
 
 export default function StudentScreen({ schoolId, years, year, reload }) {
   const toast = useToast();
-  const [subTab, setSubTab] = useState('students'); // 'students', 'parents'
-  
+
   // Lists
   const [students, setStudents] = useState([]);
-  const [parents, setParents] = useState([]);
   const [classes, setClasses] = useState([]);
 
   // Loading states
   const [loadingStudents, setLoadingStudents] = useState(false);
-  const [loadingParents, setLoadingParents] = useState(false);
-  
+
   // Form busy states
   const [busyStudent, setBusyStudent] = useState(false);
-  const [busyParent, setBusyParent] = useState(false);
 
   // Student Form State
   const [editingStudent, setEditingStudent] = useState(null);
@@ -33,20 +29,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     gender: 'MALE',
     bloodGroup: '',
     photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-    parentId: '',
     status: 'ACTIVE',
     admissionDate: new Date().toISOString().slice(0, 10)
-  });
-
-  // Parent Form State
-  const [editingParent, setEditingParent] = useState(null);
-  const [parentForm, setParentForm] = useState({
-    fatherName: '',
-    motherName: '',
-    phone: '',
-    alternatePhone: '',
-    email: '',
-    address: ''
   });
 
   // Academic History Modal State
@@ -82,21 +66,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   }, [schoolId, toast]);
 
-  // Fetch Parents
-  const fetchParents = useCallback(async () => {
-    if (!schoolId) return;
-    setLoadingParents(true);
-    try {
-      const data = await api.parents(schoolId);
-      setParents(data || []);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load parents list.");
-    } finally {
-      setLoadingParents(false);
-    }
-  }, [schoolId, toast]);
-
   // Fetch Classes
   const fetchClasses = useCallback(async () => {
     if (!schoolId || !year) return;
@@ -111,13 +80,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // Initial & Reactive Loads
   useEffect(() => {
     fetchStudents();
-    fetchParents();
     fetchClasses();
-  }, [fetchStudents, fetchParents, fetchClasses]);
+  }, [fetchStudents, fetchClasses]);
 
   const reloadAll = () => {
     fetchStudents();
-    fetchParents();
     fetchClasses();
     if (reload) reload(year);
   };
@@ -133,7 +100,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       gender: s.gender || 'MALE',
       bloodGroup: s.bloodGroup || '',
       photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-      parentId: s.parentId || '',
       status: s.status || 'ACTIVE',
       admissionDate: s.admissionDate || new Date().toISOString().slice(0, 10)
     });
@@ -149,7 +115,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       gender: 'MALE',
       bloodGroup: '',
       photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-      parentId: '',
       status: 'ACTIVE',
       admissionDate: new Date().toISOString().slice(0, 10)
     });
@@ -187,66 +152,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       fetchStudents();
     } catch (e) {
       toast.error("Failed to delete student: " + e.message);
-    }
-  };
-
-  // --- PARENT ACTIONS ---
-  const handleEditParentClick = (p) => {
-    setEditingParent(p);
-    setParentForm({
-      fatherName: p.fatherName || '',
-      motherName: p.motherName || '',
-      phone: p.phone || '',
-      alternatePhone: p.alternatePhone || '',
-      email: p.email || '',
-      address: p.address || ''
-    });
-  };
-
-  const handleCancelParentEdit = () => {
-    setEditingParent(null);
-    setParentForm({
-      fatherName: '',
-      motherName: '',
-      phone: '',
-      alternatePhone: '',
-      email: '',
-      address: ''
-    });
-  };
-
-  const submitParent = async () => {
-    if (!parentForm.fatherName || !parentForm.phone || !parentForm.email) {
-      toast.error("Father's Name, Phone, and Email are required.");
-      return;
-    }
-    setBusyParent(true);
-    try {
-      if (editingParent) {
-        await api.updateParent(editingParent.id, { schoolId, ...parentForm });
-        toast.success("Parent profile updated.");
-        setEditingParent(null);
-      } else {
-        await api.createParent({ schoolId, ...parentForm });
-        toast.success("Parent profile registered.");
-      }
-      handleCancelParentEdit();
-      fetchParents();
-    } catch (e) {
-      toast.error(e.message || "Failed to save parent profile.");
-    } finally {
-      setBusyParent(false);
-    }
-  };
-
-  const deleteParent = async (p) => {
-    if (!confirm(`Delete parent profile for "${p.fatherName}"?`)) return;
-    try {
-      await api.deleteParent(p.id);
-      toast.success("Parent profile deleted.");
-      fetchParents();
-    } catch (e) {
-      toast.error("Failed to delete parent: " + e.message);
     }
   };
 
@@ -318,31 +223,19 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const sections = selectedClass ? (selectedClass.sections || []) : [];
 
   if (!schoolId) {
-    return <Empty icon={Users} title="Pick a school to begin" hint="Select a school from the top bar to manage students & parents." />;
+    return <Empty icon={Users} title="Pick a school to begin" hint="Select a school from the top bar to manage students." />;
   }
 
   return (
     <div className="flex flex-col h-full gap-4 text-slate-800 animate-in fade-in duration-200">
-      {/* Sub Tabs Selection Header */}
+      {/* Header */}
       <div className="flex border-b border-slate-200 bg-white px-4 pt-2 rounded-t-xl shadow-sm justify-between items-center shrink-0">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setSubTab('students')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'students' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-          >
-            <GraduationCap size={16} />
-            Manage Students
-          </button>
-          <button
-            onClick={() => setSubTab('parents')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${subTab === 'parents' ? 'border-blue-600 text-blue-600 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-          >
-            <Users size={16} />
-            Manage Parents
-          </button>
+        <div className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 -mb-px">
+          <GraduationCap size={16} />
+          Manage Students
         </div>
-        
-        <button 
+
+        <button
           onClick={reloadAll}
           className="flex items-center gap-1 px-3 py-1.5 hover:bg-slate-100 rounded-lg text-slate-500 text-xs font-semibold mr-2 mb-2 transition"
           title="Refresh Data"
@@ -353,8 +246,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {/* ==================== STUDENTS TAB ==================== */}
-        {subTab === 'students' && (
+        {/* ==================== STUDENTS ==================== */}
+        {(
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">
             {/* List of Students */}
             <div className="xl:col-span-8 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -386,7 +279,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {students.map((s) => {
-                        const parent = parents.find(p => p.id === s.parentId);
                         return (
                           <tr key={s.id} className="hover:bg-slate-50/50 transition">
                             {/* photo & name */}
@@ -401,7 +293,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                 <div className="min-w-0">
                                   <div className="font-bold text-slate-900 text-xs truncate">{s.firstName} {s.lastName}</div>
                                   <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                                    {parent ? `Parent: ${parent.fatherName || parent.motherName}` : 'Parent not linked'}
+                                    {(s.guardians || []).length} guardian{(s.guardians || []).length === 1 ? '' : 's'} linked
                                   </div>
                                 </div>
                               </div>
@@ -516,20 +408,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </Field>
                   </div>
 
-                  <Field label="Parent Link">
-                    <Select 
-                      value={studentForm.parentId}
-                      onChange={(e) => setStudentForm({...studentForm, parentId: e.target.value})}
-                    >
-                      <option value="">-- Unlinked / No Parent Profile --</option>
-                      {parents.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.fatherName || p.motherName} ({p.phone})
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-
                   <Field label="Avatar Photo URL">
                     <Input 
                       value={studentForm.photoUrl}
@@ -578,160 +456,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
           </div>
         )}
 
-        {/* ==================== PARENTS TAB ==================== */}
-        {subTab === 'parents' && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">
-            {/* List of Parents */}
-            <div className="xl:col-span-8 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <header className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Parent Profiles</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">List of parents/guardians registered in this school.</p>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
-                  {parents.length} Profiles
-                </span>
-              </header>
-
-              <div className="flex-1 overflow-x-auto">
-                {loadingParents ? (
-                  <Empty icon={RefreshCw} title="Loading parent profiles..." hint="Please wait." />
-                ) : parents.length === 0 ? (
-                  <Empty icon={Users} title="No parents registered" hint="Add parent contacts using the profile form on the right." />
-                ) : (
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
-                        <th className="px-4 py-3">Father Name</th>
-                        <th className="px-4 py-3">Mother Name</th>
-                        <th className="px-4 py-3">Contact</th>
-                        <th className="px-4 py-3">Linked Students</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {parents.map((p) => {
-                        const linkedKids = students.filter(s => s.parentId === p.id);
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-50/50 transition">
-                            <td className="px-4 py-3 font-semibold text-slate-900">{p.fatherName || '—'}</td>
-                            <td className="px-4 py-3 font-semibold text-slate-900">{p.motherName || '—'}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="flex items-center gap-1.5 text-slate-700"><Phone size={10} className="text-slate-400" /> {p.phone}</span>
-                                <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><Mail size={10} /> {p.email}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              {linkedKids.length === 0 ? (
-                                <span className="text-slate-400 italic text-[11px]">None linked</span>
-                              ) : (
-                                <div className="flex flex-wrap gap-1">
-                                  {linkedKids.map(kid => (
-                                    <span key={kid.id} className="bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                                      {kid.firstName}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button 
-                                  onClick={() => handleEditParentClick(p)}
-                                  className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
-                                  title="Edit parent info"
-                                >
-                                  <Edit2 size={13} />
-                                </button>
-                                <button 
-                                  onClick={() => deleteParent(p)}
-                                  className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
-                                  title="Delete parent info"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-
-            {/* Parent Form */}
-            <div className="xl:col-span-4">
-              <Card 
-                title={editingParent ? "Edit Parent Contact" : "Add Parent Profile"}
-                subtitle={editingParent ? `Editing details: ${editingParent.fatherName}` : "Create parent profile contacts to associate with students."}
-              >
-                <div className="space-y-4">
-                  <Field label="Father's Name *">
-                    <Input 
-                      value={parentForm.fatherName}
-                      onChange={(e) => setParentForm({...parentForm, fatherName: e.target.value})}
-                      placeholder="e.g. Richard Doe"
-                    />
-                  </Field>
-                  <Field label="Mother's Name">
-                    <Input 
-                      value={parentForm.motherName}
-                      onChange={(e) => setParentForm({...parentForm, motherName: e.target.value})}
-                      placeholder="e.g. Mary Doe"
-                    />
-                  </Field>
-                  <Field label="Primary Phone *">
-                    <Input 
-                      value={parentForm.phone}
-                      onChange={(e) => setParentForm({...parentForm, phone: e.target.value})}
-                      placeholder="e.g. +1 555-0199"
-                    />
-                  </Field>
-                  <Field label="Alternate Phone">
-                    <Input 
-                      value={parentForm.alternatePhone}
-                      onChange={(e) => setParentForm({...parentForm, alternatePhone: e.target.value})}
-                      placeholder="e.g. +1 555-0211"
-                    />
-                  </Field>
-                  <Field label="Email Address *">
-                    <Input 
-                      type="email"
-                      value={parentForm.email}
-                      onChange={(e) => setParentForm({...parentForm, email: e.target.value})}
-                      placeholder="e.g. parent@example.com"
-                    />
-                  </Field>
-                  <Field label="Home Address">
-                    <textarea 
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white min-h-[70px] text-slate-800"
-                      value={parentForm.address}
-                      onChange={(e) => setParentForm({...parentForm, address: e.target.value})}
-                      placeholder="e.g. 102 High Street, Block B"
-                    />
-                  </Field>
-
-                  <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-                    {editingParent && (
-                      <Button variant="default" onClick={handleCancelParentEdit}>Cancel</Button>
-                    )}
-                    <Button 
-                      variant="primary" 
-                      onClick={submitParent}
-                      disabled={busyParent || !parentForm.fatherName || !parentForm.phone || !parentForm.email}
-                    >
-                      {busyParent ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
-                      {editingParent ? 'Save Profile' : 'Add Parent'}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ACADEMIC HISTORY MODAL */}

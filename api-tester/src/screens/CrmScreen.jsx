@@ -23,7 +23,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const [inquiries, setInquiries] = useState([]);
   const [admissions, setAdmissions] = useState([]);
-  const [parents, setParents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,15 +42,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     if (!schoolId) return;
     setLoading(true);
     try {
-      const [inq, adm, par, cls] = await Promise.all([
+      const [inq, adm, cls] = await Promise.all([
         api.inquiries(schoolId),
         year ? api.admissionsByYear(schoolId, year) : api.admissions(schoolId),
-        api.parents(schoolId),
         api.classes(schoolId),
       ]);
       setInquiries(inq || []);
       setAdmissions(adm || []);
-      setParents(par || []);
       setClasses(cls || []);
     } catch (e) {
       console.error(e);
@@ -69,11 +66,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     const s = staff.find((x) => x.id === id);
     return s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId : '—';
   };
-  const parentName = (id) => {
-    const p = parents.find((x) => x.id === id);
-    return p ? [p.fatherName, p.motherName].filter(Boolean).join(' / ') : '—';
-  };
-
   const stageCounts = useMemo(() => {
     const c = {};
     INQUIRY_STAGES.forEach((s) => (c[s] = 0));
@@ -164,7 +156,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       dob: '',
       gender: 'MALE',
       bloodGroup: '',
-      parentId: '',
       classDocId: '',
       sectionId: '',
       rollNo: '',
@@ -185,7 +176,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         dob: convertForm.dob || null,
         gender: convertForm.gender,
         bloodGroup: convertForm.bloodGroup || null,
-        parentId: convertForm.parentId || null,
         status: 'ACTIVE',
         currentAcademicRecord: {
           classDocId: convertForm.classDocId || null,
@@ -451,12 +441,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </Select>
                 </Field>
               </div>
-              <Field label="Parent" hint="Create parents in the Students module first if the list is empty.">
-                <Select value={convertForm.parentId} onChange={(e) => setConvertForm({ ...convertForm, parentId: e.target.value })}>
-                  <option value="">— none / link later —</option>
-                  {parents.map((p) => <option key={p.id} value={p.id}>{[p.fatherName, p.motherName].filter(Boolean).join(' / ') || p.phone || p.id}</option>)}
-                </Select>
-              </Field>
+              <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                Link guardians after enrollment in the <span className="font-semibold text-slate-500">Guardians</span> tab (many-to-many, with roles &amp; flags).
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Class">
                   <Select value={convertForm.classDocId} onChange={(e) => setConvertForm({ ...convertForm, classDocId: e.target.value })}>

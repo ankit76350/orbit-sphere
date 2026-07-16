@@ -1,8 +1,5 @@
 package com.orbitastra.backend.models.student;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -12,12 +9,21 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "parents")
+/**
+ * A single guardian/contact person (father, mother, grandparent, legal guardian…).
+ *
+ * Unlike the legacy {@link Parent} (which crammed both parents into one row), a
+ * Guardian is one real person. The student ↔ guardian relationship is many-to-many:
+ * one guardian can be linked to several students (siblings), and one student can
+ * have several guardians — the link, with its role and flags, lives in
+ * {@link GuardianLink} embedded on the {@link Student}.
+ */
+@Document(collection = "guardians")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Parent {
+public class Guardian {
     @org.springframework.data.annotation.CreatedDate
     private java.time.LocalDateTime createdAt;
 
@@ -31,9 +37,7 @@ public class Parent {
     @Indexed
     private String schoolId;
 
-    private String fatherName;
-
-    private String motherName;
+    private String name;
 
     private String phone;
 
@@ -43,6 +47,5 @@ public class Parent {
 
     private String address;
 
-    @Builder.Default
-    private List<String> studentIds = new ArrayList<>();
+    private String occupation;
 }

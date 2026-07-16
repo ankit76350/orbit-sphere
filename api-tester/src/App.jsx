@@ -6,6 +6,7 @@ import StaffScreen from './screens/StaffScreen.jsx';
 import AcademicsScreen from './screens/AcademicsScreen.jsx';
 import FinanceScreen from './screens/FinanceScreen.jsx';
 import CrmScreen from './screens/CrmScreen.jsx';
+import GuardiansScreen from './screens/GuardiansScreen.jsx';
 import CoreScreen from './screens/CoreScreen.jsx';
 import { api } from './api.js';
 import { ToastProvider } from './components/ui.jsx';
@@ -149,6 +150,10 @@ function AppContent() {
               year={year}
               staff={staff}
             />
+          )}
+
+          {activeTab === 'guardians' && (
+            <GuardiansScreen schoolId={schoolId} />
           )}
           {activeTab === 'core' && (
             <CoreScreen

@@ -306,176 +306,6 @@
 					]
 				},
 				{
-					"name": "Parents",
-					"item": [
-						{
-							"name": "Create Parent",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"fatherName\": \"Michael Smith\",\n    \"motherName\": \"Emma Smith\",\n    \"phone\": \"1234567801\",\n    \"alternatePhone\": \"0987654301\",\n    \"email\": \"michael.smith@example.com\",\n    \"address\": \"45 Green Valley Road, Lakeview City\"\n  }"
-								},
-								"url": {
-									"raw": "http://localhost:5030/api/parents",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get All Parents",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/parents",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Parent By ID",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents",
-										"PARENT_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Parent By Email",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/parents/email/robert.doe@example.com",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents",
-										"email",
-										"robert.doe@example.com"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Parents By School",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/parents/school/6a474d2517e9c40cf971ccc8",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents",
-										"school",
-										"6a474d2517e9c40cf971ccc8"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Update Parent",
-							"request": {
-								"method": "PATCH",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"fatherName\": \"Robert Doe Sr.\"\n}"
-								},
-								"url": {
-									"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents",
-										"PARENT_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Delete Parent",
-							"request": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "5030",
-									"path": [
-										"api",
-										"parents",
-										"PARENT_ID_HERE"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
 					"name": "Academic Records",
 					"item": [
 						{
@@ -569,6 +399,210 @@
 										"students",
 										"6a4750bd826a1781db37539c",
 										"academic-history"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Guardians",
+					"item": [
+						{
+							"name": "Create Guardian",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Rajesh Nair\",\n  \"phone\": \"+61-400-111-222\",\n  \"alternatePhone\": \"\",\n  \"email\": \"rajesh@example.com\",\n  \"address\": \"12 Main St\",\n  \"occupation\": \"Engineer\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/guardians",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"guardians"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Guardian By ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/guardians/GUARDIAN_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"guardians",
+										"GUARDIAN_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Guardians By School",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/guardians/school/6a474d2517e9c40cf971ccc2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"guardians",
+										"school",
+										"6a474d2517e9c40cf971ccc2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Guardian",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"phone\": \"+61-400-999-000\",\n  \"occupation\": \"Doctor\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/guardians/GUARDIAN_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"guardians",
+										"GUARDIAN_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Guardian",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/guardians/GUARDIAN_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"guardians",
+										"GUARDIAN_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Link Guardian To Student",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"guardianId\": \"GUARDIAN_ID_HERE\",\n  \"relation\": \"FATHER\",\n  \"primary\": true,\n  \"emergencyContact\": true,\n  \"pickupApproved\": true,\n  \"portalAccess\": true\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/guardians",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"students",
+										"STUDENT_ID_HERE",
+										"guardians"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Unlink Guardian From Student",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/guardians/GUARDIAN_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"students",
+										"STUDENT_ID_HERE",
+										"guardians",
+										"GUARDIAN_ID_HERE"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Students By Guardian",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5030/api/students/guardian/GUARDIAN_ID_HERE",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5030",
+									"path": [
+										"api",
+										"students",
+										"guardian",
+										"GUARDIAN_ID_HERE"
 									]
 								}
 							},

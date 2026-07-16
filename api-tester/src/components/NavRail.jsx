@@ -1,9 +1,10 @@
-import { Cpu, Users, Briefcase, GraduationCap, Coins, UserPlus } from 'lucide-react';
+import { Cpu, Users, Briefcase, GraduationCap, Coins, UserPlus, HeartHandshake } from 'lucide-react';
 
 const ITEMS = [
   { key: 'core', label: 'Core', icon: Cpu },
   { key: 'crm', label: 'CRM / Admissions', icon: UserPlus },
   { key: 'students', label: 'Students', icon: Users },
+  { key: 'guardians', label: 'Guardians', icon: HeartHandshake },
   { key: 'staff', label: 'Staff', icon: Briefcase },
   { key: 'academics', label: 'Academics', icon: GraduationCap },
   { key: 'finance', label: 'Finance', icon: Coins },

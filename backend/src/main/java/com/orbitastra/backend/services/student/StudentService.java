@@ -7,12 +7,13 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.models.student.Parent;
+import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.repositories.student.GuardianRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
-import com.orbitastra.backend.repositories.student.ParentRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
 import com.orbitastra.backend.models.academics.SchoolClass;
@@ -25,11 +26,11 @@ import lombok.RequiredArgsConstructor;
 public class StudentService {
 
     private final StudentRepository studentRepository;
-    private final ParentRepository parentRepository;
     private final SchoolRepository schoolRepository;
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
     private final SchoolClassRepository schoolClassRepository;
     private final AcademicYearResolver academicYearResolver;
+    private final GuardianRepository guardianRepository;
 
     private void populateAcademicFields(Student student) {
         if (student == null) return;
@@ -44,9 +45,30 @@ public class StudentService {
         }
     }
 
+    /**
+     * Batch variant: resolves the latest academic record for every student in
+     * ONE query (findByStudentDocIdIn) instead of one query per student, then
+     * attaches the most recent record to each. Avoids the N+1 on list endpoints.
+     */
     private void populateAcademicFields(List<Student> students) {
-        if (students == null) return;
-        students.forEach(this::populateAcademicFields);
+        if (students == null || students.isEmpty()) return;
+        List<String> ids = students.stream()
+                .map(Student::getId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        java.util.Map<String, StudentAcademicRecord> latestByStudent = studentAcademicRecordRepository
+                .findByStudentDocIdIn(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        StudentAcademicRecord::getStudentDocId,
+                        r -> r,
+                        (a, b) -> java.util.Comparator
+                                .comparing(StudentAcademicRecord::getAcademicYear,
+                                        java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()))
+                                .compare(a, b) >= 0 ? a : b));
+        students.forEach(s -> {
+            StudentAcademicRecord rec = latestByStudent.get(s.getId());
+            if (rec != null) s.setCurrentAcademicRecord(rec);
+        });
     }
 
     public Student createStudent(Student student) {
@@ -61,14 +83,6 @@ public class StudentService {
             long currentStudentCount = studentRepository.countBySchoolId(student.getSchoolId());
             if (currentStudentCount >= school.getMaxStudents()) {
                 throw new IllegalArgumentException("You have exceeded the package limit for maximum students.");
-            }
-        }
-
-        if (student.getParentId() != null && !student.getParentId().isEmpty()) {
-            Parent parent = parentRepository.findById(student.getParentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Parent not found with id: " + student.getParentId()));
-            if (!student.getSchoolId().equals(parent.getSchoolId())) {
-                throw new IllegalArgumentException("Parent does not belong to the same school as the student.");
             }
         }
 
@@ -110,19 +124,6 @@ public class StudentService {
                     .updatedAt(LocalDateTime.now())
                     .build();
             savedRecord = studentAcademicRecordRepository.save(record);
-        }
-
-        // Update Parent's studentIds list
-        if (saved.getParentId() != null && !saved.getParentId().isEmpty()) {
-            parentRepository.findById(saved.getParentId()).ifPresent(parent -> {
-                if (parent.getStudentIds() == null) {
-                    parent.setStudentIds(new java.util.ArrayList<>());
-                }
-                if (!parent.getStudentIds().contains(saved.getId())) {
-                    parent.getStudentIds().add(saved.getId());
-                    parentRepository.save(parent);
-                }
-            });
         }
 
         // Set transient academic field on saved student object
@@ -185,12 +186,6 @@ public class StudentService {
         return students;
     }
 
-    public List<Student> getStudentsByParent(String parentId) {
-        List<Student> students = studentRepository.findByParentId(parentId);
-        populateAcademicFields(students);
-        return students;
-    }
-
     public List<Student> getStudentsByHostelRoom(String hostelRoomId) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByHostelRoomId(hostelRoomId);
         List<String> studentIds = records.stream()
@@ -210,20 +205,6 @@ public class StudentService {
                 throw new ResourceNotFoundException("School not found with id: " + studentDetails.getSchoolId());
             }
             student.setSchoolId(studentDetails.getSchoolId());
-        }
-
-        String oldParentId = student.getParentId();
-        String newParentId = studentDetails.getParentId();
-
-        if (newParentId != null && !newParentId.equals(oldParentId)) {
-            if (!newParentId.isEmpty()) {
-                Parent parent = parentRepository.findById(newParentId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Parent not found with id: " + newParentId));
-                if (!student.getSchoolId().equals(parent.getSchoolId())) {
-                    throw new IllegalArgumentException("Parent does not belong to the same school as the student.");
-                }
-            }
-            student.setParentId(newParentId);
         }
 
         if (studentDetails.getAdmissionNo() != null && !studentDetails.getAdmissionNo().equals(student.getAdmissionNo())) {
@@ -328,52 +309,64 @@ public class StudentService {
         }
         saved.setCurrentAcademicRecord(record);
 
-        // Adjust parent references
-        if (newParentId != null && !newParentId.equals(oldParentId)) {
-            // Remove from old parent
-            if (oldParentId != null && !oldParentId.isEmpty()) {
-                parentRepository.findById(oldParentId).ifPresent(oldParent -> {
-                    if (oldParent.getStudentIds() != null && oldParent.getStudentIds().remove(saved.getId())) {
-                        parentRepository.save(oldParent);
-                    }
-                });
-            }
-            // Add to new parent
-            if (!newParentId.isEmpty()) {
-                parentRepository.findById(newParentId).ifPresent(newParent -> {
-                    if (newParent.getStudentIds() == null) {
-                        newParent.setStudentIds(new java.util.ArrayList<>());
-                    }
-                    if (!newParent.getStudentIds().contains(saved.getId())) {
-                        newParent.getStudentIds().add(saved.getId());
-                        parentRepository.save(newParent);
-                    }
-                });
-            }
-        }
-
         // Repopulate transient fields to reflect latest state
         populateAcademicFields(saved);
         return saved;
     }
 
+    // ----- Guardian links (many-to-many family) -----
+
+    /**
+     * Links a guardian to a student with a role + flags. Idempotent per guardian:
+     * re-linking the same guardian replaces the existing link (e.g. to change
+     * flags). The guardian must exist and belong to the student's school.
+     */
+    public Student addGuardianLink(String studentId, GuardianLink link) {
+        Student student = getStudentById(studentId);
+        if (link == null || link.getGuardianId() == null || link.getGuardianId().isBlank()) {
+            throw new IllegalArgumentException("guardianId is required to link a guardian.");
+        }
+        Guardian guardian = guardianRepository.findById(link.getGuardianId())
+                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + link.getGuardianId()));
+        if (!guardian.getSchoolId().equals(student.getSchoolId())) {
+            throw new IllegalArgumentException("Guardian does not belong to the same school as the student.");
+        }
+        if (student.getGuardians() == null) {
+            student.setGuardians(new java.util.ArrayList<>());
+        }
+        student.getGuardians().removeIf(g -> link.getGuardianId().equals(g.getGuardianId()));
+        student.getGuardians().add(link);
+        student.setUpdatedAt(LocalDateTime.now());
+        Student saved = studentRepository.save(student);
+        populateAcademicFields(saved);
+        return saved;
+    }
+
+    public Student removeGuardianLink(String studentId, String guardianId) {
+        Student student = getStudentById(studentId);
+        if (student.getGuardians() != null) {
+            student.getGuardians().removeIf(g -> guardianId.equals(g.getGuardianId()));
+            student.setUpdatedAt(LocalDateTime.now());
+            studentRepository.save(student);
+        }
+        populateAcademicFields(student);
+        return student;
+    }
+
+    public List<Student> getStudentsByGuardian(String guardianId) {
+        List<Student> students = studentRepository.findByGuardiansGuardianId(guardianId);
+        populateAcademicFields(students);
+        return students;
+    }
+
     public void deleteStudent(String id) {
         Student student = getStudentById(id);
-        String parentId = student.getParentId();
-        
+
         // Delete academic records first
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocId(id);
         studentAcademicRecordRepository.deleteAll(records);
 
         studentRepository.delete(student);
-
-        if (parentId != null && !parentId.isEmpty()) {
-            parentRepository.findById(parentId).ifPresent(parent -> {
-                if (parent.getStudentIds() != null && parent.getStudentIds().remove(id)) {
-                    parentRepository.save(parent);
-                }
-            });
-        }
     }
 
     public StudentAcademicRecord createOrUpdateAcademicRecord(String studentId, StudentAcademicRecord recordDetails) {
@@ -424,17 +417,27 @@ public class StudentService {
         return studentAcademicRecordRepository.findByStudentDocId(studentId);
     }
 
+    /**
+     * Siblings = other students who share at least one guardian with this student.
+     */
     public List<Student> getSiblings(String studentId) {
         Student student = getStudentById(studentId);
-        
-        if (student.getParentId() == null || student.getParentId().isEmpty()) {
+
+        if (student.getGuardians() == null || student.getGuardians().isEmpty()) {
             return new java.util.ArrayList<>();
         }
-        
-        List<Student> allChildren = studentRepository.findByParentId(student.getParentId());
-        
-        return allChildren.stream()
-                .filter(child -> !child.getId().equals(studentId))
-                .toList();
+
+        java.util.Map<String, Student> siblings = new java.util.LinkedHashMap<>();
+        student.getGuardians().stream()
+                .map(GuardianLink::getGuardianId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .forEach(gid -> studentRepository.findByGuardiansGuardianId(gid).forEach(s -> {
+                    if (!s.getId().equals(studentId)) siblings.put(s.getId(), s);
+                }));
+
+        List<Student> result = new java.util.ArrayList<>(siblings.values());
+        populateAcademicFields(result);
+        return result;
     }
 }

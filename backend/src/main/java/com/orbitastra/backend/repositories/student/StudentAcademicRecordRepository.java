@@ -11,6 +11,7 @@ import com.orbitastra.backend.models.student.StudentAcademicRecord;
 @Repository
 public interface StudentAcademicRecordRepository extends MongoRepository<StudentAcademicRecord, String> {
     List<StudentAcademicRecord> findByStudentDocId(String studentDocId);
+    List<StudentAcademicRecord> findByStudentDocIdIn(List<String> studentDocIds);
     Optional<StudentAcademicRecord> findByStudentDocIdAndAcademicYear(String studentDocId, String academicYear);
     List<StudentAcademicRecord> findByClassDocId(String classDocId);
     List<StudentAcademicRecord> findByClassDocIdAndAcademicYear(String classDocId, String academicYear);

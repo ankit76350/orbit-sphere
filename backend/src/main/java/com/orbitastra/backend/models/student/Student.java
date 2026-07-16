@@ -54,7 +54,10 @@ public class Student {
 
     private String walletId;
 
-    private String parentId;
+    // Many-to-many family links: each entry references a Guardian plus this
+    // student's relationship to them (role, primary, emergency, pickup, portal).
+    @Builder.Default
+    private java.util.List<GuardianLink> guardians = new java.util.ArrayList<>();
 
     private String medicalRecordId;
 
