@@ -7,11 +7,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.student.AcademicRecordRequest;
+import com.orbitastra.backend.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.dto.student.GuardianLinkRequest;
+import com.orbitastra.backend.dto.student.UpdateStudentRequest;
 import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.student.enums.StudentStatus;
 import com.orbitastra.backend.services.student.StudentService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -22,9 +28,30 @@ public class StudentController {
     private final StudentService studentService;
 
     @PostMapping
-    public ResponseEntity<Student> createStudent(@RequestBody Student student) {
+    public ResponseEntity<Student> createStudent(@Valid @RequestBody CreateStudentRequest request) {
+        Student student = Student.builder()
+                .schoolId(request.getSchoolId())
+                .admissionNo(request.getAdmissionNo())
+                .name(request.getName())
+                .dob(request.getDob())
+                .gender(request.getGender())
+                .bloodGroup(request.getBloodGroup())
+                .photoUrl(request.getPhotoUrl())
+                .walletId(request.getWalletId())
+                .medicalRecordId(request.getMedicalRecordId())
+                .status(request.getStatus() != null ? request.getStatus() : StudentStatus.ACTIVE)
+                .admissionDate(request.getAdmissionDate())
+                .guardians(GuardianLinkRequest.toModels(request.getGuardians()))
+                .currentAcademicRecord(toAcademicRecord(request.getCurrentAcademicRecord()))
+                .build();
         Student created = studentService.createStudent(student);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    // ----- DTO -> model mapping helpers -----
+
+    private static StudentAcademicRecord toAcademicRecord(AcademicRecordRequest r) {
+        return r == null ? null : r.toModel();
     }
 
     @GetMapping
@@ -71,8 +98,8 @@ public class StudentController {
     }
 
     @PostMapping("/{id}/guardians")
-    public ResponseEntity<Student> addGuardianLink(@PathVariable String id, @RequestBody GuardianLink link) {
-        return ResponseEntity.ok(studentService.addGuardianLink(id, link));
+    public ResponseEntity<Student> addGuardianLink(@PathVariable String id, @Valid @RequestBody GuardianLinkRequest request) {
+        return ResponseEntity.ok(studentService.addGuardianLink(id, request.toModel()));
     }
 
     @DeleteMapping("/{id}/guardians/{guardianId}")
@@ -87,7 +114,20 @@ public class StudentController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Student> updateStudent(@PathVariable String id, @RequestBody Student studentDetails) {
+    public ResponseEntity<Student> updateStudent(@PathVariable String id, @Valid @RequestBody UpdateStudentRequest request) {
+        Student studentDetails = Student.builder()
+                .admissionNo(request.getAdmissionNo())
+                .name(request.getName())
+                .dob(request.getDob())
+                .gender(request.getGender())
+                .bloodGroup(request.getBloodGroup())
+                .photoUrl(request.getPhotoUrl())
+                .walletId(request.getWalletId())
+                .medicalRecordId(request.getMedicalRecordId())
+                .status(request.getStatus())
+                .admissionDate(request.getAdmissionDate())
+                .currentAcademicRecord(toAcademicRecord(request.getCurrentAcademicRecord()))
+                .build();
         Student updated = studentService.updateStudent(id, studentDetails);
         return ResponseEntity.ok(updated);
     }
@@ -106,17 +146,17 @@ public class StudentController {
 
     @PostMapping("/{id}/academic-records")
     public ResponseEntity<StudentAcademicRecord> assignAcademicRecord(
-            @PathVariable String id, 
-            @RequestBody StudentAcademicRecord recordDetails) {
-        StudentAcademicRecord created = studentService.createOrUpdateAcademicRecord(id, recordDetails);
+            @PathVariable String id,
+            @Valid @RequestBody AcademicRecordRequest request) {
+        StudentAcademicRecord created = studentService.createOrUpdateAcademicRecord(id, toAcademicRecord(request));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @PostMapping("/{id}/promote")
     public ResponseEntity<StudentAcademicRecord> promoteStudent(
-            @PathVariable String id, 
-            @RequestBody StudentAcademicRecord promotionDetails) {
-        StudentAcademicRecord promoted = studentService.promoteStudent(id, promotionDetails);
+            @PathVariable String id,
+            @Valid @RequestBody AcademicRecordRequest request) {
+        StudentAcademicRecord promoted = studentService.promoteStudent(id, toAcademicRecord(request));
         return ResponseEntity.ok(promoted);
     }
 

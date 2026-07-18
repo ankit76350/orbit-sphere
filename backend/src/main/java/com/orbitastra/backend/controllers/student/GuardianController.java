@@ -14,9 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.student.CreateGuardianRequest;
+import com.orbitastra.backend.dto.student.UpdateGuardianRequest;
 import com.orbitastra.backend.models.student.Guardian;
 import com.orbitastra.backend.services.student.GuardianService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -27,7 +30,16 @@ public class GuardianController {
     private final GuardianService guardianService;
 
     @PostMapping
-    public ResponseEntity<Guardian> createGuardian(@RequestBody Guardian guardian) {
+    public ResponseEntity<Guardian> createGuardian(@Valid @RequestBody CreateGuardianRequest request) {
+        Guardian guardian = Guardian.builder()
+                .schoolId(request.getSchoolId())
+                .name(request.getName())
+                .phone(request.getPhone())
+                .alternatePhone(request.getAlternatePhone())
+                .email(request.getEmail())
+                .address(request.getAddress())
+                .occupation(request.getOccupation())
+                .build();
         return new ResponseEntity<>(guardianService.createGuardian(guardian), HttpStatus.CREATED);
     }
 
@@ -42,7 +54,15 @@ public class GuardianController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Guardian> updateGuardian(@PathVariable String id, @RequestBody Guardian details) {
+    public ResponseEntity<Guardian> updateGuardian(@PathVariable String id, @Valid @RequestBody UpdateGuardianRequest request) {
+        Guardian details = Guardian.builder()
+                .name(request.getName())
+                .phone(request.getPhone())
+                .alternatePhone(request.getAlternatePhone())
+                .email(request.getEmail())
+                .address(request.getAddress())
+                .occupation(request.getOccupation())
+                .build();
         return ResponseEntity.ok(guardianService.updateGuardian(id, details));
     }
 
