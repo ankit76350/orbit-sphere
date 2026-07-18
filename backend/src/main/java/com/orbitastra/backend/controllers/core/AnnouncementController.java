@@ -14,9 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.core.CreateAnnouncementRequest;
+import com.orbitastra.backend.dto.core.UpdateAnnouncementRequest;
 import com.orbitastra.backend.models.core.Announcement;
 import com.orbitastra.backend.services.core.AnnouncementService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -28,7 +31,15 @@ public class AnnouncementController {
 
 
     @PostMapping
-    public ResponseEntity<Announcement> createAnnouncement(@RequestBody Announcement announcement) {
+    public ResponseEntity<Announcement> createAnnouncement(@Valid @RequestBody CreateAnnouncementRequest request) {
+        Announcement announcement = Announcement.builder()
+                .schoolId(request.getSchoolId())
+                .title(request.getTitle())
+                .content(request.getContent())
+                .target(request.getTarget())
+                .date(request.getDate())
+                .sender(request.getSender())
+                .build();
         Announcement created = announcementService.createAnnouncement(announcement);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -59,7 +70,15 @@ public class AnnouncementController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Announcement> updateAnnouncement(@PathVariable String id, @RequestBody Announcement details) {
+    public ResponseEntity<Announcement> updateAnnouncement(@PathVariable String id, @Valid @RequestBody UpdateAnnouncementRequest request) {
+        Announcement details = Announcement.builder()
+                .schoolId(request.getSchoolId())
+                .title(request.getTitle())
+                .content(request.getContent())
+                .target(request.getTarget())
+                .date(request.getDate())
+                .sender(request.getSender())
+                .build();
         Announcement updated = announcementService.updateAnnouncement(id, details);
         return ResponseEntity.ok(updated);
     }

@@ -14,9 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.core.CreateSchoolRequest;
+import com.orbitastra.backend.dto.core.UpdateSchoolRequest;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.core.SchoolService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -27,7 +30,18 @@ public class SchoolController {
     private final SchoolService schoolService;
 
     @PostMapping
-    public ResponseEntity<School> createSchool(@RequestBody School school) {
+    public ResponseEntity<School> createSchool(@Valid @RequestBody CreateSchoolRequest request) {
+        School school = School.builder()
+                .schoolName(request.getSchoolName())
+                .subdomain(request.getSubdomain())
+                .logo(request.getLogo())
+                .address(request.getAddress())
+                .phone(request.getPhone())
+                .email(request.getEmail())
+                .subscriptionTier(request.getSubscriptionTier())
+                .maxStudents(request.getMaxStudents())
+                .maxUsers(request.getMaxUsers())
+                .build();
         School created = schoolService.createSchool(school);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -57,7 +71,19 @@ public class SchoolController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<School> updateSchool(@PathVariable String id, @RequestBody School schoolDetails) {
+    public ResponseEntity<School> updateSchool(@PathVariable String id, @Valid @RequestBody UpdateSchoolRequest request) {
+        School schoolDetails = School.builder()
+                .schoolName(request.getSchoolName())
+                .subdomain(request.getSubdomain())
+                .logo(request.getLogo())
+                .address(request.getAddress())
+                .phone(request.getPhone())
+                .email(request.getEmail())
+                .subscriptionTier(request.getSubscriptionTier())
+                .maxStudents(request.getMaxStudents())
+                .maxUsers(request.getMaxUsers())
+                .active(request.getActive())
+                .build();
         School updated = schoolService.updateSchool(id, schoolDetails);
         return ResponseEntity.ok(updated);
     }

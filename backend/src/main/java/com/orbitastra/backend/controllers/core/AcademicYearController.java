@@ -18,10 +18,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.core.CreateAcademicYearRequest;
+import com.orbitastra.backend.dto.core.UpdateAcademicYearRequest;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.HolidayDetail;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -32,7 +35,14 @@ public class AcademicYearController {
     private final AcademicYearService academicYearService;
 
     @PostMapping
-    public ResponseEntity<AcademicYear> createAcademicYear(@RequestBody AcademicYear year) {
+    public ResponseEntity<AcademicYear> createAcademicYear(@Valid @RequestBody CreateAcademicYearRequest request) {
+        AcademicYear year = AcademicYear.builder()
+                .schoolId(request.getSchoolId())
+                .name(request.getName())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .holidays(request.getHolidays())
+                .build();
         AcademicYear created = academicYearService.createAcademicYear(year);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -138,7 +148,14 @@ public class AcademicYearController {
 
     @PutMapping("/{id}")
     public ResponseEntity<AcademicYear> updateAcademicYear(@PathVariable String id,
-            @RequestBody AcademicYear details) {
+            @Valid @RequestBody UpdateAcademicYearRequest request) {
+        AcademicYear details = AcademicYear.builder()
+                .schoolId(request.getSchoolId())
+                .name(request.getName())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .holidays(request.getHolidays())
+                .build();
         return ResponseEntity.ok(academicYearService.updateAcademicYear(id, details));
     }
 

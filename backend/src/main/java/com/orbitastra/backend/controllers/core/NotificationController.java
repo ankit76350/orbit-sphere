@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.core.CreateNotificationRequest;
 import com.orbitastra.backend.models.core.Notification;
 import com.orbitastra.backend.services.core.NotificationService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -27,7 +29,13 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @PostMapping
-    public ResponseEntity<Notification> createNotification(@RequestBody Notification notification) {
+    public ResponseEntity<Notification> createNotification(@Valid @RequestBody CreateNotificationRequest request) {
+        Notification notification = Notification.builder()
+                .schoolId(request.getSchoolId())
+                .recipientId(request.getRecipientId())
+                .channel(request.getChannel())
+                .message(request.getMessage())
+                .build();
         Notification created = notificationService.createNotification(notification);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
