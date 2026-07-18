@@ -16,6 +16,9 @@ import com.orbitastra.backend.models.finance.WalletTransaction;
 import com.orbitastra.backend.services.finance.StudentWalletService;
 import com.orbitastra.backend.services.finance.WalletTransactionService;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
@@ -34,13 +37,13 @@ public class StudentWalletController {
     }
 
     @PostMapping("/student/{studentId}/credit")
-    public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentId, @RequestBody WalletOperationRequest request) {
+    public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentId, @Valid @RequestBody WalletOperationRequest request) {
         StudentWallet wallet = studentWalletService.creditWallet(studentId, request.getAmount(), request.getRemarks());
         return ResponseEntity.ok(wallet);
     }
 
     @PostMapping("/student/{studentId}/debit")
-    public ResponseEntity<StudentWallet> debitWallet(@PathVariable String studentId, @RequestBody WalletOperationRequest request) {
+    public ResponseEntity<StudentWallet> debitWallet(@PathVariable String studentId, @Valid @RequestBody WalletOperationRequest request) {
         StudentWallet wallet = studentWalletService.debitWallet(studentId, request.getAmount(), request.getRemarks());
         return ResponseEntity.ok(wallet);
     }
@@ -53,7 +56,10 @@ public class StudentWalletController {
 
     @Data
     public static class WalletOperationRequest {
+        @NotNull(message = "amount is required")
+        @DecimalMin(value = "0.0", inclusive = false, message = "amount must be greater than zero")
         private BigDecimal amount;
+
         private String remarks;
     }
 }

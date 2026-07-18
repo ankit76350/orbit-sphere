@@ -16,6 +16,7 @@ import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.models.finance.FeePayment;
 import com.orbitastra.backend.services.finance.FeePaymentService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,7 +27,7 @@ public class FeePaymentController {
     private final FeePaymentService feePaymentService;
 
     @PostMapping("/{id}/payments")
-    public ResponseEntity<FeeInvoice> recordPayment(@PathVariable String id, @RequestBody PaymentRequest request) {
+    public ResponseEntity<FeeInvoice> recordPayment(@PathVariable String id, @Valid @RequestBody PaymentRequest request) {
         FeeInvoice updated = feePaymentService.recordPayment(
                 id, request.getAmount(), request.getPaymentMode(), request.getRemarks(), request.getCollectedBy());
         return new ResponseEntity<>(updated, HttpStatus.CREATED);

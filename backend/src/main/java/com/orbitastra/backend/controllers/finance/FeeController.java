@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.finance.CreateFeeRequest;
+import com.orbitastra.backend.dto.finance.UpdateFeeRequest;
 import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.services.finance.FeeService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,7 +29,16 @@ public class FeeController {
     private final FeeService feeService;
 
     @PostMapping
-    public ResponseEntity<FeeInvoice> createFee(@RequestBody FeeInvoice fee) {
+    public ResponseEntity<FeeInvoice> createFee(@Valid @RequestBody CreateFeeRequest request) {
+        FeeInvoice fee = FeeInvoice.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .type(request.getType())
+                .amount(request.getAmount())
+                .discount(request.getDiscount())
+                .dueDate(request.getDueDate())
+                .build();
         FeeInvoice created = feeService.createFee(fee);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -57,7 +69,14 @@ public class FeeController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<FeeInvoice> updateFee(@PathVariable String id, @RequestBody FeeInvoice feeDetails) {
+    public ResponseEntity<FeeInvoice> updateFee(@PathVariable String id, @Valid @RequestBody UpdateFeeRequest request) {
+        FeeInvoice feeDetails = FeeInvoice.builder()
+                .academicYear(request.getAcademicYear())
+                .type(request.getType())
+                .amount(request.getAmount())
+                .discount(request.getDiscount())
+                .dueDate(request.getDueDate())
+                .build();
         FeeInvoice updated = feeService.updateFee(id, feeDetails);
         return ResponseEntity.ok(updated);
     }
