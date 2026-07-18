@@ -1,0 +1,1 @@
+- [Backend Foundation Review](backend-foundation-review.md) — 2026-07-18 review: critical gaps (committed DB creds, no auth, no tenant isolation) to fix before new modules
