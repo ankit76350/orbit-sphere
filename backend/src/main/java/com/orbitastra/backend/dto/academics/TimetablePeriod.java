@@ -4,6 +4,7 @@ import java.time.LocalTime;
 
 import com.orbitastra.backend.models.academics.enums.SlotType;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,7 +24,9 @@ public class TimetablePeriod {
     // Staff document id of the teacher (LESSON only)
     private String teacherId;
 
+    @NotNull(message = "startTime is required")
     private LocalTime startTime;
 
+    @NotNull(message = "endTime is required")
     private LocalTime endTime;
 }

@@ -3,6 +3,8 @@ package com.orbitastra.backend.dto.academics;
 import java.time.LocalDate;
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,6 +32,7 @@ public class TimetableCreateRequest {
 
     private LocalDate endDate;
 
+    @Valid
     private List<ClassSectionTimetable> classTimetables;
 
     @Data
@@ -37,10 +40,13 @@ public class TimetableCreateRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ClassSectionTimetable {
+        @NotBlank(message = "classId is required")
         private String classId;
 
+        @NotBlank(message = "section is required")
         private String section;
 
+        @Valid
         private List<TimetablePeriod> periods;
     }
 }

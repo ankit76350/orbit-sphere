@@ -51,9 +51,9 @@ Endpoints take `schoolId` from the URL path / request body (e.g. `GET /api/stude
 
 ## 🟠 Important — do soon (cheap now, painful later)
 
-- [ ] **Input validation absent** — add `spring-boot-starter-validation`, then `@Valid` / `@NotBlank` / `@NotNull` on write paths.
-- [ ] **Mass-assignment risk** — controllers bind domain entities directly (`@RequestBody Student`), letting clients set `id`, `createdAt`, `status`, `schoolId`. Introduce request/response **DTOs** for every write endpoint (extend the existing `dto/` package).
-- [ ] **Transactions on money paths** — only 3 `@Transactional` total. Fee payment → wallet debit → invoice update must be atomic (MongoDB multi-doc txns work on Atlas replica sets).
+- [x] **Input validation** — added `spring-boot-starter-validation`; every write endpoint now takes a `@Valid` request DTO, and `GlobalExceptionHandler` returns field-keyed 400s. *(done 2026-07-18)*
+- [x] **Mass-assignment risk** — every write endpoint now binds a purpose-built request DTO instead of the domain entity; server-owned fields (`id`, audit timestamps, `status`, `schoolId` on updates, computed money/grade fields) can no longer be injected. *(done 2026-07-18)*
+- [x] **Transactions on money paths** — added a `MongoTransactionManager` bean (`config/MongoConfig`), so the existing `@Transactional` on fee payment → wallet debit → invoice update is now a real atomic transaction (Atlas replica set). *(done 2026-07-18)*
 - [ ] **Pagination** — `getAll*()` uses `findAll()`; return `Page<T>` with `Pageable`.
 - [ ] **500 handler leaks internals** — `GlobalExceptionHandler` returns raw `ex.getMessage()`; log detail + return generic message + trace id.
 
