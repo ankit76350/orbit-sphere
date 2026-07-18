@@ -17,11 +17,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.crm.CreateInquiryRequest;
+import com.orbitastra.backend.dto.crm.FollowUpRequest;
+import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
+import com.orbitastra.backend.dto.crm.UpdateInquiryRequest;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.services.crm.InquiryService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -32,7 +37,18 @@ public class InquiryController {
     private final InquiryService inquiryService;
 
     @PostMapping
-    public ResponseEntity<Inquiry> createInquiry(@RequestBody Inquiry inquiry) {
+    public ResponseEntity<Inquiry> createInquiry(@Valid @RequestBody CreateInquiryRequest request) {
+        Inquiry inquiry = Inquiry.builder()
+                .schoolId(request.getSchoolId())
+                .studentName(request.getStudentName())
+                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
+                .source(request.getSource())
+                .counselorId(request.getCounselorId())
+                .status(request.getStatus())
+                .followUps(request.getFollowUps() == null ? null
+                        : request.getFollowUps().stream().map(FollowUpRequest::toModel)
+                                .collect(java.util.stream.Collectors.toList()))
+                .build();
         return new ResponseEntity<>(inquiryService.createInquiry(inquiry), HttpStatus.CREATED);
     }
 
@@ -66,13 +82,20 @@ public class InquiryController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Inquiry> updateInquiry(@PathVariable String id, @RequestBody Inquiry details) {
+    public ResponseEntity<Inquiry> updateInquiry(@PathVariable String id, @Valid @RequestBody UpdateInquiryRequest request) {
+        Inquiry details = Inquiry.builder()
+                .counselorId(request.getCounselorId())
+                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
+                .studentName(request.getStudentName())
+                .source(request.getSource())
+                .build();
         return ResponseEntity.ok(inquiryService.updateInquiry(id, details));
     }
 
     /** Records a follow-up / status change: {status, note, nextFollowUp}. */
     @PostMapping("/{id}/follow-ups")
-    public ResponseEntity<Inquiry> recordFollowUp(@PathVariable String id, @RequestBody InquiryFollowUp entry) {
+    public ResponseEntity<Inquiry> recordFollowUp(@PathVariable String id, @Valid @RequestBody FollowUpRequest request) {
+        InquiryFollowUp entry = request.toModel();
         return ResponseEntity.ok(inquiryService.recordFollowUp(id, entry));
     }
 
