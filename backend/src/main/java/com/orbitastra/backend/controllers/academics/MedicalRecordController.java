@@ -7,9 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.CreateMedicalRecordRequest;
+import com.orbitastra.backend.dto.academics.UpdateMedicalRecordRequest;
 import com.orbitastra.backend.models.academics.MedicalRecord;
 import com.orbitastra.backend.services.academics.MedicalRecordService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -20,7 +23,15 @@ public class MedicalRecordController {
     private final MedicalRecordService medicalRecordService;
 
     @PostMapping
-    public ResponseEntity<MedicalRecord> createMedicalRecord(@RequestBody MedicalRecord record) {
+    public ResponseEntity<MedicalRecord> createMedicalRecord(@Valid @RequestBody CreateMedicalRecordRequest request) {
+        MedicalRecord record = MedicalRecord.builder()
+                .schoolId(request.getSchoolId())
+                .studentId(request.getStudentId())
+                .visitDate(request.getVisitDate())
+                .diagnosis(request.getDiagnosis())
+                .medicines(request.getMedicines())
+                .doctorName(request.getDoctorName())
+                .build();
         MedicalRecord created = medicalRecordService.createMedicalRecord(record);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -51,8 +62,16 @@ public class MedicalRecordController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<MedicalRecord> updateMedicalRecord(
-            @PathVariable String id, 
-            @RequestBody MedicalRecord recordDetails) {
+            @PathVariable String id,
+            @Valid @RequestBody UpdateMedicalRecordRequest request) {
+        MedicalRecord recordDetails = MedicalRecord.builder()
+                .schoolId(request.getSchoolId())
+                .studentId(request.getStudentId())
+                .visitDate(request.getVisitDate())
+                .diagnosis(request.getDiagnosis())
+                .medicines(request.getMedicines())
+                .doctorName(request.getDoctorName())
+                .build();
         MedicalRecord updated = medicalRecordService.updateMedicalRecord(id, recordDetails);
         return ResponseEntity.ok(updated);
     }

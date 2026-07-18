@@ -1,6 +1,5 @@
 package com.orbitastra.backend.controllers.academics;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -8,10 +7,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.AssignHomeworkRequest;
+import com.orbitastra.backend.dto.academics.CreateHomeworkRequest;
+import com.orbitastra.backend.dto.academics.GradeHomeworkRequest;
+import com.orbitastra.backend.dto.academics.StudentAssignmentRequest;
+import com.orbitastra.backend.dto.academics.SubmitHomeworkRequest;
+import com.orbitastra.backend.dto.academics.UpdateHomeworkRequest;
 import com.orbitastra.backend.models.academics.Homework;
-import com.orbitastra.backend.models.academics.enums.AssignmentScope;
 import com.orbitastra.backend.services.academics.HomeworkService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -22,39 +27,39 @@ public class HomeworkController {
     private final HomeworkService homeworkService;
 
     @PostMapping
-    public ResponseEntity<Homework> createHomework(@RequestBody Homework homework) {
-        Homework created = homeworkService.createHomework(homework);
+    public ResponseEntity<Homework> createHomework(@Valid @RequestBody CreateHomeworkRequest request) {
+        Homework created = homeworkService.createHomework(toHomework(request));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @PostMapping("/definition")
-    public ResponseEntity<Homework> createHomeworkDefinition(@RequestBody Homework homework) {
-        Homework created = homeworkService.createHomeworkDefinition(homework);
+    public ResponseEntity<Homework> createHomeworkDefinition(@Valid @RequestBody CreateHomeworkRequest request) {
+        Homework created = homeworkService.createHomeworkDefinition(toHomework(request));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    private static Homework toHomework(CreateHomeworkRequest request) {
+        return Homework.builder()
+                .schoolId(request.getSchoolId())
+                .classId(request.getClassId())
+                .subject(request.getSubject())
+                .title(request.getTitle())
+                .instructions(request.getInstructions())
+                .dueDate(request.getDueDate())
+                .assignmentScope(request.getAssignmentScope())
+                .maxMarks(request.getMaxMarks())
+                .teacherId(request.getTeacherId())
+                .studentAssignments(StudentAssignmentRequest.toModels(request.getStudentAssignments()))
+                .build();
     }
 
     @PostMapping("/{id}/assign")
     public ResponseEntity<Homework> assignHomework(
             @PathVariable String id,
-            @RequestBody Map<String, Object> payload) {
-        String scopeStr = (String) payload.get("assignmentScope");
-        AssignmentScope scope = AssignmentScope.valueOf(scopeStr.toUpperCase());
-
-        List<Homework.StudentAssignment> studentAssignments = null;
-        if (payload.containsKey("studentAssignments")) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> list = (List<Map<String, Object>>) payload.get("studentAssignments");
-            studentAssignments = new ArrayList<>();
-            for (Map<String, Object> map : list) {
-                Homework.StudentAssignment assignment = Homework.StudentAssignment.builder()
-                        .studentId((String) map.get("studentId"))
-                        .customInstructions((String) map.get("customInstructions"))
-                        .build();
-                studentAssignments.add(assignment);
-            }
-        }
-
-        Homework updated = homeworkService.assignHomework(id, scope, studentAssignments);
+            @Valid @RequestBody AssignHomeworkRequest request) {
+        Homework updated = homeworkService.assignHomework(
+                id, request.getAssignmentScope(),
+                StudentAssignmentRequest.toModels(request.getStudentAssignments()));
         return ResponseEntity.ok(updated);
     }
 
@@ -90,7 +95,18 @@ public class HomeworkController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Homework> updateHomework(@PathVariable String id, @RequestBody Homework homeworkDetails) {
+    public ResponseEntity<Homework> updateHomework(@PathVariable String id, @Valid @RequestBody UpdateHomeworkRequest request) {
+        Homework homeworkDetails = Homework.builder()
+                .schoolId(request.getSchoolId())
+                .classId(request.getClassId())
+                .subject(request.getSubject())
+                .title(request.getTitle())
+                .instructions(request.getInstructions())
+                .dueDate(request.getDueDate())
+                .assignmentScope(request.getAssignmentScope())
+                .maxMarks(request.getMaxMarks())
+                .teacherId(request.getTeacherId())
+                .build();
         Homework updated = homeworkService.updateHomework(id, homeworkDetails);
         return ResponseEntity.ok(updated);
     }
@@ -113,10 +129,9 @@ public class HomeworkController {
     public ResponseEntity<Homework> submitHomework(
             @PathVariable String id,
             @PathVariable String studentId,
-            @RequestBody Map<String, String> submissionDetails) {
-        String text = submissionDetails.get("submissionText");
-        String fileUrl = submissionDetails.get("submissionFileUrl");
-        Homework updated = homeworkService.submitHomework(id, studentId, text, fileUrl);
+            @Valid @RequestBody SubmitHomeworkRequest request) {
+        Homework updated = homeworkService.submitHomework(
+                id, studentId, request.getSubmissionText(), request.getSubmissionFileUrl());
         return ResponseEntity.ok(updated);
     }
 
@@ -124,10 +139,9 @@ public class HomeworkController {
     public ResponseEntity<Homework> gradeHomework(
             @PathVariable String id,
             @PathVariable String studentId,
-            @RequestBody Map<String, Object> gradingDetails) {
-        Integer obtainedMarks = (Integer) gradingDetails.get("obtainedMarks");
-        String feedback = (String) gradingDetails.get("feedback");
-        Homework updated = homeworkService.gradeHomework(id, studentId, obtainedMarks, feedback);
+            @Valid @RequestBody GradeHomeworkRequest request) {
+        Homework updated = homeworkService.gradeHomework(
+                id, studentId, request.getObtainedMarks(), request.getFeedback());
         return ResponseEntity.ok(updated);
     }
 

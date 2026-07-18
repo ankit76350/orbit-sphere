@@ -9,9 +9,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.CreateAttendanceRequest;
+import com.orbitastra.backend.dto.academics.UpdateAttendanceRequest;
 import com.orbitastra.backend.models.academics.Attendance;
 import com.orbitastra.backend.services.academics.AttendanceService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -22,7 +25,16 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
 
     @PostMapping
-    public ResponseEntity<Attendance> createAttendance(@RequestBody Attendance attendance) {
+    public ResponseEntity<Attendance> createAttendance(@Valid @RequestBody CreateAttendanceRequest request) {
+        Attendance attendance = Attendance.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .date(request.getDate())
+                .status(request.getStatus())
+                .presentBy(request.getPresentBy())
+                .presentTime(request.getPresentTime())
+                .build();
         Attendance created = attendanceService.createAttendance(attendance);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -76,8 +88,17 @@ public class AttendanceController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<Attendance> updateAttendance(
-            @PathVariable String id, 
-            @RequestBody Attendance attendanceDetails) {
+            @PathVariable String id,
+            @Valid @RequestBody UpdateAttendanceRequest request) {
+        Attendance attendanceDetails = Attendance.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .date(request.getDate())
+                .status(request.getStatus())
+                .presentBy(request.getPresentBy())
+                .presentTime(request.getPresentTime())
+                .build();
         Attendance updated = attendanceService.updateAttendance(id, attendanceDetails);
         return ResponseEntity.ok(updated);
     }

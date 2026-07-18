@@ -16,6 +16,7 @@ import com.orbitastra.backend.dto.academics.TimetablePeriod;
 import com.orbitastra.backend.models.academics.DailyTimetable;
 import com.orbitastra.backend.services.academics.DailyTimetableService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -31,7 +32,7 @@ public class DailyTimetableController {
      * reported in the response. See {@link TimetableCreateRequest}.
      */
     @PostMapping
-    public ResponseEntity<TimetableCreationResult> createTimetable(@RequestBody TimetableCreateRequest request) {
+    public ResponseEntity<TimetableCreationResult> createTimetable(@Valid @RequestBody TimetableCreateRequest request) {
         TimetableCreationResult result = dailyTimetableService.createTimetable(request);
         return new ResponseEntity<>(result, HttpStatus.CREATED);
     }
@@ -93,7 +94,7 @@ public class DailyTimetableController {
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @PathVariable String classId,
             @PathVariable String section,
-            @RequestBody List<TimetablePeriod> periods) {
+            @Valid @RequestBody List<TimetablePeriod> periods) {
         return ResponseEntity.ok(
                 dailyTimetableService.updateSectionForDate(schoolId, date, classId, section, periods));
     }
@@ -107,7 +108,7 @@ public class DailyTimetableController {
     public ResponseEntity<DailyTimetable> updateDay(
             @PathVariable String schoolId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestBody TimetableCreateRequest body) {
+            @Valid @RequestBody TimetableCreateRequest body) {
         return ResponseEntity.ok(
                 dailyTimetableService.updateDay(schoolId, date, body == null ? null : body.getClassTimetables()));
     }

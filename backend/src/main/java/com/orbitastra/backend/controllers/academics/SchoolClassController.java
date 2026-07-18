@@ -7,9 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.CreateSchoolClassRequest;
+import com.orbitastra.backend.dto.academics.UpdateSchoolClassRequest;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.services.academics.SchoolClassService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -20,7 +23,15 @@ public class SchoolClassController {
     private final SchoolClassService schoolClassService;
 
     @PostMapping
-    public ResponseEntity<SchoolClass> createClass(@RequestBody SchoolClass schoolClass) {
+    public ResponseEntity<SchoolClass> createClass(@Valid @RequestBody CreateSchoolClassRequest request) {
+        SchoolClass schoolClass = SchoolClass.builder()
+                .schoolId(request.getSchoolId())
+                .name(request.getName())
+                .classTeacher(request.getClassTeacher())
+                .subjects(request.getSubjects())
+                .academicYear(request.getAcademicYear())
+                .sections(request.getSections())
+                .build();
         SchoolClass created = schoolClassService.createClass(schoolClass);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -51,7 +62,15 @@ public class SchoolClassController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<SchoolClass> updateClass(@PathVariable String id, @RequestBody SchoolClass classDetails) {
+    public ResponseEntity<SchoolClass> updateClass(@PathVariable String id, @Valid @RequestBody UpdateSchoolClassRequest request) {
+        SchoolClass classDetails = SchoolClass.builder()
+                .schoolId(request.getSchoolId())
+                .name(request.getName())
+                .classTeacher(request.getClassTeacher())
+                .subjects(request.getSubjects())
+                .academicYear(request.getAcademicYear())
+                .sections(request.getSections())
+                .build();
         SchoolClass updated = schoolClassService.updateClass(id, classDetails);
         return ResponseEntity.ok(updated);
     }

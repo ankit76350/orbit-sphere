@@ -7,9 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.CreateDisciplineLogRequest;
+import com.orbitastra.backend.dto.academics.UpdateDisciplineLogRequest;
 import com.orbitastra.backend.models.academics.DisciplineLog;
 import com.orbitastra.backend.services.academics.DisciplineLogService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -20,7 +23,16 @@ public class DisciplineLogController {
     private final DisciplineLogService disciplineLogService;
 
     @PostMapping
-    public ResponseEntity<DisciplineLog> createDisciplineLog(@RequestBody DisciplineLog log) {
+    public ResponseEntity<DisciplineLog> createDisciplineLog(@Valid @RequestBody CreateDisciplineLogRequest request) {
+        DisciplineLog log = DisciplineLog.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .violation(request.getViolation())
+                .fineAmount(request.getFineAmount())
+                .actionTaken(request.getActionTaken())
+                .incidentDate(request.getIncidentDate())
+                .build();
         DisciplineLog created = disciplineLogService.createDisciplineLog(log);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -58,8 +70,17 @@ public class DisciplineLogController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<DisciplineLog> updateDisciplineLog(
-            @PathVariable String id, 
-            @RequestBody DisciplineLog logDetails) {
+            @PathVariable String id,
+            @Valid @RequestBody UpdateDisciplineLogRequest request) {
+        DisciplineLog logDetails = DisciplineLog.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .violation(request.getViolation())
+                .fineAmount(request.getFineAmount())
+                .actionTaken(request.getActionTaken())
+                .incidentDate(request.getIncidentDate())
+                .build();
         DisciplineLog updated = disciplineLogService.updateDisciplineLog(id, logDetails);
         return ResponseEntity.ok(updated);
     }

@@ -7,9 +7,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.academics.CreateAcademicResultRequest;
+import com.orbitastra.backend.dto.academics.UpdateAcademicResultRequest;
 import com.orbitastra.backend.models.academics.AcademicResult;
 import com.orbitastra.backend.services.academics.AcademicResultService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -20,7 +23,18 @@ public class AcademicResultController {
     private final AcademicResultService academicResultService;
 
     @PostMapping
-    public ResponseEntity<AcademicResult> createAcademicResult(@RequestBody AcademicResult academicResult) {
+    public ResponseEntity<AcademicResult> createAcademicResult(@Valid @RequestBody CreateAcademicResultRequest request) {
+        AcademicResult academicResult = AcademicResult.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .grade(request.getGrade())
+                .examName(request.getExamName())
+                .marks(request.getMarks())
+                .totalPercentage(request.getTotalPercentage())
+                .overallGrade(request.getOverallGrade())
+                .feedback(request.getFeedback())
+                .build();
         AcademicResult created = academicResultService.createAcademicResult(academicResult);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
@@ -66,8 +80,19 @@ public class AcademicResultController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<AcademicResult> updateAcademicResult(
-            @PathVariable String id, 
-            @RequestBody AcademicResult resultDetails) {
+            @PathVariable String id,
+            @Valid @RequestBody UpdateAcademicResultRequest request) {
+        AcademicResult resultDetails = AcademicResult.builder()
+                .schoolId(request.getSchoolId())
+                .academicYear(request.getAcademicYear())
+                .studentId(request.getStudentId())
+                .grade(request.getGrade())
+                .examName(request.getExamName())
+                .marks(request.getMarks())
+                .totalPercentage(request.getTotalPercentage())
+                .overallGrade(request.getOverallGrade())
+                .feedback(request.getFeedback())
+                .build();
         AcademicResult updated = academicResultService.updateAcademicResult(id, resultDetails);
         return ResponseEntity.ok(updated);
     }
