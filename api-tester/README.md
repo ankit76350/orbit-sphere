@@ -9,9 +9,9 @@ Vite 6 · React 19 · Tailwind v4 · lucide-react
 ```bash
 cd api-tester
 npm install
-npm run dev        # http://localhost:3100
+npm run dev        # http://localhost:9876
 ```
-The dev server proxies `/api/*` to the backend at `http://localhost:5030`
+The dev server proxies `/api/*` to the backend at `http://localhost:3456`
 (configured in `vite.config.js`), so start the Spring backend first.
 
 ## How it works

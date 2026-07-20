@@ -27,12 +27,12 @@
                   "raw": "  {\n    \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n    \"admissionNo\": \"ADM-2026-003\",\n    \"studentId\": \"STD-003\",\n    \"rollNo\": \"8C-03\",\n    \"firstName\": \"Liam\",\n    \"lastName\": \"Williams\",\n    \"dob\": \"2014-08-22\",\n    \"gender\": \"MALE\",\n    \"bloodGroup\": \"O+\",\n    \"photoUrl\": \"https://images.unsplash.com/photo-1500648767791-00dcc994a43e\",\n    \"classId\": \"class-8c\",\n    \"sectionId\": \"section-c\",\n    \"hostelRoomId\": \"hostel-room-103\",\n    \"walletId\": \"wallet-std-003\",\n    \"parentId\": \"6a475192ae2722e4b9afefd2\",\n    \"medicalRecordId\": \"med-std-003\",\n    \"status\": \"ACTIVE\",\n    \"admissionDate\": \"2026-06-03\"\n  }"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/students",
+                  "raw": "http://localhost:3456/api/students",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students"
@@ -47,12 +47,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students",
+                  "raw": "http://localhost:3456/api/students",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students"
@@ -67,12 +67,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -88,12 +88,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/admission/ADM-2026-001",
+                  "raw": "http://localhost:3456/api/students/admission/ADM-2026-001",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -110,12 +110,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/school/6a474d2517e9c40cf971ccc8",
+                  "raw": "http://localhost:3456/api/students/school/6a474d2517e9c40cf971ccc8",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -132,12 +132,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/class/class-8c",
+                  "raw": "http://localhost:3456/api/students/class/class-8c",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -154,12 +154,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/parent/PARENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/students/parent/PARENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -176,12 +176,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/hostel/hostel-room-101",
+                  "raw": "http://localhost:3456/api/students/hostel/hostel-room-101",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -207,12 +207,12 @@
                   "raw": "{\n  \"firstName\": \"Johnny\",\n  \"status\": \"ACTIVE\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -228,12 +228,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -249,12 +249,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/siblings",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/siblings",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -285,12 +285,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc1\",\n  \"fatherName\": \"Robert Doe\",\n  \"motherName\": \"Alice Doe\",\n  \"phone\": \"1234567890\",\n  \"alternatePhone\": \"0987654321\",\n  \"email\": \"robert.doe@example.com\",\n  \"address\": \"123 Whispering Pines Road, Cityville\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/parents",
+                  "raw": "http://localhost:3456/api/parents",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents"
@@ -305,12 +305,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/parents",
+                  "raw": "http://localhost:3456/api/parents",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents"
@@ -325,12 +325,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/parents/PARENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents",
@@ -346,12 +346,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/parents/email/robert.doe@example.com",
+                  "raw": "http://localhost:3456/api/parents/email/robert.doe@example.com",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents",
@@ -368,12 +368,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/parents/school/6a474d2517e9c40cf971ccc8",
+                  "raw": "http://localhost:3456/api/parents/school/6a474d2517e9c40cf971ccc8",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents",
@@ -399,12 +399,12 @@
                   "raw": "{\n  \"fatherName\": \"Robert Doe Sr.\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/parents/PARENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents",
@@ -420,12 +420,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/parents/PARENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/parents/PARENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "parents",
@@ -455,12 +455,12 @@
                   "raw": "{\n  \"academicYear\": \"2026-2027\",\n  \"studentId\": \"STD-003-NEW\",\n  \"rollNo\": \"9C-03\",\n  \"classId\": \"class-9c\",\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/academic-records",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -477,12 +477,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/academic-history",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/academic-history",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",
@@ -508,12 +508,12 @@
                   "raw": "{\n  \"academicYear\": \"2027-2028\",\n  \"studentId\": \"STD-003-PROMOTE\",\n  \"rollNo\": \"10C-03\",\n  \"classId\": \"class-10c\",\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/students/STUDENT_ID_HERE/promote",
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/promote",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "students",

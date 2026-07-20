@@ -27,12 +27,12 @@
 									"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"recipientId\": \"USER_ID_HERE\",\n  \"channel\": \"EMAIL\",\n  \"message\": \"Your registration was successful!\",\n  \"sent\": false\n}"
 								},
 								"url": {
-									"raw": "http://localhost:5030/api/notifications",
+									"raw": "http://localhost:3456/api/notifications",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications"
@@ -47,12 +47,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications",
+									"raw": "http://localhost:3456/api/notifications",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications"
@@ -67,12 +67,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+									"raw": "http://localhost:3456/api/notifications/NOTIFICATION_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -88,12 +88,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE",
+									"raw": "http://localhost:3456/api/notifications/recipient/USER_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -110,12 +110,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/recipient/USER_ID_HERE/unsent",
+									"raw": "http://localhost:3456/api/notifications/recipient/USER_ID_HERE/unsent",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -133,12 +133,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/school/SCHOOL_ID_HERE",
+									"raw": "http://localhost:3456/api/notifications/school/SCHOOL_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -155,12 +155,12 @@
 								"method": "PUT",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE/mark-sent",
+									"raw": "http://localhost:3456/api/notifications/NOTIFICATION_ID_HERE/mark-sent",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -177,12 +177,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/notifications/NOTIFICATION_ID_HERE",
+									"raw": "http://localhost:3456/api/notifications/NOTIFICATION_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"notifications",
@@ -212,12 +212,12 @@
 									"raw": "{\n//   \"schoolId\": \"6a4660056ddd1ba253d631cb\",\n  \"schoolId\": \"6a465ffb6ddd1ba253d631ca\",\n  \"title\": \"Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Monday. Please bring your student ID cards.\",\n  \"target\": \"all\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
 								},
 								"url": {
-									"raw": "http://localhost:5030/api/announcements",
+									"raw": "http://localhost:3456/api/announcements",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements"
@@ -232,12 +232,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/announcements",
+									"raw": "http://localhost:3456/api/announcements",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements"
@@ -252,12 +252,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/announcements/6a46631098d3b7bfe4bd5f23",
+									"raw": "http://localhost:3456/api/announcements/6a46631098d3b7bfe4bd5f23",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements",
@@ -273,12 +273,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/announcements/school/6a4660056ddd1ba253d631cb",
+									"raw": "http://localhost:3456/api/announcements/school/6a4660056ddd1ba253d631cb",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements",
@@ -295,12 +295,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/announcements/school/6a465ffb6ddd1ba253d631ca/target/teacher",
+									"raw": "http://localhost:3456/api/announcements/school/6a465ffb6ddd1ba253d631ca/target/teacher",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements",
@@ -328,12 +328,12 @@
 									"raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"title\": \"Updated: Welcome to New Academic Year\",\n  \"content\": \"Classes begin next Tuesday at 9 AM instead of Monday.\",\n  \"target\": \"student\",\n  \"date\": \"2026-07-02\",\n  \"sender\": \"Principal Office\"\n}"
 								},
 								"url": {
-									"raw": "http://localhost:5030/api/announcements/6a46643098d3b7bfe4bd5f27",
+									"raw": "http://localhost:3456/api/announcements/6a46643098d3b7bfe4bd5f27",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements",
@@ -349,12 +349,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/announcements/6a46643098d3b7bfe4bd5f27",
+									"raw": "http://localhost:3456/api/announcements/6a46643098d3b7bfe4bd5f27",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"announcements",
@@ -384,12 +384,12 @@
 									"raw": "  {\n    \"schoolName\": \"Silver Oak School\",\n    \"subdomain\": \"silveroak\",\n    \"logo\": \"https://logo.url/silveroak.png\",\n    \"address\": \"99 Oak Avenue, Greenwood\",\n    \"phone\": \"+1234567899\",\n    \"email\": \"admin@silveroak.edu\",\n    \"subscriptionTier\": \"BASIC\",\n    \"maxStudents\": 600,\n    \"maxUsers\": 60,\n    \"active\": true\n  }\n"
 								},
 								"url": {
-									"raw": "http://localhost:5030/api/schools",
+									"raw": "http://localhost:3456/api/schools",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools"
@@ -404,12 +404,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/schools",
+									"raw": "http://localhost:3456/api/schools",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools"
@@ -424,12 +424,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/schools/active",
+									"raw": "http://localhost:3456/api/schools/active",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools",
@@ -445,12 +445,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/schools/6a465d3c6ddd1ba253d631c1",
+									"raw": "http://localhost:3456/api/schools/6a465d3c6ddd1ba253d631c1",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools",
@@ -466,12 +466,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/schools/subdomain/orbitastra",
+									"raw": "http://localhost:3456/api/schools/subdomain/orbitastra",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools",
@@ -497,12 +497,12 @@
 									"raw": "{\n//   \"schoolName\": \"Orbitastra Academy International\",\n//   \"subdomain\": \"New orbitastra\",\n//   \"logo\": \"https://logo.url/orbitastra.png\",\n//   \"address\": \"456 Global Way, Tech City\",\n//   \"phone\": \"+1987654321\",\n//   \"email\": \"admin@orbitastra.edu\",\n//   \"subscriptionTier\": \"ENTERPRISE\",\n  \"maxStudents\": 300,\n  \"maxUsers\": 15\n//   \"active\": true\n}"
 								},
 								"url": {
-									"raw": "http://localhost:5030/api/schools/6a4660056ddd1ba253d631cb",
+									"raw": "http://localhost:3456/api/schools/6a4660056ddd1ba253d631cb",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools",
@@ -518,12 +518,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/schools/6a465d3c6ddd1ba253d631c1",
+									"raw": "http://localhost:3456/api/schools/6a465d3c6ddd1ba253d631c1",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"schools",
@@ -549,12 +549,12 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years",
+									"raw": "http://localhost:3456/api/academic-years",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years"
@@ -573,12 +573,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years",
+									"raw": "http://localhost:3456/api/academic-years",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years"
@@ -593,12 +593,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -614,12 +614,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE",
+									"raw": "http://localhost:3456/api/academic-years/school/SCHOOL_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -636,12 +636,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE/name/2026-2027",
+									"raw": "http://localhost:3456/api/academic-years/school/SCHOOL_ID_HERE/name/2026-2027",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -660,12 +660,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/school/SCHOOL_ID_HERE/for-date/2026-08-15",
+									"raw": "http://localhost:3456/api/academic-years/school/SCHOOL_ID_HERE/for-date/2026-08-15",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -684,12 +684,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/range?start=2026-08-01&end=2026-08-31",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/range?start=2026-08-01&end=2026-08-31",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -717,12 +717,12 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/check?date=2026-08-15",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays/check?date=2026-08-15",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -751,12 +751,12 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -777,12 +777,12 @@
 								"method": "POST",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -805,12 +805,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays?date=2026-12-20&name=Annual Day",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/holidays?date=2026-12-20&name=Annual Day",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -837,12 +837,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE/weekly-offs?dayOfWeek=SUNDAY",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -870,12 +870,12 @@
 									}
 								],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",
@@ -895,12 +895,12 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "http://localhost:5030/api/academic-years/ACADEMIC_YEAR_ID_HERE",
+									"raw": "http://localhost:3456/api/academic-years/ACADEMIC_YEAR_ID_HERE",
 									"protocol": "http",
 									"host": [
 										"localhost"
 									],
-									"port": "5030",
+									"port": "3456",
 									"path": [
 										"api",
 										"academic-years",

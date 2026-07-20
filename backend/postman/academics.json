@@ -27,12 +27,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"name\": \"Class 10A\",\n  \"classTeacher\": \"John Doe\",\n  \"subjects\": [\n    {\n      \"name\": \"Mathematics\",\n      \"teacher\": \"Alice Smith\"\n    },\n    {\n      \"name\": \"Physics\",\n      \"teacher\": \"Bob Jones\"\n    }\n  ],\n  \"academicYear\": \"2026-2027\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/classes",
+                  "raw": "http://localhost:3456/api/classes",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes"
@@ -47,12 +47,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes",
+                  "raw": "http://localhost:3456/api/classes",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes"
@@ -67,12 +67,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -88,12 +88,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/classes/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -119,12 +119,12 @@
                   "raw": "{\n  \"classTeacher\": \"John Smith\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -140,12 +140,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -170,12 +170,12 @@
                   "raw": "{\n  \"name\": \"Chemistry\",\n  \"teacher\": \"6a4751bd826a1781db3753a2\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/subjects",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE/subjects",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -201,12 +201,12 @@
                   "raw": "{\n  \"section\": \"A\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/sections",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE/sections",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -223,12 +223,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/sections/A",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE/sections/A",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -246,12 +246,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/classes/CLASS_ID_HERE/subjects/Chemistry",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE/subjects/Chemistry",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "classes",
@@ -283,12 +283,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Algebra Homework 1\",\n  \"instructions\": \"Solve problems 1 to 10 on page 42.\",\n  \"dueDate\": \"2026-07-10\",\n  \"assignmentScope\": \"CLASS\",\n  \"maxMarks\": 100,\n  \"teacherId\": \"TEACHER_ID_HERE\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework",
+                  "raw": "http://localhost:3456/api/homework",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework"
@@ -312,12 +312,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Algebra Homework 1\",\n  \"instructions\": \"Solve problems 1 to 10 on page 42.\",\n  \"dueDate\": \"2026-07-10\",\n  \"maxMarks\": 100,\n  \"teacherId\": \"TEACHER_ID_HERE\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/definition",
+                  "raw": "http://localhost:3456/api/homework/definition",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -342,12 +342,12 @@
                   "raw": "{\n  \"assignmentScope\": \"CLASS\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE/assign",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE/assign",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -364,12 +364,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework",
+                  "raw": "http://localhost:3456/api/homework",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework"
@@ -384,12 +384,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -405,12 +405,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -427,12 +427,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/class/CLASS_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/class/CLASS_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -458,12 +458,12 @@
                   "raw": "{\n  \"submittedCount\": 5\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -479,12 +479,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -500,12 +500,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -522,12 +522,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -555,12 +555,12 @@
                   "raw": "{\n  \"submissionText\": \"Here is my completed Algebra homework solutions.\",\n  \"submissionFileUrl\": \"https://s3.amazonaws.com/submissions/algebra_homework_sol.pdf\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE/submit/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE/submit/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -587,12 +587,12 @@
                   "raw": "{\n  \"obtainedMarks\": 95,\n  \"feedback\": \"Excellent work, very clean calculations!\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/homework/HOMEWORK_ID_HERE/grade/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE/grade/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "homework",
@@ -624,12 +624,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"grade\": \"10th Grade\",\n  \"examName\": \"Midterm Examination\",\n  \"marks\": [\n    {\n      \"subject\": \"Mathematics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 92,\n      \"grade\": \"A\"\n    },\n    {\n      \"subject\": \"Physics\",\n      \"maxMarks\": 100,\n      \"obtainedMarks\": 88,\n      \"grade\": \"B\"\n    }\n  ],\n  \"totalPercentage\": 90.0,\n  \"overallGrade\": \"A\",\n  \"feedback\": \"Excellent performance!\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results",
+                  "raw": "http://localhost:3456/api/academic-results",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results"
@@ -644,12 +644,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results",
+                  "raw": "http://localhost:3456/api/academic-results",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results"
@@ -664,12 +664,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/RESULT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -685,12 +685,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -707,12 +707,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -729,12 +729,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/school/SCHOOL_ID_HERE/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -762,12 +762,12 @@
                   "raw": "{\n  \"feedback\": \"Keep up the great work!\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/RESULT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -783,12 +783,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/academic-results/RESULT_ID_HERE",
+                  "raw": "http://localhost:3456/api/academic-results/RESULT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "academic-results",
@@ -818,12 +818,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\",\n  \"presentBy\": \"Teacher John\",\n  \"presentTime\": \"2026-07-03T09:00:00\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance",
+                  "raw": "http://localhost:3456/api/attendance",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance"
@@ -838,12 +838,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance",
+                  "raw": "http://localhost:3456/api/attendance",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance"
@@ -858,12 +858,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "raw": "http://localhost:3456/api/attendance/ATTENDANCE_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -879,12 +879,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/attendance/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -901,12 +901,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/attendance/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -923,12 +923,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/school/SCHOOL_ID_HERE/date/2026-07-03",
+                  "raw": "http://localhost:3456/api/attendance/school/SCHOOL_ID_HERE/date/2026-07-03",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -947,12 +947,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/student/STUDENT_ID_HERE/date/2026-07-03",
+                  "raw": "http://localhost:3456/api/attendance/student/STUDENT_ID_HERE/date/2026-07-03",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -980,12 +980,12 @@
                   "raw": "{\n  \"status\": \"ABSENT\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "raw": "http://localhost:3456/api/attendance/ATTENDANCE_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -1001,12 +1001,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/attendance/ATTENDANCE_ID_HERE",
+                  "raw": "http://localhost:3456/api/attendance/ATTENDANCE_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "attendance",
@@ -1036,12 +1036,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"violation\": \"Late arrival to class\",\n  \"fineAmount\": 10.00,\n  \"actionTaken\": \"Warning issued\",\n  \"incidentDate\": \"2026-07-03T10:30:00\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs",
+                  "raw": "http://localhost:3456/api/discipline-logs",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs"
@@ -1056,12 +1056,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs",
+                  "raw": "http://localhost:3456/api/discipline-logs",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs"
@@ -1076,12 +1076,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "raw": "http://localhost:3456/api/discipline-logs/LOG_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs",
@@ -1097,12 +1097,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/discipline-logs/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs",
@@ -1119,12 +1119,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/discipline-logs/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs",
@@ -1150,12 +1150,12 @@
                   "raw": "{\n  \"actionTaken\": \"Suspension for 1 day\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "raw": "http://localhost:3456/api/discipline-logs/LOG_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs",
@@ -1171,12 +1171,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/discipline-logs/LOG_ID_HERE",
+                  "raw": "http://localhost:3456/api/discipline-logs/LOG_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "discipline-logs",
@@ -1206,12 +1206,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"visitDate\": \"2026-07-03\",\n  \"diagnosis\": \"Seasonal Flu\",\n  \"medicines\": [\n    \"Paracetamol\",\n    \"Vitamin C\"\n  ],\n  \"doctorName\": \"Dr. Davis\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records",
+                  "raw": "http://localhost:3456/api/medical-records",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records"
@@ -1226,12 +1226,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records",
+                  "raw": "http://localhost:3456/api/medical-records",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records"
@@ -1246,12 +1246,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "raw": "http://localhost:3456/api/medical-records/RECORD_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records",
@@ -1267,12 +1267,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/medical-records/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records",
@@ -1289,12 +1289,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/medical-records/student/STUDENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records",
@@ -1320,12 +1320,12 @@
                   "raw": "{\n  \"diagnosis\": \"Seasonal Flu (Recovered)\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "raw": "http://localhost:3456/api/medical-records/RECORD_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records",
@@ -1341,12 +1341,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/medical-records/RECORD_ID_HERE",
+                  "raw": "http://localhost:3456/api/medical-records/RECORD_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "medical-records",
@@ -1376,12 +1376,12 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n  \"classId\": \"CLASS_ID_HERE\",\n  \"className\": \"Class 10A\",\n  \"subject\": \"Mathematics\",\n  \"teacher\": \"Alice Smith\",\n  \"day\": \"Monday\",\n  \"time\": \"09:00 AM - 10:00 AM\",\n  \"room\": \"Room 101\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events",
+                  "raw": "http://localhost:3456/api/timetable-events",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events"
@@ -1396,12 +1396,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events",
+                  "raw": "http://localhost:3456/api/timetable-events",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events"
@@ -1416,12 +1416,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/timetable-events/EVENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",
@@ -1437,12 +1437,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE",
+                  "raw": "http://localhost:3456/api/timetable-events/school/SCHOOL_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",
@@ -1459,12 +1459,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE/class/Class 10A",
+                  "raw": "http://localhost:3456/api/timetable-events/school/SCHOOL_ID_HERE/class/Class 10A",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",
@@ -1483,12 +1483,12 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/school/SCHOOL_ID_HERE/class-id/CLASS_ID_HERE",
+                  "raw": "http://localhost:3456/api/timetable-events/school/SCHOOL_ID_HERE/class-id/CLASS_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",
@@ -1516,12 +1516,12 @@
                   "raw": "{\n  \"room\": \"Room 102\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/timetable-events/EVENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",
@@ -1537,12 +1537,12 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:5030/api/timetable-events/EVENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/timetable-events/EVENT_ID_HERE",
                   "protocol": "http",
                   "host": [
                     "localhost"
                   ],
-                  "port": "5030",
+                  "port": "3456",
                   "path": [
                     "api",
                     "timetable-events",

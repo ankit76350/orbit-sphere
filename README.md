@@ -128,8 +128,8 @@ Orbit-Sphere/
    ```bash
    ./mvnw spring-boot:run
    ```
-   The API will be available at `http://localhost:8080`
-   Swagger UI: `http://localhost:8080/swagger-ui.html`
+   The API will be available at `http://localhost:3456`
+   Swagger UI: `http://localhost:3456/swagger-ui.html`
 
 ### Web Frontend Setup
 
@@ -143,7 +143,7 @@ Orbit-Sphere/
    npm install
    npm run dev
    ```
-   The app runs at `http://localhost:3000`.
+   The app runs at `http://localhost:1234`.
 
 ### Flutter App Setup (Planned)
 
@@ -206,7 +206,7 @@ For support, questions, or feature requests, please open an issue on the GitHub 
 
 ## 📄 Documentation
 
-- [API Documentation](http://localhost:8080/swagger-ui.html)
+- [API Documentation](http://localhost:3456/swagger-ui.html)
 - [Project Wiki](WIKI_URL_HERE)
 
 ---
