@@ -22,6 +22,8 @@ import lombok.Data;
 @Data
 public class ConvertAdmissionRequest {
 
+    private String admissionId;
+
     private String admissionNo;
 
     private String name;

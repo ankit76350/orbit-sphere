@@ -7,14 +7,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.GuardianLinkRequest;
 import com.orbitastra.backend.dto.student.UpdateStudentRequest;
-import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.services.crm.AdmissionService;
 import com.orbitastra.backend.services.student.StudentService;
 
 import jakarta.validation.Valid;
@@ -26,7 +27,9 @@ import lombok.RequiredArgsConstructor;
 public class StudentController {
 
     private final StudentService studentService;
+    private final AdmissionService admissionService;
 
+    /** Normal student creation API — creates a student directly from a request payload. */
     @PostMapping
     public ResponseEntity<Student> createStudent(@Valid @RequestBody CreateStudentRequest request) {
         Student student = Student.builder()
@@ -45,6 +48,18 @@ public class StudentController {
                 .currentAcademicRecord(toAcademicRecord(request.getCurrentAcademicRecord()))
                 .build();
         Student created = studentService.createStudent(student);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+
+    /** Create student from admission ID API — converts an admission into an enrolled student via request body. */
+    @PostMapping("/from-admission")
+    public ResponseEntity<Student> createStudentFromAdmissionBody(
+            @Valid @RequestBody ConvertAdmissionRequest request) {
+        if (request == null || request.getAdmissionId() == null || request.getAdmissionId().isBlank()) {
+            throw new IllegalArgumentException("admissionId is required to create student from admission.");
+        }
+        Student created = admissionService.convertToStudent(request.getAdmissionId(), request.toStudent());
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 

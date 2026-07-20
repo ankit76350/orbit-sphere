@@ -101,6 +101,7 @@ export const api = {
   students: (schoolId) => listOr(`/api/students/school/${schoolId}`),
   studentsByYear: (schoolId, year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
+  createStudentFromAdmission: (payload) => call('POST', '/api/students/from-admission', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
   getStudentAcademicHistory: (id) => listOr(`/api/students/${id}/academic-history`),
