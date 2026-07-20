@@ -75,4 +75,48 @@ class InquiryServiceTest {
         Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
         assertEquals(InquiryStatus.COUNSELING, result.getStatus());
     }
+
+    @Test
+    void recordFollowUp_whenAlreadyAdmitted_changingStatus_throwsIllegalArgumentException() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.ADMITTED)
+                .build();
+
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+
+        InquiryFollowUp entry = InquiryFollowUp.builder()
+                .status(InquiryStatus.COUNSELING) // Trying to revert back to COUNSELING from ADMITTED
+                .note("Reverting status")
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            inquiryService.recordFollowUp(inquiryId, entry);
+        });
+
+        assertEquals("Cannot change status of an inquiry that is already ADMITTED.", ex.getMessage());
+    }
+
+    @Test
+    void recordFollowUp_whenAlreadyAdmitted_sameStatus_succeeds() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.ADMITTED)
+                .build();
+
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.save(existing)).thenReturn(existing);
+
+        InquiryFollowUp entry = InquiryFollowUp.builder()
+                .status(InquiryStatus.ADMITTED) // Remaining ADMITTED
+                .note("Added additional documentation note")
+                .build();
+
+        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+        assertEquals(InquiryStatus.ADMITTED, result.getStatus());
+    }
 }

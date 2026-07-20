@@ -52,6 +52,9 @@ public class AdmissionService {
         // Scenario A — via inquiry: carry the applicant snapshot over (as-is unless
         // the admission already supplies its own), and advance the inquiry to ADMITTED.
         if (admission.getInquiryId() != null && !admission.getInquiryId().isBlank()) {
+            if (admissionRepository.existsByInquiryId(admission.getInquiryId())) {
+                throw new IllegalArgumentException("An admission already exists for inquiry ID: " + admission.getInquiryId());
+            }
             Inquiry inquiry = inquiryService.getInquiryById(admission.getInquiryId());
             if (!inquiry.getSchoolId().equals(admission.getSchoolId())) {
                 throw new IllegalArgumentException("Inquiry does not belong to the same school as the admission.");
@@ -103,7 +106,12 @@ public class AdmissionService {
         if (details.getStatus() != null) admission.setStatus(details.getStatus());
         if (details.getDocuments() != null) admission.setDocuments(details.getDocuments());
         if (details.getAdmissionDate() != null) admission.setAdmissionDate(details.getAdmissionDate());
-        if (details.getInquiryId() != null) admission.setInquiryId(details.getInquiryId());
+        if (details.getInquiryId() != null && !details.getInquiryId().isBlank()) {
+            if (!details.getInquiryId().equals(admission.getInquiryId()) && admissionRepository.existsByInquiryId(details.getInquiryId())) {
+                throw new IllegalArgumentException("An admission already exists for inquiry ID: " + details.getInquiryId());
+            }
+            admission.setInquiryId(details.getInquiryId());
+        }
         if (details.getStudentName() != null) admission.setStudentName(details.getStudentName());
         if (details.getDob() != null) admission.setDob(details.getDob());
         if (details.getGender() != null) admission.setGender(details.getGender());

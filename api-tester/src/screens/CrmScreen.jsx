@@ -659,8 +659,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             {/* New follow-up form */}
             <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="New Stage *">
-                  <Select value={followUpForm.status} onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })}>
+                <Field label="New Stage *" hint={followUpModal.status === 'ADMITTED' ? 'Stage is locked for ADMITTED inquiries.' : undefined}>
+                  <Select value={followUpForm.status} onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })} disabled={followUpModal.status === 'ADMITTED'}>
                     {INQUIRY_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </Select>
                 </Field>

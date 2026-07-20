@@ -115,6 +115,9 @@ public class InquiryService {
             throw new IllegalArgumentException("Follow-up details are required.");
         }
         Inquiry inquiry = getInquiryById(id);
+        if (inquiry.getStatus() == InquiryStatus.ADMITTED && entry.getStatus() != null && entry.getStatus() != InquiryStatus.ADMITTED) {
+            throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
+        }
         if (entry.getStatus() == null) {
             entry.setStatus(inquiry.getStatus());
         }
@@ -144,6 +147,9 @@ public class InquiryService {
     public Inquiry advanceStatus(String id, InquiryStatus target) {
         Inquiry inquiry = getInquiryById(id);
         InquiryStatus current = inquiry.getStatus();
+        if (current == InquiryStatus.ADMITTED && target != InquiryStatus.ADMITTED) {
+            throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
+        }
         if (current == null || target.ordinal() > current.ordinal()) {
             if (inquiry.getFollowUps() == null) {
                 inquiry.setFollowUps(new ArrayList<>());

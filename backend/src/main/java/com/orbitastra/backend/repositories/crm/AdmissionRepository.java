@@ -14,4 +14,5 @@ public interface AdmissionRepository extends MongoRepository<Admission, String> 
     List<Admission> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
     List<Admission> findBySchoolIdAndStatus(String schoolId, AdmissionStatus status);
     List<Admission> findByInquiryId(String inquiryId);
+    boolean existsByInquiryId(String inquiryId);
 }

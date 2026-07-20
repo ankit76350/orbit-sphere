@@ -38,6 +38,7 @@ public class Admission {
     @Indexed
     private String academicYear;
 
+    @Indexed(unique = true, sparse = true)
     private String inquiryId;
 
     // Applicant snapshot — copied from the linked inquiry, or filled directly for a
