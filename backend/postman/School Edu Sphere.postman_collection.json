@@ -44,6 +44,36 @@
 							"response": []
 						},
 						{
+							"name": "Create Student from Admission",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"admissionId\": \"ADMISSION_ID_HERE\",\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"name\": \"Aarav Nair\",\n  \"dob\": \"2014-08-22\",\n  \"gender\": \"MALE\",\n  \"status\": \"ACTIVE\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:3456/api/students/from-admission",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "3456",
+									"path": [
+										"api",
+										"students",
+										"from-admission"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Get All Students",
 							"request": {
 								"method": "GET",
