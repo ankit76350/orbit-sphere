@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import lombok.Data;
 
 /**
@@ -18,6 +19,7 @@ public class FollowUpRequest {
 
     private String note;
 
+    @FutureOrPresent(message = "Next follow-up date cannot be in the past.")
     private LocalDate nextFollowUp;
 
     private String counselorId;

@@ -422,7 +422,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Initial Note"><Input value={inquiryForm.note} onChange={(e) => setInquiryForm({ ...inquiryForm, note: e.target.value })} placeholder="Interested in Grade 6…" /></Field>
-                    <Field label="Next Follow-up"><Input type="date" value={inquiryForm.nextFollowUp} onChange={(e) => setInquiryForm({ ...inquiryForm, nextFollowUp: e.target.value })} /></Field>
+                    <Field label="Next Follow-up"><Input type="date" min={new Date().toISOString().slice(0, 10)} value={inquiryForm.nextFollowUp} onChange={(e) => setInquiryForm({ ...inquiryForm, nextFollowUp: e.target.value })} /></Field>
                   </div>
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
                     <Button variant="primary" onClick={submitInquiry} disabled={busy}>
@@ -665,7 +665,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </Select>
                 </Field>
                 <Field label="Next Follow-up">
-                  <Input type="date" value={followUpForm.nextFollowUp} onChange={(e) => setFollowUpForm({ ...followUpForm, nextFollowUp: e.target.value })} />
+                  <Input type="date" min={new Date().toISOString().slice(0, 10)} value={followUpForm.nextFollowUp} onChange={(e) => setFollowUpForm({ ...followUpForm, nextFollowUp: e.target.value })} />
                 </Field>
               </div>
               <Field label="Handled by">

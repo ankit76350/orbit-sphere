@@ -43,6 +43,7 @@ public class InquiryService {
             if (f.getStatus() == null) f.setStatus(InquiryStatus.INQUIRY);
             if (f.getCounselorId() == null) f.setCounselorId(inquiry.getCounselorId());
             validateCounselor(f.getCounselorId(), inquiry.getSchoolId());
+            validateNextFollowUpDate(f.getNextFollowUp());
             if (f.getRecordedAt() == null) f.setRecordedAt(now);
         }
         // Current status/owner mirror the latest entry; else default the stage to INQUIRY.
@@ -121,6 +122,7 @@ public class InquiryService {
             entry.setCounselorId(inquiry.getCounselorId());
         }
         validateCounselor(entry.getCounselorId(), inquiry.getSchoolId());
+        validateNextFollowUpDate(entry.getNextFollowUp());
         entry.setRecordedAt(LocalDateTime.now());
         if (inquiry.getFollowUps() == null) {
             inquiry.setFollowUps(new ArrayList<>());
@@ -182,6 +184,12 @@ public class InquiryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Counselor (staff) not found with id: " + counselorId));
         if (!counselor.getSchoolId().equals(schoolId)) {
             throw new IllegalArgumentException("Counselor does not belong to the same school as the inquiry.");
+        }
+    }
+
+    private void validateNextFollowUpDate(LocalDate nextFollowUp) {
+        if (nextFollowUp != null && nextFollowUp.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Next follow-up date cannot be in the past.");
         }
     }
 }
