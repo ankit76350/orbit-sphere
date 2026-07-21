@@ -395,7 +395,21 @@ export async function syncStorageWithBackend() {
     ]);
     if (Array.isArray(schools) && schools.length) localStorage.setItem(KEYS.SCHOOLS, JSON.stringify(schools));
     if (Array.isArray(staff) && staff.length) localStorage.setItem(KEYS.STAFF, JSON.stringify(staff));
-    if (Array.isArray(students) && students.length) localStorage.setItem(KEYS.STUDENTS, JSON.stringify(students));
+    if (Array.isArray(students) && students.length) {
+      const normalizedStudents = students.map((s) => ({
+        ...s,
+        admissionNumber: s.admissionNo || s.admissionNumber || `ADM-${s.id}`,
+        admissionNo: s.admissionNo || s.admissionNumber,
+        parentName: s.parentName || (s.guardians && s.guardians[0] ? s.guardians[0].name : "Parent"),
+        parentEmail: s.parentEmail || (s.guardians && s.guardians[0] ? s.guardians[0].email : ""),
+        parentPhone: s.parentPhone || (s.guardians && s.guardians[0] ? s.guardians[0].phone : ""),
+        grade: s.grade || (s.currentAcademicRecord ? s.currentAcademicRecord.classDocId : "Grade 7"),
+        gradeIndex: s.gradeIndex || 7,
+        walletBalance: s.walletBalance !== undefined ? s.walletBalance : 100,
+        status: s.status || "ACTIVE"
+      }));
+      localStorage.setItem(KEYS.STUDENTS, JSON.stringify(normalizedStudents));
+    }
     if (Array.isArray(fees) && fees.length) localStorage.setItem(KEYS.FEES, JSON.stringify(fees));
     if (Array.isArray(inquiries) && inquiries.length) localStorage.setItem(KEYS.CRM, JSON.stringify(inquiries));
     if (Array.isArray(announcements) && announcements.length) localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(announcements));

@@ -68,18 +68,26 @@ export default function ModAdmission({ user }) {
     }
     const newStudent = {
       id: studentId,
+      schoolId: "6a474d2517e9c40cf971ccc2",
       admissionNumber: tentativeAdNo,
+      admissionNo: tentativeAdNo,
       name: studentFullName,
       gradeIndex: parseInt(grade.split(" ")[1]) || 7,
       grade,
-      gender,
-      dob,
+      gender: (gender || "Male").toUpperCase(),
+      dob: dob || "2015-06-19",
+      bloodGroup: "AB+",
+      photoUrl: photoPreview || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d",
+      walletId: `wallet-${Date.now()}`,
+      medicalRecordId: `medical-${Date.now()}`,
+      status: "ACTIVE",
+      admissionDate: new Date().toISOString().split("T")[0],
+      joinedDate: new Date().toISOString().split("T")[0],
       parentName,
       parentEmail,
       parentPhone,
       parentId: `parent-gen-${Date.now()}`,
-      address,
-      joinedDate: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      address: address || "9 Oak Ave",
       hostelOptIn,
       transportOptIn,
       hostelBuilding,
@@ -87,12 +95,33 @@ export default function ModAdmission({ user }) {
       hostelRoomNumber,
       hostelBedNumber,
       walletBalance: 100,
-      // Initial balance
-      medicalBloodGroup: "O+",
+      medicalBloodGroup: "AB+",
       medicalAllergies: [],
       medicalConditions: [],
       medicalDoctorLogs: "Initial board enrollment. Awaiting medical summary sheets.",
-      status: "Active"
+      guardians: [
+        {
+          name: parentName,
+          relation: "MOTHER",
+          phone: parentPhone,
+          email: parentEmail,
+          address: address || "9 Oak Ave",
+          occupation: "Parent",
+          primary: true,
+          emergencyContact: true,
+          pickupApproved: true,
+          portalAccess: true
+        }
+      ],
+      currentAcademicRecord: {
+        academicYear: "2026-2027",
+        studentNo: `STD-${Math.floor(100 + Math.random() * 900)}`,
+        rollNo: "9C-01",
+        classDocId: grade,
+        sectionNo: "Section-A",
+        hostelRoomNo: hostelRoomNumber ? `Room ${hostelRoomNumber}` : undefined,
+        status: "ACTIVE"
+      }
     };
     const updatedStudents = [...students, newStudent];
     saveStudents(updatedStudents);

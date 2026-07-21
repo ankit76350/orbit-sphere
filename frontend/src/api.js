@@ -78,7 +78,45 @@ export const api = {
   getStudents: (schoolId = 'SCH-001') => listOr(`/api/students/school/${schoolId}`),
   getStudentsByYear: (schoolId = 'SCH-001', year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
-  createStudent: (payload) => call('POST', '/api/students', payload),
+  createStudent: (rawPayload) => {
+    const payload = {
+      schoolId: rawPayload.schoolId || "6a474d2517e9c40cf971ccc2",
+      name: rawPayload.name || rawPayload.studentName || "Student",
+      admissionNo: rawPayload.admissionNo || rawPayload.admissionNumber || `ADM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      dob: rawPayload.dob || "2015-06-19",
+      gender: (rawPayload.gender || "MALE").toUpperCase(),
+      bloodGroup: rawPayload.bloodGroup || rawPayload.medicalBloodGroup || "AB+",
+      photoUrl: rawPayload.photoUrl || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d",
+      walletId: rawPayload.walletId || `wallet-${Date.now()}`,
+      medicalRecordId: rawPayload.medicalRecordId || `medical-${Date.now()}`,
+      status: (rawPayload.status || "ACTIVE").toUpperCase(),
+      admissionDate: rawPayload.admissionDate || rawPayload.joinedDate || new Date().toISOString().split("T")[0],
+      guardians: Array.isArray(rawPayload.guardians) && rawPayload.guardians.length > 0 ? rawPayload.guardians : [
+        {
+          name: rawPayload.parentName || "Parent",
+          relation: (rawPayload.parentRelation || "MOTHER").toUpperCase(),
+          phone: rawPayload.parentPhone || "+61-400-555-666",
+          email: rawPayload.parentEmail || "parent@example.com",
+          address: rawPayload.address || "9 Oak Ave",
+          occupation: rawPayload.parentOccupation || "Parent",
+          primary: true,
+          emergencyContact: true,
+          pickupApproved: true,
+          portalAccess: true
+        }
+      ],
+      currentAcademicRecord: rawPayload.currentAcademicRecord || {
+        academicYear: rawPayload.academicYear || "2026-2027",
+        studentNo: rawPayload.studentNo || `STD-${Math.floor(100 + Math.random() * 900)}`,
+        rollNo: rawPayload.rollNo || "9C-01",
+        classDocId: rawPayload.classDocId || rawPayload.grade || "6a4ca1b1ccce8dc055ebd633",
+        sectionNo: rawPayload.sectionNo || rawPayload.sectionId || "section-a",
+        hostelRoomNo: rawPayload.hostelRoomNo || rawPayload.hostelRoomId || (rawPayload.hostelRoomNumber ? `room-${rawPayload.hostelRoomNumber}` : undefined),
+        status: "ACTIVE"
+      }
+    };
+    return call('POST', '/api/students', payload);
+  },
   createStudentFromAdmission: (payload) => call('POST', '/api/students/from-admission', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
