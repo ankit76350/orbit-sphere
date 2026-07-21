@@ -24,9 +24,9 @@ public class AcademicRecordRequest {
 
     private String classDocId;
 
-    private String sectionId;
+    private String sectionNo;
 
-    private String hostelRoomId;
+    private String hostelRoomNo;
 
     private StudentStatus status;
 
@@ -36,8 +36,8 @@ public class AcademicRecordRequest {
                 .studentNo(studentNo)
                 .rollNo(rollNo)
                 .classDocId(classDocId)
-                .sectionId(sectionId)
-                .hostelRoomId(hostelRoomId)
+                .sectionNo(sectionNo)
+                .hostelRoomNo(hostelRoomNo)
                 .status(status)
                 .build();
     }

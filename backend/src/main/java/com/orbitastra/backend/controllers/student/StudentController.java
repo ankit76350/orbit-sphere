@@ -102,9 +102,9 @@ public class StudentController {
         return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianId));
     }
 
-    @GetMapping("/hostel/{hostelRoomId}")
-    public ResponseEntity<List<StudentResponse>> getStudentsByHostelRoom(@PathVariable String hostelRoomId) {
-        return ResponseEntity.ok(studentService.getStudentsByHostelRoom(hostelRoomId));
+    @GetMapping("/hostel/{hostelRoomNo}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByHostelRoom(@PathVariable String hostelRoomNo) {
+        return ResponseEntity.ok(studentService.getStudentsByHostelRoom(hostelRoomNo));
     }
 
     @PatchMapping("/{id}")

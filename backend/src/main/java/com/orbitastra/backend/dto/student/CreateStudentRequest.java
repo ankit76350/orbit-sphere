@@ -50,7 +50,7 @@ public class CreateStudentRequest {
 
     private String classId; // Alias for classDocId
 
-    private String sectionId;
+    private String sectionNo;
 
     private String rollNo;
 

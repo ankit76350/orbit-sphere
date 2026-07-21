@@ -41,6 +41,11 @@ public class ObsoleteIndexCleanup {
         // rename. The old index is on the now-nonexistent 'studentId' field (always null), so it
         // wrongly enforces uniqueness on (schoolId, academicYear) alone.
         dropIfPresent(StudentAcademicRecord.class, "school_year_student_id_unique_idx");
+
+        // Superseded by 'class_doc_section_no_year_roll_unique_idx' after the sectionId ->
+        // sectionNo rename. The old index is on the now-nonexistent 'sectionId' field (always
+        // null), so it wrongly enforces uniqueness on (classDocId, academicYear, rollNo) alone.
+        dropIfPresent(StudentAcademicRecord.class, "class_doc_section_year_roll_unique_idx");
     }
 
     private void dropIfPresent(Class<?> type, String indexName) {

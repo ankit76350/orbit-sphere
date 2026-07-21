@@ -108,6 +108,8 @@ public class StudentService {
                                 g.getPrimary(), g.getEmergencyContact(),
                                 g.getPickupApproved(), g.getPortalAccess()))
                         .toList();
+                        
+        //? buliding or link the Guardian               
         List<GuardianLink> links = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
 
         // Build the initial academic record from currentAcademicRecord or the top-level fields.
@@ -116,11 +118,11 @@ public class StudentService {
 
         String classDocId = request.getClassDocId() != null ? request.getClassDocId() : request.getClassId();
         if (initialRecord == null && (request.getAcademicYear() != null || classDocId != null
-                || request.getSectionId() != null || request.getRollNo() != null)) {
+                || request.getSectionNo() != null || request.getRollNo() != null)) {
             initialRecord = StudentAcademicRecord.builder()
                     .academicYear(request.getAcademicYear())
                     .classDocId(classDocId)
-                    .sectionId(request.getSectionId())
+                    .sectionNo(request.getSectionNo())
                     .rollNo(request.getRollNo())
                     .build();
         } else if (initialRecord != null) {
@@ -130,8 +132,8 @@ public class StudentService {
             if (initialRecord.getClassDocId() == null && classDocId != null) {
                 initialRecord.setClassDocId(classDocId);
             }
-            if (initialRecord.getSectionId() == null && request.getSectionId() != null) {
-                initialRecord.setSectionId(request.getSectionId());
+            if (initialRecord.getSectionNo() == null && request.getSectionNo() != null) {
+                initialRecord.setSectionNo(request.getSectionNo());
             }
             if (initialRecord.getRollNo() == null && request.getRollNo() != null) {
                 initialRecord.setRollNo(request.getRollNo());
@@ -205,8 +207,8 @@ public class StudentService {
                     .studentNo(initialRecord.getStudentNo())
                     .rollNo(initialRecord.getRollNo())
                     .classDocId(initialRecord.getClassDocId())
-                    .sectionId(initialRecord.getSectionId())
-                    .hostelRoomId(initialRecord.getHostelRoomId())
+                    .sectionNo(initialRecord.getSectionNo())
+                    .hostelRoomNo(initialRecord.getHostelRoomNo())
                     .status(saved.getStatus())
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
@@ -269,8 +271,8 @@ public class StudentService {
         return buildResponses(studentRepository.findAllById(studentIds));
     }
 
-    public List<StudentResponse> getStudentsByHostelRoom(String hostelRoomId) {
-        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByHostelRoomId(hostelRoomId);
+    public List<StudentResponse> getStudentsByHostelRoom(String hostelRoomNo) {
+        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByHostelRoomNo(hostelRoomNo);
         List<String> studentIds = records.stream()
                 .map(StudentAcademicRecord::getStudentDocId)
                 .distinct()
@@ -373,12 +375,12 @@ public class StudentService {
                 record.setClassDocId(detailsRecord.getClassDocId());
                 academicChanged = true;
             }
-            if (detailsRecord.getSectionId() != null) {
-                record.setSectionId(detailsRecord.getSectionId());
+            if (detailsRecord.getSectionNo() != null) {
+                record.setSectionNo(detailsRecord.getSectionNo());
                 academicChanged = true;
             }
-            if (detailsRecord.getHostelRoomId() != null) {
-                record.setHostelRoomId(detailsRecord.getHostelRoomId());
+            if (detailsRecord.getHostelRoomNo() != null) {
+                record.setHostelRoomNo(detailsRecord.getHostelRoomNo());
                 academicChanged = true;
             }
         }
@@ -467,8 +469,8 @@ public class StudentService {
             }
             record.setClassDocId(recordDetails.getClassDocId());
         }
-        if (recordDetails.getSectionId() != null) record.setSectionId(recordDetails.getSectionId());
-        if (recordDetails.getHostelRoomId() != null) record.setHostelRoomId(recordDetails.getHostelRoomId());
+        if (recordDetails.getSectionNo() != null) record.setSectionNo(recordDetails.getSectionNo());
+        if (recordDetails.getHostelRoomNo() != null) record.setHostelRoomNo(recordDetails.getHostelRoomNo());
         if (recordDetails.getStatus() != null) {
             record.setStatus(recordDetails.getStatus());
         } else {

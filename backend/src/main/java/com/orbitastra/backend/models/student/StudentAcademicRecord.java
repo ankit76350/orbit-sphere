@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @CompoundIndexes({
     @CompoundIndex(name = "student_academic_year_unique_idx", def = "{'studentDocId': 1, 'academicYear': 1}", unique = true),
     @CompoundIndex(name = "school_year_student_no_unique_idx", def = "{'schoolId': 1, 'academicYear': 1, 'studentNo': 1}", unique = true, partialFilter = "{'studentNo': {'$type': 'string'}}"),
-    @CompoundIndex(name = "class_doc_section_year_roll_unique_idx", def = "{'classDocId': 1, 'sectionId': 1, 'academicYear': 1, 'rollNo': 1}", unique = true, partialFilter = "{'classDocId': {'$type': 'string'}, 'sectionId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}}")
+    @CompoundIndex(name = "class_doc_section_no_year_roll_unique_idx", def = "{'classDocId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1}", unique = true, partialFilter = "{'classDocId': {'$type': 'string'}, 'sectionNo': {'$type': 'string'}, 'rollNo': {'$type': 'string'}}")
 })
 @Data
 @Builder
@@ -48,9 +48,9 @@ public class StudentAcademicRecord {
 
     private String classDocId; // year-specific class ID
 
-    private String sectionId; // year-specific section ID
+    private String sectionNo; // year-specific section number
 
-    private String hostelRoomId; // year-specific hostel room ID
+    private String hostelRoomNo; // year-specific hostel room number
 
     private StudentStatus status;
 
