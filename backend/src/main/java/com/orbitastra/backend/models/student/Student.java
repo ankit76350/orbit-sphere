@@ -37,6 +37,12 @@ public class Student {
     @Indexed(unique = true)
     private String admissionNo;
 
+    // Denormalised pointer to this student's StudentAcademicRecord (in the
+    // "student_academic_records" collection) for the current — i.e. most recent —
+    // academic year. Kept in sync by StudentService whenever an academic record is
+    // created, assigned or promoted, so the student's active enrolment is one lookup away.
+    private String currentAcademicRecordId;
+
     @Transient
     private StudentAcademicRecord currentAcademicRecord;
 

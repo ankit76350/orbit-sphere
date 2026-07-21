@@ -98,7 +98,9 @@ public class StudentServiceTest {
         assertEquals("ADM-001", created.getAdmissionNo());
         verify(schoolRepository, times(1)).findById("school-id-123");
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
-        verify(studentRepository, times(1)).save(student);
+        // Saved twice: once to obtain the id + create the record, once to persist the
+        // currentAcademicRecordId pointer.
+        verify(studentRepository, times(2)).save(student);
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
 
@@ -131,6 +133,10 @@ public class StudentServiceTest {
         when(studentRepository.findByAdmissionNo("ADM-2026-0003")).thenReturn(Optional.empty());
         when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
         when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
+        // A top-level academicYear is present, so a record is created; give it an id so the
+        // currentAcademicRecordId pointer can be set.
+        when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("acad-rec-1"); return r; });
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<GuardianService.GuardianDraft>> draftsCaptor = ArgumentCaptor.forClass(List.class);
@@ -269,6 +275,35 @@ public class StudentServiceTest {
         assertEquals("class-new", record.getClassDocId());
         assertEquals("2026-2027", record.getAcademicYear());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
+    }
+
+    @Test
+    void createOrUpdateAcademicRecord_updatesStudentCurrentAcademicRecordPointer() {
+        StudentAcademicRecord input = StudentAcademicRecord.builder()
+                .academicYear("2026-2027")
+                .classDocId("class-new")
+                .build();
+
+        when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
+                SchoolClass.builder().id("class-new").schoolId("school-id-123").build()
+        ));
+        when(studentAcademicRecordRepository.findByStudentDocIdAndAcademicYear("student-id-123", "2026-2027"))
+                .thenReturn(Optional.empty());
+        when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("rec-2026"); return r; });
+        // First call (load in getStudentById) sees no records; after the save the record exists
+        // and becomes the current one, so the pointer must be persisted.
+        when(studentAcademicRecordRepository.findByStudentDocId("student-id-123"))
+                .thenReturn(new ArrayList<>())
+                .thenReturn(List.of(StudentAcademicRecord.builder()
+                        .id("rec-2026").academicYear("2026-2027").build()));
+        when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
+
+        studentService.createOrUpdateAcademicRecord("student-id-123", input);
+
+        assertEquals("rec-2026", student.getCurrentAcademicRecordId());
+        verify(studentRepository, times(1)).save(student); // pointer persisted once
     }
 
     @Test

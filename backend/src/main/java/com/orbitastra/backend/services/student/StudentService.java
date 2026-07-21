@@ -40,10 +40,11 @@ public class StudentService {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocId(student.getId());
         if (!records.isEmpty()) {
             records.stream()
-                .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYear, 
+                .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYear,
                     java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
                 .ifPresent(record -> {
                     student.setCurrentAcademicRecord(record);
+                    student.setCurrentAcademicRecordId(record.getId());
                 });
         }
     }
@@ -70,7 +71,10 @@ public class StudentService {
                                 .compare(a, b) >= 0 ? a : b));
         students.forEach(s -> {
             StudentAcademicRecord rec = latestByStudent.get(s.getId());
-            if (rec != null) s.setCurrentAcademicRecord(rec);
+            if (rec != null) {
+                s.setCurrentAcademicRecord(rec);
+                s.setCurrentAcademicRecordId(rec.getId());
+            }
         });
     }
 
@@ -198,6 +202,11 @@ public class StudentService {
                     .updatedAt(LocalDateTime.now())
                     .build();
             savedRecord = studentAcademicRecordRepository.save(record);
+
+            // Persist the pointer to the current academic record.
+            saved.setCurrentAcademicRecordId(savedRecord.getId());
+            saved.setUpdatedAt(LocalDateTime.now());
+            saved = studentRepository.save(saved);
         }
 
         // Set transient academic field on saved student object
@@ -377,6 +386,7 @@ public class StudentService {
         if (academicChanged) {
             record.setUpdatedAt(LocalDateTime.now());
             record = studentAcademicRecordRepository.save(record);
+            syncCurrentAcademicRecordPointer(saved);
         }
         saved.setCurrentAcademicRecord(record);
 
@@ -470,10 +480,31 @@ public class StudentService {
             record.setStatus(student.getStatus());
         }
         record.setUpdatedAt(LocalDateTime.now());
-        
-        return studentAcademicRecordRepository.save(record);
+        StudentAcademicRecord saved = studentAcademicRecordRepository.save(record);
+
+        // Keep the student's pointer to the current academic year in sync.
+        syncCurrentAcademicRecordPointer(student);
+        return saved;
     }
-    
+
+    /**
+     * Recomputes and persists {@link Student#getCurrentAcademicRecordId()} so it points at the
+     * student's record for the most recent academic year. No-op when already correct. Call after
+     * any create / assign / promote of a {@link StudentAcademicRecord}.
+     */
+    private void syncCurrentAcademicRecordPointer(Student student) {
+        String latestId = studentAcademicRecordRepository.findByStudentDocId(student.getId()).stream()
+                .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYear,
+                        java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
+                .map(StudentAcademicRecord::getId)
+                .orElse(null);
+        if (!java.util.Objects.equals(student.getCurrentAcademicRecordId(), latestId)) {
+            student.setCurrentAcademicRecordId(latestId);
+            student.setUpdatedAt(LocalDateTime.now());
+            studentRepository.save(student);
+        }
+    }
+
     public StudentAcademicRecord promoteStudent(String studentId, StudentAcademicRecord promotionDetails) {
         if (promotionDetails.getAcademicYear() == null || promotionDetails.getAcademicYear().isEmpty()) {
             throw new IllegalArgumentException("Academic Year ID is required for promotion.");
