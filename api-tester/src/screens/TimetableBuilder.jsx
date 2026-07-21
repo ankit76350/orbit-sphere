@@ -90,8 +90,10 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
     <div>
       {/* date range */}
       <div className="flex flex-wrap items-end gap-3 mb-4 bg-white border border-slate-200 rounded-xl p-4">
-        <Field label="Timetable starts from"><Input type="date" min={minDate} max={maxDate} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
-        <Field label="Runs until (blank = one day)"><Input type="date" min={minDate} max={maxDate} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+        <Field label="School ID" apiName="schoolId" required={false}><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs max-w-40" /></Field>
+        <Field label="Academic Year" apiName="academicYear" required={false}><Input value={year || ''} readOnly className="bg-slate-50 max-w-32" /></Field>
+        <Field label="Timetable starts from" apiName="startDate" required={false}><Input type="date" min={minDate} max={maxDate} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+        <Field label="Runs until (blank = one day)" apiName="endDate" required={false}><Input type="date" min={minDate} max={maxDate} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         <div className="text-xs text-slate-500 max-w-xs">Holidays &amp; weekly offs of <b>{year}</b> are skipped automatically — you’ll see which after saving.</div>
         <Button variant="primary" size="lg" className="ml-auto" onClick={save} disabled={busy || !cols.length}>
           <Save size={16} /> {busy ? 'Saving…' : 'Save timetable'}

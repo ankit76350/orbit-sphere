@@ -73,23 +73,26 @@ export default function StaffScreen({ schoolId, reload }) {
   };
 
   const submitStaff = async () => {
-    if (!form.name || !form.employeeId || !form.role) {
-      toast.error("Name, Employee ID, and Role are required.");
+    if (!form.name) {
+      toast.error("Name is required.");
       return;
     }
     setBusy(true);
     try {
-      const payload = {
-        schoolId,
+      const normalized = {
         ...form,
-        salary: form.salary ? parseFloat(form.salary) : null
+        salary: form.salary ? parseFloat(form.salary) : null,
+        joiningDate: form.joiningDate || null,
+        dob: form.dob || null,
+        role: form.role || null,
       };
 
       if (editingStaff) {
-        await api.updateStaff(editingStaff.id, payload);
+        const { role: _createOnlyRole, ...updatePayload } = normalized;
+        await api.updateStaff(editingStaff.id, updatePayload);
         toast.success(`Staff profile "${form.name}" updated successfully.`);
       } else {
-        await api.createStaff(payload);
+        await api.createStaff({ schoolId, ...normalized });
         toast.success(`Staff profile "${form.name}" registered.`);
       }
       handleCancelEdit();
@@ -240,7 +243,8 @@ export default function StaffScreen({ schoolId, reload }) {
               subtitle={editingStaff ? `Modifying profile: ${editingStaff.name}` : "Enlist a new employee into the school roster."}
             >
               <div className="space-y-4">
-                <Field label="Full Name *">
+                {!editingStaff && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                <Field label="Full Name" apiName="name" required>
                   <Input 
                     value={form.name}
                     onChange={(e) => setForm({...form, name: e.target.value})}
@@ -249,19 +253,19 @@ export default function StaffScreen({ schoolId, reload }) {
                 </Field>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Employee ID *">
-                    <Input 
+                  <Field label="Employee ID" apiName="employeeId" required={false}>
+                    <Input
                       value={form.employeeId}
                       onChange={(e) => setForm({...form, employeeId: e.target.value})}
                       placeholder="e.g. EMP-1092"
-                      disabled={!!editingStaff}
                     />
                   </Field>
-                  <Field label="System Role *">
+                  {!editingStaff && <Field label="System Role" apiName="role" required={false}>
                     <Select 
                       value={form.role}
                       onChange={(e) => setForm({...form, role: e.target.value})}
                     >
+                      <option value="">— omitted —</option>
                       <option value="TEACHER">Teacher</option>
                       <option value="PRINCIPAL">Principal</option>
                       <option value="SCHOOL_ADMIN">School Admin</option>
@@ -270,25 +274,22 @@ export default function StaffScreen({ schoolId, reload }) {
                       <option value="WARDEN">Warden</option>
                       <option value="STORE_MANAGER">Store Manager</option>
                       <option value="DRIVER">Driver</option>
+                      <option value="SUPER_ADMIN">Super Admin</option>
+                      <option value="PARENT">Parent</option>
+                      <option value="STUDENT">Student</option>
                     </Select>
-                  </Field>
+                  </Field>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Department *">
-                    <Select 
+                  <Field label="Department" apiName="department" required={false}>
+                    <Input
                       value={form.department}
                       onChange={(e) => setForm({...form, department: e.target.value})}
-                    >
-                      <option value="Academic">Academic (Teaching)</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Finance">Finance & Accounts</option>
-                      <option value="Facilities">Hostel & Facilities</option>
-                      <option value="Logistics">Logistics & Transport</option>
-                      <option value="Human Resources">Human Resources</option>
-                    </Select>
+                      placeholder="e.g. Academic"
+                    />
                   </Field>
-                  <Field label="Designation">
+                  <Field label="Designation" apiName="designation" required={false}>
                     <Input 
                       value={form.designation}
                       onChange={(e) => setForm({...form, designation: e.target.value})}
@@ -298,7 +299,7 @@ export default function StaffScreen({ schoolId, reload }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Monthly Salary ($)">
+                  <Field label="Monthly Salary ($)" apiName="salary" required={false}>
                     <Input 
                       type="number"
                       value={form.salary}
@@ -306,7 +307,7 @@ export default function StaffScreen({ schoolId, reload }) {
                       placeholder="e.g. 4500"
                     />
                   </Field>
-                  <Field label="Joining Date">
+                  <Field label="Joining Date" apiName="joiningDate" required={false}>
                     <Input 
                       type="date"
                       value={form.joiningDate}
@@ -315,7 +316,7 @@ export default function StaffScreen({ schoolId, reload }) {
                   </Field>
                 </div>
 
-                <Field label="Date of Birth">
+                <Field label="Date of Birth" apiName="dob" required={false}>
                   <Input 
                     type="date"
                     value={form.dob}
@@ -330,7 +331,7 @@ export default function StaffScreen({ schoolId, reload }) {
                   <Button 
                     variant="primary" 
                     onClick={submitStaff}
-                    disabled={busy || !form.name || !form.employeeId}
+                    disabled={busy || !form.name}
                   >
                     {busy ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
                     {editingStaff ? 'Save Profile' : 'Enroll Staff'}

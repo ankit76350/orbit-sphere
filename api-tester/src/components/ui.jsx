@@ -37,10 +37,15 @@ export function Card({ title, subtitle, right, children, className = '' }) {
 }
 
 // ---------- Form fields ----------
-export function Field({ label, hint, children }) {
+export function Field({ label, hint, apiName, required, children }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <span className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+        <span>{label}</span>
+        {apiName && <code className="font-mono text-[10px] font-medium text-slate-400">{apiName}</code>}
+        {required === true && <span className="text-[9px] uppercase tracking-wide text-rose-600">required</span>}
+        {required === false && <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span>}
+      </span>
       {children}
       {hint && <span className="text-[11px] text-slate-400">{hint}</span>}
     </label>

@@ -6,6 +6,27 @@ import {
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
 
+const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
+
+const emptyAcademicRecord = () => ({
+  academicYear: '', studentNo: '', rollNo: '', classDocId: '', sectionNo: '', hostelRoomNo: '', status: '',
+});
+
+const emptyInlineGuardian = () => ({
+  guardianId: '', name: '', relation: '', phone: '', email: '', address: '', occupation: '',
+  primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false,
+});
+
+const emptyStudentForm = () => ({
+  name: '', admissionNo: '', dob: '', gender: '', bloodGroup: '',
+  photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
+  walletId: '', medicalRecordId: '', status: '', admissionDate: '',
+  academicYear: '', classDocId: '', classId: '', sectionNo: '', rollNo: '',
+  guardians: [], currentAcademicRecord: emptyAcademicRecord(),
+});
+
+const nullable = (value) => value === '' ? null : value;
+
 export default function StudentScreen({ schoolId, years, year, reload }) {
   const toast = useToast();
 
@@ -21,16 +42,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
   // Student Form State
   const [editingStudent, setEditingStudent] = useState(null);
-  const [studentForm, setStudentForm] = useState({
-    name: '',
-    admissionNo: '',
-    dob: '',
-    gender: 'MALE',
-    bloodGroup: '',
-    photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-    status: 'ACTIVE',
-    admissionDate: new Date().toISOString().slice(0, 10)
-  });
+  const [studentForm, setStudentForm] = useState(emptyStudentForm);
 
   // Academic History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -43,10 +55,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const [busyAssign, setBusyAssign] = useState(false);
   const [assignForm, setAssignForm] = useState({
     academicYear: year || '',
-    classDocId: '',
-    sectionId: '',
+    studentNo: '',
     rollNo: '',
-    studentId: '',
+    classDocId: '',
+    sectionNo: '',
+    hostelRoomNo: '',
     status: 'ACTIVE'
   });
 
@@ -91,45 +104,69 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // --- STUDENT ACTIONS ---
   const handleEditStudentClick = (s) => {
     setEditingStudent(s);
-    setStudentForm({
+    setStudentForm((current) => ({
+      ...emptyStudentForm(),
       name: s.name || '',
       admissionNo: s.admissionNo || '',
       dob: s.dob || '',
-      gender: s.gender || 'MALE',
+      gender: s.gender || '',
       bloodGroup: s.bloodGroup || '',
       photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-      status: s.status || 'ACTIVE',
-      admissionDate: s.admissionDate || new Date().toISOString().slice(0, 10)
-    });
+      walletId: s.walletId || '',
+      medicalRecordId: s.medicalRecordId || '',
+      status: s.status || '',
+      admissionDate: s.admissionDate || '',
+      currentAcademicRecord: s.currentAcademicRecord
+        ? { ...emptyAcademicRecord(), ...s.currentAcademicRecord }
+        : current.currentAcademicRecord,
+    }));
   };
 
   const handleCancelStudentEdit = () => {
     setEditingStudent(null);
-    setStudentForm({
-      name: '',
-      admissionNo: '',
-      dob: '',
-      gender: 'MALE',
-      bloodGroup: '',
-      photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-      status: 'ACTIVE',
-      admissionDate: new Date().toISOString().slice(0, 10)
-    });
+    setStudentForm(emptyStudentForm());
   };
 
   const submitStudent = async () => {
-    if (!studentForm.name || !studentForm.admissionNo) {
-      toast.error("Name and Admission Number are required.");
+    if (!studentForm.name) {
+      toast.error("Name is required.");
       return;
     }
     setBusyStudent(true);
     try {
+      const currentAcademicRecord = Object.values(studentForm.currentAcademicRecord).some((value) => value !== '')
+        ? Object.fromEntries(Object.entries(studentForm.currentAcademicRecord).map(([key, value]) => [key, nullable(value)]))
+        : null;
+      const common = {
+        admissionNo: nullable(studentForm.admissionNo),
+        name: studentForm.name,
+        dob: nullable(studentForm.dob),
+        gender: nullable(studentForm.gender),
+        bloodGroup: nullable(studentForm.bloodGroup),
+        photoUrl: nullable(studentForm.photoUrl),
+        walletId: nullable(studentForm.walletId),
+        medicalRecordId: nullable(studentForm.medicalRecordId),
+        status: nullable(studentForm.status),
+        admissionDate: nullable(studentForm.admissionDate),
+        currentAcademicRecord,
+      };
       if (editingStudent) {
-        await api.updateStudent(editingStudent.id, { schoolId, ...studentForm });
+        await api.updateStudent(editingStudent.id, common);
         toast.success(`Student "${studentForm.name}" updated successfully.`);
         setEditingStudent(null);
       } else {
-        await api.createStudent({ schoolId, ...studentForm });
+        await api.createStudent({
+          schoolId,
+          ...common,
+          academicYear: nullable(studentForm.academicYear),
+          classDocId: nullable(studentForm.classDocId),
+          classId: nullable(studentForm.classId),
+          sectionNo: nullable(studentForm.sectionNo),
+          rollNo: nullable(studentForm.rollNo),
+          guardians: studentForm.guardians.map((guardian) => Object.fromEntries(
+            Object.entries(guardian).map(([key, value]) => [key, typeof value === 'string' ? nullable(value) : value])
+          )),
+        });
         toast.success(`Student "${studentForm.name}" registered successfully.`);
       }
       handleCancelStudentEdit();
@@ -169,16 +206,14 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const openAssignModal = () => {
-    if (!classes || classes.length === 0) {
-      toast.error("No classes available in this year context. Setup classes first.");
-      return;
-    }
+    const firstClass = classes[0];
     setAssignForm({
       academicYear: year || '',
-      classDocId: classes[0].id,
-      sectionId: classes[0].sections && classes[0].sections.length > 0 ? classes[0].sections[0] : '',
+      studentNo: historyStudent ? historyStudent.admissionNo || '' : '',
       rollNo: '',
-      studentId: historyStudent ? historyStudent.admissionNo : '',
+      classDocId: firstClass?.id || '',
+      sectionNo: firstClass?.sections && firstClass.sections.length > 0 ? firstClass.sections[0] : '',
+      hostelRoomNo: '',
       status: 'ACTIVE'
     });
     setShowAssignModal(true);
@@ -189,21 +224,14 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     setAssignForm(f => ({
       ...f,
       classDocId: classId,
-      sectionId: cls && cls.sections && cls.sections.length > 0 ? cls.sections[0] : ''
+      sectionNo: cls && cls.sections && cls.sections.length > 0 ? cls.sections[0] : ''
     }));
   };
 
   const submitAcademicRecord = async () => {
-    if (!assignForm.classDocId) {
-      toast.error("Please select a target class.");
-      return;
-    }
     setBusyAssign(true);
     try {
-      await api.assignAcademicRecord(historyStudent.id, {
-        schoolId,
-        ...assignForm
-      });
+      await api.assignAcademicRecord(historyStudent.id, assignForm);
       toast.success("Academic year record assigned.");
       setShowAssignModal(false);
       // reload history list
@@ -350,7 +378,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                 subtitle={editingStudent ? `Modifying profile: ${editingStudent.name}` : "Enroll a new student to the school roster."}
               >
                 <div className="space-y-4">
-                  <Field label="Full Name *">
+                  {!editingStudent && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                  <Field label="Full Name" apiName="name" required>
                     <Input
                       value={studentForm.name}
                       onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
@@ -359,15 +388,14 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </Field>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Admission No *">
+                    <Field label="Admission No" apiName="admissionNo" required={false}>
                       <Input 
                         value={studentForm.admissionNo}
                         onChange={(e) => setStudentForm({...studentForm, admissionNo: e.target.value})}
                         placeholder="ADM-00212"
-                        disabled={!!editingStudent}
                       />
                     </Field>
-                    <Field label="Blood Group">
+                    <Field label="Blood Group" apiName="bloodGroup" required={false}>
                       <Input 
                         value={studentForm.bloodGroup}
                         onChange={(e) => setStudentForm({...studentForm, bloodGroup: e.target.value})}
@@ -377,18 +405,19 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Date of Birth *">
+                    <Field label="Date of Birth" apiName="dob" required={false}>
                       <Input 
                         type="date"
                         value={studentForm.dob}
                         onChange={(e) => setStudentForm({...studentForm, dob: e.target.value})}
                       />
                     </Field>
-                    <Field label="Gender *">
+                    <Field label="Gender" apiName="gender" required={false}>
                       <Select 
                         value={studentForm.gender}
                         onChange={(e) => setStudentForm({...studentForm, gender: e.target.value})}
                       >
+                        <option value="">— omitted —</option>
                         <option value="MALE">MALE</option>
                         <option value="FEMALE">FEMALE</option>
                         <option value="OTHER">OTHER</option>
@@ -396,7 +425,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </Field>
                   </div>
 
-                  <Field label="Avatar Photo URL">
+                  <Field label="Avatar Photo URL" apiName="photoUrl" required={false}>
                     <Input 
                       value={studentForm.photoUrl}
                       onChange={(e) => setStudentForm({...studentForm, photoUrl: e.target.value})}
@@ -405,18 +434,19 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </Field>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Status">
+                    <Field label="Status" apiName="status" required={false}>
                       <Select 
                         value={studentForm.status}
                         onChange={(e) => setStudentForm({...studentForm, status: e.target.value})}
                       >
+                        <option value="">— omitted —</option>
                         <option value="ACTIVE">ACTIVE</option>
                         <option value="INACTIVE">INACTIVE</option>
                         <option value="SUSPENDED">SUSPENDED</option>
                         <option value="ALUMNI">ALUMNI</option>
                       </Select>
                     </Field>
-                    <Field label="Admission Date">
+                    <Field label="Admission Date" apiName="admissionDate" required={false}>
                       <Input 
                         type="date"
                         value={studentForm.admissionDate}
@@ -425,6 +455,91 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </Field>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Wallet ID" apiName="walletId" required={false}>
+                      <Input value={studentForm.walletId} onChange={(e) => setStudentForm({ ...studentForm, walletId: e.target.value })} placeholder="Wallet document id" />
+                    </Field>
+                    <Field label="Medical Record ID" apiName="medicalRecordId" required={false}>
+                      <Input value={studentForm.medicalRecordId} onChange={(e) => setStudentForm({ ...studentForm, medicalRecordId: e.target.value })} placeholder="Medical document id" />
+                    </Field>
+                  </div>
+
+                  {!editingStudent && (
+                    <div className="space-y-3 border-t border-slate-100 pt-3">
+                      <div className="text-xs font-bold text-slate-700">Top-level placement fields</div>
+                      <Field label="Academic Year" apiName="academicYear" required={false}>
+                        <Select value={studentForm.academicYear} onChange={(e) => setStudentForm({ ...studentForm, academicYear: e.target.value })}>
+                          <option value="">— resolve current year —</option>
+                          {years.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                        </Select>
+                      </Field>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Class Document ID" apiName="classDocId" required={false}>
+                          <Select value={studentForm.classDocId} onChange={(e) => setStudentForm({ ...studentForm, classDocId: e.target.value })}>
+                            <option value="">— omitted —</option>
+                            {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                          </Select>
+                        </Field>
+                        <Field label="Class ID Alias" apiName="classId" required={false} hint="Alias for classDocId; exposed separately for parity.">
+                          <Input value={studentForm.classId} onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })} placeholder="Alternate class id" />
+                        </Field>
+                        <Field label="Section No" apiName="sectionNo" required={false}>
+                          <Input value={studentForm.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, sectionNo: e.target.value })} />
+                        </Field>
+                        <Field label="Roll No" apiName="rollNo" required={false}>
+                          <Input value={studentForm.rollNo} onChange={(e) => setStudentForm({ ...studentForm, rollNo: e.target.value })} />
+                        </Field>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 border-t border-slate-100 pt-3">
+                    <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Academic Year" apiName="academicYear" required={false}><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
+                      <Field label="Student No" apiName="studentNo" required={false}><Input value={studentForm.currentAcademicRecord.studentNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, studentNo: e.target.value } })} /></Field>
+                      <Field label="Roll No" apiName="rollNo" required={false}><Input value={studentForm.currentAcademicRecord.rollNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, rollNo: e.target.value } })} /></Field>
+                      <Field label="Class Document ID" apiName="classDocId" required={false}><Input value={studentForm.currentAcademicRecord.classDocId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocId: e.target.value } })} /></Field>
+                      <Field label="Section No" apiName="sectionNo" required={false}><Input value={studentForm.currentAcademicRecord.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, sectionNo: e.target.value } })} /></Field>
+                      <Field label="Hostel Room No" apiName="hostelRoomNo" required={false}><Input value={studentForm.currentAcademicRecord.hostelRoomNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, hostelRoomNo: e.target.value } })} /></Field>
+                      <Field label="Status" apiName="status" required={false}>
+                        <Select value={studentForm.currentAcademicRecord.status} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, status: e.target.value } })}>
+                          <option value="">— omitted —</option>
+                          {['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}
+                        </Select>
+                      </Field>
+                    </div>
+                  </div>
+
+                  {!editingStudent && (
+                    <div className="space-y-2 border-t border-slate-100 pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">Inline guardians <code className="font-mono text-[10px] font-medium text-slate-400">guardians[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
+                        <button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: [...studentForm.guardians, emptyInlineGuardian()] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+                      </div>
+                      {studentForm.guardians.map((guardian, index) => {
+                        const updateGuardian = (patch) => setStudentForm({ ...studentForm, guardians: studentForm.guardians.map((item, i) => i === index ? { ...item, ...patch } : item) });
+                        return (
+                          <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50/50">
+                            <div className="flex justify-between items-center"><span className="text-[11px] font-semibold text-slate-500">guardian[{index}]</span><button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: studentForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input value={guardian.guardianId} onChange={(e) => updateGuardian({ guardianId: e.target.value })} placeholder="guardianId" />
+                              <Input value={guardian.name} onChange={(e) => updateGuardian({ name: e.target.value })} placeholder="name" />
+                              <Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select>
+                              <Input value={guardian.phone} onChange={(e) => updateGuardian({ phone: e.target.value })} placeholder="phone" />
+                              <Input value={guardian.email} onChange={(e) => updateGuardian({ email: e.target.value })} placeholder="email" />
+                              <Input value={guardian.occupation} onChange={(e) => updateGuardian({ occupation: e.target.value })} placeholder="occupation" />
+                            </div>
+                            <Input value={guardian.address} onChange={(e) => updateGuardian({ address: e.target.value })} placeholder="address" />
+                            <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600">
+                              {['primary', 'emergencyContact', 'pickupApproved', 'portalAccess'].map((flag) => <label key={flag} className="flex items-center gap-1"><input type="checkbox" checked={guardian[flag]} onChange={(e) => updateGuardian({ [flag]: e.target.checked })} /> {flag}</label>)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                     {editingStudent && (
                       <Button variant="default" onClick={handleCancelStudentEdit}>Cancel</Button>
@@ -432,7 +547,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <Button 
                       variant="primary" 
                       onClick={submitStudent}
-                      disabled={busyStudent || !studentForm.name || !studentForm.admissionNo}
+                      disabled={busyStudent || !studentForm.name}
                     >
                       {busyStudent ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
                       {editingStudent ? 'Save Profile' : 'Enroll Student'}
@@ -494,8 +609,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                         return (
                           <tr key={rec.id} className="hover:bg-slate-100/20 transition">
                             <td className="px-4 py-2.5 font-bold text-slate-900">{rec.academicYear}</td>
-                            <td className="px-4 py-2.5">{targetCls ? targetCls.name : 'Unknown Class'} · {rec.sectionId || '—'}</td>
-                            <td className="px-4 py-2.5 font-mono text-slate-500">{rec.studentId || '—'}</td>
+                            <td className="px-4 py-2.5">{targetCls ? targetCls.name : 'Unknown Class'} · {rec.sectionNo || '—'}</td>
+                            <td className="px-4 py-2.5 font-mono text-slate-500">{rec.studentNo || '—'}</td>
                             <td className="px-4 py-2.5 font-semibold text-slate-900">{rec.rollNo || '—'}</td>
                             <td className="px-4 py-2.5"><Badge color={rec.status === 'ACTIVE' ? 'green' : 'slate'}>{rec.status}</Badge></td>
                           </tr>
@@ -536,7 +651,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
             <p className="text-xs text-slate-500 mt-1 mb-5">Create or promote the student to a specific class and academic year.</p>
 
             <div className="space-y-4">
-              <Field label="Academic Year context *">
+              <Field label="Academic Year" apiName="academicYear" required={false} hint="Required by the promote endpoint; optional for a direct academic-record assignment.">
                 <Select 
                   value={assignForm.academicYear}
                   onChange={(e) => setAssignForm({...assignForm, academicYear: e.target.value})}
@@ -548,25 +663,24 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Target Class *">
+                <Field label="Target Class" apiName="classDocId" required={false}>
                   <Select 
                     value={assignForm.classDocId}
                     onChange={(e) => handleClassSelectChange(e.target.value)}
                   >
+                    <option value="">— omitted —</option>
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Section">
+                <Field label="Section" apiName="sectionNo" required={false}>
                   {sections.length === 0 ? (
-                    <Select disabled className="text-slate-400">
-                      <option value="">No sections</option>
-                    </Select>
+                    <Input value={assignForm.sectionNo} onChange={(e) => setAssignForm({ ...assignForm, sectionNo: e.target.value })} placeholder="Section number" />
                   ) : (
                     <Select 
-                      value={assignForm.sectionId}
-                      onChange={(e) => setAssignForm({...assignForm, sectionId: e.target.value})}
+                      value={assignForm.sectionNo}
+                      onChange={(e) => setAssignForm({...assignForm, sectionNo: e.target.value})}
                     >
                       {sections.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -577,14 +691,14 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Student Year ID">
+                <Field label="Student No" apiName="studentNo" required={false}>
                   <Input 
-                    value={assignForm.studentId}
-                    onChange={(e) => setAssignForm({...assignForm, studentId: e.target.value})}
+                    value={assignForm.studentNo}
+                    onChange={(e) => setAssignForm({...assignForm, studentNo: e.target.value})}
                     placeholder="e.g. STU-2026-001"
                   />
                 </Field>
-                <Field label="Roll No">
+                <Field label="Roll No" apiName="rollNo" required={false}>
                   <Input 
                     value={assignForm.rollNo}
                     onChange={(e) => setAssignForm({...assignForm, rollNo: e.target.value})}
@@ -593,7 +707,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                 </Field>
               </div>
 
-              <Field label="Academic Record Status">
+              <Field label="Hostel Room No" apiName="hostelRoomNo" required={false}>
+                <Input value={assignForm.hostelRoomNo} onChange={(e) => setAssignForm({ ...assignForm, hostelRoomNo: e.target.value })} />
+              </Field>
+
+              <Field label="Academic Record Status" apiName="status" required={false}>
                 <Select 
                   value={assignForm.status}
                   onChange={(e) => setAssignForm({...assignForm, status: e.target.value})}
@@ -611,7 +729,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   variant="primary" 
                   size="sm" 
                   onClick={submitAcademicRecord}
-                  disabled={busyAssign || !assignForm.classDocId}
+                  disabled={busyAssign}
                 >
                   {busyAssign ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
                   Confirm Assignment

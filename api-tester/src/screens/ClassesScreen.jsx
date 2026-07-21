@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Plus, Trash2, Users } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
-import { Card, Button, Field, Input, Empty, Badge, useToast } from '../components/ui.jsx';
+import { Card, Button, Field, Input, Select, Empty, Badge, useToast } from '../components/ui.jsx';
 
-export default function ClassesScreen({ schoolId, year }) {
+const emptyForm = { name: '', classTeacher: '', sections: 'A, B', subjects: [] };
+
+export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', sections: 'A, B' });
+  const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
 
   const load = () => {
@@ -21,9 +23,19 @@ export default function ClassesScreen({ schoolId, year }) {
     const sections = form.sections.split(',').map((s) => s.trim()).filter(Boolean);
     setBusy(true);
     try {
-      await api.createClass({ schoolId, name: form.name.trim(), academicYear: year, sections });
+      await api.createClass({
+        schoolId,
+        name: form.name.trim(),
+        classTeacher: form.classTeacher || null,
+        subjects: form.subjects.map((subject) => ({
+          name: subject.name || null,
+          teacher: subject.teacher || null,
+        })),
+        academicYear: year,
+        sections,
+      });
       toast.success(`Class “${form.name}” created.`);
-      setForm({ name: '', sections: 'A, B' });
+      setForm(emptyForm);
       load();
     } catch (e) { toast.error(e.message); } finally { setBusy(false); }
   }
@@ -41,12 +53,40 @@ export default function ClassesScreen({ schoolId, year }) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card title="Add a class" subtitle={`For academic year ${year}`} className="lg:col-span-1">
         <div className="space-y-4">
-          <Field label="Class name" hint="Unique within this academic year.">
+          <Field label="School ID" apiName="schoolId" required>
+            <Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" />
+          </Field>
+          <Field label="Academic Year" apiName="academicYear" required={false}>
+            <Input value={year} readOnly className="bg-slate-50" />
+          </Field>
+          <Field label="Class name" apiName="name" required hint="Unique within this academic year.">
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Class 5" />
           </Field>
-          <Field label="Sections" hint="Comma-separated, e.g. A, B, C">
+          <Field label="Class teacher" apiName="classTeacher" required={false}>
+            <Select value={form.classTeacher} onChange={(e) => setForm({ ...form, classTeacher: e.target.value })}>
+              <option value="">— none —</option>
+              {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
+            </Select>
+          </Field>
+          <Field label="Sections" apiName="sections[]" required={false} hint="Comma-separated, e.g. A, B, C">
             <Input value={form.sections} onChange={(e) => setForm({ ...form, sections: e.target.value })} placeholder="A, B" />
           </Field>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-600">Subjects <code className="font-mono text-[10px] font-medium text-slate-400">subjects[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
+              <button type="button" onClick={() => setForm({ ...form, subjects: [...form.subjects, { name: '', teacher: '' }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+            </div>
+            {form.subjects.map((subject, index) => (
+              <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                <Input value={subject.name} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} placeholder="name" />
+                <Select value={subject.teacher} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, teacher: e.target.value } : item) })}>
+                  <option value="">teacher (optional)</option>
+                  {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
+                </Select>
+                <button type="button" onClick={() => setForm({ ...form, subjects: form.subjects.filter((_, i) => i !== index) })} className="p-1 text-slate-400 hover:text-rose-600"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
           <Button variant="primary" onClick={create} disabled={busy || !form.name.trim()}>
             <Plus size={16} /> {busy ? 'Creating…' : 'Create class'}
           </Button>

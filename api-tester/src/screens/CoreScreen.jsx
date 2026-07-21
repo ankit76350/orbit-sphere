@@ -36,9 +36,9 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
     address: '',
     phone: '',
     email: '',
-    subscriptionTier: 'FREE',
-    maxStudents: 500,
-    maxUsers: 50,
+    subscriptionTier: '',
+    maxStudents: '',
+    maxUsers: '',
     active: true
   });
 
@@ -55,8 +55,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
   const [notificationForm, setNotificationForm] = useState({
     recipientId: '',
     channel: 'PUSH',
-    message: '',
-    sent: false
+    message: ''
   });
 
   // Load Schools
@@ -139,9 +138,9 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       address: s.address || '',
       phone: s.phone || '',
       email: s.email || '',
-      subscriptionTier: s.subscriptionTier || 'FREE',
-      maxStudents: s.maxStudents || 500,
-      maxUsers: s.maxUsers || 50,
+      subscriptionTier: s.subscriptionTier || '',
+      maxStudents: s.maxStudents ?? '',
+      maxUsers: s.maxUsers ?? '',
       active: s.active !== false
     });
   };
@@ -155,9 +154,9 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       address: '',
       phone: '',
       email: '',
-      subscriptionTier: 'FREE',
-      maxStudents: 500,
-      maxUsers: 50,
+      subscriptionTier: '',
+      maxStudents: '',
+      maxUsers: '',
       active: true
     });
   };
@@ -171,12 +170,23 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
     try {
       if (editingSchool) {
         // Edit School
-        await api.updateSchool(editingSchool.id, schoolForm);
+        await api.updateSchool(editingSchool.id, {
+          ...schoolForm,
+          maxStudents: schoolForm.maxStudents === '' ? null : Number(schoolForm.maxStudents),
+          maxUsers: schoolForm.maxUsers === '' ? null : Number(schoolForm.maxUsers),
+          subscriptionTier: schoolForm.subscriptionTier || null,
+        });
         toast.success(`School "${schoolForm.schoolName}" updated.`);
         setEditingSchool(null);
       } else {
         // Create School
-        await api.createSchool(schoolForm);
+        const { active: _serverOwnedActive, ...createPayload } = schoolForm;
+        await api.createSchool({
+          ...createPayload,
+          maxStudents: schoolForm.maxStudents === '' ? null : Number(schoolForm.maxStudents),
+          maxUsers: schoolForm.maxUsers === '' ? null : Number(schoolForm.maxUsers),
+          subscriptionTier: schoolForm.subscriptionTier || null,
+        });
         toast.success(`School "${schoolForm.schoolName}" registered.`);
       }
       // Reset Form
@@ -187,9 +197,9 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
         address: '',
         phone: '',
         email: '',
-        subscriptionTier: 'FREE',
-        maxStudents: 500,
-        maxUsers: 50,
+        subscriptionTier: '',
+        maxStudents: '',
+        maxUsers: '',
         active: true
       });
       reloadAll();
@@ -228,8 +238,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       toast.error("Please pick a school in the top bar before posting.");
       return;
     }
-    if (!announcementForm.title || !announcementForm.content) {
-      toast.error("Title and Content are required.");
+    if (!announcementForm.title) {
+      toast.error("Title is required.");
       return;
     }
     setBusyAnnouncement(true);
@@ -271,22 +281,22 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       toast.error("Please pick a school in the top bar first.");
       return;
     }
-    if (!notificationForm.recipientId || !notificationForm.message) {
-      toast.error("Recipient ID and Message content are required.");
+    if (!notificationForm.recipientId) {
+      toast.error("Recipient ID is required.");
       return;
     }
     setBusyNotification(true);
     try {
       await api.createNotification({
         schoolId,
-        ...notificationForm
+        ...notificationForm,
+        channel: notificationForm.channel || null,
       });
       toast.success("Notification created.");
       setNotificationForm({
         recipientId: '',
         channel: 'PUSH',
-        message: '',
-        sent: false
+        message: ''
       });
       fetchNotifications();
     } catch (e) {
@@ -507,14 +517,14 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                 subtitle={editingSchool ? `Modifying school profile: ${editingSchool.schoolName}` : "Add a new school institute profile to the network."}
               >
                 <div className="space-y-4">
-                  <Field label="School Name *">
+                  <Field label="School Name" apiName="schoolName" required>
                     <Input 
                       value={schoolForm.schoolName} 
                       onChange={(e) => setSchoolForm({...schoolForm, schoolName: e.target.value})} 
                       placeholder="e.g. St. Xavier Academy"
                     />
                   </Field>
-                  <Field label="Unique Subdomain *">
+                  <Field label="Unique Subdomain" apiName="subdomain" required>
                     <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg pr-3 overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                       <input 
                         className="flex-1 px-3 py-2 text-sm bg-transparent outline-none border-none text-slate-800"
@@ -525,14 +535,14 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       <span className="text-[11px] font-semibold text-slate-400">.edusphere</span>
                     </div>
                   </Field>
-                  <Field label="Logo URL">
+                  <Field label="Logo URL" apiName="logo" required={false}>
                     <Input 
                       value={schoolForm.logo} 
                       onChange={(e) => setSchoolForm({...schoolForm, logo: e.target.value})} 
                       placeholder="https://example.com/logo.png"
                     />
                   </Field>
-                  <Field label="Institute Email">
+                  <Field label="Institute Email" apiName="email" required={false}>
                     <Input 
                       type="email"
                       value={schoolForm.email} 
@@ -540,14 +550,14 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       placeholder="admin@stxavier.edu"
                     />
                   </Field>
-                  <Field label="Institute Phone">
+                  <Field label="Institute Phone" apiName="phone" required={false}>
                     <Input 
                       value={schoolForm.phone} 
                       onChange={(e) => setSchoolForm({...schoolForm, phone: e.target.value})} 
                       placeholder="+1 555-0199"
                     />
                   </Field>
-                  <Field label="Postal Address">
+                  <Field label="Postal Address" apiName="address" required={false}>
                     <Input 
                       value={schoolForm.address} 
                       onChange={(e) => setSchoolForm({...schoolForm, address: e.target.value})} 
@@ -556,27 +566,28 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                   </Field>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Max Students">
+                    <Field label="Max Students" apiName="maxStudents" required={false}>
                       <Input 
                         type="number"
                         value={schoolForm.maxStudents} 
-                        onChange={(e) => setSchoolForm({...schoolForm, maxStudents: parseInt(e.target.value) || 0})} 
+                        onChange={(e) => setSchoolForm({...schoolForm, maxStudents: e.target.value})}
                       />
                     </Field>
-                    <Field label="Max Admin Users">
+                    <Field label="Max Admin Users" apiName="maxUsers" required={false}>
                       <Input 
                         type="number"
                         value={schoolForm.maxUsers} 
-                        onChange={(e) => setSchoolForm({...schoolForm, maxUsers: parseInt(e.target.value) || 0})} 
+                        onChange={(e) => setSchoolForm({...schoolForm, maxUsers: e.target.value})}
                       />
                     </Field>
                   </div>
 
-                  <Field label="Subscription Tier">
+                  <Field label="Subscription Tier" apiName="subscriptionTier" required={false}>
                     <Select 
                       value={schoolForm.subscriptionTier} 
                       onChange={(e) => setSchoolForm({...schoolForm, subscriptionTier: e.target.value})}
                     >
+                      <option value="">— omitted —</option>
                       <option value="FREE">FREE</option>
                       <option value="BASIC">BASIC</option>
                       <option value="PREMIUM">PREMIUM</option>
@@ -584,7 +595,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                     </Select>
                   </Field>
 
-                  <div className="flex items-center gap-2 pt-2">
+                  {editingSchool && <div className="flex items-center gap-2 pt-2">
                     <input 
                       type="checkbox" 
                       id="form_active_check" 
@@ -592,8 +603,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       onChange={(e) => setSchoolForm({...schoolForm, active: e.target.checked})}
                       className="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" 
                     />
-                    <label htmlFor="form_active_check" className="text-xs font-semibold text-slate-600 select-none">Active Profile</label>
-                  </div>
+                    <label htmlFor="form_active_check" className="text-xs font-semibold text-slate-600 select-none">Active Profile <code className="font-mono text-[10px] font-medium text-slate-400">active</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional · update only</span></label>
+                  </div>}
 
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                     {editingSchool && (
@@ -679,7 +690,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                   <Empty icon={Megaphone} title="Pick a school context" hint="Use the school selector in the top bar to enable posting." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="Bulletin Title *">
+                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="Bulletin Title" apiName="title" required>
                       <Input 
                         value={announcementForm.title}
                         onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})}
@@ -688,18 +700,19 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                     </Field>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      <Field label="Broadcast Date">
+                      <Field label="Broadcast Date" apiName="date" required={false}>
                         <Input 
                           type="date"
                           value={announcementForm.date}
                           onChange={(e) => setAnnouncementForm({...announcementForm, date: e.target.value})}
                         />
                       </Field>
-                      <Field label="Audience Target">
+                      <Field label="Audience Target" apiName="target" required={false}>
                         <Select 
                           value={announcementForm.target}
                           onChange={(e) => setAnnouncementForm({...announcementForm, target: e.target.value})}
                         >
+                          <option value="">— omitted —</option>
                           <option value="ALL">ALL (Everyone)</option>
                           <option value="STAFF">STAFF ONLY</option>
                           <option value="STUDENT">STUDENTS ONLY</option>
@@ -707,7 +720,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       </Field>
                     </div>
 
-                    <Field label="Posted By / Sender Signature">
+                    <Field label="Posted By / Sender Signature" apiName="sender" required={false}>
                       <Input 
                         value={announcementForm.sender}
                         onChange={(e) => setAnnouncementForm({...announcementForm, sender: e.target.value})}
@@ -715,7 +728,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       />
                     </Field>
 
-                    <Field label="Bulletin Content Text *">
+                    <Field label="Bulletin Content Text" apiName="content" required={false}>
                       <textarea 
                         className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white min-h-[120px] text-slate-800 leading-normal"
                         value={announcementForm.content}
@@ -728,7 +741,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       <Button 
                         variant="primary" 
                         onClick={postAnnouncement} 
-                        disabled={busyAnnouncement || !announcementForm.title || !announcementForm.content}
+                        disabled={busyAnnouncement || !announcementForm.title}
                       >
                         {busyAnnouncement ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                         Publish Bulletin
@@ -838,7 +851,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                   <Empty icon={Bell} title="Pick a school context" hint="Use the school selector in the top bar to enable dispatcher." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="Recipient User ID *">
+                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="Recipient User ID" apiName="recipientId" required>
                       <Input 
                         value={notificationForm.recipientId}
                         onChange={(e) => setNotificationForm({...notificationForm, recipientId: e.target.value})}
@@ -846,11 +860,12 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       />
                     </Field>
 
-                    <Field label="Delivery Channel">
+                    <Field label="Delivery Channel" apiName="channel" required={false}>
                       <Select 
                         value={notificationForm.channel}
                         onChange={(e) => setNotificationForm({...notificationForm, channel: e.target.value})}
                       >
+                        <option value="">— omitted —</option>
                         <option value="PUSH">App Push Notification</option>
                         <option value="EMAIL">Email Address</option>
                         <option value="SMS">SMS Mobile Alert</option>
@@ -858,7 +873,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       </Select>
                     </Field>
 
-                    <Field label="Message Text *">
+                    <Field label="Message Text" apiName="message" required={false}>
                       <textarea 
                         className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white min-h-[90px] text-slate-800 leading-normal"
                         value={notificationForm.message}
@@ -867,22 +882,11 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       />
                     </Field>
 
-                    <div className="flex items-center gap-2 pt-2">
-                      <input 
-                        type="checkbox" 
-                        id="form_sent_check" 
-                        checked={notificationForm.sent}
-                        onChange={(e) => setNotificationForm({...notificationForm, sent: e.target.checked})}
-                        className="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" 
-                      />
-                      <label htmlFor="form_sent_check" className="text-xs font-semibold text-slate-600 select-none">Send Immediately (Delivered)</label>
-                    </div>
-
                     <div className="pt-2 border-t border-slate-100 flex justify-end">
                       <Button 
                         variant="primary" 
                         onClick={dispatchNotification} 
-                        disabled={busyNotification || !notificationForm.recipientId || !notificationForm.message}
+                        disabled={busyNotification || !notificationForm.recipientId}
                       >
                         {busyNotification ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                         Dispatch Alert

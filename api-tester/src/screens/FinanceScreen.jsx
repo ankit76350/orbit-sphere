@@ -25,7 +25,7 @@ export default function FinanceScreen({ schoolId, year }) {
 
   // Modals
   const [payModal, setPayModal] = useState(null); // fee invoice being paid
-  const [payForm, setPayForm] = useState({ amount: '', paymentMode: 'CASH', remarks: '' });
+  const [payForm, setPayForm] = useState({ amount: '', paymentMode: 'CASH', remarks: '', collectedBy: '' });
   const [auditStudent, setAuditStudent] = useState(null);
   const [auditTransactions, setAuditTransactions] = useState([]);
   const [receiptsFee, setReceiptsFee] = useState(null); // fee whose receipts are shown
@@ -34,6 +34,7 @@ export default function FinanceScreen({ schoolId, year }) {
   // Forms
   const [editingFee, setEditingFee] = useState(null);
   const emptyFeeForm = {
+    academicYear: year || '',
     type: 'TUITION',
     amount: '',
     discount: '',
@@ -145,20 +146,18 @@ export default function FinanceScreen({ schoolId, year }) {
     }
     setBusy(true);
     try {
-      const payload = {
-        schoolId,
-        academicYear: year,
-        studentId: selectedStudentId,
-        type: feeForm.type,
+      const mutableFields = {
+        academicYear: feeForm.academicYear || null,
+        type: feeForm.type || null,
         amount: parseFloat(feeForm.amount),
         discount: feeForm.discount ? parseFloat(feeForm.discount) : 0,
-        dueDate: feeForm.dueDate,
+        dueDate: feeForm.dueDate || null,
       };
       if (editingFee) {
-        await api.updateFee(editingFee.id, payload);
+        await api.updateFee(editingFee.id, mutableFields);
         toast.success('Invoice updated.');
       } else {
-        await api.createFee(payload);
+        await api.createFee({ schoolId, studentId: selectedStudentId, ...mutableFields });
         toast.success('New invoice issued.');
       }
       resetFeeForm();
@@ -173,6 +172,7 @@ export default function FinanceScreen({ schoolId, year }) {
   const handleEditFee = (fee) => {
     setEditingFee(fee);
     setFeeForm({
+      academicYear: fee.academicYear || '',
       type: fee.type || 'TUITION',
       amount: String(fee.amount || ''),
       discount: fee.discount ? String(fee.discount) : '',
@@ -194,7 +194,7 @@ export default function FinanceScreen({ schoolId, year }) {
   // ---- Payments (unified recordPayment) ----
   const openPayModal = (fee) => {
     setPayModal(fee);
-    setPayForm({ amount: String(Math.max(0, dueOf(fee))), paymentMode: 'CASH', remarks: '' });
+    setPayForm({ amount: String(Math.max(0, dueOf(fee))), paymentMode: 'CASH', remarks: '', collectedBy: '' });
   };
 
   const submitPayment = async () => {
@@ -213,6 +213,7 @@ export default function FinanceScreen({ schoolId, year }) {
         amount,
         paymentMode: payForm.paymentMode,
         remarks: payForm.remarks,
+        collectedBy: payForm.collectedBy,
       });
       toast.success(`Payment recorded (${payForm.paymentMode}).`);
       setPayModal(null);
@@ -226,8 +227,8 @@ export default function FinanceScreen({ schoolId, year }) {
 
   // ---- Wallet ops ----
   const submitWalletOp = async () => {
-    if (!selectedStudentId || !walletForm.amount || !walletForm.remarks) {
-      toast.error('Amount and remarks are required.');
+    if (!selectedStudentId || !walletForm.amount) {
+      toast.error('Amount is required.');
       return;
     }
     setBusy(true);
@@ -464,8 +465,14 @@ export default function FinanceScreen({ schoolId, year }) {
                         subtitle={editingFee ? 'Update invoice parameters.' : `Generate a new invoice for ${selectedStudent.name}.`}
                       >
                         <div className="space-y-4">
-                          <Field label="Fee Category *">
+                          {!editingFee && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                          {!editingFee && <Field label="Student ID" apiName="studentId" required><Input value={selectedStudentId || ''} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                          <Field label="Academic Year" apiName="academicYear" required={false}>
+                            <Input value={feeForm.academicYear} onChange={(e) => setFeeForm({ ...feeForm, academicYear: e.target.value })} placeholder="Leave blank to resolve current year" />
+                          </Field>
+                          <Field label="Fee Category" apiName="type" required={!editingFee}>
                             <Select value={feeForm.type} onChange={(e) => setFeeForm({ ...feeForm, type: e.target.value })}>
+                              <option value="">— omitted —</option>
                               <option value="TUITION">Tuition Dues</option>
                               <option value="HOSTEL">Hostel Dues</option>
                               <option value="TRANSPORT">Bus & Transport</option>
@@ -474,13 +481,13 @@ export default function FinanceScreen({ schoolId, year }) {
                               <option value="OTHER">Other Dues</option>
                             </Select>
                           </Field>
-                          <Field label="Due Date *">
+                          <Field label="Due Date" apiName="dueDate" required={false}>
                             <Input type="date" value={feeForm.dueDate} onChange={(e) => setFeeForm({ ...feeForm, dueDate: e.target.value })} />
                           </Field>
-                          <Field label="Invoice Amount ($) *">
+                          <Field label="Invoice Amount ($)" apiName="amount" required={!editingFee}>
                             <Input type="number" value={feeForm.amount} onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })} placeholder="e.g. 1200" />
                           </Field>
-                          <Field label="Discount / Concession ($)">
+                          <Field label="Discount / Concession ($)" apiName="discount" required={false}>
                             <Input type="number" value={feeForm.discount} onChange={(e) => setFeeForm({ ...feeForm, discount: e.target.value })} placeholder="e.g. 200 (sibling waiver)" />
                           </Field>
                           {feeForm.amount && (
@@ -528,14 +535,14 @@ export default function FinanceScreen({ schoolId, year }) {
                               <option value="DEBIT">Withdraw (-)</option>
                             </Select>
                           </Field>
-                          <Field label="Amount ($) *">
+                          <Field label="Amount ($)" apiName="amount" required>
                             <Input type="number" value={walletForm.amount} onChange={(e) => setWalletForm({ ...walletForm, amount: e.target.value })} placeholder="e.g. 50" />
                           </Field>
-                          <Field label="Remarks *">
+                          <Field label="Remarks" apiName="remarks" required={false}>
                             <Input value={walletForm.remarks} onChange={(e) => setWalletForm({ ...walletForm, remarks: e.target.value })} placeholder="e.g. Parent deposit" />
                           </Field>
                           <div className="pt-3 border-t border-slate-100 flex justify-end">
-                            <Button variant="primary" onClick={submitWalletOp} disabled={busy || !walletForm.amount || !walletForm.remarks}>
+                            <Button variant="primary" onClick={submitWalletOp} disabled={busy || !walletForm.amount}>
                               {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
                               Post
                             </Button>
@@ -573,16 +580,19 @@ export default function FinanceScreen({ schoolId, year }) {
                   <div className="font-bold text-blue-700 mt-0.5 font-mono">${selectedBalance.toLocaleString()}</div>
                 </div>
               </div>
-              <Field label="Payment Mode *">
+              <Field label="Payment Mode" apiName="paymentMode" required>
                 <Select value={payForm.paymentMode} onChange={(e) => setPayForm({ ...payForm, paymentMode: e.target.value })}>
                   {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                 </Select>
               </Field>
-              <Field label="Amount ($) *">
+              <Field label="Amount ($)" apiName="amount" required>
                 <Input type="number" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} placeholder="e.g. 500" />
               </Field>
-              <Field label="Remarks">
+              <Field label="Remarks" apiName="remarks" required={false}>
                 <Input value={payForm.remarks} onChange={(e) => setPayForm({ ...payForm, remarks: e.target.value })} placeholder="Optional note" />
+              </Field>
+              <Field label="Collected By" apiName="collectedBy" required={false}>
+                <Input value={payForm.collectedBy} onChange={(e) => setPayForm({ ...payForm, collectedBy: e.target.value })} placeholder="Staff/user document id" />
               </Field>
               <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <Button variant="default" onClick={() => setPayModal(null)}>Cancel</Button>

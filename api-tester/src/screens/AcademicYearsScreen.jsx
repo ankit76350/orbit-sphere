@@ -17,15 +17,49 @@ export default function AcademicYearsScreen({ schoolId, years, year, reload }) {
     : <CreateYear schoolId={schoolId} reload={reload} toast={toast} />;
 }
 
+const emptyHoliday = () => ({ name: '', description: '', type: 'FESTIVAL', date: '' });
+
+function HolidayEditor({ holidays, onChange }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-600">Initial holidays <code className="font-mono text-[10px] font-medium text-slate-400">holidays[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
+        <button type="button" onClick={() => onChange([...holidays, emptyHoliday()])} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add holiday</button>
+      </div>
+      {holidays.map((holiday, index) => (
+        <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50/50">
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={holiday.name} onChange={(e) => onChange(holidays.map((item, i) => i === index ? { ...item, name: e.target.value } : item))} placeholder="name (optional)" />
+            <Input type="date" value={holiday.date} onChange={(e) => onChange(holidays.map((item, i) => i === index ? { ...item, date: e.target.value } : item))} />
+            <Select value={holiday.type} onChange={(e) => onChange(holidays.map((item, i) => i === index ? { ...item, type: e.target.value } : item))}>
+              {HOLIDAY_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+            </Select>
+            <div className="flex gap-2">
+              <Input value={holiday.description} onChange={(e) => onChange(holidays.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} placeholder="description (optional)" className="flex-1" />
+              <button type="button" onClick={() => onChange(holidays.filter((_, i) => i !== index))} className="p-2 text-slate-400 hover:text-rose-600"><Trash2 size={14} /></button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CreateYear({ schoolId, reload, toast }) {
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidays: [] });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
     setBusy(true);
     try {
-      await api.createAcademicYear({ schoolId, ...form, holidays: [] });
+      await api.createAcademicYear({
+        schoolId,
+        ...form,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+        holidays: form.holidays.map((holiday) => ({ ...holiday, date: holiday.date || null })),
+      });
       toast.success(`Academic year “${form.name}” created.`);
       reload(form.name);
     } catch (e) { toast.error(e.message); } finally { setBusy(false); }
@@ -35,15 +69,17 @@ function CreateYear({ schoolId, reload, toast }) {
     <div className="max-w-xl">
       <Card title="Create an academic year" subtitle="A school runs on academic years — set one up to start.">
         <div className="grid grid-cols-1 gap-4">
-          <Field label="Name" hint="e.g. 2026-2027 — cannot be changed later.">
+          <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+          <Field label="Name" apiName="name" required hint="e.g. 2026-2027 — cannot be changed later.">
             <Input value={form.name} onChange={set('name')} placeholder="2026-2027" />
           </Field>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Starts on"><Input type="date" value={form.startDate} onChange={set('startDate')} /></Field>
-            <Field label="Ends on"><Input type="date" value={form.endDate} onChange={set('endDate')} /></Field>
+            <Field label="Starts on" apiName="startDate" required={false}><Input type="date" value={form.startDate} onChange={set('startDate')} /></Field>
+            <Field label="Ends on" apiName="endDate" required={false}><Input type="date" value={form.endDate} onChange={set('endDate')} /></Field>
           </div>
+          <HolidayEditor holidays={form.holidays} onChange={(holidays) => setForm((current) => ({ ...current, holidays }))} />
           <div>
-            <Button variant="primary" onClick={submit} disabled={busy || !form.name || !form.startDate || !form.endDate}>
+            <Button variant="primary" onClick={submit} disabled={busy || !form.name}>
               <CalendarPlus size={16} /> {busy ? 'Creating…' : 'Create academic year'}
             </Button>
           </div>
@@ -60,28 +96,34 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
     .map((h) => new Date(h.date + 'T00:00:00Z').getUTCDay()))];
   const weeklyOffNames = weeklyOffDays.map((d) => DAYS[(d + 6) % 7]);
 
-  const [hol, setHol] = useState({ name: '', type: 'FESTIVAL', date: '' });
+  const [hol, setHol] = useState({ name: '', description: '', type: 'FESTIVAL', date: '' });
   const [offDay, setOffDay] = useState('SUNDAY');
   const [busy, setBusy] = useState(false);
 
   // New Academic Year modal states
   const [showYearModal, setShowYearModal] = useState(false);
-  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '' });
+  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '', holidays: [] });
   const [busyYear, setBusyYear] = useState(false);
 
   const handleYearFormChange = (k) => (e) => setYearForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submitNewAcademicYear = async () => {
-    if (!yearForm.name || !yearForm.startDate || !yearForm.endDate) {
-      toast.error("All fields are required to create a new academic year.");
+    if (!yearForm.name) {
+      toast.error("Name is required to create a new academic year.");
       return;
     }
     setBusyYear(true);
     try {
-      await api.createAcademicYear({ schoolId, ...yearForm, holidays: [] });
+      await api.createAcademicYear({
+        schoolId,
+        ...yearForm,
+        startDate: yearForm.startDate || null,
+        endDate: yearForm.endDate || null,
+        holidays: yearForm.holidays.map((holiday) => ({ ...holiday, date: holiday.date || null })),
+      });
       toast.success(`Academic year “${yearForm.name}” created.`);
       setShowYearModal(false);
-      setYearForm({ name: '', startDate: '', endDate: '' });
+      setYearForm({ name: '', startDate: '', endDate: '', holidays: [] });
       reload(yearForm.name); // Reload context and select new year
     } catch (e) {
       toast.error(e.message || "Failed to create academic year.");
@@ -122,6 +164,7 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-3"><PartyPopper size={16} /> A holiday on a date</div>
             <div className="space-y-3">
               <Field label="Name"><Input value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} placeholder="Diwali" /></Field>
+              <Field label="Description" apiName="description" required={false}><Input value={hol.description} onChange={(e) => setHol({ ...hol, description: e.target.value })} placeholder="Optional details" /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Type">
                   <Select value={hol.type} onChange={(e) => setHol({ ...hol, type: e.target.value })}>
@@ -131,7 +174,7 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
                 <Field label="Date"><Input type="date" min={yearDoc.startDate} max={yearDoc.endDate} value={hol.date} onChange={(e) => setHol({ ...hol, date: e.target.value })} /></Field>
               </div>
               <Button variant="primary" size="sm" disabled={busy || !hol.name || !hol.date}
-                onClick={() => run(() => api.addHolidays(yearDoc.id, [{ name: hol.name, type: hol.type, date: hol.date }]).then(() => setHol({ name: '', type: 'FESTIVAL', date: '' })), `Added “${hol.name}”.`)}>
+                onClick={() => run(() => api.addHolidays(yearDoc.id, [{ name: hol.name, description: hol.description || null, type: hol.type, date: hol.date }]).then(() => setHol({ name: '', description: '', type: 'FESTIVAL', date: '' })), `Added “${hol.name}”.`)}>
                 <Plus size={15} /> Add holiday
               </Button>
             </div>
@@ -209,17 +252,19 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
             <p className="text-xs text-slate-500 mt-1 mb-5">Set up a new academic year range for this school.</p>
 
             <div className="space-y-4">
-              <Field label="Name" hint="e.g. 2026-2027 — cannot be changed later.">
+              <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+              <Field label="Name" apiName="name" required hint="e.g. 2026-2027 — cannot be changed later.">
                 <Input value={yearForm.name} onChange={handleYearFormChange('name')} placeholder="2026-2027" className="text-slate-800" />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Starts on">
+                <Field label="Starts on" apiName="startDate" required={false}>
                   <Input type="date" value={yearForm.startDate} onChange={handleYearFormChange('startDate')} className="text-slate-800" />
                 </Field>
-                <Field label="Ends on">
+                <Field label="Ends on" apiName="endDate" required={false}>
                   <Input type="date" value={yearForm.endDate} onChange={handleYearFormChange('endDate')} className="text-slate-800" />
                 </Field>
               </div>
+              <HolidayEditor holidays={yearForm.holidays} onChange={(holidays) => setYearForm((current) => ({ ...current, holidays }))} />
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 mt-5">
                 <Button variant="default" size="sm" onClick={() => setShowYearModal(false)}>
@@ -229,7 +274,7 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
                   variant="primary" 
                   size="sm" 
                   onClick={submitNewAcademicYear}
-                  disabled={busyYear || !yearForm.name || !yearForm.startDate || !yearForm.endDate}
+                  disabled={busyYear || !yearForm.name}
                 >
                   {busyYear ? 'Creating…' : 'Create academic year'}
                 </Button>

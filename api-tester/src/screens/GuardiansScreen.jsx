@@ -193,14 +193,15 @@ export default function GuardiansScreen({ schoolId }) {
             <div className="xl:col-span-1">
               <Card title={editing ? 'Edit Guardian' : 'New Guardian'} subtitle={editing ? 'Update contact details.' : 'Add a contact person.'}>
                 <div className="space-y-3">
-                  <Field label="Name *"><Input value={guardianForm.name} onChange={(e) => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="e.g. Rajesh Nair" /></Field>
+                  {!editing && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                  <Field label="Name" apiName="name" required><Input value={guardianForm.name} onChange={(e) => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="e.g. Rajesh Nair" /></Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Phone"><Input value={guardianForm.phone} onChange={(e) => setGuardianForm({ ...guardianForm, phone: e.target.value })} /></Field>
-                    <Field label="Alt. Phone"><Input value={guardianForm.alternatePhone} onChange={(e) => setGuardianForm({ ...guardianForm, alternatePhone: e.target.value })} /></Field>
+                    <Field label="Phone" apiName="phone" required={false}><Input value={guardianForm.phone} onChange={(e) => setGuardianForm({ ...guardianForm, phone: e.target.value })} /></Field>
+                    <Field label="Alt. Phone" apiName="alternatePhone" required={false}><Input value={guardianForm.alternatePhone} onChange={(e) => setGuardianForm({ ...guardianForm, alternatePhone: e.target.value })} /></Field>
                   </div>
-                  <Field label="Email"><Input value={guardianForm.email} onChange={(e) => setGuardianForm({ ...guardianForm, email: e.target.value })} /></Field>
-                  <Field label="Occupation"><Input value={guardianForm.occupation} onChange={(e) => setGuardianForm({ ...guardianForm, occupation: e.target.value })} /></Field>
-                  <Field label="Address"><Input value={guardianForm.address} onChange={(e) => setGuardianForm({ ...guardianForm, address: e.target.value })} /></Field>
+                  <Field label="Email" apiName="email" required={false}><Input value={guardianForm.email} onChange={(e) => setGuardianForm({ ...guardianForm, email: e.target.value })} /></Field>
+                  <Field label="Occupation" apiName="occupation" required={false}><Input value={guardianForm.occupation} onChange={(e) => setGuardianForm({ ...guardianForm, occupation: e.target.value })} /></Field>
+                  <Field label="Address" apiName="address" required={false}><Input value={guardianForm.address} onChange={(e) => setGuardianForm({ ...guardianForm, address: e.target.value })} /></Field>
                   <div className="pt-2 border-t border-slate-100 flex justify-end gap-2">
                     {editing && <Button variant="default" onClick={resetGuardian}>Cancel</Button>}
                     <Button variant="primary" onClick={submitGuardian} disabled={busy || !guardianForm.name}>
@@ -269,14 +270,15 @@ export default function GuardiansScreen({ schoolId }) {
             <div className="xl:col-span-1">
               <Card title="Link a Guardian" subtitle="Attach a guardian to the selected student with a role + flags.">
                 <div className="space-y-3">
-                  <Field label="Guardian *">
+                  <Field label="Guardian" apiName="guardianId" required>
                     <Select value={linkForm.guardianId} onChange={(e) => setLinkForm({ ...linkForm, guardianId: e.target.value })}>
                       {guardians.length === 0 && <option value="">Create a guardian first</option>}
                       {guardians.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </Select>
                   </Field>
-                  <Field label="Relation *">
+                  <Field label="Relation" apiName="relation" required={false}>
                     <Select value={linkForm.relation} onChange={(e) => setLinkForm({ ...linkForm, relation: e.target.value })}>
+                      <option value="">— omitted —</option>
                       {RELATIONS.map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                     </Select>
                   </Field>
