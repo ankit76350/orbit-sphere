@@ -14,7 +14,6 @@ import com.orbitastra.backend.dto.student.GuardianLinkRequest;
 import com.orbitastra.backend.dto.student.UpdateStudentRequest;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
 import com.orbitastra.backend.services.crm.AdmissionService;
 import com.orbitastra.backend.services.student.StudentService;
 
@@ -32,22 +31,7 @@ public class StudentController {
     /** Normal student creation API — creates a student directly from a request payload. */
     @PostMapping
     public ResponseEntity<Student> createStudent(@Valid @RequestBody CreateStudentRequest request) {
-        Student student = Student.builder()
-                .schoolId(request.getSchoolId())
-                .admissionNo(request.getAdmissionNo())
-                .name(request.getName())
-                .dob(request.getDob())
-                .gender(request.getGender())
-                .bloodGroup(request.getBloodGroup())
-                .photoUrl(request.getPhotoUrl())
-                .walletId(request.getWalletId())
-                .medicalRecordId(request.getMedicalRecordId())
-                .status(request.getStatus() != null ? request.getStatus() : StudentStatus.ACTIVE)
-                .admissionDate(request.getAdmissionDate())
-                .guardians(GuardianLinkRequest.toModels(request.getGuardians()))
-                .currentAcademicRecord(toAcademicRecord(request.getCurrentAcademicRecord()))
-                .build();
-        Student created = studentService.createStudent(student);
+        Student created = studentService.createStudent(request);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 

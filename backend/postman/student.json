@@ -24,7 +24,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "  {\n    \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n    \"admissionNo\": \"ADM-2026-003\",\n    \"studentId\": \"STD-003\",\n    \"rollNo\": \"8C-03\",\n    \"firstName\": \"Liam\",\n    \"lastName\": \"Williams\",\n    \"dob\": \"2014-08-22\",\n    \"gender\": \"MALE\",\n    \"bloodGroup\": \"O+\",\n    \"photoUrl\": \"https://images.unsplash.com/photo-1500648767791-00dcc994a43e\",\n    \"classId\": \"class-8c\",\n    \"sectionId\": \"section-c\",\n    \"hostelRoomId\": \"hostel-room-103\",\n    \"walletId\": \"wallet-std-003\",\n    \"parentId\": \"6a475192ae2722e4b9afefd2\",\n    \"medicalRecordId\": \"med-std-003\",\n    \"status\": \"ACTIVE\",\n    \"admissionDate\": \"2026-06-03\"\n  }"
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"academicYear\": \"2026-2027\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\"\n    }\n  ],\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/students",

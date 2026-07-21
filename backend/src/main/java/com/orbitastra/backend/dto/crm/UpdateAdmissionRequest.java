@@ -12,13 +12,10 @@ import lombok.Data;
 /**
  * Partial-update payload for an admission (PATCH). All fields optional; only
  * non-null fields are applied. {@code studentId} is set only by convert and is
- * never editable here. {@code academicYear} is accepted only so the service can
- * reject an attempt to change it.
+ * never editable here. An admission carries no academic year.
  */
 @Data
 public class UpdateAdmissionRequest {
-
-    private String academicYear;
 
     private AdmissionStatus status;
 

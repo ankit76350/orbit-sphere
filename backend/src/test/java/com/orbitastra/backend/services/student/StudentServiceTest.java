@@ -11,6 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,7 +28,10 @@ import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
+import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
 @ExtendWith(MockitoExtension.class)
 public class StudentServiceTest {
@@ -49,6 +53,9 @@ public class StudentServiceTest {
 
     @Mock
     private GuardianRepository guardianRepository;
+
+    @Mock
+    private GuardianService guardianService;
 
     @InjectMocks
     private StudentService studentService;
@@ -93,6 +100,51 @@ public class StudentServiceTest {
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
         verify(studentRepository, times(1)).save(student);
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
+    }
+
+    @Test
+    void createStudent_withRequest_delegatesGuardianDedupToGuardianService() {
+        CreateStudentRequest req = new CreateStudentRequest();
+        req.setSchoolId("school-id-123");
+        req.setName("Lucas Johnson");
+        req.setAdmissionNo("ADM-2026-0003");
+        req.setAcademicYear("2026-2027");
+
+        StudentGuardianRequest gReq = StudentGuardianRequest.builder()
+                .name("Priya Sharma")
+                .relation(GuardianRelation.MOTHER)
+                .phone("+61-400-555-666")
+                .email("priya@example.com")
+                .address("9 Oak Ave")
+                .occupation("Teacher")
+                .build();
+        req.setGuardians(List.of(gReq, gReq)); // duplicate in request list — dedup is GuardianService's job
+
+        // GuardianService owns the dedup + link building (covered by GuardianServiceTest);
+        // here we only assert StudentService forwards the drafts and uses the result.
+        GuardianLink link = GuardianLink.builder().guardianId("guardian-priya").primary(true).build();
+        when(guardianService.buildDedupedLinks(eq("school-id-123"), isNull(), anyList()))
+                .thenReturn(new ArrayList<>(List.of(link)));
+
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(0L);
+        when(studentRepository.findByAdmissionNo("ADM-2026-0003")).thenReturn(Optional.empty());
+        when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
+        when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GuardianService.GuardianDraft>> draftsCaptor = ArgumentCaptor.forClass(List.class);
+
+        Student created = studentService.createStudent(req);
+
+        assertNotNull(created);
+        assertEquals("Lucas Johnson", created.getName());
+        assertEquals(1, created.getGuardians().size());
+        assertEquals("guardian-priya", created.getGuardians().get(0).getGuardianId());
+        // Both request entries are forwarded as drafts; GuardianService collapses them.
+        verify(guardianService).buildDedupedLinks(eq("school-id-123"), isNull(), draftsCaptor.capture());
+        assertEquals(2, draftsCaptor.getValue().size());
+        assertEquals("Priya Sharma", draftsCaptor.getValue().get(0).name());
     }
 
     @Test

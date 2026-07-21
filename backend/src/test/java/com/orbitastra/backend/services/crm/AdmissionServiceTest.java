@@ -9,11 +9,9 @@ import org.mockito.Mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
-import com.orbitastra.backend.services.utils.AcademicYearResolver;
 
 @ExtendWith(MockitoExtension.class)
 class AdmissionServiceTest {
@@ -23,9 +21,6 @@ class AdmissionServiceTest {
 
     @Mock
     private InquiryService inquiryService;
-
-    @Mock
-    private AcademicYearResolver academicYearResolver;
 
     @InjectMocks
     private AdmissionService admissionService;
@@ -38,11 +33,8 @@ class AdmissionServiceTest {
         Admission admission = Admission.builder()
                 .schoolId(schoolId)
                 .inquiryId(inquiryId)
-                .academicYear("2026-2027")
                 .build();
 
-        AcademicYear mockYear = AcademicYear.builder().name("2026-2027").build();
-        when(academicYearResolver.resolve(schoolId, "2026-2027", null)).thenReturn(mockYear);
         when(admissionRepository.existsByInquiryId(inquiryId)).thenReturn(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
@@ -60,11 +52,8 @@ class AdmissionServiceTest {
         Admission admission = Admission.builder()
                 .schoolId(schoolId)
                 .inquiryId(inquiryId)
-                .academicYear("2026-2027")
                 .build();
 
-        AcademicYear mockYear = AcademicYear.builder().name("2026-2027").build();
-        when(academicYearResolver.resolve(schoolId, "2026-2027", null)).thenReturn(mockYear);
         when(admissionRepository.existsByInquiryId(inquiryId)).thenReturn(false);
 
         Inquiry mockInquiry = Inquiry.builder().id(inquiryId).schoolId(schoolId).studentName("John Doe").build();

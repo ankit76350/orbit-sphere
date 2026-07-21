@@ -26,7 +26,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"parentId\": \"6a475192ae2722e4b9afefcc\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\",\n  \"name\": \"Lucas Johnson\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\",\n  \"walletId\": \"WALLET_ID_HERE\",\n  \"medicalRecordId\": \"MEDICAL_RECORD_ID_HERE\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\",\n      \"primary\": true,\n      \"emergencyContact\": true,\n      \"pickupApproved\": true,\n      \"portalAccess\": true\n    },\n    {\n      \"guardianId\": \"EXISTING_GUARDIAN_ID_HERE\",\n      \"relation\": \"FATHER\",\n      \"primary\": false,\n      \"emergencyContact\": true,\n      \"pickupApproved\": true,\n      \"portalAccess\": false\n    }\n  ],\n  \"currentAcademicRecord\": {\n    \"academicYear\": \"2026-2027\",\n    \"studentId\": \"STD-003\",\n    \"rollNo\": \"9C-03\",\n    \"classDocId\": \"6a4b4048e2823debb8d54fe4\",\n    \"sectionId\": \"section-c\",\n    \"hostelRoomId\": \"hostel-room-203\",\n    \"status\": \"ACTIVE\"\n  }\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/students",
@@ -39,7 +39,8 @@
 										"api",
 										"students"
 									]
-								}
+								},
+								"description": "Create a student — full payload showing every accepted field. Required: schoolId, name. gender: MALE|FEMALE|OTHER. status: ACTIVE|INACTIVE|SUSPENDED|ALUMNI.\n\nGuardians (optional): each entry is either an existing guardian by `guardianId`, OR a new person (name/relation/phone/email/address/occupation) that is de-duplicated server-side (reused when name+phone or name+email already exists in the school). A supplied `guardianId` must reference an existing guardian in the SAME school — otherwise the request fails (404 if the guardian does not exist, 400 if it belongs to another school). relation: FATHER|MOTHER|GRANDFATHER|GRANDMOTHER|UNCLE|AUNT|LEGAL_GUARDIAN|SIBLING|OTHER. Flags primary/emergencyContact/pickupApproved/portalAccess default to false (first guardian defaults to primary when unset).\n\nAcademic placement (optional): use the nested `currentAcademicRecord` object shown here, OR the equivalent top-level fields `academicYear`, `classDocId` (alias `classId`), `sectionId`, `rollNo`. classDocId must be a valid Class Mongo ObjectId in the same school. If academic placement is omitted entirely, no academic record is created and it can be assigned later via POST /api/students/{id}/academic-records (the recommended inquiry→admission→student flow). id and audit timestamps are server-owned and ignored if sent."
 							},
 							"response": []
 						},
@@ -55,7 +56,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"admissionId\": \"ADMISSION_ID_HERE\",\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"name\": \"Aarav Nair\",\n  \"dob\": \"2014-08-22\",\n  \"gender\": \"MALE\",\n  \"status\": \"ACTIVE\"\n}"
+									"raw": "{\n  \"admissionId\": \"ADMISSION_ID_HERE\",\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/students/from-admission",
@@ -69,7 +70,8 @@
 										"students",
 										"from-admission"
 									]
-								}
+								},
+								"description": "Create a student from an admission. Same as 'Convert Admission To Student' but the admission is referenced by `admissionId` in the BODY (required) instead of the URL. The body mirrors the create-student payload; schoolId and academicYear are accepted for parity but IGNORED — the school comes from the admission, and the academic year is NOT set at conversion (an admission carries no year); assign it afterwards via POST /api/students/{id}/academic-records. Guardians are copied from the admission and de-duplicated."
 							},
 							"response": []
 						},
@@ -4220,7 +4222,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/admissions",
@@ -4250,7 +4252,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"studentName\": \"Direct Walk-in Kid\",\n  \"dob\": \"2016-02-01\",\n  \"gender\": \"FEMALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\"\n    }\n  ],\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-16\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentName\": \"Direct Walk-in Kid\",\n  \"dob\": \"2016-02-01\",\n  \"gender\": \"FEMALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\"\n    }\n  ],\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-16\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/admissions",
@@ -4306,30 +4308,6 @@
 										"admissions",
 										"school",
 										"6a474d2517e9c40cf971ccc2"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Admissions By School And Academic Year",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "http://localhost:3456/api/admissions/school/6a474d2517e9c40cf971ccc2/academic-year/2026-2027",
-									"protocol": "http",
-									"host": [
-										"localhost"
-									],
-									"port": "3456",
-									"path": [
-										"api",
-										"admissions",
-										"school",
-										"6a474d2517e9c40cf971ccc2",
-										"academic-year",
-										"2026-2027"
 									]
 								}
 							},
@@ -4423,7 +4401,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"admissionNo\": \"ADM-2026-0007\",\n  \"currentAcademicRecord\": {\n    \"classDocId\": \"CLASS_ID_HERE\",\n    \"sectionId\": \"SECTION_ID_HERE\",\n    \"rollNo\": \"7\"\n  }\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE/convert",
@@ -4438,7 +4416,8 @@
 										"ADMISSION_ID_HERE",
 										"convert"
 									]
-								}
+								},
+								"description": "Convert an admission (id in the URL) into an enrolled student. The body mirrors the create-student payload — the frontend prefills name/admissionNo/dob/gender/admissionDate from the admission and bloodGroup is entered here. schoolId and academicYear are accepted for payload parity but IGNORED: the school comes from the admission, and the academic year is NOT set at conversion (an admission carries no year) — assign it afterwards via POST /api/students/{id}/academic-records. Guardians are copied from the admission automatically and de-duplicated (reused when name+phone or name+email exists)."
 							},
 							"response": []
 						},

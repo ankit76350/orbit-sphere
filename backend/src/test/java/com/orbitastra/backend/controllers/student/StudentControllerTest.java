@@ -37,7 +37,7 @@ class StudentControllerTest {
         req.setName("John Doe");
 
         Student created = Student.builder().id("std-1").schoolId("school-1").name("John Doe").build();
-        when(studentService.createStudent(org.mockito.ArgumentMatchers.any(Student.class))).thenReturn(created);
+        when(studentService.createStudent(org.mockito.ArgumentMatchers.any(CreateStudentRequest.class))).thenReturn(created);
 
         ResponseEntity<Student> res = studentController.createStudent(req);
         assertEquals(HttpStatus.CREATED, res.getStatusCode());

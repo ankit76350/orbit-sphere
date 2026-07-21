@@ -22,8 +22,6 @@ public class CreateAdmissionRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    private String academicYear;
-
     private String inquiryId;
 
     private String studentName;

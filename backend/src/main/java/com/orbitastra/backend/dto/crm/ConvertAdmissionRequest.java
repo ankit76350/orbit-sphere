@@ -14,15 +14,26 @@ import lombok.Data;
 
 /**
  * Overrides supplied when converting an admission into an enrolled student.
- * Every field is optional — the service forces {@code schoolId} and
- * {@code academicYear} from the admission and prefills identity from its
- * applicant snapshot; anything set here overrides that. {@code id},
- * {@code schoolId} and audit timestamps are never accepted from the body.
+ * Every field is optional — the service forces {@code schoolId} from the
+ * admission and prefills identity from its applicant snapshot; anything else set
+ * here overrides that. {@code id} and audit timestamps are never accepted.
+ *
+ * <p>{@code schoolId} and {@code academicYear} are accepted only so the frontend
+ * can reuse the exact create-student payload shape, and both are ignored:
+ * {@code schoolId} comes from the admission, and the academic year is not set at
+ * conversion — a student is enrolled into a year separately, afterwards, via
+ * {@code POST /api/students/{id}/academic-records}.
  */
 @Data
 public class ConvertAdmissionRequest {
 
     private String admissionId;
+
+    /** Ignored — the school is taken from the admission. Accepted for payload parity only. */
+    private String schoolId;
+
+    /** Ignored — a student's academic year is assigned after enrolment, not at conversion. Accepted for payload parity only. */
+    private String academicYear;
 
     private String admissionNo;
 

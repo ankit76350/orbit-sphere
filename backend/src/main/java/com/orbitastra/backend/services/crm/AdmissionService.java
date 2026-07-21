@@ -1,7 +1,6 @@
 package com.orbitastra.backend.services.crm;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -10,23 +9,19 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
-import com.orbitastra.backend.models.student.Guardian;
-import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.services.student.GuardianService;
 import com.orbitastra.backend.services.student.StudentService;
-import com.orbitastra.backend.services.utils.AcademicYearResolver;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * Owns the admission stage of the CRM funnel. An admission is year-scoped
- * (via {@link AcademicYearResolver}) and optionally linked to the originating
+ * Owns the admission stage of the CRM funnel. An admission is a pre-enrolment
+ * record — it carries no academic year (the year is assigned only once the
+ * applicant becomes a student) — and is optionally linked to the originating
  * {@link Inquiry}. Confirming an admission converts it into an enrolled
  * {@link Student} through {@link StudentService} — the single bridge from CRM
  * into the student module.
@@ -39,15 +34,11 @@ public class AdmissionService {
     private final InquiryService inquiryService;
     private final StudentService studentService;
     private final GuardianService guardianService;
-    private final AcademicYearResolver academicYearResolver;
 
     public Admission createAdmission(Admission admission) {
         if (admission.getSchoolId() == null || admission.getSchoolId().isBlank()) {
             throw new IllegalArgumentException("School ID is required for an admission.");
         }
-        admission.setAcademicYear(academicYearResolver
-                .resolve(admission.getSchoolId(), admission.getAcademicYear(), admission.getAdmissionDate())
-                .getName());
 
         // Scenario A — via inquiry: carry the applicant snapshot over (as-is unless
         // the admission already supplies its own), and advance the inquiry to ADMITTED.
@@ -87,10 +78,6 @@ public class AdmissionService {
         return admissionRepository.findBySchoolId(schoolId);
     }
 
-    public List<Admission> getAdmissionsBySchoolAndAcademicYear(String schoolId, String academicYear) {
-        return admissionRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
-    }
-
     public List<Admission> getAdmissionsBySchoolAndStatus(String schoolId, AdmissionStatus status) {
         return admissionRepository.findBySchoolIdAndStatus(schoolId, status);
     }
@@ -101,7 +88,6 @@ public class AdmissionService {
 
     public Admission updateAdmission(String id, Admission details) {
         Admission admission = getAdmissionById(id);
-        academicYearResolver.assertImmutable(admission.getAcademicYear(), details.getAcademicYear());
 
         if (details.getStatus() != null) admission.setStatus(details.getStatus());
         if (details.getDocuments() != null) admission.setDocuments(details.getDocuments());
@@ -136,17 +122,14 @@ public class AdmissionService {
                     "This admission has already been converted to student " + admission.getStudentId() + ".");
         }
 
-        // Force the new student into the admission's school + academic year.
+        // Force the new student into the admission's school. No academic year is set here —
+        // it is assigned separately after enrolment via POST /api/students/{id}/academic-records
+        // (an admission carries no year). Any currentAcademicRecord explicitly supplied on the
+        // convert request is left untouched and honoured by StudentService.
         studentPayload.setSchoolId(admission.getSchoolId());
         if (studentPayload.getAdmissionDate() == null) {
             studentPayload.setAdmissionDate(admission.getAdmissionDate());
         }
-        StudentAcademicRecord record = studentPayload.getCurrentAcademicRecord();
-        if (record == null) {
-            record = new StudentAcademicRecord();
-        }
-        record.setAcademicYear(admission.getAcademicYear());
-        studentPayload.setCurrentAcademicRecord(record);
 
         // Prefill identity from the admission's applicant snapshot when not overridden.
         if ((studentPayload.getName() == null || studentPayload.getName().isBlank())
@@ -156,35 +139,19 @@ public class AdmissionService {
         if (studentPayload.getDob() == null) studentPayload.setDob(admission.getDob());
         if (studentPayload.getGender() == null) studentPayload.setGender(admission.getGender());
 
-        // Materialise the admission's prospective guardians into real Guardian records,
-        // then link them to the student (first one flagged primary). Any guardian links
-        // already on the payload are preserved.
-        List<GuardianLink> links = new ArrayList<>();
-        if (studentPayload.getGuardians() != null) {
-            links.addAll(studentPayload.getGuardians());
-        }
-        if (admission.getGuardians() != null) {
-            int idx = 0;
-            for (InquiryGuardian pg : admission.getGuardians()) {
-                if (pg.getName() == null || pg.getName().isBlank()) continue;
-                // Reuse an existing guardian if this person already exists (dedup),
-                // otherwise create one — never store the same guardian twice.
-                Guardian guardian = guardianService.findOrCreate(
-                        admission.getSchoolId(), pg.getName(), pg.getPhone(),
-                        pg.getEmail(), pg.getAddress(), pg.getOccupation());
-                // Skip if this guardian is already linked (e.g. sibling already added it).
-                boolean alreadyLinked = links.stream()
-                        .anyMatch(l -> guardian.getId().equals(l.getGuardianId()));
-                if (alreadyLinked) continue;
-                links.add(GuardianLink.builder()
-                        .guardianId(guardian.getId())
-                        .relation(pg.getRelation())
-                        .primary(idx == 0)
-                        .build());
-                idx++;
-            }
-        }
-        studentPayload.setGuardians(links);
+        // Materialise the admission's prospective guardians into real (de-duplicated)
+        // Guardian records and link them, preserving any links already on the payload.
+        // Dedup + link-building is shared with direct student creation (GuardianService).
+        List<GuardianService.GuardianDraft> drafts = admission.getGuardians() == null
+                ? null
+                : admission.getGuardians().stream()
+                        .map(pg -> GuardianService.GuardianDraft.ofPerson(
+                                pg.getName(), pg.getPhone(), pg.getEmail(),
+                                pg.getAddress(), pg.getOccupation(), pg.getRelation()))
+                        .toList();
+        studentPayload.setGuardians(
+                guardianService.buildDedupedLinks(admission.getSchoolId(),
+                        studentPayload.getGuardians(), drafts));
 
         Student saved = studentService.createStudent(studentPayload);
 

@@ -37,7 +37,6 @@ public class AdmissionController {
     public ResponseEntity<Admission> createAdmission(@Valid @RequestBody CreateAdmissionRequest request) {
         Admission admission = Admission.builder()
                 .schoolId(request.getSchoolId())
-                .academicYear(request.getAcademicYear())
                 .inquiryId(request.getInquiryId())
                 .studentName(request.getStudentName())
                 .dob(request.getDob())
@@ -60,13 +59,6 @@ public class AdmissionController {
         return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
     }
 
-    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
-    public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndAcademicYear(
-            @PathVariable String schoolId,
-            @PathVariable String academicYear) {
-        return ResponseEntity.ok(admissionService.getAdmissionsBySchoolAndAcademicYear(schoolId, academicYear));
-    }
-
     @GetMapping("/school/{schoolId}/status/{status}")
     public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndStatus(
             @PathVariable String schoolId,
@@ -82,7 +74,6 @@ public class AdmissionController {
     @PatchMapping("/{id}")
     public ResponseEntity<Admission> updateAdmission(@PathVariable String id, @Valid @RequestBody UpdateAdmissionRequest request) {
         Admission details = Admission.builder()
-                .academicYear(request.getAcademicYear())
                 .status(request.getStatus())
                 .documents(request.getDocuments())
                 .admissionDate(request.getAdmissionDate())

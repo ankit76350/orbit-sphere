@@ -18,6 +18,8 @@ import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.dto.student.CreateStudentRequest;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +33,7 @@ public class StudentService {
     private final SchoolClassRepository schoolClassRepository;
     private final AcademicYearResolver academicYearResolver;
     private final GuardianRepository guardianRepository;
+    private final GuardianService guardianService;
 
     private void populateAcademicFields(Student student) {
         if (student == null) return;
@@ -69,6 +72,77 @@ public class StudentService {
             StudentAcademicRecord rec = latestByStudent.get(s.getId());
             if (rec != null) s.setCurrentAcademicRecord(rec);
         });
+    }
+
+    @Transactional
+    public Student createStudent(CreateStudentRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required.");
+        }
+        if (request.getSchoolId() == null || request.getSchoolId().isBlank()) {
+            throw new IllegalArgumentException("School ID cannot be null or blank.");
+        }
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("Student name cannot be null or blank.");
+        }
+
+        // Resolve guardians into de-duplicated links (shared with admission conversion).
+        List<GuardianService.GuardianDraft> drafts = request.getGuardians() == null
+                ? null
+                : request.getGuardians().stream()
+                        .map(g -> new GuardianService.GuardianDraft(
+                                g.getGuardianId(), g.getName(), g.getPhone(), g.getEmail(),
+                                g.getAddress(), g.getOccupation(), g.getRelation(),
+                                g.getPrimary(), g.getEmergencyContact(),
+                                g.getPickupApproved(), g.getPortalAccess()))
+                        .toList();
+                        
+        List<GuardianLink> links = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
+
+        // Build StudentAcademicRecord from request.getCurrentAcademicRecord() or top-level academic fields
+        com.orbitastra.backend.dto.student.AcademicRecordRequest reqRecordDto = request.getCurrentAcademicRecord();
+        StudentAcademicRecord reqRecord = reqRecordDto != null ? reqRecordDto.toModel() : null;
+
+        String classDocId = request.getClassDocId() != null ? request.getClassDocId() : request.getClassId();
+        if (reqRecord == null && (request.getAcademicYear() != null || classDocId != null || request.getSectionId() != null || request.getRollNo() != null)) {
+            reqRecord = StudentAcademicRecord.builder()
+                    .academicYear(request.getAcademicYear())
+                    .classDocId(classDocId)
+                    .sectionId(request.getSectionId())
+                    .rollNo(request.getRollNo())
+                    .build();
+        } else if (reqRecord != null) {
+            if (reqRecord.getAcademicYear() == null && request.getAcademicYear() != null) {
+                reqRecord.setAcademicYear(request.getAcademicYear());
+            }
+            if (reqRecord.getClassDocId() == null && classDocId != null) {
+                reqRecord.setClassDocId(classDocId);
+            }
+            if (reqRecord.getSectionId() == null && request.getSectionId() != null) {
+                reqRecord.setSectionId(request.getSectionId());
+            }
+            if (reqRecord.getRollNo() == null && request.getRollNo() != null) {
+                reqRecord.setRollNo(request.getRollNo());
+            }
+        }
+
+        Student student = Student.builder()
+                .schoolId(request.getSchoolId())
+                .admissionNo(request.getAdmissionNo())
+                .name(request.getName())
+                .dob(request.getDob())
+                .gender(request.getGender())
+                .bloodGroup(request.getBloodGroup())
+                .photoUrl(request.getPhotoUrl())
+                .walletId(request.getWalletId())
+                .medicalRecordId(request.getMedicalRecordId())
+                .status(request.getStatus() != null ? request.getStatus() : com.orbitastra.backend.models.student.enums.StudentStatus.ACTIVE)
+                .admissionDate(request.getAdmissionDate())
+                .guardians(links)
+                .currentAcademicRecord(reqRecord)
+                .build();
+
+        return createStudent(student);
     }
 
     public Student createStudent(Student student) {

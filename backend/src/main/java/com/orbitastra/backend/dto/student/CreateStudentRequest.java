@@ -12,8 +12,9 @@ import lombok.Data;
 
 /**
  * Client payload for admitting a student. Server-owned fields ({@code id} and
- * audit timestamps) are not accepted from the request body. The optional
- * {@code currentAcademicRecord} carries the year/class/roll placement.
+ * audit timestamps) are not accepted from the request body. Supports top-level
+ * placement fields ({@code academicYear}, {@code classDocId}, etc.) and flexible
+ * guardian payloads that are automatically deduplicated server-side.
  */
 @Data
 public class CreateStudentRequest {
@@ -42,8 +43,19 @@ public class CreateStudentRequest {
 
     private LocalDate admissionDate;
 
+    // Optional top-level academic placement fields
+    private String academicYear;
+
+    private String classDocId;
+
+    private String classId; // Alias for classDocId
+
+    private String sectionId;
+
+    private String rollNo;
+
     @Valid
-    private List<GuardianLinkRequest> guardians;
+    private List<StudentGuardianRequest> guardians;
 
     @Valid
     private AcademicRecordRequest currentAcademicRecord;
