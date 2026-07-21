@@ -15,6 +15,7 @@ export default function StaffScreen({ schoolId, reload }) {
   // Form State
   const [editingStaff, setEditingStaff] = useState(null);
   const [form, setForm] = useState({
+    schoolId: schoolId || '',
     employeeId: '',
     name: '',
     department: 'Academic',
@@ -44,9 +45,12 @@ export default function StaffScreen({ schoolId, reload }) {
     fetchStaff();
   }, [fetchStaff]);
 
+  useEffect(() => setForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
+
   const handleEditClick = (s) => {
     setEditingStaff(s);
     setForm({
+      schoolId: schoolId || '',
       employeeId: s.employeeId || '',
       name: s.name || '',
       department: s.department || 'Academic',
@@ -61,6 +65,7 @@ export default function StaffScreen({ schoolId, reload }) {
   const handleCancelEdit = () => {
     setEditingStaff(null);
     setForm({
+      schoolId: schoolId || '',
       employeeId: '',
       name: '',
       department: 'Academic',
@@ -79,8 +84,9 @@ export default function StaffScreen({ schoolId, reload }) {
     }
     setBusy(true);
     try {
+      const { schoolId: payloadSchoolId, ...staffFields } = form;
       const normalized = {
-        ...form,
+        ...staffFields,
         salary: form.salary ? parseFloat(form.salary) : null,
         joiningDate: form.joiningDate || null,
         dob: form.dob || null,
@@ -92,7 +98,7 @@ export default function StaffScreen({ schoolId, reload }) {
         await api.updateStaff(editingStaff.id, updatePayload);
         toast.success(`Staff profile "${form.name}" updated successfully.`);
       } else {
-        await api.createStaff({ schoolId, ...normalized });
+        await api.createStaff({ schoolId: payloadSchoolId, ...normalized });
         toast.success(`Staff profile "${form.name}" registered.`);
       }
       handleCancelEdit();
@@ -243,7 +249,7 @@ export default function StaffScreen({ schoolId, reload }) {
               subtitle={editingStaff ? `Modifying profile: ${editingStaff.name}` : "Enlist a new employee into the school roster."}
             >
               <div className="space-y-4">
-                {!editingStaff && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                {!editingStaff && <Field label="School ID" apiName="schoolId" required><Input value={form.schoolId} onChange={(e) => setForm({ ...form, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
                 <Field label="Full Name" apiName="name" required>
                   <Input 
                     value={form.name}

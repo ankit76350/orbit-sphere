@@ -44,6 +44,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
 
   // --- ANNOUNCEMENT FORM STATE ---
   const [announcementForm, setAnnouncementForm] = useState({
+    schoolId: schoolId || '',
     title: '',
     content: '',
     target: 'ALL',
@@ -53,6 +54,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
 
   // --- NOTIFICATION FORM STATE ---
   const [notificationForm, setNotificationForm] = useState({
+    schoolId: schoolId || '',
     recipientId: '',
     channel: 'PUSH',
     message: ''
@@ -119,6 +121,11 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    setAnnouncementForm((form) => ({ ...form, schoolId: schoolId || '' }));
+    setNotificationForm((form) => ({ ...form, schoolId: schoolId || '' }));
+  }, [schoolId]);
 
   // Reload all helper
   const reloadAll = () => {
@@ -234,8 +241,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
 
   // --- ANNOUNCEMENT CRUD ---
   const postAnnouncement = async () => {
-    if (!schoolId) {
-      toast.error("Please pick a school in the top bar before posting.");
+    if (!announcementForm.schoolId) {
+      toast.error("School ID is required.");
       return;
     }
     if (!announcementForm.title) {
@@ -245,11 +252,11 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
     setBusyAnnouncement(true);
     try {
       await api.createAnnouncement({
-        schoolId,
         ...announcementForm
       });
       toast.success("Announcement broadcasted successfully!");
       setAnnouncementForm({
+        schoolId: schoolId || '',
         title: '',
         content: '',
         target: 'ALL',
@@ -277,8 +284,8 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
 
   // --- NOTIFICATION CRUD ---
   const dispatchNotification = async () => {
-    if (!schoolId) {
-      toast.error("Please pick a school in the top bar first.");
+    if (!notificationForm.schoolId) {
+      toast.error("School ID is required.");
       return;
     }
     if (!notificationForm.recipientId) {
@@ -288,12 +295,12 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
     setBusyNotification(true);
     try {
       await api.createNotification({
-        schoolId,
         ...notificationForm,
         channel: notificationForm.channel || null,
       });
       toast.success("Notification created.");
       setNotificationForm({
+        schoolId: schoolId || '',
         recipientId: '',
         channel: 'PUSH',
         message: ''
@@ -690,7 +697,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                   <Empty icon={Megaphone} title="Pick a school context" hint="Use the school selector in the top bar to enable posting." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={announcementForm.schoolId} onChange={(e) => setAnnouncementForm({ ...announcementForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Bulletin Title" apiName="title" required>
                       <Input 
                         value={announcementForm.title}
@@ -851,7 +858,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                   <Empty icon={Bell} title="Pick a school context" hint="Use the school selector in the top bar to enable dispatcher." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={notificationForm.schoolId} onChange={(e) => setNotificationForm({ ...notificationForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Recipient User ID" apiName="recipientId" required>
                       <Input 
                         value={notificationForm.recipientId}

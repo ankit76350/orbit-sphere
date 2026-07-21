@@ -29,7 +29,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const [busy, setBusy] = useState(false);
 
   const emptyInquiry = {
-    studentName: '', status: 'INQUIRY',
+    schoolId: schoolId || '', studentName: '', status: 'INQUIRY',
     source: 'WALK_IN', counselorId: '',
     note: '', nextFollowUp: '', // seed the first follow-up entry
     guardians: [{ name: '', relation: 'MOTHER', phone: '', email: '', address: '', occupation: '' }],
@@ -48,6 +48,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setInquiryForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
 
   const emptyAdmission = {
+    schoolId: schoolId || '',
     inquiryId: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
     studentName: 'Lucas Johnson', dob: '2015-06-19', gender: 'MALE', status: 'PENDING',
     guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
@@ -95,6 +96,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   }, [schoolId, year, toast]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    setInquiryForm((current) => ({ ...current, schoolId: schoolId || '' }));
+    setAdmissionForm((current) => ({ ...current, schoolId: schoolId || '' }));
+  }, [schoolId]);
 
   // ---- helpers ----
   const inquiryById = useMemo(() => Object.fromEntries(inquiries.map((i) => [i.id, i])), [inquiries]);
@@ -121,7 +126,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       // Seed the follow-up timeline with the first entry.
       const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorId: inquiryForm.counselorId || null }];
       await api.createInquiry({
-        schoolId,
+        schoolId: inquiryForm.schoolId,
         status: inquiryForm.status || null,
         studentName: inquiryForm.studentName,
         source: inquiryForm.source,
@@ -186,7 +191,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setBusy(true);
     try {
       await api.createAdmission({
-        schoolId,
+        schoolId: admissionForm.schoolId,
         inquiryId: admissionForm.inquiryId || null,
         studentName: admissionForm.studentName || null,
         dob: admissionForm.dob || null,
@@ -387,7 +392,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             <div className="xl:col-span-1">
               <Card title="New Inquiry" subtitle="Capture a fresh lead (walk-in / call / online).">
                 <div className="space-y-3">
-                  <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                  <Field label="School ID" apiName="schoolId" required><Input value={inquiryForm.schoolId} onChange={(e) => setInquiryForm({ ...inquiryForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                   <Field label="Student Name" apiName="studentName" required={false}><Input value={inquiryForm.studentName} onChange={(e) => setInquiryForm({ ...inquiryForm, studentName: e.target.value })} placeholder="e.g. Aarav Nair" /></Field>
 
                   <div className="space-y-2">
@@ -486,7 +491,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                             </td>
                             <td className="px-4 py-3 text-slate-500">{(adm.documents || []).length}</td>
                             <td className="px-4 py-3">
-                              <Select value={adm.status} onChange={(e) => changeAdmissionStatus(adm, e.target.value)} disabled={converted} className="!py-1 !text-[11px]">
+                              <Select value={adm.status} onChange={(e) => changeAdmissionStatus(adm, e.target.value)} className="!py-1 !text-[11px]">
                                 {ADMISSION_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
                               </Select>
                             </td>
@@ -518,7 +523,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             <div className="xl:col-span-1">
               <Card title="New Admission" subtitle="Admissions intentionally carry no academic-year field.">
                 <div className="space-y-3">
-                  <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                  <Field label="School ID" apiName="schoolId" required><Input value={admissionForm.schoolId} onChange={(e) => setAdmissionForm({ ...admissionForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                   <Field label="From Inquiry" apiName="inquiryId" required={false} hint={admissionForm.inquiryId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
                     <Select value={admissionForm.inquiryId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
                       <option value="">— none (direct admission) —</option>
@@ -702,8 +707,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             {/* New follow-up form */}
             <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="New Stage *" hint={followUpModal.status === 'ADMITTED' ? 'Stage is locked for ADMITTED inquiries.' : undefined}>
-                  <Select value={followUpForm.status} onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })} disabled={followUpModal.status === 'ADMITTED'}>
+                <Field label="New Stage *" apiName="status" required={false} hint="Editable in the tester so backend transition validation can be exercised.">
+                  <Select value={followUpForm.status} onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })}>
                     {INQUIRY_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </Select>
                 </Field>

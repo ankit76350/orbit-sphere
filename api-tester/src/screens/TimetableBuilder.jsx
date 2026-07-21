@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Save, Plus, Coffee, X, GripVertical, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
-import { Field, Input, Button, Empty, useToast } from '../components/ui.jsx';
+import { Field, Input, Select, Button, Empty, useToast } from '../components/ui.jsx';
 import { overlaps, today } from '../lib/date.js';
 
 const defaultPeriods = () => [
@@ -16,12 +16,17 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
   const [cols, setCols] = useState([]);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [payloadSchoolId, setPayloadSchoolId] = useState(schoolId || '');
+  const [payloadAcademicYear, setPayloadAcademicYear] = useState(year || '');
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(null); // teacherId being dragged
 
   const staffName = (id) => (staff.find((s) => s.id === id) || {}).name || id;
   const minDate = yearDoc?.startDate;
   const maxDate = yearDoc?.endDate;
+
+  useEffect(() => setPayloadSchoolId(schoolId || ''), [schoolId]);
+  useEffect(() => setPayloadAcademicYear(year || ''), [year]);
 
   // section chips available
   const chips = useMemo(() => {
@@ -76,7 +81,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
 
     setBusy(true);
     try {
-      const res = await api.createTimetable({ schoolId, academicYear: year, startDate: start, endDate: end || null, classTimetables });
+      const res = await api.createTimetable({ schoolId: payloadSchoolId || null, academicYear: payloadAcademicYear || null, startDate: start, endDate: end || null, classTimetables });
       let msg = `Saved! ${res.daysCreated} day(s), ${res.totalEntries} entries.`;
       if (res.skipped?.length) msg += `\nSkipped ${res.skipped.length} holiday(s): ${res.skipped.map((s) => `${s.date} (${s.reason})`).join(', ')}`;
       if (skipped) msg += `\n(${skipped} incomplete lesson(s) ignored.)`;
@@ -90,8 +95,8 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
     <div>
       {/* date range */}
       <div className="flex flex-wrap items-end gap-3 mb-4 bg-white border border-slate-200 rounded-xl p-4">
-        <Field label="School ID" apiName="schoolId" required={false}><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs max-w-40" /></Field>
-        <Field label="Academic Year" apiName="academicYear" required={false}><Input value={year || ''} readOnly className="bg-slate-50 max-w-32" /></Field>
+        <Field label="School ID" apiName="schoolId" required={false}><Input value={payloadSchoolId} onChange={(e) => setPayloadSchoolId(e.target.value)} className="font-mono text-xs max-w-40" /></Field>
+        <Field label="Academic Year" apiName="academicYear" required={false}><Input value={payloadAcademicYear} onChange={(e) => setPayloadAcademicYear(e.target.value)} className="max-w-32" /></Field>
         <Field label="Timetable starts from" apiName="startDate" required={false}><Input type="date" min={minDate} max={maxDate} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field label="Runs until (blank = one day)" apiName="endDate" required={false}><Input type="date" min={minDate} max={maxDate} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         <div className="text-xs text-slate-500 max-w-xs">Holidays &amp; weekly offs of <b>{year}</b> are skipped automatically — you’ll see which after saving.</div>
@@ -144,8 +149,12 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
           <div className="flex-1 overflow-x-auto">
             <div className="flex gap-3 items-start pb-2">
               {cols.map((col, ci) => (
-                <div key={col.classId + col.section} className="w-60 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+                <div key={ci} className="w-60 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                   <div className="text-sm font-semibold text-center text-slate-700 mb-2">{col.className} — {col.section}</div>
+                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                    <Input value={col.classId} onChange={(e) => mutate(ci, (current) => ({ ...current, classId: e.target.value }))} placeholder="classId" className="!px-2 !py-1 text-[10px] font-mono" />
+                    <Input value={col.section} onChange={(e) => mutate(ci, (current) => ({ ...current, section: e.target.value }))} placeholder="section" className="!px-2 !py-1 text-[10px]" />
+                  </div>
                   {col.periods.map((p, pi) => {
                     const bad = conflicts.has(ci + '.' + pi);
                     const brk = p.type === 'BREAK';
@@ -157,6 +166,10 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
                           <Input type="time" value={p.end} onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, end: e.target.value } : x) }))} className="!px-1.5 !py-1 text-xs w-[74px]" />
                           <button className="ml-auto text-rose-400 hover:bg-rose-100 rounded p-1" onClick={() => mutate(ci, (c) => ({ ...c, periods: c.periods.filter((_, k) => k !== pi) }))}><X size={13} /></button>
                         </div>
+                        <Select value={p.type} onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, type: e.target.value } : x) }))} className="!px-2 !py-1 text-[10px] w-full mb-1.5">
+                          <option value="LESSON">LESSON</option>
+                          <option value="BREAK">BREAK</option>
+                        </Select>
                         {brk ? (
                           <div>
                             <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mb-1"><Coffee size={12} /> Break</div>
@@ -171,6 +184,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
                               className={`rounded-md px-2 py-1 text-xs flex items-center justify-between ${p.teacherId ? 'bg-indigo-50 border border-indigo-200 text-slate-700' : 'border border-dashed border-slate-300 text-slate-400'}`}>
                               {p.teacherId ? <><span className="truncate">👩‍🏫 {staffName(p.teacherId)}</span><button className="text-rose-400" onClick={() => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherId: null } : x) }))}><X size={12} /></button></> : 'drop teacher here'}
                             </div>
+                            <Input value={p.teacherId || ''} onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherId: e.target.value || null } : x) }))} placeholder="teacherId" className="!px-2 !py-1 text-[10px] font-mono w-full mt-1.5" />
                           </div>
                         )}
                       </div>

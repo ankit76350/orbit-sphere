@@ -3,7 +3,7 @@ import { BookOpen, Plus, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Empty, Badge, useToast } from '../components/ui.jsx';
 
-const emptyForm = { name: '', classTeacher: '', sections: 'A, B', subjects: [] };
+const emptyForm = { schoolId: '', academicYear: '', name: '', classTeacher: '', sections: 'A, B', subjects: [] };
 
 export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
@@ -18,24 +18,25 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
     api.classesByYear(schoolId, year).then((c) => { setClasses(c); setLoading(false); });
   };
   useEffect(load, [schoolId, year]);
+  useEffect(() => setForm((current) => ({ ...current, schoolId: schoolId || '', academicYear: year || '' })), [schoolId, year]);
 
   async function create() {
     const sections = form.sections.split(',').map((s) => s.trim()).filter(Boolean);
     setBusy(true);
     try {
       await api.createClass({
-        schoolId,
+        schoolId: form.schoolId,
         name: form.name.trim(),
         classTeacher: form.classTeacher || null,
         subjects: form.subjects.map((subject) => ({
           name: subject.name || null,
           teacher: subject.teacher || null,
         })),
-        academicYear: year,
+        academicYear: form.academicYear || null,
         sections,
       });
       toast.success(`Class “${form.name}” created.`);
-      setForm(emptyForm);
+      setForm({ ...emptyForm, schoolId: schoolId || '', academicYear: year || '' });
       load();
     } catch (e) { toast.error(e.message); } finally { setBusy(false); }
   }
@@ -54,10 +55,10 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
       <Card title="Add a class" subtitle={`For academic year ${year}`} className="lg:col-span-1">
         <div className="space-y-4">
           <Field label="School ID" apiName="schoolId" required>
-            <Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" />
+            <Input value={form.schoolId} onChange={(e) => setForm({ ...form, schoolId: e.target.value })} className="font-mono text-xs" />
           </Field>
           <Field label="Academic Year" apiName="academicYear" required={false}>
-            <Input value={year} readOnly className="bg-slate-50" />
+            <Input value={form.academicYear} onChange={(e) => setForm({ ...form, academicYear: e.target.value })} />
           </Field>
           <Field label="Class name" apiName="name" required hint="Unique within this academic year.">
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Class 5" />

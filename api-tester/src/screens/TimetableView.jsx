@@ -52,7 +52,7 @@ export default function TimetableView({ schoolId, classes, staff }) {
               </Select>
             </Field>
             <Field label="Section">
-              <Select value={section} onChange={(e) => setSection(e.target.value)} disabled={!cls}>
+              <Select value={section} onChange={(e) => setSection(e.target.value)}>
                 {(cls?.sections || []).map((s) => <option key={s} value={s}>{s}</option>)}
               </Select>
             </Field>

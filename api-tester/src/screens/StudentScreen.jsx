@@ -17,7 +17,8 @@ const emptyInlineGuardian = () => ({
   primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false,
 });
 
-const emptyStudentForm = () => ({
+const emptyStudentForm = (schoolId = '') => ({
+  schoolId,
   name: '', admissionNo: '', dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
   walletId: '', medicalRecordId: '', status: '', admissionDate: '',
@@ -42,7 +43,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
   // Student Form State
   const [editingStudent, setEditingStudent] = useState(null);
-  const [studentForm, setStudentForm] = useState(emptyStudentForm);
+  const [studentForm, setStudentForm] = useState(() => emptyStudentForm(schoolId || ''));
 
   // Academic History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -95,6 +96,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     fetchClasses();
   }, [fetchStudents, fetchClasses]);
 
+  useEffect(() => setStudentForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
+
   const reloadAll = () => {
     fetchStudents();
     fetchClasses();
@@ -105,7 +108,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const handleEditStudentClick = (s) => {
     setEditingStudent(s);
     setStudentForm((current) => ({
-      ...emptyStudentForm(),
+      ...emptyStudentForm(schoolId || ''),
       name: s.name || '',
       admissionNo: s.admissionNo || '',
       dob: s.dob || '',
@@ -124,7 +127,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
   const handleCancelStudentEdit = () => {
     setEditingStudent(null);
-    setStudentForm(emptyStudentForm());
+    setStudentForm(emptyStudentForm(schoolId || ''));
   };
 
   const submitStudent = async () => {
@@ -156,7 +159,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         setEditingStudent(null);
       } else {
         await api.createStudent({
-          schoolId,
+          schoolId: studentForm.schoolId,
           ...common,
           academicYear: nullable(studentForm.academicYear),
           classDocId: nullable(studentForm.classDocId),
@@ -378,7 +381,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                 subtitle={editingStudent ? `Modifying profile: ${editingStudent.name}` : "Enroll a new student to the school roster."}
               >
                 <div className="space-y-4">
-                  {!editingStudent && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                  {!editingStudent && <Field label="School ID" apiName="schoolId" required><Input value={studentForm.schoolId} onChange={(e) => setStudentForm({ ...studentForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
                   <Field label="Full Name" apiName="name" required>
                     <Input
                       value={studentForm.name}

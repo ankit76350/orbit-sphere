@@ -40,6 +40,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 1. Attendance Form
   const [attForm, setAttForm] = useState({
+    schoolId: schoolId || '',
+    academicYear: year || '',
     studentId: '',
     date: new Date().toISOString().slice(0, 10),
     status: 'PRESENT',
@@ -49,6 +51,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 2. Homework Form
   const [hwForm, setHwForm] = useState({
+    schoolId: schoolId || '',
     classId: '',
     subject: '',
     title: '',
@@ -62,6 +65,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 3. Academic Results Form
   const [resForm, setResForm] = useState({
+    schoolId: schoolId || '',
+    academicYear: year || '',
     studentId: '',
     grade: '',
     examName: 'Midterm Exam',
@@ -74,6 +79,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 4. Discipline Form
   const [discForm, setDiscForm] = useState({
+    schoolId: schoolId || '',
+    academicYear: year || '',
     studentId: '',
     violation: '',
     fineAmount: '',
@@ -83,6 +90,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 5. Medical Form
   const [medForm, setMedForm] = useState({
+    schoolId: schoolId || '',
     studentId: '',
     visitDate: new Date().toISOString().slice(0, 10),
     diagnosis: '',
@@ -169,6 +177,14 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   }, [fetchContext]);
 
   useEffect(() => {
+    setAttForm((form) => ({ ...form, schoolId: schoolId || '', academicYear: year || '' }));
+    setHwForm((form) => ({ ...form, schoolId: schoolId || '' }));
+    setResForm((form) => ({ ...form, schoolId: schoolId || '', academicYear: year || '' }));
+    setDiscForm((form) => ({ ...form, schoolId: schoolId || '', academicYear: year || '' }));
+    setMedForm((form) => ({ ...form, schoolId: schoolId || '' }));
+  }, [schoolId, year]);
+
+  useEffect(() => {
     fetchTabData();
   }, [fetchTabData]);
 
@@ -177,6 +193,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     // Reset forms
     if (subTab === 'attendance') {
       setAttForm({
+        schoolId: schoolId || '',
+        academicYear: year || '',
         studentId: students.length > 0 ? students[0].id : '',
         date: new Date().toISOString().slice(0, 10),
         status: 'PRESENT',
@@ -185,6 +203,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'homework') {
       setHwForm({
+        schoolId: schoolId || '',
         classId: classes.length > 0 ? classes[0].id : '',
         subject: '',
         title: '',
@@ -197,6 +216,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'results') {
       setResForm({
+        schoolId: schoolId || '',
+        academicYear: year || '',
         studentId: students.length > 0 ? students[0].id : '',
         grade: '',
         examName: 'Midterm Exam',
@@ -207,6 +228,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setSubjectMarks([]);
     } else if (subTab === 'discipline') {
       setDiscForm({
+        schoolId: schoolId || '',
+        academicYear: year || '',
         studentId: students.length > 0 ? students[0].id : '',
         violation: '',
         fineAmount: '',
@@ -215,6 +238,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'medical') {
       setMedForm({
+        schoolId: schoolId || '',
         studentId: students.length > 0 ? students[0].id : '',
         visitDate: new Date().toISOString().slice(0, 10),
         diagnosis: '',
@@ -235,9 +259,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     setBusy(true);
     try {
       const payload = {
-        schoolId,
-        academicYear: year || null,
         ...attForm,
+        academicYear: attForm.academicYear || null,
         presentTime: attForm.presentTime || null,
       };
       if (editingItem) {
@@ -265,7 +288,6 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     setBusy(true);
     try {
       const payload = {
-        schoolId,
         ...hwForm,
         dueDate: hwForm.dueDate || null,
         assignmentScope: hwForm.assignmentScope || null,
@@ -363,9 +385,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       }
 
       const payload = {
-        schoolId,
-        academicYear: year || null,
         ...resForm,
+        academicYear: resForm.academicYear || null,
         marks: subjectMarks,
         totalPercentage: computedPercentage ?? (resForm.totalPercentage ? parseFloat(resForm.totalPercentage) : null)
       };
@@ -395,9 +416,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     setBusy(true);
     try {
       const payload = {
-        schoolId,
-        academicYear: year || null,
         ...discForm,
+        academicYear: discForm.academicYear || null,
         fineAmount: discForm.fineAmount ? parseFloat(discForm.fineAmount) : null,
         incidentDate: discForm.incidentDate || null
       };
@@ -432,7 +452,6 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       
       const { medicinesInput: _displayMedicines, ...medicalFields } = medForm;
       const payload = {
-        schoolId,
         ...medicalFields,
         visitDate: medicalFields.visitDate || null,
         medicines
@@ -475,6 +494,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     setEditingItem(item);
     if (subTab === 'attendance') {
       setAttForm({
+        schoolId: item.schoolId || schoolId || '',
+        academicYear: item.academicYear || year || '',
         studentId: item.studentId || '',
         date: item.date || '',
         status: item.status || 'PRESENT',
@@ -483,6 +504,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'homework') {
       setHwForm({
+        schoolId: item.schoolId || schoolId || '',
         classId: item.classId || '',
         subject: item.subject || '',
         title: item.title || '',
@@ -495,6 +517,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'results') {
       setResForm({
+        schoolId: item.schoolId || schoolId || '',
+        academicYear: item.academicYear || year || '',
         studentId: item.studentId || '',
         grade: item.grade || '',
         examName: item.examName || '',
@@ -505,6 +529,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setSubjectMarks(item.marks || []);
     } else if (subTab === 'discipline') {
       setDiscForm({
+        schoolId: item.schoolId || schoolId || '',
+        academicYear: item.academicYear || year || '',
         studentId: item.studentId || '',
         violation: item.violation || '',
         fineAmount: item.fineAmount ? String(item.fineAmount) : '',
@@ -513,6 +539,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       });
     } else if (subTab === 'medical') {
       setMedForm({
+        schoolId: item.schoolId || schoolId || '',
         studentId: item.studentId || '',
         visitDate: item.visitDate || '',
         diagnosis: item.diagnosis || '',
@@ -898,8 +925,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <Empty icon={User} title="No students registered" hint="Setup student rosters first." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
-                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={year || ''} readOnly className="bg-slate-50" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={attForm.schoolId} onChange={(e) => setAttForm({ ...attForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
+                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={attForm.academicYear} onChange={(e) => setAttForm({ ...attForm, academicYear: e.target.value })} /></Field>
                     <Field label="Select Student" apiName="studentId" required>
                       <Select 
                         value={attForm.studentId}
@@ -963,7 +990,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                 subtitle={editingItem ? `Modifying task` : "Assign new homework tasks to a class."}
               >
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={hwForm.schoolId} onChange={(e) => setHwForm({ ...hwForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Target Class" apiName="classId" required>
                       <Select 
                         value={hwForm.classId}
@@ -1076,8 +1103,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <Empty icon={User} title="No students registered" hint="Enroll student profiles first." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
-                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={year || ''} readOnly className="bg-slate-50" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={resForm.schoolId} onChange={(e) => setResForm({ ...resForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
+                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={resForm.academicYear} onChange={(e) => setResForm({ ...resForm, academicYear: e.target.value })} /></Field>
                     <Field label="Select Student" apiName="studentId" required>
                       <Select 
                         value={resForm.studentId}
@@ -1116,8 +1143,11 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         {subjectMarks.length > 0 && (
                           <div className="space-y-1">
                             {subjectMarks.map((m, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-xs bg-white border border-slate-100 rounded px-2.5 py-1 text-slate-700">
-                                <span>{m.subject} : <b className="text-slate-900">{m.obtainedMarks}</b> / {m.maxMarks}{m.grade ? ` · ${m.grade}` : ''}</span>
+                              <div key={idx} className="grid grid-cols-[1.2fr_.8fr_.8fr_.7fr_auto] gap-1.5 items-center bg-white border border-slate-100 rounded p-1.5">
+                                <Input value={m.subject ?? ''} onChange={(e) => setSubjectMarks(subjectMarks.map((item, i) => i === idx ? { ...item, subject: e.target.value } : item))} placeholder="subject" className="!px-2 !py-1 text-[10px]" />
+                                <Input type="number" value={m.maxMarks ?? ''} onChange={(e) => setSubjectMarks(subjectMarks.map((item, i) => i === idx ? { ...item, maxMarks: e.target.value === '' ? null : Number(e.target.value) } : item))} placeholder="max" className="!px-2 !py-1 text-[10px]" />
+                                <Input type="number" value={m.obtainedMarks ?? ''} onChange={(e) => setSubjectMarks(subjectMarks.map((item, i) => i === idx ? { ...item, obtainedMarks: e.target.value === '' ? null : Number(e.target.value) } : item))} placeholder="obtained" className="!px-2 !py-1 text-[10px]" />
+                                <Input value={m.grade ?? ''} onChange={(e) => setSubjectMarks(subjectMarks.map((item, i) => i === idx ? { ...item, grade: e.target.value } : item))} placeholder="grade" className="!px-2 !py-1 text-[10px]" />
                                 <button onClick={() => removeSubjectMarkRow(idx)} className="text-slate-400 hover:text-rose-600 transition"><Trash2 size={12} /></button>
                               </div>
                             ))}
@@ -1182,8 +1212,8 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <Empty icon={User} title="No students registered" hint="Enroll student profiles first." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
-                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={year || ''} readOnly className="bg-slate-50" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={discForm.schoolId} onChange={(e) => setDiscForm({ ...discForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
+                    <Field label="Academic Year" apiName="academicYear" required={false}><Input value={discForm.academicYear} onChange={(e) => setDiscForm({ ...discForm, academicYear: e.target.value })} /></Field>
                     <Field label="Select Student" apiName="studentId" required>
                       <Select 
                         value={discForm.studentId}
@@ -1251,7 +1281,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <Empty icon={User} title="No students registered" hint="Enroll student profiles first." />
                 ) : (
                   <div className="space-y-4">
-                    <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+                    <Field label="School ID" apiName="schoolId" required><Input value={medForm.schoolId} onChange={(e) => setMedForm({ ...medForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Select Student" apiName="studentId" required>
                       <Select 
                         value={medForm.studentId}

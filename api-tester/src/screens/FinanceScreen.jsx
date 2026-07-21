@@ -34,6 +34,8 @@ export default function FinanceScreen({ schoolId, year }) {
   // Forms
   const [editingFee, setEditingFee] = useState(null);
   const emptyFeeForm = {
+    schoolId: schoolId || '',
+    studentId: selectedStudentId || '',
     academicYear: year || '',
     type: 'TUITION',
     amount: '',
@@ -85,6 +87,12 @@ export default function FinanceScreen({ schoolId, year }) {
       setSelectedStudentId(students[0].id);
     }
   }, [students, selectedStudentId]);
+
+  useEffect(() => {
+    if (!editingFee) {
+      setFeeForm((current) => ({ ...current, schoolId: schoolId || '', studentId: selectedStudentId || '' }));
+    }
+  }, [schoolId, selectedStudentId, editingFee]);
 
   // ---- Helpers ----
   const getStudentName = (sid) => {
@@ -140,8 +148,8 @@ export default function FinanceScreen({ schoolId, year }) {
   };
 
   const submitFee = async () => {
-    if (!selectedStudentId || !feeForm.amount) {
-      toast.error('Select a student and enter an amount.');
+    if (!feeForm.studentId || !feeForm.amount) {
+      toast.error('Enter a student ID and amount.');
       return;
     }
     setBusy(true);
@@ -157,7 +165,7 @@ export default function FinanceScreen({ schoolId, year }) {
         await api.updateFee(editingFee.id, mutableFields);
         toast.success('Invoice updated.');
       } else {
-        await api.createFee({ schoolId, studentId: selectedStudentId, ...mutableFields });
+        await api.createFee({ schoolId: feeForm.schoolId, studentId: feeForm.studentId, ...mutableFields });
         toast.success('New invoice issued.');
       }
       resetFeeForm();
@@ -172,6 +180,8 @@ export default function FinanceScreen({ schoolId, year }) {
   const handleEditFee = (fee) => {
     setEditingFee(fee);
     setFeeForm({
+      schoolId: fee.schoolId || schoolId || '',
+      studentId: fee.studentId || selectedStudentId || '',
       academicYear: fee.academicYear || '',
       type: fee.type || 'TUITION',
       amount: String(fee.amount || ''),
@@ -465,8 +475,8 @@ export default function FinanceScreen({ schoolId, year }) {
                         subtitle={editingFee ? 'Update invoice parameters.' : `Generate a new invoice for ${selectedStudent.name}.`}
                       >
                         <div className="space-y-4">
-                          {!editingFee && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
-                          {!editingFee && <Field label="Student ID" apiName="studentId" required><Input value={selectedStudentId || ''} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                          {!editingFee && <Field label="School ID" apiName="schoolId" required><Input value={feeForm.schoolId} onChange={(e) => setFeeForm({ ...feeForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
+                          {!editingFee && <Field label="Student ID" apiName="studentId" required><Input value={feeForm.studentId} onChange={(e) => setFeeForm({ ...feeForm, studentId: e.target.value })} className="font-mono text-xs" /></Field>}
                           <Field label="Academic Year" apiName="academicYear" required={false}>
                             <Input value={feeForm.academicYear} onChange={(e) => setFeeForm({ ...feeForm, academicYear: e.target.value })} placeholder="Leave blank to resolve current year" />
                           </Field>

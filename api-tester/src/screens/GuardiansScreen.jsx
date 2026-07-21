@@ -17,7 +17,7 @@ export default function GuardiansScreen({ schoolId }) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const emptyGuardian = { name: '', phone: '', alternatePhone: '', email: '', address: '', occupation: '' };
+  const emptyGuardian = { schoolId: schoolId || '', name: '', phone: '', alternatePhone: '', email: '', address: '', occupation: '' };
   const [guardianForm, setGuardianForm] = useState(emptyGuardian);
   const [editing, setEditing] = useState(null);
 
@@ -41,20 +41,25 @@ export default function GuardiansScreen({ schoolId }) {
   }, [schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => setGuardianForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
 
   const guardianById = useMemo(() => Object.fromEntries(guardians.map((g) => [g.id, g])), [guardians]);
   const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
   const studentCountFor = (gid) => students.filter((s) => (s.guardians || []).some((l) => l.guardianId === gid)).length;
 
   // ---- guardian CRUD ----
-  const resetGuardian = () => { setEditing(null); setGuardianForm(emptyGuardian); };
+  const resetGuardian = () => { setEditing(null); setGuardianForm({ ...emptyGuardian, schoolId: schoolId || '' }); };
 
   const submitGuardian = async () => {
     if (!guardianForm.name) { toast.error('Name is required.'); return; }
     setBusy(true);
     try {
-      if (editing) { await api.updateGuardian(editing.id, guardianForm); toast.success('Guardian updated.'); }
-      else { await api.createGuardian({ schoolId, ...guardianForm }); toast.success('Guardian created.'); }
+      if (editing) {
+        const { schoolId: _createOnlySchoolId, ...updatePayload } = guardianForm;
+        await api.updateGuardian(editing.id, updatePayload);
+        toast.success('Guardian updated.');
+      }
+      else { await api.createGuardian(guardianForm); toast.success('Guardian created.'); }
       resetGuardian();
       fetchAll();
     } catch (e) {
@@ -76,7 +81,7 @@ export default function GuardiansScreen({ schoolId }) {
 
   const editGuardian = (g) => {
     setEditing(g);
-    setGuardianForm({ name: g.name || '', phone: g.phone || '', alternatePhone: g.alternatePhone || '', email: g.email || '', address: g.address || '', occupation: g.occupation || '' });
+    setGuardianForm({ schoolId: schoolId || '', name: g.name || '', phone: g.phone || '', alternatePhone: g.alternatePhone || '', email: g.email || '', address: g.address || '', occupation: g.occupation || '' });
   };
 
   const deleteGuardian = async (g) => {
@@ -193,7 +198,7 @@ export default function GuardiansScreen({ schoolId }) {
             <div className="xl:col-span-1">
               <Card title={editing ? 'Edit Guardian' : 'New Guardian'} subtitle={editing ? 'Update contact details.' : 'Add a contact person.'}>
                 <div className="space-y-3">
-                  {!editing && <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>}
+                  {!editing && <Field label="School ID" apiName="schoolId" required><Input value={guardianForm.schoolId} onChange={(e) => setGuardianForm({ ...guardianForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
                   <Field label="Name" apiName="name" required><Input value={guardianForm.name} onChange={(e) => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="e.g. Rajesh Nair" /></Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Phone" apiName="phone" required={false}><Input value={guardianForm.phone} onChange={(e) => setGuardianForm({ ...guardianForm, phone: e.target.value })} /></Field>

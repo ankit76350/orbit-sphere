@@ -46,15 +46,16 @@ function HolidayEditor({ holidays, onChange }) {
 }
 
 function CreateYear({ schoolId, reload, toast }) {
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidays: [] });
+  const [form, setForm] = useState({ schoolId: schoolId || '', name: '', startDate: '', endDate: '', holidays: [] });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  useEffect(() => setForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
 
   async function submit() {
     setBusy(true);
     try {
       await api.createAcademicYear({
-        schoolId,
         ...form,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
@@ -69,7 +70,7 @@ function CreateYear({ schoolId, reload, toast }) {
     <div className="max-w-xl">
       <Card title="Create an academic year" subtitle="A school runs on academic years — set one up to start.">
         <div className="grid grid-cols-1 gap-4">
-          <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+          <Field label="School ID" apiName="schoolId" required><Input value={form.schoolId} onChange={set('schoolId')} className="font-mono text-xs" /></Field>
           <Field label="Name" apiName="name" required hint="e.g. 2026-2027 — cannot be changed later.">
             <Input value={form.name} onChange={set('name')} placeholder="2026-2027" />
           </Field>
@@ -102,10 +103,12 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
 
   // New Academic Year modal states
   const [showYearModal, setShowYearModal] = useState(false);
-  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '', holidays: [] });
+  const [yearForm, setYearForm] = useState({ schoolId: schoolId || '', name: '', startDate: '', endDate: '', holidays: [] });
   const [busyYear, setBusyYear] = useState(false);
 
   const handleYearFormChange = (k) => (e) => setYearForm((f) => ({ ...f, [k]: e.target.value }));
+
+  useEffect(() => setYearForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
 
   const submitNewAcademicYear = async () => {
     if (!yearForm.name) {
@@ -115,7 +118,6 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
     setBusyYear(true);
     try {
       await api.createAcademicYear({
-        schoolId,
         ...yearForm,
         startDate: yearForm.startDate || null,
         endDate: yearForm.endDate || null,
@@ -123,7 +125,7 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
       });
       toast.success(`Academic year “${yearForm.name}” created.`);
       setShowYearModal(false);
-      setYearForm({ name: '', startDate: '', endDate: '', holidays: [] });
+      setYearForm({ schoolId: schoolId || '', name: '', startDate: '', endDate: '', holidays: [] });
       reload(yearForm.name); // Reload context and select new year
     } catch (e) {
       toast.error(e.message || "Failed to create academic year.");
@@ -252,7 +254,7 @@ function YearManager({ schoolId, yearDoc, reload, toast }) {
             <p className="text-xs text-slate-500 mt-1 mb-5">Set up a new academic year range for this school.</p>
 
             <div className="space-y-4">
-              <Field label="School ID" apiName="schoolId" required><Input value={schoolId} readOnly className="bg-slate-50 font-mono text-xs" /></Field>
+              <Field label="School ID" apiName="schoolId" required><Input value={yearForm.schoolId} onChange={handleYearFormChange('schoolId')} className="font-mono text-xs" /></Field>
               <Field label="Name" apiName="name" required hint="e.g. 2026-2027 — cannot be changed later.">
                 <Input value={yearForm.name} onChange={handleYearFormChange('name')} placeholder="2026-2027" className="text-slate-800" />
               </Field>
