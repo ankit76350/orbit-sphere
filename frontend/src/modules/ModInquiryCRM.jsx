@@ -2,8 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getInquiries, saveInquiries, logAction } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, useToast } from "../components/ui";
 import { Plus, ChevronRight, UserCheck, Inbox, TrendingUp } from "lucide-react";
 export default function ModInquiryCRM({ user }) {
@@ -19,6 +20,17 @@ export default function ModInquiryCRM({ user }) {
   const [counselor, setCounselor] = useState("Emma Watson");
   const [notes, setNotes] = useState("");
   const stages = ["Inquiry", "Counseling", "Visit", "Document Verification", "Admission"];
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getInquiries().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setInquiries(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleCreate = (e) => {
     e.preventDefault();
     if (!studentName || !parentName || !phone) {
@@ -35,12 +47,13 @@ export default function ModInquiryCRM({ user }) {
       stage: "Inquiry",
       counselor,
       notes,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      createdAt: new Date().toISOString().split("T")[0],
       followUpDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0]
     };
     const updated = [newInq, ...inquiries];
     setInquiries(updated);
     saveInquiries(updated);
+    api.createInquiry(newInq).catch(() => {});
     logAction(user.id, user.name, user.role, "Lead Inquiry Created", `Captured inquiry CRM lead for applicant student ${studentName}`);
     setStudentName("");
     setParentName("");
@@ -62,6 +75,7 @@ export default function ModInquiryCRM({ user }) {
     });
     setInquiries(updated);
     saveInquiries(updated);
+    api.updateInquiry(id, { stage: nextStage }).catch(() => {});
     addToast("Stage Promoted", `Lead status promoted to "${nextStage}"`);
   };
   const filterInquiries = inquiries.filter(

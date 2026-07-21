@@ -9,6 +9,7 @@ import {
   creditWallet,
   deductWallet
 } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, Badge, useToast } from "../components/ui";
 import { ArrowDownLeft, Plus, Bookmark, HelpCircle } from "lucide-react";
 export default function ModWallet({ user }) {
@@ -32,6 +33,7 @@ export default function ModWallet({ user }) {
       return;
     }
     const success = creditWallet(topupStudentId, amt, topupRemarks, user.name, user.role);
+    api.creditWallet(topupStudentId, amt, topupRemarks).catch(() => {});
     if (success) {
       setStudents(getStudents());
       setTransactions(getTransactions());
@@ -49,6 +51,7 @@ export default function ModWallet({ user }) {
       return;
     }
     const success = deductWallet(deductStudentId, amt, deductCategory, deductRemarks, user.name, user.role);
+    api.debitWallet(deductStudentId, amt, deductRemarks).catch(() => {});
     if (success) {
       setStudents(getStudents());
       setTransactions(getTransactions());

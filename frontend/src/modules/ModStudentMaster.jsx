@@ -12,6 +12,7 @@ import {
   getResults,
   saveStudents
 } from "../storage";
+import { api } from "../api";
 import { Badge, Tabs, TabsList, TabsTrigger, TabsContent, useToast } from "../components/ui";
 import {
   User as UserIcon,
@@ -37,6 +38,13 @@ export default function ModStudentMaster({ user }) {
   const [activeTab, setActiveTab] = useState("personal");
   const [currentStudent, setCurrentStudent] = useState(null);
   useEffect(() => {
+    let isMounted = true;
+    api.getStudents().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setStudents(res);
+      }
+    }).catch(() => {});
+
     const list = getStudents();
     setStudents(list);
     const match = list.find((s) => s.id === selectedStudentId);
@@ -46,6 +54,7 @@ export default function ModStudentMaster({ user }) {
       setCurrentStudent(list[0]);
       setSelectedStudentId(list[0].id);
     }
+    return () => { isMounted = false; };
   }, [selectedStudentId]);
   const filteredStudents = students.filter(
     (st) => st.name.toLowerCase().includes(searchTerm.toLowerCase()) || st.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())

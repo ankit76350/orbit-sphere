@@ -2,6 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
+import { api } from "./api";
+export { api };
+
 import {
   mockSchools,
   generateStaff,
@@ -371,6 +374,38 @@ export function initializeStorage() {
       }
     ];
     localStorage.setItem(KEYS.ACTIONS_LOG, JSON.stringify(defaultLogs));
+  }
+  syncStorageWithBackend();
+}
+
+export async function syncStorageWithBackend() {
+  try {
+    const [schools, staff, students, fees, inquiries, announcements, attendance, homework, results, discipline, medical] = await Promise.all([
+      api.getSchools(),
+      api.getStaff(),
+      api.getStudents(),
+      api.getFees(),
+      api.getInquiries(),
+      api.getAnnouncements(),
+      api.getAttendance(),
+      api.getHomework(),
+      api.getAcademicResults(),
+      api.getDisciplineLogs(),
+      api.getMedicalRecords()
+    ]);
+    if (Array.isArray(schools) && schools.length) localStorage.setItem(KEYS.SCHOOLS, JSON.stringify(schools));
+    if (Array.isArray(staff) && staff.length) localStorage.setItem(KEYS.STAFF, JSON.stringify(staff));
+    if (Array.isArray(students) && students.length) localStorage.setItem(KEYS.STUDENTS, JSON.stringify(students));
+    if (Array.isArray(fees) && fees.length) localStorage.setItem(KEYS.FEES, JSON.stringify(fees));
+    if (Array.isArray(inquiries) && inquiries.length) localStorage.setItem(KEYS.CRM, JSON.stringify(inquiries));
+    if (Array.isArray(announcements) && announcements.length) localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(announcements));
+    if (Array.isArray(attendance) && attendance.length) localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(attendance));
+    if (Array.isArray(homework) && homework.length) localStorage.setItem("erp_homework", JSON.stringify(homework));
+    if (Array.isArray(results) && results.length) localStorage.setItem("erp_results", JSON.stringify(results));
+    if (Array.isArray(discipline) && discipline.length) localStorage.setItem(KEYS.DISCIPLINE, JSON.stringify(discipline));
+    if (Array.isArray(medical) && medical.length) localStorage.setItem("erp_infirmary", JSON.stringify(medical));
+  } catch (err) {
+    console.warn("Backend sync skipped:", err.message);
   }
 }
 export function getSchools() {

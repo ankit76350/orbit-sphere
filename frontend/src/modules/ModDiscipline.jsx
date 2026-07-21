@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getStudents,
   getDiscipline,
@@ -10,6 +10,7 @@ import {
   deductWallet,
   logAction
 } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, Badge, useToast } from "../components/ui";
 import { AlertOctagon, Scale, Plus, ShieldCheck, HelpCircle } from "lucide-react";
 export default function ModDiscipline({ user }) {
@@ -20,9 +21,20 @@ export default function ModDiscipline({ user }) {
   const [targetStudentId, setTargetStudentId] = useState("student-1");
   const [violationType, setViolationType] = useState("Curfew Breach: Sneaking snacks post roll-call");
   const [severity, setSeverity] = useState("Medium");
-  const [incidentDate, setIncidentDate] = useState(() => (/* @__PURE__ */ new Date()).toISOString().split("T")[0]);
+  const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [fineAmount, setFineAmount] = useState("25");
   const [actionsTaken, setActionsTaken] = useState("Auto-deducted fine from NFC balance and sent warning alert.");
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getDisciplineLogs().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setViolations(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleCreateViolation = (e) => {
     e.preventDefault();
     const studentsList = getStudents();
@@ -60,6 +72,17 @@ export default function ModDiscipline({ user }) {
     const updated = [newViolation, ...violations];
     setViolations(updated);
     saveDiscipline(updated);
+    api.createDisciplineLog({
+      schoolId: 'SCH-001',
+      academicYear: '2026-2027',
+      studentId: targetStudentId,
+      studentName: targetStudent.name,
+      violationType,
+      severity,
+      incidentDate,
+      actionTaken: actionsTaken,
+      fineAmount: fineVal
+    }).catch(() => {});
     logAction(
       user.id,
       user.name,

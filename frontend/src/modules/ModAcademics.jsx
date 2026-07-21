@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getStudents,
   getResults,
@@ -11,6 +11,7 @@ import {
   saveHomework,
   logAction
 } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, Badge, useToast } from "../components/ui";
 import { Calendar, Plus } from "lucide-react";
 import { mockTimetableEvents } from "../mockData";
@@ -28,6 +29,21 @@ export default function ModAcademics({ user }) {
   const [hwDueDate, setHwDueDate] = useState("2026-06-05");
   const [editExam, setEditExam] = useState("Midterm 2026");
   const [editSubjectStr, setEditSubjectStr] = useState("Mathematics");
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      api.getHomework().catch(() => []),
+      api.getAcademicResults().catch(() => [])
+    ]).then(([hwRes, resRes]) => {
+      if (isMounted) {
+        if (Array.isArray(hwRes) && hwRes.length > 0) setHomework(hwRes);
+        if (Array.isArray(resRes) && resRes.length > 0) setResults(resRes);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
+
   const handleCreateHw = (e) => {
     e.preventDefault();
     if (!hwTitle || !hwInstructions) {
@@ -47,6 +63,15 @@ export default function ModAcademics({ user }) {
     const updated = [newHw, ...homework];
     setHomework(updated);
     saveHomework(updated);
+    api.createHomework({
+      schoolId: 'SCH-001',
+      academicYear: '2026-2027',
+      classId: 'class-custom',
+      subject: hwSubject,
+      title: hwTitle,
+      instructions: hwInstructions,
+      dueDate: hwDueDate
+    }).catch(() => {});
     logAction(user.id, user.name, user.role, "Homework Assignment Published", `Published task: "${hwTitle}" to class ${hwClass}`);
     addToast("Success", "Homework topic dispatched to student feeds!");
     setIsHwOpen(false);

@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { getStudents, saveStudents, logAction, getHostels, saveHostels } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, useToast } from "../components/ui";
 import { Sparkles, FileText, UploadCloud, UserPlus, ShieldCheck } from "lucide-react";
 export default function ModAdmission({ user }) {
@@ -95,6 +96,17 @@ export default function ModAdmission({ user }) {
     };
     const updatedStudents = [...students, newStudent];
     saveStudents(updatedStudents);
+    api.createStudent(newStudent).catch(() => {});
+    api.createAdmission({
+      schoolId: 'SCH-001',
+      studentName: studentFullName,
+      parentName,
+      parentPhone,
+      parentEmail,
+      appliedGrade: grade,
+      status: 'APPROVED',
+      convertedStudentId: newStudent.id
+    }).catch(() => {});
     logAction(
       user.id,
       user.name,

@@ -2,8 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getFees, payInvoice } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, Badge, useToast } from "../components/ui";
 import { DollarSign, FileText, CheckCircle, Download, Eye } from "lucide-react";
 export default function ModFees({ user }) {
@@ -16,6 +17,17 @@ export default function ModFees({ user }) {
   const [payTargetInvoice, setPayTargetInvoice] = useState(null);
   const [payAmount, setPayAmount] = useState("2250");
   const [payMethod, setPayMethod] = useState("Bank Transfer");
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getFees().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setInvoices(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleManualPay = (e) => {
     e.preventDefault();
     if (!payTargetInvoice) return;
@@ -30,6 +42,12 @@ export default function ModFees({ user }) {
       return;
     }
     const success = payInvoice(payTargetInvoice.id, amt, payMethod, user.name, user.role);
+    api.recordFeePayment(payTargetInvoice.id, {
+      amount: amt,
+      paymentMode: payMethod,
+      remarks: "Fee Payment",
+      collectedBy: user ? user.name : "Admin"
+    }).catch(() => {});
     if (success) {
       const freshInvoices = getFees();
       setInvoices(freshInvoices);

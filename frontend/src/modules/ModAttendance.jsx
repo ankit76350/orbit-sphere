@@ -2,8 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getStudents, getStaff, getAttendance, saveAttendance, logAction } from "../storage";
+import { api } from "../api";
 import { Button, Select, Badge, useToast } from "../components/ui";
 import { Calendar, CheckCircle2, QrCode, Sparkles, XCircle } from "lucide-react";
 export default function ModAttendance({ user }) {
@@ -13,20 +14,33 @@ export default function ModAttendance({ user }) {
   const [attendance, setAttendance] = useState(() => getAttendance());
   const [attView, setAttView] = useState("students");
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
-  const [attDate, setAttDate] = useState(() => (/* @__PURE__ */ new Date()).toISOString().split("T")[0]);
+  const [attDate, setAttDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [scanningStatus, setScanningStatus] = useState("Idle");
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getAttendance().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setAttendance(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleToggleStudentAtt = (studentId, name, type) => {
     const existingIdx = attendance.findIndex(
       (r) => r.personId === studentId && r.date === attDate && r.type === type
     );
     let updated = [...attendance];
+    let recordToSave;
     if (existingIdx !== -1) {
       const currentStatus = updated[existingIdx].status;
       const nextStatus = currentStatus === "Present" ? "Absent" : currentStatus === "Absent" ? "Late" : "Present";
       updated[existingIdx].status = nextStatus;
+      recordToSave = updated[existingIdx];
       addToast("Status Changed", `Set ${name} to "${nextStatus}"`);
     } else {
-      updated.push({
+      recordToSave = {
         id: `att-${studentId}-${attDate}-${Date.now()}`,
         type,
         personId: studentId,
@@ -34,11 +48,23 @@ export default function ModAttendance({ user }) {
         date: attDate,
         status: "Present",
         timestamp: "08:30 AM"
-      });
+      };
+      updated.push(recordToSave);
       addToast("Status Logged", `Logged ${name} as "Present"`);
     }
     setAttendance(updated);
     saveAttendance(updated);
+    if (recordToSave) {
+      api.createAttendance({
+        schoolId: 'SCH-001',
+        academicYear: '2026-2027',
+        studentId: recordToSave.personId,
+        studentName: recordToSave.personName,
+        date: recordToSave.date,
+        status: recordToSave.status,
+        type: recordToSave.type || 'CLASSROOM'
+      }).catch(() => {});
+    }
   };
   const handleSaveAll = () => {
     logAction(user.id, user.name, user.role, "Attendance List Saved", `Saved morning classroom checklist for ${selectedGrade} dated ${attDate}`);

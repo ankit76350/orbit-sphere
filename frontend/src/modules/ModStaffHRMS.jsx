@@ -2,8 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getStaff, saveStaff, logAction } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Badge, Dialog, useToast } from "../components/ui";
 import { Briefcase, CalendarCheck, Star, Users, Landmark } from "lucide-react";
 export default function ModStaffHRMS({ user }) {
@@ -16,24 +17,38 @@ export default function ModStaffHRMS({ user }) {
     { id: "leave-1", name: "Prof. Chloe Smith", reason: "Attending acute clinical root canal surgery.", days: 3, status: "Pending Review" },
     { id: "leave-2", name: "Prof. Rohan Sen", reason: "Academic research forum presentations on CS.", days: 2, status: "Pending Review" }
   ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getStaff().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setStaff(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleUpdateStaff = (e) => {
     e.preventDefault();
     if (!selectedStaff) return;
+    const salaryNum = parseFloat(salaryVal) || selectedStaff.salary;
+    const ratingNum = parseFloat(ratingVal) || selectedStaff.reviewRating;
     const updated = staff.map((sf) => {
       if (sf.id === selectedStaff.id) {
         return {
           ...sf,
-          salary: parseFloat(salaryVal) || sf.salary,
-          reviewRating: parseFloat(ratingVal) || sf.reviewRating
+          salary: salaryNum,
+          reviewRating: ratingNum
         };
       }
       return sf;
     });
     setStaff(updated);
     saveStaff(updated);
+    api.updateStaff(selectedStaff.id, { salary: salaryNum, reviewRating: ratingNum }).catch(() => {});
     setSelectedStaff(null);
     logAction(user.id, user.name, user.role, "Staff File Updated", `Adjusted payroll salary for ${selectedStaff.name} to $${salaryVal}. Set score rating: ${ratingVal}`);
-    addToast("Success", "Staff file updated inside LocalStorage");
+    addToast("Success", "Staff file updated inside LocalStorage and Backend REST API");
   };
   const handleTriggerEdit = (sf) => {
     setSelectedStaff(sf);

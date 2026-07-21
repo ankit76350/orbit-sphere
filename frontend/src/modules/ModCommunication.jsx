@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { getStudents, getStaff, logAction } from "../storage";
+import { api } from "../api";
 import {
   Button,
   Input,
@@ -219,6 +220,13 @@ export default function ModCommunication({ user }) {
       const updated = [entry, ...commLog];
       setCommLog(updated);
       saveLS("erp_comm_log", updated);
+      api.createAnnouncement({
+        schoolId: 'SCH-001',
+        title: `Broadcast (${channel}) - ${audienceLabel}`,
+        content: message,
+        targetAudience: audienceLabel,
+        publishedBy: user.name
+      }).catch(() => {});
       setSending(false);
       setMessage("");
       logAction(user.id, user.name, user.role, "Broadcast Sent", `${channel} broadcast to ${audienceLabel} (${sent} recipients, ${delivered} delivered${channel === "SMS" ? `, ${entry.credits} SMS credits` : ""})`);
@@ -246,6 +254,13 @@ export default function ModCommunication({ user }) {
     const updated = [circ, ...circulars];
     setCirculars(updated);
     saveLS("erp_circulars", updated);
+    api.createAnnouncement({
+      schoolId: 'SCH-001',
+      title: `Circular: ${circTitle}`,
+      content: `Official circular issued for ${circAudience}`,
+      targetAudience: circAudience,
+      publishedBy: user.name
+    }).catch(() => {});
     logAction(user.id, user.name, user.role, "Circular Issued", `Issued circular "${circTitle}" to ${circAudience} with attachment ${circ.attachment}`);
     addToast("Circular Issued", `"${circTitle}" pushed to ${circ.total} parents with read receipts enabled`, "success");
     setIsCircularOpen(false);

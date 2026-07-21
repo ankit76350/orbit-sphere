@@ -2,8 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getInfirmary, saveInfirmary, getStudents, logAction } from "../storage";
+import { api } from "../api";
 import { Button, Input, Select, Dialog, Badge, useToast } from "../components/ui";
 import { Heart, Activity, Pill, ShieldAlert, Plus } from "lucide-react";
 export default function ModInfirmary({ user }) {
@@ -16,6 +17,17 @@ export default function ModInfirmary({ user }) {
   const [temperature, setTemperature] = useState("98.6");
   const [treatment, setTreatment] = useState("Administered OTC lozenges, requested dorm bedrest");
   const [status, setStatus] = useState("Placed on Bedrest");
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getMedicalRecords().then((res) => {
+      if (isMounted && Array.isArray(res) && res.length > 0) {
+        setRecords(res);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const handleCreateRecord = (e) => {
     e.preventDefault();
     const targetStudentDetails = students.find((s) => s.id === logStudentId);
@@ -28,7 +40,7 @@ export default function ModInfirmary({ user }) {
       id: `health-${Date.now()}`,
       studentId: logStudentId,
       studentName: targetStudentDetails.name,
-      checkInTime: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 16),
+      checkInTime: new Date().toISOString().replace("T", " ").substring(0, 16),
       temperature: tempParsed,
       symptoms,
       treatment,
@@ -37,6 +49,15 @@ export default function ModInfirmary({ user }) {
     const updated = [newRecord, ...records];
     setRecords(updated);
     saveInfirmary(updated);
+    api.createMedicalRecord({
+      schoolId: 'SCH-001',
+      studentId: logStudentId,
+      studentName: targetStudentDetails.name,
+      temperature: tempParsed,
+      symptoms,
+      treatment,
+      status
+    }).catch(() => {});
     logAction(
       user.id,
       user.name,
