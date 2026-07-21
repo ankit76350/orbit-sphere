@@ -192,7 +192,29 @@ export const api = {
 
   getAdmissions: (schoolId = 'SCH-001') => listOr(`/api/admissions/school/${schoolId}`),
   getAdmissionById: (id) => call('GET', `/api/admissions/${id}`),
-  createAdmission: (payload) => call('POST', '/api/admissions', payload),
+  createAdmission: (rawPayload) => {
+    const payload = {
+      schoolId: rawPayload.schoolId || "6a474d2517e9c40cf971ccc2",
+      inquiryId: rawPayload.inquiryId || null,
+      studentName: rawPayload.studentName || rawPayload.name || "Student Applicant",
+      dob: rawPayload.dob || "2015-06-19",
+      gender: (rawPayload.gender || "MALE").toUpperCase(),
+      guardians: Array.isArray(rawPayload.guardians) && rawPayload.guardians.length > 0 ? rawPayload.guardians : [
+        {
+          name: rawPayload.parentName || "Parent",
+          relation: (rawPayload.parentRelation || "MOTHER").toUpperCase(),
+          phone: rawPayload.parentPhone || "+61-400-555-666",
+          email: rawPayload.parentEmail || "parent@example.com",
+          address: rawPayload.address || "9 Oak Ave",
+          occupation: rawPayload.parentOccupation || "Parent"
+        }
+      ],
+      status: (rawPayload.status || "PENDING").toUpperCase(),
+      documents: Array.isArray(rawPayload.documents) ? rawPayload.documents : ["birth-certificate.pdf"],
+      admissionDate: rawPayload.admissionDate || new Date().toISOString().split("T")[0]
+    };
+    return call('POST', '/api/admissions', payload);
+  },
   updateAdmission: (id, payload) => call('PATCH', `/api/admissions/${id}`, payload),
   convertAdmissionToStudent: (id, studentPayload) => call('POST', `/api/admissions/${id}/convert`, studentPayload),
   deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),

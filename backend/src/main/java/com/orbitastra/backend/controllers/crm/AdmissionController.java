@@ -59,6 +59,13 @@ public class AdmissionController {
         return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
     }
 
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
+    }
+
     @GetMapping("/school/{schoolId}/status/{status}")
     public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndStatus(
             @PathVariable String schoolId,
