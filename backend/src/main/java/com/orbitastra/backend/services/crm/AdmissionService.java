@@ -60,12 +60,27 @@ public class AdmissionService {
             }
             inquiryService.advanceStatus(inquiry.getId(), InquiryStatus.ADMITTED);
         }
-        // Scenario B — direct admission: studentName/guardians/dob/gender come straight
-        // from the request; nothing to copy.
 
+        // Validate required fields for direct and inquiry admissions
+        if (admission.getStudentName() == null || admission.getStudentName().isBlank()) {
+            throw new IllegalArgumentException("Student name is required for an admission.");
+        }
+        if (admission.getGender() == null) {
+            admission.setGender(com.orbitastra.backend.models.student.enums.Gender.MALE);
+        }
+        if (admission.getGuardians() == null) {
+            admission.setGuardians(java.util.Collections.emptyList());
+        }
+        if (admission.getAdmissionDate() == null) {
+            admission.setAdmissionDate(java.time.LocalDate.now());
+        }
+        if (admission.getDocuments() == null) {
+            admission.setDocuments(java.util.Collections.emptyList());
+        }
         if (admission.getStatus() == null) {
             admission.setStatus(AdmissionStatus.PENDING);
         }
+
         admission.setCreatedAt(LocalDateTime.now());
         admission.setUpdatedAt(LocalDateTime.now());
         return admissionRepository.save(admission);

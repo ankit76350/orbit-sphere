@@ -48,9 +48,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setInquiryForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
 
   const emptyAdmission = {
-    inquiryId: '', documents: '', admissionDate: new Date().toISOString().slice(0, 10),
-    studentName: '', dob: '', gender: 'MALE',
-    guardians: [],
+    inquiryId: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
+    studentName: 'Lucas Johnson', dob: '2015-06-19', gender: 'MALE',
+    guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
   };
   const [admissionForm, setAdmissionForm] = useState(emptyAdmission);
   const setAdmGuardian = (idx, patch) =>
@@ -180,6 +180,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   // ---- admission actions ----
   const submitAdmission = async () => {
     if (!year) { toast.error('Select an academic year in the top bar first.'); return; }
+    if (!admissionForm.inquiryId && (!admissionForm.studentName || !admissionForm.studentName.trim())) {
+      toast.error('Student Name is required for direct admission.');
+      return;
+    }
     setBusy(true);
     try {
       await api.createAdmission({
