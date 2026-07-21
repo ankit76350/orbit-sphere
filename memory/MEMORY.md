@@ -1,1 +1,2 @@
 - [Backend Foundation Review](backend-foundation-review.md) — 2026-07-18 review: critical gaps (committed DB creds, no auth, no tenant isolation) to fix before new modules
+- [Code Comment & Log Style](code-comment-and-log-style.md) — write all comments and logs in simple, plain, beginner-friendly language; no jargon
