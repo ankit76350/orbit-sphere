@@ -35,9 +35,6 @@ public class Student {
 
     @Indexed(unique = true)
     private String admissionNo;
-
-
-
     private String name;
 
     private LocalDate dob;
@@ -45,6 +42,9 @@ public class Student {
     private Gender gender;
 
     private String bloodGroup;
+
+    private String medicalRecordId;
+
 
     private String photoUrl; 
 
@@ -54,9 +54,6 @@ public class Student {
     // student's relationship to them (role, primary, emergency, pickup, portal).
     @Builder.Default
     private java.util.List<GuardianLink> guardians = new java.util.ArrayList<>();
-
-    private String medicalRecordId;
-
     @Builder.Default
     private StudentStatus status = StudentStatus.ACTIVE;
 
