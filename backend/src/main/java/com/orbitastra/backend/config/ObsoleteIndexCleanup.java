@@ -36,6 +36,11 @@ public class ObsoleteIndexCleanup {
         // collapses to (sectionId, rollNo), causing spurious E11000 duplicate-key errors when a
         // second student reuses a section+roll. See StudentAcademicRecord @CompoundIndexes.
         dropIfPresent(StudentAcademicRecord.class, "class_section_year_roll_unique_idx");
+
+        // Superseded by 'school_year_student_no_unique_idx' after the studentId -> studentNo
+        // rename. The old index is on the now-nonexistent 'studentId' field (always null), so it
+        // wrongly enforces uniqueness on (schoolId, academicYear) alone.
+        dropIfPresent(StudentAcademicRecord.class, "school_year_student_id_unique_idx");
     }
 
     private void dropIfPresent(Class<?> type, String indexName) {

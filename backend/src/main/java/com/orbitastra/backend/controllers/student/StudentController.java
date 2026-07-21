@@ -11,6 +11,7 @@ import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.GuardianLinkRequest;
+import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.dto.student.UpdateStudentRequest;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
@@ -30,20 +31,21 @@ public class StudentController {
 
     /** Normal student creation API — creates a student directly from a request payload. */
     @PostMapping
-    public ResponseEntity<Student> createStudent(@Valid @RequestBody CreateStudentRequest request) {
-        Student created = studentService.createStudent(request);
+    public ResponseEntity<StudentResponse> createStudent(@Valid @RequestBody CreateStudentRequest request) {
+        StudentResponse created = studentService.createStudent(request);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
 
     /** Create student from admission ID API — converts an admission into an enrolled student via request body. */
     @PostMapping("/from-admission")
-    public ResponseEntity<Student> createStudentFromAdmissionBody(
+    public ResponseEntity<StudentResponse> createStudentFromAdmissionBody(
             @Valid @RequestBody ConvertAdmissionRequest request) {
         if (request == null || request.getAdmissionId() == null || request.getAdmissionId().isBlank()) {
             throw new IllegalArgumentException("admissionId is required to create student from admission.");
         }
-        Student created = admissionService.convertToStudent(request.getAdmissionId(), request.toStudent());
+        StudentResponse created = admissionService.convertToStudent(
+                request.getAdmissionId(), request.toStudent(), request.toAcademicRecord());
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
@@ -54,66 +56,59 @@ public class StudentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Student>> getAllStudents() {
-        List<Student> students = studentService.getAllStudents();
-        return ResponseEntity.ok(students);
+    public ResponseEntity<List<StudentResponse>> getAllStudents() {
+        return ResponseEntity.ok(studentService.getAllStudents());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Student> getStudentById(@PathVariable String id) {
-        Student student = studentService.getStudentById(id);
-        return ResponseEntity.ok(student);
+    public ResponseEntity<StudentResponse> getStudentById(@PathVariable String id) {
+        return ResponseEntity.ok(studentService.getStudentById(id));
     }
 
     @GetMapping("/admission/{admissionNo}")
-    public ResponseEntity<Student> getStudentByAdmissionNo(@PathVariable String admissionNo) {
-        Student student = studentService.getStudentByAdmissionNo(admissionNo);
-        return ResponseEntity.ok(student);
+    public ResponseEntity<StudentResponse> getStudentByAdmissionNo(@PathVariable String admissionNo) {
+        return ResponseEntity.ok(studentService.getStudentByAdmissionNo(admissionNo));
     }
 
     @GetMapping("/school/{schoolId}")
-    public ResponseEntity<List<Student>> getStudentsBySchool(@PathVariable String schoolId) {
-        List<Student> students = studentService.getStudentsBySchool(schoolId);
-        return ResponseEntity.ok(students);
+    public ResponseEntity<List<StudentResponse>> getStudentsBySchool(@PathVariable String schoolId) {
+        return ResponseEntity.ok(studentService.getStudentsBySchool(schoolId));
     }
 
     @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
-    public ResponseEntity<List<Student>> getStudentsBySchoolAndAcademicYear(
+    public ResponseEntity<List<StudentResponse>> getStudentsBySchoolAndAcademicYear(
             @PathVariable String schoolId,
             @PathVariable String academicYear) {
-        List<Student> students = studentService.getStudentsBySchoolAndAcademicYear(schoolId, academicYear);
-        return ResponseEntity.ok(students);
+        return ResponseEntity.ok(studentService.getStudentsBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
     @GetMapping("/class/{classId}")
-    public ResponseEntity<List<Student>> getStudentsByClass(@PathVariable String classId) {
-        List<Student> students = studentService.getStudentsByClass(classId);
-        return ResponseEntity.ok(students);
+    public ResponseEntity<List<StudentResponse>> getStudentsByClass(@PathVariable String classId) {
+        return ResponseEntity.ok(studentService.getStudentsByClass(classId));
     }
 
     @GetMapping("/guardian/{guardianId}")
-    public ResponseEntity<List<Student>> getStudentsByGuardian(@PathVariable String guardianId) {
+    public ResponseEntity<List<StudentResponse>> getStudentsByGuardian(@PathVariable String guardianId) {
         return ResponseEntity.ok(studentService.getStudentsByGuardian(guardianId));
     }
 
     @PostMapping("/{id}/guardians")
-    public ResponseEntity<Student> addGuardianLink(@PathVariable String id, @Valid @RequestBody GuardianLinkRequest request) {
+    public ResponseEntity<StudentResponse> addGuardianLink(@PathVariable String id, @Valid @RequestBody GuardianLinkRequest request) {
         return ResponseEntity.ok(studentService.addGuardianLink(id, request.toModel()));
     }
 
     @DeleteMapping("/{id}/guardians/{guardianId}")
-    public ResponseEntity<Student> removeGuardianLink(@PathVariable String id, @PathVariable String guardianId) {
+    public ResponseEntity<StudentResponse> removeGuardianLink(@PathVariable String id, @PathVariable String guardianId) {
         return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianId));
     }
 
     @GetMapping("/hostel/{hostelRoomId}")
-    public ResponseEntity<List<Student>> getStudentsByHostelRoom(@PathVariable String hostelRoomId) {
-        List<Student> students = studentService.getStudentsByHostelRoom(hostelRoomId);
-        return ResponseEntity.ok(students);
+    public ResponseEntity<List<StudentResponse>> getStudentsByHostelRoom(@PathVariable String hostelRoomId) {
+        return ResponseEntity.ok(studentService.getStudentsByHostelRoom(hostelRoomId));
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Student> updateStudent(@PathVariable String id, @Valid @RequestBody UpdateStudentRequest request) {
+    public ResponseEntity<StudentResponse> updateStudent(@PathVariable String id, @Valid @RequestBody UpdateStudentRequest request) {
         Student studentDetails = Student.builder()
                 .admissionNo(request.getAdmissionNo())
                 .name(request.getName())
@@ -125,9 +120,9 @@ public class StudentController {
                 .medicalRecordId(request.getMedicalRecordId())
                 .status(request.getStatus())
                 .admissionDate(request.getAdmissionDate())
-                .currentAcademicRecord(toAcademicRecord(request.getCurrentAcademicRecord()))
                 .build();
-        Student updated = studentService.updateStudent(id, studentDetails);
+        StudentResponse updated = studentService.updateStudent(
+                id, studentDetails, toAcademicRecord(request.getCurrentAcademicRecord()));
         return ResponseEntity.ok(updated);
     }
 
@@ -160,8 +155,7 @@ public class StudentController {
     }
 
     @GetMapping("/{id}/siblings")
-    public ResponseEntity<List<Student>> getStudentSiblings(@PathVariable String id) {
-        List<Student> siblings = studentService.getSiblings(id);
-        return ResponseEntity.ok(siblings);
+    public ResponseEntity<List<StudentResponse>> getStudentSiblings(@PathVariable String id) {
+        return ResponseEntity.ok(studentService.getSiblings(id));
     }
 }

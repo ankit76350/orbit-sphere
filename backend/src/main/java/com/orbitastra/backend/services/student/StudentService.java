@@ -18,7 +18,9 @@ import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.dto.student.StudentResponse;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -35,27 +37,35 @@ public class StudentService {
     private final GuardianRepository guardianRepository;
     private final GuardianService guardianService;
 
-    private void populateAcademicFields(Student student) {
-        if (student == null) return;
-        List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocId(student.getId());
-        if (!records.isEmpty()) {
-            records.stream()
+    // ----- Entity + response helpers -----
+
+    /** Loads a student entity or throws. For internal use where the mutable entity is needed. */
+    private Student getStudentEntity(String id) {
+        return studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
+    }
+
+    /** The student's academic record for the current (most recent) academic year, or null. */
+    private StudentAcademicRecord latestRecordOf(String studentDocId) {
+        if (studentDocId == null) return null;
+        return studentAcademicRecordRepository.findByStudentDocId(studentDocId).stream()
                 .max(java.util.Comparator.comparing(StudentAcademicRecord::getAcademicYear,
-                    java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
-                .ifPresent(record -> {
-                    student.setCurrentAcademicRecord(record);
-                    student.setCurrentAcademicRecordId(record.getId());
-                });
-        }
+                        java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
+                .orElse(null);
+    }
+
+    /** Builds the API view of a student, resolving its current academic record. */
+    public StudentResponse buildResponse(Student student) {
+        if (student == null) return null;
+        return StudentResponse.of(student, latestRecordOf(student.getId()));
     }
 
     /**
-     * Batch variant: resolves the latest academic record for every student in
-     * ONE query (findByStudentDocIdIn) instead of one query per student, then
-     * attaches the most recent record to each. Avoids the N+1 on list endpoints.
+     * Batch view builder: resolves the latest academic record for every student in ONE query
+     * (findByStudentDocIdIn) instead of one per student, avoiding the N+1 on list endpoints.
      */
-    private void populateAcademicFields(List<Student> students) {
-        if (students == null || students.isEmpty()) return;
+    private List<StudentResponse> buildResponses(List<Student> students) {
+        if (students == null || students.isEmpty()) return new java.util.ArrayList<>();
         List<String> ids = students.stream()
                 .map(Student::getId)
                 .filter(java.util.Objects::nonNull)
@@ -69,17 +79,15 @@ public class StudentService {
                                 .comparing(StudentAcademicRecord::getAcademicYear,
                                         java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()))
                                 .compare(a, b) >= 0 ? a : b));
-        students.forEach(s -> {
-            StudentAcademicRecord rec = latestByStudent.get(s.getId());
-            if (rec != null) {
-                s.setCurrentAcademicRecord(rec);
-                s.setCurrentAcademicRecordId(rec.getId());
-            }
-        });
+        return students.stream()
+                .map(s -> StudentResponse.of(s, latestByStudent.get(s.getId())))
+                .toList();
     }
 
+    // ----- Create -----
+
     @Transactional
-    public Student createStudent(CreateStudentRequest request) {
+    public StudentResponse createStudent(CreateStudentRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request body is required.");
         }
@@ -100,33 +108,33 @@ public class StudentService {
                                 g.getPrimary(), g.getEmergencyContact(),
                                 g.getPickupApproved(), g.getPortalAccess()))
                         .toList();
-                        
         List<GuardianLink> links = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
 
-        // Build StudentAcademicRecord from request.getCurrentAcademicRecord() or top-level academic fields
-        com.orbitastra.backend.dto.student.AcademicRecordRequest reqRecordDto = request.getCurrentAcademicRecord();
-        StudentAcademicRecord reqRecord = reqRecordDto != null ? reqRecordDto.toModel() : null;
+        // Build the initial academic record from currentAcademicRecord or the top-level fields.
+        AcademicRecordRequest reqRecordDto = request.getCurrentAcademicRecord();
+        StudentAcademicRecord initialRecord = reqRecordDto != null ? reqRecordDto.toModel() : null;
 
         String classDocId = request.getClassDocId() != null ? request.getClassDocId() : request.getClassId();
-        if (reqRecord == null && (request.getAcademicYear() != null || classDocId != null || request.getSectionId() != null || request.getRollNo() != null)) {
-            reqRecord = StudentAcademicRecord.builder()
+        if (initialRecord == null && (request.getAcademicYear() != null || classDocId != null
+                || request.getSectionId() != null || request.getRollNo() != null)) {
+            initialRecord = StudentAcademicRecord.builder()
                     .academicYear(request.getAcademicYear())
                     .classDocId(classDocId)
                     .sectionId(request.getSectionId())
                     .rollNo(request.getRollNo())
                     .build();
-        } else if (reqRecord != null) {
-            if (reqRecord.getAcademicYear() == null && request.getAcademicYear() != null) {
-                reqRecord.setAcademicYear(request.getAcademicYear());
+        } else if (initialRecord != null) {
+            if (initialRecord.getAcademicYear() == null && request.getAcademicYear() != null) {
+                initialRecord.setAcademicYear(request.getAcademicYear());
             }
-            if (reqRecord.getClassDocId() == null && classDocId != null) {
-                reqRecord.setClassDocId(classDocId);
+            if (initialRecord.getClassDocId() == null && classDocId != null) {
+                initialRecord.setClassDocId(classDocId);
             }
-            if (reqRecord.getSectionId() == null && request.getSectionId() != null) {
-                reqRecord.setSectionId(request.getSectionId());
+            if (initialRecord.getSectionId() == null && request.getSectionId() != null) {
+                initialRecord.setSectionId(request.getSectionId());
             }
-            if (reqRecord.getRollNo() == null && request.getRollNo() != null) {
-                reqRecord.setRollNo(request.getRollNo());
+            if (initialRecord.getRollNo() == null && request.getRollNo() != null) {
+                initialRecord.setRollNo(request.getRollNo());
             }
         }
 
@@ -143,13 +151,17 @@ public class StudentService {
                 .status(request.getStatus() != null ? request.getStatus() : com.orbitastra.backend.models.student.enums.StudentStatus.ACTIVE)
                 .admissionDate(request.getAdmissionDate())
                 .guardians(links)
-                .currentAcademicRecord(reqRecord)
                 .build();
 
-        return createStudent(student);
+        return buildResponse(persistStudent(student, initialRecord));
     }
 
-    public Student createStudent(Student student) {
+    /**
+     * Persists a student entity and, when supplied, its initial academic record; keeps the
+     * student's current-record pointer in sync. Returns the saved entity (not the API view) so
+     * callers such as admission conversion can act on the created id.
+     */
+    public Student persistStudent(Student student, StudentAcademicRecord initialRecord) {
         if (student.getSchoolId() == null) {
             throw new IllegalArgumentException("School ID cannot be null.");
         }
@@ -173,16 +185,14 @@ public class StudentService {
         Student saved = studentRepository.save(student);
 
         // Save academic record
-        StudentAcademicRecord reqRecord = student.getCurrentAcademicRecord();
-        StudentAcademicRecord savedRecord = null;
-        if (reqRecord != null) {
+        if (initialRecord != null) {
             String acadYear = academicYearResolver
-                    .resolve(saved.getSchoolId(), reqRecord.getAcademicYear(), saved.getAdmissionDate())
+                    .resolve(saved.getSchoolId(), initialRecord.getAcademicYear(), saved.getAdmissionDate())
                     .getName();
 
-            if (reqRecord.getClassDocId() != null) {
-                SchoolClass schoolClass = schoolClassRepository.findById(reqRecord.getClassDocId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + reqRecord.getClassDocId()));
+            if (initialRecord.getClassDocId() != null) {
+                SchoolClass schoolClass = schoolClassRepository.findById(initialRecord.getClassDocId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + initialRecord.getClassDocId()));
                 if (!schoolClass.getSchoolId().equals(saved.getSchoolId())) {
                     throw new IllegalArgumentException("Class does not belong to the same school as the student.");
                 }
@@ -192,16 +202,16 @@ public class StudentService {
                     .schoolId(saved.getSchoolId())
                     .studentDocId(saved.getId())
                     .academicYear(acadYear)
-                    .studentId(reqRecord.getStudentId())
-                    .rollNo(reqRecord.getRollNo())
-                    .classDocId(reqRecord.getClassDocId())
-                    .sectionId(reqRecord.getSectionId())
-                    .hostelRoomId(reqRecord.getHostelRoomId())
+                    .studentNo(initialRecord.getStudentNo())
+                    .rollNo(initialRecord.getRollNo())
+                    .classDocId(initialRecord.getClassDocId())
+                    .sectionId(initialRecord.getSectionId())
+                    .hostelRoomId(initialRecord.getHostelRoomId())
                     .status(saved.getStatus())
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-            savedRecord = studentAcademicRecordRepository.save(record);
+            StudentAcademicRecord savedRecord = studentAcademicRecordRepository.save(record);
 
             // Persist the pointer to the current academic record.
             saved.setCurrentAcademicRecordId(savedRecord.getId());
@@ -209,39 +219,30 @@ public class StudentService {
             saved = studentRepository.save(saved);
         }
 
-        // Set transient academic field on saved student object
-        saved.setCurrentAcademicRecord(savedRecord);
-
         return saved;
     }
 
-    public List<Student> getAllStudents() {
-        List<Student> students = studentRepository.findAll();
-        populateAcademicFields(students);
-        return students;
+    // ----- Reads -----
+
+    public List<StudentResponse> getAllStudents() {
+        return buildResponses(studentRepository.findAll());
     }
 
-    public Student getStudentById(String id) {
-        Student student = studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
-        populateAcademicFields(student);
-        return student;
+    public StudentResponse getStudentById(String id) {
+        return buildResponse(getStudentEntity(id));
     }
 
-    public Student getStudentByAdmissionNo(String admissionNo) {
+    public StudentResponse getStudentByAdmissionNo(String admissionNo) {
         Student student = studentRepository.findByAdmissionNo(admissionNo)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with admission number: " + admissionNo));
-        populateAcademicFields(student);
-        return student;
+        return buildResponse(student);
     }
 
-    public List<Student> getStudentsBySchool(String schoolId) {
-        List<Student> students = studentRepository.findBySchoolId(schoolId);
-        populateAcademicFields(students);
-        return students;
+    public List<StudentResponse> getStudentsBySchool(String schoolId) {
+        return buildResponses(studentRepository.findBySchoolId(schoolId));
     }
 
-    public List<Student> getStudentsBySchoolAndAcademicYear(String schoolId, String academicYear) {
+    public List<StudentResponse> getStudentsBySchoolAndAcademicYear(String schoolId, String academicYear) {
         List<StudentAcademicRecord> records =
                 studentAcademicRecordRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
         List<String> studentIds = records.stream()
@@ -250,38 +251,41 @@ public class StudentService {
                 .toList();
         List<Student> students = studentRepository.findAllById(studentIds);
 
-        // Attach the record for THIS academic year (not the latest, as populateAcademicFields would)
+        // Attach the record for THIS academic year (not the latest, as buildResponses would).
         java.util.Map<String, StudentAcademicRecord> recordByStudent = records.stream()
                 .collect(java.util.stream.Collectors.toMap(
                         StudentAcademicRecord::getStudentDocId, r -> r, (a, b) -> a));
-        students.forEach(s -> s.setCurrentAcademicRecord(recordByStudent.get(s.getId())));
-        return students;
+        return students.stream()
+                .map(s -> StudentResponse.of(s, recordByStudent.get(s.getId())))
+                .toList();
     }
 
-    public List<Student> getStudentsByClass(String classId) {
+    public List<StudentResponse> getStudentsByClass(String classId) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassDocId(classId);
         List<String> studentIds = records.stream()
                 .map(StudentAcademicRecord::getStudentDocId)
                 .distinct()
                 .toList();
-        List<Student> students = studentRepository.findAllById(studentIds);
-        populateAcademicFields(students);
-        return students;
+        return buildResponses(studentRepository.findAllById(studentIds));
     }
 
-    public List<Student> getStudentsByHostelRoom(String hostelRoomId) {
+    public List<StudentResponse> getStudentsByHostelRoom(String hostelRoomId) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByHostelRoomId(hostelRoomId);
         List<String> studentIds = records.stream()
                 .map(StudentAcademicRecord::getStudentDocId)
                 .distinct()
                 .toList();
-        List<Student> students = studentRepository.findAllById(studentIds);
-        populateAcademicFields(students);
-        return students;
+        return buildResponses(studentRepository.findAllById(studentIds));
     }
 
-    public Student updateStudent(String id, Student studentDetails) {
-        Student student = getStudentById(id);
+    public List<StudentResponse> getStudentsByGuardian(String guardianId) {
+        return buildResponses(studentRepository.findByGuardiansGuardianId(guardianId));
+    }
+
+    // ----- Update -----
+
+    public StudentResponse updateStudent(String id, Student studentDetails, StudentAcademicRecord detailsRecord) {
+        Student student = getStudentEntity(id);
 
         if (studentDetails.getSchoolId() != null && !studentDetails.getSchoolId().equals(student.getSchoolId())) {
             if (!schoolRepository.existsById(studentDetails.getSchoolId())) {
@@ -329,10 +333,10 @@ public class StudentService {
         Student saved = studentRepository.save(student);
 
         // Update academic record
-        StudentAcademicRecord detailsRecord = studentDetails.getCurrentAcademicRecord();
-        String targetAcademicYear = (detailsRecord != null && detailsRecord.getAcademicYear() != null) 
-                ? detailsRecord.getAcademicYear() 
-                : (student.getCurrentAcademicRecord() != null ? student.getCurrentAcademicRecord().getAcademicYear() : null);
+        StudentAcademicRecord currentRecord = latestRecordOf(student.getId());
+        String targetAcademicYear = (detailsRecord != null && detailsRecord.getAcademicYear() != null)
+                ? detailsRecord.getAcademicYear()
+                : (currentRecord != null ? currentRecord.getAcademicYear() : null);
         if (targetAcademicYear == null) {
             targetAcademicYear = academicYearResolver
                     .resolve(saved.getSchoolId(), null, saved.getAdmissionDate())
@@ -352,8 +356,8 @@ public class StudentService {
         boolean academicChanged = false;
 
         if (detailsRecord != null) {
-            if (detailsRecord.getStudentId() != null) {
-                record.setStudentId(detailsRecord.getStudentId());
+            if (detailsRecord.getStudentNo() != null) {
+                record.setStudentNo(detailsRecord.getStudentNo());
                 academicChanged = true;
             }
             if (detailsRecord.getRollNo() != null) {
@@ -385,14 +389,11 @@ public class StudentService {
 
         if (academicChanged) {
             record.setUpdatedAt(LocalDateTime.now());
-            record = studentAcademicRecordRepository.save(record);
+            studentAcademicRecordRepository.save(record);
             syncCurrentAcademicRecordPointer(saved);
         }
-        saved.setCurrentAcademicRecord(record);
 
-        // Repopulate transient fields to reflect latest state
-        populateAcademicFields(saved);
-        return saved;
+        return buildResponse(saved);
     }
 
     // ----- Guardian links (many-to-many family) -----
@@ -402,8 +403,8 @@ public class StudentService {
      * re-linking the same guardian replaces the existing link (e.g. to change
      * flags). The guardian must exist and belong to the student's school.
      */
-    public Student addGuardianLink(String studentId, GuardianLink link) {
-        Student student = getStudentById(studentId);
+    public StudentResponse addGuardianLink(String studentId, GuardianLink link) {
+        Student student = getStudentEntity(studentId);
         if (link == null || link.getGuardianId() == null || link.getGuardianId().isBlank()) {
             throw new IllegalArgumentException("guardianId is required to link a guardian.");
         }
@@ -419,29 +420,21 @@ public class StudentService {
         student.getGuardians().add(link);
         student.setUpdatedAt(LocalDateTime.now());
         Student saved = studentRepository.save(student);
-        populateAcademicFields(saved);
-        return saved;
+        return buildResponse(saved);
     }
 
-    public Student removeGuardianLink(String studentId, String guardianId) {
-        Student student = getStudentById(studentId);
+    public StudentResponse removeGuardianLink(String studentId, String guardianId) {
+        Student student = getStudentEntity(studentId);
         if (student.getGuardians() != null) {
             student.getGuardians().removeIf(g -> guardianId.equals(g.getGuardianId()));
             student.setUpdatedAt(LocalDateTime.now());
-            studentRepository.save(student);
+            student = studentRepository.save(student);
         }
-        populateAcademicFields(student);
-        return student;
-    }
-
-    public List<Student> getStudentsByGuardian(String guardianId) {
-        List<Student> students = studentRepository.findByGuardiansGuardianId(guardianId);
-        populateAcademicFields(students);
-        return students;
+        return buildResponse(student);
     }
 
     public void deleteStudent(String id) {
-        Student student = getStudentById(id);
+        Student student = getStudentEntity(id);
 
         // Delete academic records first
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocId(id);
@@ -450,9 +443,11 @@ public class StudentService {
         studentRepository.delete(student);
     }
 
+    // ----- Academic records -----
+
     public StudentAcademicRecord createOrUpdateAcademicRecord(String studentId, StudentAcademicRecord recordDetails) {
-        Student student = getStudentById(studentId); // Throws if not found
-        
+        Student student = getStudentEntity(studentId); // Throws if not found
+
         StudentAcademicRecord record = studentAcademicRecordRepository
                 .findByStudentDocIdAndAcademicYear(studentId, recordDetails.getAcademicYear())
                 .orElseGet(() -> StudentAcademicRecord.builder()
@@ -460,9 +455,9 @@ public class StudentService {
                         .academicYear(recordDetails.getAcademicYear())
                         .createdAt(LocalDateTime.now())
                         .build());
-                        
+
         record.setSchoolId(student.getSchoolId());
-        if (recordDetails.getStudentId() != null) record.setStudentId(recordDetails.getStudentId());
+        if (recordDetails.getStudentNo() != null) record.setStudentNo(recordDetails.getStudentNo());
         if (recordDetails.getRollNo() != null) record.setRollNo(recordDetails.getRollNo());
         if (recordDetails.getClassDocId() != null) {
             SchoolClass schoolClass = schoolClassRepository.findById(recordDetails.getClassDocId())
@@ -511,7 +506,7 @@ public class StudentService {
         }
         return createOrUpdateAcademicRecord(studentId, promotionDetails);
     }
-    
+
     public List<StudentAcademicRecord> getAcademicHistory(String studentId) {
         if (!studentRepository.existsById(studentId)) {
             throw new ResourceNotFoundException("Student not found with id: " + studentId);
@@ -522,8 +517,8 @@ public class StudentService {
     /**
      * Siblings = other students who share at least one guardian with this student.
      */
-    public List<Student> getSiblings(String studentId) {
-        Student student = getStudentById(studentId);
+    public List<StudentResponse> getSiblings(String studentId) {
+        Student student = getStudentEntity(studentId);
 
         if (student.getGuardians() == null || student.getGuardians().isEmpty()) {
             return new java.util.ArrayList<>();
@@ -538,8 +533,6 @@ public class StudentService {
                     if (!s.getId().equals(studentId)) siblings.put(s.getId(), s);
                 }));
 
-        List<Student> result = new java.util.ArrayList<>(siblings.values());
-        populateAcademicFields(result);
-        return result;
+        return buildResponses(new java.util.ArrayList<>(siblings.values()));
     }
 }

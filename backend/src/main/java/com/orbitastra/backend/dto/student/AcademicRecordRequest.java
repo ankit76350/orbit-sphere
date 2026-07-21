@@ -18,7 +18,7 @@ public class AcademicRecordRequest {
     // required by the promote endpoint, which the service enforces.
     private String academicYear;
 
-    private String studentId;
+    private String studentNo;
 
     private String rollNo;
 
@@ -33,7 +33,7 @@ public class AcademicRecordRequest {
     public StudentAcademicRecord toModel() {
         return StudentAcademicRecord.builder()
                 .academicYear(academicYear)
-                .studentId(studentId)
+                .studentNo(studentNo)
                 .rollNo(rollNo)
                 .classDocId(classDocId)
                 .sectionId(sectionId)

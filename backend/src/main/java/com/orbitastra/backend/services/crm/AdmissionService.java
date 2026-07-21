@@ -12,6 +12,8 @@ import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.services.student.GuardianService;
 import com.orbitastra.backend.services.student.StudentService;
@@ -115,7 +117,8 @@ public class AdmissionService {
      * An admission can only be converted once.
      */
     @Transactional
-    public Student convertToStudent(String admissionId, Student studentPayload) {
+    public StudentResponse convertToStudent(String admissionId, Student studentPayload,
+                                            StudentAcademicRecord initialRecord) {
         Admission admission = getAdmissionById(admissionId);
         if (admission.getStudentId() != null && !admission.getStudentId().isBlank()) {
             throw new IllegalArgumentException(
@@ -124,8 +127,8 @@ public class AdmissionService {
 
         // Force the new student into the admission's school. No academic year is set here —
         // it is assigned separately after enrolment via POST /api/students/{id}/academic-records
-        // (an admission carries no year). Any currentAcademicRecord explicitly supplied on the
-        // convert request is left untouched and honoured by StudentService.
+        // (an admission carries no year). Any academic record explicitly supplied on the convert
+        // request (initialRecord) is passed through and honoured by StudentService.
         studentPayload.setSchoolId(admission.getSchoolId());
         if (studentPayload.getAdmissionDate() == null) {
             studentPayload.setAdmissionDate(admission.getAdmissionDate());
@@ -153,14 +156,14 @@ public class AdmissionService {
                 guardianService.buildDedupedLinks(admission.getSchoolId(),
                         studentPayload.getGuardians(), drafts));
 
-        Student saved = studentService.createStudent(studentPayload);
+        Student saved = studentService.persistStudent(studentPayload, initialRecord);
 
         admission.setStudentId(saved.getId());
         admission.setStatus(AdmissionStatus.CONFIRMED);
         admission.setUpdatedAt(LocalDateTime.now());
         admissionRepository.save(admission);
 
-        return saved;
+        return studentService.buildResponse(saved);
     }
 
     public void deleteAdmission(String id) {

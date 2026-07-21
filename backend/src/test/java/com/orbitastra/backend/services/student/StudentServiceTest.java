@@ -30,6 +30,7 @@ import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
+import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
@@ -82,8 +83,7 @@ public class StudentServiceTest {
     }
 
     @Test
-    void createStudent_Success() {
-        student.setCurrentAcademicRecord(StudentAcademicRecord.builder().build());
+    void persistStudent_Success() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
@@ -92,7 +92,7 @@ public class StudentServiceTest {
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Student created = studentService.createStudent(student);
+        Student created = studentService.persistStudent(student, StudentAcademicRecord.builder().build());
 
         assertNotNull(created);
         assertEquals("ADM-001", created.getAdmissionNo());
@@ -141,7 +141,7 @@ public class StudentServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<GuardianService.GuardianDraft>> draftsCaptor = ArgumentCaptor.forClass(List.class);
 
-        Student created = studentService.createStudent(req);
+        StudentResponse created = studentService.createStudent(req);
 
         assertNotNull(created);
         assertEquals("Lucas Johnson", created.getName());
@@ -154,11 +154,11 @@ public class StudentServiceTest {
     }
 
     @Test
-    void createStudent_SchoolNotFound_ThrowsException() {
+    void persistStudent_SchoolNotFound_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> {
-            studentService.createStudent(student);
+            studentService.persistStudent(student, null);
         });
 
         verify(schoolRepository, times(1)).findById("school-id-123");
@@ -166,13 +166,13 @@ public class StudentServiceTest {
     }
 
     @Test
-    void createStudent_AdmissionNoDuplicate_ThrowsException() {
+    void persistStudent_AdmissionNoDuplicate_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.of(new Student()));
 
         assertThrows(IllegalArgumentException.class, () -> {
-            studentService.createStudent(student);
+            studentService.persistStudent(student, null);
         });
 
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
@@ -180,13 +180,13 @@ public class StudentServiceTest {
     }
 
     @Test
-    void createStudent_LimitExceeded_ThrowsException() {
+    void persistStudent_LimitExceeded_ThrowsException() {
         school.setMaxStudents(5);
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(5L);
 
         assertThrows(IllegalArgumentException.class, () -> {
-            studentService.createStudent(student);
+            studentService.persistStudent(student, null);
         });
 
         verify(studentRepository, never()).save(any());
@@ -197,19 +197,19 @@ public class StudentServiceTest {
         StudentAcademicRecord record = StudentAcademicRecord.builder()
                 .studentDocId("student-id-123")
                 .academicYear("2026-2027")
-                .studentId("STU-001")
+                .studentNo("STD-001")
                 .rollNo("12")
                 .build();
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(List.of(record));
 
-        Student found = studentService.getStudentById("student-id-123");
+        StudentResponse found = studentService.getStudentById("student-id-123");
 
         assertNotNull(found);
         assertEquals("student-id-123", found.getId());
         assertNotNull(found.getCurrentAcademicRecord());
-        assertEquals("STU-001", found.getCurrentAcademicRecord().getStudentId());
+        assertEquals("STD-001", found.getCurrentAcademicRecord().getStudentNo());
         assertEquals("12", found.getCurrentAcademicRecord().getRollNo());
         assertEquals("2026-2027", found.getCurrentAcademicRecord().getAcademicYear());
     }
@@ -234,7 +234,7 @@ public class StudentServiceTest {
         when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
 
-        Student updated = studentService.updateStudent("student-id-123", details);
+        StudentResponse updated = studentService.updateStudent("student-id-123", details, null);
 
         assertNotNull(updated);
         assertEquals("Jane Doe", updated.getName());
@@ -292,10 +292,8 @@ public class StudentServiceTest {
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("rec-2026"); return r; });
-        // First call (load in getStudentById) sees no records; after the save the record exists
-        // and becomes the current one, so the pointer must be persisted.
+        // After the save the record exists and becomes the current one, so the pointer is persisted.
         when(studentAcademicRecordRepository.findByStudentDocId("student-id-123"))
-                .thenReturn(new ArrayList<>())
                 .thenReturn(List.of(StudentAcademicRecord.builder()
                         .id("rec-2026").academicYear("2026-2027").build()));
         when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
@@ -357,11 +355,10 @@ public class StudentServiceTest {
         sibling.setAdmissionNo("ADM-999");
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
-        when(studentAcademicRecordRepository.findByStudentDocId("student-id-123")).thenReturn(new ArrayList<>());
         when(studentRepository.findByGuardiansGuardianId("guardian-1")).thenReturn(List.of(student, sibling));
         when(studentAcademicRecordRepository.findByStudentDocIdIn(anyList())).thenReturn(new ArrayList<>());
 
-        List<Student> siblings = studentService.getSiblings("student-id-123");
+        List<StudentResponse> siblings = studentService.getSiblings("student-id-123");
 
         assertEquals(1, siblings.size());
         assertEquals("sibling-id-999", siblings.get(0).getId());

@@ -3,7 +3,6 @@ package com.orbitastra.backend.models.student;
 import java.time.LocalDate;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -37,14 +36,7 @@ public class Student {
     @Indexed(unique = true)
     private String admissionNo;
 
-    // Denormalised pointer to this student's StudentAcademicRecord (in the
-    // "student_academic_records" collection) for the current — i.e. most recent —
-    // academic year. Kept in sync by StudentService whenever an academic record is
-    // created, assigned or promoted, so the student's active enrolment is one lookup away.
-    private String currentAcademicRecordId;
 
-    @Transient
-    private StudentAcademicRecord currentAcademicRecord;
 
     private String name;
 
@@ -69,6 +61,13 @@ public class Student {
     private StudentStatus status = StudentStatus.ACTIVE;
 
     private LocalDate admissionDate;
+
+    // Denormalised pointer to this student's StudentAcademicRecord (in the
+    // "student_academic_records" collection) for the current — i.e. most recent —
+    // academic year. Kept in sync by StudentService whenever an academic record is
+    // created, assigned or promoted, so the student's active enrolment is one lookup away.
+    // The full record itself is exposed only on the API view (StudentResponse), not the entity.
+    private String currentAcademicRecordId;
 
 
 }
