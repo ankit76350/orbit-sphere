@@ -8,10 +8,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
+import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.repositories.crm.InquiryRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 
@@ -30,6 +33,7 @@ public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
     private final StaffRepository staffRepository;
+    private final AdmissionRepository admissionRepository;
 
     public Inquiry createInquiry(Inquiry inquiry) {
         validateCounselor(inquiry.getCounselorId(), inquiry.getSchoolId());
@@ -135,6 +139,7 @@ public class InquiryService {
         if (entry.getCounselorId() != null) {
             inquiry.setCounselorId(entry.getCounselorId());
         }
+        handleAdmittedStatus(inquiry);
         inquiry.setUpdatedAt(LocalDateTime.now());
         return inquiryRepository.save(inquiry);
     }
@@ -161,10 +166,35 @@ public class InquiryService {
                     .recordedAt(LocalDateTime.now())
                     .build());
             inquiry.setStatus(target);
+            handleAdmittedStatus(inquiry);
             inquiry.setUpdatedAt(LocalDateTime.now());
             return inquiryRepository.save(inquiry);
         }
         return inquiry;
+    }
+
+    private void handleAdmittedStatus(Inquiry inquiry) {
+        if (inquiry.getStatus() == InquiryStatus.ADMITTED) {
+            List<Admission> existingAdmissions = admissionRepository.findByInquiryId(inquiry.getId());
+            if (!existingAdmissions.isEmpty()) {
+                inquiry.setAdmissionDocsId(existingAdmissions.get(0).getId());
+            } else {
+                Admission admission = Admission.builder()
+                        .schoolId(inquiry.getSchoolId())
+                        .inquiryId(inquiry.getId())
+                        .studentName(inquiry.getStudentName())
+                        .gender(com.orbitastra.backend.models.student.enums.Gender.MALE)
+                        .guardians(new ArrayList<>(inquiry.getGuardians()))
+                        .status(AdmissionStatus.APPROVED)
+                        .documents(new ArrayList<>())
+                        .admissionDate(LocalDate.now())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+                Admission saved = admissionRepository.save(admission);
+                inquiry.setAdmissionDocsId(saved.getId());
+            }
+        }
     }
 
     public void deleteInquiry(String id) {

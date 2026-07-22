@@ -7,10 +7,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,5 +65,6 @@ class AdmissionServiceTest {
 
         Admission result = admissionService.createAdmission(admission);
         assertEquals("John Doe", result.getStudentName());
+        verify(inquiryService).advanceStatus(inquiryId, InquiryStatus.ADMITTED);
     }
 }

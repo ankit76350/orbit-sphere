@@ -44,6 +44,7 @@ public class AdmissionService {
 
         // Scenario A — via inquiry: carry the applicant snapshot over (as-is unless
         // the admission already supplies its own), and advance the inquiry to ADMITTED.
+        Inquiry inquiryToAdvance = null;
         if (admission.getInquiryId() != null && !admission.getInquiryId().isBlank()) {
             if (admissionRepository.existsByInquiryId(admission.getInquiryId())) {
                 throw new IllegalArgumentException("An admission already exists for inquiry ID: " + admission.getInquiryId());
@@ -58,7 +59,7 @@ public class AdmissionService {
             if (admission.getGuardians() == null || admission.getGuardians().isEmpty()) {
                 admission.setGuardians(inquiry.getGuardians());
             }
-            inquiryService.advanceStatus(inquiry.getId(), InquiryStatus.ADMITTED);
+            inquiryToAdvance = inquiry;
         }
 
         // Validate required fields for direct and inquiry admissions
@@ -83,7 +84,13 @@ public class AdmissionService {
 
         admission.setCreatedAt(LocalDateTime.now());
         admission.setUpdatedAt(LocalDateTime.now());
-        return admissionRepository.save(admission);
+        Admission saved = admissionRepository.save(admission);
+
+        if (inquiryToAdvance != null) {
+            inquiryService.advanceStatus(inquiryToAdvance.getId(), InquiryStatus.ADMITTED);
+        }
+
+        return saved;
     }
 
     public Admission getAdmissionById(String id) {

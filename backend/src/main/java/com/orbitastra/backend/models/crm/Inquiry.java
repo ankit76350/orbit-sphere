@@ -45,6 +45,8 @@ public class Inquiry {
     // Kept top-level so inquiries stay filterable by stage.
     private InquiryStatus status;
 
+    private String admissionDocsId;
+
     // Follow-up timeline: each status change appends {status, note, nextFollowUp, counselorId, recordedAt}.
     @Builder.Default
     private java.util.List<InquiryFollowUp> followUps = new java.util.ArrayList<>();
