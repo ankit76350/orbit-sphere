@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.undone.frontoffice;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
@@ -9,6 +8,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.BaseDocument;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalDirection;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalMode;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalStatus;

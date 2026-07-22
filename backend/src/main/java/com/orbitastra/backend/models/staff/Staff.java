@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.staff;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
@@ -9,6 +8,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.BaseDocument;
 import com.orbitastra.backend.models.undone.user.enums.Role;
 
 import lombok.AllArgsConstructor;

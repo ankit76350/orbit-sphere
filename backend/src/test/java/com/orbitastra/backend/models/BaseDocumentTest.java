@@ -18,6 +18,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 import org.springframework.data.mongodb.core.mapping.MongoPersistentEntity;
 
+import com.orbitastra.backend.models.base.BaseDocument;
+
 class BaseDocumentTest {
 
     private static final Set<String> COMMON_FIELDS =

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models;
+package com.orbitastra.backend.models.base;
 
 import java.time.LocalDateTime;
 

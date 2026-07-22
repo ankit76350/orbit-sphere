@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.undone.mess;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
@@ -8,6 +7,8 @@ import java.time.DayOfWeek;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.base.BaseDocument;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -1,11 +1,11 @@
 package com.orbitastra.backend.models.undone.aihub;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.BaseDocument;
 import com.orbitastra.backend.models.undone.aihub.enums.AiPersona;
 import com.orbitastra.backend.models.undone.aihub.enums.AiTier;
 

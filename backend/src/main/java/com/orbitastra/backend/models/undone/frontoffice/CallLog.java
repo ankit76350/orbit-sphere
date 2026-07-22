@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.undone.frontoffice;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
@@ -9,6 +8,7 @@ import java.time.LocalTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.BaseDocument;
 import com.orbitastra.backend.models.undone.frontoffice.enums.CallStatus;
 import com.orbitastra.backend.models.undone.frontoffice.enums.CallType;
 

@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.student;
 
-import com.orbitastra.backend.models.BaseDocument;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
@@ -9,6 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.BaseDocument;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
 import lombok.AllArgsConstructor;
