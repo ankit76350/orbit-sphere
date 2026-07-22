@@ -482,7 +482,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"academicYear\": \"2026-2027\",\n  \"studentId\": \"STD-003-NEW\",\n  \"rollNo\": \"9C-03\",\n  \"classId\": \"class-9c\",\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}"
+                  "raw": "{\n  \"academicYear\": \"2026-2027\",\n  \"studentNo\": \"STD-003-NEW\",\n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"class-9c\",\n  \"sectionNo\": \"section-c\",\n  \"hostelRoomNo\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records",
@@ -535,7 +535,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"academicYear\": \"2027-2028\",\n  \"studentId\": \"STD-003-PROMOTE\",\n  \"rollNo\": \"10C-03\",\n  \"classId\": \"class-10c\",\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}"
+                  "raw": "{\n  \"academicYear\": \"2027-2028\",\n  \"studentNo\": \"STD-003-PROMOTE\",\n  \"rollNo\": \"10C-03\",\n  \"classDocId\": \"class-10c\",\n  \"sectionNo\": \"section-c\",\n  \"hostelRoomNo\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/promote",
