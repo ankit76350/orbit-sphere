@@ -48,7 +48,7 @@ public class Admission {
     private List<InquiryGuardian> guardians = new java.util.ArrayList<>();
 
     // Set only when the admission is converted into an enrolled student.
-    private String studentId;
+    private String studentDocsId;
 
     private AdmissionStatus status;
 

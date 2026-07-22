@@ -11,7 +11,7 @@ import lombok.Data;
 
 /**
  * Partial-update payload for an admission (PATCH). All fields optional; only
- * non-null fields are applied. {@code studentId} is set only by convert and is
+ * non-null fields are applied. {@code studentDocsId} is set only by convert and is
  * never editable here. An admission carries no academic year.
  */
 @Data

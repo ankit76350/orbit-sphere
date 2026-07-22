@@ -13,7 +13,7 @@ import lombok.Data;
 /**
  * Client payload for raising an admission — either from an inquiry
  * ({@code inquiryDocsId} set, snapshot copied over) or a direct/walk-in admission
- * (applicant fields supplied inline). {@code studentId} is set only on convert
+ * (applicant fields supplied inline). {@code studentDocsId} is set only on convert
  * and is never accepted here (prevents mass-assignment).
  */
 @Data

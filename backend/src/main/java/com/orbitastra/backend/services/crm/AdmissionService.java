@@ -126,7 +126,7 @@ public class AdmissionService {
         if (details.getDob() != null) admission.setDob(details.getDob());
         if (details.getGender() != null) admission.setGender(details.getGender());
         if (details.getGuardians() != null) admission.setGuardians(details.getGuardians());
-        // studentId is set only by convertToStudent — never edited directly here.
+        // studentDocsId is set only by convertToStudent — never edited directly here.
 
         admission.setUpdatedAt(LocalDateTime.now());
         return admissionRepository.save(admission);
@@ -142,9 +142,9 @@ public class AdmissionService {
     public StudentResponse convertToStudent(String admissionId, Student studentPayload,
                                             StudentAcademicRecord initialRecord) {
         Admission admission = getAdmissionById(admissionId);
-        if (admission.getStudentId() != null && !admission.getStudentId().isBlank()) {
+        if (admission.getStudentDocsId() != null && !admission.getStudentDocsId().isBlank()) {
             throw new IllegalArgumentException(
-                    "This admission has already been converted to student " + admission.getStudentId() + ".");
+                    "This admission has already been converted to student " + admission.getStudentDocsId() + ".");
         }
 
         // Force the new student into the admission's school. No academic year is set here —
@@ -180,7 +180,7 @@ public class AdmissionService {
 
         Student saved = studentService.persistStudent(studentPayload, initialRecord);
 
-        admission.setStudentId(saved.getId());
+        admission.setStudentDocsId(saved.getId());
         admission.setStatus(AdmissionStatus.CONFIRMED);
         admission.setUpdatedAt(LocalDateTime.now());
         admissionRepository.save(admission);
