@@ -250,6 +250,11 @@ export default function StaffScreen({ schoolId, reload }) {
             >
               <div className="space-y-4">
                 {!editingStaff && <Field label="School ID" apiName="schoolId" required><Input value={form.schoolId} onChange={(e) => setForm({ ...form, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
+                {editingStaff && (
+                  <Field label="MongoDB Document ID" apiName="id">
+                    <Input value={editingStaff.id} readOnly className="font-mono text-xs bg-slate-50 text-slate-600 select-all cursor-text" />
+                  </Field>
+                )}
                 <Field label="Full Name" apiName="name" required>
                   <Input 
                     value={form.name}
