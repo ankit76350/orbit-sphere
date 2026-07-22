@@ -21,6 +21,11 @@ export default function TopBar({ schools, schoolId, onSchool, years, year, onYea
             <option key={s.id} value={s.id} className="text-slate-800">{s.schoolName || s.name || s.id}</option>
           ))}
         </select>
+        {schoolId && (
+          <span className="rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white/70">
+            MongoDB ID: <code className="font-mono font-semibold text-white select-all">{schoolId}</code>
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
