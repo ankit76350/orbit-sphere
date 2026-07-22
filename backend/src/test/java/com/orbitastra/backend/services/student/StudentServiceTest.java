@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
@@ -188,6 +189,21 @@ public class StudentServiceTest {
     }
 
     @Test
+    void persistStudent_AdmissionAlreadyConverted_ThrowsConflict() {
+        student.setAdmissionDocsId("admission-789");
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
+        when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
+        when(studentRepository.findByAdmissionDocsId("admission-789"))
+                .thenReturn(Optional.of(new Student()));
+
+        assertThrows(ConflictException.class, () -> studentService.persistStudent(student, null));
+
+        verify(studentRepository).findByAdmissionDocsId("admission-789");
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
     void persistStudent_LimitExceeded_ThrowsException() {
         school.setMaxStudents(5);
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
@@ -202,6 +218,7 @@ public class StudentServiceTest {
 
     @Test
     void getStudentById_Success() {
+        student.setAdmissionDocsId("admission-789");
         StudentAcademicRecord record = StudentAcademicRecord.builder()
                 .studentDocId("student-id-123")
                 .academicYear("2026-2027")
@@ -216,6 +233,7 @@ public class StudentServiceTest {
 
         assertNotNull(found);
         assertEquals("student-id-123", found.getId());
+        assertEquals("admission-789", found.getAdmissionDocsId());
         assertNotNull(found.getCurrentAcademicRecord());
         assertEquals("STD-001", found.getCurrentAcademicRecord().getStudentNo());
         assertEquals("12", found.getCurrentAcademicRecord().getRollNo());

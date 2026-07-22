@@ -170,6 +170,8 @@ public class AdmissionService {
         // (an admission carries no year). Any academic record explicitly supplied on the convert
         // request (initialRecord) is passed through and honoured by StudentService.
         studentPayload.setSchoolId(admission.getSchoolId());
+        // Server-owned back-reference: callers cannot point a student at an arbitrary admission.
+        studentPayload.setAdmissionDocsId(admission.getId());
         if (studentPayload.getAdmissionDate() == null) {
             studentPayload.setAdmissionDate(admission.getAdmissionDate());
         }

@@ -12,6 +12,7 @@ import com.orbitastra.backend.models.student.enums.StudentStatus;
 @Repository
 public interface StudentRepository extends MongoRepository<Student, String> {
     Optional<Student> findByAdmissionNo(String admissionNo);
+    Optional<Student> findByAdmissionDocsId(String admissionDocsId);
     List<Student> findBySchoolId(String schoolId);
     long countBySchoolId(String schoolId);
     List<Student> findByGuardiansGuardianId(String guardianId);

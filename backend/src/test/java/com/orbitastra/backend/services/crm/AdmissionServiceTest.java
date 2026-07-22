@@ -326,10 +326,12 @@ class AdmissionServiceTest {
                 .id("student-456")
                 .schoolId("school-123")
                 .admissionNo("ADM-2026-0001")
+                .admissionDocsId("admission-789")
                 .build();
         StudentResponse response = StudentResponse.builder()
                 .id("student-456")
                 .admissionNo("ADM-2026-0001")
+                .admissionDocsId("admission-789")
                 .build();
         when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
         when(studentService.persistStudent(any(Student.class), any())).thenReturn(savedStudent);
@@ -339,8 +341,10 @@ class AdmissionServiceTest {
                 "admission-789", studentPayload, null);
 
         assertEquals("ADM-2026-0001", studentPayload.getAdmissionNo());
+        assertEquals("admission-789", studentPayload.getAdmissionDocsId());
         assertEquals(List.of("birth-certificate.pdf"), studentPayload.getDocuments());
         assertEquals("ADM-2026-0001", converted.getAdmissionNo());
+        assertEquals("admission-789", converted.getAdmissionDocsId());
         assertEquals("student-456", admission.getStudentDocsId());
         assertEquals(AdmissionStatus.CONFIRMED, admission.getStatus());
         verify(admissionRepository).save(admission);

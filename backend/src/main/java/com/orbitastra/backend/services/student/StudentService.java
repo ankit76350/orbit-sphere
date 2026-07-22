@@ -15,6 +15,7 @@ import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.models.core.School;
@@ -159,6 +160,14 @@ public class StudentService {
                 throw new IllegalArgumentException(
                         "Admission number '" + student.getAdmissionNo() + "' is already taken.");
             }
+        }
+
+        // A single admission may produce at most one student. Direct student creation
+        // leaves admissionDocsId null, so it does not participate in this check/index.
+        if (student.getAdmissionDocsId() != null && !student.getAdmissionDocsId().isBlank()
+                && studentRepository.findByAdmissionDocsId(student.getAdmissionDocsId()).isPresent()) {
+            throw new ConflictException(
+                    "Admission " + student.getAdmissionDocsId() + " has already been converted to a student.");
         }
 
         // 5d — save the student.

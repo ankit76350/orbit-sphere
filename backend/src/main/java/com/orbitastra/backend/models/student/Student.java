@@ -29,6 +29,10 @@ public class Student extends BaseDocument {
     @Indexed(unique = true)
     private String admissionNo;
 
+    /** MongoDB document id of the admission this student was converted from. */
+    @Indexed(unique = true, sparse = true)
+    private String admissionDocsId;
+
     private String name;
     private LocalDate dob;
     private Gender gender;
