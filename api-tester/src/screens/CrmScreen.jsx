@@ -107,6 +107,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     const s = staff.find((x) => x.id === id);
     return s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId : '—';
   };
+  const selectedInquiryCounselor = staff.find((s) => s.id === inquiryForm.counselorId);
   const stageCounts = useMemo(() => {
     const c = {};
     INQUIRY_STAGES.forEach((s) => (c[s] = 0));
@@ -430,8 +431,17 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                     <Field label="Counselor" apiName="counselorId" required={false}>
                       <Select value={inquiryForm.counselorId} onChange={(e) => setInquiryForm({ ...inquiryForm, counselorId: e.target.value })}>
                         <option value="">— none —</option>
-                        {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId}</option>)}
+                        {staff.map((s) => {
+                          const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();
+                          const displayId = s.employeeId || s.id;
+                          return <option key={s.id} value={s.id}>{name ? `${name} — ${displayId}` : displayId}</option>;
+                        })}
                       </Select>
+                      {selectedInquiryCounselor && (
+                        <span className="text-[11px] text-slate-500">
+                          MongoDB document ID: <code className="font-mono font-semibold text-slate-700">{selectedInquiryCounselor.id}</code>
+                        </span>
+                      )}
                     </Field>
                   </div>
                   <Field label="Initial Status" apiName="status" required={false}>
