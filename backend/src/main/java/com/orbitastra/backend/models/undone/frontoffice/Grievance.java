@@ -1,11 +1,11 @@
 package com.orbitastra.backend.models.undone.frontoffice;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.time.LocalDate;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.frontoffice.enums.GrievanceCategory;
@@ -23,22 +23,11 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "grievances")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Grievance {
-
-    @CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class Grievance extends BaseDocument {
 
     private LocalDate date;
 

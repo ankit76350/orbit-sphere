@@ -1,35 +1,27 @@
 package com.orbitastra.backend.models.staff;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.user.enums.Role;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Document(collection = "staffs")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Staff {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-
-    @Id
-    private String id;
-
-    private String schoolId;
+public class Staff extends BaseDocument {
 
     private String employeeId;
 

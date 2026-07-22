@@ -1,30 +1,22 @@
 package com.orbitastra.backend.models.staff;
 
-import org.springframework.data.annotation.Id;
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Document(collection = "teacher_performance_reviews")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TeacherPerformanceReview {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-
-    @Id
-    private String id;
-
-    private String schoolId;
+public class TeacherPerformanceReview extends BaseDocument {
 
     private String teacherId;
 

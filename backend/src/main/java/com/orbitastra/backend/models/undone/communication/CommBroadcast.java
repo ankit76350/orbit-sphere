@@ -1,9 +1,9 @@
 package com.orbitastra.backend.models.undone.communication;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.communication.enums.CommChannel;
@@ -20,22 +20,11 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "comm_broadcasts")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CommBroadcast {
-
-    @CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class CommBroadcast extends BaseDocument {
 
     private CommChannel channel;
 

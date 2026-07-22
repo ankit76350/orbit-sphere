@@ -1,9 +1,12 @@
 package com.orbitastra.backend.models.crm;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.time.LocalDate;
 import java.util.List;
 
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -17,20 +20,11 @@ import lombok.NoArgsConstructor;
 
 @Document(collection = "admissions")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Admission {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    private String schoolId;
+public class Admission extends BaseDocument {
 
     // Business identifier carried forward to the Student on enrolment. Sparse
     // keeps legacy admission documents (created before this field existed) valid.

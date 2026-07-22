@@ -1,13 +1,14 @@
 package com.orbitastra.backend.models.student;
 
-import org.springframework.data.annotation.Id;
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -31,22 +32,11 @@ import lombok.NoArgsConstructor;
             unique = true, partialFilter = "{'email': {'$type': 'string'}}")
 })
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Guardian {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class Guardian extends BaseDocument {
 
     private String name;
 

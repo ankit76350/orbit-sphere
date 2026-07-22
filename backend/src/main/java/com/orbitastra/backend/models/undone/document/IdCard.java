@@ -1,35 +1,27 @@
 package com.orbitastra.backend.models.undone.document;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.time.LocalDate;
 
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.document.enums.IdCardStatus;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Document(collection = "id_cards")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class IdCard {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-
-    @Id
-    private String id;
-
-    private String schoolId;
+public class IdCard extends BaseDocument {
 
     // References AcademicYear.name (unique per school), e.g. "2026-2027" —
     // scopes this record to one academic year of the school (SaaS: school -> year -> data)

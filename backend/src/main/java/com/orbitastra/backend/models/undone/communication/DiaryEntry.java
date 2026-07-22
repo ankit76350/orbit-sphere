@@ -1,11 +1,11 @@
 package com.orbitastra.backend.models.undone.communication;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.time.LocalDate;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.communication.enums.DiaryEntryType;
@@ -21,22 +21,11 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "diary_entries")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DiaryEntry {
-
-    @CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class DiaryEntry extends BaseDocument {
 
     private String grade;
 

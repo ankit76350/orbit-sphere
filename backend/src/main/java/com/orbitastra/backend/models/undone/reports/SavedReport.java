@@ -1,11 +1,11 @@
 package com.orbitastra.backend.models.undone.reports;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.util.List;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.reports.enums.ReportSource;
@@ -23,22 +23,11 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "saved_reports")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SavedReport {
-
-    @CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class SavedReport extends BaseDocument {
 
     private String name;
 

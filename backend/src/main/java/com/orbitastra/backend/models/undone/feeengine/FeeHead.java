@@ -1,11 +1,11 @@
 package com.orbitastra.backend.models.undone.feeengine;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
+
 import java.math.BigDecimal;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.undone.feeengine.enums.FeeFrequency;
@@ -23,22 +23,11 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "fee_heads")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FeeHead {
-
-    @CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class FeeHead extends BaseDocument {
 
     private String name;
 

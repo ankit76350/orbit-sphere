@@ -1,16 +1,17 @@
 package com.orbitastra.backend.models.student;
 
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
 
-import org.springframework.data.annotation.Id;
+
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -21,22 +22,11 @@ import lombok.NoArgsConstructor;
     @CompoundIndex(name = "class_doc_section_no_year_roll_unique_idx", def = "{'classDocId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1}", unique = true, partialFilter = "{'classDocId': {'$type': 'string'}, 'sectionNo': {'$type': 'string'}, 'rollNo': {'$type': 'string'}}")
 })
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentAcademicRecord {
-    @org.springframework.data.annotation.CreatedDate
-    private java.time.LocalDateTime createdAt;
-
-    @org.springframework.data.annotation.LastModifiedDate
-    private java.time.LocalDateTime updatedAt;
-
-
-    @Id
-    private String id;
-
-    @Indexed
-    private String schoolId;
+public class StudentAcademicRecord extends BaseDocument {
 
     private String studentDocId; // References Student.id
 

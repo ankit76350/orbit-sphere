@@ -1,10 +1,10 @@
 package com.orbitastra.backend.models.undone.user;
 
-import java.time.LocalDateTime;
+import com.orbitastra.backend.models.BaseDocument;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
+
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -17,18 +17,11 @@ import lombok.NoArgsConstructor;
 
 @Document(collection = "users")
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
-    @CreatedDate
-    private LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private LocalDateTime updatedAt;
-
-    @Id
-    private String id;
+public class User extends BaseDocument {
 
     @Indexed(unique = true)
     private String username;
@@ -40,8 +33,6 @@ public class User {
 
     private Role role;
 
-    @Indexed
-    private String schoolId;
 
     // References the ID in the corresponding collection:
     // e.g. Staff ID, Student ID, Parent ID, Driver ID
