@@ -49,7 +49,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const emptyAdmission = {
     schoolId: schoolId || '',
-    inquiryDocsId: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
+    inquiryDocsId: '', admissionNo: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
     studentName: 'Lucas Johnson', dob: '2015-06-19', gender: 'MALE', status: 'PENDING',
     guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
   };
@@ -194,6 +194,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       await api.createAdmission({
         schoolId: admissionForm.schoolId,
         inquiryDocsId: admissionForm.inquiryDocsId || null,
+        admissionNo: admissionForm.admissionNo || null,
         studentName: admissionForm.studentName || null,
         dob: admissionForm.dob || null,
         gender: admissionForm.gender || null,
@@ -227,7 +228,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const openConvert = (adm) => {
     setConvert(adm);
     setConvertForm({
-      admissionNo: '',
+      admissionNo: adm.admissionNo || '',
       name: adm.studentName || '',
       dob: adm.dob || '',
       gender: adm.gender || 'MALE',
@@ -494,7 +495,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {admissions.map((adm, index) => {
                         const inq = adm.inquiryDocsId ? inquiryById[adm.inquiryDocsId] : null;
-                        const converted = adm.studentId && adm.studentId.length > 0;
+                        const converted = adm.studentDocsId && adm.studentDocsId.length > 0;
                         return (
                           <tr key={adm.id} className="hover:bg-slate-50/50 transition">
                             <td className="px-4 py-3 text-center font-mono font-bold text-slate-500">{index + 1}</td>
@@ -502,6 +503,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                               <div className="font-bold text-slate-900">{adm.studentName || inq?.studentName || '(unnamed applicant)'}</div>
                               <div className="text-[9px] text-slate-500 mt-0.5">
                                 MongoDB ID: <code className="font-mono font-semibold text-slate-600 select-all">{adm.id}</code>
+                              </div>
+                              <div className="text-[9px] text-slate-500">
+                                Admission No: <code className="font-mono font-semibold text-slate-600 select-all">{adm.admissionNo || '—'}</code>
                               </div>
                               <div className="text-[10px] text-slate-400">
                                 {adm.inquiryDocsId ? 'from inquiry' : 'direct'}
@@ -544,6 +548,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <Card title="New Admission" subtitle="Admissions intentionally carry no academic-year field.">
                 <div className="space-y-3">
                   <Field label="School ID" apiName="schoolId" required><Input value={admissionForm.schoolId} onChange={(e) => setAdmissionForm({ ...admissionForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
+                  <Field label="Admission No." apiName="admissionNo" required={false} hint="Leave blank to let the server generate a unique admission number.">
+                    <Input value={admissionForm.admissionNo} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionNo: e.target.value })} placeholder="ADM-2026-0007" className="font-mono" />
+                  </Field>
                   <Field label="From Inquiry" apiName="inquiryDocsId" required={false} hint={admissionForm.inquiryDocsId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
                     <Select value={admissionForm.inquiryDocsId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
                       <option value="">— none (direct admission) —</option>
@@ -621,7 +628,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 <Field label="Academic Year" apiName="academicYear" required={false} hint="Accepted but ignored."><Input value={convertForm.academicYear} onChange={(e) => setConvertForm({ ...convertForm, academicYear: e.target.value })} /></Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Admission No." apiName="admissionNo" required={false}><Input value={convertForm.admissionNo} onChange={(e) => setConvertForm({ ...convertForm, admissionNo: e.target.value })} placeholder="ADM-2026-0007" /></Field>
+                <Field label="Admission No." apiName="admissionNo" required={false} hint="Copied from the admission and kept unchanged on enrolment."><Input value={convertForm.admissionNo} readOnly className="font-mono bg-slate-50 text-slate-600 select-all cursor-text" /></Field>
                 <Field label="Full Name" apiName="name" required={false}><Input value={convertForm.name} onChange={(e) => setConvertForm({ ...convertForm, name: e.target.value })} /></Field>
                 <Field label="Date of Birth" apiName="dob" required={false}><Input type="date" value={convertForm.dob} onChange={(e) => setConvertForm({ ...convertForm, dob: e.target.value })} /></Field>
                 <Field label="Gender" apiName="gender" required={false}>

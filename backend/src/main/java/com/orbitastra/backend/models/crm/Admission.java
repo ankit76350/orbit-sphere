@@ -32,6 +32,11 @@ public class Admission {
 
     private String schoolId;
 
+    // Business identifier carried forward to the Student on enrolment. Sparse
+    // keeps legacy admission documents (created before this field existed) valid.
+    @Indexed(unique = true, sparse = true)
+    private String admissionNo;
+
     // from / same as inquiry
     @Indexed(unique = true, sparse = true)
     private String inquiryDocsId;

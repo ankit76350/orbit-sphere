@@ -204,6 +204,10 @@ public class InquiryService {
                 try {
                     saved = admissionRepository.save(AdmissionFactory.fromInquiry(inquiry));
                 } catch (DuplicateKeyException ex) {
+                    if (ex.getMessage() != null && ex.getMessage().contains("admissionNo")) {
+                        throw new ConflictException(
+                                "The generated admissionNo already exists. Please retry the request.", ex);
+                    }
                     throw new ConflictException(
                             "An admission already exists for inquiryDocsId: " + inquiry.getId(), ex);
                 }

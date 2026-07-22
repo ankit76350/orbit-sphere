@@ -66,6 +66,7 @@ public class AdmissionService {
         }
 
         AdmissionFactory.applyCreationDefaults(admission);
+        rejectDuplicateAdmissionNo(admission.getAdmissionNo());
 
         Admission saved;
         try {
@@ -73,10 +74,14 @@ public class AdmissionService {
         } catch (DuplicateKeyException ex) {
             // The unique MongoDB index is the final guard against concurrent requests
             // that both pass the pre-insert exists check.
-            if (inquiryDocsId != null) {
+            if (duplicateKeyReferences(ex, "admissionNo")) {
+                throw duplicateAdmissionNoConflict(admission.getAdmissionNo(), ex);
+            }
+            if (inquiryDocsId != null && duplicateKeyReferences(ex, "inquiryDocsId")) {
                 throw duplicateInquiryConflict(inquiryDocsId, ex);
             }
-            throw ex;
+            throw new ConflictException(
+                    "An admission with the same admissionNo or inquiryDocsId already exists.", ex);
         }
 
         if (sourceInquiry != null) {
@@ -88,6 +93,16 @@ public class AdmissionService {
     public Admission getAdmissionById(String id) {
         return admissionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Admission not found with id: " + id));
+    }
+
+    public Admission getAdmissionByAdmissionNo(String admissionNo) {
+        String normalized = AdmissionFactory.normalizeAdmissionNo(admissionNo);
+        if (normalized == null) {
+            throw new IllegalArgumentException("Admission number is required.");
+        }
+        return admissionRepository.findByAdmissionNo(normalized)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Admission not found with admission number: " + normalized));
     }
 
     public List<Admission> getAdmissionsBySchool(String schoolId) {
@@ -105,6 +120,16 @@ public class AdmissionService {
     public Admission updateAdmission(String id, Admission details) {
         Admission admission = getAdmissionById(id);
 
+        if (details.getAdmissionNo() != null) {
+            String requestedAdmissionNo = AdmissionFactory.normalizeAdmissionNo(details.getAdmissionNo());
+            if (requestedAdmissionNo == null) {
+                throw new IllegalArgumentException("Admission number cannot be blank.");
+            }
+            if (!requestedAdmissionNo.equals(admission.getAdmissionNo())) {
+                rejectDuplicateAdmissionNo(requestedAdmissionNo);
+                admission.setAdmissionNo(requestedAdmissionNo);
+            }
+        }
         if (details.getStatus() != null) admission.setStatus(details.getStatus());
         if (details.getDocuments() != null) admission.setDocuments(details.getDocuments());
         if (details.getAdmissionDate() != null) admission.setAdmissionDate(details.getAdmissionDate());
@@ -115,7 +140,14 @@ public class AdmissionService {
         // studentDocsId is set only by convertToStudent — never edited directly here.
 
         admission.setUpdatedAt(LocalDateTime.now());
-        return admissionRepository.save(admission);
+        try {
+            return admissionRepository.save(admission);
+        } catch (DuplicateKeyException ex) {
+            if (duplicateKeyReferences(ex, "admissionNo")) {
+                throw duplicateAdmissionNoConflict(admission.getAdmissionNo(), ex);
+            }
+            throw ex;
+        }
     }
 
     /**
@@ -141,6 +173,21 @@ public class AdmissionService {
         if (studentPayload.getAdmissionDate() == null) {
             studentPayload.setAdmissionDate(admission.getAdmissionDate());
         }
+
+        String requestedAdmissionNo = AdmissionFactory.normalizeAdmissionNo(studentPayload.getAdmissionNo());
+        boolean admissionNoWasMissing = AdmissionFactory.normalizeAdmissionNo(admission.getAdmissionNo()) == null;
+        if (admissionNoWasMissing && requestedAdmissionNo != null) {
+            admission.setAdmissionNo(requestedAdmissionNo);
+        }
+        AdmissionFactory.ensureAdmissionNo(admission);
+        if (admissionNoWasMissing) {
+            rejectDuplicateAdmissionNo(admission.getAdmissionNo());
+        }
+        if (requestedAdmissionNo != null && !requestedAdmissionNo.equals(admission.getAdmissionNo())) {
+            throw new IllegalArgumentException(
+                    "Student admissionNo must match the admission's admissionNo: " + admission.getAdmissionNo());
+        }
+        studentPayload.setAdmissionNo(admission.getAdmissionNo());
 
         // Prefill identity from the admission's applicant snapshot when not overridden.
         if ((studentPayload.getName() == null || studentPayload.getName().isBlank())
@@ -205,6 +252,17 @@ public class AdmissionService {
         }
     }
 
+    private void rejectDuplicateAdmissionNo(String admissionNo) {
+        if (admissionRepository.existsByAdmissionNo(admissionNo)) {
+            throw duplicateAdmissionNoConflict(admissionNo, null);
+        }
+    }
+
+    private ConflictException duplicateAdmissionNoConflict(String admissionNo, Throwable cause) {
+        String message = "An admission already exists with admissionNo: " + admissionNo;
+        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
+    }
+
     private ConflictException duplicateInquiryConflict(String inquiryDocsId, Throwable cause) {
         String message = "An admission already exists for inquiryDocsId: " + inquiryDocsId;
         return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
@@ -212,5 +270,9 @@ public class AdmissionService {
 
     private String normalizeOptionalId(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private boolean duplicateKeyReferences(DuplicateKeyException ex, String fieldName) {
+        return ex.getMessage() != null && ex.getMessage().contains(fieldName);
     }
 }

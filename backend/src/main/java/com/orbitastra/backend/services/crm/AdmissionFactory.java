@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
@@ -45,6 +47,7 @@ final class AdmissionFactory {
     }
 
     static void applyCreationDefaults(Admission admission) {
+        ensureAdmissionNo(admission);
         admission.setGuardians(copyGuardians(admission.getGuardians()));
         admission.setDocuments(admission.getDocuments() == null
                 ? new ArrayList<>()
@@ -59,6 +62,23 @@ final class AdmissionFactory {
         LocalDateTime now = LocalDateTime.now();
         admission.setCreatedAt(now);
         admission.setUpdatedAt(now);
+    }
+
+    static void ensureAdmissionNo(Admission admission) {
+        String normalized = normalizeAdmissionNo(admission.getAdmissionNo());
+        admission.setAdmissionNo(normalized != null ? normalized : generateAdmissionNo());
+    }
+
+    static String normalizeAdmissionNo(String admissionNo) {
+        return isBlank(admissionNo) ? null : admissionNo.trim();
+    }
+
+    private static String generateAdmissionNo() {
+        String suffix = UUID.randomUUID().toString()
+                .replace("-", "")
+                .substring(0, 12)
+                .toUpperCase(Locale.ROOT);
+        return "ADM-" + LocalDate.now().getYear() + "-" + suffix;
     }
 
     private static List<InquiryGuardian> mergeGuardians(List<InquiryGuardian> inquiryGuardians,

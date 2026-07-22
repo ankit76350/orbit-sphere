@@ -14,6 +14,8 @@ import lombok.Data;
 @Data
 public abstract class AdmissionDetailsRequest {
 
+    private String admissionNo;
+
     private String studentName;
 
     private LocalDate dob;
@@ -31,6 +33,7 @@ public abstract class AdmissionDetailsRequest {
 
     public Admission toModel() {
         return Admission.builder()
+                .admissionNo(admissionNo)
                 .studentName(studentName)
                 .dob(dob)
                 .gender(gender)

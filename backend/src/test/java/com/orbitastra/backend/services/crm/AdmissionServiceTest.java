@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,12 +23,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
+import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
@@ -66,10 +70,61 @@ class AdmissionServiceTest {
         assertEquals("school-123", saved.getSchoolId());
         assertEquals("Direct Applicant", saved.getStudentName());
         assertEquals(AdmissionStatus.PENDING, saved.getStatus());
+        assertNotNull(saved.getAdmissionNo());
+        assertTrue(saved.getAdmissionNo().startsWith("ADM-"));
         assertNotNull(saved.getAdmissionDate());
         assertNotNull(saved.getDocuments());
         assertNotNull(saved.getGuardians());
         verifyNoInteractions(inquiryService);
+    }
+
+    @Test
+    void createAdmission_customAdmissionNo_isTrimmedAndPreserved() {
+        Admission request = Admission.builder()
+                .schoolId("school-123")
+                .admissionNo("  ADM-2026-0001  ")
+                .studentName("Direct Applicant")
+                .build();
+        saveWithGeneratedId();
+
+        Admission saved = admissionService.createAdmission(request);
+
+        assertEquals("ADM-2026-0001", saved.getAdmissionNo());
+        verify(admissionRepository).existsByAdmissionNo("ADM-2026-0001");
+    }
+
+    @Test
+    void createAdmission_duplicateAdmissionNo_returnsConflictWithoutSaving() {
+        when(admissionRepository.existsByAdmissionNo("ADM-2026-0001")).thenReturn(true);
+        Admission request = Admission.builder()
+                .schoolId("school-123")
+                .admissionNo("ADM-2026-0001")
+                .studentName("Direct Applicant")
+                .build();
+
+        ConflictException ex = assertThrows(
+                ConflictException.class,
+                () -> admissionService.createAdmission(request));
+
+        assertEquals("An admission already exists with admissionNo: ADM-2026-0001", ex.getMessage());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void createAdmission_concurrentDuplicateAdmissionNo_returnsConflict() {
+        Admission request = Admission.builder()
+                .schoolId("school-123")
+                .admissionNo("ADM-2026-0001")
+                .studentName("Direct Applicant")
+                .build();
+        when(admissionRepository.save(any(Admission.class)))
+                .thenThrow(new DuplicateKeyException("E11000 index: admissionNo_1 dup key"));
+
+        ConflictException ex = assertThrows(
+                ConflictException.class,
+                () -> admissionService.createAdmission(request));
+
+        assertEquals("An admission already exists with admissionNo: ADM-2026-0001", ex.getMessage());
     }
 
     @Test
@@ -239,6 +294,54 @@ class AdmissionServiceTest {
 
         assertEquals("Inquiry does not belong to the requested school.", ex.getMessage());
         verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void getAdmissionByAdmissionNo_normalizesLookupValue() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .admissionNo("ADM-2026-0001")
+                .build();
+        when(admissionRepository.findByAdmissionNo("ADM-2026-0001"))
+                .thenReturn(Optional.of(admission));
+
+        Admission found = admissionService.getAdmissionByAdmissionNo("  ADM-2026-0001  ");
+
+        assertEquals("admission-789", found.getId());
+    }
+
+    @Test
+    void convertToStudent_copiesAdmissionNoFromAdmission() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .schoolId("school-123")
+                .admissionNo("ADM-2026-0001")
+                .studentName("Applicant")
+                .status(AdmissionStatus.APPROVED)
+                .guardians(List.of())
+                .build();
+        Student studentPayload = Student.builder().build();
+        Student savedStudent = Student.builder()
+                .id("student-456")
+                .schoolId("school-123")
+                .admissionNo("ADM-2026-0001")
+                .build();
+        StudentResponse response = StudentResponse.builder()
+                .id("student-456")
+                .admissionNo("ADM-2026-0001")
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+        when(studentService.persistStudent(any(Student.class), any())).thenReturn(savedStudent);
+        when(studentService.buildResponse(savedStudent)).thenReturn(response);
+
+        StudentResponse converted = admissionService.convertToStudent(
+                "admission-789", studentPayload, null);
+
+        assertEquals("ADM-2026-0001", studentPayload.getAdmissionNo());
+        assertEquals("ADM-2026-0001", converted.getAdmissionNo());
+        assertEquals("student-456", admission.getStudentDocsId());
+        assertEquals(AdmissionStatus.CONFIRMED, admission.getStatus());
+        verify(admissionRepository).save(admission);
     }
 
     private void saveWithGeneratedId() {

@@ -42,6 +42,11 @@ public class AdmissionController {
         return ResponseEntity.ok(admissionService.getAdmissionById(id));
     }
 
+    @GetMapping("/number/{admissionNo}")
+    public ResponseEntity<Admission> getAdmissionByAdmissionNo(@PathVariable String admissionNo) {
+        return ResponseEntity.ok(admissionService.getAdmissionByAdmissionNo(admissionNo));
+    }
+
     @GetMapping("/school/{schoolId}")
     public ResponseEntity<List<Admission>> getAdmissionsBySchool(@PathVariable String schoolId) {
         return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
