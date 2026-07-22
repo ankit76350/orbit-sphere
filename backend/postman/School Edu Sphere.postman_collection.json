@@ -4211,7 +4211,7 @@
 					"name": "Admissions",
 					"item": [
 						{
-							"name": "Create Admission (with inquiry id)",
+							"name": "Scenario 2 - Create Admission from Inquiry + Details",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -4236,12 +4236,42 @@
 										"admissions"
 									]
 								},
-								"description": "Scenario A — via inquiry. Only inquiryId is sent; studentName/dob/gender/guardians are auto-copied from the linked inquiry, and that inquiry is advanced to ADMITTED. (Any of those fields you DO send here override the copy.)"
+								"description": "Creates an inquiry-backed admission with additional admission details. schoolId is optional; when supplied it must match the inquiry. Inquiry applicant data is copied, supplied fields are merged/overridden, and the inquiry is linked and advanced to ADMITTED atomically."
 							},
 							"response": []
 						},
 						{
-							"name": "Create Admission (Direct - without inquiery id)",
+							"name": "Scenario 3 - Create Admission Using Only Inquiry ID",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"inquiryDocsId\": \"INQUIRY_ID_HERE\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:3456/api/admissions",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "3456",
+									"path": [
+										"api",
+										"admissions"
+									]
+								},
+								"description": "Creates an admission using only inquiryDocsId. School and applicant data are inferred from the inquiry, and the inquiry is linked and advanced to ADMITTED in the same transaction."
+							},
+							"response": []
+						},
+						{
+							"name": "Scenario 1 - Create Direct Admission",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -4266,7 +4296,7 @@
 										"admissions"
 									]
 								},
-								"description": "Scenario B — direct / walk-in. No inquiryId; the applicant data (studentName, dob, gender, guardians) is entered directly. No inquiry is linked or advanced."
+								"description": "Creates a direct/walk-in admission without inquiryDocsId. schoolId and studentName are required; inquiryDocsId remains null and no inquiry is changed."
 							},
 							"response": []
 						},

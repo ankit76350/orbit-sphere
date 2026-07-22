@@ -5,13 +5,15 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
@@ -114,6 +116,7 @@ public class InquiryService {
      * the single way a status change is captured, so every move keeps its note and
      * next-follow-up context.
      */
+    @Transactional
     public Inquiry recordFollowUp(String id, InquiryFollowUp entry) {
         if (entry == null) {
             throw new IllegalArgumentException("Follow-up details are required.");
@@ -149,6 +152,7 @@ public class InquiryService {
      * action (e.g. an admission being created) can only advance the stage. The
      * move is logged as an auto follow-up entry.
      */
+    @Transactional
     public Inquiry advanceStatus(String id, InquiryStatus target) {
         Inquiry inquiry = getInquiryById(id);
         InquiryStatus current = inquiry.getStatus();
@@ -156,21 +160,38 @@ public class InquiryService {
             throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
         }
         if (current == null || target.ordinal() > current.ordinal()) {
-            if (inquiry.getFollowUps() == null) {
-                inquiry.setFollowUps(new ArrayList<>());
-            }
-            inquiry.getFollowUps().add(InquiryFollowUp.builder()
-                    .status(target)
-                    .note("Auto-advanced to " + target)
-                    .counselorId(inquiry.getCounselorId())
-                    .recordedAt(LocalDateTime.now())
-                    .build());
-            inquiry.setStatus(target);
+            applyAutomaticStatusChange(inquiry, target);
             handleAdmittedStatus(inquiry);
             inquiry.setUpdatedAt(LocalDateTime.now());
             return inquiryRepository.save(inquiry);
         }
         return inquiry;
+    }
+
+    /**
+     * Atomically associates an admission created by AdmissionService and moves the
+     * inquiry to ADMITTED. This also repairs the reference when an inquiry was
+     * already marked ADMITTED before its admission was linked.
+     */
+    @Transactional
+    public Inquiry linkAdmission(String inquiryId, String admissionId) {
+        if (admissionId == null || admissionId.isBlank()) {
+            throw new IllegalArgumentException("Admission ID is required when linking an inquiry.");
+        }
+
+        Inquiry inquiry = getInquiryById(inquiryId);
+        if (inquiry.getAdmissionDocsId() != null && !inquiry.getAdmissionDocsId().isBlank()
+                && !inquiry.getAdmissionDocsId().equals(admissionId)) {
+            throw new ConflictException("Inquiry " + inquiryId
+                    + " is already linked to admission " + inquiry.getAdmissionDocsId() + ".");
+        }
+
+        if (inquiry.getStatus() != InquiryStatus.ADMITTED) {
+            applyAutomaticStatusChange(inquiry, InquiryStatus.ADMITTED);
+        }
+        inquiry.setAdmissionDocsId(admissionId);
+        inquiry.setUpdatedAt(LocalDateTime.now());
+        return inquiryRepository.save(inquiry);
     }
 
     private void handleAdmittedStatus(Inquiry inquiry) {
@@ -179,22 +200,29 @@ public class InquiryService {
             if (!existingAdmissions.isEmpty()) {
                 inquiry.setAdmissionDocsId(existingAdmissions.get(0).getId());
             } else {
-                Admission admission = Admission.builder()
-                        .schoolId(inquiry.getSchoolId())
-                        .inquiryDocsId(inquiry.getId())
-                        .studentName(inquiry.getStudentName())
-                        .gender(com.orbitastra.backend.models.student.enums.Gender.MALE)
-                        .guardians(new ArrayList<>(inquiry.getGuardians()))
-                        .status(AdmissionStatus.APPROVED)
-                        .documents(new ArrayList<>())
-                        .admissionDate(LocalDate.now())
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build();
-                Admission saved = admissionRepository.save(admission);
+                Admission saved;
+                try {
+                    saved = admissionRepository.save(AdmissionFactory.fromInquiry(inquiry));
+                } catch (DuplicateKeyException ex) {
+                    throw new ConflictException(
+                            "An admission already exists for inquiryDocsId: " + inquiry.getId(), ex);
+                }
                 inquiry.setAdmissionDocsId(saved.getId());
             }
         }
+    }
+
+    private void applyAutomaticStatusChange(Inquiry inquiry, InquiryStatus target) {
+        if (inquiry.getFollowUps() == null) {
+            inquiry.setFollowUps(new ArrayList<>());
+        }
+        inquiry.getFollowUps().add(InquiryFollowUp.builder()
+                .status(target)
+                .note("Auto-advanced to " + target)
+                .counselorId(inquiry.getCounselorId())
+                .recordedAt(LocalDateTime.now())
+                .build());
+        inquiry.setStatus(target);
     }
 
     public void deleteInquiry(String id) {

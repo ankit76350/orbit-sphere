@@ -49,7 +49,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const emptyAdmission = {
     schoolId: schoolId || '',
-    inquiryId: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
+    inquiryDocsId: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
     studentName: 'Lucas Johnson', dob: '2015-06-19', gender: 'MALE', status: 'PENDING',
     guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
   };
@@ -61,12 +61,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const removeAdmGuardian = (idx) =>
     setAdmissionForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
   // Selecting an inquiry pulls its applicant snapshot into the admission form; clearing it = direct admission.
-  const pickAdmissionInquiry = (inquiryId) => {
-    if (!inquiryId) { setAdmissionForm((f) => ({ ...f, inquiryId: '', studentName: '', guardians: [] })); return; }
-    const inq = inquiryById[inquiryId];
+  const pickAdmissionInquiry = (inquiryDocsId) => {
+    if (!inquiryDocsId) { setAdmissionForm((f) => ({ ...f, inquiryDocsId: '', studentName: '', guardians: [] })); return; }
+    const inq = inquiryById[inquiryDocsId];
     setAdmissionForm((f) => ({
       ...f,
-      inquiryId,
+      inquiryDocsId,
       studentName: inq?.studentName || '',
       guardians: (inq?.guardians || []).map((g) => ({ ...g })),
     }));
@@ -176,7 +176,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const startAdmission = (inq) => {
     setAdmissionForm({
       ...emptyAdmission,
-      inquiryId: inq.id,
+      inquiryDocsId: inq.id,
       studentName: inq.studentName || '',
       guardians: (inq.guardians || []).map((g) => ({ ...g })),
     });
@@ -185,7 +185,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   // ---- admission actions ----
   const submitAdmission = async () => {
-    if (!admissionForm.inquiryId && (!admissionForm.studentName || !admissionForm.studentName.trim())) {
+    if (!admissionForm.inquiryDocsId && (!admissionForm.studentName || !admissionForm.studentName.trim())) {
       toast.error('Student Name is required for direct admission.');
       return;
     }
@@ -193,7 +193,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     try {
       await api.createAdmission({
         schoolId: admissionForm.schoolId,
-        inquiryId: admissionForm.inquiryId || null,
+        inquiryDocsId: admissionForm.inquiryDocsId || null,
         studentName: admissionForm.studentName || null,
         dob: admissionForm.dob || null,
         gender: admissionForm.gender || null,
@@ -202,7 +202,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         documents: admissionForm.documents ? admissionForm.documents.split(',').map((d) => d.trim()).filter(Boolean) : [],
         admissionDate: admissionForm.admissionDate || null,
       });
-      toast.success(admissionForm.inquiryId ? 'Admission created (inquiry auto-advanced to ADMITTED).' : 'Direct admission created.');
+      toast.success(admissionForm.inquiryDocsId ? 'Admission created (inquiry auto-advanced to ADMITTED).' : 'Direct admission created.');
       setAdmissionForm(emptyAdmission);
       fetchAll();
     } catch (e) {
@@ -487,14 +487,14 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {admissions.map((adm) => {
-                        const inq = adm.inquiryId ? inquiryById[adm.inquiryId] : null;
+                        const inq = adm.inquiryDocsId ? inquiryById[adm.inquiryDocsId] : null;
                         const converted = adm.studentId && adm.studentId.length > 0;
                         return (
                           <tr key={adm.id} className="hover:bg-slate-50/50 transition">
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900">{adm.studentName || inq?.studentName || '(unnamed applicant)'}</div>
                               <div className="text-[10px] text-slate-400">
-                                {adm.inquiryId ? 'from inquiry' : 'direct'}
+                                {adm.inquiryDocsId ? 'from inquiry' : 'direct'}
                                 {(adm.guardians && adm.guardians.length) ? ` · ${adm.guardians.length} guardian${adm.guardians.length === 1 ? '' : 's'}` : ''}
                                 {` · ${adm.admissionDate || '—'}`}
                               </div>
@@ -534,8 +534,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <Card title="New Admission" subtitle="Admissions intentionally carry no academic-year field.">
                 <div className="space-y-3">
                   <Field label="School ID" apiName="schoolId" required><Input value={admissionForm.schoolId} onChange={(e) => setAdmissionForm({ ...admissionForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
-                  <Field label="From Inquiry" apiName="inquiryId" required={false} hint={admissionForm.inquiryId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
-                    <Select value={admissionForm.inquiryId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
+                  <Field label="From Inquiry" apiName="inquiryDocsId" required={false} hint={admissionForm.inquiryDocsId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
+                    <Select value={admissionForm.inquiryDocsId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
                       <option value="">— none (direct admission) —</option>
                       {inquiries.map((i) => <option key={i.id} value={i.id}>{i.studentName || (i.guardians && i.guardians[0] && i.guardians[0].name) || i.id}</option>)}
                     </Select>

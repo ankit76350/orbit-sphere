@@ -1,41 +1,32 @@
 package com.orbitastra.backend.dto.crm;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.orbitastra.backend.models.crm.Admission;
 
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
-import com.orbitastra.backend.models.student.enums.Gender;
-
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
- * Client payload for raising an admission — either from an inquiry
- * ({@code inquiryDocsId} set, snapshot copied over) or a direct/walk-in admission
- * (applicant fields supplied inline). {@code studentDocsId} is set only on convert
- * and is never accepted here (prevents mass-assignment).
+ * Client payload for creating an admission. Direct admissions require
+ * {@code schoolId} and {@code studentName}; inquiry-backed admissions require only
+ * {@code inquiryDocsId}, with {@code schoolId} inferred from the inquiry. Any other
+ * supplied fields override or augment the inquiry snapshot.
  */
 @Data
-public class CreateAdmissionRequest {
+@EqualsAndHashCode(callSuper = true)
+public class CreateAdmissionRequest extends AdmissionDetailsRequest {
 
-    @NotBlank(message = "schoolId is required")
     private String schoolId;
 
+    // Backward-compatible alias for clients predating the inquiryDocsId rename.
+    @JsonAlias("inquiryId")
     private String inquiryDocsId;
 
-    private String studentName;
-
-    private LocalDate dob;
-
-    private Gender gender;
-
-    @Valid
-    private List<InquiryGuardianRequest> guardians;
-
-    private AdmissionStatus status;
-
-    private List<String> documents;
-
-    private LocalDate admissionDate;
+    @Override
+    public Admission toModel() {
+        Admission admission = super.toModel();
+        admission.setSchoolId(schoolId);
+        admission.setInquiryDocsId(inquiryDocsId);
+        return admission;
+    }
 }

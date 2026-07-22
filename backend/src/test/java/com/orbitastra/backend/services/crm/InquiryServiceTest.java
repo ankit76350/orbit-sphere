@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
@@ -154,5 +155,60 @@ class InquiryServiceTest {
         Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
         assertEquals(InquiryStatus.ADMITTED, result.getStatus());
         assertEquals("admission-999", result.getAdmissionDocsId());
+    }
+
+    @Test
+    void linkAdmission_updatesStatusAndReferenceTogether() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.COUNSELING)
+                .build();
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.save(existing)).thenReturn(existing);
+
+        Inquiry result = inquiryService.linkAdmission(inquiryId, "admission-123");
+
+        assertEquals(InquiryStatus.ADMITTED, result.getStatus());
+        assertEquals("admission-123", result.getAdmissionDocsId());
+        assertEquals(1, result.getFollowUps().size());
+        assertEquals(InquiryStatus.ADMITTED, result.getFollowUps().get(0).getStatus());
+    }
+
+    @Test
+    void linkAdmission_whenAlreadyAdmitted_repairsMissingReferenceWithoutDuplicateFollowUp() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.ADMITTED)
+                .build();
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.save(existing)).thenReturn(existing);
+
+        Inquiry result = inquiryService.linkAdmission(inquiryId, "admission-123");
+
+        assertEquals("admission-123", result.getAdmissionDocsId());
+        assertEquals(0, result.getFollowUps().size());
+    }
+
+    @Test
+    void linkAdmission_whenLinkedToDifferentAdmission_returnsConflict() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.ADMITTED)
+                .admissionDocsId("existing-admission")
+                .build();
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+
+        ConflictException ex = assertThrows(
+                ConflictException.class,
+                () -> inquiryService.linkAdmission(inquiryId, "different-admission"));
+
+        assertEquals("Inquiry " + inquiryId
+                + " is already linked to admission existing-admission.", ex.getMessage());
     }
 }

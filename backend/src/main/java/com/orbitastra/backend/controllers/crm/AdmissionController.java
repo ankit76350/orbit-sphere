@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.crm.CreateAdmissionRequest;
-import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.crm.UpdateAdmissionRequest;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
@@ -35,18 +34,7 @@ public class AdmissionController {
 
     @PostMapping
     public ResponseEntity<Admission> createAdmission(@Valid @RequestBody CreateAdmissionRequest request) {
-        Admission admission = Admission.builder()
-                .schoolId(request.getSchoolId())
-                .inquiryDocsId(request.getInquiryDocsId())
-                .studentName(request.getStudentName())
-                .dob(request.getDob())
-                .gender(request.getGender())
-                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
-                .status(request.getStatus())
-                .documents(request.getDocuments())
-                .admissionDate(request.getAdmissionDate())
-                .build();
-        return new ResponseEntity<>(admissionService.createAdmission(admission), HttpStatus.CREATED);
+        return new ResponseEntity<>(admissionService.createAdmission(request.toModel()), HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}")
@@ -80,17 +68,7 @@ public class AdmissionController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<Admission> updateAdmission(@PathVariable String id, @Valid @RequestBody UpdateAdmissionRequest request) {
-        Admission details = Admission.builder()
-                .status(request.getStatus())
-                .documents(request.getDocuments())
-                .admissionDate(request.getAdmissionDate())
-                .inquiryDocsId(request.getInquiryDocsId())
-                .studentName(request.getStudentName())
-                .dob(request.getDob())
-                .gender(request.getGender())
-                .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
-                .build();
-        return ResponseEntity.ok(admissionService.updateAdmission(id, details));
+        return ResponseEntity.ok(admissionService.updateAdmission(id, request.toModel()));
     }
 
     @PostMapping("/{id}/convert")

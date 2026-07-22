@@ -3,14 +3,15 @@ package com.orbitastra.backend.services.crm;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.dto.student.StudentResponse;
@@ -37,59 +38,50 @@ public class AdmissionService {
     private final StudentService studentService;
     private final GuardianService guardianService;
 
+    /**
+     * Creates both direct and inquiry-backed admissions. When an inquiry is used,
+     * this transaction covers the admission insert and inquiry status/reference
+     * update; any failure rolls both writes back.
+     */
+    @Transactional
     public Admission createAdmission(Admission admission) {
-        if (admission.getSchoolId() == null || admission.getSchoolId().isBlank()) {
-            throw new IllegalArgumentException("School ID is required for an admission.");
+        if (admission == null) {
+            throw new IllegalArgumentException("Admission details are required.");
         }
 
-        // Scenario A — via inquiry: carry the applicant snapshot over (as-is unless
-        // the admission already supplies its own), and advance the inquiry to ADMITTED.
-        Inquiry inquiryToAdvance = null;
-        if (admission.getInquiryDocsId() != null && !admission.getInquiryDocsId().isBlank()) {
-            if (admissionRepository.existsByInquiryDocsId(admission.getInquiryDocsId())) {
-                throw new IllegalArgumentException("An admission already exists for inquiry ID: " + admission.getInquiryDocsId());
+        String inquiryDocsId = normalizeOptionalId(admission.getInquiryDocsId());
+        admission.setInquiryDocsId(inquiryDocsId);
+        Inquiry sourceInquiry = null;
+
+        if (inquiryDocsId != null) {
+            // Resolve first so a stale/non-existent reference is always reported as 404.
+            sourceInquiry = inquiryService.getInquiryById(inquiryDocsId);
+            validateRequestedSchool(admission.getSchoolId(), sourceInquiry);
+            rejectDuplicateInquiry(inquiryDocsId);
+            AdmissionFactory.mergeInquirySnapshot(admission, sourceInquiry);
+        } else {
+            // Keep the sparse unique field absent for direct admissions.
+            admission.setInquiryDocsId(null);
+            validateDirectAdmission(admission);
+        }
+
+        AdmissionFactory.applyCreationDefaults(admission);
+
+        Admission saved;
+        try {
+            saved = admissionRepository.save(admission);
+        } catch (DuplicateKeyException ex) {
+            // The unique MongoDB index is the final guard against concurrent requests
+            // that both pass the pre-insert exists check.
+            if (inquiryDocsId != null) {
+                throw duplicateInquiryConflict(inquiryDocsId, ex);
             }
-            Inquiry inquiry = inquiryService.getInquiryById(admission.getInquiryDocsId());
-            if (!inquiry.getSchoolId().equals(admission.getSchoolId())) {
-                throw new IllegalArgumentException("Inquiry does not belong to the same school as the admission.");
-            }
-            if (admission.getStudentName() == null || admission.getStudentName().isBlank()) {
-                admission.setStudentName(inquiry.getStudentName());
-            }
-            if (admission.getGuardians() == null || admission.getGuardians().isEmpty()) {
-                admission.setGuardians(inquiry.getGuardians());
-            }
-            inquiryToAdvance = inquiry;
+            throw ex;
         }
 
-        // Validate required fields for direct and inquiry admissions
-        if (admission.getStudentName() == null || admission.getStudentName().isBlank()) {
-            throw new IllegalArgumentException("Student name is required for an admission.");
+        if (sourceInquiry != null) {
+            inquiryService.linkAdmission(sourceInquiry.getId(), saved.getId());
         }
-        if (admission.getGender() == null) {
-            admission.setGender(com.orbitastra.backend.models.student.enums.Gender.MALE);
-        }
-        if (admission.getGuardians() == null) {
-            admission.setGuardians(java.util.Collections.emptyList());
-        }
-        if (admission.getAdmissionDate() == null) {
-            admission.setAdmissionDate(java.time.LocalDate.now());
-        }
-        if (admission.getDocuments() == null) {
-            admission.setDocuments(java.util.Collections.emptyList());
-        }
-        if (admission.getStatus() == null) {
-            admission.setStatus(AdmissionStatus.PENDING);
-        }
-
-        admission.setCreatedAt(LocalDateTime.now());
-        admission.setUpdatedAt(LocalDateTime.now());
-        Admission saved = admissionRepository.save(admission);
-
-        if (inquiryToAdvance != null) {
-            inquiryService.advanceStatus(inquiryToAdvance.getId(), InquiryStatus.ADMITTED);
-        }
-
         return saved;
     }
 
@@ -116,12 +108,6 @@ public class AdmissionService {
         if (details.getStatus() != null) admission.setStatus(details.getStatus());
         if (details.getDocuments() != null) admission.setDocuments(details.getDocuments());
         if (details.getAdmissionDate() != null) admission.setAdmissionDate(details.getAdmissionDate());
-        if (details.getInquiryDocsId() != null && !details.getInquiryDocsId().isBlank()) {
-            if (!details.getInquiryDocsId().equals(admission.getInquiryDocsId()) && admissionRepository.existsByInquiryDocsId(details.getInquiryDocsId())) {
-                throw new IllegalArgumentException("An admission already exists for inquiry ID: " + details.getInquiryDocsId());
-            }
-            admission.setInquiryDocsId(details.getInquiryDocsId());
-        }
         if (details.getStudentName() != null) admission.setStudentName(details.getStudentName());
         if (details.getDob() != null) admission.setDob(details.getDob());
         if (details.getGender() != null) admission.setGender(details.getGender());
@@ -191,5 +177,40 @@ public class AdmissionService {
     public void deleteAdmission(String id) {
         Admission admission = getAdmissionById(id);
         admissionRepository.delete(admission);
+    }
+
+    private void validateRequestedSchool(String requestedSchoolId, Inquiry inquiry) {
+        if (inquiry.getSchoolId() == null || inquiry.getSchoolId().isBlank()) {
+            throw new IllegalArgumentException("The inquiry is not associated with a school.");
+        }
+        if (requestedSchoolId != null && !requestedSchoolId.isBlank()
+                && !inquiry.getSchoolId().equals(requestedSchoolId.trim())) {
+            throw new IllegalArgumentException("Inquiry does not belong to the requested school.");
+        }
+    }
+
+    private void validateDirectAdmission(Admission admission) {
+        if (admission.getSchoolId() == null || admission.getSchoolId().isBlank()) {
+            throw new IllegalArgumentException("schoolId is required when inquiryDocsId is not provided.");
+        }
+        admission.setSchoolId(admission.getSchoolId().trim());
+        if (admission.getStudentName() == null || admission.getStudentName().isBlank()) {
+            throw new IllegalArgumentException("studentName is required when inquiryDocsId is not provided.");
+        }
+    }
+
+    private void rejectDuplicateInquiry(String inquiryDocsId) {
+        if (admissionRepository.existsByInquiryDocsId(inquiryDocsId)) {
+            throw duplicateInquiryConflict(inquiryDocsId, null);
+        }
+    }
+
+    private ConflictException duplicateInquiryConflict(String inquiryDocsId, Throwable cause) {
+        String message = "An admission already exists for inquiryDocsId: " + inquiryDocsId;
+        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
+    }
+
+    private String normalizeOptionalId(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }
