@@ -696,6 +696,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <div>
                 <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5"><History size={15} /> Follow-up Timeline</h4>
                 <p className="text-[10px] text-slate-400 mt-0.5">{followUpModal.studentName || (followUpModal.guardians && followUpModal.guardians[0] && followUpModal.guardians[0].name) || 'Lead'}</p>
+                <p className="text-[9px] text-slate-500 mt-0.5">
+                  Inquiry MongoDB ID: <code className="font-mono font-semibold text-slate-600 select-all">{followUpModal.id}</code>
+                </p>
               </div>
               <button onClick={() => setFollowUpModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </header>
@@ -741,6 +744,11 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <option value="">— unassigned —</option>
                   {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId}</option>)}
                 </Select>
+                {followUpForm.counselorId && (
+                  <span className="text-[11px] text-slate-500">
+                    Staff MongoDB ID: <code className="font-mono font-semibold text-slate-700 select-all">{followUpForm.counselorId}</code>
+                  </span>
+                )}
               </Field>
               <Field label="Note">
                 <Input value={followUpForm.note} onChange={(e) => setFollowUpForm({ ...followUpForm, note: e.target.value })} placeholder="What happened on this touch-point?" />
