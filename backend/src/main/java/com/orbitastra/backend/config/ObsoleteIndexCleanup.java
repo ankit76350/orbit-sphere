@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,11 @@ public class ObsoleteIndexCleanup {
         // sectionNo rename. The old index is on the now-nonexistent 'sectionId' field (always
         // null), so it wrongly enforces uniqueness on (classDocId, academicYear, rollNo) alone.
         dropIfPresent(StudentAcademicRecord.class, "class_doc_section_year_roll_unique_idx");
+
+        // Superseded by the 'inquiryDocsId' index after the Admission.inquiryId -> inquiryDocsId
+        // rename. The old index was named after the field ('inquiryId'), which no longer exists.
+        // It is sparse so it indexes nothing now, but we drop it to keep things tidy.
+        dropIfPresent(Admission.class, "inquiryId");
     }
 
     private void dropIfPresent(Class<?> type, String indexName) {

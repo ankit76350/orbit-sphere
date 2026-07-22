@@ -12,6 +12,6 @@ import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 public interface AdmissionRepository extends MongoRepository<Admission, String> {
     List<Admission> findBySchoolId(String schoolId);
     List<Admission> findBySchoolIdAndStatus(String schoolId, AdmissionStatus status);
-    List<Admission> findByInquiryId(String inquiryId);
-    boolean existsByInquiryId(String inquiryId);
+    List<Admission> findByInquiryDocsId(String inquiryDocsId);
+    boolean existsByInquiryDocsId(String inquiryDocsId);
 }

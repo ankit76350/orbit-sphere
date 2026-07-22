@@ -117,7 +117,7 @@ class InquiryServiceTest {
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
         Admission existingAdmission = Admission.builder().id("admission-777").build();
-        when(admissionRepository.findByInquiryId(inquiryId)).thenReturn(java.util.List.of(existingAdmission));
+        when(admissionRepository.findByInquiryDocsId(inquiryId)).thenReturn(java.util.List.of(existingAdmission));
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.ADMITTED) // Remaining ADMITTED
@@ -143,7 +143,7 @@ class InquiryServiceTest {
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
         Admission mockAdmission = Admission.builder().id("admission-999").build();
-        when(admissionRepository.findByInquiryId(inquiryId)).thenReturn(java.util.Collections.emptyList());
+        when(admissionRepository.findByInquiryDocsId(inquiryId)).thenReturn(java.util.Collections.emptyList());
         when(admissionRepository.save(org.mockito.ArgumentMatchers.any(Admission.class))).thenReturn(mockAdmission);
 
         InquiryFollowUp entry = InquiryFollowUp.builder()

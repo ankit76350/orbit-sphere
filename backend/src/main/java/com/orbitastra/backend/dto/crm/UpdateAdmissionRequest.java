@@ -23,7 +23,7 @@ public class UpdateAdmissionRequest {
 
     private LocalDate admissionDate;
 
-    private String inquiryId;
+    private String inquiryDocsId;
 
     private String studentName;
 

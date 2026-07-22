@@ -12,7 +12,7 @@ import lombok.Data;
 
 /**
  * Client payload for raising an admission — either from an inquiry
- * ({@code inquiryId} set, snapshot copied over) or a direct/walk-in admission
+ * ({@code inquiryDocsId} set, snapshot copied over) or a direct/walk-in admission
  * (applicant fields supplied inline). {@code studentId} is set only on convert
  * and is never accepted here (prevents mass-assignment).
  */
@@ -22,7 +22,7 @@ public class CreateAdmissionRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    private String inquiryId;
+    private String inquiryDocsId;
 
     private String studentName;
 

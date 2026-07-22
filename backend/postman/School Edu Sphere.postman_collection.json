@@ -4222,7 +4222,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"inquiryId\": \"INQUIRY_ID_HERE\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
+									"raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"inquiryDocsId\": \"INQUIRY_ID_HERE\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
 								},
 								"url": {
 									"raw": "http://localhost:3456/api/admissions",

@@ -34,7 +34,7 @@ public class Admission {
     private String schoolId;
 
     @Indexed(unique = true, sparse = true)
-    private String inquiryId;
+    private String inquiryDocsId;
 
     // Applicant snapshot — copied from the linked inquiry, or filled directly for a
     // walk-in/direct admission. Materialised into the Student + Guardians on convert.

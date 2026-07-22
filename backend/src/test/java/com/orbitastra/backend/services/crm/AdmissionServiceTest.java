@@ -34,10 +34,10 @@ class AdmissionServiceTest {
 
         Admission admission = Admission.builder()
                 .schoolId(schoolId)
-                .inquiryId(inquiryId)
+                .inquiryDocsId(inquiryId)
                 .build();
 
-        when(admissionRepository.existsByInquiryId(inquiryId)).thenReturn(true);
+        when(admissionRepository.existsByInquiryDocsId(inquiryId)).thenReturn(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             admissionService.createAdmission(admission);
@@ -53,10 +53,10 @@ class AdmissionServiceTest {
 
         Admission admission = Admission.builder()
                 .schoolId(schoolId)
-                .inquiryId(inquiryId)
+                .inquiryDocsId(inquiryId)
                 .build();
 
-        when(admissionRepository.existsByInquiryId(inquiryId)).thenReturn(false);
+        when(admissionRepository.existsByInquiryDocsId(inquiryId)).thenReturn(false);
 
         Inquiry mockInquiry = Inquiry.builder().id(inquiryId).schoolId(schoolId).studentName("John Doe").build();
         when(inquiryService.getInquiryById(inquiryId)).thenReturn(mockInquiry);

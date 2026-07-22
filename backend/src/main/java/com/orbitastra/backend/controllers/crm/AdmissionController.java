@@ -37,7 +37,7 @@ public class AdmissionController {
     public ResponseEntity<Admission> createAdmission(@Valid @RequestBody CreateAdmissionRequest request) {
         Admission admission = Admission.builder()
                 .schoolId(request.getSchoolId())
-                .inquiryId(request.getInquiryId())
+                .inquiryDocsId(request.getInquiryDocsId())
                 .studentName(request.getStudentName())
                 .dob(request.getDob())
                 .gender(request.getGender())
@@ -84,7 +84,7 @@ public class AdmissionController {
                 .status(request.getStatus())
                 .documents(request.getDocuments())
                 .admissionDate(request.getAdmissionDate())
-                .inquiryId(request.getInquiryId())
+                .inquiryDocsId(request.getInquiryDocsId())
                 .studentName(request.getStudentName())
                 .dob(request.getDob())
                 .gender(request.getGender())

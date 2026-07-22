@@ -175,13 +175,13 @@ public class InquiryService {
 
     private void handleAdmittedStatus(Inquiry inquiry) {
         if (inquiry.getStatus() == InquiryStatus.ADMITTED) {
-            List<Admission> existingAdmissions = admissionRepository.findByInquiryId(inquiry.getId());
+            List<Admission> existingAdmissions = admissionRepository.findByInquiryDocsId(inquiry.getId());
             if (!existingAdmissions.isEmpty()) {
                 inquiry.setAdmissionDocsId(existingAdmissions.get(0).getId());
             } else {
                 Admission admission = Admission.builder()
                         .schoolId(inquiry.getSchoolId())
-                        .inquiryId(inquiry.getId())
+                        .inquiryDocsId(inquiry.getId())
                         .studentName(inquiry.getStudentName())
                         .gender(com.orbitastra.backend.models.student.enums.Gender.MALE)
                         .guardians(new ArrayList<>(inquiry.getGuardians()))
