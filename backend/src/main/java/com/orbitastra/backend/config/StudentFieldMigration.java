@@ -1,18 +1,12 @@
 package com.orbitastra.backend.config;
 
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
-import com.mongodb.client.result.UpdateResult;
 import com.orbitastra.backend.models.student.Student;
 
 import lombok.RequiredArgsConstructor;
@@ -32,10 +26,14 @@ public class StudentFieldMigration {
 
     @EventListener(ApplicationReadyEvent.class)
     public void migrateStudentFields() {
-        long walletCount = renameWhenTargetMissing("walletId", "walletDocsId");
-        long medicalRecordCount = renameWhenTargetMissing("medicalRecordId", "medicalRecordDocsId");
-        long documentsCount = initialiseMissingList("documents");
-        long medicalRemarkCount = initialiseMissingList("medicalRemark");
+        long walletCount = MongoFieldMigrationSupport.renameWhenTargetMissing(
+                mongoTemplate, Student.class, "walletId", "walletDocsId");
+        long medicalRecordCount = MongoFieldMigrationSupport.renameWhenTargetMissing(
+                mongoTemplate, Student.class, "medicalRecordId", "medicalRecordDocsId");
+        long documentsCount = MongoFieldMigrationSupport.initialiseMissingList(
+                mongoTemplate, Student.class, "documents");
+        long medicalRemarkCount = MongoFieldMigrationSupport.initialiseMissingList(
+                mongoTemplate, Student.class, "medicalRemark");
 
         long total = walletCount + medicalRecordCount + documentsCount + medicalRemarkCount;
         if (total > 0) {
@@ -44,19 +42,4 @@ public class StudentFieldMigration {
         }
     }
 
-    private long renameWhenTargetMissing(String legacyField, String currentField) {
-        Query query = Query.query(new Criteria().andOperator(
-                Criteria.where(legacyField).exists(true),
-                Criteria.where(currentField).exists(false)));
-        UpdateResult result = mongoTemplate.updateMulti(
-                query, new Update().rename(legacyField, currentField), Student.class);
-        return result.getModifiedCount();
-    }
-
-    private long initialiseMissingList(String field) {
-        Query query = Query.query(Criteria.where(field).is(null));
-        UpdateResult result = mongoTemplate.updateMulti(
-                query, new Update().set(field, List.of()), Student.class);
-        return result.getModifiedCount();
-    }
 }

@@ -12,5 +12,5 @@ import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 public interface InquiryRepository extends MongoRepository<Inquiry, String> {
     List<Inquiry> findBySchoolId(String schoolId);
     List<Inquiry> findBySchoolIdAndStatus(String schoolId, InquiryStatus status);
-    List<Inquiry> findByCounselorId(String counselorId);
+    List<Inquiry> findByCounselorDocsId(String counselorDocsId);
 }

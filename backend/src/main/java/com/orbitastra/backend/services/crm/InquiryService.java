@@ -38,7 +38,7 @@ public class InquiryService {
     private final AdmissionRepository admissionRepository;
 
     public Inquiry createInquiry(Inquiry inquiry) {
-        validateCounselor(inquiry.getCounselorId(), inquiry.getSchoolId());
+        validateCounselor(inquiry.getCounselorDocsId(), inquiry.getSchoolId());
 
         LocalDateTime now = LocalDateTime.now();
         if (inquiry.getFollowUps() == null) {
@@ -47,7 +47,7 @@ public class InquiryService {
         // Stamp any initial follow-up entries supplied on creation.
         for (InquiryFollowUp f : inquiry.getFollowUps()) {
             if (f.getStatus() == null) f.setStatus(InquiryStatus.INQUIRY);
-            if (f.getCounselorId() == null) f.setCounselorId(inquiry.getCounselorId());
+            if (f.getCounselorId() == null) f.setCounselorId(inquiry.getCounselorDocsId());
             validateCounselor(f.getCounselorId(), inquiry.getSchoolId());
             validateNextFollowUpDate(f.getNextFollowUp());
             if (f.getRecordedAt() == null) f.setRecordedAt(now);
@@ -56,7 +56,7 @@ public class InquiryService {
         if (!inquiry.getFollowUps().isEmpty()) {
             InquiryFollowUp last = inquiry.getFollowUps().get(inquiry.getFollowUps().size() - 1);
             inquiry.setStatus(last.getStatus());
-            if (last.getCounselorId() != null) inquiry.setCounselorId(last.getCounselorId());
+            if (last.getCounselorId() != null) inquiry.setCounselorDocsId(last.getCounselorId());
         } else if (inquiry.getStatus() == null) {
             inquiry.setStatus(InquiryStatus.INQUIRY);
         }
@@ -79,8 +79,8 @@ public class InquiryService {
         return inquiryRepository.findBySchoolIdAndStatus(schoolId, status);
     }
 
-    public List<Inquiry> getInquiriesByCounselor(String counselorId) {
-        return inquiryRepository.findByCounselorId(counselorId);
+    public List<Inquiry> getInquiriesByCounselor(String counselorDocsId) {
+        return inquiryRepository.findByCounselorDocsId(counselorDocsId);
     }
 
     /** Inquiries (still open) whose latest follow-up entry is due on or before the given date. */
@@ -98,9 +98,9 @@ public class InquiryService {
     public Inquiry updateInquiry(String id, Inquiry details) {
         Inquiry inquiry = getInquiryById(id);
 
-        if (details.getCounselorId() != null) {
-            validateCounselor(details.getCounselorId(), inquiry.getSchoolId());
-            inquiry.setCounselorId(details.getCounselorId());
+        if (details.getCounselorDocsId() != null) {
+            validateCounselor(details.getCounselorDocsId(), inquiry.getSchoolId());
+            inquiry.setCounselorDocsId(details.getCounselorDocsId());
         }
         if (details.getGuardians() != null) inquiry.setGuardians(details.getGuardians());
         if (details.getStudentName() != null) inquiry.setStudentName(details.getStudentName());
@@ -129,7 +129,7 @@ public class InquiryService {
             entry.setStatus(inquiry.getStatus());
         }
         if (entry.getCounselorId() == null) {
-            entry.setCounselorId(inquiry.getCounselorId());
+            entry.setCounselorId(inquiry.getCounselorDocsId());
         }
         validateCounselor(entry.getCounselorId(), inquiry.getSchoolId());
         validateNextFollowUpDate(entry.getNextFollowUp());
@@ -140,7 +140,7 @@ public class InquiryService {
         inquiry.getFollowUps().add(entry);
         inquiry.setStatus(entry.getStatus());
         if (entry.getCounselorId() != null) {
-            inquiry.setCounselorId(entry.getCounselorId());
+            inquiry.setCounselorDocsId(entry.getCounselorId());
         }
         handleAdmittedStatus(inquiry);
         inquiry.setUpdatedAt(LocalDateTime.now());
@@ -223,7 +223,7 @@ public class InquiryService {
         inquiry.getFollowUps().add(InquiryFollowUp.builder()
                 .status(target)
                 .note("Auto-advanced to " + target)
-                .counselorId(inquiry.getCounselorId())
+                .counselorId(inquiry.getCounselorDocsId())
                 .recordedAt(LocalDateTime.now())
                 .build());
         inquiry.setStatus(target);
@@ -241,15 +241,16 @@ public class InquiryService {
         return inquiry.getFollowUps().get(inquiry.getFollowUps().size() - 1).getNextFollowUp();
     }
 
-    private void validateCounselor(String counselorId, String schoolId) {
-        if (counselorId == null || counselorId.isBlank()) {
+    private void validateCounselor(String counselorDocsId, String schoolId) {
+        if (counselorDocsId == null || counselorDocsId.isBlank()) {
             return; // counselor is optional
         }
         if (schoolId == null || schoolId.isBlank()) {
             throw new IllegalArgumentException("School ID is required for an inquiry.");
         }
-        Staff counselor = staffRepository.findById(counselorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Counselor (staff) not found with id: " + counselorId));
+        Staff counselor = staffRepository.findById(counselorDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Counselor (staff) not found with id: " + counselorDocsId));
         if (!counselor.getSchoolId().equals(schoolId)) {
             throw new IllegalArgumentException("Counselor does not belong to the same school as the inquiry.");
         }

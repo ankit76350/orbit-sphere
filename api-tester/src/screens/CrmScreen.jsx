@@ -30,7 +30,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const emptyInquiry = {
     schoolId: schoolId || '', studentName: '', status: 'INQUIRY',
-    source: 'WALK_IN', counselorId: '',
+    source: 'WALK_IN', counselorDocsId: '',
     note: '', nextFollowUp: '', // seed the first follow-up entry
     guardians: [{ name: '', relation: 'MOTHER', phone: '', email: '', address: '', occupation: '' }],
   };
@@ -107,7 +107,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     const s = staff.find((x) => x.id === id);
     return s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId : '—';
   };
-  const selectedInquiryCounselor = staff.find((s) => s.id === inquiryForm.counselorId);
+  const selectedInquiryCounselor = staff.find((s) => s.id === inquiryForm.counselorDocsId);
   const stageCounts = useMemo(() => {
     const c = {};
     INQUIRY_STAGES.forEach((s) => (c[s] = 0));
@@ -125,13 +125,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setBusy(true);
     try {
       // Seed the follow-up timeline with the first entry.
-      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorId: inquiryForm.counselorId || null }];
+      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorId: inquiryForm.counselorDocsId || null }];
       await api.createInquiry({
         schoolId: inquiryForm.schoolId,
         status: inquiryForm.status || null,
         studentName: inquiryForm.studentName,
         source: inquiryForm.source,
-        counselorId: inquiryForm.counselorId || null,
+        counselorDocsId: inquiryForm.counselorDocsId || null,
         guardians,
         followUps,
       });
@@ -145,7 +145,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const openFollowUp = (inq) => {
     setFollowUpModal(inq);
-    setFollowUpForm({ status: inq.status || 'INQUIRY', note: '', nextFollowUp: '', counselorId: inq.counselorId || '' });
+    setFollowUpForm({ status: inq.status || 'INQUIRY', note: '', nextFollowUp: '', counselorId: inq.counselorDocsId || '' });
   };
 
   const submitFollowUp = async () => {
@@ -371,7 +371,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                               </>
                             ) : <span className="text-slate-300">—</span>; })()}
                           </td>
-                          <td className="px-4 py-3 text-slate-500">{inq.counselorId ? staffName(inq.counselorId) : '—'}</td>
+                          <td className="px-4 py-3 text-slate-500">{inq.counselorDocsId ? staffName(inq.counselorDocsId) : '—'}</td>
                           <td className="px-4 py-3">
                             <Badge color={inquiryColor(inq.status)}>{(inq.status || '').replace('_', ' ')}</Badge>
                             {latestFollowUp(inq)?.nextFollowUp && (
@@ -438,8 +438,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         {['WALK_IN', 'PHONE', 'ONLINE', 'REFERRAL', 'OTHER'].map((s) => <option key={s} value={s}>{s}</option>)}
                       </Select>
                     </Field>
-                    <Field label="Counselor" apiName="counselorId" required={false}>
-                      <Select value={inquiryForm.counselorId} onChange={(e) => setInquiryForm({ ...inquiryForm, counselorId: e.target.value })}>
+                    <Field label="Counselor" apiName="counselorDocsId" required={false}>
+                      <Select value={inquiryForm.counselorDocsId} onChange={(e) => setInquiryForm({ ...inquiryForm, counselorDocsId: e.target.value })}>
                         <option value="">— none —</option>
                         {staff.map((s) => {
                           const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();

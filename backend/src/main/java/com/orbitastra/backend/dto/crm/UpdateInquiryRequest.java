@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.crm;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import lombok.Data;
 
@@ -13,7 +14,8 @@ import lombok.Data;
 @Data
 public class UpdateInquiryRequest {
 
-    private String counselorId;
+    @JsonAlias("counselorId")
+    private String counselorDocsId;
 
     @Valid
     private List<InquiryGuardianRequest> guardians;

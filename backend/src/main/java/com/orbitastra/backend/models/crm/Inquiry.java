@@ -28,7 +28,7 @@ public class Inquiry extends BaseDocument {
 
     // not in admission
     private InquiryStatus status;
-    private String counselorId;
+    private String counselorDocsId;
     private String source;
     @Builder.Default
     private java.util.List<InquiryFollowUp> followUps = new java.util.ArrayList<>();

@@ -43,7 +43,7 @@ public class InquiryController {
                 .studentName(request.getStudentName())
                 .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
                 .source(request.getSource())
-                .counselorId(request.getCounselorId())
+                .counselorDocsId(request.getCounselorDocsId())
                 .status(request.getStatus())
                 .followUps(request.getFollowUps() == null ? null
                         : request.getFollowUps().stream().map(FollowUpRequest::toModel)
@@ -69,9 +69,9 @@ public class InquiryController {
         return ResponseEntity.ok(inquiryService.getInquiriesBySchoolAndStatus(schoolId, status));
     }
 
-    @GetMapping("/counselor/{counselorId}")
-    public ResponseEntity<List<Inquiry>> getInquiriesByCounselor(@PathVariable String counselorId) {
-        return ResponseEntity.ok(inquiryService.getInquiriesByCounselor(counselorId));
+    @GetMapping("/counselor/{counselorDocsId}")
+    public ResponseEntity<List<Inquiry>> getInquiriesByCounselor(@PathVariable String counselorDocsId) {
+        return ResponseEntity.ok(inquiryService.getInquiriesByCounselor(counselorDocsId));
     }
 
     @GetMapping("/school/{schoolId}/follow-ups")
@@ -84,7 +84,7 @@ public class InquiryController {
     @PatchMapping("/{id}")
     public ResponseEntity<Inquiry> updateInquiry(@PathVariable String id, @Valid @RequestBody UpdateInquiryRequest request) {
         Inquiry details = Inquiry.builder()
-                .counselorId(request.getCounselorId())
+                .counselorDocsId(request.getCounselorDocsId())
                 .guardians(InquiryGuardianRequest.toModels(request.getGuardians()))
                 .studentName(request.getStudentName())
                 .source(request.getSource())

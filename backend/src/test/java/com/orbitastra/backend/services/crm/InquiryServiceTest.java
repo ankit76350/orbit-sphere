@@ -17,6 +17,7 @@ import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.repositories.crm.InquiryRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
@@ -80,6 +81,33 @@ class InquiryServiceTest {
 
         Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
         assertEquals(InquiryStatus.COUNSELING, result.getStatus());
+    }
+
+    @Test
+    void recordFollowUp_withoutHandler_inheritsTopLevelCounselorDocsId() {
+        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .counselorDocsId("staff-456")
+                .status(InquiryStatus.INQUIRY)
+                .build();
+        Staff counselor = Staff.builder()
+                .id("staff-456")
+                .schoolId("school-123")
+                .build();
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.save(existing)).thenReturn(existing);
+        when(staffRepository.findById("staff-456")).thenReturn(Optional.of(counselor));
+
+        InquiryFollowUp entry = InquiryFollowUp.builder()
+                .status(InquiryStatus.COUNSELING)
+                .build();
+
+        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+
+        assertEquals("staff-456", entry.getCounselorId());
+        assertEquals("staff-456", result.getCounselorDocsId());
     }
 
     @Test
