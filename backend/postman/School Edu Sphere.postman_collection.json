@@ -1,11 +1,11 @@
 {
   "info": {
-    "_postman_id": "6f638d92-5647-441a-9e82-e6b5d815685f",
+    "_postman_id": "3d04ff84-31f6-4d6c-8c3a-98cc8d4a88eb",
     "name": "School Edu Sphere",
     "description": "Student API collection (Students, Parents, Academic Records).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "47336508",
-    "_collection_link": "https://go.postman.co/collection/47336508-6f638d92-5647-441a-9e82-e6b5d815685f?source=collection_link"
+    "_collection_link": "https://go.postman.co/collection/47336508-3d04ff84-31f6-4d6c-8c3a-98cc8d4a88eb?source=collection_link"
   },
   "item": [
     {
@@ -4211,66 +4211,6 @@
           "name": "Admissions",
           "item": [
             {
-              "name": "Create Admission (with inquiry id)",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"inquiryDocsId\": \"INQUIRY_ID_HERE\",\n  \"documents\": [\n    \"birth-certificate.pdf\",\n    \"report-card.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-06\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions"
-                  ]
-                },
-                "description": "Scenario A — via inquiry. Only inquiryId is sent; studentName/dob/gender/guardians are auto-copied from the linked inquiry, and that inquiry is advanced to ADMITTED. (Any of those fields you DO send here override the copy.)"
-              },
-              "response": []
-            },
-            {
-              "name": "Create Admission (Direct - without inquiery id)",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"studentName\": \"Direct Walk-in Kid\",\n  \"dob\": \"2016-02-01\",\n  \"gender\": \"FEMALE\",\n  \"guardians\": [\n    {\n      \"name\": \"Priya Sharma\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"priya@example.com\",\n      \"address\": \"9 Oak Ave\",\n      \"occupation\": \"Teacher\"\n    }\n  ],\n  \"status\": \"PENDING\",\n  \"documents\": [\n    \"birth-certificate.pdf\"\n  ],\n  \"admissionDate\": \"2026-07-16\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions"
-                  ]
-                },
-                "description": "Scenario B — direct / walk-in. No inquiryId; the applicant data (studentName, dob, gender, guardians) is entered directly. No inquiry is linked or advanced."
-              },
-              "response": []
-            },
-            {
               "name": "Get Admission By ID",
               "request": {
                 "method": "GET",
@@ -4439,6 +4379,55 @@
                     "ADMISSION_ID_HERE"
                   ]
                 }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Admission",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });",
+                      "pm.test(\"Direct admission is not linked to an inquiry\", function () { pm.expect(pm.response.json().inquiryDocsId).to.be.oneOf([null, undefined]); });"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// Uncomment/copy one test-case payload at a time before sending.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a complete direct admission without an inquiry\n// inquiryDocsId must remain null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC1 Complete Applicant\",\n//   \"dob\": \"2016-02-01\",\n//   \"gender\": \"FEMALE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Priya Sharma\",\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-666\",\n//       \"email\": \"priya.tc01@example.com\",\n//       \"address\": \"9 Oak Ave\",\n//       \"occupation\": \"Teacher\"\n//     }\n//   ],\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"report-card.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates an admission using only an existing inquiry MongoDB ID\n// School and applicant data are copied, and the inquiry becomes ADMITTED.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_ONLY_HERE\"\n// }\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission and overrides/adds admission details\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_OVERRIDE_HERE\",\n//   \"studentName\": \"TC3 Overridden Student Name\",\n//   \"dob\": \"2015-05-10\",\n//   \"gender\": \"MALE\",\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"address-proof.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC04\n// Status Code: 201 Created\n// Working: Merges an existing inquiry guardian and adds another guardian\n// Use an inquiry whose existing guardian is named Meera Nair.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_GUARDIAN_MERGE_HERE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Meera Nair\",\n//       \"relation\": \"MOTHER\",\n//       \"address\": \"12 Main Street\"\n//     },\n//     {\n//       \"name\": \"Raj Nair\",\n//       \"relation\": \"FATHER\",\n//       \"phone\": \"+61-400-333-444\",\n//       \"address\": \"12 Main Street\"\n//     }\n//   ]\n// }\n\n\n// TC05\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission with a matching school ID\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_MATCHING_SCHOOL_HERE\",\n//   \"documents\": [\"application-form.pdf\"]\n// }\n\n\n// TC06\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission using the legacy inquiryId alias\n// The response stores the value as inquiryDocsId.\n// {\n//   \"inquiryId\": \"INQUIRY_ID_LEGACY_ALIAS_HERE\"\n// }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects an empty request because direct-admission fields are missing\n// {}\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no schoolId\n// {\n//   \"studentName\": \"TC8 Missing School\"\n// }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank schoolId\n// {\n//   \"schoolId\": \"   \",\n//   \"studentName\": \"TC9 Blank School\"\n// }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\"\n// }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"   \"\n// }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Treats a blank inquiryDocsId as null, then rejects missing direct fields\n// {\n//   \"inquiryDocsId\": \"   \"\n// }\n\n\n// TC13\n// Status Code: 404 Not Found\n// Working: Rejects a non-existent inquiry MongoDB ID\n// {\n//   \"inquiryDocsId\": \"000000000000000000000000\"\n// }\n\n\n// TC14\n// Status Code: 400 Bad Request\n// Working: Rejects an inquiry whose school differs from the supplied schoolId\n// Replace both placeholders with real IDs belonging to different schools.\n// {\n//   \"schoolId\": \"DIFFERENT_SCHOOL_MONGODB_ID\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_FOR_SCHOOL_MISMATCH_HERE\"\n// }\n\n\n// TC15\n// Status Code: 409 Conflict\n// Working: Prevents a second admission for the same inquiry\n// Run TC2 successfully first, then send this payload with the same inquiry ID.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_ONLY_HERE\"\n// }\n\n\n// TC16\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid guardian email address\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC16 Invalid Email\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Invalid Email Parent\",\n//       \"email\": \"not-an-email\"\n//     }\n//   ]\n// }\n\n\n// TC17\n// Status Code: 400 Bad Request\n// Working: Rejects a guardian without a required name\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC17 Missing Guardian Name\",\n//   \"guardians\": [\n//     {\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-999\"\n//     }\n//   ]\n// }\n\n\n// TC18\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported gender enum value\n// Valid values: MALE, FEMALE, OTHER.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC18 Invalid Gender\",\n//   \"gender\": \"INVALID_GENDER\"\n// }\n\n\n// TC19\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported admission status enum value\n// Valid values: PENDING, APPROVED, REJECTED, CONFIRMED.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC19 Invalid Status\",\n//   \"status\": \"NOT_A_STATUS\"\n// }\n\n\n// TC20\n// Status Code: 400 Bad Request\n// Working: Rejects a DOB that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC20 Invalid DOB\",\n//   \"dob\": \"01-02-2016\"\n// }\n\n\n// TC21\n// Status Code: 400 Bad Request\n// Working: Rejects an admissionDate that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC21 Invalid Admission Date\",\n//   \"admissionDate\": \"22/07/2026\"\n// }\n\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions"
+                  ]
+                },
+                "description": "// Test case 2: Direct admission with every client-editable field. No inquiry must be read or updated."
               },
               "response": []
             }
