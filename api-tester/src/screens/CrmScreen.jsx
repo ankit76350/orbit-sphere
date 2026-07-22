@@ -335,7 +335,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
-                        <th className="px-4 py-3">Prospect</th>
+                        <th className="px-4 py-3 text-center">Count</th>
+                        <th className="px-4 py-3">Prospect / MongoDB ID</th>
                         <th className="px-4 py-3">Contact</th>
                         <th className="px-4 py-3">Counselor</th>
                         <th className="px-4 py-3">Stage</th>
@@ -343,10 +344,14 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {inquiries.map((inq) => (
+                      {inquiries.map((inq, index) => (
                         <tr key={inq.id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-4 py-3 text-center font-mono font-bold text-slate-500">{index + 1}</td>
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900">{inq.studentName || '—'}</div>
+                            <div className="text-[9px] text-slate-500 mt-0.5">
+                              MongoDB ID: <code className="font-mono font-semibold text-slate-600 select-all">{inq.id}</code>
+                            </div>
                             <div className="text-[10px] text-slate-400">
                               {inq.guardians && inq.guardians.length
                                 ? `${inq.guardians[0].name}${inq.guardians[0].relation ? ` (${inq.guardians[0].relation.replace('_', ' ')})` : ''}${inq.guardians.length > 1 ? ` +${inq.guardians.length - 1} more` : ''}`
@@ -478,7 +483,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
-                        <th className="px-4 py-3">Prospect (from inquiry)</th>
+                        <th className="px-4 py-3 text-center">Count</th>
+                        <th className="px-4 py-3">Prospect / MongoDB ID</th>
                         <th className="px-4 py-3">Docs</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3">Student</th>
@@ -486,13 +492,17 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {admissions.map((adm) => {
+                      {admissions.map((adm, index) => {
                         const inq = adm.inquiryDocsId ? inquiryById[adm.inquiryDocsId] : null;
                         const converted = adm.studentId && adm.studentId.length > 0;
                         return (
                           <tr key={adm.id} className="hover:bg-slate-50/50 transition">
+                            <td className="px-4 py-3 text-center font-mono font-bold text-slate-500">{index + 1}</td>
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900">{adm.studentName || inq?.studentName || '(unnamed applicant)'}</div>
+                              <div className="text-[9px] text-slate-500 mt-0.5">
+                                MongoDB ID: <code className="font-mono font-semibold text-slate-600 select-all">{adm.id}</code>
+                              </div>
                               <div className="text-[10px] text-slate-400">
                                 {adm.inquiryDocsId ? 'from inquiry' : 'direct'}
                                 {(adm.guardians && adm.guardians.length) ? ` · ${adm.guardians.length} guardian${adm.guardians.length === 1 ? '' : 's'}` : ''}
