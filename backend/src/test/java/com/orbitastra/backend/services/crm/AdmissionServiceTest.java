@@ -318,6 +318,7 @@ class AdmissionServiceTest {
                 .admissionNo("ADM-2026-0001")
                 .studentName("Applicant")
                 .status(AdmissionStatus.APPROVED)
+                .documents(List.of("birth-certificate.pdf"))
                 .guardians(List.of())
                 .build();
         Student studentPayload = Student.builder().build();
@@ -338,6 +339,7 @@ class AdmissionServiceTest {
                 "admission-789", studentPayload, null);
 
         assertEquals("ADM-2026-0001", studentPayload.getAdmissionNo());
+        assertEquals(List.of("birth-certificate.pdf"), studentPayload.getDocuments());
         assertEquals("ADM-2026-0001", converted.getAdmissionNo());
         assertEquals("student-456", admission.getStudentDocsId());
         assertEquals(AdmissionStatus.CONFIRMED, admission.getStatus());

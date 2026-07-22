@@ -3,6 +3,7 @@ package com.orbitastra.backend.dto.crm;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.GuardianLinkRequest;
 import com.orbitastra.backend.models.student.Student;
@@ -48,9 +49,15 @@ public class ConvertAdmissionRequest {
 
     private String photoUrl;
 
-    private String walletId;
+    @JsonAlias("walletId")
+    private String walletDocsId;
 
-    private String medicalRecordId;
+    @JsonAlias("medicalRecordId")
+    private String medicalRecordDocsId;
+
+    private List<String> documents;
+
+    private List<String> medicalRemark;
 
     private StudentStatus status;
 
@@ -71,8 +78,10 @@ public class ConvertAdmissionRequest {
                 .gender(gender)
                 .bloodGroup(bloodGroup)
                 .photoUrl(photoUrl)
-                .walletId(walletId)
-                .medicalRecordId(medicalRecordId)
+                .walletDocsId(walletDocsId)
+                .medicalRecordDocsId(medicalRecordDocsId)
+                .documents(documents)
+                .medicalRemark(medicalRemark)
                 .status(status != null ? status : StudentStatus.ACTIVE)
                 .admissionDate(admissionDate)
                 .guardians(GuardianLinkRequest.toModels(guardians))

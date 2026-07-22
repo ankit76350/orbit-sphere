@@ -111,6 +111,10 @@ public class StudentServiceTest {
         req.setName("Lucas Johnson");
         req.setAdmissionNo("ADM-2026-0003");
         req.setAcademicYear("2026-2027");
+        req.setWalletDocsId("wallet-doc-1");
+        req.setMedicalRecordDocsId("medical-doc-1");
+        req.setDocuments(List.of("birth-certificate.pdf"));
+        req.setMedicalRemark(List.of("Penicillin allergy"));
 
         StudentGuardianRequest gReq = StudentGuardianRequest.builder()
                 .name("Priya Sharma")
@@ -145,6 +149,10 @@ public class StudentServiceTest {
 
         assertNotNull(created);
         assertEquals("Lucas Johnson", created.getName());
+        assertEquals("wallet-doc-1", created.getWalletDocsId());
+        assertEquals("medical-doc-1", created.getMedicalRecordDocsId());
+        assertEquals(List.of("birth-certificate.pdf"), created.getDocuments());
+        assertEquals(List.of("Penicillin allergy"), created.getMedicalRemark());
         assertEquals(1, created.getGuardians().size());
         assertEquals("guardian-priya", created.getGuardians().get(0).getGuardianId());
         // Both request entries are forwarded as drafts; GuardianService collapses them.

@@ -108,8 +108,10 @@ public class StudentService {
                 .gender(request.getGender())
                 .bloodGroup(request.getBloodGroup())
                 .photoUrl(request.getPhotoUrl())
-                .walletId(request.getWalletId())
-                .medicalRecordId(request.getMedicalRecordId())
+                .walletDocsId(request.getWalletDocsId())
+                .medicalRecordDocsId(request.getMedicalRecordDocsId())
+                .documents(copyStrings(request.getDocuments()))
+                .medicalRemark(copyStrings(request.getMedicalRemark()))
                 .status(request.getStatus() != null ? request.getStatus() : StudentStatus.ACTIVE)
                 .admissionDate(request.getAdmissionDate())
                 .guardians(guardianLinks)
@@ -160,6 +162,8 @@ public class StudentService {
         }
 
         // 5d — save the student.
+        student.setDocuments(copyStrings(student.getDocuments()));
+        student.setMedicalRemark(copyStrings(student.getMedicalRemark()));
         student.setCreatedAt(LocalDateTime.now());
         student.setUpdatedAt(LocalDateTime.now());
         Student saved = studentRepository.save(student);
@@ -376,8 +380,10 @@ public class StudentService {
         if (details.getGender() != null) student.setGender(details.getGender());
         if (details.getBloodGroup() != null) student.setBloodGroup(details.getBloodGroup());
         if (details.getPhotoUrl() != null) student.setPhotoUrl(details.getPhotoUrl());
-        if (details.getWalletId() != null) student.setWalletId(details.getWalletId());
-        if (details.getMedicalRecordId() != null) student.setMedicalRecordId(details.getMedicalRecordId());
+        if (details.getWalletDocsId() != null) student.setWalletDocsId(details.getWalletDocsId());
+        if (details.getMedicalRecordDocsId() != null) student.setMedicalRecordDocsId(details.getMedicalRecordDocsId());
+        if (details.getDocuments() != null) student.setDocuments(copyStrings(details.getDocuments()));
+        if (details.getMedicalRemark() != null) student.setMedicalRemark(copyStrings(details.getMedicalRemark()));
         if (details.getStatus() != null) student.setStatus(details.getStatus());
         if (details.getAdmissionDate() != null) student.setAdmissionDate(details.getAdmissionDate());
 
@@ -431,6 +437,10 @@ public class StudentService {
             syncCurrentAcademicRecordPointer(saved);
         }
         return buildResponse(saved);
+    }
+
+    private List<String> copyStrings(List<String> values) {
+        return values == null ? new ArrayList<>() : new ArrayList<>(values);
     }
 
     // =======================================================================================

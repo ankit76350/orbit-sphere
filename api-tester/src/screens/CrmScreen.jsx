@@ -233,7 +233,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       dob: adm.dob || '',
       gender: adm.gender || 'MALE',
       bloodGroup: '',
-      photoUrl: '', walletId: '', medicalRecordId: '', status: 'ACTIVE', admissionDate: adm.admissionDate || '',
+      photoUrl: '', walletDocsId: '', medicalRecordDocsId: '',
+      documents: (adm.documents || []).join(', '), medicalRemark: '',
+      status: 'ACTIVE', admissionDate: adm.admissionDate || '',
       admissionId: adm.id, schoolId, academicYear: year || '',
       guardians: [],
       currentAcademicRecord: {
@@ -255,8 +257,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         gender: convertForm.gender || null,
         bloodGroup: convertForm.bloodGroup || null,
         photoUrl: convertForm.photoUrl || null,
-        walletId: convertForm.walletId || null,
-        medicalRecordId: convertForm.medicalRecordId || null,
+        walletDocsId: convertForm.walletDocsId || null,
+        medicalRecordDocsId: convertForm.medicalRecordDocsId || null,
+        documents: convertForm.documents.split(',').map((value) => value.trim()).filter(Boolean),
+        medicalRemark: convertForm.medicalRemark.split(',').map((value) => value.trim()).filter(Boolean),
         status: convertForm.status || null,
         admissionDate: convertForm.admissionDate || null,
         guardians: convertForm.guardians.map((guardian) => ({ ...guardian, guardianId: guardian.guardianId || null, relation: guardian.relation || null })),
@@ -639,11 +643,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 </Field>
                 <Field label="Blood Group" apiName="bloodGroup" required={false}><Input value={convertForm.bloodGroup} onChange={(e) => setConvertForm({ ...convertForm, bloodGroup: e.target.value })} /></Field>
                 <Field label="Photo URL" apiName="photoUrl" required={false}><Input value={convertForm.photoUrl} onChange={(e) => setConvertForm({ ...convertForm, photoUrl: e.target.value })} /></Field>
-                <Field label="Wallet ID" apiName="walletId" required={false}><Input value={convertForm.walletId} onChange={(e) => setConvertForm({ ...convertForm, walletId: e.target.value })} /></Field>
-                <Field label="Medical Record ID" apiName="medicalRecordId" required={false}><Input value={convertForm.medicalRecordId} onChange={(e) => setConvertForm({ ...convertForm, medicalRecordId: e.target.value })} /></Field>
+                <Field label="Wallet Document ID" apiName="walletDocsId" required={false}><Input value={convertForm.walletDocsId} onChange={(e) => setConvertForm({ ...convertForm, walletDocsId: e.target.value })} /></Field>
+                <Field label="Medical Record Document ID" apiName="medicalRecordDocsId" required={false}><Input value={convertForm.medicalRecordDocsId} onChange={(e) => setConvertForm({ ...convertForm, medicalRecordDocsId: e.target.value })} /></Field>
                 <Field label="Student Status" apiName="status" required={false}><Select value={convertForm.status} onChange={(e) => setConvertForm({ ...convertForm, status: e.target.value })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 <Field label="Admission Date" apiName="admissionDate" required={false}><Input type="date" value={convertForm.admissionDate} onChange={(e) => setConvertForm({ ...convertForm, admissionDate: e.target.value })} /></Field>
               </div>
+              <Field label="Documents" apiName="documents[]" required={false} hint="Copied from the admission; comma-separated."><Input value={convertForm.documents} onChange={(e) => setConvertForm({ ...convertForm, documents: e.target.value })} /></Field>
+              <Field label="Medical Remarks" apiName="medicalRemark[]" required={false} hint="Comma-separated remarks."><Input value={convertForm.medicalRemark} onChange={(e) => setConvertForm({ ...convertForm, medicalRemark: e.target.value })} /></Field>
               {(convert.guardians && convert.guardians.length > 0) ? (
                 <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
                   <div className="text-[11px] font-semibold text-slate-500 mb-1">{convert.guardians.length} guardian{convert.guardians.length === 1 ? '' : 's'} will be created &amp; linked:</div>

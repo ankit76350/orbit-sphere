@@ -21,7 +21,7 @@ const emptyStudentForm = (schoolId = '') => ({
   schoolId,
   name: '', admissionNo: '', dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-  walletId: '', medicalRecordId: '', status: '', admissionDate: '',
+  walletDocsId: '', medicalRecordDocsId: '', documents: '', medicalRemark: '', status: '', admissionDate: '',
   academicYear: '', classDocId: '', classId: '', sectionNo: '', rollNo: '',
   guardians: [], currentAcademicRecord: emptyAcademicRecord(),
 });
@@ -115,8 +115,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       gender: s.gender || '',
       bloodGroup: s.bloodGroup || '',
       photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
-      walletId: s.walletId || '',
-      medicalRecordId: s.medicalRecordId || '',
+      walletDocsId: s.walletDocsId || '',
+      medicalRecordDocsId: s.medicalRecordDocsId || '',
+      documents: (s.documents || []).join(', '),
+      medicalRemark: (s.medicalRemark || []).join(', '),
       status: s.status || '',
       admissionDate: s.admissionDate || '',
       currentAcademicRecord: s.currentAcademicRecord
@@ -147,8 +149,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         gender: nullable(studentForm.gender),
         bloodGroup: nullable(studentForm.bloodGroup),
         photoUrl: nullable(studentForm.photoUrl),
-        walletId: nullable(studentForm.walletId),
-        medicalRecordId: nullable(studentForm.medicalRecordId),
+        walletDocsId: nullable(studentForm.walletDocsId),
+        medicalRecordDocsId: nullable(studentForm.medicalRecordDocsId),
+        documents: studentForm.documents.split(',').map((value) => value.trim()).filter(Boolean),
+        medicalRemark: studentForm.medicalRemark.split(',').map((value) => value.trim()).filter(Boolean),
         status: nullable(studentForm.status),
         admissionDate: nullable(studentForm.admissionDate),
         currentAcademicRecord,
@@ -459,13 +463,20 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Wallet ID" apiName="walletId" required={false}>
-                      <Input value={studentForm.walletId} onChange={(e) => setStudentForm({ ...studentForm, walletId: e.target.value })} placeholder="Wallet document id" />
+                    <Field label="Wallet Document ID" apiName="walletDocsId" required={false}>
+                      <Input value={studentForm.walletDocsId} onChange={(e) => setStudentForm({ ...studentForm, walletDocsId: e.target.value })} placeholder="MongoDB wallet document id" />
                     </Field>
-                    <Field label="Medical Record ID" apiName="medicalRecordId" required={false}>
-                      <Input value={studentForm.medicalRecordId} onChange={(e) => setStudentForm({ ...studentForm, medicalRecordId: e.target.value })} placeholder="Medical document id" />
+                    <Field label="Medical Record Document ID" apiName="medicalRecordDocsId" required={false}>
+                      <Input value={studentForm.medicalRecordDocsId} onChange={(e) => setStudentForm({ ...studentForm, medicalRecordDocsId: e.target.value })} placeholder="MongoDB medical record document id" />
                     </Field>
                   </div>
+
+                  <Field label="Documents" apiName="documents[]" required={false} hint="Comma-separated document names or references.">
+                    <Input value={studentForm.documents} onChange={(e) => setStudentForm({ ...studentForm, documents: e.target.value })} placeholder="birth-certificate.pdf, report-card.pdf" />
+                  </Field>
+                  <Field label="Medical Remarks" apiName="medicalRemark[]" required={false} hint="Comma-separated remarks.">
+                    <Input value={studentForm.medicalRemark} onChange={(e) => setStudentForm({ ...studentForm, medicalRemark: e.target.value })} placeholder="Asthma, Penicillin allergy" />
+                  </Field>
 
                   {!editingStudent && (
                     <div className="space-y-3 border-t border-slate-100 pt-3">

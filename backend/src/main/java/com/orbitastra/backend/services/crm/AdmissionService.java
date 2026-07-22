@@ -196,6 +196,10 @@ public class AdmissionService {
         }
         if (studentPayload.getDob() == null) studentPayload.setDob(admission.getDob());
         if (studentPayload.getGender() == null) studentPayload.setGender(admission.getGender());
+        if ((studentPayload.getDocuments() == null || studentPayload.getDocuments().isEmpty())
+                && admission.getDocuments() != null && !admission.getDocuments().isEmpty()) {
+            studentPayload.setDocuments(new java.util.ArrayList<>(admission.getDocuments()));
+        }
 
         // Materialise the admission's prospective guardians into real (de-duplicated)
         // Guardian records and link them, preserving any links already on the payload.

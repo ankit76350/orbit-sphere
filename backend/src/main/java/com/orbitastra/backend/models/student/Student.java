@@ -1,6 +1,7 @@
 package com.orbitastra.backend.models.student;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -26,7 +27,6 @@ public class Student {
     @org.springframework.data.annotation.LastModifiedDate
     private java.time.LocalDateTime updatedAt;
 
-
     @Id
     private String id;
 
@@ -35,29 +35,32 @@ public class Student {
 
     @Indexed(unique = true)
     private String admissionNo;
+
     private String name;
-
     private LocalDate dob;
-
     private Gender gender;
-
-    private String bloodGroup;
-
-    private String medicalRecordId;
-
-
-    private String photoUrl; 
-
-    private String walletId;
 
     // Many-to-many family links: each entry references a Guardian plus this
     // student's relationship to them (role, primary, emergency, pickup, portal).
     @Builder.Default
-    private java.util.List<GuardianLink> guardians = new java.util.ArrayList<>();
+    private List<GuardianLink> guardians = new java.util.ArrayList<>();
+
+    @Builder.Default
+    private List<String> documents = new java.util.ArrayList<>();
+
+    private LocalDate admissionDate;
+
     @Builder.Default
     private StudentStatus status = StudentStatus.ACTIVE;
 
-    private LocalDate admissionDate;
+    private String photoUrl;
+    private String bloodGroup;
+    private String medicalRecordDocsId;
+
+    @Builder.Default
+    private List<String> medicalRemark = new java.util.ArrayList<>();
+
+    private String walletDocsId;
 
     // Denormalised pointer to this student's StudentAcademicRecord (in the
     // "student_academic_records" collection) for the current — i.e. most recent —
@@ -65,6 +68,4 @@ public class Student {
     // created, assigned or promoted, so the student's active enrolment is one lookup away.
     // The full record itself is exposed only on the API view (StudentResponse), not the entity.
     private String currentAcademicRecordId;
-
-
 }

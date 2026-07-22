@@ -116,8 +116,10 @@ public class StudentController {
                 .gender(request.getGender())
                 .bloodGroup(request.getBloodGroup())
                 .photoUrl(request.getPhotoUrl())
-                .walletId(request.getWalletId())
-                .medicalRecordId(request.getMedicalRecordId())
+                .walletDocsId(request.getWalletDocsId())
+                .medicalRecordDocsId(request.getMedicalRecordDocsId())
+                .documents(request.getDocuments())
+                .medicalRemark(request.getMedicalRemark())
                 .status(request.getStatus())
                 .admissionDate(request.getAdmissionDate())
                 .build();

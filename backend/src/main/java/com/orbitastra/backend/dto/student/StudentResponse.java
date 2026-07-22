@@ -35,9 +35,11 @@ public class StudentResponse {
     private Gender gender;
     private String bloodGroup;
     private String photoUrl;
-    private String walletId;
+    private String walletDocsId;
     private List<GuardianLink> guardians;
-    private String medicalRecordId;
+    private List<String> documents;
+    private String medicalRecordDocsId;
+    private List<String> medicalRemark;
     private StudentStatus status;
     private LocalDate admissionDate;
     /** The full current-year academic record (resolved, not persisted on the student). */
@@ -58,9 +60,11 @@ public class StudentResponse {
                 .gender(s.getGender())
                 .bloodGroup(s.getBloodGroup())
                 .photoUrl(s.getPhotoUrl())
-                .walletId(s.getWalletId())
+                .walletDocsId(s.getWalletDocsId())
                 .guardians(s.getGuardians())
-                .medicalRecordId(s.getMedicalRecordId())
+                .documents(s.getDocuments())
+                .medicalRecordDocsId(s.getMedicalRecordDocsId())
+                .medicalRemark(s.getMedicalRemark())
                 .status(s.getStatus())
                 .admissionDate(s.getAdmissionDate())
                 .currentAcademicRecord(currentRecord)

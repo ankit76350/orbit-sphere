@@ -1,7 +1,9 @@
 package com.orbitastra.backend.dto.student;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
@@ -29,9 +31,15 @@ public class UpdateStudentRequest {
 
     private String photoUrl;
 
-    private String walletId;
+    @JsonAlias("walletId")
+    private String walletDocsId;
 
-    private String medicalRecordId;
+    @JsonAlias("medicalRecordId")
+    private String medicalRecordDocsId;
+
+    private List<String> documents;
+
+    private List<String> medicalRemark;
 
     private StudentStatus status;
 
