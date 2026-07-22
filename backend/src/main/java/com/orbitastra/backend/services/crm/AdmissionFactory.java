@@ -76,7 +76,7 @@ final class AdmissionFactory {
     private static String generateAdmissionNo() {
         String suffix = UUID.randomUUID().toString()
                 .replace("-", "")
-                .substring(0, 12)
+                .substring(0, 16)
                 .toUpperCase(Locale.ROOT);
         return "ADM-" + LocalDate.now().getYear() + "-" + suffix;
     }
