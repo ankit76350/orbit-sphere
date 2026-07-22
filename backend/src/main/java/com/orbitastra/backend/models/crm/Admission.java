@@ -27,32 +27,27 @@ public class Admission {
     @org.springframework.data.annotation.LastModifiedDate
     private java.time.LocalDateTime updatedAt;
 
-
     @Id
     private String id;
 
     private String schoolId;
 
+    // from / same as inquiry
     @Indexed(unique = true, sparse = true)
     private String inquiryDocsId;
 
-    // Applicant snapshot — copied from the linked inquiry, or filled directly for a
-    // walk-in/direct admission. Materialised into the Student + Guardians on convert.
     private String studentName;
-
-    private LocalDate dob;
-
-    private Gender gender;
 
     @Builder.Default
     private List<InquiryGuardian> guardians = new java.util.ArrayList<>();
 
-    // Set only when the admission is converted into an enrolled student.
-    private String studentDocsId;
-
+    // not in inquiry
     private AdmissionStatus status;
-
+    private LocalDate admissionDate;
+    private LocalDate dob;
+    private Gender gender;
     private List<String> documents;
 
-    private LocalDate admissionDate;
+    //when become student
+    private String studentDocsId;
 }
