@@ -20,7 +20,7 @@ public class CreateSchoolClassRequest {
     @NotBlank(message = "name is required")
     private String name;
 
-    private String classTeacher;
+    private String classTeacherDocsId;
 
     private List<SchoolClass.ClassSubject> subjects;
 

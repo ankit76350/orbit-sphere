@@ -24,7 +24,7 @@ public class SchoolClass extends SchoolBase {
 
     private String name;
 
-    private String classTeacher; // here store techer docs id from the staff database
+    private String classTeacherDocsId;
 
     private List<ClassSubject> subjects;
 
@@ -38,6 +38,6 @@ public class SchoolClass extends SchoolBase {
     @AllArgsConstructor
     public static class ClassSubject {
         private String name;
-        private String teacher; // here store techer docs id from the staff database
+        private String teacherDocsId;
     }
 }

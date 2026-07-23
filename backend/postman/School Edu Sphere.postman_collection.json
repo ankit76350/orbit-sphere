@@ -934,7 +934,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacher\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacher\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacher\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacher\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYear\": \"2026-2027\"\n}"
+                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacherDocsId\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacherDocsId\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacherDocsId\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacherDocsId\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYear\": \"2026-2027\"\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/classes",
@@ -1050,7 +1050,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"classTeacher\": \"What smith\",\n     \"subjects\": [\n        {\n            \"name\": \"Mathematics\",\n            \"teacher\": \"Alice Smith\"\n        },\n        {\n            \"name\": \"Physics\",\n            \"teacher\": \"Bob Jones\"\n        }\n    ]\n}"
+                  "raw": "{\n  \"classTeacherDocsId\": \"TEACHER_STAFF_ID_HERE\",\n     \"subjects\": [\n        {\n            \"name\": \"Mathematics\",\n            \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\"\n        },\n        {\n            \"name\": \"Physics\",\n            \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\"\n        }\n    ]\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/classes/6a478a518a00ec3e112aa03b",

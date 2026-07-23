@@ -38,11 +38,11 @@ public class SchoolClassService {
             throw new ResourceNotFoundException("School not found with id: " + schoolClass.getSchoolId());
         }
 
-        validateTeacher(schoolClass.getClassTeacher(), schoolClass.getSchoolId());
+        validateTeacher(schoolClass.getClassTeacherDocsId(), schoolClass.getSchoolId());
 
         if (schoolClass.getSubjects() != null) {
             for (SchoolClass.ClassSubject sub : schoolClass.getSubjects()) {
-                validateTeacher(sub.getTeacher(), schoolClass.getSchoolId());
+                validateTeacher(sub.getTeacherDocsId(), schoolClass.getSchoolId());
             }
         }
 
@@ -103,14 +103,14 @@ public class SchoolClassService {
             schoolClass.setName(classDetails.getName());
         }
 
-        if (classDetails.getClassTeacher() != null) {
-            validateTeacher(classDetails.getClassTeacher(), schoolClass.getSchoolId());
-            schoolClass.setClassTeacher(classDetails.getClassTeacher());
+        if (classDetails.getClassTeacherDocsId() != null) {
+            validateTeacher(classDetails.getClassTeacherDocsId(), schoolClass.getSchoolId());
+            schoolClass.setClassTeacherDocsId(classDetails.getClassTeacherDocsId());
         }
 
         if (classDetails.getSubjects() != null) {
             for (SchoolClass.ClassSubject sub : classDetails.getSubjects()) {
-                validateTeacher(sub.getTeacher(), schoolClass.getSchoolId());
+                validateTeacher(sub.getTeacherDocsId(), schoolClass.getSchoolId());
             }
             schoolClass.setSubjects(classDetails.getSubjects());
         }
@@ -130,7 +130,7 @@ public class SchoolClassService {
     public SchoolClass addSubject(String classId, SchoolClass.ClassSubject subject) {
         SchoolClass schoolClass = getClassById(classId);
 
-        validateTeacher(subject.getTeacher(), schoolClass.getSchoolId());
+        validateTeacher(subject.getTeacherDocsId(), schoolClass.getSchoolId());
 
         if (schoolClass.getSubjects() == null) {
             schoolClass.setSubjects(new java.util.ArrayList<>());

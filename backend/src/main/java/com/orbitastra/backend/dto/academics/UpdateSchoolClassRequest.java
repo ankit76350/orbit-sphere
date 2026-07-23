@@ -18,7 +18,7 @@ public class UpdateSchoolClassRequest {
 
     private String name;
 
-    private String classTeacher;
+    private String classTeacherDocsId;
 
     private List<SchoolClass.ClassSubject> subjects;
 

@@ -3,7 +3,7 @@ import { BookOpen, Plus, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Empty, Badge, useToast } from '../components/ui.jsx';
 
-const emptyForm = { schoolId: '', academicYear: '', name: '', classTeacher: '', sections: 'A, B', subjects: [] };
+const emptyForm = { schoolId: '', academicYear: '', name: '', classTeacherDocsId: '', sections: 'A, B', subjects: [] };
 
 export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
@@ -27,10 +27,10 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
       await api.createClass({
         schoolId: form.schoolId,
         name: form.name.trim(),
-        classTeacher: form.classTeacher || null,
+        classTeacherDocsId: form.classTeacherDocsId || null,
         subjects: form.subjects.map((subject) => ({
           name: subject.name || null,
-          teacher: subject.teacher || null,
+          teacherDocsId: subject.teacherDocsId || null,
         })),
         academicYear: form.academicYear || null,
         sections,
@@ -63,8 +63,8 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
           <Field label="Class name" apiName="name" required hint="Unique within this academic year.">
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Class 5" />
           </Field>
-          <Field label="Class teacher" apiName="classTeacher" required={false}>
-            <Select value={form.classTeacher} onChange={(e) => setForm({ ...form, classTeacher: e.target.value })}>
+          <Field label="Class teacher" apiName="classTeacherDocsId" required={false}>
+            <Select value={form.classTeacherDocsId} onChange={(e) => setForm({ ...form, classTeacherDocsId: e.target.value })}>
               <option value="">— none —</option>
               {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
             </Select>
@@ -75,12 +75,12 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-600">Subjects <code className="font-mono text-[10px] font-medium text-slate-400">subjects[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
-              <button type="button" onClick={() => setForm({ ...form, subjects: [...form.subjects, { name: '', teacher: '' }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+              <button type="button" onClick={() => setForm({ ...form, subjects: [...form.subjects, { name: '', teacherDocsId: '' }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
             </div>
             {form.subjects.map((subject, index) => (
               <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
                 <Input value={subject.name} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} placeholder="name" />
-                <Select value={subject.teacher} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, teacher: e.target.value } : item) })}>
+                <Select value={subject.teacherDocsId} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, teacherDocsId: e.target.value } : item) })}>
                   <option value="">teacher (optional)</option>
                   {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
                 </Select>

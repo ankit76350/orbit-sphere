@@ -626,41 +626,41 @@ export const mockClasses = [
   {
     id: "class-6a",
     name: "Grade 6-A Bluebirds",
-    classTeacher: "Prof. Arthur Pendelton",
+    classTeacherDocsId: "staff-teacher-1",
     subjects: [
-      { name: "Mathematics", teacher: "Prof. Liam Johnson" },
-      { name: "English Literature", teacher: "Prof. Olivia Williams" },
-      { name: "Computer Science", teacher: "Prof. Chloe Smith" }
+      { name: "Mathematics", teacherDocsId: "staff-teacher-2" },
+      { name: "English Literature", teacherDocsId: "staff-teacher-3" },
+      { name: "Computer Science", teacherDocsId: "staff-teacher-4" }
     ]
   },
   {
     id: "class-7a",
     name: "Grade 7-A Pioneers",
-    classTeacher: "Prof. Liam Johnson",
+    classTeacherDocsId: "staff-teacher-2",
     subjects: [
-      { name: "Mathematics", teacher: "Prof. Liam Johnson" },
-      { name: "Classical Physics", teacher: "Prof. Sebastian Brown" },
-      { name: "Art & Design", teacher: "Prof. Harper Sharma" }
+      { name: "Mathematics", teacherDocsId: "staff-teacher-2" },
+      { name: "Classical Physics", teacherDocsId: "staff-teacher-5" },
+      { name: "Art & Design", teacherDocsId: "staff-teacher-6" }
     ]
   },
   {
     id: "class-8a",
     name: "Grade 8-A Olympians",
-    classTeacher: "Prof. Olivia Williams",
+    classTeacherDocsId: "staff-teacher-3",
     subjects: [
-      { name: "World History", teacher: "Prof. Rohan Sen" },
-      { name: "Mathematics", teacher: "Prof. Liam Johnson" },
-      { name: "Advanced Biology", teacher: "Prof. Mia Patel" }
+      { name: "World History", teacherDocsId: "staff-teacher-7" },
+      { name: "Mathematics", teacherDocsId: "staff-teacher-2" },
+      { name: "Advanced Biology", teacherDocsId: "staff-teacher-8" }
     ]
   },
   {
     id: "class-12s",
     name: "Grade 12-Science Elite",
-    classTeacher: "Prof. Sebastian Brown",
+    classTeacherDocsId: "staff-teacher-5",
     subjects: [
-      { name: "Classical Physics", teacher: "Prof. Sebastian Brown" },
-      { name: "Inorganic Chemistry", teacher: "Prof. Diya Verma" },
-      { name: "Advanced Biology", teacher: "Prof. Mia Patel" }
+      { name: "Classical Physics", teacherDocsId: "staff-teacher-5" },
+      { name: "Inorganic Chemistry", teacherDocsId: "staff-teacher-9" },
+      { name: "Advanced Biology", teacherDocsId: "staff-teacher-8" }
     ]
   }
 ];
@@ -1057,9 +1057,6 @@ export const initialGalleryMedia = [
   { id: "med-2", albumId: "alb-sports", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211" },
   { id: "med-3", albumId: "alb-science", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf" }
 ];
-
-
-
 
 
 
