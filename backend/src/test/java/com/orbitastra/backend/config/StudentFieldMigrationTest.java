@@ -45,7 +45,7 @@ class StudentFieldMigrationTest {
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate, times(4)).updateMulti(
+        verify(mongoTemplate, times(5)).updateMulti(
                 queryCaptor.capture(), updateCaptor.capture(), eq(Student.class));
 
         List<Query> queries = queryCaptor.getAllValues();
@@ -61,14 +61,21 @@ class StudentFieldMigrationTest {
         assertEquals(Document.parse("{\"$rename\":{\"medicalRecordId\":\"medicalRecordDocsId\"}}"),
                 updates.get(1).getUpdateObject());
 
-        assertEquals(new Document("documents", null),
+        assertEquals(Document.parse("{\"$and\":[{\"currentAcademicRecordId\":{\"$exists\":true}},"
+                        + "{\"currentAcademicRecordDocsId\":{\"$exists\":false}}]}"),
                 queries.get(2).getQueryObject());
-        assertEquals(new Document("$set", new Document("documents", List.of())),
+        assertEquals(Document.parse(
+                        "{\"$rename\":{\"currentAcademicRecordId\":\"currentAcademicRecordDocsId\"}}"),
                 updates.get(2).getUpdateObject());
 
-        assertEquals(new Document("medicalRemark", null),
+        assertEquals(new Document("documents", null),
                 queries.get(3).getQueryObject());
-        assertEquals(new Document("$set", new Document("medicalRemark", List.of())),
+        assertEquals(new Document("$set", new Document("documents", List.of())),
                 updates.get(3).getUpdateObject());
+
+        assertEquals(new Document("medicalRemark", null),
+                queries.get(4).getQueryObject());
+        assertEquals(new Document("$set", new Document("medicalRemark", List.of())),
+                updates.get(4).getUpdateObject());
     }
 }

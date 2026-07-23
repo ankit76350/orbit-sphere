@@ -19,6 +19,9 @@ public enum InquiryStatus {
     /** An admission (application) has been created for this lead. Set automatically when the admission is made. */
     ADMITTED,
 
+    /** The linked admission was converted into an enrolled Student. Set automatically. */
+    CONFIRMED,
+
     /** Dropped — the lead will not proceed (not interested / chose elsewhere). Terminal. */
     LOST
 }

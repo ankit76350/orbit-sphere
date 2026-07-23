@@ -1,16 +1,20 @@
 package com.orbitastra.backend.services.crm;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
+import com.orbitastra.backend.models.crm.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
@@ -157,18 +161,35 @@ public class AdmissionService {
      * An admission can only be converted once.
      */
     @Transactional
-    public StudentResponse convertToStudent(String admissionId, Student studentPayload,
-                                            StudentAcademicRecord initialRecord) {
-        Admission admission = getAdmissionById(admissionId);
+    public StudentResponse convertToStudent(String admissionDocsId, ConvertAdmissionRequest request) {
+        ConvertAdmissionRequest effectiveRequest = request == null
+                ? new ConvertAdmissionRequest()
+                : request;
+        return convertToStudent(
+                admissionDocsId,
+                effectiveRequest.toStudent(),
+                effectiveRequest.toAcademicRecord(),
+                effectiveRequest.getGuardians());
+    }
+
+    private StudentResponse convertToStudent(String admissionDocsId, Student studentPayload,
+                                             StudentAcademicRecord initialRecord,
+                                             List<StudentGuardianRequest> guardianRequests) {
+        Admission admission = getAdmissionById(admissionDocsId);
         if (admission.getStudentDocsId() != null && !admission.getStudentDocsId().isBlank()) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "This admission has already been converted to student " + admission.getStudentDocsId() + ".");
         }
+        if (admission.getStatus() == AdmissionStatus.REJECTED) {
+            throw new IllegalArgumentException("A rejected admission cannot be converted to a student.");
+        }
+        if (studentPayload == null) {
+            studentPayload = Student.builder().build();
+        }
 
-        // Force the new student into the admission's school. No academic year is set here —
-        // it is assigned separately after enrolment via POST /api/students/{id}/academic-records
-        // (an admission carries no year). Any academic record explicitly supplied on the convert
-        // request (initialRecord) is passed through and honoured by StudentService.
+        // Force the new student into the admission's school. The admission itself
+        // carries no academic year, but an academic record explicitly supplied on
+        // this conversion request is created by StudentService.
         studentPayload.setSchoolId(admission.getSchoolId());
         // Server-owned back-reference: callers cannot point a student at an arbitrary admission.
         studentPayload.setAdmissionDocsId(admission.getId());
@@ -198,21 +219,16 @@ public class AdmissionService {
         }
         if (studentPayload.getDob() == null) studentPayload.setDob(admission.getDob());
         if (studentPayload.getGender() == null) studentPayload.setGender(admission.getGender());
-        if ((studentPayload.getDocuments() == null || studentPayload.getDocuments().isEmpty())
+        if (studentPayload.getDocuments() == null
                 && admission.getDocuments() != null && !admission.getDocuments().isEmpty()) {
-            studentPayload.setDocuments(new java.util.ArrayList<>(admission.getDocuments()));
+            studentPayload.setDocuments(new ArrayList<>(admission.getDocuments()));
         }
 
         // Materialise the admission's prospective guardians into real (de-duplicated)
         // Guardian records and link them, preserving any links already on the payload.
         // Dedup + link-building is shared with direct student creation (GuardianService).
-        List<GuardianService.GuardianDraft> drafts = admission.getGuardians() == null
-                ? null
-                : admission.getGuardians().stream()
-                        .map(pg -> GuardianService.GuardianDraft.ofPerson(
-                                pg.getName(), pg.getPhone(), pg.getEmail(),
-                                pg.getAddress(), pg.getOccupation(), pg.getRelation()))
-                        .toList();
+        List<GuardianService.GuardianDraft> drafts =
+                buildConversionGuardianDrafts(admission.getGuardians(), guardianRequests);
         studentPayload.setGuardians(
                 guardianService.buildDedupedLinks(admission.getSchoolId(),
                         studentPayload.getGuardians(), drafts));
@@ -223,8 +239,97 @@ public class AdmissionService {
         admission.setStatus(AdmissionStatus.CONFIRMED);
         admission.setUpdatedAt(LocalDateTime.now());
         admissionRepository.save(admission);
+        if (admission.getInquiryDocsId() != null && !admission.getInquiryDocsId().isBlank()) {
+            inquiryService.confirmEnrollment(admission.getInquiryDocsId(), admission.getId());
+        }
 
         return studentService.buildResponse(saved);
+    }
+
+    private List<GuardianService.GuardianDraft> buildConversionGuardianDrafts(
+            List<InquiryGuardian> admissionGuardians,
+            List<StudentGuardianRequest> guardianRequests) {
+        List<StudentGuardianRequest> requests = guardianRequests == null
+                ? List.of()
+                : guardianRequests.stream().filter(java.util.Objects::nonNull).toList();
+        List<GuardianService.GuardianDraft> drafts = new ArrayList<>();
+
+        // Existing Guardian document references go first so their relationship
+        // flags win if the admission snapshot describes the same person.
+        for (StudentGuardianRequest request : requests) {
+            String guardianDocsId = normalizeOptionalId(request.getGuardianDocsId());
+            if (guardianDocsId != null) {
+                drafts.add(new GuardianService.GuardianDraft(
+                        guardianDocsId,
+                        request.getName(), request.getPhone(), request.getEmail(),
+                        request.getAddress(), request.getOccupation(), request.getRelation(),
+                        request.getPrimary(), request.getEmergencyContact(),
+                        request.getPickupApproved(), request.getPortalAccess()));
+            }
+        }
+
+        List<StudentGuardianRequest> detailRequests = requests.stream()
+                .filter(request -> normalizeOptionalId(request.getGuardianDocsId()) == null)
+                .toList();
+        boolean[] matchedRequests = new boolean[detailRequests.size()];
+
+        if (admissionGuardians != null) {
+            for (InquiryGuardian admissionGuardian : admissionGuardians) {
+                if (admissionGuardian == null) continue;
+                int requestIndex = findMatchingGuardianRequest(
+                        admissionGuardian, detailRequests, matchedRequests);
+                StudentGuardianRequest override = requestIndex >= 0
+                        ? detailRequests.get(requestIndex)
+                        : null;
+                if (requestIndex >= 0) matchedRequests[requestIndex] = true;
+                drafts.add(toGuardianDraft(admissionGuardian, override));
+            }
+        }
+
+        for (int i = 0; i < detailRequests.size(); i++) {
+            if (!matchedRequests[i]) {
+                drafts.add(toGuardianDraft(null, detailRequests.get(i)));
+            }
+        }
+        return drafts;
+    }
+
+    private int findMatchingGuardianRequest(InquiryGuardian admissionGuardian,
+                                            List<StudentGuardianRequest> requests,
+                                            boolean[] matchedRequests) {
+        for (int i = 0; i < requests.size(); i++) {
+            if (matchedRequests[i]) continue;
+            StudentGuardianRequest request = requests.get(i);
+            if (sameNonBlank(admissionGuardian.getEmail(), request.getEmail())
+                    || sameNonBlank(admissionGuardian.getPhone(), request.getPhone())
+                    || sameNonBlank(admissionGuardian.getName(), request.getName())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private GuardianService.GuardianDraft toGuardianDraft(
+            InquiryGuardian base, StudentGuardianRequest override) {
+        return new GuardianService.GuardianDraft(
+                null,
+                preferNonBlank(override == null ? null : override.getName(),
+                        base == null ? null : base.getName()),
+                preferNonBlank(override == null ? null : override.getPhone(),
+                        base == null ? null : base.getPhone()),
+                preferNonBlank(override == null ? null : override.getEmail(),
+                        base == null ? null : base.getEmail()),
+                preferNonBlank(override == null ? null : override.getAddress(),
+                        base == null ? null : base.getAddress()),
+                preferNonBlank(override == null ? null : override.getOccupation(),
+                        base == null ? null : base.getOccupation()),
+                override != null && override.getRelation() != null
+                        ? override.getRelation()
+                        : base == null ? null : base.getRelation(),
+                override == null ? null : override.getPrimary(),
+                override == null ? null : override.getEmergencyContact(),
+                override == null ? null : override.getPickupApproved(),
+                override == null ? null : override.getPortalAccess());
     }
 
     public void deleteAdmission(String id) {
@@ -276,6 +381,16 @@ public class AdmissionService {
 
     private String normalizeOptionalId(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String preferNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.isBlank() ? fallback : preferred;
+    }
+
+    private boolean sameNonBlank(String left, String right) {
+        return left != null && !left.isBlank()
+                && right != null && !right.isBlank()
+                && left.trim().equalsIgnoreCase(right.trim());
     }
 
     private boolean duplicateKeyReferences(DuplicateKeyException ex, String fieldName) {

@@ -3,7 +3,6 @@ package com.orbitastra.backend.dto.student;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
@@ -18,7 +17,6 @@ import lombok.Data;
 @Data
 public class GuardianLinkRequest {
 
-    @JsonAlias("guardianId")
     @NotBlank(message = "guardianDocsId is required")
     private String guardianDocsId;
 

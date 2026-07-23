@@ -86,7 +86,9 @@ public class InquiryService {
     /** Inquiries (still open) whose latest follow-up entry is due on or before the given date. */
     public List<Inquiry> getFollowUpsDue(String schoolId, LocalDate asOf) {
         return inquiryRepository.findBySchoolId(schoolId).stream()
-                .filter(i -> i.getStatus() != InquiryStatus.LOST && i.getStatus() != InquiryStatus.ADMITTED)
+                .filter(i -> i.getStatus() != InquiryStatus.LOST
+                        && i.getStatus() != InquiryStatus.ADMITTED
+                        && i.getStatus() != InquiryStatus.CONFIRMED)
                 .filter(i -> {
                     LocalDate due = latestNextFollowUp(i);
                     return due != null && !due.isAfter(asOf);
@@ -125,6 +127,11 @@ public class InquiryService {
         if (inquiry.getStatus() == InquiryStatus.ADMITTED && entry.getStatus() != null && entry.getStatus() != InquiryStatus.ADMITTED) {
             throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
         }
+        if (inquiry.getStatus() == InquiryStatus.CONFIRMED
+                && entry.getStatus() != null
+                && entry.getStatus() != InquiryStatus.CONFIRMED) {
+            throw new IllegalArgumentException("Cannot change status of an inquiry that is already CONFIRMED.");
+        }
         if (entry.getStatus() == null) {
             entry.setStatus(inquiry.getStatus());
         }
@@ -159,6 +166,9 @@ public class InquiryService {
         if (current == InquiryStatus.ADMITTED && target != InquiryStatus.ADMITTED) {
             throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
         }
+        if (current == InquiryStatus.CONFIRMED && target != InquiryStatus.CONFIRMED) {
+            throw new IllegalArgumentException("Cannot change status of an inquiry that is already CONFIRMED.");
+        }
         if (current == null || target.ordinal() > current.ordinal()) {
             applyAutomaticStatusChange(inquiry, target);
             handleAdmittedStatus(inquiry);
@@ -190,6 +200,42 @@ public class InquiryService {
             applyAutomaticStatusChange(inquiry, InquiryStatus.ADMITTED);
         }
         inquiry.setAdmissionDocsId(admissionId);
+        inquiry.setUpdatedAt(LocalDateTime.now());
+        return inquiryRepository.save(inquiry);
+    }
+
+    /**
+     * Marks the inquiry funnel complete after its linked admission is converted
+     * into a Student. AdmissionService calls this inside the same MongoDB
+     * transaction as the student and admission writes.
+     */
+    @Transactional
+    public Inquiry confirmEnrollment(String inquiryId, String admissionDocsId) {
+        if (admissionDocsId == null || admissionDocsId.isBlank()) {
+            throw new IllegalArgumentException("Admission ID is required when confirming enrollment.");
+        }
+        Inquiry inquiry = getInquiryById(inquiryId);
+        if (inquiry.getAdmissionDocsId() != null && !inquiry.getAdmissionDocsId().isBlank()
+                && !inquiry.getAdmissionDocsId().equals(admissionDocsId)) {
+            throw new ConflictException("Inquiry " + inquiryId
+                    + " is already linked to admission " + inquiry.getAdmissionDocsId() + ".");
+        }
+        if (inquiry.getStatus() == InquiryStatus.LOST) {
+            throw new IllegalArgumentException("A lost inquiry cannot be confirmed as enrolled.");
+        }
+        if (inquiry.getStatus() != InquiryStatus.CONFIRMED) {
+            if (inquiry.getFollowUps() == null) {
+                inquiry.setFollowUps(new ArrayList<>());
+            }
+            inquiry.getFollowUps().add(InquiryFollowUp.builder()
+                    .status(InquiryStatus.CONFIRMED)
+                    .note("Enrollment confirmed from admission " + admissionDocsId)
+                    .counselorId(inquiry.getCounselorDocsId())
+                    .recordedAt(LocalDateTime.now())
+                    .build());
+            inquiry.setStatus(InquiryStatus.CONFIRMED);
+        }
+        inquiry.setAdmissionDocsId(admissionDocsId);
         inquiry.setUpdatedAt(LocalDateTime.now());
         return inquiryRepository.save(inquiry);
     }

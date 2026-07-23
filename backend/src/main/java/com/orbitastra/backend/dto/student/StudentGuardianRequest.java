@@ -1,8 +1,10 @@
 package com.orbitastra.backend.dto.student;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Email;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +23,6 @@ import lombok.NoArgsConstructor;
 public class StudentGuardianRequest {
 
     // Reference an existing Guardian by ID (optional if full details below are provided)
-    @JsonAlias("guardianId")
     private String guardianDocsId;
 
     // Person attributes (used for find-or-create deduplication if guardianDocsId is absent)
@@ -31,6 +32,7 @@ public class StudentGuardianRequest {
 
     private String phone;
 
+    @Email(message = "email must be a valid address")
     private String email;
 
     private String address;
@@ -45,4 +47,11 @@ public class StudentGuardianRequest {
     private Boolean pickupApproved;
 
     private Boolean portalAccess;
+
+    @JsonIgnore
+    @AssertTrue(message = "guardianDocsId or guardian name is required")
+    public boolean isReferenceOrDetailsProvided() {
+        return (guardianDocsId != null && !guardianDocsId.isBlank())
+                || (name != null && !name.isBlank());
+    }
 }

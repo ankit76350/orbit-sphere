@@ -30,15 +30,20 @@ public class StudentFieldMigration {
                 mongoTemplate, Student.class, "walletId", "walletDocsId");
         long medicalRecordCount = MongoFieldMigrationSupport.renameWhenTargetMissing(
                 mongoTemplate, Student.class, "medicalRecordId", "medicalRecordDocsId");
+        long currentAcademicRecordCount = MongoFieldMigrationSupport.renameWhenTargetMissing(
+                mongoTemplate, Student.class,
+                "currentAcademicRecordId", "currentAcademicRecordDocsId");
         long documentsCount = MongoFieldMigrationSupport.initialiseMissingList(
                 mongoTemplate, Student.class, "documents");
         long medicalRemarkCount = MongoFieldMigrationSupport.initialiseMissingList(
                 mongoTemplate, Student.class, "medicalRemark");
 
-        long total = walletCount + medicalRecordCount + documentsCount + medicalRemarkCount;
+        long total = walletCount + medicalRecordCount + currentAcademicRecordCount
+                + documentsCount + medicalRemarkCount;
         if (total > 0) {
-            log.info("Migrated {} Student field value(s): wallet={}, medicalRecord={}, documents={}, medicalRemark={}",
-                    total, walletCount, medicalRecordCount, documentsCount, medicalRemarkCount);
+            log.info("Migrated {} Student field value(s): wallet={}, medicalRecord={}, currentAcademicRecord={}, documents={}, medicalRemark={}",
+                    total, walletCount, medicalRecordCount, currentAcademicRecordCount,
+                    documentsCount, medicalRemarkCount);
         }
     }
 

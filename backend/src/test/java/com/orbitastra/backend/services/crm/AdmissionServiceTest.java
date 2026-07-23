@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -18,11 +21,14 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
+import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
@@ -30,7 +36,9 @@ import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.crm.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
@@ -311,43 +319,165 @@ class AdmissionServiceTest {
     }
 
     @Test
-    void convertToStudent_copiesAdmissionNoFromAdmission() {
+    void convertToStudent_idOnly_copiesAdmissionSnapshotAndConfirmsInquiry() {
+        LocalDate dob = LocalDate.of(2014, 8, 22);
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .inquiryDocsId("inquiry-456")
+                .schoolId("school-123")
+                .admissionNo("ADM-2026-0001")
+                .studentName("Aarav Nair")
+                .dob(dob)
+                .gender(Gender.MALE)
+                .status(AdmissionStatus.APPROVED)
+                .documents(List.of("birth-certificate.pdf"))
+                .guardians(List.of(guardian(
+                        "Meera Nair", GuardianRelation.MOTHER,
+                        "+61-400-111-222", "meera@example.com", "Old Address")))
+                .build();
+        GuardianLink link = GuardianLink.builder()
+                .guardianDocsId("guardian-meera")
+                .primary(true)
+                .build();
+        Student savedStudent = Student.builder().id("student-456").build();
+        StudentResponse response = StudentResponse.builder()
+                .id("student-456")
+                .admissionDocsId("admission-789")
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+        when(guardianService.buildDedupedLinks(eq("school-123"), anyList(), anyList()))
+                .thenReturn(List.of(link));
+        when(studentService.persistStudent(any(Student.class), isNull())).thenReturn(savedStudent);
+        when(studentService.buildResponse(savedStudent)).thenReturn(response);
+
+        StudentResponse converted = admissionService.convertToStudent(
+                "admission-789", new ConvertAdmissionRequest());
+
+        ArgumentCaptor<Student> studentCaptor = ArgumentCaptor.forClass(Student.class);
+        verify(studentService).persistStudent(studentCaptor.capture(), isNull());
+        Student payload = studentCaptor.getValue();
+        assertEquals("school-123", payload.getSchoolId());
+        assertEquals("ADM-2026-0001", payload.getAdmissionNo());
+        assertEquals("admission-789", payload.getAdmissionDocsId());
+        assertEquals("Aarav Nair", payload.getName());
+        assertEquals(dob, payload.getDob());
+        assertEquals(Gender.MALE, payload.getGender());
+        assertEquals(List.of("birth-certificate.pdf"), payload.getDocuments());
+        assertEquals(List.of(link), payload.getGuardians());
+        assertEquals("student-456", converted.getId());
+        assertEquals("student-456", admission.getStudentDocsId());
+        assertEquals(AdmissionStatus.CONFIRMED, admission.getStatus());
+        verify(inquiryService).confirmEnrollment("inquiry-456", "admission-789");
+    }
+
+    @Test
+    void convertToStudent_overridesAdmissionDataMergesGuardiansAndCreatesAcademicRecord() {
         Admission admission = Admission.builder()
                 .id("admission-789")
                 .schoolId("school-123")
                 .admissionNo("ADM-2026-0001")
-                .studentName("Applicant")
+                .studentName("Incorrect Name")
+                .dob(LocalDate.of(2014, 1, 1))
+                .gender(Gender.MALE)
                 .status(AdmissionStatus.APPROVED)
-                .documents(List.of("birth-certificate.pdf"))
-                .guardians(List.of())
+                .documents(List.of("old-document.pdf"))
+                .guardians(List.of(guardian(
+                        "Meera Nair", GuardianRelation.MOTHER,
+                        "+61-400-111-222", "meera@example.com", "Old Address")))
                 .build();
-        Student studentPayload = Student.builder().build();
-        Student savedStudent = Student.builder()
-                .id("student-456")
-                .schoolId("school-123")
-                .admissionNo("ADM-2026-0001")
-                .admissionDocsId("admission-789")
+        ConvertAdmissionRequest request = new ConvertAdmissionRequest();
+        request.setName("Corrected Name");
+        request.setDob(LocalDate.of(2014, 8, 22));
+        request.setDocuments(List.of("corrected-document.pdf"));
+        request.setAcademicYear("2026-2027");
+        request.setClassDocId("class-9");
+        request.setRollNo("12");
+        StudentGuardianRequest existingGuardian = StudentGuardianRequest.builder()
+                .guardianDocsId("guardian-existing")
+                .relation(GuardianRelation.FATHER)
+                .portalAccess(true)
                 .build();
-        StudentResponse response = StudentResponse.builder()
-                .id("student-456")
-                .admissionNo("ADM-2026-0001")
-                .admissionDocsId("admission-789")
+        StudentGuardianRequest correctedMother = StudentGuardianRequest.builder()
+                .name("Meera Nair")
+                .email("meera@example.com")
+                .address("12 New Street")
+                .relation(GuardianRelation.MOTHER)
+                .primary(true)
+                .build();
+        request.setGuardians(List.of(existingGuardian, correctedMother));
+
+        Student savedStudent = Student.builder().id("student-456").build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+        when(guardianService.buildDedupedLinks(eq("school-123"), anyList(), anyList()))
+                .thenReturn(List.of(
+                        GuardianLink.builder().guardianDocsId("guardian-existing").build(),
+                        GuardianLink.builder().guardianDocsId("guardian-meera").build()));
+        when(studentService.persistStudent(any(Student.class), any(StudentAcademicRecord.class)))
+                .thenReturn(savedStudent);
+        when(studentService.buildResponse(savedStudent))
+                .thenReturn(StudentResponse.builder().id("student-456").build());
+
+        admissionService.convertToStudent("admission-789", request);
+
+        ArgumentCaptor<Student> studentCaptor = ArgumentCaptor.forClass(Student.class);
+        ArgumentCaptor<StudentAcademicRecord> academicCaptor =
+                ArgumentCaptor.forClass(StudentAcademicRecord.class);
+        verify(studentService).persistStudent(studentCaptor.capture(), academicCaptor.capture());
+        assertEquals("Corrected Name", studentCaptor.getValue().getName());
+        assertEquals(LocalDate.of(2014, 8, 22), studentCaptor.getValue().getDob());
+        assertEquals(List.of("corrected-document.pdf"), studentCaptor.getValue().getDocuments());
+        assertEquals("2026-2027", academicCaptor.getValue().getAcademicYear());
+        assertEquals("class-9", academicCaptor.getValue().getClassDocId());
+        assertEquals("12", academicCaptor.getValue().getRollNo());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GuardianService.GuardianDraft>> draftsCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(guardianService).buildDedupedLinks(
+                eq("school-123"), anyList(), draftsCaptor.capture());
+        List<GuardianService.GuardianDraft> drafts = draftsCaptor.getValue();
+        assertEquals("guardian-existing", drafts.get(0).guardianDocsId());
+        assertEquals("Meera Nair", drafts.get(1).name());
+        assertEquals("+61-400-111-222", drafts.get(1).phone());
+        assertEquals("12 New Street", drafts.get(1).address());
+        assertEquals(Boolean.TRUE, drafts.get(1).primary());
+    }
+
+    @Test
+    void convertToStudent_alreadyConverted_returnsConflictWithoutWriting() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .studentDocsId("student-existing")
                 .build();
         when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
-        when(studentService.persistStudent(any(Student.class), any())).thenReturn(savedStudent);
-        when(studentService.buildResponse(savedStudent)).thenReturn(response);
 
-        StudentResponse converted = admissionService.convertToStudent(
-                "admission-789", studentPayload, null);
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.convertToStudent(
+                        "admission-789", new ConvertAdmissionRequest()));
 
-        assertEquals("ADM-2026-0001", studentPayload.getAdmissionNo());
-        assertEquals("admission-789", studentPayload.getAdmissionDocsId());
-        assertEquals(List.of("birth-certificate.pdf"), studentPayload.getDocuments());
-        assertEquals("ADM-2026-0001", converted.getAdmissionNo());
-        assertEquals("admission-789", converted.getAdmissionDocsId());
-        assertEquals("student-456", admission.getStudentDocsId());
-        assertEquals(AdmissionStatus.CONFIRMED, admission.getStatus());
-        verify(admissionRepository).save(admission);
+        assertEquals(
+                "This admission has already been converted to student student-existing.",
+                error.getMessage());
+        verifyNoInteractions(studentService, guardianService);
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void convertToStudent_rejectedAdmission_isRejected() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .status(AdmissionStatus.REJECTED)
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> admissionService.convertToStudent(
+                        "admission-789", new ConvertAdmissionRequest()));
+
+        assertEquals("A rejected admission cannot be converted to a student.", error.getMessage());
+        verifyNoInteractions(studentService, guardianService);
     }
 
     private void saveWithGeneratedId() {

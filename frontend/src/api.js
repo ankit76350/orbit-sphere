@@ -79,7 +79,6 @@ export const api = {
   getStudentsByYear: (schoolId = 'SCH-001', year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
-  createStudentFromAdmission: (payload) => call('POST', '/api/students/from-admission', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
@@ -90,7 +89,7 @@ export const api = {
   updateGuardian: (id, payload) => call('PATCH', `/api/guardians/${id}`, payload),
   deleteGuardian: (id) => call('DELETE', `/api/guardians/${id}`),
   addGuardianLink: (studentId, payload) => call('POST', `/api/students/${studentId}/guardians`, payload),
-  removeGuardianLink: (studentId, guardianId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianId}`),
+  removeGuardianLink: (studentId, guardianDocsId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianDocsId}`),
 
   // ----- Academics: Classes, Attendance, Homework, Results, Discipline, Timetables, Medical -----
   getClasses: (schoolId = 'SCH-001') => listOr(`/api/classes/school/${schoolId}`),
@@ -156,6 +155,6 @@ export const api = {
   getAdmissionById: (id) => call('GET', `/api/admissions/${id}`),
   createAdmission: (payload) => call('POST', '/api/admissions', payload),
   updateAdmission: (id, payload) => call('PATCH', `/api/admissions/${id}`, payload),
-  convertAdmissionToStudent: (id, studentPayload) => call('POST', `/api/admissions/${id}/convert`, studentPayload),
+  convertAdmissionToStudent: (id, studentPayload) => call('POST', `/api/admissions/${id}/student`, studentPayload),
   deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),
 };

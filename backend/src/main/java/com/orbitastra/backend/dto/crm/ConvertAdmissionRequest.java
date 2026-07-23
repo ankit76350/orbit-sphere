@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
-import com.orbitastra.backend.dto.student.GuardianLinkRequest;
+import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.Gender;
@@ -20,22 +20,30 @@ import lombok.Data;
  * admission and prefills identity from its applicant snapshot; anything else set
  * here overrides that. {@code id} and audit timestamps are never accepted.
  *
- * <p>{@code schoolId} and {@code academicYear} are accepted only so the frontend
- * can reuse the exact create-student payload shape, and both are ignored:
- * {@code schoolId} comes from the admission, and the academic year is not set at
- * conversion — a student is enrolled into a year separately, afterwards, via
- * {@code POST /api/students/{id}/academic-records}.
+ * <p>{@code schoolId} is accepted only so clients can reuse a create-student
+ * payload; the admission's school is authoritative. Academic placement may be
+ * supplied either in {@code currentAcademicRecord} or through the top-level
+ * placement fields.
  */
 @Data
 public class ConvertAdmissionRequest {
 
-    private String admissionId;
-
     /** Ignored — the school is taken from the admission. Accepted for payload parity only. */
     private String schoolId;
 
-    /** Ignored — a student's academic year is assigned after enrolment, not at conversion. Accepted for payload parity only. */
     private String academicYear;
+
+    private String studentNo;
+
+    private String rollNo;
+
+    private String classDocId;
+
+    private String classId;
+
+    private String sectionNo;
+
+    private String hostelRoomNo;
 
     private String admissionNo;
 
@@ -64,7 +72,7 @@ public class ConvertAdmissionRequest {
     private LocalDate admissionDate;
 
     @Valid
-    private List<GuardianLinkRequest> guardians;
+    private List<StudentGuardianRequest> guardians;
 
     @Valid
     private AcademicRecordRequest currentAcademicRecord;
@@ -84,15 +92,38 @@ public class ConvertAdmissionRequest {
                 .medicalRemark(medicalRemark)
                 .status(status != null ? status : StudentStatus.ACTIVE)
                 .admissionDate(admissionDate)
-                .guardians(GuardianLinkRequest.toModels(guardians))
                 .build();
     }
 
     /**
-     * Optional initial academic record supplied on the convert request. Usually null — the
-     * academic year is assigned after enrolment — but honoured when a caller sets placement inline.
+     * Optional initial academic record supplied on the conversion request. Nested
+     * values win; omitted nested values are filled from top-level placement fields.
      */
     public StudentAcademicRecord toAcademicRecord() {
-        return currentAcademicRecord == null ? null : currentAcademicRecord.toModel();
+        StudentAcademicRecord record = currentAcademicRecord == null
+                ? null
+                : currentAcademicRecord.toModel();
+        boolean hasTopLevelPlacement = academicYear != null
+                || studentNo != null
+                || rollNo != null
+                || classDocId != null
+                || classId != null
+                || sectionNo != null
+                || hostelRoomNo != null;
+        if (record == null && !hasTopLevelPlacement) {
+            return null;
+        }
+        if (record == null) {
+            record = StudentAcademicRecord.builder().build();
+        }
+        if (record.getAcademicYear() == null) record.setAcademicYear(academicYear);
+        if (record.getStudentNo() == null) record.setStudentNo(studentNo);
+        if (record.getRollNo() == null) record.setRollNo(rollNo);
+        if (record.getClassDocId() == null) {
+            record.setClassDocId(classDocId != null ? classDocId : classId);
+        }
+        if (record.getSectionNo() == null) record.setSectionNo(sectionNo);
+        if (record.getHostelRoomNo() == null) record.setHostelRoomNo(hostelRoomNo);
+        return record;
     }
 }

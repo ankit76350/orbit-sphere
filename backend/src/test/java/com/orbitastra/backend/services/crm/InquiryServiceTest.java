@@ -239,4 +239,40 @@ class InquiryServiceTest {
         assertEquals("Inquiry " + inquiryId
                 + " is already linked to admission existing-admission.", ex.getMessage());
     }
+
+    @Test
+    void confirmEnrollment_marksLinkedInquiryConfirmedAndRecordsTimelineEntry() {
+        String inquiryId = "inquiry-123";
+        Inquiry existing = Inquiry.builder()
+                .id(inquiryId)
+                .schoolId("school-123")
+                .status(InquiryStatus.ADMITTED)
+                .admissionDocsId("admission-123")
+                .build();
+        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.save(existing)).thenReturn(existing);
+
+        Inquiry result = inquiryService.confirmEnrollment(inquiryId, "admission-123");
+
+        assertEquals(InquiryStatus.CONFIRMED, result.getStatus());
+        assertEquals("admission-123", result.getAdmissionDocsId());
+        assertEquals(1, result.getFollowUps().size());
+        assertEquals(InquiryStatus.CONFIRMED, result.getFollowUps().get(0).getStatus());
+    }
+
+    @Test
+    void confirmEnrollment_forLostInquiry_isRejected() {
+        Inquiry existing = Inquiry.builder()
+                .id("inquiry-123")
+                .status(InquiryStatus.LOST)
+                .admissionDocsId("admission-123")
+                .build();
+        when(inquiryRepository.findById("inquiry-123")).thenReturn(Optional.of(existing));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> inquiryService.confirmEnrollment("inquiry-123", "admission-123"));
+
+        assertEquals("A lost inquiry cannot be confirmed as enrolled.", error.getMessage());
+    }
 }

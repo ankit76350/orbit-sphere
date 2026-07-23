@@ -7,19 +7,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
-import com.orbitastra.backend.services.crm.AdmissionService;
 import com.orbitastra.backend.services.student.StudentService;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,9 +21,6 @@ class StudentControllerTest {
 
     @Mock
     private StudentService studentService;
-
-    @Mock
-    private AdmissionService admissionService;
 
     @InjectMocks
     private StudentController studentController;
@@ -48,22 +39,5 @@ class StudentControllerTest {
         assertEquals(HttpStatus.CREATED, res.getStatusCode());
         assertNotNull(res.getBody());
         assertEquals("std-1", res.getBody().getId());
-    }
-
-
-    @Test
-    void createStudentFromAdmissionBody_returnsCreated() {
-        ConvertAdmissionRequest req = new ConvertAdmissionRequest();
-        req.setAdmissionId("adm-456");
-        req.setName("Alice Smith");
-
-        StudentResponse converted = StudentResponse.builder().id("std-3").schoolId("school-1").name("Alice Smith").build();
-        when(admissionService.convertToStudent(eq("adm-456"), any(Student.class), isNull(StudentAcademicRecord.class)))
-                .thenReturn(converted);
-
-        ResponseEntity<StudentResponse> res = studentController.createStudentFromAdmissionBody(req);
-        assertEquals(HttpStatus.CREATED, res.getStatusCode());
-        assertNotNull(res.getBody());
-        assertEquals("std-3", res.getBody().getId());
     }
 }

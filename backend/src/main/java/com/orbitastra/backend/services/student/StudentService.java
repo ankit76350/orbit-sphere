@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,6 +78,9 @@ public class StudentService {
         if (request.getSchoolId() == null || request.getSchoolId().isBlank()) {
             throw new IllegalArgumentException("schoolId cannot be null or blank.");
         }
+        if (request.getAdmissionNo() == null || request.getAdmissionNo().isBlank()) {
+            throw new IllegalArgumentException("admissionNo cannot be null or blank.");
+        }
         if (request.getName() == null || request.getName().isBlank()) {
             throw new IllegalArgumentException("Student name cannot be null or blank.");
         }
@@ -104,6 +108,7 @@ public class StudentService {
         Student student = Student.builder()
                 .schoolId(request.getSchoolId())
                 .admissionNo(request.getAdmissionNo())
+                .admissionDocsId(null)
                 .name(request.getName())
                 .dob(request.getDob())
                 .gender(request.getGender())
@@ -136,13 +141,24 @@ public class StudentService {
      * Used both when creating a student directly and when turning an admission into a student.
      */
     public Student persistStudent(Student student, StudentAcademicRecord initialRecord) {
-        // 5a — the school must exist.
-        log.info("[persistStudent] 5a: Looking up the school {}", student.getSchoolId());
-        if (student.getSchoolId() == null) {
-            throw new IllegalArgumentException("schoolId cannot be null.");
+        if (student == null) {
+            throw new IllegalArgumentException("Student details are required.");
         }
-        School school = schoolRepository.findById(student.getSchoolId())
-                .orElseThrow(() -> new ResourceNotFoundException("School not found with id: " + student.getSchoolId()));
+        String schoolId = normalizeRequired(student.getSchoolId(), "schoolId");
+        String admissionNo = normalizeRequired(student.getAdmissionNo(), "admissionNo");
+        String studentName = normalizeRequired(student.getName(), "Student name");
+        student.setSchoolId(schoolId);
+        student.setAdmissionNo(admissionNo);
+        student.setName(studentName);
+        if (student.getAdmissionDocsId() != null) {
+            String admissionDocsId = student.getAdmissionDocsId().trim();
+            student.setAdmissionDocsId(admissionDocsId.isEmpty() ? null : admissionDocsId);
+        }
+
+        // 5a — the school must exist.
+        log.info("[persistStudent] 5a: Looking up the school {}", schoolId);
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("School not found with id: " + schoolId));
 
         // 5b — the school may have a limit on how many students it can have.
         if (school.getMaxStudents() != null) {
@@ -154,12 +170,9 @@ public class StudentService {
         }
 
         // 5c — no two students can share the same admission number.
-        if (student.getAdmissionNo() != null && !student.getAdmissionNo().isBlank()) {
-            log.info("[persistStudent] 5c: Making sure admission number '{}' is not already used", student.getAdmissionNo());
-            if (studentRepository.findByAdmissionNo(student.getAdmissionNo()).isPresent()) {
-                throw new IllegalArgumentException(
-                        "Admission number '" + student.getAdmissionNo() + "' is already taken.");
-            }
+        log.info("[persistStudent] 5c: Making sure admission number '{}' is not already used", admissionNo);
+        if (studentRepository.findByAdmissionNo(admissionNo).isPresent()) {
+            throw duplicateStudentAdmissionNo(admissionNo, null);
         }
 
         // A single admission may produce at most one student. Direct student creation
@@ -175,7 +188,19 @@ public class StudentService {
         student.setMedicalRemark(copyStrings(student.getMedicalRemark()));
         student.setCreatedAt(LocalDateTime.now());
         student.setUpdatedAt(LocalDateTime.now());
-        Student saved = studentRepository.save(student);
+        Student saved;
+        try {
+            saved = studentRepository.save(student);
+        } catch (DuplicateKeyException ex) {
+            if (duplicateKeyReferences(ex, "admissionDocsId")
+                    && student.getAdmissionDocsId() != null) {
+                throw duplicateAdmissionConversion(student.getAdmissionDocsId(), ex);
+            }
+            if (duplicateKeyReferences(ex, "admissionNo")) {
+                throw duplicateStudentAdmissionNo(admissionNo, ex);
+            }
+            throw new ConflictException("A student with the same unique reference already exists.", ex);
+        }
         log.info("[persistStudent] 5d: Saved the student (id={}) with {} guardian(s)",
                 saved.getId(), saved.getGuardians() == null ? 0 : saved.getGuardians().size());
 
@@ -450,6 +475,27 @@ public class StudentService {
 
     private List<String> copyStrings(List<String> values) {
         return values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
+
+    private String normalizeRequired(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " cannot be null or blank.");
+        }
+        return value.trim();
+    }
+
+    private ConflictException duplicateStudentAdmissionNo(String admissionNo, Throwable cause) {
+        String message = "A student already exists with admissionNo: " + admissionNo;
+        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
+    }
+
+    private ConflictException duplicateAdmissionConversion(String admissionDocsId, Throwable cause) {
+        String message = "Admission " + admissionDocsId + " has already been converted to a student.";
+        return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
+    }
+
+    private boolean duplicateKeyReferences(DuplicateKeyException ex, String fieldName) {
+        return ex.getMessage() != null && ex.getMessage().contains(fieldName);
     }
 
     // =======================================================================================

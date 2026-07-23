@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
@@ -154,12 +155,29 @@ public class StudentServiceTest {
         assertEquals("medical-doc-1", created.getMedicalRecordDocsId());
         assertEquals(List.of("birth-certificate.pdf"), created.getDocuments());
         assertEquals(List.of("Penicillin allergy"), created.getMedicalRemark());
+        assertNull(created.getAdmissionDocsId());
+        assertEquals("acad-rec-1", created.getCurrentAcademicRecordDocsId());
         assertEquals(1, created.getGuardians().size());
         assertEquals("guardian-priya", created.getGuardians().get(0).getGuardianDocsId());
         // Both request entries are forwarded as drafts; GuardianService collapses them.
         verify(guardianService).buildDedupedLinks(eq("school-id-123"), isNull(), draftsCaptor.capture());
         assertEquals(2, draftsCaptor.getValue().size());
         assertEquals("Priya Sharma", draftsCaptor.getValue().get(0).name());
+    }
+
+    @Test
+    void createStudent_withoutAdmissionNo_isRejectedBeforeGuardianWrites() {
+        CreateStudentRequest request = new CreateStudentRequest();
+        request.setSchoolId("school-id-123");
+        request.setName("Lucas Johnson");
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.createStudent(request));
+
+        assertEquals("admissionNo cannot be null or blank.", error.getMessage());
+        verifyNoInteractions(guardianService);
+        verify(studentRepository, never()).save(any());
     }
 
     @Test
@@ -175,17 +193,65 @@ public class StudentServiceTest {
     }
 
     @Test
+    void persistStudent_withoutName_isRejectedBeforeDatabaseAccess() {
+        student.setName(" ");
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.persistStudent(student, null));
+
+        assertEquals("Student name cannot be null or blank.", error.getMessage());
+        verifyNoInteractions(schoolRepository);
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
     void persistStudent_AdmissionNoDuplicate_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
         when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
         when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.of(new Student()));
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            studentService.persistStudent(student, null);
-        });
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> studentService.persistStudent(student, null));
 
+        assertEquals("A student already exists with admissionNo: ADM-001", error.getMessage());
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
         verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void persistStudent_concurrentDuplicateAdmissionNo_returnsConflict() {
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
+        when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
+        when(studentRepository.save(student))
+                .thenThrow(new DuplicateKeyException("E11000 index: admissionNo_1 dup key"));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> studentService.persistStudent(student, null));
+
+        assertEquals("A student already exists with admissionNo: ADM-001", error.getMessage());
+    }
+
+    @Test
+    void persistStudent_concurrentDuplicateAdmissionReference_returnsConflict() {
+        student.setAdmissionDocsId("admission-789");
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(10L);
+        when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
+        when(studentRepository.findByAdmissionDocsId("admission-789")).thenReturn(Optional.empty());
+        when(studentRepository.save(student))
+                .thenThrow(new DuplicateKeyException("E11000 index: admissionDocsId_1 dup key"));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> studentService.persistStudent(student, null));
+
+        assertEquals(
+                "Admission admission-789 has already been converted to a student.",
+                error.getMessage());
     }
 
     @Test

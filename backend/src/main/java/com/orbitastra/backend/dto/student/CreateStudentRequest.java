@@ -23,6 +23,7 @@ public class CreateStudentRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
+    @NotBlank(message = "admissionNo is required")
     private String admissionNo;
 
     @NotBlank(message = "name is required")

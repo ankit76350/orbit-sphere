@@ -76,10 +76,11 @@ public class AdmissionController {
         return ResponseEntity.ok(admissionService.updateAdmission(id, request.toModel()));
     }
 
-    @PostMapping("/{id}/convert")
-    public ResponseEntity<StudentResponse> convertToStudent(@PathVariable String id, @Valid @RequestBody ConvertAdmissionRequest request) {
-        StudentResponse created = admissionService.convertToStudent(
-                id, request.toStudent(), request.toAcademicRecord());
+    @PostMapping("/{admissionDocsId}/student")
+    public ResponseEntity<StudentResponse> createStudentFromAdmission(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody(required = false) ConvertAdmissionRequest request) {
+        StudentResponse created = admissionService.convertToStudent(admissionDocsId, request);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
