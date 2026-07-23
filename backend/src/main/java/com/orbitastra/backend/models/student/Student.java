@@ -64,5 +64,5 @@ public class Student extends BaseDocument {
     // academic year. Kept in sync by StudentService whenever an academic record is
     // created, assigned or promoted, so the student's active enrolment is one lookup away.
     // The full record itself is exposed only on the API view (StudentResponse), not the entity.
-    private String currentAcademicRecordId;
+    private String currentAcademicRecordDocsId;
 }

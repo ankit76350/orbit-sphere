@@ -30,7 +30,7 @@ public class StudentResponse {
     private String admissionNo;
     private String admissionDocsId;
     /** Persisted pointer to the current-year {@link StudentAcademicRecord} document id. */
-    private String currentAcademicRecordId;
+    private String currentAcademicRecordDocsId;
     private String name;
     private LocalDate dob;
     private Gender gender;
@@ -56,7 +56,7 @@ public class StudentResponse {
                 .schoolId(s.getSchoolId())
                 .admissionNo(s.getAdmissionNo())
                 .admissionDocsId(s.getAdmissionDocsId())
-                .currentAcademicRecordId(s.getCurrentAcademicRecordId())
+                .currentAcademicRecordDocsId(s.getCurrentAcademicRecordDocsId())
                 .name(s.getName())
                 .dob(s.getDob())
                 .gender(s.getGender())

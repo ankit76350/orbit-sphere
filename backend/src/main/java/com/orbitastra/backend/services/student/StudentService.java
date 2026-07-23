@@ -217,7 +217,7 @@ public class StudentService {
             log.info("[persistStudent] Saved the academic-year record (id={})", savedRecord.getId());
 
             // 5f — remember this as the student's current-year record.
-            saved.setCurrentAcademicRecordId(savedRecord.getId());
+            saved.setCurrentAcademicRecordDocsId(savedRecord.getId());
             saved.setUpdatedAt(LocalDateTime.now());
             saved = studentRepository.save(saved);
             log.info("[persistStudent] 5f: Set the student's current record to {}", savedRecord.getId());
@@ -572,8 +572,8 @@ public class StudentService {
                         Comparator.nullsFirst(Comparator.naturalOrder())))
                 .map(StudentAcademicRecord::getId)
                 .orElse(null);
-        if (!Objects.equals(student.getCurrentAcademicRecordId(), latestId)) {
-            student.setCurrentAcademicRecordId(latestId);
+        if (!Objects.equals(student.getCurrentAcademicRecordDocsId(), latestId)) {
+            student.setCurrentAcademicRecordDocsId(latestId);
             student.setUpdatedAt(LocalDateTime.now());
             studentRepository.save(student);
             log.info("[syncCurrentAcademicRecordPointer] Student {} now points to current-year record {}", student.getId(), latestId);

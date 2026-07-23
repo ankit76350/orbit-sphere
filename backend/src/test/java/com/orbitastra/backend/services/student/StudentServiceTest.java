@@ -100,7 +100,7 @@ public class StudentServiceTest {
         verify(schoolRepository, times(1)).findById("school-id-123");
         verify(studentRepository, times(1)).findByAdmissionNo("ADM-001");
         // Saved twice: once to obtain the id + create the record, once to persist the
-        // currentAcademicRecordId pointer.
+        // currentAcademicRecordDocsId pointer.
         verify(studentRepository, times(2)).save(student);
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
     }
@@ -139,7 +139,7 @@ public class StudentServiceTest {
         when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
         when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
         // A top-level academicYear is present, so a record is created; give it an id so the
-        // currentAcademicRecordId pointer can be set.
+        // currentAcademicRecordDocsId pointer can be set.
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("acad-rec-1"); return r; });
 
@@ -326,7 +326,7 @@ public class StudentServiceTest {
 
         studentService.createOrUpdateAcademicRecord("student-id-123", input);
 
-        assertEquals("rec-2026", student.getCurrentAcademicRecordId());
+        assertEquals("rec-2026", student.getCurrentAcademicRecordDocsId());
         verify(studentRepository, times(1)).save(student); // pointer persisted once
     }
 
