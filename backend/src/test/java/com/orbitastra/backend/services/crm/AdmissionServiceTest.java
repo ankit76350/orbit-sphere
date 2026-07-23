@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
 import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.exceptions.ConflictException;
@@ -389,9 +390,11 @@ class AdmissionServiceTest {
         request.setName("Corrected Name");
         request.setDob(LocalDate.of(2014, 8, 22));
         request.setDocuments(List.of("corrected-document.pdf"));
-        request.setAcademicYear("2026-2027");
-        request.setClassDocId("class-9");
-        request.setRollNo("12");
+        AcademicRecordRequest academicRecord = new AcademicRecordRequest();
+        academicRecord.setAcademicYear("2026-2027");
+        academicRecord.setClassDocId("class-9");
+        academicRecord.setRollNo("12");
+        request.setCurrentAcademicRecord(academicRecord);
         StudentGuardianRequest existingGuardian = StudentGuardianRequest.builder()
                 .guardianDocsId("guardian-existing")
                 .relation(GuardianRelation.FATHER)

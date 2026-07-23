@@ -2,7 +2,9 @@ package com.orbitastra.backend.dto.student;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
@@ -13,9 +15,9 @@ import lombok.Data;
 
 /**
  * Client payload for admitting a student. Server-owned fields ({@code id} and
- * audit timestamps) are not accepted from the request body. Supports top-level
- * placement fields ({@code academicYear}, {@code classDocId}, etc.) and flexible
- * guardian payloads that are automatically deduplicated server-side.
+ * audit timestamps) are not accepted from the request body. Academic placement
+ * is accepted only inside {@code currentAcademicRecord}; guardian payloads are
+ * automatically deduplicated server-side.
  */
 @Data
 public class CreateStudentRequest {
@@ -51,20 +53,25 @@ public class CreateStudentRequest {
 
     private LocalDate admissionDate;
 
-    // Optional top-level academic placement fields
-    private String academicYear;
-
-    private String classDocId;
-
-    private String classId; // Alias for classDocId
-
-    private String sectionNo;
-
-    private String rollNo;
-
     @Valid
     private List<StudentGuardianRequest> guardians;
 
     @Valid
     private AcademicRecordRequest currentAcademicRecord;
+
+    private static final Set<String> TOP_LEVEL_ACADEMIC_FIELDS = Set.of(
+            "academicYear", "studentNo", "rollNo", "classDocId", "classId", "sectionNo", "hostelRoomNo");
+
+    /**
+     * Keep server-owned/unknown fields ignored for compatibility, but reject the
+     * old top-level academic placement shape instead of silently accepting it.
+     */
+    @JsonAnySetter
+    public void rejectLegacyAcademicField(String fieldName, Object value) {
+        if (TOP_LEVEL_ACADEMIC_FIELDS.contains(fieldName)) {
+            throw new IllegalArgumentException(
+                    "Academic placement must be provided inside currentAcademicRecord; top-level field '"
+                            + fieldName + "' is not supported.");
+        }
+    }
 }

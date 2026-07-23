@@ -13,7 +13,7 @@ const emptyAcademicRecord = () => ({
 });
 
 const emptyInlineGuardian = () => ({
-  guardianId: '', name: '', relation: '', phone: '', email: '', address: '', occupation: '',
+  guardianDocsId: '', name: '', relation: '', phone: '', email: '', address: '', occupation: '',
   primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false,
 });
 
@@ -22,7 +22,6 @@ const emptyStudentForm = (schoolId = '') => ({
   name: '', admissionNo: '', dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
   walletDocsId: '', medicalRecordDocsId: '', documents: '', medicalRemark: '', status: '', admissionDate: '',
-  academicYear: '', classDocId: '', classId: '', sectionNo: '', rollNo: '',
   guardians: [], currentAcademicRecord: emptyAcademicRecord(),
 });
 
@@ -165,11 +164,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         await api.createStudent({
           schoolId: studentForm.schoolId,
           ...common,
-          academicYear: nullable(studentForm.academicYear),
-          classDocId: nullable(studentForm.classDocId),
-          classId: nullable(studentForm.classId),
-          sectionNo: nullable(studentForm.sectionNo),
-          rollNo: nullable(studentForm.rollNo),
           guardians: studentForm.guardians.map((guardian) => Object.fromEntries(
             Object.entries(guardian).map(([key, value]) => [key, typeof value === 'string' ? nullable(value) : value])
           )),
@@ -478,35 +472,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <Input value={studentForm.medicalRemark} onChange={(e) => setStudentForm({ ...studentForm, medicalRemark: e.target.value })} placeholder="Asthma, Penicillin allergy" />
                   </Field>
 
-                  {!editingStudent && (
-                    <div className="space-y-3 border-t border-slate-100 pt-3">
-                      <div className="text-xs font-bold text-slate-700">Top-level placement fields</div>
-                      <Field label="Academic Year" apiName="academicYear" required={false}>
-                        <Select value={studentForm.academicYear} onChange={(e) => setStudentForm({ ...studentForm, academicYear: e.target.value })}>
-                          <option value="">— resolve current year —</option>
-                          {years.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-                        </Select>
-                      </Field>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Field label="Class Document ID" apiName="classDocId" required={false}>
-                          <Select value={studentForm.classDocId} onChange={(e) => setStudentForm({ ...studentForm, classDocId: e.target.value })}>
-                            <option value="">— omitted —</option>
-                            {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                          </Select>
-                        </Field>
-                        <Field label="Class ID Alias" apiName="classId" required={false} hint="Alias for classDocId; exposed separately for parity.">
-                          <Input value={studentForm.classId} onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })} placeholder="Alternate class id" />
-                        </Field>
-                        <Field label="Section No" apiName="sectionNo" required={false}>
-                          <Input value={studentForm.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, sectionNo: e.target.value })} />
-                        </Field>
-                        <Field label="Roll No" apiName="rollNo" required={false}>
-                          <Input value={studentForm.rollNo} onChange={(e) => setStudentForm({ ...studentForm, rollNo: e.target.value })} />
-                        </Field>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="space-y-3 border-t border-slate-100 pt-3">
                     <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
                     <div className="grid grid-cols-2 gap-3">
@@ -537,7 +502,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                           <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50/50">
                             <div className="flex justify-between items-center"><span className="text-[11px] font-semibold text-slate-500">guardian[{index}]</span><button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: studentForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
                             <div className="grid grid-cols-2 gap-2">
-                              <Input value={guardian.guardianId} onChange={(e) => updateGuardian({ guardianId: e.target.value })} placeholder="guardianId" />
+                              <Input value={guardian.guardianDocsId} onChange={(e) => updateGuardian({ guardianDocsId: e.target.value })} placeholder="guardianDocsId (MongoDB Object ID)" />
                               <Input value={guardian.name} onChange={(e) => updateGuardian({ name: e.target.value })} placeholder="name" />
                               <Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select>
                               <Input value={guardian.phone} onChange={(e) => updateGuardian({ phone: e.target.value })} placeholder="phone" />

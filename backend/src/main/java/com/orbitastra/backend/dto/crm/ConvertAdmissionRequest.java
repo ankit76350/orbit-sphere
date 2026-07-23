@@ -2,7 +2,9 @@ package com.orbitastra.backend.dto.crm;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
@@ -21,29 +23,14 @@ import lombok.Data;
  * here overrides that. {@code id} and audit timestamps are never accepted.
  *
  * <p>{@code schoolId} is accepted only so clients can reuse a create-student
- * payload; the admission's school is authoritative. Academic placement may be
- * supplied either in {@code currentAcademicRecord} or through the top-level
- * placement fields.
+ * payload; the admission's school is authoritative. Academic placement must be
+ * supplied inside {@code currentAcademicRecord}.
  */
 @Data
 public class ConvertAdmissionRequest {
 
     /** Ignored — the school is taken from the admission. Accepted for payload parity only. */
     private String schoolId;
-
-    private String academicYear;
-
-    private String studentNo;
-
-    private String rollNo;
-
-    private String classDocId;
-
-    private String classId;
-
-    private String sectionNo;
-
-    private String hostelRoomNo;
 
     private String admissionNo;
 
@@ -95,35 +82,21 @@ public class ConvertAdmissionRequest {
                 .build();
     }
 
-    /**
-     * Optional initial academic record supplied on the conversion request. Nested
-     * values win; omitted nested values are filled from top-level placement fields.
-     */
+    /** Optional initial academic record supplied on the conversion request. */
     public StudentAcademicRecord toAcademicRecord() {
-        StudentAcademicRecord record = currentAcademicRecord == null
-                ? null
-                : currentAcademicRecord.toModel();
-        boolean hasTopLevelPlacement = academicYear != null
-                || studentNo != null
-                || rollNo != null
-                || classDocId != null
-                || classId != null
-                || sectionNo != null
-                || hostelRoomNo != null;
-        if (record == null && !hasTopLevelPlacement) {
-            return null;
+        return currentAcademicRecord == null ? null : currentAcademicRecord.toModel();
+    }
+
+    private static final Set<String> TOP_LEVEL_ACADEMIC_FIELDS = Set.of(
+            "academicYear", "studentNo", "rollNo", "classDocId", "classId", "sectionNo", "hostelRoomNo");
+
+    /** Reject the retired top-level academic placement shape instead of silently accepting it. */
+    @JsonAnySetter
+    public void rejectLegacyAcademicField(String fieldName, Object value) {
+        if (TOP_LEVEL_ACADEMIC_FIELDS.contains(fieldName)) {
+            throw new IllegalArgumentException(
+                    "Academic placement must be provided inside currentAcademicRecord; top-level field '"
+                            + fieldName + "' is not supported.");
         }
-        if (record == null) {
-            record = StudentAcademicRecord.builder().build();
-        }
-        if (record.getAcademicYear() == null) record.setAcademicYear(academicYear);
-        if (record.getStudentNo() == null) record.setStudentNo(studentNo);
-        if (record.getRollNo() == null) record.setRollNo(rollNo);
-        if (record.getClassDocId() == null) {
-            record.setClassDocId(classDocId != null ? classDocId : classId);
-        }
-        if (record.getSectionNo() == null) record.setSectionNo(sectionNo);
-        if (record.getHostelRoomNo() == null) record.setHostelRoomNo(hostelRoomNo);
-        return record;
     }
 }

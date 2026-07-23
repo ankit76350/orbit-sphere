@@ -263,35 +263,10 @@ public class StudentService {
                 .toList();
     }
 
-    /**
-     * Builds the first-year record from the request. The class/year details can come either as a
-     * nested "currentAcademicRecord" object or as top-level fields — this reads whichever is there.
-     */
+    /** Builds the first-year record from the nested currentAcademicRecord payload, if present. */
     private StudentAcademicRecord assembleInitialRecord(CreateStudentRequest request) {
         AcademicRecordRequest dto = request.getCurrentAcademicRecord();
-        StudentAcademicRecord record = dto != null ? dto.toModel() : null;
-
-        // "classId" is an older name for "classDocId" — accept either.
-        String classDocId = request.getClassDocId() != null ? request.getClassDocId() : request.getClassId();
-        boolean hasTopLevel = request.getAcademicYear() != null || classDocId != null
-                || request.getSectionNo() != null || request.getRollNo() != null;
-
-        if (record == null && hasTopLevel) {
-            // No nested object, but top-level fields were sent — build the record from those.
-            record = StudentAcademicRecord.builder()
-                    .academicYear(request.getAcademicYear())
-                    .classDocId(classDocId)
-                    .sectionNo(request.getSectionNo())
-                    .rollNo(request.getRollNo())
-                    .build();
-        } else if (record != null) {
-            // Nested object was sent — fill in anything it left out from the top-level fields.
-            if (record.getAcademicYear() == null) record.setAcademicYear(request.getAcademicYear());
-            if (record.getClassDocId() == null) record.setClassDocId(classDocId);
-            if (record.getSectionNo() == null) record.setSectionNo(request.getSectionNo());
-            if (record.getRollNo() == null) record.setRollNo(request.getRollNo());
-        }
-        return record;
+        return dto == null ? null : dto.toModel();
     }
 
     // =======================================================================================

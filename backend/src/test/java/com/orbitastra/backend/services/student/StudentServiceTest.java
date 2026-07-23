@@ -31,6 +31,7 @@ import com.orbitastra.backend.repositories.student.StudentAcademicRecordReposito
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
@@ -112,7 +113,9 @@ public class StudentServiceTest {
         req.setSchoolId("school-id-123");
         req.setName("Lucas Johnson");
         req.setAdmissionNo("ADM-2026-0003");
-        req.setAcademicYear("2026-2027");
+        AcademicRecordRequest academicRecord = new AcademicRecordRequest();
+        academicRecord.setAcademicYear("2026-2027");
+        req.setCurrentAcademicRecord(academicRecord);
         req.setWalletDocsId("wallet-doc-1");
         req.setMedicalRecordDocsId("medical-doc-1");
         req.setDocuments(List.of("birth-certificate.pdf"));
@@ -139,8 +142,8 @@ public class StudentServiceTest {
         when(studentRepository.findByAdmissionNo("ADM-2026-0003")).thenReturn(Optional.empty());
         when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
         when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
-        // A top-level academicYear is present, so a record is created; give it an id so the
-        // currentAcademicRecordDocsId pointer can be set.
+        // A nested currentAcademicRecord is present, so a record is created; give it an id so
+        // the currentAcademicRecordDocsId pointer can be set.
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("acad-rec-1"); return r; });
 
