@@ -108,6 +108,7 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                     <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 grid place-items-center"><BookOpen size={17} /></div>
                     <div>
                       <div className="font-semibold text-slate-800">{c.name}</div>
+                      <div className="text-[10px] font-mono text-slate-400 break-all" title={c.id || ''}>MongoDB Object ID: {c.id || '—'}</div>
                       <div className="text-xs text-slate-500 flex items-center gap-1"><Users size={12} /> {(c.sections || []).length} section{(c.sections || []).length === 1 ? '' : 's'}</div>
                     </div>
                   </div>
