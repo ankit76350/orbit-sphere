@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
  * The link between a {@link Student} and a {@link Guardian}, embedded in the
  * student's {@code guardians} array. Carries the role and per-relationship flags
  * (the same guardian can be "father + primary + portal" to one child and just
- * "emergency contact" to another). {@code guardianId} references {@link Guardian#getId()}.
+ * "emergency contact" to another). {@code guardianDocsId} references {@link Guardian#getId()}.
  */
 @Data
 @Builder
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GuardianLink {
 
-    private String guardianId;
+    private String guardianDocsId;
 
     private GuardianRelation relation;
 
