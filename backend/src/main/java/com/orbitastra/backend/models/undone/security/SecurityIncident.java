@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.security.enums.IncidentStatus;
 
 import lombok.AllArgsConstructor;
@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SecurityIncident extends BaseDocument {
+public class SecurityIncident extends SchoolDocs {
 
     private String cameraId;
 

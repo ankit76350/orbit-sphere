@@ -9,7 +9,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Student extends BaseDocument {
+public class Student extends SchoolDocs {
 
     @Indexed(unique = true)
     private String admissionNo;

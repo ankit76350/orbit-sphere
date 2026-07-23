@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.virtualclass.enums.OnlineClassStatus;
 
 import lombok.AllArgsConstructor;
@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OnlineClass extends BaseDocument {
+public class OnlineClass extends SchoolDocs {
 
     private String subjectId;
 

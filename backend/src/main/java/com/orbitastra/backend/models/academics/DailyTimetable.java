@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.academics.enums.SlotType;
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,7 +34,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DailyTimetable extends BaseDocument {
+public class DailyTimetable extends SchoolDocs {
 
     // References AcademicYear.name (unique per school), e.g. "2026-2027".
     // Derived by the server from "date" — never taken from the request.

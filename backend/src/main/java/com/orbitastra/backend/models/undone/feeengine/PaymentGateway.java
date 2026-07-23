@@ -8,7 +8,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.feeengine.enums.GatewayProvider;
 
 import lombok.AllArgsConstructor;
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaymentGateway extends BaseDocument {
+public class PaymentGateway extends SchoolDocs {
 
     private GatewayProvider provider;
 

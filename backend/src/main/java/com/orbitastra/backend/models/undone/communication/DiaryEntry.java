@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.communication.enums.DiaryEntryType;
 
 import lombok.AllArgsConstructor;
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DiaryEntry extends BaseDocument {
+public class DiaryEntry extends SchoolDocs {
 
     private String grade;
 

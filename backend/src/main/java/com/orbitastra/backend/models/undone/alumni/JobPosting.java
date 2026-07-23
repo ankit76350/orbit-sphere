@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class JobPosting extends BaseDocument {
+public class JobPosting extends SchoolDocs {
 
     private String alumniId;
 

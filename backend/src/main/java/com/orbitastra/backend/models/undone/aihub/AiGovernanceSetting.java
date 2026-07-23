@@ -3,7 +3,7 @@ package com.orbitastra.backend.models.undone.aihub;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiGovernanceSetting extends BaseDocument {
+public class AiGovernanceSetting extends SchoolDocs {
 
     // Require human approval before AI-drafted remarks are released.
     @Builder.Default

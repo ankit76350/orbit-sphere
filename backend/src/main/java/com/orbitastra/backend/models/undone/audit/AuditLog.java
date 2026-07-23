@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuditLog extends BaseDocument {
+public class AuditLog extends SchoolDocs {
 
     @Indexed
     private String userId; // references User.id / Staff.id

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.finance.enums.TransactionType;
 
 import lombok.AllArgsConstructor;
@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WalletTransaction extends BaseDocument {
+public class WalletTransaction extends SchoolDocs {
 
     private String studentId;
 

@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import lombok.AllArgsConstructor;
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Inquiry extends BaseDocument {
+public class Inquiry extends SchoolDocs {
 
     private String studentName;
 

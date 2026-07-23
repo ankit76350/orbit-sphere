@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
 import lombok.AllArgsConstructor;
@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentAcademicRecord extends BaseDocument {
+public class StudentAcademicRecord extends SchoolDocs {
 
     private String studentDocId; // References Student.id
 

@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.aihub.enums.AiPersona;
 import com.orbitastra.backend.models.undone.aihub.enums.AiTier;
 
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiUsage extends BaseDocument {
+public class AiUsage extends SchoolDocs {
 
     private AiPersona persona;
 

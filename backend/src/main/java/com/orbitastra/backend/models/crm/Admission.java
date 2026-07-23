@@ -9,7 +9,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.student.enums.Gender;
 
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Admission extends BaseDocument {
+public class Admission extends SchoolDocs {
 
     // Business identifier carried forward to the Student on enrolment. Sparse
     // keeps legacy admission documents (created before this field existed) valid.

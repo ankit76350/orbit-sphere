@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.reports.enums.ReportSource;
 
 import lombok.AllArgsConstructor;
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SavedReport extends BaseDocument {
+public class SavedReport extends SchoolDocs {
 
     private String name;
 

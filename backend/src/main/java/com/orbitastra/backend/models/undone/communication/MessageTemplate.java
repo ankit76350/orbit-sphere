@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MessageTemplate extends BaseDocument {
+public class MessageTemplate extends SchoolDocs {
 
     // DLT-registered template id.
     private String dltId;

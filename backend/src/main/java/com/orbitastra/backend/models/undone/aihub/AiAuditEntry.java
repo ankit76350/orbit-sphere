@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiAuditEntry extends BaseDocument {
+public class AiAuditEntry extends SchoolDocs {
 
     private LocalDateTime at;
 

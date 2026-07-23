@@ -7,7 +7,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.user.enums.Role;
 
 import lombok.AllArgsConstructor;
@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class User extends BaseDocument {
+public class User extends SchoolDocs {
 
     @Indexed(unique = true)
     private String username;

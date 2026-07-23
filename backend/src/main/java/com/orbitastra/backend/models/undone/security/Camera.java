@@ -5,7 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.security.enums.CameraStatus;
 import com.orbitastra.backend.models.undone.security.enums.CameraType;
 
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Camera extends BaseDocument {
+public class Camera extends SchoolDocs {
 
     private String name;
 

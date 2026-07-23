@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.SchoolDocs;
 import com.orbitastra.backend.models.undone.reports.enums.ReportFrequency;
 import com.orbitastra.backend.models.undone.reports.enums.ScheduledReportStatus;
 
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ScheduledReport extends BaseDocument {
+public class ScheduledReport extends SchoolDocs {
 
     private String reportName;
 
