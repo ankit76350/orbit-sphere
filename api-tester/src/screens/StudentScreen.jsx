@@ -33,6 +33,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // Lists
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [assignmentClasses, setAssignmentClasses] = useState([]);
 
   // Loading states
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -207,7 +208,9 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const openAssignModal = () => {
-    const firstClass = classes[0];
+    const availableClasses = assignmentClasses.length > 0 ? assignmentClasses : classes;
+    const firstClass = availableClasses[0];
+    setAssignmentClasses(availableClasses);
     setAssignForm({
       academicYear: year || '',
       studentNo: historyStudent ? historyStudent.admissionNo || '' : '',
@@ -221,12 +224,27 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const handleClassSelectChange = (classId) => {
-    const cls = classes.find(c => c.id === classId);
+    const cls = assignmentClasses.find(c => c.id === classId);
     setAssignForm(f => ({
       ...f,
       classDocId: classId,
       sectionNo: cls && cls.sections && cls.sections.length > 0 ? cls.sections[0] : ''
     }));
+  };
+
+  const handleAcademicYearChange = async (academicYear) => {
+    setAssignForm((form) => ({ ...form, academicYear, classDocId: '', sectionNo: '' }));
+    if (!academicYear) {
+      setAssignmentClasses([]);
+      return;
+    }
+    try {
+      const targetClasses = await api.classesByYear(schoolId, academicYear);
+      setAssignmentClasses(targetClasses || []);
+    } catch (e) {
+      setAssignmentClasses([]);
+      toast.error(e.message || 'Failed to load classes for this academic year.');
+    }
   };
 
   const submitAcademicRecord = async () => {
@@ -245,7 +263,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   };
 
-  const selectedClass = classes.find(c => c.id === assignForm.classDocId);
+  const selectedClass = assignmentClasses.find(c => c.id === assignForm.classDocId);
   const sections = selectedClass ? (selectedClass.sections || []) : [];
 
   if (!schoolId) {
@@ -640,7 +658,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               <Field label="Academic Year" apiName="academicYear" required={false} hint="Required by the promote endpoint; optional for a direct academic-record assignment.">
                 <Select 
                   value={assignForm.academicYear}
-                  onChange={(e) => setAssignForm({...assignForm, academicYear: e.target.value})}
+                  onChange={(e) => handleAcademicYearChange(e.target.value)}
                 >
                   {years.map((y) => (
                     <option key={y.id} value={y.name}>{y.name} {y.name === year ? '(Current)' : ''}</option>
@@ -655,7 +673,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     onChange={(e) => handleClassSelectChange(e.target.value)}
                   >
                     <option value="">— omitted —</option>
-                    {classes.map((c) => (
+                    {assignmentClasses.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </Select>
