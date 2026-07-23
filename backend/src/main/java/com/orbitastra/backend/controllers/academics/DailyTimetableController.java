@@ -101,7 +101,7 @@ public class DailyTimetableController {
 
     /**
      * Replaces the WHOLE timetable of one date for the school. Body:
-     * {"classTimetables": [{classId, section, periods}, ...]} — everything
+     * {"classTimetables": [{classDocsId, section, periods}, ...]} — everything
      * previously stored for the date is discarded.
      */
     @PutMapping("/school/{schoolId}/date/{date}")

@@ -57,11 +57,11 @@ public class DailyTimetable extends SchoolBase {
         @Id
         private String id;
 
-        private String classId;
+        private String classDocsId;
 
         private String section;
 
-        // LESSON needs subject + teacherId; BREAK has no teacher and the
+        // LESSON needs subject + teacherDocsId; BREAK has no teacher and the
         // subject is just a label like "Lunch". Breaks still occupy the
         // section's time, so nothing else can be scheduled over them.
         private SlotType type;
@@ -69,7 +69,7 @@ public class DailyTimetable extends SchoolBase {
         private String subject;
 
         // Staff document id of the teacher (null for breaks)
-        private String teacherId;
+        private String teacherDocsId;
 
         private LocalTime startTime;
 

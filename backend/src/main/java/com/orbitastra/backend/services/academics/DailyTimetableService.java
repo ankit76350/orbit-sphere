@@ -111,23 +111,23 @@ public class DailyTimetableService {
                 throw new IllegalArgumentException(
                         "Timetable entry " + (i + 1) + " is empty — please fill it in or remove it.");
             }
-            if (entry.getClassId() == null || entry.getClassId().isBlank()) {
+            if (entry.getClassDocsId() == null || entry.getClassDocsId().isBlank()) {
                 throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a class.");
             }
             if (entry.getSection() == null || entry.getSection().isBlank()) {
                 throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a section.");
             }
-            validateClassSection(schoolId, entry.getClassId(), entry.getSection(), classCache);
+            validateClassSection(schoolId, entry.getClassDocsId(), entry.getSection(), classCache);
             // From here on, messages can address the section by its real name.
-            String label = classLabel(entry.getClassId(), classCache) + " Section " + entry.getSection();
-            if (!seenClassSections.add(entry.getClassId() + "::" + entry.getSection().toLowerCase())) {
+            String label = classLabel(entry.getClassDocsId(), classCache) + " Section " + entry.getSection();
+            if (!seenClassSections.add(entry.getClassDocsId() + "::" + entry.getSection().toLowerCase())) {
                 throw new IllegalArgumentException(label
                         + " was added more than once — each class section can only appear once per request.");
             }
             validatePeriods(entry.getPeriods(), label);
             entry.getPeriods().stream()
-                    .filter(p -> p.getTeacherId() != null)
-                    .forEach(p -> teacherIds.add(p.getTeacherId()));
+                    .filter(p -> p.getTeacherDocsId() != null)
+                    .forEach(p -> teacherIds.add(p.getTeacherDocsId()));
         }
         Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
         raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
@@ -166,11 +166,11 @@ public class DailyTimetableService {
             for (TimetablePeriod period : entry.getPeriods()) {
                 boolean isBreak = period.getType() == SlotType.BREAK;
                 template.add(TimetableEntry.builder()
-                        .classId(entry.getClassId())
+                        .classDocsId(entry.getClassDocsId())
                         .section(entry.getSection())
                         .type(isBreak ? SlotType.BREAK : SlotType.LESSON)
                         .subject(isBreak && isBlank(period.getSubject()) ? "Break" : period.getSubject())
-                        .teacherId(period.getTeacherId())
+                        .teacherDocsId(period.getTeacherDocsId())
                         .startTime(period.getStartTime())
                         .endTime(period.getEndTime())
                         .build());
@@ -194,14 +194,14 @@ public class DailyTimetableService {
                                     stored.getStartTime(), stored.getEndTime())) {
                         continue;
                     }
-                    if (candidate.getTeacherId() != null && candidate.getTeacherId().equals(stored.getTeacherId())) {
-                        conflicts.add("Teacher " + teacherLabel(candidate.getTeacherId(), staffCache)
+                    if (candidate.getTeacherDocsId() != null && candidate.getTeacherDocsId().equals(stored.getTeacherDocsId())) {
+                        conflicts.add("Teacher " + teacherLabel(candidate.getTeacherDocsId(), staffCache)
                                 + " is already scheduled for '" + stored.getSubject() + "' (class "
-                                + classLabel(stored.getClassId(), classCache) + ", section " + stored.getSection()
+                                + classLabel(stored.getClassDocsId(), classCache) + ", section " + stored.getSection()
                                 + ") on " + date + " " + stored.getStartTime() + "-" + stored.getEndTime());
-                    } else if (candidate.getClassId().equals(stored.getClassId())
+                    } else if (candidate.getClassDocsId().equals(stored.getClassDocsId())
                             && candidate.getSection().equalsIgnoreCase(stored.getSection())) {
-                        conflicts.add("Class " + classLabel(stored.getClassId(), classCache) + " section "
+                        conflicts.add("Class " + classLabel(stored.getClassDocsId(), classCache) + " section "
                                 + stored.getSection() + " already has '" + stored.getSubject() + "' on " + date
                                 + " " + stored.getStartTime() + "-" + stored.getEndTime());
                     }
@@ -223,11 +223,11 @@ public class DailyTimetableService {
             for (TimetableEntry entry : template) {
                 doc.getEntries().add(TimetableEntry.builder()
                         .id(new ObjectId().toHexString())
-                        .classId(entry.getClassId())
+                        .classDocsId(entry.getClassDocsId())
                         .section(entry.getSection())
                         .type(entry.getType())
                         .subject(entry.getSubject())
-                        .teacherId(entry.getTeacherId())
+                        .teacherDocsId(entry.getTeacherDocsId())
                         .startTime(entry.getStartTime())
                         .endTime(entry.getEndTime())
                         .build());
@@ -265,13 +265,13 @@ public class DailyTimetableService {
     public List<DaySchedule> getSectionSchedule(String schoolId, String classId, String section,
             LocalDate startDate, LocalDate endDate) {
         return filterRange(schoolId, startDate, endDate,
-                e -> classId.equals(e.getClassId()) && section.equalsIgnoreCase(e.getSection()));
+                e -> classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
     }
 
     /** One teacher's lessons per date within a range. */
     public List<DaySchedule> getTeacherSchedule(String schoolId, String teacherId,
             LocalDate startDate, LocalDate endDate) {
-        return filterRange(schoolId, startDate, endDate, e -> teacherId.equals(e.getTeacherId()));
+        return filterRange(schoolId, startDate, endDate, e -> teacherId.equals(e.getTeacherDocsId()));
     }
 
     /**
@@ -290,7 +290,7 @@ public class DailyTimetableService {
         String label = classLabel(classId, classCache) + " Section " + section;
         validatePeriods(periods, label);
         Set<String> teacherIds = new HashSet<>();
-        periods.stream().filter(p -> p.getTeacherId() != null).forEach(p -> teacherIds.add(p.getTeacherId()));
+        periods.stream().filter(p -> p.getTeacherDocsId() != null).forEach(p -> teacherIds.add(p.getTeacherDocsId()));
         Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
 
         AcademicYear academicYear = requireWorkingDate(schoolId, date);
@@ -304,22 +304,22 @@ public class DailyTimetableService {
 
         // the section's own old entries are being replaced, so they cannot clash
         List<TimetableEntry> others = doc.getEntries().stream()
-                .filter(e -> !(classId.equals(e.getClassId()) && section.equalsIgnoreCase(e.getSection())))
+                .filter(e -> !(classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection())))
                 .collect(Collectors.toList());
 
         List<String> conflicts = new ArrayList<>();
         for (TimetablePeriod period : periods) {
-            if (period.getTeacherId() == null) {
+            if (period.getTeacherDocsId() == null) {
                 continue;
             }
             for (TimetableEntry other : others) {
-                if (period.getTeacherId().equals(other.getTeacherId())
+                if (period.getTeacherDocsId().equals(other.getTeacherDocsId())
                         && other.getStartTime() != null && other.getEndTime() != null
                         && overlaps(period.getStartTime(), period.getEndTime(),
                                 other.getStartTime(), other.getEndTime())) {
-                    conflicts.add("Teacher " + teacherLabel(period.getTeacherId(), staffCache)
+                    conflicts.add("Teacher " + teacherLabel(period.getTeacherDocsId(), staffCache)
                             + " is already scheduled for '" + other.getSubject() + "' (class "
-                            + classLabel(other.getClassId(), classCache) + ", section " + other.getSection()
+                            + classLabel(other.getClassDocsId(), classCache) + ", section " + other.getSection()
                             + ") on " + date + " " + other.getStartTime() + "-" + other.getEndTime());
                 }
             }
@@ -353,22 +353,22 @@ public class DailyTimetableService {
                 throw new IllegalArgumentException(
                         "Timetable entry " + (i + 1) + " is empty — please fill it in or remove it.");
             }
-            if (entry.getClassId() == null || entry.getClassId().isBlank()) {
+            if (entry.getClassDocsId() == null || entry.getClassDocsId().isBlank()) {
                 throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a class.");
             }
             if (entry.getSection() == null || entry.getSection().isBlank()) {
                 throw new IllegalArgumentException("Timetable entry " + (i + 1) + ": please choose a section.");
             }
-            validateClassSection(schoolId, entry.getClassId(), entry.getSection(), classCache);
-            String label = classLabel(entry.getClassId(), classCache) + " Section " + entry.getSection();
-            if (!seenClassSections.add(entry.getClassId() + "::" + entry.getSection().toLowerCase())) {
+            validateClassSection(schoolId, entry.getClassDocsId(), entry.getSection(), classCache);
+            String label = classLabel(entry.getClassDocsId(), classCache) + " Section " + entry.getSection();
+            if (!seenClassSections.add(entry.getClassDocsId() + "::" + entry.getSection().toLowerCase())) {
                 throw new IllegalArgumentException(label
                         + " was added more than once — each class section can only appear once per request.");
             }
             validatePeriods(entry.getPeriods(), label);
             entry.getPeriods().stream()
-                    .filter(p -> p.getTeacherId() != null)
-                    .forEach(p -> teacherIds.add(p.getTeacherId()));
+                    .filter(p -> p.getTeacherDocsId() != null)
+                    .forEach(p -> teacherIds.add(p.getTeacherDocsId()));
         }
         Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
         raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
@@ -380,7 +380,7 @@ public class DailyTimetableService {
         doc.setAcademicYear(academicYear.getName());
         List<TimetableEntry> entries = new ArrayList<>();
         for (ClassSectionTimetable entry : sections) {
-            entries.addAll(buildEntries(entry.getClassId(), entry.getSection(), entry.getPeriods()));
+            entries.addAll(buildEntries(entry.getClassDocsId(), entry.getSection(), entry.getPeriods()));
         }
         doc.setEntries(entries);
         return dailyTimetableRepository.save(doc);
@@ -409,7 +409,7 @@ public class DailyTimetableService {
             }
             int before = doc.getEntries().size();
             doc.getEntries().removeIf(
-                    e -> classId.equals(e.getClassId()) && section.equalsIgnoreCase(e.getSection()));
+                    e -> classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
             if (doc.getEntries().size() == before) {
                 continue;
             }
@@ -470,11 +470,11 @@ public class DailyTimetableService {
             boolean isBreak = period.getType() == SlotType.BREAK;
             entries.add(TimetableEntry.builder()
                     .id(new ObjectId().toHexString())
-                    .classId(classId)
+                    .classDocsId(classId)
                     .section(section)
                     .type(isBreak ? SlotType.BREAK : SlotType.LESSON)
                     .subject(isBreak && isBlank(period.getSubject()) ? "Break" : period.getSubject())
-                    .teacherId(period.getTeacherId())
+                    .teacherDocsId(period.getTeacherDocsId())
                     .startTime(period.getStartTime())
                     .endTime(period.getEndTime())
                     .build());
@@ -518,7 +518,7 @@ public class DailyTimetableService {
                 where += " ('" + period.getSubject() + "')";
             }
             if (period.getType() == SlotType.BREAK) {
-                if (period.getTeacherId() != null) {
+                if (period.getTeacherDocsId() != null) {
                     throw new IllegalArgumentException(where
                             + " is a break — a break cannot have a teacher. Please remove the teacher.");
                 }
@@ -526,7 +526,7 @@ public class DailyTimetableService {
                 if (isBlank(period.getSubject())) {
                     throw new IllegalArgumentException(where + ": please enter the subject.");
                 }
-                if (period.getTeacherId() == null) {
+                if (period.getTeacherDocsId() == null) {
                     throw new IllegalArgumentException(where + ": please choose a teacher.");
                 }
             }
@@ -566,9 +566,9 @@ public class DailyTimetableService {
                 ClassSectionTimetable b = sections.get(j);
                 for (TimetablePeriod pa : a.getPeriods()) {
                     for (TimetablePeriod pb : b.getPeriods()) {
-                        if (pa.getTeacherId() != null && pa.getTeacherId().equals(pb.getTeacherId())
+                        if (pa.getTeacherDocsId() != null && pa.getTeacherDocsId().equals(pb.getTeacherDocsId())
                                 && overlaps(pa.getStartTime(), pa.getEndTime(), pb.getStartTime(), pb.getEndTime())) {
-                            conflicts.add("Teacher " + teacherLabel(pa.getTeacherId(), staffCache)
+                            conflicts.add("Teacher " + teacherLabel(pa.getTeacherDocsId(), staffCache)
                                     + " is booked in two places in this request: '" + pa.getSubject() + "' ("
                                     + describe(a, classCache) + " " + pa.getStartTime() + "-" + pa.getEndTime()
                                     + ") and '" + pb.getSubject() + "' (" + describe(b, classCache) + " "
@@ -582,9 +582,9 @@ public class DailyTimetableService {
     }
 
     private static String describe(ClassSectionTimetable entry, Map<String, SchoolClass> classCache) {
-        SchoolClass schoolClass = classCache.get(entry.getClassId());
+        SchoolClass schoolClass = classCache.get(entry.getClassDocsId());
         String className = schoolClass != null && schoolClass.getName() != null ? schoolClass.getName()
-                : entry.getClassId();
+                : entry.getClassDocsId();
         return "class " + className + " section " + entry.getSection();
     }
 

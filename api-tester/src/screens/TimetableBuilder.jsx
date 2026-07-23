@@ -5,10 +5,10 @@ import { Field, Input, Select, Button, Empty, useToast } from '../components/ui.
 import { overlaps, today } from '../lib/date.js';
 
 const defaultPeriods = () => [
-  { start: '09:00', end: '09:45', type: 'LESSON', subject: '', teacherId: null },
-  { start: '09:45', end: '10:30', type: 'LESSON', subject: '', teacherId: null },
-  { start: '10:30', end: '10:50', type: 'BREAK', subject: 'Recess', teacherId: null },
-  { start: '10:50', end: '11:35', type: 'LESSON', subject: '', teacherId: null },
+  { start: '09:00', end: '09:45', type: 'LESSON', subject: '', teacherDocsId: null },
+  { start: '09:45', end: '10:30', type: 'LESSON', subject: '', teacherDocsId: null },
+  { start: '10:30', end: '10:50', type: 'BREAK', subject: 'Recess', teacherDocsId: null },
+  { start: '10:50', end: '11:35', type: 'LESSON', subject: '', teacherDocsId: null },
 ];
 
 export default function TimetableBuilder({ schoolId, year, yearDoc, classes, staff }) {
@@ -19,7 +19,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
   const [payloadSchoolId, setPayloadSchoolId] = useState(schoolId || '');
   const [payloadAcademicYear, setPayloadAcademicYear] = useState(year || '');
   const [busy, setBusy] = useState(false);
-  const [drag, setDrag] = useState(null); // teacherId being dragged
+  const [drag, setDrag] = useState(null); // teacherDocsId being dragged
 
   const staffName = (id) => (staff.find((s) => s.id === id) || {}).name || id;
   const minDate = yearDoc?.startDate;
@@ -31,13 +31,13 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
   // section chips available
   const chips = useMemo(() => {
     const list = [];
-    classes.forEach((c) => (c.sections || []).forEach((s) => list.push({ classId: c.id, className: c.name, section: s })));
+    classes.forEach((c) => (c.sections || []).forEach((s) => list.push({ classDocsId: c.id, className: c.name, section: s })));
     return list;
   }, [classes]);
 
-  const isOn = (classId, section) => cols.some((c) => c.classId === classId && c.section === section);
+  const isOn = (classDocsId, section) => cols.some((c) => c.classDocsId === classDocsId && c.section === section);
   const toggle = (chip) => setCols((cs) => {
-    const i = cs.findIndex((c) => c.classId === chip.classId && c.section === chip.section);
+    const i = cs.findIndex((c) => c.classDocsId === chip.classDocsId && c.section === chip.section);
     if (i >= 0) return cs.filter((_, k) => k !== i);
     return [...cs, { ...chip, periods: defaultPeriods() }];
   });
@@ -48,7 +48,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
   const conflicts = useMemo(() => {
     const flat = [];
     cols.forEach((col, ci) => col.periods.forEach((p, pi) => {
-      if (p.start && p.end && p.start < p.end) flat.push({ ci, pi, key: col.classId + '|' + col.section, p });
+      if (p.start && p.end && p.start < p.end) flat.push({ ci, pi, key: col.classDocsId + '|' + col.section, p });
     }));
     const bad = new Set();
     for (let i = 0; i < flat.length; i++)
@@ -56,7 +56,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
         const a = flat[i], b = flat[j];
         if (!overlaps(a.p.start, a.p.end, b.p.start, b.p.end)) continue;
         const sameSection = a.key === b.key;
-        const sameTeacher = a.p.teacherId && a.p.teacherId === b.p.teacherId;
+        const sameTeacher = a.p.teacherDocsId && a.p.teacherDocsId === b.p.teacherDocsId;
         if (sameSection || sameTeacher) { bad.add(a.ci + '.' + a.pi); bad.add(b.ci + '.' + b.pi); }
       }
     return bad;
@@ -72,10 +72,10 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
       col.periods.forEach((p) => {
         if (!p.start || !p.end) return;
         if (p.type === 'BREAK') periods.push({ type: 'BREAK', subject: (p.subject || 'Break').trim(), startTime: p.start, endTime: p.end });
-        else if (p.subject.trim() && p.teacherId) periods.push({ type: 'LESSON', subject: p.subject.trim(), teacherId: p.teacherId, startTime: p.start, endTime: p.end });
-        else if (p.subject.trim() || p.teacherId) skipped++;
+        else if (p.subject.trim() && p.teacherDocsId) periods.push({ type: 'LESSON', subject: p.subject.trim(), teacherDocsId: p.teacherDocsId, startTime: p.start, endTime: p.end });
+        else if (p.subject.trim() || p.teacherDocsId) skipped++;
       });
-      if (periods.length) classTimetables.push({ classId: col.classId, section: col.section, periods });
+      if (periods.length) classTimetables.push({ classDocsId: col.classDocsId, section: col.section, periods });
     });
     if (!classTimetables.length) return toast.error('Add at least one complete lesson (subject + teacher) or break.');
 
@@ -113,7 +113,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
         ) : (
           <div className="flex flex-wrap gap-2">
             {chips.map((c, i) => {
-              const on = isOn(c.classId, c.section);
+              const on = isOn(c.classDocsId, c.section);
               return (
                 <button key={i} onClick={() => toggle(c)}
                   className={`text-xs rounded-full px-3 py-1.5 border transition ${on ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
@@ -152,7 +152,7 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
                 <div key={ci} className="w-60 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                   <div className="text-sm font-semibold text-center text-slate-700 mb-2">{col.className} — {col.section}</div>
                   <div className="grid grid-cols-2 gap-1.5 mb-2">
-                    <Input value={col.classId} onChange={(e) => mutate(ci, (current) => ({ ...current, classId: e.target.value }))} placeholder="classId" className="!px-2 !py-1 text-[10px] font-mono" />
+                    <Input value={col.classDocsId} onChange={(e) => mutate(ci, (current) => ({ ...current, classDocsId: e.target.value }))} placeholder="classDocsId" className="!px-2 !py-1 text-[10px] font-mono" />
                     <Input value={col.section} onChange={(e) => mutate(ci, (current) => ({ ...current, section: e.target.value }))} placeholder="section" className="!px-2 !py-1 text-[10px]" />
                   </div>
                   {col.periods.map((p, pi) => {
@@ -180,19 +180,19 @@ export default function TimetableBuilder({ schoolId, year, yearDoc, classes, sta
                             <Input value={p.subject} placeholder="Subject" onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, subject: e.target.value } : x) }))} className="!px-2 !py-1 text-xs w-full mb-1.5" />
                             <div
                               onDragOver={(e) => e.preventDefault()}
-                              onDrop={() => { if (drag) mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherId: drag } : x) })); }}
-                              className={`rounded-md px-2 py-1 text-xs flex items-center justify-between ${p.teacherId ? 'bg-indigo-50 border border-indigo-200 text-slate-700' : 'border border-dashed border-slate-300 text-slate-400'}`}>
-                              {p.teacherId ? <><span className="truncate">👩‍🏫 {staffName(p.teacherId)}</span><button className="text-rose-400" onClick={() => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherId: null } : x) }))}><X size={12} /></button></> : 'drop teacher here'}
+                              onDrop={() => { if (drag) mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherDocsId: drag } : x) })); }}
+                              className={`rounded-md px-2 py-1 text-xs flex items-center justify-between ${p.teacherDocsId ? 'bg-indigo-50 border border-indigo-200 text-slate-700' : 'border border-dashed border-slate-300 text-slate-400'}`}>
+                              {p.teacherDocsId ? <><span className="truncate">👩‍🏫 {staffName(p.teacherDocsId)}</span><button className="text-rose-400" onClick={() => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherDocsId: null } : x) }))}><X size={12} /></button></> : 'drop teacher here'}
                             </div>
-                            <Input value={p.teacherId || ''} onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherId: e.target.value || null } : x) }))} placeholder="teacherId" className="!px-2 !py-1 text-[10px] font-mono w-full mt-1.5" />
+                            <Input value={p.teacherDocsId || ''} onChange={(e) => mutate(ci, (c) => ({ ...c, periods: c.periods.map((x, k) => k === pi ? { ...x, teacherDocsId: e.target.value || null } : x) }))} placeholder="teacherDocsId" className="!px-2 !py-1 text-[10px] font-mono w-full mt-1.5" />
                           </div>
                         )}
                       </div>
                     );
                   })}
                   <div className="flex gap-1.5">
-                    <Button size="sm" className="flex-1" onClick={() => mutate(ci, (c) => { const last = c.periods[c.periods.length - 1]; const s = last ? last.end : '09:00'; return { ...c, periods: [...c.periods, { start: s, end: s, type: 'LESSON', subject: '', teacherId: null }] }; })}><Plus size={13} /> Lesson</Button>
-                    <Button size="sm" className="flex-1" onClick={() => mutate(ci, (c) => { const last = c.periods[c.periods.length - 1]; const s = last ? last.end : '09:00'; return { ...c, periods: [...c.periods, { start: s, end: s, type: 'BREAK', subject: 'Break', teacherId: null }] }; })}><Coffee size={13} /> Break</Button>
+                    <Button size="sm" className="flex-1" onClick={() => mutate(ci, (c) => { const last = c.periods[c.periods.length - 1]; const s = last ? last.end : '09:00'; return { ...c, periods: [...c.periods, { start: s, end: s, type: 'LESSON', subject: '', teacherDocsId: null }] }; })}><Plus size={13} /> Lesson</Button>
+                    <Button size="sm" className="flex-1" onClick={() => mutate(ci, (c) => { const last = c.periods[c.periods.length - 1]; const s = last ? last.end : '09:00'; return { ...c, periods: [...c.periods, { start: s, end: s, type: 'BREAK', subject: 'Break', teacherDocsId: null }] }; })}><Coffee size={13} /> Break</Button>
                   </div>
                 </div>
               ))}

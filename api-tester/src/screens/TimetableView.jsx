@@ -102,8 +102,8 @@ export default function TimetableView({ schoolId, classes, staff }) {
                         </div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-1">
                           {mode === 'class'
-                            ? (!brk && <><User size={10} /> {nameOf(e.teacherId)}</>)
-                            : `${classNameOf(e.classId)} · ${e.section}`}
+                            ? (!brk && <><User size={10} /> {nameOf(e.teacherDocsId)}</>)
+                            : `${classNameOf(e.classDocsId)} · ${e.section}`}
                         </div>
                       </div>
                     );

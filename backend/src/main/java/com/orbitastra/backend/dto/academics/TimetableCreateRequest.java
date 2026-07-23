@@ -40,8 +40,8 @@ public class TimetableCreateRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ClassSectionTimetable {
-        @NotBlank(message = "classId is required")
-        private String classId;
+        @NotBlank(message = "classDocsId is required")
+        private String classDocsId;
 
         @NotBlank(message = "section is required")
         private String section;

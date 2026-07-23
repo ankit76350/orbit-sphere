@@ -15,14 +15,14 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TimetablePeriod {
-    // Defaults to LESSON. BREAK periods must not have a teacherId and the
+    // Defaults to LESSON. BREAK periods must not have a teacherDocsId and the
     // subject is an optional label (defaults to "Break").
     private SlotType type;
 
     private String subject;
 
     // Staff document id of the teacher (LESSON only)
-    private String teacherId;
+    private String teacherDocsId;
 
     @NotNull(message = "startTime is required")
     private LocalTime startTime;
