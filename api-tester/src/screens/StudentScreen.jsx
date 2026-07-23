@@ -297,6 +297,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                         <th className="px-4 py-3">Student details</th>
+                        <th className="px-4 py-3">MongoDB Object ID</th>
                         <th className="px-4 py-3">Admission No</th>
                         <th className="px-4 py-3">Gender / DOB</th>
                         <th className="px-4 py-3">Status</th>
@@ -323,6 +324,12 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                   </div>
                                 </div>
                               </div>
+                            </td>
+                            {/* MongoDB document id */}
+                            <td className="px-4 py-3 align-top">
+                              <code className="block max-w-[180px] break-all text-[10px] font-mono text-slate-500 select-all" title={s.id || ''}>
+                                {s.id || '—'}
+                              </code>
                             </td>
                             {/* admission no */}
                             <td className="px-4 py-3 font-mono font-bold text-slate-800 select-all">{s.admissionNo}</td>
