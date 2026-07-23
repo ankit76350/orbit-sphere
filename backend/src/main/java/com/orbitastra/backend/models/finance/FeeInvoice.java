@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.AcadmicStudentSchool;
+import com.orbitastra.backend.models.base.AcadmicStudentSchoolBase;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.finance.enums.FeeType;
 
@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FeeInvoice extends AcadmicStudentSchool {
+public class FeeInvoice extends AcadmicStudentSchoolBase {
 
     // Human-readable invoice number (e.g. "INV-A1B2C3D4"), generated on creation.
     // The Mongo id stays the technical key; this is what appears on the printed bill.

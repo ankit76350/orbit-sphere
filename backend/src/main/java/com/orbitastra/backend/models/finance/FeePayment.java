@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.AcadmicStudentSchool;
+import com.orbitastra.backend.models.base.AcadmicStudentSchoolBase;
 import com.orbitastra.backend.models.finance.enums.PaymentMode;
 
 import lombok.AllArgsConstructor;
@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FeePayment extends AcadmicStudentSchool {
+public class FeePayment extends AcadmicStudentSchoolBase {
 
     // The Fee (invoice) this payment is collected against
     private String feeId;
