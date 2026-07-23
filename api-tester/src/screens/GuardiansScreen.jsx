@@ -22,7 +22,7 @@ export default function GuardiansScreen({ schoolId }) {
   const [editing, setEditing] = useState(null);
 
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const emptyLink = { guardianId: '', relation: 'FATHER', primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false };
+  const emptyLink = { guardianDocsId: '', relation: 'FATHER', primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false };
   const [linkForm, setLinkForm] = useState(emptyLink);
 
   const fetchAll = useCallback(async () => {
@@ -33,7 +33,7 @@ export default function GuardiansScreen({ schoolId }) {
       setGuardians(g || []);
       setStudents(s || []);
       if ((s || []).length && !s.some((x) => x.id === selectedStudentId)) setSelectedStudentId(s[0].id);
-      if ((g || []).length && !g.some((x) => x.id === linkForm.guardianId)) setLinkForm((f) => ({ ...f, guardianId: g[0].id }));
+      if ((g || []).length && !g.some((x) => x.id === linkForm.guardianDocsId)) setLinkForm((f) => ({ ...f, guardianDocsId: g[0].id }));
     } catch (e) {
       console.error(e);
       toast.error('Failed to load guardians.');
@@ -45,7 +45,7 @@ export default function GuardiansScreen({ schoolId }) {
 
   const guardianById = useMemo(() => Object.fromEntries(guardians.map((g) => [g.id, g])), [guardians]);
   const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
-  const studentCountFor = (gid) => students.filter((s) => (s.guardians || []).some((l) => l.guardianId === gid)).length;
+  const studentCountFor = (gid) => students.filter((s) => (s.guardians || []).some((l) => l.guardianDocsId === gid)).length;
 
   // ---- guardian CRUD ----
   const resetGuardian = () => { setEditing(null); setGuardianForm({ ...emptyGuardian, schoolId: schoolId || '' }); };
@@ -69,7 +69,7 @@ export default function GuardiansScreen({ schoolId }) {
         if (confirm(`${e.message}\n\nLink the existing guardian to a student instead?`)) {
           await fetchAll();
           resetGuardian();
-          setLinkForm((f) => ({ ...f, guardianId: gid }));
+          setLinkForm((f) => ({ ...f, guardianDocsId: gid }));
           setSubTab('links');
         }
       } else {
@@ -93,20 +93,20 @@ export default function GuardiansScreen({ schoolId }) {
 
   // ---- link management ----
   const addLink = async () => {
-    if (!selectedStudentId || !linkForm.guardianId) { toast.error('Pick a student and a guardian.'); return; }
+    if (!selectedStudentId || !linkForm.guardianDocsId) { toast.error('Pick a student and a guardian.'); return; }
     setBusy(true);
     try {
       await api.addGuardianLink(selectedStudentId, linkForm);
       toast.success('Guardian linked.');
-      setLinkForm({ ...emptyLink, guardianId: linkForm.guardianId });
+      setLinkForm({ ...emptyLink, guardianDocsId: linkForm.guardianDocsId });
       fetchAll();
     } catch (e) { toast.error(e.message || 'Failed to link guardian.'); }
     finally { setBusy(false); }
   };
 
-  const removeLink = async (guardianId) => {
+  const removeLink = async (guardianDocsId) => {
     setBusy(true);
-    try { await api.removeGuardianLink(selectedStudentId, guardianId); toast.success('Guardian unlinked.'); fetchAll(); }
+    try { await api.removeGuardianLink(selectedStudentId, guardianDocsId); toast.success('Guardian unlinked.'); fetchAll(); }
     catch (e) { toast.error(e.message); }
     finally { setBusy(false); }
   };
@@ -252,9 +252,9 @@ export default function GuardiansScreen({ schoolId }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {(selectedStudent.guardians || []).map((l) => {
-                        const g = guardianById[l.guardianId];
+                        const g = guardianById[l.guardianDocsId];
                         return (
-                          <tr key={l.guardianId} className="hover:bg-slate-50/50 transition">
+                          <tr key={l.guardianDocsId} className="hover:bg-slate-50/50 transition">
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900">{g?.name || '(unknown / deleted)'}</div>
                               <div className="text-[10px] text-slate-400">{g?.phone || ''}</div>
@@ -262,7 +262,7 @@ export default function GuardiansScreen({ schoolId }) {
                             <td className="px-4 py-3"><Badge color="slate">{l.relation}</Badge></td>
                             <td className="px-4 py-3">{flagChips(l)}</td>
                             <td className="px-4 py-3 text-right">
-                              <button onClick={() => removeLink(l.guardianId)} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition" title="Unlink"><Trash2 size={13} /></button>
+                              <button onClick={() => removeLink(l.guardianDocsId)} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition" title="Unlink"><Trash2 size={13} /></button>
                             </td>
                           </tr>
                         );
@@ -277,8 +277,8 @@ export default function GuardiansScreen({ schoolId }) {
             <div className="xl:col-span-1">
               <Card title="Link a Guardian" subtitle="Attach a guardian to the selected student with a role + flags.">
                 <div className="space-y-3">
-                  <Field label="Guardian" apiName="guardianId" required>
-                    <Select value={linkForm.guardianId} onChange={(e) => setLinkForm({ ...linkForm, guardianId: e.target.value })}>
+                  <Field label="Guardian" apiName="guardianDocsId" required>
+                    <Select value={linkForm.guardianDocsId} onChange={(e) => setLinkForm({ ...linkForm, guardianDocsId: e.target.value })}>
                       {guardians.length === 0 && <option value="">Create a guardian first</option>}
                       {guardians.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </Select>
@@ -303,7 +303,7 @@ export default function GuardiansScreen({ schoolId }) {
                     ))}
                   </div>
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
-                    <Button variant="primary" onClick={addLink} disabled={busy || !selectedStudentId || !linkForm.guardianId}>
+                    <Button variant="primary" onClick={addLink} disabled={busy || !selectedStudentId || !linkForm.guardianDocsId}>
                       {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Link Guardian
                     </Button>
                   </div>

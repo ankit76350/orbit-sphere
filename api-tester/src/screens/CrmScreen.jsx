@@ -236,7 +236,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       photoUrl: '', walletDocsId: '', medicalRecordDocsId: '',
       documents: (adm.documents || []).join(', '), medicalRemark: '',
       status: 'ACTIVE', admissionDate: adm.admissionDate || '',
-      admissionId: adm.id, schoolId, academicYear: year || '',
+      admissionId: adm.id, schoolId,
       guardians: [],
       currentAcademicRecord: {
         academicYear: '', studentNo: '', rollNo: '', classDocId: '', sectionNo: '', hostelRoomNo: '', status: '',
@@ -250,7 +250,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       const payload = {
         admissionId: convertForm.admissionId || null,
         schoolId: convertForm.schoolId || null,
-        academicYear: convertForm.academicYear || null,
         admissionNo: convertForm.admissionNo || null,
         name: convertForm.name || null,
         dob: convertForm.dob || null,
@@ -263,7 +262,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         medicalRemark: convertForm.medicalRemark.split(',').map((value) => value.trim()).filter(Boolean),
         status: convertForm.status || null,
         admissionDate: convertForm.admissionDate || null,
-        guardians: convertForm.guardians.map((guardian) => ({ ...guardian, guardianId: guardian.guardianId || null, relation: guardian.relation || null })),
+        guardians: convertForm.guardians.map((guardian) => ({ ...guardian, guardianDocsId: guardian.guardianDocsId || null, relation: guardian.relation || null })),
         currentAcademicRecord: Object.values(convertForm.currentAcademicRecord).some(Boolean)
           ? Object.fromEntries(Object.entries(convertForm.currentAcademicRecord).map(([key, value]) => [key, value || null]))
           : null,
@@ -629,7 +628,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Admission ID" apiName="admissionId" required={false} hint="Accepted for payload parity; path id remains authoritative."><Input value={convertForm.admissionId} onChange={(e) => setConvertForm({ ...convertForm, admissionId: e.target.value })} /></Field>
                 <Field label="School ID" apiName="schoolId" required={false} hint="Accepted but ignored."><Input value={convertForm.schoolId} onChange={(e) => setConvertForm({ ...convertForm, schoolId: e.target.value })} /></Field>
-                <Field label="Academic Year" apiName="academicYear" required={false} hint="Accepted but ignored."><Input value={convertForm.academicYear} onChange={(e) => setConvertForm({ ...convertForm, academicYear: e.target.value })} /></Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Admission No." apiName="admissionNo" required={false} hint="Copied from the admission and kept unchanged on enrolment."><Input value={convertForm.admissionNo} readOnly className="font-mono bg-slate-50 text-slate-600 select-all cursor-text" /></Field>
@@ -680,12 +678,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <div className="space-y-2 border-t border-slate-100 pt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-700">Existing guardian links <code className="font-mono text-[10px] text-slate-400">guardians[]</code> <span className="text-[9px] uppercase text-slate-400">optional</span></span>
-                  <button type="button" onClick={() => setConvertForm({ ...convertForm, guardians: [...convertForm.guardians, { guardianId: '', relation: '', primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+                  <button type="button" onClick={() => setConvertForm({ ...convertForm, guardians: [...convertForm.guardians, { guardianDocsId: '', relation: '', primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
                 </div>
                 {convertForm.guardians.map((guardian, index) => {
                   const updateGuardian = (patch) => setConvertForm({ ...convertForm, guardians: convertForm.guardians.map((item, i) => i === index ? { ...item, ...patch } : item) });
                   return <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50/50">
-                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2"><Input value={guardian.guardianId} onChange={(e) => updateGuardian({ guardianId: e.target.value })} placeholder="guardianId (required per row)" /><Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select><button type="button" onClick={() => setConvertForm({ ...convertForm, guardians: convertForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2"><Input value={guardian.guardianDocsId} onChange={(e) => updateGuardian({ guardianDocsId: e.target.value })} placeholder="guardianDocsId (MongoDB Object ID)" /><Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select><button type="button" onClick={() => setConvertForm({ ...convertForm, guardians: convertForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
                     <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600">{['primary', 'emergencyContact', 'pickupApproved', 'portalAccess'].map((flag) => <label key={flag} className="flex items-center gap-1"><input type="checkbox" checked={guardian[flag]} onChange={(e) => updateGuardian({ [flag]: e.target.checked })} /> {flag}</label>)}</div>
                   </div>;
                 })}

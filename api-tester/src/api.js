@@ -116,9 +116,9 @@ export const api = {
   createGuardian: (payload) => call('POST', '/api/guardians', payload),
   updateGuardian: (id, payload) => call('PATCH', `/api/guardians/${id}`, payload),
   deleteGuardian: (id) => call('DELETE', `/api/guardians/${id}`),
-  studentsByGuardian: (guardianId) => listOr(`/api/students/guardian/${guardianId}`),
+  studentsByGuardian: (guardianDocsId) => listOr(`/api/students/guardian/${guardianDocsId}`),
   addGuardianLink: (studentId, link) => call('POST', `/api/students/${studentId}/guardians`, link),
-  removeGuardianLink: (studentId, guardianId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianId}`),
+  removeGuardianLink: (studentId, guardianDocsId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianDocsId}`),
 
   // ----- academics: attendance -----
   attendance: (schoolId) => listOr(`/api/attendance/school/${schoolId}`),
