@@ -231,7 +231,7 @@ public class StudentService {
         if (guardians == null) return null;
         return guardians.stream()
                 .map(g -> new GuardianService.GuardianDraft(
-                        g.getGuardianId(), g.getName(), g.getPhone(), g.getEmail(),
+                        g.getGuardianDocsId(), g.getName(), g.getPhone(), g.getEmail(),
                         g.getAddress(), g.getOccupation(), g.getRelation(),
                         g.getPrimary(), g.getEmergencyContact(),
                         g.getPickupApproved(), g.getPortalAccess()))
@@ -357,8 +357,8 @@ public class StudentService {
         return buildResponses(studentRepository.findAllById(ids));
     }
 
-    public List<StudentResponse> getStudentsByGuardian(String guardianId) {
-        return buildResponses(studentRepository.findByGuardiansGuardianId(guardianId));
+    public List<StudentResponse> getStudentsByGuardian(String guardianDocsId) {
+        return buildResponses(studentRepository.findByGuardiansGuardianDocsId(guardianDocsId));
     }
 
     // =======================================================================================
@@ -463,27 +463,27 @@ public class StudentService {
      */
     public StudentResponse addGuardianLink(String studentId, GuardianLink link) {
         Student student = getStudentEntity(studentId);
-        if (link == null || link.getGuardianId() == null || link.getGuardianId().isBlank()) {
-            throw new IllegalArgumentException("guardianId is required to link a guardian.");
+        if (link == null || link.getGuardianDocsId() == null || link.getGuardianDocsId().isBlank()) {
+            throw new IllegalArgumentException("guardianDocsId is required to link a guardian.");
         }
-        Guardian guardian = guardianRepository.findById(link.getGuardianId())
-                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + link.getGuardianId()));
+        Guardian guardian = guardianRepository.findById(link.getGuardianDocsId())
+                .orElseThrow(() -> new ResourceNotFoundException("Guardian not found with id: " + link.getGuardianDocsId()));
         if (!guardian.getSchoolId().equals(student.getSchoolId())) {
             throw new IllegalArgumentException("Guardian does not belong to the same school as the student.");
         }
         if (student.getGuardians() == null) student.setGuardians(new ArrayList<>());
         // Remove any existing link to this guardian first, then add the new one.
-        student.getGuardians().removeIf(g -> link.getGuardianId().equals(g.getGuardianId()));
+        student.getGuardians().removeIf(g -> link.getGuardianDocsId().equals(g.getGuardianDocsId()));
         student.getGuardians().add(link);
         student.setUpdatedAt(LocalDateTime.now());
         return buildResponse(studentRepository.save(student));
     }
 
-    public StudentResponse removeGuardianLink(String studentId, String guardianId) {
+    public StudentResponse removeGuardianLink(String studentId, String guardianDocsId) {
         Student student = getStudentEntity(studentId);
         // Only save if a link was actually removed.
         if (student.getGuardians() != null
-                && student.getGuardians().removeIf(g -> guardianId.equals(g.getGuardianId()))) {
+                && student.getGuardians().removeIf(g -> guardianDocsId.equals(g.getGuardianDocsId()))) {
             student.setUpdatedAt(LocalDateTime.now());
             student = studentRepository.save(student);
         }
@@ -593,10 +593,10 @@ public class StudentService {
         // For each guardian, collect the other students they belong to.
         Map<String, Student> siblings = new java.util.LinkedHashMap<>();
         student.getGuardians().stream()
-                .map(GuardianLink::getGuardianId)
+                .map(GuardianLink::getGuardianDocsId)
                 .filter(Objects::nonNull)
                 .distinct()
-                .forEach(gid -> studentRepository.findByGuardiansGuardianId(gid).forEach(s -> {
+                .forEach(gid -> studentRepository.findByGuardiansGuardianDocsId(gid).forEach(s -> {
                     if (!s.getId().equals(studentId)) siblings.put(s.getId(), s);
                 }));
         return buildResponses(new ArrayList<>(siblings.values()));

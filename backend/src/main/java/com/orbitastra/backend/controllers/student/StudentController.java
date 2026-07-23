@@ -87,9 +87,9 @@ public class StudentController {
         return ResponseEntity.ok(studentService.getStudentsByClass(classId));
     }
 
-    @GetMapping("/guardian/{guardianId}")
-    public ResponseEntity<List<StudentResponse>> getStudentsByGuardian(@PathVariable String guardianId) {
-        return ResponseEntity.ok(studentService.getStudentsByGuardian(guardianId));
+    @GetMapping("/guardian/{guardianDocsId}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByGuardian(@PathVariable String guardianDocsId) {
+        return ResponseEntity.ok(studentService.getStudentsByGuardian(guardianDocsId));
     }
 
     @PostMapping("/{id}/guardians")
@@ -97,9 +97,9 @@ public class StudentController {
         return ResponseEntity.ok(studentService.addGuardianLink(id, request.toModel()));
     }
 
-    @DeleteMapping("/{id}/guardians/{guardianId}")
-    public ResponseEntity<StudentResponse> removeGuardianLink(@PathVariable String id, @PathVariable String guardianId) {
-        return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianId));
+    @DeleteMapping("/{id}/guardians/{guardianDocsId}")
+    public ResponseEntity<StudentResponse> removeGuardianLink(@PathVariable String id, @PathVariable String guardianDocsId) {
+        return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianDocsId));
     }
 
     @GetMapping("/hostel/{hostelRoomNo}")

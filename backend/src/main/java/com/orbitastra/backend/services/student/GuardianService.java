@@ -43,7 +43,7 @@ public class GuardianService {
      * tell "not sent" (null) apart from "sent as false".
      */
     public record GuardianDraft(
-            String guardianId,
+            String guardianDocsId,
             String name, String phone, String email, String address, String occupation,
             GuardianRelation relation,
             Boolean primary, Boolean emergencyContact, Boolean pickupApproved, Boolean portalAccess) {
@@ -78,11 +78,11 @@ public class GuardianService {
         // Guardians already on the student also point to real guardians, so check them too.
         if (existingLinks != null) {
             for (GuardianLink l : existingLinks) {
-                if (l == null || l.getGuardianId() == null || l.getGuardianId().isBlank()) continue;
-                assertGuardianInSchool(l.getGuardianId(), schoolId);
-                if (links.stream().noneMatch(x -> l.getGuardianId().equals(x.getGuardianId()))) {
+                if (l == null || l.getGuardianDocsId() == null || l.getGuardianDocsId().isBlank()) continue;
+                assertGuardianInSchool(l.getGuardianDocsId(), schoolId);
+                if (links.stream().noneMatch(x -> l.getGuardianDocsId().equals(x.getGuardianDocsId()))) {
                     links.add(l);
-                    log.debug("[buildDedupedLinks] Kept the guardian already on the student: {}", l.getGuardianId());
+                    log.debug("[buildDedupedLinks] Kept the guardian already on the student: {}", l.getGuardianDocsId());
                 }
             }
         }
@@ -94,24 +94,24 @@ public class GuardianService {
         int idx = 0;
         for (GuardianDraft d : drafts) {
             idx++;
-            String guardianId = d.guardianId();
-            if (guardianId != null && !guardianId.isBlank()) {
+            String guardianDocsId = d.guardianDocsId();
+            if (guardianDocsId != null && !guardianDocsId.isBlank()) {
                 // The request gave an id of a guardian that should already exist.
-                log.info("[buildDedupedLinks] Guardian {} of {}: using an existing guardian with id {}", idx, draftCount, guardianId);
-                assertGuardianInSchool(guardianId, schoolId);
+                log.info("[buildDedupedLinks] Guardian {} of {}: using an existing guardian with id {}", idx, draftCount, guardianDocsId);
+                assertGuardianInSchool(guardianDocsId, schoolId);
             } else if (d.name() != null && !d.name().isBlank()) {
                 // The request gave a person's details. Find that person, or create them if new.
                 log.info("[buildDedupedLinks] Guardian {} of {}: looking up person by name '{}', phone '{}', email '{}'",
                         idx, draftCount, d.name(), d.phone(), d.email());
-                guardianId = findOrCreate(schoolId, d.name(), d.phone(), d.email(),
+                guardianDocsId = findOrCreate(schoolId, d.name(), d.phone(), d.email(),
                         d.address(), d.occupation()).getId();
             } else {
                 log.warn("[buildDedupedLinks] Guardian {} of {}: skipped because it had no id and no name", idx, draftCount);
                 continue;
             }
 
-            final String gId = guardianId;
-            if (links.stream().anyMatch(l -> gId.equals(l.getGuardianId()))) {
+            final String gId = guardianDocsId;
+            if (links.stream().anyMatch(l -> gId.equals(l.getGuardianDocsId()))) {
                 log.info("[buildDedupedLinks] Guardian {} of {}: guardian {} is already added, so skipping the duplicate", idx, draftCount, gId);
                 continue;
             }
@@ -120,7 +120,7 @@ public class GuardianService {
             boolean alreadyHasMainGuardian = links.stream().anyMatch(GuardianLink::isPrimary);
             boolean isMainGuardian = d.primary() != null ? d.primary() : !alreadyHasMainGuardian;
             links.add(GuardianLink.builder()
-                    .guardianId(gId)
+                    .guardianDocsId(gId)
                     .relation(d.relation())
                     .primary(isMainGuardian)
                     .emergencyContact(Boolean.TRUE.equals(d.emergencyContact()))
@@ -188,16 +188,16 @@ public class GuardianService {
      * Makes sure the guardian with this id exists and belongs to this school, so a student is
      * never linked to a guardian that is missing or from another school.
      */
-    private void assertGuardianInSchool(String guardianId, String schoolId) {
-        Guardian guardian = guardianRepository.findById(guardianId)
+    private void assertGuardianInSchool(String guardianDocsId, String schoolId) {
+        Guardian guardian = guardianRepository.findById(guardianDocsId)
                 .orElseThrow(() -> {
-                    log.warn("[assertGuardianInSchool] No guardian found with id {}", guardianId);
-                    return new ResourceNotFoundException("Guardian not found with id: " + guardianId);
+                    log.warn("[assertGuardianInSchool] No guardian found with id {}", guardianDocsId);
+                    return new ResourceNotFoundException("Guardian not found with id: " + guardianDocsId);
                 });
         if (guardian.getSchoolId() == null || !guardian.getSchoolId().equals(schoolId)) {
-            log.warn("[assertGuardianInSchool] Guardian {} is in school {}, not school {}", guardianId, guardian.getSchoolId(), schoolId);
+            log.warn("[assertGuardianInSchool] Guardian {} is in school {}, not school {}", guardianDocsId, guardian.getSchoolId(), schoolId);
             throw new IllegalArgumentException(
-                    "Guardian '" + guardianId + "' does not belong to the same school as the student.");
+                    "Guardian '" + guardianDocsId + "' does not belong to the same school as the student.");
         }
     }
 

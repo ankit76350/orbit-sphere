@@ -15,6 +15,6 @@ public interface StudentRepository extends MongoRepository<Student, String> {
     Optional<Student> findByAdmissionDocsId(String admissionDocsId);
     List<Student> findBySchoolId(String schoolId);
     long countBySchoolId(String schoolId);
-    List<Student> findByGuardiansGuardianId(String guardianId);
+    List<Student> findByGuardiansGuardianDocsId(String guardianDocsId);
     List<Student> findByStatus(StudentStatus status);
 }

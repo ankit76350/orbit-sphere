@@ -1,5 +1,6 @@
 package com.orbitastra.backend.dto.student;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
 import lombok.AllArgsConstructor;
@@ -9,7 +10,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Client payload for specifying a guardian during student creation or linking.
- * Supports either referencing an existing guardian by {@code guardianId}, or
+ * Supports either referencing an existing guardian by {@code guardianDocsId}, or
  * providing full person attributes ({@code name}, {@code phone}, {@code email}, etc.)
  * which will be deduplicated server-side via find-or-create.
  */
@@ -20,9 +21,10 @@ import lombok.NoArgsConstructor;
 public class StudentGuardianRequest {
 
     // Reference an existing Guardian by ID (optional if full details below are provided)
-    private String guardianId;
+    @JsonAlias("guardianId")
+    private String guardianDocsId;
 
-    // Person attributes (used for find-or-create deduplication if guardianId is absent)
+    // Person attributes (used for find-or-create deduplication if guardianDocsId is absent)
     private String name;
 
     private GuardianRelation relation;

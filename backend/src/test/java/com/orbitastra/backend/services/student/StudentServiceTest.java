@@ -129,7 +129,7 @@ public class StudentServiceTest {
 
         // GuardianService owns the dedup + link building (covered by GuardianServiceTest);
         // here we only assert StudentService forwards the drafts and uses the result.
-        GuardianLink link = GuardianLink.builder().guardianId("guardian-priya").primary(true).build();
+        GuardianLink link = GuardianLink.builder().guardianDocsId("guardian-priya").primary(true).build();
         when(guardianService.buildDedupedLinks(eq("school-id-123"), isNull(), anyList()))
                 .thenReturn(new ArrayList<>(List.of(link)));
 
@@ -155,7 +155,7 @@ public class StudentServiceTest {
         assertEquals(List.of("birth-certificate.pdf"), created.getDocuments());
         assertEquals(List.of("Penicillin allergy"), created.getMedicalRemark());
         assertEquals(1, created.getGuardians().size());
-        assertEquals("guardian-priya", created.getGuardians().get(0).getGuardianId());
+        assertEquals("guardian-priya", created.getGuardians().get(0).getGuardianDocsId());
         // Both request entries are forwarded as drafts; GuardianService collapses them.
         verify(guardianService).buildDedupedLinks(eq("school-id-123"), isNull(), draftsCaptor.capture());
         assertEquals(2, draftsCaptor.getValue().size());
@@ -373,7 +373,7 @@ public class StudentServiceTest {
     void getSiblings_Success() {
         // Siblings now share a guardian, not a parent.
         student.setGuardians(new ArrayList<>(List.of(
-                GuardianLink.builder().guardianId("guardian-1").build())));
+                GuardianLink.builder().guardianDocsId("guardian-1").build())));
 
         Student sibling = new Student();
         sibling.setId("sibling-id-999");
@@ -381,13 +381,13 @@ public class StudentServiceTest {
         sibling.setAdmissionNo("ADM-999");
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
-        when(studentRepository.findByGuardiansGuardianId("guardian-1")).thenReturn(List.of(student, sibling));
+        when(studentRepository.findByGuardiansGuardianDocsId("guardian-1")).thenReturn(List.of(student, sibling));
         when(studentAcademicRecordRepository.findByStudentDocIdIn(anyList())).thenReturn(new ArrayList<>());
 
         List<StudentResponse> siblings = studentService.getSiblings("student-id-123");
 
         assertEquals(1, siblings.size());
         assertEquals("sibling-id-999", siblings.get(0).getId());
-        verify(studentRepository, times(1)).findByGuardiansGuardianId("guardian-1");
+        verify(studentRepository, times(1)).findByGuardiansGuardianDocsId("guardian-1");
     }
 }

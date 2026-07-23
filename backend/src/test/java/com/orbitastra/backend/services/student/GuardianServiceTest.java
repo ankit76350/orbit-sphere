@@ -59,7 +59,7 @@ class GuardianServiceTest {
                 "school-1", null, List.of(priya(), priya()));
 
         assertEquals(1, links.size());
-        assertEquals("g-priya", links.get(0).getGuardianId());
+        assertEquals("g-priya", links.get(0).getGuardianDocsId());
         verify(guardianRepository, times(1)).save(any(Guardian.class)); // created only once
     }
 
@@ -74,7 +74,7 @@ class GuardianServiceTest {
                 "school-1", null, List.of(priya()));
 
         assertEquals(1, links.size());
-        assertEquals("g-existing", links.get(0).getGuardianId());
+        assertEquals("g-existing", links.get(0).getGuardianDocsId());
         verify(guardianRepository, org.mockito.Mockito.never()).save(any(Guardian.class));
     }
 
@@ -101,7 +101,7 @@ class GuardianServiceTest {
     @Test
     void buildDedupedLinks_skipsGuardianAlreadyLinkedOnPayload() {
         GuardianLink existingLink = GuardianLink.builder()
-                .guardianId("g-priya").relation(GuardianRelation.MOTHER).primary(true).build();
+                .guardianDocsId("g-priya").relation(GuardianRelation.MOTHER).primary(true).build();
         Guardian existing = Guardian.builder().id("g-priya").schoolId("school-1")
                 .name("Priya Sharma").phone("+61-400-555-666").build();
         // Payload link is validated to exist in the school, then the draft resolves to the same guardian.
@@ -113,16 +113,16 @@ class GuardianServiceTest {
                 "school-1", List.of(existingLink), List.of(priya()));
 
         assertEquals(1, links.size()); // draft resolves to an already-linked guardian -> not duplicated
-        assertEquals("g-priya", links.get(0).getGuardianId());
+        assertEquals("g-priya", links.get(0).getGuardianDocsId());
     }
 
-    private GuardianDraft byId(String guardianId, GuardianRelation relation) {
-        return new GuardianDraft(guardianId, null, null, null, null, null, relation,
+    private GuardianDraft byId(String guardianDocsId, GuardianRelation relation) {
+        return new GuardianDraft(guardianDocsId, null, null, null, null, null, relation,
                 false, null, null, null);
     }
 
     @Test
-    void buildDedupedLinks_explicitGuardianIdInSameSchool_isLinkedWithoutCreating() {
+    void buildDedupedLinks_explicitGuardianDocsIdInSameSchool_isLinkedWithoutCreating() {
         Guardian existing = Guardian.builder().id("g-raj").schoolId("school-1").name("Raj Sharma").build();
         when(guardianRepository.findById("g-raj")).thenReturn(Optional.of(existing));
 
@@ -130,13 +130,13 @@ class GuardianServiceTest {
                 "school-1", null, List.of(byId("g-raj", GuardianRelation.FATHER)));
 
         assertEquals(1, links.size());
-        assertEquals("g-raj", links.get(0).getGuardianId());
+        assertEquals("g-raj", links.get(0).getGuardianDocsId());
         assertEquals(GuardianRelation.FATHER, links.get(0).getRelation());
         verify(guardianRepository, org.mockito.Mockito.never()).save(any(Guardian.class));
     }
 
     @Test
-    void buildDedupedLinks_explicitGuardianIdNotFound_throwsResourceNotFound() {
+    void buildDedupedLinks_explicitGuardianDocsIdNotFound_throwsResourceNotFound() {
         when(guardianRepository.findById("missing")).thenReturn(Optional.empty());
 
         ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () ->
@@ -146,7 +146,7 @@ class GuardianServiceTest {
     }
 
     @Test
-    void buildDedupedLinks_explicitGuardianIdFromAnotherSchool_throwsIllegalArgument() {
+    void buildDedupedLinks_explicitGuardianDocsIdFromAnotherSchool_throwsIllegalArgument() {
         Guardian otherSchool = Guardian.builder().id("g-x").schoolId("school-2").name("Someone").build();
         when(guardianRepository.findById("g-x")).thenReturn(Optional.of(otherSchool));
 
@@ -158,7 +158,7 @@ class GuardianServiceTest {
 
     @Test
     void buildDedupedLinks_payloadLinkFromAnotherSchool_throwsIllegalArgument() {
-        GuardianLink crossSchoolLink = GuardianLink.builder().guardianId("g-x").build();
+        GuardianLink crossSchoolLink = GuardianLink.builder().guardianDocsId("g-x").build();
         Guardian otherSchool = Guardian.builder().id("g-x").schoolId("school-2").name("Someone").build();
         when(guardianRepository.findById("g-x")).thenReturn(Optional.of(otherSchool));
 
