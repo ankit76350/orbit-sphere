@@ -6,10 +6,9 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.AcadmicStundetBaseDocs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,15 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DisciplineLog extends BaseDocument {
-
-    // References AcademicYear.name (unique per school), e.g. "2026-2027" —
-    // scopes this record to one academic year of the school (SaaS: school -> year -> data)
-    @Indexed
-    private String academicYear;
-
-    @Indexed
-    private String studentId;
+public class DisciplineLog extends AcadmicStundetBaseDocs {
 
     private String violation;
 

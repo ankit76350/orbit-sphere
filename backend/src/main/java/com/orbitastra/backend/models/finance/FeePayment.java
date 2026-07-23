@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.BaseDocument;
+import com.orbitastra.backend.models.base.AcadmicStundetBaseDocs;
 import com.orbitastra.backend.models.finance.enums.PaymentMode;
 
 import lombok.AllArgsConstructor;
@@ -22,14 +22,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FeePayment extends BaseDocument {
-
-    // References AcademicYear.name (unique per school), e.g. "2026-2027" —
-    // scopes this record to one academic year of the school (SaaS: school -> year -> data)
-    @Indexed
-    private String academicYear;
-
-    private String studentId;
+public class FeePayment extends AcadmicStundetBaseDocs {
 
     // The Fee (invoice) this payment is collected against
     private String feeId;
