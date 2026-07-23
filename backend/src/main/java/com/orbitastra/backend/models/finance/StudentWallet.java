@@ -20,10 +20,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentWallet extends SchoolBase {
-
     private String studentId;
-
     private BigDecimal balance;
-
-
 }

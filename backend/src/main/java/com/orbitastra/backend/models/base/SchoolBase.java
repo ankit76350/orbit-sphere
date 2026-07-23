@@ -23,14 +23,14 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public abstract class SchoolBase {
 
+    @Id
+    private String id;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
-
-    @Id
-    private String id;
 
     @Indexed
     private String schoolId;
