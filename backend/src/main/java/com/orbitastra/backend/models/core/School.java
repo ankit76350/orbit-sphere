@@ -6,7 +6,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.core.enums.SubscriptionTier;
 
 import lombok.AllArgsConstructor;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class School extends SchoolDocs {
+public class School extends SchoolBase {
 
     private String schoolName;
 

@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.academics.enums.AssignmentScope;
 import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Homework extends SchoolDocs {
+public class Homework extends SchoolBase {
 
     // References AcademicYear.name (unique per school), e.g. "2026-2027" —
     // scopes this record to one academic year of the school (SaaS: school -> year -> data)

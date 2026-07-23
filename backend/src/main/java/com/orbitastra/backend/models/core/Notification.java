@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.core.enums.NotificationChannel;
 
 import lombok.AllArgsConstructor;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Notification extends SchoolDocs {
+public class Notification extends SchoolBase {
 
     private String recipientId;
 

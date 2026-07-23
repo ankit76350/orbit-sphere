@@ -9,7 +9,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -31,7 +31,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AcademicYear extends SchoolDocs {
+public class AcademicYear extends SchoolBase {
 
     // e.g. "2026-2027" — unique per school; this is what other collections
     // store in their "academicYear" field

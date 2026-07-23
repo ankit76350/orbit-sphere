@@ -18,7 +18,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 import org.springframework.data.mongodb.core.mapping.MongoPersistentEntity;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 class BaseDocumentTest {
 
@@ -31,7 +31,7 @@ class BaseDocumentTest {
 
         assertFalse(documentTypes.isEmpty());
         for (Class<?> documentType : documentTypes) {
-            assertTrue(SchoolDocs.class.isAssignableFrom(documentType),
+            assertTrue(SchoolBase.class.isAssignableFrom(documentType),
                     () -> documentType.getName() + " must extend BaseDocument");
             assertTrue(Arrays.stream(documentType.getDeclaredFields())
                             .noneMatch(field -> COMMON_FIELDS.contains(field.getName())),

@@ -21,7 +21,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public abstract class SchoolDocs {
+public abstract class SchoolBase {
 
     @CreatedDate
     private LocalDateTime createdAt;

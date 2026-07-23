@@ -8,7 +8,7 @@ import java.time.LocalTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.frontoffice.enums.CallStatus;
 import com.orbitastra.backend.models.undone.frontoffice.enums.CallType;
 
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CallLog extends SchoolDocs {
+public class CallLog extends SchoolBase {
 
     private LocalDate date;
 

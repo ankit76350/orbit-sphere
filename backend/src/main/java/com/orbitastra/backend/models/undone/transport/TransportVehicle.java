@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.transport.enums.TransportVehicleStatus;
 
 import lombok.AllArgsConstructor;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TransportVehicle extends SchoolDocs {
+public class TransportVehicle extends SchoolBase {
 
     private String vehicleNo;
 

@@ -17,7 +17,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AcadmicStudentSchool extends SchoolDocs{
+public class AcadmicStudentSchool extends SchoolBase{
 
     @Indexed
     private String academicYear;

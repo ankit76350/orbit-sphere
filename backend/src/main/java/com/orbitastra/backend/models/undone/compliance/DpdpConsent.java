@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.compliance.enums.ConsentStatus;
 
 import lombok.AllArgsConstructor;
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DpdpConsent extends SchoolDocs {
+public class DpdpConsent extends SchoolBase {
 
     @Indexed
     private String studentId;

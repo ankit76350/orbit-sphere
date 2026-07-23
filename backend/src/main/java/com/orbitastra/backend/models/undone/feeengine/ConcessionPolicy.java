@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ConcessionPolicy extends SchoolDocs {
+public class ConcessionPolicy extends SchoolBase {
 
     private String name;
 

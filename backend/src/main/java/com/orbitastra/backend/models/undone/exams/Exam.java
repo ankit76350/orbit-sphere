@@ -10,7 +10,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.exams.enums.ExamTerm;
 
 import lombok.AllArgsConstructor;
@@ -32,7 +32,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Exam extends SchoolDocs {
+public class Exam extends SchoolBase {
 
     // References AcademicYear.name (unique per school), e.g. "2026-2027".
     @Indexed

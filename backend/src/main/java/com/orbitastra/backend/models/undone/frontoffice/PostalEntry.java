@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalDirection;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalMode;
 import com.orbitastra.backend.models.undone.frontoffice.enums.PostalStatus;
@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PostalEntry extends SchoolDocs {
+public class PostalEntry extends SchoolBase {
 
     private PostalDirection direction;
 

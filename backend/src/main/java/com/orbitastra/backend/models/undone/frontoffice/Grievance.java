@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.frontoffice.enums.GrievanceCategory;
 import com.orbitastra.backend.models.undone.frontoffice.enums.GrievanceSeverity;
 import com.orbitastra.backend.models.undone.frontoffice.enums.GrievanceStatus;
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Grievance extends SchoolDocs {
+public class Grievance extends SchoolBase {
 
     private LocalDate date;
 

@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolDocs;
+import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.feeengine.enums.MandateStatus;
 
 import lombok.AllArgsConstructor;
@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UpiMandate extends SchoolDocs {
+public class UpiMandate extends SchoolBase {
 
     private String studentId;
 
