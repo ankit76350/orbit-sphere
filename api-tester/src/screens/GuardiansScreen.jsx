@@ -162,6 +162,7 @@ export default function GuardiansScreen({ schoolId }) {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                         <th className="px-4 py-3">Name</th>
+                        <th className="px-4 py-3">MongoDB Object ID</th>
                         <th className="px-4 py-3">Contact</th>
                         <th className="px-4 py-3">Occupation</th>
                         <th className="px-4 py-3 text-center">Linked</th>
@@ -172,6 +173,7 @@ export default function GuardiansScreen({ schoolId }) {
                       {guardians.map((g) => (
                         <tr key={g.id} className="hover:bg-slate-50/50 transition">
                           <td className="px-4 py-3 font-bold text-slate-900">{g.name}</td>
+                          <td className="px-4 py-3 font-mono text-[10px] text-slate-500 break-all" title={g.id || ''}>{g.id || '—'}</td>
                           <td className="px-4 py-3 text-slate-500">
                             {g.phone && <div className="flex items-center gap-1"><Phone size={9} /> {g.phone}</div>}
                             {g.email && <div className="flex items-center gap-1"><Mail size={9} /> {g.email}</div>}
