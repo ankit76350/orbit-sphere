@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.academics.CreateSchoolClassRequest;
+import com.orbitastra.backend.dto.academics.AddClassSubjectRequest;
 import com.orbitastra.backend.dto.academics.UpdateSchoolClassRequest;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.services.academics.SchoolClassService;
@@ -84,7 +85,14 @@ public class SchoolClassController {
     @PostMapping("/{id}/subjects")
     public ResponseEntity<SchoolClass> addSubject(
             @PathVariable String id, 
-            @RequestBody SchoolClass.ClassSubject subject) {
+            @Valid @RequestBody AddClassSubjectRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Subject request is required.");
+        }
+        SchoolClass.ClassSubject subject = SchoolClass.ClassSubject.builder()
+                .name(request.getName())
+                .teacherDocsId(request.getTeacherDocsId())
+                .build();
         SchoolClass updated = schoolClassService.addSubject(id, subject);
         return ResponseEntity.ok(updated);
     }

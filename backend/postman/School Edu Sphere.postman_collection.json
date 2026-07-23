@@ -2863,6 +2863,22 @@
             },
             {
               "name": "Add Subject to Class",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.test(\"Response contains the added subject\", function () { const subject = (body.subjects || []).find(s => (s.name || \"\").startsWith(\"Chemistry \")); pm.expect(subject, \"added subject\").to.exist; pm.expect(subject.teacherDocsId).to.be.a(\"string\").and.not.empty; });",
+                      "pm.test(\"Deprecated teacher field is not persisted\", function () { (body.subjects || []).forEach(s => pm.expect(s).not.to.have.property(\"teacher\")); });"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2873,10 +2889,10 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Chemistry\",\n  \"teacher\": \"David Miller\"\n}"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 200 OK\n// Working: Adds one subject, trims the name, validates the teacher in the class school, and returns the updated class.\n{\n  \"name\": \"Chemistry {{$timestamp}}\",\n  \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\"\n}\n\n\n// TC02\n// Status Code: 200 OK\n// Working: A subject can be added before a teacher is assigned.\n// { \"name\": \"Unassigned Subject {{$timestamp}}\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects a missing, null, empty, or whitespace-only subject name.\n// { \"name\": \"   \" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects a duplicate subject name case-insensitively and after trimming whitespace.\n// { \"name\": \" mathematics \" }\n\n\n// TC05\n// Status Code: 404 Not Found\n// Working: Rejects an unknown teacherDocsId.\n// { \"name\": \"Chemistry {{$timestamp}}\", \"teacherDocsId\": \"000000000000000000000000\" }\n\n\n// TC06\n// Status Code: 400 Bad Request\n// Working: Rejects a teacherDocsId belonging to another school.\n// { \"name\": \"Chemistry {{$timestamp}}\", \"teacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\" }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects teacherDocsId when it is present but blank.\n// { \"name\": \"Chemistry {{$timestamp}}\", \"teacherDocsId\": \"  \" }\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects deprecated teacher; use teacherDocsId.\n// { \"name\": \"Chemistry {{$timestamp}}\", \"teacher\": \"David Miller\" }\n\n\n// TC09\n// Status Code: 404 Not Found\n// Working: Rejects a class ID that does not exist.\n// POST http://localhost:3456/api/classes/000000000000000000000000/subjects\n// { \"name\": \"Chemistry {{$timestamp}}\" }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a blank class ID path or a class document without a school boundary.\n// POST http://localhost:3456/api/classes/%20/subjects\n// { \"name\": \"Chemistry {{$timestamp}}\" }\n"
                 },
                 "url": {
-                  "raw": "http://localhost:3456/api/classes/6a478ca18a00ec3e112aa040/subjects",
+                  "raw": "http://localhost:3456/api/classes/CLASS_ID_HERE/subjects",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -2885,7 +2901,7 @@
                   "path": [
                     "api",
                     "classes",
-                    "6a478ca18a00ec3e112aa040",
+                    "CLASS_ID_HERE",
                     "subjects"
                   ]
                 }

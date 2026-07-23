@@ -1,6 +1,8 @@
 package com.orbitastra.backend.services.academics;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
@@ -22,14 +24,63 @@ public class SchoolClassService {
     private final StaffRepository staffRepository;
     private final AcademicYearResolver academicYearResolver;
 
-    private void validateTeacher(String teacherId, String schoolId) {
-        if (teacherId == null || teacherId.isEmpty()) {
+    private String normalizeOptionalReference(String value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " cannot be blank when provided.");
+        }
+        return normalized;
+    }
+
+    private String validateTeacher(String teacherId, String schoolId) {
+        String normalizedTeacherId = normalizeOptionalReference(teacherId, "teacherDocsId");
+        if (normalizedTeacherId == null) {
+            return null;
+        }
+        if (schoolId == null || schoolId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Class schoolId is required before assigning a subject teacher.");
+        }
+
+        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(normalizedTeacherId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + normalizedTeacherId));
+        if (!Objects.equals(teacher.getSchoolId(), schoolId)) {
+            throw new IllegalArgumentException("Teacher with ID " + normalizedTeacherId
+                    + " does not belong to this school.");
+        }
+        return normalizedTeacherId;
+    }
+
+    private String normalizeSubjectName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Subject name is required.");
+        }
+        return name.trim();
+    }
+
+    private SchoolClass.ClassSubject validateSubject(SchoolClass.ClassSubject subject, String schoolId) {
+        if (subject == null) {
+            throw new IllegalArgumentException("Subject cannot be null.");
+        }
+        subject.setName(normalizeSubjectName(subject.getName()));
+        subject.setTeacherDocsId(validateTeacher(subject.getTeacherDocsId(), schoolId));
+        return subject;
+    }
+
+    private void validateNoDuplicateSubjects(List<SchoolClass.ClassSubject> subjects) {
+        if (subjects == null) {
             return;
         }
-        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(teacherId)
-                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + teacherId));
-        if (!teacher.getSchoolId().equals(schoolId)) {
-            throw new IllegalArgumentException("Teacher with ID " + teacherId + " does not belong to this school.");
+        List<String> names = new ArrayList<>();
+        for (SchoolClass.ClassSubject subject : subjects) {
+            String normalizedName = normalizeSubjectName(subject == null ? null : subject.getName());
+            if (names.stream().anyMatch(existing -> existing.equalsIgnoreCase(normalizedName))) {
+                throw new IllegalArgumentException("Subject '" + normalizedName
+                        + "' appears more than once in this class.");
+            }
+            names.add(normalizedName);
         }
     }
 
@@ -38,11 +89,13 @@ public class SchoolClassService {
             throw new ResourceNotFoundException("School not found with id: " + schoolClass.getSchoolId());
         }
 
-        validateTeacher(schoolClass.getClassTeacherDocsId(), schoolClass.getSchoolId());
+        schoolClass.setClassTeacherDocsId(
+                validateTeacher(schoolClass.getClassTeacherDocsId(), schoolClass.getSchoolId()));
 
         if (schoolClass.getSubjects() != null) {
+            validateNoDuplicateSubjects(schoolClass.getSubjects());
             for (SchoolClass.ClassSubject sub : schoolClass.getSubjects()) {
-                validateTeacher(sub.getTeacherDocsId(), schoolClass.getSchoolId());
+                validateSubject(sub, schoolClass.getSchoolId());
             }
         }
 
@@ -104,15 +157,16 @@ public class SchoolClassService {
         }
 
         if (classDetails.getClassTeacherDocsId() != null) {
-            validateTeacher(classDetails.getClassTeacherDocsId(), schoolClass.getSchoolId());
-            schoolClass.setClassTeacherDocsId(classDetails.getClassTeacherDocsId());
+            schoolClass.setClassTeacherDocsId(
+                    validateTeacher(classDetails.getClassTeacherDocsId(), schoolClass.getSchoolId()));
         }
 
         if (classDetails.getSubjects() != null) {
+            validateNoDuplicateSubjects(classDetails.getSubjects());
             for (SchoolClass.ClassSubject sub : classDetails.getSubjects()) {
-                validateTeacher(sub.getTeacherDocsId(), schoolClass.getSchoolId());
+                validateSubject(sub, schoolClass.getSchoolId());
             }
-            schoolClass.setSubjects(classDetails.getSubjects());
+            schoolClass.setSubjects(new ArrayList<>(classDetails.getSubjects()));
         }
 
         if (classDetails.getSections() != null) {
@@ -128,21 +182,37 @@ public class SchoolClassService {
     }
 
     public SchoolClass addSubject(String classId, SchoolClass.ClassSubject subject) {
-        SchoolClass schoolClass = getClassById(classId);
-
-        validateTeacher(subject.getTeacherDocsId(), schoolClass.getSchoolId());
-
-        if (schoolClass.getSubjects() == null) {
-            schoolClass.setSubjects(new java.util.ArrayList<>());
+        if (classId == null || classId.trim().isEmpty()) {
+            throw new IllegalArgumentException("classId is required.");
+        }
+        if (subject == null) {
+            throw new IllegalArgumentException("Subject request is required.");
         }
 
-        boolean exists = schoolClass.getSubjects().stream()
-                .anyMatch(s -> s.getName() != null && s.getName().equalsIgnoreCase(subject.getName()));
+        String normalizedClassId = classId.trim();
+        SchoolClass schoolClass = getClassById(normalizedClassId);
+        if (schoolClass.getSchoolId() == null || schoolClass.getSchoolId().trim().isEmpty()) {
+            throw new IllegalArgumentException("Cannot add a subject to a class without a schoolId.");
+        }
+        if (!schoolRepository.existsById(schoolClass.getSchoolId())) {
+            throw new ResourceNotFoundException("School not found with id: " + schoolClass.getSchoolId());
+        }
+
+        subject.setName(normalizeSubjectName(subject.getName()));
+        List<SchoolClass.ClassSubject> subjects = schoolClass.getSubjects() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(schoolClass.getSubjects());
+
+        boolean exists = subjects.stream().filter(Objects::nonNull)
+                .anyMatch(s -> s.getName() != null
+                        && s.getName().trim().equalsIgnoreCase(subject.getName()));
         if (exists) {
             throw new IllegalArgumentException("Subject '" + subject.getName() + "' already exists in this class.");
         }
 
-        schoolClass.getSubjects().add(subject);
+        subject.setTeacherDocsId(validateTeacher(subject.getTeacherDocsId(), schoolClass.getSchoolId()));
+        subjects.add(subject);
+        schoolClass.setSubjects(subjects);
         return schoolClassRepository.save(schoolClass);
     }
 
