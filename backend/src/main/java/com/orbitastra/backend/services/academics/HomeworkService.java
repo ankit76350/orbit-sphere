@@ -2,7 +2,10 @@ package com.orbitastra.backend.services.academics;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -11,13 +14,15 @@ import com.orbitastra.backend.models.academics.Homework;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.models.academics.enums.AssignmentScope;
 import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
+import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.repositories.academics.HomeworkRepository;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.staff.StaffRepository;
 import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
 import com.orbitastra.backend.services.utils.StudentValidator;
-import com.orbitastra.backend.repositories.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,85 +37,214 @@ public class HomeworkService {
     private final StudentAcademicRecordRepository studentAcademicRecordRepository;
     private final StaffRepository staffRepository;
 
-    private void validateTeacher(String teacherId, String schoolId) {
-        if (teacherId == null || teacherId.isEmpty()) {
-            throw new IllegalArgumentException("Teacher ID cannot be null or empty.");
-        }
-        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(teacherId)
-                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + teacherId));
-        if (!teacher.getSchoolId().equals(schoolId)) {
-            throw new IllegalArgumentException("Teacher does not belong to the same school as the homework.");
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private void validateSchool(String schoolId) {
+        if (!hasText(schoolId) || !schoolRepository.existsById(schoolId)) {
+            throw new ResourceNotFoundException("School not found with id: " + schoolId);
         }
     }
 
-    private SchoolClass validateClass(String classId, String schoolId) {
-        if (classId == null || classId.isEmpty()) {
-            throw new IllegalArgumentException("Class ID cannot be null or empty.");
+    private SchoolClass validateClass(String classDocsId, String schoolId) {
+        if (!hasText(classDocsId)) {
+            throw new IllegalArgumentException("classDocsId cannot be null or empty.");
         }
-        SchoolClass schoolClass = schoolClassRepository.findById(classId)
-                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + classId));
-        if (!schoolClass.getSchoolId().equals(schoolId)) {
+
+        SchoolClass schoolClass = schoolClassRepository.findById(classDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + classDocsId));
+
+        if (!Objects.equals(schoolClass.getSchoolId(), schoolId)) {
             throw new IllegalArgumentException("Class does not belong to the same school as the homework.");
+        }
+        if (!hasText(schoolClass.getAcademicYear())) {
+            throw new IllegalArgumentException("Class " + classDocsId + " is not linked to an academic year.");
         }
         return schoolClass;
     }
 
-    private void validateStudentAssignments(String schoolId, String classId, List<Homework.StudentAssignment> assignments) {
-        if (assignments == null || assignments.isEmpty()) {
-            return;
+    private void validateSection(SchoolClass schoolClass, String sectionNo) {
+        if (!hasText(sectionNo)) {
+            throw new IllegalArgumentException("sectionNo is required for homework.");
         }
 
-        SchoolClass schoolClass = validateClass(classId, schoolId);
-        String targetAcademicYear = schoolClass.getAcademicYear();
+        boolean belongsToClass = schoolClass.getSections() != null
+                && schoolClass.getSections().stream()
+                        .filter(Objects::nonNull)
+                        .anyMatch(section -> section.trim().equalsIgnoreCase(sectionNo.trim()));
+        if (!belongsToClass) {
+            throw new IllegalArgumentException("Section '" + sectionNo
+                    + "' does not belong to class " + schoolClass.getId() + ".");
+        }
+    }
 
-        for (Homework.StudentAssignment assignment : assignments) {
-            String studentId = assignment.getStudentId();
-            studentValidator.validateStudent(studentId, schoolId);
+    private Staff validateTeacherInSchool(String teacherDocsId, String schoolId) {
+        if (!hasText(teacherDocsId)) {
+            throw new IllegalArgumentException("teacherDocsId cannot be null or empty.");
+        }
 
-            StudentAcademicRecord academicRecord = studentAcademicRecordRepository
-                    .findByStudentDocIdAndAcademicYear(studentId, targetAcademicYear)
-                    .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentId + " does not have an academic record for academic year " + targetAcademicYear));
+        Staff teacher = staffRepository.findById(teacherDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + teacherDocsId));
+        if (!Objects.equals(teacher.getSchoolId(), schoolId)) {
+            throw new IllegalArgumentException("Teacher does not belong to the same school as the homework.");
+        }
+        return teacher;
+    }
 
-            if (!classId.equals(academicRecord.getClassDocId())) {
-                throw new IllegalArgumentException("Student with ID " + studentId + " is not currently enrolled in class " + classId + " for the academic year " + targetAcademicYear);
+    /**
+     * A teacher may teach homework only for a class where they are the class
+     * teacher or the teacher of one of the class subjects. Subject names are
+     * also checked when the class has a configured subject list.
+     */
+    private void validateTeacherAndSubject(SchoolClass schoolClass, String teacherDocsId,
+            String subject, String schoolId) {
+        validateTeacherInSchool(teacherDocsId, schoolId);
+
+        boolean classTeacher = Objects.equals(schoolClass.getClassTeacherDocsId(), teacherDocsId);
+        boolean subjectTeacher = schoolClass.getSubjects() != null && schoolClass.getSubjects().stream()
+                .filter(Objects::nonNull)
+                .anyMatch(classSubject -> Objects.equals(classSubject.getTeacherDocsId(), teacherDocsId));
+        if (!classTeacher && !subjectTeacher) {
+            throw new IllegalArgumentException("Teacher " + teacherDocsId
+                    + " is not assigned to class " + schoolClass.getId() + ".");
+        }
+
+        if (hasText(subject) && schoolClass.getSubjects() != null && !schoolClass.getSubjects().isEmpty()) {
+            boolean subjectExists = schoolClass.getSubjects().stream()
+                    .filter(Objects::nonNull)
+                    .filter(classSubject -> hasText(classSubject.getName()))
+                    .anyMatch(classSubject -> classSubject.getName().trim().equalsIgnoreCase(subject.trim()));
+            if (!subjectExists) {
+                throw new IllegalArgumentException("Subject '" + subject
+                        + "' does not belong to class " + schoolClass.getId() + ".");
             }
         }
     }
 
-    public Homework createHomework(Homework homework) {
-        if (homework.getSchoolId() == null || !schoolRepository.existsById(homework.getSchoolId())) {
-            throw new ResourceNotFoundException("School not found with id: " + homework.getSchoolId());
+    /**
+     * Validates all fields that define the homework target and synchronises the
+     * academic year from the class. The class is the source of truth for the
+     * year; clients cannot assign homework to a different year by posting a
+     * forged academicYear.
+     */
+    private SchoolClass validateHomeworkAcademicTarget(Homework homework) {
+        validateSchool(homework.getSchoolId());
+        SchoolClass schoolClass = validateClass(homework.getClassDocsId(), homework.getSchoolId());
+        validateSection(schoolClass, homework.getSectionNo());
+        homework.setSectionNo(homework.getSectionNo().trim());
+
+        if (hasText(homework.getAcademicYear())
+                && !Objects.equals(homework.getAcademicYear(), schoolClass.getAcademicYear())) {
+            throw new IllegalArgumentException("Homework academicYear must match the class academic year.");
+        }
+        homework.setAcademicYear(schoolClass.getAcademicYear());
+        return schoolClass;
+    }
+
+    private SchoolClass validateHomeworkTarget(Homework homework) {
+        SchoolClass schoolClass = validateHomeworkAcademicTarget(homework);
+        validateTeacherAndSubject(schoolClass, homework.getTeacherDocsId(), homework.getSubject(), homework.getSchoolId());
+        return schoolClass;
+    }
+
+    private boolean sectionMatches(String expectedSection, String actualSection) {
+        return hasText(expectedSection) && hasText(actualSection)
+                && expectedSection.trim().equalsIgnoreCase(actualSection.trim());
+    }
+
+    private StudentAcademicRecord validateStudentAssignment(String schoolId, SchoolClass schoolClass,
+            String sectionNo, String studentId) {
+        if (!hasText(studentId)) {
+            throw new IllegalArgumentException("studentId is required for every homework assignment.");
         }
 
-        validateTeacher(homework.getTeacherId(), homework.getSchoolId());
+        Student student = studentValidator.validateStudent(studentId, schoolId);
+        StudentAcademicRecord academicRecord = studentAcademicRecordRepository
+                .findByStudentDocIdAndAcademicYear(studentId, schoolClass.getAcademicYear())
+                .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentId
+                        + " does not have an academic record for academic year " + schoolClass.getAcademicYear()));
 
-        // Homework inherits the academic year from its class (the authoritative scope).
-        homework.setAcademicYear(validateClass(homework.getClassId(), homework.getSchoolId()).getAcademicYear());
+        // When the denormalised pointer is present, it must point at the same
+        // year-specific record. This prevents assigning work to a stale
+        // enrolment after a student has moved to another class or year. Older
+        // records without the pointer remain compatible and are still checked
+        // against the resolved academic record below.
+        if (student != null && hasText(student.getCurrentAcademicRecordDocsId())
+                && !Objects.equals(student.getCurrentAcademicRecordDocsId(), academicRecord.getId())) {
+            throw new IllegalArgumentException("Student with ID " + studentId
+                    + " does not have this class as the current academic record.");
+        }
 
+        if (!Objects.equals(academicRecord.getSchoolId(), schoolId)
+                || !Objects.equals(schoolClass.getId(), academicRecord.getClassDocId())
+                || !sectionMatches(sectionNo, academicRecord.getSectionNo())) {
+            throw new IllegalArgumentException("Student with ID " + studentId
+                    + " is not currently enrolled in class " + schoolClass.getId()
+                    + ", section " + sectionNo + ", for academic year " + schoolClass.getAcademicYear());
+        }
+        return academicRecord;
+    }
+
+    private void validateStudentAssignments(String schoolId, SchoolClass schoolClass, String sectionNo,
+            List<Homework.StudentAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
+            throw new IllegalArgumentException("Student assignments list must not be empty for GROUP or INDIVIDUAL scope.");
+        }
+
+        Set<String> studentIds = new HashSet<>();
+        for (Homework.StudentAssignment assignment : assignments) {
+            if (assignment == null) {
+                throw new IllegalArgumentException("Student assignments cannot contain null entries.");
+            }
+            String studentId = assignment.getStudentId();
+            if (!studentIds.add(studentId == null ? "" : studentId.trim())) {
+                throw new IllegalArgumentException("A student cannot be assigned to the same homework more than once: "
+                        + studentId);
+            }
+            validateStudentAssignment(schoolId, schoolClass, sectionNo, studentId);
+            if (assignment.getStatus() == null) {
+                assignment.setStatus(HomeworkStatus.ASSIGNED);
+            }
+        }
+    }
+
+    private List<Homework.StudentAssignment> assignmentsForSection(String schoolId, SchoolClass schoolClass,
+            String sectionNo) {
+        List<StudentAcademicRecord> records = studentAcademicRecordRepository
+                .findByClassDocIdAndAcademicYear(schoolClass.getId(), schoolClass.getAcademicYear());
+        List<Homework.StudentAssignment> assignments = new ArrayList<>();
+        Set<String> assignedStudentIds = new HashSet<>();
+
+        for (StudentAcademicRecord record : records) {
+            if (!Objects.equals(record.getSchoolId(), schoolId)
+                    || !sectionMatches(sectionNo, record.getSectionNo())
+                    || !hasText(record.getStudentDocId())) {
+                continue;
+            }
+            validateStudentAssignment(schoolId, schoolClass, sectionNo, record.getStudentDocId());
+            if (assignedStudentIds.add(record.getStudentDocId())) {
+                assignments.add(Homework.StudentAssignment.builder()
+                        .studentId(record.getStudentDocId())
+                        .status(HomeworkStatus.ASSIGNED)
+                        .build());
+            }
+        }
+        return assignments;
+    }
+
+    public Homework createHomework(Homework homework) {
+        SchoolClass schoolClass = validateHomeworkTarget(homework);
         if (homework.getAssignmentScope() == null) {
             homework.setAssignmentScope(AssignmentScope.CLASS);
         }
 
         if (homework.getAssignmentScope() == AssignmentScope.CLASS) {
-            List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassDocId(homework.getClassId());
-            List<Homework.StudentAssignment> assignments = new ArrayList<>();
-            for (StudentAcademicRecord record : records) {
-                Homework.StudentAssignment assignment = Homework.StudentAssignment.builder()
-                        .studentId(record.getStudentDocId())
-                        .status(HomeworkStatus.ASSIGNED)
-                        .build();
-                assignments.add(assignment);
-            }
-            homework.setStudentAssignments(assignments);
+            homework.setStudentAssignments(assignmentsForSection(homework.getSchoolId(), schoolClass,
+                    homework.getSectionNo()));
         } else {
-            if (homework.getStudentAssignments() != null) {
-                validateStudentAssignments(homework.getSchoolId(), homework.getClassId(), homework.getStudentAssignments());
-                for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
-                    if (assignment.getStatus() == null) {
-                        assignment.setStatus(HomeworkStatus.ASSIGNED);
-                    }
-                }
-            }
+            validateStudentAssignments(homework.getSchoolId(), schoolClass, homework.getSectionNo(),
+                    homework.getStudentAssignments());
         }
 
         homework.setSubmittedCount(0);
@@ -118,45 +252,26 @@ public class HomeworkService {
     }
 
     public Homework createHomeworkDefinition(Homework homework) {
-        if (homework.getSchoolId() == null || !schoolRepository.existsById(homework.getSchoolId())) {
-            throw new ResourceNotFoundException("School not found with id: " + homework.getSchoolId());
-        }
-
-        validateTeacher(homework.getTeacherId(), homework.getSchoolId());
-
-        // Homework inherits the academic year from its class (the authoritative scope).
-        homework.setAcademicYear(validateClass(homework.getClassId(), homework.getSchoolId()).getAcademicYear());
-
+        validateHomeworkTarget(homework);
         homework.setStudentAssignments(new ArrayList<>());
         homework.setSubmittedCount(0);
         return homeworkRepository.save(homework);
     }
 
     public Homework assignHomework(String id, AssignmentScope scope, List<Homework.StudentAssignment> providedAssignments) {
+        if (scope == null) {
+            throw new IllegalArgumentException("assignmentScope is required.");
+        }
+
         Homework homework = getHomeworkById(id);
+        SchoolClass schoolClass = validateHomeworkTarget(homework);
         homework.setAssignmentScope(scope);
 
         if (scope == AssignmentScope.CLASS) {
-            List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByClassDocId(homework.getClassId());
-            List<Homework.StudentAssignment> assignments = new ArrayList<>();
-            for (StudentAcademicRecord record : records) {
-                Homework.StudentAssignment assignment = Homework.StudentAssignment.builder()
-                        .studentId(record.getStudentDocId())
-                        .status(HomeworkStatus.ASSIGNED)
-                        .build();
-                assignments.add(assignment);
-            }
-            homework.setStudentAssignments(assignments);
+            homework.setStudentAssignments(assignmentsForSection(homework.getSchoolId(), schoolClass,
+                    homework.getSectionNo()));
         } else {
-            if (providedAssignments == null || providedAssignments.isEmpty()) {
-                throw new IllegalArgumentException("Student assignments list must not be empty for GROUP or INDIVIDUAL scope.");
-            }
-            validateStudentAssignments(homework.getSchoolId(), homework.getClassId(), providedAssignments);
-            for (Homework.StudentAssignment assignment : providedAssignments) {
-                if (assignment.getStatus() == null) {
-                    assignment.setStatus(HomeworkStatus.ASSIGNED);
-                }
-            }
+            validateStudentAssignments(homework.getSchoolId(), schoolClass, homework.getSectionNo(), providedAssignments);
             homework.setStudentAssignments(providedAssignments);
         }
 
@@ -181,8 +296,8 @@ public class HomeworkService {
         return homeworkRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
     }
 
-    public List<Homework> getHomeworkByClass(String classId) {
-        return homeworkRepository.findByClassId(classId);
+    public List<Homework> getHomeworkByClass(String classDocsId) {
+        return homeworkRepository.findByClassDocsId(classDocsId);
     }
 
     public List<Homework> getHomeworkByStudent(String studentId) {
@@ -195,68 +310,90 @@ public class HomeworkService {
 
     public Homework submitHomework(String homeworkId, String studentId, String text, String fileUrl) {
         Homework homework = getHomeworkById(homeworkId);
+        SchoolClass schoolClass = validateHomeworkAcademicTarget(homework);
+        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentId);
 
-        Homework.StudentAssignment targetAssignment = null;
-        for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
-            if (assignment.getStudentId().equals(studentId)) {
-                targetAssignment = assignment;
-                break;
-            }
-        }
-
-        if (targetAssignment == null) {
-            throw new ResourceNotFoundException("Student assignment not found for student: " + studentId);
-        }
-
+        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentId);
         targetAssignment.setSubmissionText(text);
         targetAssignment.setSubmissionFileUrl(fileUrl);
         targetAssignment.setSubmittedAt(LocalDateTime.now());
         targetAssignment.setStatus(HomeworkStatus.SUBMITTED);
-
-        long count = homework.getStudentAssignments().stream()
-                .filter(a -> a.getStatus() == HomeworkStatus.SUBMITTED || a.getStatus() == HomeworkStatus.EVALUATED)
-                .count();
-        homework.setSubmittedCount((int) count);
-
+        updateSubmittedCount(homework);
         return homeworkRepository.save(homework);
     }
 
     public Homework gradeHomework(String homeworkId, String studentId, Integer obtainedMarks, String feedback) {
         Homework homework = getHomeworkById(homeworkId);
+        SchoolClass schoolClass = validateHomeworkAcademicTarget(homework);
+        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentId);
 
-        Homework.StudentAssignment targetAssignment = null;
-        for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
-            if (assignment.getStudentId().equals(studentId)) {
-                targetAssignment = assignment;
-                break;
-            }
+        if (obtainedMarks != null && homework.getMaxMarks() != null && obtainedMarks > homework.getMaxMarks()) {
+            throw new IllegalArgumentException("obtainedMarks cannot be greater than maxMarks.");
         }
-
-        if (targetAssignment == null) {
-            throw new ResourceNotFoundException("Student assignment not found for student: " + studentId);
-        }
-
+        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentId);
         targetAssignment.setObtainedMarks(obtainedMarks);
         targetAssignment.setFeedback(feedback);
         targetAssignment.setStatus(HomeworkStatus.EVALUATED);
-
+        updateSubmittedCount(homework);
         return homeworkRepository.save(homework);
+    }
+
+    private Homework.StudentAssignment findStudentAssignment(Homework homework, String studentId) {
+        if (homework.getStudentAssignments() != null) {
+            for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
+                if (assignment != null && Objects.equals(assignment.getStudentId(), studentId)) {
+                    return assignment;
+                }
+            }
+        }
+        throw new ResourceNotFoundException("Student assignment not found for student: " + studentId);
+    }
+
+    private void updateSubmittedCount(Homework homework) {
+        long count = homework.getStudentAssignments() == null ? 0
+                : homework.getStudentAssignments().stream()
+                        .filter(Objects::nonNull)
+                        .filter(a -> a.getStatus() == HomeworkStatus.SUBMITTED
+                                || a.getStatus() == HomeworkStatus.EVALUATED)
+                        .count();
+        homework.setSubmittedCount((int) count);
     }
 
     public Homework updateHomework(String id, Homework homeworkDetails) {
         Homework homework = getHomeworkById(id);
 
-        if (homeworkDetails.getSchoolId() != null && !homeworkDetails.getSchoolId().equals(homework.getSchoolId())) {
-            if (!schoolRepository.existsById(homeworkDetails.getSchoolId())) {
-                throw new ResourceNotFoundException("School not found with id: " + homeworkDetails.getSchoolId());
-            }
-            homework.setSchoolId(homeworkDetails.getSchoolId());
+        String targetSchoolId = hasText(homeworkDetails.getSchoolId())
+                ? homeworkDetails.getSchoolId() : homework.getSchoolId();
+        String targetClassDocsId = hasText(homeworkDetails.getClassDocsId())
+                ? homeworkDetails.getClassDocsId() : homework.getClassDocsId();
+        String targetSectionNo = hasText(homeworkDetails.getSectionNo())
+                ? homeworkDetails.getSectionNo() : homework.getSectionNo();
+        String targetTeacherDocsId = hasText(homeworkDetails.getTeacherDocsId())
+                ? homeworkDetails.getTeacherDocsId() : homework.getTeacherDocsId();
+        String targetSubject = homeworkDetails.getSubject() != null
+                ? homeworkDetails.getSubject() : homework.getSubject();
+
+        boolean targetChanged = !Objects.equals(targetClassDocsId, homework.getClassDocsId())
+                || !sectionMatches(targetSectionNo, homework.getSectionNo());
+        if (targetChanged && homework.getStudentAssignments() != null && !homework.getStudentAssignments().isEmpty()) {
+            throw new IllegalArgumentException("Cannot change class or section after students have been assigned; create a new homework.");
         }
 
-        if (homeworkDetails.getClassId() != null && !homeworkDetails.getClassId().equals(homework.getClassId())) {
-            validateClass(homeworkDetails.getClassId(), homework.getSchoolId());
-            homework.setClassId(homeworkDetails.getClassId());
-        }
+        Homework target = Homework.builder()
+                .schoolId(targetSchoolId)
+                .classDocsId(targetClassDocsId)
+                .sectionNo(targetSectionNo)
+                .teacherDocsId(targetTeacherDocsId)
+                .subject(targetSubject)
+                .academicYear(homework.getAcademicYear())
+                .build();
+        SchoolClass targetClass = validateHomeworkTarget(target);
+
+        homework.setSchoolId(targetSchoolId);
+        homework.setClassDocsId(targetClass.getId());
+        homework.setSectionNo(targetSectionNo.trim());
+        homework.setAcademicYear(targetClass.getAcademicYear());
+        homework.setTeacherDocsId(targetTeacherDocsId);
 
         if (homeworkDetails.getSubject() != null) {
             homework.setSubject(homeworkDetails.getSubject());
@@ -274,11 +411,10 @@ public class HomeworkService {
             homework.setAssignmentScope(homeworkDetails.getAssignmentScope());
         }
         if (homeworkDetails.getMaxMarks() != null) {
+            if (homeworkDetails.getMaxMarks() < 0) {
+                throw new IllegalArgumentException("maxMarks cannot be negative.");
+            }
             homework.setMaxMarks(homeworkDetails.getMaxMarks());
-        }
-        if (homeworkDetails.getTeacherId() != null && !homeworkDetails.getTeacherId().equals(homework.getTeacherId())) {
-            validateTeacher(homeworkDetails.getTeacherId(), homework.getSchoolId());
-            homework.setTeacherId(homeworkDetails.getTeacherId());
         }
 
         return homeworkRepository.save(homework);

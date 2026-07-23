@@ -12,8 +12,10 @@ import lombok.Data;
 
 /**
  * Client payload for creating a homework (used by both the full-create and the
- * definition endpoints). {@code submittedCount}, per-student submission text,
- * grades and status are server-managed and are not accepted from the body.
+ * definition endpoints). The class, section and assigned teacher are required
+ * target references. {@code academicYear}, {@code submittedCount}, per-student
+ * submission text, grades and status are server-managed and are not accepted
+ * from the body.
  */
 @Data
 public class CreateHomeworkRequest {
@@ -21,8 +23,11 @@ public class CreateHomeworkRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    @NotBlank(message = "classId is required")
-    private String classId;
+    @NotBlank(message = "classDocsId is required")
+    private String classDocsId;
+
+    @NotBlank(message = "sectionNo is required")
+    private String sectionNo;
 
     private String subject;
 
@@ -37,7 +42,8 @@ public class CreateHomeworkRequest {
     @Min(value = 0, message = "maxMarks cannot be negative")
     private Integer maxMarks;
 
-    private String teacherId;
+    @NotBlank(message = "teacherDocsId is required")
+    private String teacherDocsId;
 
     @Valid
     private List<StudentAssignmentRequest> studentAssignments;

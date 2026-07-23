@@ -41,14 +41,15 @@ public class HomeworkController {
     private static Homework toHomework(CreateHomeworkRequest request) {
         return Homework.builder()
                 .schoolId(request.getSchoolId())
-                .classId(request.getClassId())
+                .classDocsId(request.getClassDocsId())
+                .sectionNo(request.getSectionNo())
                 .subject(request.getSubject())
                 .title(request.getTitle())
                 .instructions(request.getInstructions())
                 .dueDate(request.getDueDate())
                 .assignmentScope(request.getAssignmentScope())
                 .maxMarks(request.getMaxMarks())
-                .teacherId(request.getTeacherId())
+                .teacherDocsId(request.getTeacherDocsId())
                 .studentAssignments(StudentAssignmentRequest.toModels(request.getStudentAssignments()))
                 .build();
     }
@@ -88,9 +89,9 @@ public class HomeworkController {
         return ResponseEntity.ok(homeworkService.getHomeworkBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
-    @GetMapping("/class/{classId}")
-    public ResponseEntity<List<Homework>> getHomeworkByClass(@PathVariable String classId) {
-        List<Homework> homeworkList = homeworkService.getHomeworkByClass(classId);
+    @GetMapping("/class/{classDocsId}")
+    public ResponseEntity<List<Homework>> getHomeworkByClass(@PathVariable String classDocsId) {
+        List<Homework> homeworkList = homeworkService.getHomeworkByClass(classDocsId);
         return ResponseEntity.ok(homeworkList);
     }
 
@@ -98,14 +99,15 @@ public class HomeworkController {
     public ResponseEntity<Homework> updateHomework(@PathVariable String id, @Valid @RequestBody UpdateHomeworkRequest request) {
         Homework homeworkDetails = Homework.builder()
                 .schoolId(request.getSchoolId())
-                .classId(request.getClassId())
+                .classDocsId(request.getClassDocsId())
+                .sectionNo(request.getSectionNo())
                 .subject(request.getSubject())
                 .title(request.getTitle())
                 .instructions(request.getInstructions())
                 .dueDate(request.getDueDate())
                 .assignmentScope(request.getAssignmentScope())
                 .maxMarks(request.getMaxMarks())
-                .teacherId(request.getTeacherId())
+                .teacherDocsId(request.getTeacherDocsId())
                 .build();
         Homework updated = homeworkService.updateHomework(id, homeworkDetails);
         return ResponseEntity.ok(updated);

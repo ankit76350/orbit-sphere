@@ -11,7 +11,7 @@ import com.orbitastra.backend.models.academics.Homework;
 @Repository
 public interface HomeworkRepository extends MongoRepository<Homework, String> {
     List<Homework> findBySchoolId(String schoolId);
-    List<Homework> findByClassId(String classId);
+    List<Homework> findByClassDocsId(String classDocsId);
     List<Homework> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
 
     @Query("{ 'studentAssignments.studentId': ?0 }")

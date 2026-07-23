@@ -17,7 +17,9 @@ public class UpdateHomeworkRequest {
 
     private String schoolId;
 
-    private String classId;
+    private String classDocsId;
+
+    private String sectionNo;
 
     private String subject;
 
@@ -32,5 +34,5 @@ public class UpdateHomeworkRequest {
     @Min(value = 0, message = "maxMarks cannot be negative")
     private Integer maxMarks;
 
-    private String teacherId;
+    private String teacherDocsId;
 }

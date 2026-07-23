@@ -34,7 +34,10 @@ public class Homework extends SchoolBase {
     private String academicYear;
 
     @Indexed
-    private String classId;
+    private String classDocsId;
+
+    /** The class section that receives this homework. */
+    private String sectionNo;
 
     private String subject;
 
@@ -51,7 +54,7 @@ public class Homework extends SchoolBase {
 
     private Integer maxMarks;
 
-    private String teacherId;
+    private String teacherDocsId;
 
     @Builder.Default
     private List<StudentAssignment> studentAssignments = new ArrayList<>();

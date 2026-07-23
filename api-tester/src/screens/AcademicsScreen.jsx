@@ -52,14 +52,15 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   // 2. Homework Form
   const [hwForm, setHwForm] = useState({
     schoolId: schoolId || '',
-    classId: '',
+    classDocsId: '',
+    sectionNo: '',
     subject: '',
     title: '',
     instructions: '',
     dueDate: new Date().toISOString().slice(0, 10),
     maxMarks: '100',
     assignmentScope: 'CLASS',
-    teacherId: '',
+    teacherDocsId: '',
     studentAssignments: []
   });
 
@@ -128,7 +129,11 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         setMedForm((f) => ({ ...f, studentId: stList[0].id }));
       }
       if (clList && clList.length > 0) {
-        setHwForm((f) => ({ ...f, classId: clList[0].id }));
+        setHwForm((f) => ({
+          ...f,
+          classDocsId: clList[0].id,
+          sectionNo: clList[0].sections?.[0] || ''
+        }));
       }
     } catch (e) {
       console.error(e);
@@ -204,14 +209,15 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     } else if (subTab === 'homework') {
       setHwForm({
         schoolId: schoolId || '',
-        classId: classes.length > 0 ? classes[0].id : '',
+        classDocsId: classes.length > 0 ? classes[0].id : '',
+        sectionNo: classes[0]?.sections?.[0] || '',
         subject: '',
         title: '',
         instructions: '',
         dueDate: new Date().toISOString().slice(0, 10),
         maxMarks: '100',
         assignmentScope: 'CLASS',
-        teacherId: '',
+        teacherDocsId: '',
         studentAssignments: []
       });
     } else if (subTab === 'results') {
@@ -281,7 +287,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 2. Homework Submit
   const submitHomework = async () => {
-    if (!hwForm.classId) {
+    if (!hwForm.classDocsId) {
       toast.error("Class is required.");
       return;
     }
@@ -291,7 +297,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         ...hwForm,
         dueDate: hwForm.dueDate || null,
         assignmentScope: hwForm.assignmentScope || null,
-        teacherId: hwForm.teacherId || null,
+        teacherDocsId: hwForm.teacherDocsId || null,
         maxMarks: hwForm.maxMarks ? parseInt(hwForm.maxMarks) : null,
         studentAssignments: hwForm.studentAssignments.map((assignment) => ({
           studentId: assignment.studentId,
@@ -505,14 +511,15 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     } else if (subTab === 'homework') {
       setHwForm({
         schoolId: item.schoolId || schoolId || '',
-        classId: item.classId || '',
+        classDocsId: item.classDocsId || '',
+        sectionNo: item.sectionNo || '',
         subject: item.subject || '',
         title: item.title || '',
         instructions: item.instructions || '',
         dueDate: item.dueDate || '',
         maxMarks: item.maxMarks ? String(item.maxMarks) : '',
         assignmentScope: item.assignmentScope || 'CLASS',
-        teacherId: item.teacherId || '',
+        teacherDocsId: item.teacherDocsId || '',
         studentAssignments: item.studentAssignments || []
       });
     } else if (subTab === 'results') {
@@ -760,7 +767,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
                               <td className="px-4 py-3">
                                 <div className="font-bold text-slate-900">{it.subject}</div>
-                                <div className="text-slate-400 text-[10px]">{getClassName(it.classId)}</div>
+                                <div className="text-slate-400 text-[10px]">{getClassName(it.classDocsId)} · Section {it.sectionNo || '—'}</div>
                               </td>
                               <td className="px-4 py-3 font-semibold text-slate-800">{it.title}</td>
                               <td className="px-4 py-3">{it.dueDate ? new Date(it.dueDate).toLocaleDateString() : '—'}</td>
@@ -991,14 +998,34 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
               >
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={hwForm.schoolId} onChange={(e) => setHwForm({ ...hwForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
-                    <Field label="Target Class" apiName="classId" required>
+                    <Field label="Target Class" apiName="classDocsId" required>
                       <Select 
-                        value={hwForm.classId}
-                        onChange={(e) => setHwForm({...hwForm, classId: e.target.value})}
+                        value={hwForm.classDocsId}
+                        onChange={(e) => {
+                          const selectedClass = classes.find((item) => item.id === e.target.value);
+                          setHwForm({
+                            ...hwForm,
+                            classDocsId: e.target.value,
+                            sectionNo: selectedClass?.sections?.[0] || ''
+                          });
+                        }}
                       >
                         <option value="">— select or create a class first —</option>
                         {classes.map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label="Target Section" apiName="sectionNo" required>
+                      <Select
+                        value={hwForm.sectionNo}
+                        onChange={(e) => setHwForm({ ...hwForm, sectionNo: e.target.value })}
+                        disabled={!hwForm.classDocsId}
+                      >
+                        <option value="">— select a section —</option>
+                        {(classes.find((item) => item.id === hwForm.classDocsId)?.sections || []).map((section) => (
+                          <option key={section} value={section}>{section}</option>
                         ))}
                       </Select>
                     </Field>
@@ -1041,9 +1068,9 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                       </Field>
                     </div>
 
-                    <Field label="Teacher ID" apiName="teacherId" required={false}>
-                      <Select value={hwForm.teacherId} onChange={(e) => setHwForm({ ...hwForm, teacherId: e.target.value })}>
-                        <option value="">— omitted —</option>
+                    <Field label="Teacher Docs ID" apiName="teacherDocsId" required>
+                      <Select value={hwForm.teacherDocsId} onChange={(e) => setHwForm({ ...hwForm, teacherDocsId: e.target.value })}>
+                        <option value="">— select a teacher —</option>
                         {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
                       </Select>
                     </Field>
@@ -1084,7 +1111,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitHomework} disabled={busy || !hwForm.classId}>
+                      <Button variant="primary" onClick={submitHomework} disabled={busy || !hwForm.classDocsId || !hwForm.sectionNo || !hwForm.teacherDocsId}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Assignment' : 'Assign'}
                       </Button>

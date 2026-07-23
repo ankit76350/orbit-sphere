@@ -66,11 +66,13 @@ export default function ModAcademics({ user }) {
     api.createHomework({
       schoolId: 'SCH-001',
       academicYear: '2026-2027',
-      classId: 'class-custom',
+      classDocsId: 'class-custom',
+      sectionNo: 'A',
       subject: hwSubject,
       title: hwTitle,
       instructions: hwInstructions,
-      dueDate: hwDueDate
+      dueDate: hwDueDate,
+      teacherDocsId: user?.id || 'TEACHER_ID_HERE'
     }).catch(() => {});
     logAction(user.id, user.name, user.role, "Homework Assignment Published", `Published task: "${hwTitle}" to class ${hwClass}`);
     addToast("Success", "Homework topic dispatched to student feeds!");
