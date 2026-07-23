@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.AcadmicStudentBaseDocs;
+import com.orbitastra.backend.models.base.AcadmicStudentSchool;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AcademicResult extends AcadmicStudentBaseDocs {
+public class AcademicResult extends AcadmicStudentSchool {
 
     private String grade;
 
