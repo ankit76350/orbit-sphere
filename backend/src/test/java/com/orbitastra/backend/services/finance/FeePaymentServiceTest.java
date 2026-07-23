@@ -52,6 +52,19 @@ public class FeePaymentServiceTest {
         fee.setPaidAmount(BigDecimal.ZERO);
         fee.setStatus(FeeStatus.UNPAID);
         fee.setDueDate(LocalDate.now().plusMonths(1));
+
+        // Mock remainingBalance call to return remaining balance dynamically
+        lenient().when(feeService.remainingBalance(any(FeeInvoice.class)))
+                .thenAnswer(invocation -> {
+                    FeeInvoice invoice = invocation.getArgument(0);
+                    BigDecimal amount = invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO;
+                    BigDecimal discount = invoice.getDiscount() != null ? invoice.getDiscount() : BigDecimal.ZERO;
+                    BigDecimal net = amount.subtract(discount);
+                    BigDecimal netPayable = net.compareTo(BigDecimal.ZERO) > 0 ? net : BigDecimal.ZERO;
+                    BigDecimal paid = invoice.getPaidAmount() != null ? invoice.getPaidAmount() : BigDecimal.ZERO;
+                    BigDecimal remaining = netPayable.subtract(paid);
+                    return remaining.compareTo(BigDecimal.ZERO) > 0 ? remaining : BigDecimal.ZERO;
+                });
     }
 
     // Mimics the real FeeService.applyPaidAmount so result assertions stay meaningful.

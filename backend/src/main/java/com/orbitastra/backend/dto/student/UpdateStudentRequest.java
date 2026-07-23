@@ -47,4 +47,19 @@ public class UpdateStudentRequest {
 
     @Valid
     private AcademicRecordRequest currentAcademicRecord;
+
+    private String academicYear;
+    private String studentNo;
+    private String rollNo;
+    private String classDocId;
+    private String classId;
+    private String sectionNo;
+    private String hostelRoomNo;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @jakarta.validation.constraints.AssertTrue(message = "Academic placement must be provided inside currentAcademicRecord; top-level fields are not supported.")
+    public boolean isAcademicPlacementNestedOnly() {
+        return academicYear == null && studentNo == null && rollNo == null
+                && classDocId == null && classId == null && sectionNo == null && hostelRoomNo == null;
+    }
 }

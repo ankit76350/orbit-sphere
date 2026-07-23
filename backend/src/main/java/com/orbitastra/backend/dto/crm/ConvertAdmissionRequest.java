@@ -87,16 +87,18 @@ public class ConvertAdmissionRequest {
         return currentAcademicRecord == null ? null : currentAcademicRecord.toModel();
     }
 
-    private static final Set<String> TOP_LEVEL_ACADEMIC_FIELDS = Set.of(
-            "academicYear", "studentNo", "rollNo", "classDocId", "classId", "sectionNo", "hostelRoomNo");
+    private String academicYear;
+    private String studentNo;
+    private String rollNo;
+    private String classDocId;
+    private String classId;
+    private String sectionNo;
+    private String hostelRoomNo;
 
-    /** Reject the retired top-level academic placement shape instead of silently accepting it. */
-    @JsonAnySetter
-    public void rejectLegacyAcademicField(String fieldName, Object value) {
-        if (TOP_LEVEL_ACADEMIC_FIELDS.contains(fieldName)) {
-            throw new IllegalArgumentException(
-                    "Academic placement must be provided inside currentAcademicRecord; top-level field '"
-                            + fieldName + "' is not supported.");
-        }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @jakarta.validation.constraints.AssertTrue(message = "Academic placement must be provided inside currentAcademicRecord; top-level fields are not supported.")
+    public boolean isAcademicPlacementNestedOnly() {
+        return academicYear == null && studentNo == null && rollNo == null
+                && classDocId == null && classId == null && sectionNo == null && hostelRoomNo == null;
     }
 }

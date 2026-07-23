@@ -53,8 +53,8 @@ public class SchoolClassFieldMigration {
 
         Bson filter = Filters.elemMatch("subjects", Filters.exists("teacher", true));
         Document subjectCondition = new Document("$and", List.of(
-                new Document("$ne", List.of("$$subject.teacher", null)),
-                new Document("$eq", List.of("$$subject.teacherDocsId", null))));
+                new Document("$ne", java.util.Arrays.asList("$$subject.teacher", null)),
+                new Document("$eq", java.util.Arrays.asList("$$subject.teacherDocsId", null))));
         Document migratedSubject = new Document("$mergeObjects", List.of(
                 "$$subject",
                 new Document("teacherDocsId", "$$subject.teacher")));

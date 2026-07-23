@@ -457,6 +457,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                               <div className="min-w-0">
                                 <div className="font-bold text-slate-900 text-xs truncate">{s.schoolName}</div>
                                 <div className="text-[10px] text-slate-400 font-mono select-all mt-0.5">{s.subdomain}.edusphere.com</div>
+                                <div className="text-[9px] text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 font-mono select-all mt-1 inline-block">ID: {s.id}</div>
                               </div>
                             </div>
                           </td>

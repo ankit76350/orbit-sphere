@@ -924,6 +924,7 @@
           "item": [
             {
               "name": "Create Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });","const body = pm.response.json();","pm.test(\"Class teacher reference uses classTeacherDocsId\", function () { pm.expect(body.classTeacherDocsId).to.be.a(\"string\").and.not.empty; });","pm.test(\"Subject teacher references use teacherDocsId\", function () { (body.subjects || []).forEach(s => pm.expect(s.teacherDocsId).to.be.a(\"string\").and.not.empty); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -934,7 +935,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n    \"name\": \"Class 9A\",\n    \"classTeacherDocsId\": \"6a4b5524d763ecb377186650\",\n    \"subjects\": [\n      {\n        \"name\": \"Mathematics\",\n        \"teacherDocsId\": \"6a4b5524d763ecb377186650\"\n      },\n      {\n        \"name\": \"Chemistry\",\n        \"teacherDocsId\": \"6a4b5738d763ecb377186655\"\n      }\n    //   ,\n    //   {\n    //     \"name\": \"Biology\",\n    //     \"teacherDocsId\": \"6a4b86d783bf885978ca998a\"\n    //   }\n    ],\n    \"academicYear\": \"2026-2027\"\n}"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a class for one academic year with classTeacherDocsId and nested teacherDocsId references.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Class 9A {{$timestamp}}\",\n  \"classTeacherDocsId\": \"CLASS_TEACHER_STAFF_ID\",\n  \"subjects\": [\n    { \"name\": \"Mathematics\", \"teacherDocsId\": \"MATH_TEACHER_STAFF_ID\" },\n    { \"name\": \"Chemistry\", \"teacherDocsId\": \"CHEMISTRY_TEACHER_STAFF_ID\" }\n  ],\n  \"academicYear\": \"2026-2027\",\n  \"sections\": [\"A\", \"B\"]\n}\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Rejects a class teacher or subject teacher outside the school.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Cross School Class\", \"classTeacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\", \"academicYear\": \"2026-2027\" }\n\n\n// TC03\n// Status Code: 404 Not Found\n// Working: Rejects an unknown school.\n// { \"schoolId\": \"000000000000000000000000\", \"name\": \"Missing School Class\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Deprecated classTeacher/subjects[].teacher aliases are not accepted; use classTeacherDocsId/teacherDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Deprecated Alias Class\", \"classTeacher\": \"OLD_TEACHER_ID\", \"subjects\": [ { \"name\": \"Math\", \"teacher\": \"OLD_TEACHER_ID\" } ] }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a duplicate class name in the same school and academic year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"EXISTING_CLASS_NAME\", \"academicYear\": \"2026-2027\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/classes",
@@ -1040,6 +1041,7 @@
             },
             {
               "name": "Update Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });","const body = pm.response.json();","pm.test(\"Updated class teacher reference is returned\", function () { pm.expect(body.classTeacherDocsId).to.be.a(\"string\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1050,7 +1052,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"classTeacherDocsId\": \"TEACHER_STAFF_ID_HERE\",\n     \"subjects\": [\n        {\n            \"name\": \"Mathematics\",\n            \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\"\n        },\n        {\n            \"name\": \"Physics\",\n            \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\"\n        }\n    ]\n}"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Updates classTeacherDocsId and nested subject teacherDocsId.\n{ \"classTeacherDocsId\": \"TEACHER_STAFF_ID_HERE\", \"subjects\": [ { \"name\": \"Mathematics\", \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\" }, { \"name\": \"Physics\", \"teacherDocsId\": \"TEACHER_STAFF_ID_HERE\" } ] }\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Academic year cannot be changed after the class is created.\n// { \"academicYear\": \"2027-2028\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects a teacher from another school.\n// { \"classTeacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Deprecated classTeacher/teacher aliases are not accepted.\n// { \"classTeacher\": \"OLD_TEACHER_ID\", \"subjects\": [ { \"name\": \"Math\", \"teacher\": \"OLD_TEACHER_ID\" } ] }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/classes/6a478a518a00ec3e112aa03b",
@@ -1440,6 +1442,7 @@
           "item": [
             {
               "name": "Create Attendance",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });","const body = pm.response.json();","pm.test(\"Academic record pointer is stored\", function () { pm.expect(body.currentAcademicRecordDocsId).to.be.a(\"string\").and.not.empty; });","pm.test(\"Academic year is stored\", function () { pm.expect(body.academicYear).to.be.a(\"string\").and.not.empty; });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -1450,7 +1453,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"presentBy\": \"6a4b5524d763ecb377186650\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\",\n  \"academicYear\": \"2026-2027\"\n}"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Resolves currentAcademicRecordDocsId, stores it on attendance, derives academicYear, and accepts an inclusive academic-year date.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"presentBy\": \"6a4b5524d763ecb377186650\",\n  \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n  \"date\": \"2026-07-03\",\n  \"status\": \"PRESENT\",\n  \"academicYear\": \"2026-2027\"\n}\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Derives academicYear from the current academic record when academicYear is omitted.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_WITH_CURRENT_RECORD_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects a date before the academic-year start date.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2026-03-31\", \"status\": \"PRESENT\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects a date after the academic-year end date.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2027-04-01\", \"status\": \"PRESENT\" }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects academicYear that does not match the student's current academic record.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"academicYear\": \"2025-2026\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC06\n// Status Code: 400 Bad Request\n// Working: Rejects a student without currentAcademicRecordDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_WITHOUT_CURRENT_RECORD_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC07\n// Status Code: 404 Not Found\n// Working: Rejects a stale currentAcademicRecordDocsId pointer.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_WITH_STALE_RECORD_POINTER_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects a current academic record belonging to another student or school.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_WITH_MISMATCHED_RECORD_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects duplicate attendance for the same student/date. Run TC01 first.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"SAME_STUDENT_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"ABSENT\" }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects missing presenter, invalid status, or missing date.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC11\n// Status Code: 404 Not Found\n// Working: Rejects a presenter that does not exist.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"000000000000000000000000\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\" }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: presentTime is server-owned and must not be sent by the client.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"presentBy\": \"STAFF_ID_HERE\", \"studentId\": \"STUDENT_ID_HERE\", \"date\": \"2026-07-03\", \"status\": \"PRESENT\", \"presentTime\": \"2026-07-03T09:00:00\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/attendance",
@@ -1626,6 +1629,7 @@
             },
             {
               "name": "Update Attendance",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });","const body = pm.response.json();","pm.test(\"Updated status is returned\", function () { pm.expect(body.status).to.eql(\"ABSENT\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1636,7 +1640,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"status\": \"ABSENT\"\n}"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Updates status and revalidates the current academic record/date range.\n{ \"status\": \"ABSENT\" }\n\n\n// TC02\n// Status Code: 200 OK\n// Working: Changes date within the same current academic year.\n// { \"date\": \"2026-07-04\", \"status\": \"LATE\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects a date outside the student's current academic year.\n// { \"date\": \"2027-04-01\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects changing academic year.\n// { \"academicYear\": \"2025-2026\", \"date\": \"2025-07-03\" }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a student without a valid current academic record.\n// { \"studentId\": \"STUDENT_WITHOUT_CURRENT_RECORD_HERE\" }\n\n\n// TC06\n// Status Code: 400 Bad Request\n// Working: Rejects duplicate student/date after changing student or date.\n// { \"studentId\": \"STUDENT_WITH_EXISTING_ATTENDANCE_ON_DATE\", \"date\": \"2026-07-03\" }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: presentTime is server-owned and not accepted.\n// { \"presentTime\": \"2026-07-03T09:00:00\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/attendance/ATTENDANCE_ID_HERE",
@@ -2046,6 +2050,7 @@
           "item": [
             {
               "name": "Create Timetable (date range, many class sections, skips holidays)",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });","const body = pm.response.json();","pm.test(\"Creation result reports created days\", function () { pm.expect(body.daysCreated).to.be.a(\"number\"); });","pm.test(\"Timetable entries were counted\", function () { pm.expect(body.totalEntries).to.be.a(\"number\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2056,7 +2061,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"startDate\": \"2026-07-13\",\n  \"endDate\": \"2026-08-31\",\n  \"classTimetables\": [\n    {\n      \"classDocsId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics\",\n          \"teacherDocsId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"09:00\",\n          \"endTime\": \"09:45\"\n        },\n        {\n          \"subject\": \"English\",\n          \"teacherDocsId\": \"TEACHER_STAFF_ID_2\",\n          \"startTime\": \"09:45\",\n          \"endTime\": \"10:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:00\",\n          \"endTime\": \"12:40\"\n        }\n      ]\n    },\n    {\n      \"classDocsId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"B\",\n      \"periods\": [\n        {\n          \"subject\": \"Mathematics (double)\",\n          \"teacherDocsId\": \"TEACHER_STAFF_ID_1\",\n          \"startTime\": \"10:00\",\n          \"endTime\": \"11:30\"\n        },\n        {\n          \"type\": \"BREAK\",\n          \"subject\": \"Lunch\",\n          \"startTime\": \"12:30\",\n          \"endTime\": \"13:10\"\n        }\n      ]\n    }\n  ]\n}"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates date-range timetable documents using classDocsId and teacherDocsId; breaks omit teacherDocsId.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"academicYear\": \"2026-2027\",\n  \"startDate\": \"2026-07-13\",\n  \"endDate\": \"2026-07-17\",\n  \"classTimetables\": [\n    {\n      \"classDocsId\": \"CLASS_5_ID_HERE\",\n      \"section\": \"A\",\n      \"periods\": [\n        { \"subject\": \"Mathematics\", \"teacherDocsId\": \"TEACHER_STAFF_ID_1\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" },\n        { \"type\": \"BREAK\", \"subject\": \"Lunch\", \"startTime\": \"12:00\", \"endTime\": \"12:40\" }\n      ]\n    }\n  ]\n}\n\n\n// TC02\n// Status Code: 201 Created\n// Working: academicYear can be omitted when the date range identifies the school's year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2026-07-13\", \"endDate\": \"2026-07-17\", \"classTimetables\": [ { \"classDocsId\": \"CLASS_ID_HERE\", \"section\": \"A\", \"periods\": [ { \"subject\": \"Math\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" } ] } ] }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects a classDocsId that does not exist, belongs to another school, or is from another academic year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"academicYear\": \"2026-2027\", \"startDate\": \"2026-07-13\", \"classTimetables\": [ { \"classDocsId\": \"INVALID_CLASS_ID\", \"section\": \"A\", \"periods\": [] } ] }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects a section not configured on the class.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2026-07-13\", \"classTimetables\": [ { \"classDocsId\": \"CLASS_ID_HERE\", \"section\": \"Z\", \"periods\": [] } ] }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a lesson teacherDocsId not assigned to the class/subject or from another school.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2026-07-13\", \"classTimetables\": [ { \"classDocsId\": \"CLASS_ID_HERE\", \"section\": \"A\", \"periods\": [ { \"subject\": \"Math\", \"teacherDocsId\": \"UNASSIGNED_TEACHER_ID\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" } ] } ] }\n\n\n// TC06\n// Status Code: 400 Bad Request\n// Working: BREAK periods must not include teacherDocsId; lesson periods require one.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2026-07-13\", \"classTimetables\": [ { \"classDocsId\": \"CLASS_ID_HERE\", \"section\": \"A\", \"periods\": [ { \"type\": \"BREAK\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"startTime\": \"12:00\", \"endTime\": \"12:30\" } ] } ] }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects overlapping periods, invalid times, an empty classTimetables list, or dates outside the academic year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2027-04-01\", \"endDate\": \"2027-04-02\", \"classTimetables\": [] }\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Deprecated classId/teacherId aliases are not accepted; use classDocsId/teacherDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"startDate\": \"2026-07-13\", \"classTimetables\": [ { \"classId\": \"OLD_CLASS_ID\", \"section\": \"A\", \"periods\": [ { \"teacherId\": \"OLD_TEACHER_ID\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" } ] } ] }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/timetables",
@@ -2226,6 +2231,7 @@
             },
             {
               "name": "Update One Section For One Date (replace)",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });","const body = pm.response.json();","pm.test(\"Updated entries are returned\", function () { pm.expect(body.entries).to.be.an(\"array\"); });","pm.test(\"Entries use teacherDocsId\", function () { (body.entries || []).filter(e => e.type !== \"BREAK\").forEach(e => pm.expect(e.teacherDocsId).to.be.a(\"string\").and.not.empty); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "PUT",
                 "header": [
@@ -2236,7 +2242,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "[\n  {\n    \"subject\": \"Mathematics\",\n    \"teacherDocsId\": \"TEACHER_STAFF_ID_1\",\n    \"startTime\": \"09:00\",\n    \"endTime\": \"09:45\"\n  },\n  {\n    \"type\": \"BREAK\",\n    \"subject\": \"Recess\",\n    \"startTime\": \"09:45\",\n    \"endTime\": \"10:05\"\n  },\n  {\n    \"subject\": \"English\",\n    \"teacherDocsId\": \"TEACHER_STAFF_ID_2\",\n    \"startTime\": \"10:05\",\n    \"endTime\": \"10:50\"\n  }\n]"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Replaces one class section's entries; lesson teachers use teacherDocsId and breaks have no teacherDocsId.\n[\n  { \"subject\": \"Mathematics\", \"teacherDocsId\": \"TEACHER_STAFF_ID_1\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" },\n  { \"type\": \"BREAK\", \"subject\": \"Recess\", \"startTime\": \"09:45\", \"endTime\": \"10:05\" },\n  { \"subject\": \"English\", \"teacherDocsId\": \"TEACHER_STAFF_ID_2\", \"startTime\": \"10:05\", \"endTime\": \"10:50\" }\n]\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Rejects a section not in the class, a teacher not assigned to the class, or a cross-school reference.\n// [ { \"subject\": \"Mathematics\", \"teacherDocsId\": \"INVALID_TEACHER_ID\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" } ]\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Rejects invalid or overlapping times, missing lesson teacherDocsId, or a BREAK with teacherDocsId.\n// [ { \"subject\": \"Mathematics\", \"startTime\": \"09:45\", \"endTime\": \"09:00\" } ]\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Deprecated teacherId is not accepted; use teacherDocsId.\n// [ { \"subject\": \"Mathematics\", \"teacherId\": \"OLD_TEACHER_ID\", \"startTime\": \"09:00\", \"endTime\": \"09:45\" } ]\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/timetables/school/SCHOOL_ID_HERE/date/2026-10-12/class/CLASS_ID_HERE/section/A",
@@ -2387,6 +2393,7 @@
           "item": [
             {
               "name": "Create Homework",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });","const body = pm.response.json();","pm.test(\"Section is stored\", function () { pm.expect(body.sectionNo).to.eql(\"A\"); });","pm.test(\"Class-wide assignment list is created\", function () { pm.expect(body.studentAssignments).to.be.an(\"array\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2397,7 +2404,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc1\",\n//   \"classDocsId\": \"6a478ca18a00ec3e112aa040\",\n//   \"sectionNo\": \"A\",\n//   \"subject\": \"Mathematics\",\n//   \"title\": \"Algebra Basics\",\n//   \"instructions\": \"Read chapter 2 and solve exercises 1 through 10.\",\n//   \"dueDate\": \"2026-07-10\",\n//   \"assignmentScope\": \"CLASS\",\n//   \"maxMarks\": 100,\n//   \"teacherDocsId\": \"TEACHER_ID_HERE\"\n// }\n\n\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc3\", // remove latter \n  \"classDocsId\": \"6a4b42f7e2823debb8d54fe7\",\n  \"sectionNo\": \"A\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Advanced Geometry Proofs\",\n  \"instructions\": \"Complete the group assignment questions on page 42.\",\n  \"dueDate\": \"2026-07-12\",\n  \"assignmentScope\": \"GROUP\",\n  \"maxMarks\": 50,\n  \"teacherDocsId\": \"6a4b5524d763ecb377186650\", // teacher should be belong to the same school\n  \"studentAssignments\": [\n    {\n      \"studentId\": \"6a4750bd826a1781db37539c\"\n    },\n    {\n      \"studentId\": \"6a475666826a1781db37539d\"\n    }\n  ]\n}\n\n\n\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc8\",\n//   \"classDocsId\": \"6a4753c299c8785ab0c2b5c1\",\n//   \"sectionNo\": \"A\",\n//   \"subject\": \"Physics\",\n//   \"title\": \"Newtonian Dynamics Remediation\",\n//   \"instructions\": \"Solve problems in Section A.\",\n//   \"dueDate\": \"2026-07-10\",\n//   \"assignmentScope\": \"INDIVIDUAL\",\n//   \"maxMarks\": 100,\n//   \"teacherDocsId\": \"TEACHER_ID_HERE\",\n//   \"studentAssignments\": [\n//     {\n//       \"studentId\": \"6a4750bd826a1781db37539c\",\n//       \"customInstructions\": \"Please focus on solving only questions 1 to 5 as we discussed in the extra help session.\"\n//     }\n//   ]\n// }\n\n"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates class-wide homework for one section and auto-assigns only matching current academic records.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"classDocsId\": \"SAME_SCHOOL_CLASS_ID\",\n  \"sectionNo\": \"A\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Algebra Basics\",\n  \"instructions\": \"Read chapter 2 and solve exercises 1 through 10.\",\n  \"dueDate\": \"2026-07-10\",\n  \"assignmentScope\": \"CLASS\",\n  \"maxMarks\": 100,\n  \"teacherDocsId\": \"CLASS_TEACHER_OR_SUBJECT_TEACHER_ID\"\n}\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates GROUP homework with explicit students from the same class/section/year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"subject\": \"Mathematics\", \"title\": \"Group Geometry\", \"assignmentScope\": \"GROUP\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_IN_CLASS_SECTION_A\" }, { \"studentId\": \"SECOND_STUDENT_IN_CLASS_SECTION_A\" } ] }\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates INDIVIDUAL homework for one matching student.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"subject\": \"Physics\", \"title\": \"Remedial Work\", \"assignmentScope\": \"INDIVIDUAL\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_IN_CLASS_SECTION_A\", \"customInstructions\": \"Complete questions 1-5.\" } ] }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects missing sectionNo.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"subject\": \"Mathematics\", \"title\": \"Missing Section\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a section not configured on the class.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"Z\", \"subject\": \"Mathematics\", \"title\": \"Bad Section\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC06\n// Status Code: 404 Not Found\n// Working: Rejects a class that does not exist.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"000000000000000000000000\", \"sectionNo\": \"A\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects a cross-school class or teacher.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"OTHER_SCHOOL_CLASS_ID\", \"sectionNo\": \"A\", \"teacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\" }\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects a teacher not assigned as class teacher or subject teacher.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"teacherDocsId\": \"UNASSIGNED_TEACHER_ID\" }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects a subject not configured on the selected class.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"subject\": \"Not A Class Subject\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: GROUP/INDIVIDUAL requires a non-empty studentAssignments list.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"assignmentScope\": \"GROUP\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects duplicate students in studentAssignments.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"assignmentScope\": \"GROUP\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_ID_HERE\" }, { \"studentId\": \"STUDENT_ID_HERE\" } ] }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Rejects a student whose current academic record belongs to another class/section/year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"assignmentScope\": \"INDIVIDUAL\", \"teacherDocsId\": \"TEACHER_ID_HERE\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_FROM_DIFFERENT_SECTION\" } ] }\n\n\n// TC13\n// Status Code: 400 Bad Request\n// Working: maxMarks cannot be negative.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"A\", \"maxMarks\": -1, \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n\n\n// TC14\n// Status Code: 400 Bad Request\n// Working: Deprecated classId/teacherId aliases are not accepted; use classDocsId/teacherDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classId\": \"OLD_CLASS_ID\", \"sectionNo\": \"A\", \"teacherId\": \"OLD_TEACHER_ID\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework",
@@ -2416,6 +2423,7 @@
             },
             {
               "name": "Create Homework Definition Only",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });","const body = pm.response.json();","pm.test(\"Definition starts unassigned\", function () { pm.expect(body.studentAssignments).to.be.an(\"array\").that.is.empty; });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2426,7 +2434,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"classDocsId\": \"6a4b4048e2823debb8d54fe4\",\n  \"sectionNo\": \"A\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Trigonometry Basics\",\n  \"instructions\": \"Complete problems 1-5 on page 73.\",\n  \"dueDate\": \"2026-07-15\",\n  \"maxMarks\": 100,\n  \"teacherDocsId\": \"6a4b5524d763ecb377186650\"\n}\n"
+                  "raw": "// TC01\n// Status Code: 201 Created\n// Working: Creates a validated, section-scoped homework definition without assigning students.\n{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"classDocsId\": \"CLASS_ID_HERE\",\n  \"sectionNo\": \"A\",\n  \"subject\": \"Mathematics\",\n  \"title\": \"Trigonometry Basics\",\n  \"instructions\": \"Complete problems 1-5.\",\n  \"dueDate\": \"2026-07-15\",\n  \"maxMarks\": 100,\n  \"teacherDocsId\": \"CLASS_TEACHER_OR_SUBJECT_TEACHER_ID\"\n}\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid section, cross-school class, or unassigned teacher.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"classDocsId\": \"CLASS_ID_HERE\", \"sectionNo\": \"Z\", \"teacherDocsId\": \"TEACHER_ID_HERE\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework/definition",
@@ -2446,6 +2454,7 @@
             },
             {
               "name": "Assign Homework",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });","const body = pm.response.json();","pm.test(\"Assignment scope is stored\", function () { pm.expect(body.assignmentScope).to.eql(\"CLASS\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2456,7 +2465,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// {\n//   \"assignmentScope\": \"CLASS\"\n// }\n\n\n{\n  \"assignmentScope\": \"GROUP\",\n  \"studentAssignments\": [\n    {\n      \"studentId\": \"6a4b3f96e2823debb8d54fe3\",\n      \"studentName\": \"Liam Williams\"\n    },\n    {\n      \"studentId\": \"6a4752c0de123456789fffff\",\n      \"studentName\": \"Emma Jones\"\n    }\n  ]\n}\n\n\n\n// {\n//   \"assignmentScope\": \"INDIVIDUAL\",\n//   \"studentAssignments\": [\n//     {\n//       \"studentId\": \"6a4752c0de123456789abcde\",\n//       \"studentName\": \"Liam Williams\",\n//       \"customInstructions\": \"Please complete questions 1 to 3 only (remedial instruction).\"\n//     },\n//     {\n//       \"studentId\": \"6a4752c0de123456789fffff\",\n//       \"studentName\": \"Emma Jones\",\n//       \"customInstructions\": \"Please solve all questions and show the step-by-step logic.\"\n//     }\n//   ]\n// }\n\n\n\n"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 200 OK\n// Working: Assigns existing homework to every current student in its class and section.\n{ \"assignmentScope\": \"CLASS\" }\n\n\n// TC02\n// Status Code: 200 OK\n// Working: Assigns GROUP homework only to students matching the homework class/section/year.\n// { \"assignmentScope\": \"GROUP\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_IN_CLASS_SECTION\" }, { \"studentId\": \"SECOND_STUDENT_IN_CLASS_SECTION\" } ] }\n\n\n// TC03\n// Status Code: 200 OK\n// Working: Assigns INDIVIDUAL homework to one matching student.\n// { \"assignmentScope\": \"INDIVIDUAL\", \"studentAssignments\": [ { \"studentId\": \"STUDENT_IN_CLASS_SECTION\", \"customInstructions\": \"Complete questions 1-5.\" } ] }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: assignmentScope is required.\n// {}\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: GROUP/INDIVIDUAL requires a non-empty list.\n// { \"assignmentScope\": \"GROUP\", \"studentAssignments\": [] }\n\n\n// TC06\n// Status Code: 400 Bad Request\n// Working: Rejects duplicate students, students from another section/year, or students without a current record.\n// { \"assignmentScope\": \"INDIVIDUAL\", \"studentAssignments\": [ { \"studentId\": \"INVALID_STUDENT_FOR_HOMEWORK\" } ] }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework/6a4b5b4a83bf885978ca995d/assign",
@@ -2586,6 +2595,7 @@
             },
             {
               "name": "Update Homework",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });","const body = pm.response.json();","pm.test(\"Updated title is returned\", function () { pm.expect(body.title).to.eql(\"Updated Algebra Homework\"); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -2596,7 +2606,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"submittedCount\": 5\n}"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Updates editable homework metadata without changing its assigned class/section.\n{ \"title\": \"Updated Algebra Homework\", \"instructions\": \"Complete the revised exercise set.\" }\n\n\n// TC02\n// Status Code: 200 OK\n// Working: Changes teacherDocsId only when the teacher is assigned to this class.\n// { \"teacherDocsId\": \"ANOTHER_CLASS_SUBJECT_TEACHER_ID\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Cannot move homework to another class or section after students have been assigned.\n// { \"classDocsId\": \"ANOTHER_CLASS_ID\", \"sectionNo\": \"B\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Rejects a section not configured on the class.\n// { \"sectionNo\": \"Z\" }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: submittedCount is server-managed and must not be sent.\n// { \"submittedCount\": 5 }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE",
@@ -2683,6 +2693,7 @@
             },
             {
               "name": "Submit Homework",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2693,7 +2704,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"submissionText\": \"Here is my completed Algebra homework solutions.\",\n  \"submissionFileUrl\": \"https://s3.amazonaws.com/submissions/algebra_homework_sol.pdf\"\n}"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Stores the submission for an assigned student.\n{\n  \"submissionText\": \"Here is my completed Algebra homework solutions.\",\n  \"submissionFileUrl\": \"https://s3.amazonaws.com/submissions/algebra_homework_sol.pdf\"\n}\n\n\n// TC02\n// Status Code: 404 Not Found\n// Working: Student is not assigned to this homework.\n// { \"submissionText\": \"Text\" }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: Student's current academic record no longer matches the homework class/section/year.\n// { \"submissionText\": \"Text\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE/submit/STUDENT_ID_HERE",
@@ -2715,6 +2726,7 @@
             },
             {
               "name": "Grade Homework",
+              "event": [{"listen":"test","script":{"exec":["pm.test(\"Expected HTTP 200\", function () { pm.response.to.have.status(200); });"],"type":"text/javascript","packages":{},"requests":{}}}],
               "request": {
                 "method": "POST",
                 "header": [
@@ -2725,7 +2737,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"obtainedMarks\": 95,\n  \"feedback\": \"Excellent work, very clean calculations!\"\n}"
+                  "raw": "// TC01\n// Status Code: 200 OK\n// Working: Stores a grade and marks the student's assignment EVALUATED.\n{\n  \"obtainedMarks\": 95,\n  \"feedback\": \"Excellent work, very clean calculations!\"\n}\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: obtainedMarks cannot exceed maxMarks.\n// { \"obtainedMarks\": 101 }\n\n\n// TC03\n// Status Code: 400 Bad Request\n// Working: obtainedMarks cannot be negative.\n// { \"obtainedMarks\": -1 }\n\n\n// TC04\n// Status Code: 404 Not Found\n// Working: Student is not assigned to this homework.\n// { \"obtainedMarks\": 80 }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/homework/HOMEWORK_ID_HERE/grade/STUDENT_ID_HERE",

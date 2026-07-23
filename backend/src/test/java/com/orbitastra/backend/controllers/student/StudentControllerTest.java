@@ -40,4 +40,19 @@ class StudentControllerTest {
         assertNotNull(res.getBody());
         assertEquals("std-1", res.getBody().getId());
     }
+
+    @Test
+    void testValidation_whenLegacyFieldsPresent_fails() {
+        jakarta.validation.Validator validator = jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator();
+        CreateStudentRequest req = new CreateStudentRequest();
+        req.setSchoolId("school-1");
+        req.setAdmissionNo("ADM-001");
+        req.setName("John Doe");
+        req.setAcademicYear("2026-2027");
+
+        java.util.Set<jakarta.validation.ConstraintViolation<CreateStudentRequest>> violations = validator.validate(req);
+        assertEquals(1, violations.size());
+        assertEquals("Academic placement must be provided inside currentAcademicRecord; top-level fields are not supported.", 
+                     violations.iterator().next().getMessage());
+    }
 }

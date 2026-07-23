@@ -55,14 +55,14 @@ public class DailyTimetableFieldMigration {
                 "$$entry",
                 new Document("$cond", List.of(
                         new Document("$and", List.of(
-                                new Document("$ne", List.of("$$entry.classId", null)),
-                                new Document("$eq", List.of("$$entry.classDocsId", null)))),
+                                new Document("$ne", java.util.Arrays.asList("$$entry.classId", null)),
+                                new Document("$eq", java.util.Arrays.asList("$$entry.classDocsId", null)))),
                         new Document("classDocsId", "$$entry.classId"),
                         new Document())),
                 new Document("$cond", List.of(
                         new Document("$and", List.of(
-                                new Document("$ne", List.of("$$entry.teacherId", null)),
-                                new Document("$eq", List.of("$$entry.teacherDocsId", null)))),
+                                new Document("$ne", java.util.Arrays.asList("$$entry.teacherId", null)),
+                                new Document("$eq", java.util.Arrays.asList("$$entry.teacherDocsId", null)))),
                         new Document("teacherDocsId", "$$entry.teacherId"),
                         new Document()))));
 
