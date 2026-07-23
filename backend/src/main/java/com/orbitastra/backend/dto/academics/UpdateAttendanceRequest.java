@@ -1,8 +1,6 @@
 package com.orbitastra.backend.dto.academics;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 
 import lombok.Data;
@@ -27,5 +25,4 @@ public class UpdateAttendanceRequest {
 
     private String presentBy;
 
-    private LocalDateTime presentTime;
 }

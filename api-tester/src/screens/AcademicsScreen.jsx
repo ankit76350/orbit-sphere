@@ -45,8 +45,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     studentId: '',
     date: new Date().toISOString().slice(0, 10),
     status: 'PRESENT',
-    presentBy: 'Class Teacher',
-    presentTime: ''
+    presentBy: staff?.[0]?.id || ''
   });
 
   // 2. Homework Form
@@ -203,8 +202,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         studentId: students.length > 0 ? students[0].id : '',
         date: new Date().toISOString().slice(0, 10),
         status: 'PRESENT',
-        presentBy: 'Class Teacher',
-        presentTime: ''
+        presentBy: staff?.[0]?.id || ''
       });
     } else if (subTab === 'homework') {
       setHwForm({
@@ -267,7 +265,6 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       const payload = {
         ...attForm,
         academicYear: attForm.academicYear || null,
-        presentTime: attForm.presentTime || null,
       };
       if (editingItem) {
         await api.updateAttendance(editingItem.id, payload);
@@ -505,8 +502,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         studentId: item.studentId || '',
         date: item.date || '',
         status: item.status || 'PRESENT',
-        presentBy: item.presentBy || 'Class Teacher',
-        presentTime: item.presentTime ? item.presentTime.slice(0, 16) : ''
+        presentBy: item.presentBy || staff?.[0]?.id || ''
       });
     } else if (subTab === 'homework') {
       setHwForm({
@@ -717,6 +713,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                           <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                             <th className="px-4 py-3">Student Name</th>
                             <th className="px-4 py-3">Log Date</th>
+                            <th className="px-4 py-3">Current Academic Record ID</th>
                             <th className="px-4 py-3">Recorded By</th>
                             <th className="px-4 py-3 text-center">Status</th>
                             <th className="px-4 py-3 text-right">Actions</th>
@@ -727,6 +724,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
                               <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentId)}</td>
                               <td className="px-4 py-3">{it.date ? new Date(it.date).toLocaleDateString() : '—'}</td>
+                              <td className="px-4 py-3 font-mono text-[10px] text-slate-500">{it.currentAcademicRecordDocsId || '—'}</td>
                               <td className="px-4 py-3 text-slate-400 font-medium">{it.presentBy || '—'}</td>
                               <td className="px-4 py-3 text-center">
                                 <Badge color={it.status === 'PRESENT' ? 'green' : it.status === 'ABSENT' ? 'rose' : 'amber'}>
@@ -953,12 +951,16 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                           onChange={(e) => setAttForm({...attForm, date: e.target.value})}
                         />
                       </Field>
-                      <Field label="Recorded By" apiName="presentBy" required={false}>
-                        <Input 
+                      <Field label="Recorded By" apiName="presentBy" required>
+                        <Select
                           value={attForm.presentBy}
                           onChange={(e) => setAttForm({...attForm, presentBy: e.target.value})}
-                          placeholder="e.g. Teacher"
-                        />
+                        >
+                          <option value="">— select staff —</option>
+                          {(staff || []).map((member) => (
+                            <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>
+                          ))}
+                        </Select>
                       </Field>
                     </div>
 
@@ -974,13 +976,9 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                       </Select>
                     </Field>
 
-                    <Field label="Present Time" apiName="presentTime" required={false}>
-                      <Input type="datetime-local" value={attForm.presentTime} onChange={(e) => setAttForm({ ...attForm, presentTime: e.target.value })} />
-                    </Field>
-
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitAttendance} disabled={busy || !attForm.studentId || !attForm.date}>
+                      <Button variant="primary" onClick={submitAttendance} disabled={busy || !attForm.studentId || !attForm.date || !attForm.presentBy}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Log' : 'Mark Log'}
                       </Button>

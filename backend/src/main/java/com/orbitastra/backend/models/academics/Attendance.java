@@ -23,10 +23,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Attendance extends AcadmicStudentSchoolBase {
 
+    /** MongoDB id of the student's current year-specific academic record. */
+    private String currentAcademicRecordDocsId;
+
     private LocalDate date;
 
     private AttendanceStatus status;
 
+    /** MongoDB id of the staff member who recorded the attendance. */
     private String presentBy;
 
     private LocalDateTime presentTime;

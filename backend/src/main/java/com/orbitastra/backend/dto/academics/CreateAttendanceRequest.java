@@ -1,8 +1,6 @@
 package com.orbitastra.backend.dto.academics;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 
 import jakarta.validation.constraints.NotBlank;
@@ -30,7 +28,7 @@ public class CreateAttendanceRequest {
     @NotNull(message = "status is required")
     private AttendanceStatus status;
 
+    @NotBlank(message = "presentBy is required")
     private String presentBy;
 
-    private LocalDateTime presentTime;
 }

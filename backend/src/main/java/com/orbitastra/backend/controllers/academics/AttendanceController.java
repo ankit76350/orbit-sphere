@@ -33,7 +33,6 @@ public class AttendanceController {
                 .date(request.getDate())
                 .status(request.getStatus())
                 .presentBy(request.getPresentBy())
-                .presentTime(request.getPresentTime())
                 .build();
         Attendance created = attendanceService.createAttendance(attendance);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
@@ -97,7 +96,6 @@ public class AttendanceController {
                 .date(request.getDate())
                 .status(request.getStatus())
                 .presentBy(request.getPresentBy())
-                .presentTime(request.getPresentTime())
                 .build();
         Attendance updated = attendanceService.updateAttendance(id, attendanceDetails);
         return ResponseEntity.ok(updated);
