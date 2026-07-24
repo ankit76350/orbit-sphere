@@ -4025,7 +4025,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// Creates a NEW academic history record and replaces the student's currentAcademicRecordDocsId pointer.\n// Field naming is strict: use classDocsId exactly.\n// academicYear must exist for the student's school.\n// classDocsId must exist in that academic year.\n// sectionNo must exist in that class.\n// rollNo must be unique across the whole class for the academic year.\n{\n  \"academicYear\": \"2027-2028\",\n  \"identityNo\": \"STD-003\",\n  \"rollNo\": \"9C-03\",\n  \"classDocsId\": \"6a4b4048e2823debb8d54fe4\",\n  \"sectionNo\": \"section-c\",\n  \"hostelRoomNo\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
+                  "raw": "// Creates a NEW academic history record and replaces the student's currentAcademicRecordDocsId pointer.\n// Every existing academic record for the student is marked INACTIVE before the new ACTIVE record is created.\n// Field naming is strict: use classDocsId exactly.\n// academicYear must exist for the student's school.\n// classDocsId must exist in that academic year.\n// sectionNo must exist in that class.\n// rollNo must be unique across the whole class for the academic year.\n{\n  \"academicYear\": \"2027-2028\",\n  \"identityNo\": \"STD-003\",\n  \"rollNo\": \"9C-03\",\n  \"classDocsId\": \"6a4b4048e2823debb8d54fe4\",\n  \"sectionNo\": \"section-c\",\n  \"hostelRoomNo\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records",
@@ -4041,7 +4041,7 @@
                     "academic-records"
                   ]
                 },
-                "description": "Always creates a new academic record, retains prior records as history, and points the student to the new record. Same-year prior ACTIVE placement is marked INACTIVE. Request field names are strict; the class MongoDB reference must be sent as classDocsId."
+                "description": "Marks every existing academic record for the student INACTIVE, creates one new ACTIVE academic record, retains all prior records as history, and replaces currentAcademicRecordDocsId with the new record id. Request field names are strict; the class MongoDB reference must be sent as classDocsId."
               },
               "response": []
             },

@@ -573,8 +573,8 @@ public class StudentService {
 
     /**
      * Creates a new academic placement-history record and makes it the student's
-     * current record. An existing active placement in the same academic year is
-     * retained as history after being marked INACTIVE.
+     * current record. Every existing academic record for the student is retained
+     * as history after being marked INACTIVE.
      */
     @Transactional
     public StudentAcademicRecord createAcademicRecord(String studentDocsId, StudentAcademicRecord details) {
@@ -594,10 +594,12 @@ public class StudentService {
         }
         String yearName = academicYear.getName();
 
-        StudentAcademicRecord previousActive = studentAcademicRecordRepository
+        StudentAcademicRecord previousActiveForYear = studentAcademicRecordRepository
                 .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
                         normalizedStudentDocsId, yearName, StudentStatus.ACTIVE)
                 .orElse(null);
+        List<StudentAcademicRecord> existingRecords =
+                studentAcademicRecordRepository.findByStudentDocsId(normalizedStudentDocsId);
 
         if (details.getStatus() != null && details.getStatus() != StudentStatus.ACTIVE) {
             throw new IllegalArgumentException(
@@ -610,7 +612,9 @@ public class StudentService {
                 .academicYear(yearName)
                 .identityNo(normalizeOptional(details.getIdentityNo()) != null
                         ? normalizeOptional(details.getIdentityNo())
-                        : previousActive != null ? normalizeOptional(previousActive.getIdentityNo()) : null)
+                        : previousActiveForYear != null
+                                ? normalizeOptional(previousActiveForYear.getIdentityNo())
+                                : null)
                 .rollNo(details.getRollNo())
                 .classDocsId(details.getClassDocsId())
                 .sectionNo(details.getSectionNo())
@@ -622,10 +626,15 @@ public class StudentService {
         normalizeAndValidateAcademicRecord(student, record);
         rejectAcademicIdentifierConflicts(student, record);
 
-        if (previousActive != null) {
-            previousActive.setStatus(StudentStatus.INACTIVE);
-            previousActive.setUpdatedAt(LocalDateTime.now());
-            studentAcademicRecordRepository.save(previousActive);
+        for (StudentAcademicRecord existingRecord : existingRecords) {
+            deactivateAcademicRecord(existingRecord);
+        }
+        if (previousActiveForYear != null
+                && existingRecords.stream()
+                        .noneMatch(existing -> sameAcademicRecord(existing, previousActiveForYear))) {
+            // Protect against an inconsistent query result while preserving the
+            // one-active-record-per-student/year database constraint.
+            deactivateAcademicRecord(previousActiveForYear);
         }
 
         final StudentAcademicRecord saved;
@@ -638,6 +647,15 @@ public class StudentService {
         // Keep the current-record pointer and the history write in one transaction.
         setCurrentAcademicRecordPointer(student, saved);
         return saved;
+    }
+
+    private void deactivateAcademicRecord(StudentAcademicRecord record) {
+        if (record == null || record.getStatus() == StudentStatus.INACTIVE) {
+            return;
+        }
+        record.setStatus(StudentStatus.INACTIVE);
+        record.setUpdatedAt(LocalDateTime.now());
+        studentAcademicRecordRepository.save(record);
     }
 
     /**
