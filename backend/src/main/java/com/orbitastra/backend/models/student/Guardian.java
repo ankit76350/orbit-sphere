@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

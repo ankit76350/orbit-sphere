@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.exceptions.DuplicateGuardianException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.student.Guardian;
-import com.orbitastra.backend.models.student.GuardianLink;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 import com.orbitastra.backend.repositories.student.GuardianRepository;
 

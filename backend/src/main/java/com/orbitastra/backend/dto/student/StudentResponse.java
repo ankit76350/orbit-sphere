@@ -4,9 +4,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 

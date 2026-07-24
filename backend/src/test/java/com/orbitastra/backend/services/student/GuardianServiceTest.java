@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.student.Guardian;
-import com.orbitastra.backend.models.student.GuardianLink;
+import com.orbitastra.backend.models.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 import com.orbitastra.backend.repositories.student.GuardianRepository;
 import com.orbitastra.backend.services.student.GuardianService.GuardianDraft;
