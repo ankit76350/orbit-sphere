@@ -3506,6 +3506,68 @@
               "response": []
             },
             {
+              "name": "Add Guardian To Admission",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Meera Nair\",\n  \"relation\": \"MOTHER\",\n  \"phone\": \"+61-400-111-222\",\n  \"email\": \"meera@example.com\",\n  \"address\": \"12 Main Street\",\n  \"occupation\": \"Teacher\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_DOCS_ID_HERE/guardians",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_DOCS_ID_HERE",
+                    "guardians"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Add Document To Admission",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"document\": \"birth-certificate.pdf\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_DOCS_ID_HERE/documents",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_DOCS_ID_HERE",
+                    "documents"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
               "name": "Convert Admission To Student",
               "request": {
                 "method": "POST",
