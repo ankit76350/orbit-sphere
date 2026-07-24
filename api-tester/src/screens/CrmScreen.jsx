@@ -439,9 +439,6 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                               <button onClick={(event) => { event.stopPropagation(); openFollowUp(inq); }} className="flex items-center gap-0.5 bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-100 transition" title="Log follow-up / change stage">
                                 <History size={10} /> Log
                               </button>
-                              <button onClick={(event) => { event.stopPropagation(); startAdmission(inq); }} className="flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-100 transition" title="Create admission from this lead">
-                                <ArrowRight size={10} /> Admit
-                              </button>
                               <button onClick={(event) => { event.stopPropagation(); deleteInquiry(inq); }} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition"><Trash2 size={13} /></button>
                             </div>
                           </td>
