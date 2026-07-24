@@ -13,6 +13,11 @@ export function generateAdmissionNo(date = new Date()) {
   return `ADM/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
 }
 
+export function generateIdentityNo(date = new Date()) {
+  const twoDigits = (value) => String(value).padStart(2, '0');
+  return `IND/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
+}
+
 export function addDays(iso, n) {
   const d = new Date(iso + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);

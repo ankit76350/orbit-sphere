@@ -85,7 +85,7 @@ public class ConvertAdmissionRequest {
     }
 
     private String academicYear;
-    private String studentNo;
+    private String identityNo;
     private String rollNo;
     private String classDocsId;
     private String sectionNo;
@@ -94,7 +94,7 @@ public class ConvertAdmissionRequest {
     @com.fasterxml.jackson.annotation.JsonIgnore
     @jakarta.validation.constraints.AssertTrue(message = "Academic placement must be provided inside currentAcademicRecord; top-level fields are not supported.")
     public boolean isAcademicPlacementNestedOnly() {
-        return academicYear == null && studentNo == null && rollNo == null
+        return academicYear == null && identityNo == null && rollNo == null
                 && classDocsId == null && sectionNo == null && hostelRoomNo == null;
     }
 }

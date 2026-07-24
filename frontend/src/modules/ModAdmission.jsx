@@ -13,6 +13,11 @@ const generateAdmissionNo = (date = new Date()) => {
   return `ADM/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
 };
 
+const generateIdentityNo = (date = new Date()) => {
+  const twoDigits = (value) => String(value).padStart(2, "0");
+  return `IND/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
+};
+
 export default function ModAdmission({ user }) {
   const { addToast } = useToast();
   const [studentFullName, setStudentFullName] = useState("Lucas Johnson");
@@ -28,6 +33,7 @@ export default function ModAdmission({ user }) {
   const [feeStructure, setFeeStructure] = useState("tuition-standard");
   const [photoPreview, setPhotoPreview] = useState(null);
   const [admissionNo, setAdmissionNo] = useState(() => generateAdmissionNo());
+  const [identityNo, setIdentityNo] = useState(() => generateIdentityNo());
   const handlePhotoSimulate = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -120,9 +126,7 @@ export default function ModAdmission({ user }) {
       ],
       currentAcademicRecord: {
         academicYear: "2026-2027",
-        studentNo: `STD-${Math.floor(100 + Math.random() * 900)}`,
-        rollNo: "9C-01",
-        sectionNo: "Section-A",
+        identityNo,
         hostelRoomNo: hostelRoomNo ? `Room ${hostelRoomNo}` : undefined,
         status: "ACTIVE"
       }
@@ -156,6 +160,7 @@ export default function ModAdmission({ user }) {
     setAddress("");
     setPhotoPreview(null);
     setAdmissionNo(generateAdmissionNo());
+    setIdentityNo(generateIdentityNo());
   };
   return <div className="space-y-6 max-w-4xl mx-auto">
       
@@ -257,6 +262,13 @@ export default function ModAdmission({ user }) {
     value={admissionNo}
     onChange={(e) => setAdmissionNo(e.target.value)}
     placeholder="ADM/2026/05/0519"
+    required
+  />
+              <Input
+    label="Identity Number"
+    value={identityNo}
+    onChange={(e) => setIdentityNo(e.target.value)}
+    placeholder="IND/2026/05/0611"
     required
   />
             </div>

@@ -19,7 +19,7 @@
 - Use `studentDocsId`, not `studentId` or `studentDocId`.
 - Use `inquiryDocsId`, `admissionDocsId`, `walletDocsId`, and
   `medicalRecordDocsId` for the same reason.
-- Use `employeeNo`, `admissionNo`, `studentNo`, `rollNo`, `apaarNo`, and
+- Use `employeeNo`, `admissionNo`, `identityNo`, `rollNo`, `apaarNo`, and
   similar `*No` names for human-readable identifiers.
 - Apply the same name in the model, DTO, repository, service, controller, API
   tester, Postman examples, and API responses.

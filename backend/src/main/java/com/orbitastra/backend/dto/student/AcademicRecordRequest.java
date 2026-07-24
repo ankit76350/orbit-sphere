@@ -22,7 +22,7 @@ public class AcademicRecordRequest {
     // promote endpoints.
     private String academicYear;
 
-    private String studentNo;
+    private String identityNo;
 
     private String rollNo;
 
@@ -35,7 +35,7 @@ public class AcademicRecordRequest {
     private StudentStatus status;
 
     private static final Set<String> UNSUPPORTED_FIELDS = Set.of(
-            "classDocsId", "sectionNo", "hostelRoomId", "schoolId", "studentDocsId", "id");
+            "studentNo", "classDocsId", "sectionNo", "hostelRoomId", "schoolId", "studentDocsId", "id");
 
     /** Reject deprecated aliases and server-owned identifiers instead of silently ignoring them. */
     @JsonAnySetter
@@ -43,14 +43,15 @@ public class AcademicRecordRequest {
         if (UNSUPPORTED_FIELDS.contains(fieldName)) {
             throw new IllegalArgumentException(
                     "Unsupported academic-record field '" + fieldName
-                            + "'. Use classDocsId, sectionNo, and hostelRoomNo; schoolId and studentDocsId are server-owned.");
+                            + "'. Use identityNo, classDocsId, sectionNo, and hostelRoomNo; "
+                            + "schoolId and studentDocsId are server-owned.");
         }
     }
 
     public StudentAcademicRecord toModel() {
         return StudentAcademicRecord.builder()
                 .academicYear(academicYear)
-                .studentNo(studentNo)
+                .identityNo(identityNo)
                 .rollNo(rollNo)
                 .classDocsId(classDocsId)
                 .sectionNo(sectionNo)

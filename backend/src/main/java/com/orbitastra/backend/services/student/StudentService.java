@@ -187,7 +187,7 @@ public class StudentService {
 
         // Validate and normalize the optional initial academic placement before
         // writing the student, so an invalid class/section or duplicate
-        // studentNo/rollNo rejects the whole creation without a partial record.
+        // identityNo/rollNo rejects the whole creation without a partial record.
         StudentAcademicRecord preparedInitialRecord = null;
         if (initialRecord != null) {
             String academicYear = academicYearResolver
@@ -197,7 +197,7 @@ public class StudentService {
                     .schoolId(student.getSchoolId())
                     .studentDocsId(student.getId())
                     .academicYear(academicYear)
-                    .studentNo(initialRecord.getStudentNo())
+                    .identityNo(initialRecord.getIdentityNo())
                     .rollNo(initialRecord.getRollNo())
                     .classDocsId(initialRecord.getClassDocsId())
                     .sectionNo(initialRecord.getSectionNo())
@@ -450,8 +450,8 @@ public class StudentService {
 
         // Update only the record fields that were sent.
         if (detailsRecord != null) {
-            if (detailsRecord.getStudentNo() != null) {
-                record.setStudentNo(normalizeOptional(detailsRecord.getStudentNo()));
+            if (detailsRecord.getIdentityNo() != null) {
+                record.setIdentityNo(normalizeOptional(detailsRecord.getIdentityNo()));
                 changed = true;
             }
             if (detailsRecord.getRollNo() != null) {
@@ -609,13 +609,13 @@ public class StudentService {
         record.setSchoolId(studentSchoolId);
         record.setAcademicYear(yearName);
 
-        String requestedStudentNo = normalizeOptional(details.getStudentNo());
+        String requestedIdentityNo = normalizeOptional(details.getIdentityNo());
         String requestedRollNo = normalizeOptional(details.getRollNo());
         String requestedClassDocsId = normalizeOptional(details.getClassDocsId());
         String requestedSectionNo = normalizeOptional(details.getSectionNo());
         String requestedHostelRoomNo = normalizeOptional(details.getHostelRoomNo());
 
-        if (details.getStudentNo() != null) record.setStudentNo(requestedStudentNo);
+        if (details.getIdentityNo() != null) record.setIdentityNo(requestedIdentityNo);
         if (details.getRollNo() != null) record.setRollNo(requestedRollNo);
         if (details.getHostelRoomNo() != null) record.setHostelRoomNo(requestedHostelRoomNo);
         if (details.getClassDocsId() != null) {
@@ -679,9 +679,9 @@ public class StudentService {
                 .schoolId(schoolId)
                 .studentDocsId(normalizedStudentDocsId)
                 .academicYear(yearName)
-                .studentNo(normalizeOptional(promotion.getStudentNo()) != null
-                        ? normalizeOptional(promotion.getStudentNo())
-                        : previousActive != null ? normalizeOptional(previousActive.getStudentNo()) : null)
+                .identityNo(normalizeOptional(promotion.getIdentityNo()) != null
+                        ? normalizeOptional(promotion.getIdentityNo())
+                        : previousActive != null ? normalizeOptional(previousActive.getIdentityNo()) : null)
                 .rollNo(normalizeOptional(promotion.getRollNo()))
                 .classDocsId(normalizeOptional(promotion.getClassDocsId()))
                 .sectionNo(normalizeOptional(promotion.getSectionNo()))
@@ -722,7 +722,7 @@ public class StudentService {
 
         record.setSchoolId(schoolId);
         record.setAcademicYear(academicYear);
-        record.setStudentNo(normalizeOptional(record.getStudentNo()));
+        record.setIdentityNo(normalizeOptional(record.getIdentityNo()));
         record.setRollNo(rollNo);
         record.setClassDocsId(classDocsId);
         record.setSectionNo(sectionNo);
@@ -775,16 +775,16 @@ public class StudentService {
             return;
         }
 
-        if (record.getStudentNo() != null) {
+        if (record.getIdentityNo() != null) {
             studentAcademicRecordRepository
-                    .findFirstBySchoolIdAndAcademicYearAndStudentNoAndStatus(
+                    .findFirstBySchoolIdAndAcademicYearAndIdentityNoAndStatus(
                             record.getSchoolId(), record.getAcademicYear(),
-                            record.getStudentNo(), StudentStatus.ACTIVE)
+                            record.getIdentityNo(), StudentStatus.ACTIVE)
                     .filter(existing -> !sameAcademicRecord(existing, record))
                     .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
                     .ifPresent(existing -> {
                         throw new ConflictException(
-                                "studentNo '" + record.getStudentNo()
+                                "identityNo '" + record.getIdentityNo()
                                         + "' is already used by another student in school '"
                                         + record.getSchoolId() + "' for academic year '"
                                         + record.getAcademicYear() + "'.");
@@ -820,8 +820,8 @@ public class StudentService {
 
     private ConflictException duplicateAcademicRecordConflict(
             Student student, StudentAcademicRecord record, Throwable cause) {
-        String detail = record.getStudentNo() != null
-                ? "studentNo '" + record.getStudentNo() + "'"
+        String detail = record.getIdentityNo() != null
+                ? "identityNo '" + record.getIdentityNo() + "'"
                 : record.getRollNo() != null ? "rollNo '" + record.getRollNo() + "'" : "class/section/roll assignment";
         return new ConflictException("Academic record conflicts with an existing " + detail
                 + " for school '" + student.getSchoolId() + "' and year '" + record.getAcademicYear() + "'.", cause);

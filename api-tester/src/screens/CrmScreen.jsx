@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
-import { generateAdmissionNo } from '../lib/date.js';
+import { generateAdmissionNo, generateIdentityNo } from '../lib/date.js';
 
 const INQUIRY_STAGES = ['INQUIRY', 'COUNSELING', 'VISIT', 'ADMITTED', 'LOST'];
 const ADMISSION_STAGES = ['PENDING', 'APPROVED', 'REJECTED', 'CONFIRMED'];
@@ -459,7 +459,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       admissionDocsId: adm.id, schoolId,
       guardians: [],
       currentAcademicRecord: {
-        academicYear: '', studentNo: '', rollNo: '', classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
+        academicYear: '', identityNo: generateIdentityNo(), rollNo: '',
+        classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
       },
     });
   };
@@ -1860,9 +1861,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase text-slate-400">optional</span></div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    ['academicYear', 'Academic Year'], ['studentNo', 'Student No'], ['rollNo', 'Roll No'],
+                    ['academicYear', 'Academic Year'], ['identityNo', 'Identity No'], ['rollNo', 'Roll No'],
                     ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
-                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} /></Field>)}
+                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false} hint={key === 'identityNo' ? 'Prefilled as IND/YYYY/MM/DDSS and editable.' : undefined}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} placeholder={key === 'identityNo' ? 'IND/2026/05/0611' : undefined} className={key === 'identityNo' ? 'font-mono' : undefined} /></Field>)}
                   <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 </div>
               </div>

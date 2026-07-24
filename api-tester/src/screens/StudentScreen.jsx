@@ -5,12 +5,13 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
-import { generateAdmissionNo } from '../lib/date.js';
+import { generateAdmissionNo, generateIdentityNo } from '../lib/date.js';
 
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
 
-const emptyAcademicRecord = () => ({
-  academicYear: '', studentNo: '', rollNo: '', classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
+const emptyAcademicRecord = (prefillIdentityNo = false) => ({
+  academicYear: '', identityNo: prefillIdentityNo ? generateIdentityNo() : '', rollNo: '',
+  classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
 });
 
 const emptyInlineGuardian = () => ({
@@ -28,7 +29,7 @@ const emptyStudentForm = (schoolId = '') => ({
   name: '', admissionNo: generateAdmissionNo(), dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
   walletDocsId: '', medicalRecordDocsId: '', documents: '', medicalRemark: '', status: '', admissionDate: '',
-  guardians: [], existingGuardianLinks: [], currentAcademicRecord: emptyAcademicRecord(),
+  guardians: [], existingGuardianLinks: [], currentAcademicRecord: emptyAcademicRecord(true),
 });
 
 const nullable = (value) => value === '' ? null : value;
@@ -174,7 +175,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const [busyAssign, setBusyAssign] = useState(false);
   const [assignForm, setAssignForm] = useState({
     academicYear: year || '',
-    studentNo: '',
+    identityNo: generateIdentityNo(),
     rollNo: '',
     classDocsId: '',
     sectionNo: '',
@@ -380,7 +381,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     setAssignmentClasses(availableClasses);
     setAssignForm({
       academicYear: year || '',
-      studentNo: historyStudent ? historyStudent.admissionNo || '' : '',
+      identityNo: generateIdentityNo(),
       rollNo: '',
       classDocsId: firstClass?.id || '',
       sectionNo: firstClass?.sections && firstClass.sections.length > 0 ? firstClass.sections[0] : '',
@@ -731,7 +732,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Academic Year" apiName="academicYear" required={false}><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
-                      <Field label="Student No" apiName="studentNo" required={false}><Input value={studentForm.currentAcademicRecord.studentNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, studentNo: e.target.value } })} /></Field>
+                      <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IND/YYYY/MM/DDSS. You can replace it with any value before submitting."><Input value={studentForm.currentAcademicRecord.identityNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, identityNo: e.target.value } })} placeholder="IND/2026/05/0611" className="font-mono" /></Field>
                       <Field label="Roll No" apiName="rollNo" required={false}><Input value={studentForm.currentAcademicRecord.rollNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, rollNo: e.target.value } })} /></Field>
                       <Field label="Class Document ID" apiName="classDocsId" required={false}><Input value={studentForm.currentAcademicRecord.classDocsId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocsId: e.target.value } })} /></Field>
                       <Field label="Section No" apiName="sectionNo" required={false}><Input value={studentForm.currentAcademicRecord.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, sectionNo: e.target.value } })} /></Field>
@@ -1050,7 +1051,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                       ['School ID', studentDetails.currentAcademicRecord.schoolId, true],
                       ['Student Docs ID', studentDetails.currentAcademicRecord.studentDocsId, true],
                       ['Academic Year', studentDetails.currentAcademicRecord.academicYear],
-                      ['Student No', studentDetails.currentAcademicRecord.studentNo],
+                      ['Identity No', studentDetails.currentAcademicRecord.identityNo],
                       ['Roll No', studentDetails.currentAcademicRecord.rollNo],
                       ['Class Docs ID', studentDetails.currentAcademicRecord.classDocsId, true],
                       ['Section No', studentDetails.currentAcademicRecord.sectionNo],
@@ -1123,7 +1124,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                       <tr className="bg-slate-100/80 text-slate-500 font-semibold border-b border-slate-200/55">
                         <th className="px-4 py-2.5">Academic Year</th>
                         <th className="px-4 py-2.5">Class / Section</th>
-                        <th className="px-4 py-2.5">Student Year ID</th>
+                        <th className="px-4 py-2.5">Identity No</th>
                         <th className="px-4 py-2.5">Roll No</th>
                         <th className="px-4 py-2.5">Status</th>
                       </tr>
@@ -1135,7 +1136,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                           <tr key={rec.id} className="hover:bg-slate-100/20 transition">
                             <td className="px-4 py-2.5 font-bold text-slate-900">{rec.academicYear}</td>
                             <td className="px-4 py-2.5">{targetCls ? targetCls.name : 'Unknown Class'} · {rec.sectionNo || '—'}</td>
-                            <td className="px-4 py-2.5 font-mono text-slate-500">{rec.studentNo || '—'}</td>
+                            <td className="px-4 py-2.5 font-mono text-slate-500">{rec.identityNo || '—'}</td>
                             <td className="px-4 py-2.5 font-semibold text-slate-900">{rec.rollNo || '—'}</td>
                             <td className="px-4 py-2.5"><Badge color={rec.status === 'ACTIVE' ? 'green' : 'slate'}>{rec.status}</Badge></td>
                           </tr>
@@ -1216,11 +1217,12 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Student No" apiName="studentNo" required={false}>
+                <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IND/YYYY/MM/DDSS and editable.">
                   <Input 
-                    value={assignForm.studentNo}
-                    onChange={(e) => setAssignForm({...assignForm, studentNo: e.target.value})}
-                    placeholder="e.g. STU-2026-001"
+                    value={assignForm.identityNo}
+                    onChange={(e) => setAssignForm({...assignForm, identityNo: e.target.value})}
+                    placeholder="IND/2026/05/0611"
+                    className="font-mono"
                   />
                 </Field>
                 <Field label="Roll No" apiName="rollNo" required={false}>

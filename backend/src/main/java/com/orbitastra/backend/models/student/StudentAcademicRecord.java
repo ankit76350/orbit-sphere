@@ -24,12 +24,12 @@ import lombok.NoArgsConstructor;
             def = "{'studentDocsId': 1, 'academicYear': 1, 'status': 1}",
             unique = true,
             partialFilter = "{'status': 'ACTIVE'}"),
-    // Student numbers remain unique among active students in a school year.
+    // Human-readable identity numbers remain unique among active students in a school year.
     @CompoundIndex(
-            name = "school_year_active_student_no_unique_idx",
-            def = "{'schoolId': 1, 'academicYear': 1, 'studentNo': 1, 'status': 1}",
+            name = "school_year_active_identity_no_unique_idx",
+            def = "{'schoolId': 1, 'academicYear': 1, 'identityNo': 1, 'status': 1}",
             unique = true,
-            partialFilter = "{'studentNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
+            partialFilter = "{'identityNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
     // Section is intentionally optional: when it is absent MongoDB indexes it
     // as null, so roll numbers are still unique within the class/year.
     @CompoundIndex(
@@ -49,7 +49,7 @@ public class StudentAcademicRecord extends SchoolBase {
 
     private String academicYear; // References AcademicYear.name (unique per school), e.g. "2026-2027"
 
-    private String studentNo; // year-specific student number (e.g. "STD-003")
+    private String identityNo; // Prefilled as IND/YYYY/MM/DDSS; remains client-editable.
 
     private String rollNo; // year-specific roll number
 

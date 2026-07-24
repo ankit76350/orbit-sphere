@@ -92,7 +92,7 @@ erDiagram
         string academicYear FK "references AcademicYear.name"
         string classDocsId FK
         string sectionNo
-        string studentNo
+        string identityNo
         string rollNo
     }
 

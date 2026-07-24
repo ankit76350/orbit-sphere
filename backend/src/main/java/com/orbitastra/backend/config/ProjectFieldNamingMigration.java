@@ -34,6 +34,7 @@ public class ProjectFieldNamingMigration {
     private static final List<String> LEGACY_STUDENT_ACADEMIC_RECORD_INDEXES = List.of(
             "student_academic_year_unique_idx",
             "school_year_student_no_unique_idx",
+            "school_year_active_student_no_unique_idx",
             "class_doc_section_no_year_roll_unique_idx");
 
     private static final List<FieldRename> TOP_LEVEL_RENAMES = List.of(
@@ -78,6 +79,7 @@ public class ProjectFieldNamingMigration {
             rename("student_academic_records", "studentId", "studentDocsId"),
             rename("student_academic_records", "classDocId", "classDocsId"),
             rename("student_academic_records", "classId", "classDocsId"),
+            rename("student_academic_records", "studentNo", "identityNo"),
 
             rename("ai_approved_remarks", "studentId", "studentDocsId"),
             rename("ai_approved_remarks", "approvedBy", "approvedByName"),
