@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.crm.AddAdmissionDocumentRequest;
 import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.crm.CreateAdmissionRequest;
+import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.crm.UpdateAdmissionRequest;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
@@ -74,6 +76,20 @@ public class AdmissionController {
     @PatchMapping("/{id}")
     public ResponseEntity<Admission> updateAdmission(@PathVariable String id, @Valid @RequestBody UpdateAdmissionRequest request) {
         return ResponseEntity.ok(admissionService.updateAdmission(id, request.toModel()));
+    }
+
+    @PostMapping("/{admissionDocsId}/guardians")
+    public ResponseEntity<Admission> addGuardian(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody InquiryGuardianRequest request) {
+        return ResponseEntity.ok(admissionService.addGuardian(admissionDocsId, request.toModel()));
+    }
+
+    @PostMapping("/{admissionDocsId}/documents")
+    public ResponseEntity<Admission> addDocument(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody AddAdmissionDocumentRequest request) {
+        return ResponseEntity.ok(admissionService.addDocument(admissionDocsId, request.getDocument()));
     }
 
     @PostMapping("/{admissionDocsId}/student")

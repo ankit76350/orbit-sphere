@@ -320,6 +320,109 @@ class AdmissionServiceTest {
     }
 
     @Test
+    void addGuardian_initializesListAndSavesUpdatedAdmission() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .guardians(null)
+                .build();
+        InquiryGuardian newGuardian = guardian(
+                "  Meera Nair  ", GuardianRelation.MOTHER,
+                "+61-400-111-222", "meera@example.com", "12 Main Street");
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+        when(admissionRepository.save(admission)).thenReturn(admission);
+
+        Admission updated = admissionService.addGuardian("admission-789", newGuardian);
+
+        assertEquals(1, updated.getGuardians().size());
+        assertEquals("Meera Nair", updated.getGuardians().get(0).getName());
+        assertEquals("meera@example.com", updated.getGuardians().get(0).getEmail());
+        assertNotNull(updated.getUpdatedAt());
+        verify(admissionRepository).save(admission);
+    }
+
+    @Test
+    void addGuardian_duplicateIdentity_returnsConflictWithoutSaving() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .guardians(List.of(guardian(
+                        "Meera Nair", GuardianRelation.MOTHER,
+                        "+61-400-111-222", "meera@example.com", "12 Main Street")))
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.addGuardian(
+                        "admission-789",
+                        guardian("Another Name", GuardianRelation.MOTHER,
+                                null, " MEERA@example.com ", null)));
+
+        assertEquals(
+                "A guardian with the same name, phone, or email already exists on this admission.",
+                error.getMessage());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void addGuardian_blankName_isRejectedBeforeLookup() {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> admissionService.addGuardian(
+                        "admission-789", InquiryGuardian.builder().name("  ").build()));
+
+        assertEquals("Guardian name is required.", error.getMessage());
+        verify(admissionRepository, never()).findById(any());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void addDocument_initializesListNormalizesAndSavesUpdatedAdmission() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .documents(null)
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+        when(admissionRepository.save(admission)).thenReturn(admission);
+
+        Admission updated =
+                admissionService.addDocument("admission-789", "  birth-certificate.pdf  ");
+
+        assertEquals(List.of("birth-certificate.pdf"), updated.getDocuments());
+        assertNotNull(updated.getUpdatedAt());
+        verify(admissionRepository).save(admission);
+    }
+
+    @Test
+    void addDocument_duplicateNormalizedValue_returnsConflictWithoutSaving() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .documents(List.of("birth-certificate.pdf"))
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.addDocument(
+                        "admission-789", " BIRTH-CERTIFICATE.PDF "));
+
+        assertEquals(
+                "Document 'BIRTH-CERTIFICATE.PDF' already exists on this admission.",
+                error.getMessage());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void addDocument_blankValue_isRejectedBeforeLookup() {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> admissionService.addDocument("admission-789", "  "));
+
+        assertEquals("Document is required.", error.getMessage());
+        verify(admissionRepository, never()).findById(any());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
     void convertToStudent_idOnly_copiesAdmissionSnapshotAndConfirmsInquiry() {
         LocalDate dob = LocalDate.of(2014, 8, 22);
         Admission admission = Admission.builder()

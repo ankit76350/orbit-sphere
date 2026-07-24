@@ -154,6 +154,55 @@ public class AdmissionService {
         }
     }
 
+    /** Adds one prospective guardian to an existing admission snapshot. */
+    public Admission addGuardian(String admissionDocsId, InquiryGuardian guardian) {
+        if (guardian == null) {
+            throw new IllegalArgumentException("Guardian details are required.");
+        }
+        if (guardian.getName() == null || guardian.getName().isBlank()) {
+            throw new IllegalArgumentException("Guardian name is required.");
+        }
+
+        Admission admission = getAdmissionById(admissionDocsId);
+        List<InquiryGuardian> guardians = admission.getGuardians() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(admission.getGuardians());
+        if (guardians.stream().anyMatch(existing -> guardiansMatch(existing, guardian))) {
+            throw new ConflictException(
+                    "A guardian with the same name, phone, or email already exists on this admission.");
+        }
+
+        guardian.setName(guardian.getName().trim());
+        guardians.add(guardian);
+        admission.setGuardians(guardians);
+        admission.setUpdatedAt(LocalDateTime.now());
+        return admissionRepository.save(admission);
+    }
+
+    /** Adds one document name, URL, or storage reference to an existing admission. */
+    public Admission addDocument(String admissionDocsId, String document) {
+        if (document == null || document.isBlank()) {
+            throw new IllegalArgumentException("Document is required.");
+        }
+
+        Admission admission = getAdmissionById(admissionDocsId);
+        String normalizedDocument = document.trim();
+        List<String> documents = admission.getDocuments() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(admission.getDocuments());
+        if (documents.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(existing -> existing.trim().equalsIgnoreCase(normalizedDocument))) {
+            throw new ConflictException(
+                    "Document '" + normalizedDocument + "' already exists on this admission.");
+        }
+
+        documents.add(normalizedDocument);
+        admission.setDocuments(documents);
+        admission.setUpdatedAt(LocalDateTime.now());
+        return admissionRepository.save(admission);
+    }
+
     /**
      * Confirms an admission by creating the enrolled {@link Student}. The student
      * is created under the admission's school and academic year; the resulting
@@ -391,6 +440,13 @@ public class AdmissionService {
         return left != null && !left.isBlank()
                 && right != null && !right.isBlank()
                 && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private boolean guardiansMatch(InquiryGuardian existing, InquiryGuardian requested) {
+        return existing != null
+                && (sameNonBlank(existing.getEmail(), requested.getEmail())
+                    || sameNonBlank(existing.getPhone(), requested.getPhone())
+                    || sameNonBlank(existing.getName(), requested.getName()));
     }
 
     private boolean duplicateKeyReferences(DuplicateKeyException ex, String fieldName) {
