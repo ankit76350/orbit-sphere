@@ -4074,7 +4074,7 @@
                     "ACADEMIC_RECORD_DOCS_ID_HERE"
                   ]
                 },
-                "description": "Partially edits only identityNo, rollNo, classDocsId, sectionNo, hostelRoomNo, and status. The record must belong to the path student. Academic year and ownership fields are immutable. Active identifier conflicts return 409; invalid class, section, ownership, status, or payload fields return 400; missing student or record returns 404."
+                "description": "Partially edits only identityNo, rollNo, classDocsId, sectionNo, hostelRoomNo, and status. Only a currently ACTIVE academic record is editable; INACTIVE, SUSPENDED, and ALUMNI records return 409 Conflict and cannot be reactivated through this endpoint. The record must belong to the path student. Academic year and ownership fields are immutable. Identifier conflicts return 409; invalid class, section, ownership, status, or payload fields return 400; missing student or record returns 404."
               },
               "response": []
             },

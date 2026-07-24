@@ -460,6 +460,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const openEditAcademicRecord = async (record) => {
+    if (record.status !== 'ACTIVE') {
+      toast.error('Only ACTIVE academic records can be edited.');
+      return;
+    }
     const academicRecordDocsId = record.id || record.academicRecordDocsId;
     if (!academicRecordDocsId) {
       toast.error('This academic record does not include a MongoDB Object ID and cannot be edited.');
@@ -1267,15 +1271,21 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             <td className="px-4 py-2.5 font-semibold text-slate-900">{rec.rollNo || '—'}</td>
                             <td className="px-4 py-2.5"><Badge color={rec.status === 'ACTIVE' ? 'green' : 'slate'}>{rec.status || '—'}</Badge></td>
                             <td className="px-4 py-2.5 text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditAcademicRecord(rec)}
-                                title="Edit academic record"
-                              >
-                                <Edit2 size={13} /> Edit
-                              </Button>
+                              {rec.status === 'ACTIVE' ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditAcademicRecord(rec)}
+                                  title="Edit active academic record"
+                                >
+                                  <Edit2 size={13} /> Edit
+                                </Button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                  <ShieldAlert size={12} /> Read only
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );

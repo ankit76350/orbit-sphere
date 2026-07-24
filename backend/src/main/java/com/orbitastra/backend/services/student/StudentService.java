@@ -693,6 +693,12 @@ public class StudentService {
             throw new IllegalArgumentException(
                     "Academic record does not belong to the same school as the student.");
         }
+        if (record.getStatus() != StudentStatus.ACTIVE) {
+            throw new ConflictException(
+                    "Academic record '" + normalizedRecordDocsId + "' is "
+                            + (record.getStatus() == null ? "not ACTIVE" : record.getStatus())
+                            + " and cannot be edited. Only ACTIVE academic records are editable.");
+        }
         String academicYearName =
                 normalizeRequired(record.getAcademicYear(), "Academic record academicYear");
         AcademicYear academicYear =
