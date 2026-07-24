@@ -1133,1467 +1133,6 @@
       ]
     },
     {
-      "name": "Finance",
-      "item": [
-        {
-          "name": "Fees",
-          "item": [
-            {
-              "name": "Create Fee Invoice",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.0,\n  \"discount\": 50.0,\n  \"dueDate\": \"2026-08-31\",\n  \"academicYear\": \"2026-2027\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/fees",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Fee By ID",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "FEE_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Fees By Student",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/student/STUDENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "student",
-                    "STUDENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Fees By School",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/school/SCHOOL_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "school",
-                    "SCHOOL_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Fees By School And Academic Year",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/school/SCHOOL_ID_HERE/academic-year/2026-2027",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "school",
-                    "SCHOOL_ID_HERE",
-                    "academic-year",
-                    "2026-2027"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Update Fee Details",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"type\": \"TUITION\",\n  \"amount\": 550.00,\n  \"dueDate\": \"2026-09-30\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "FEE_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Fee",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "FEE_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Record Payment (Collect Fee)",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"amount\": 200.0,\n  \"paymentMode\": \"CASH\",\n  \"remarks\": \"Front desk cash collection\",\n  \"collectedBy\": \"admin\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE/payments",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "FEE_ID_HERE",
-                    "payments"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Payments By Fee",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE/payments",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "FEE_ID_HERE",
-                    "payments"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Payments By Student",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/fees/payments/student/STUDENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "fees",
-                    "payments",
-                    "student",
-                    "STUDENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "Wallets",
-          "item": [
-            {
-              "name": "Get Student Wallet",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "wallets",
-                    "student",
-                    "STUDENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Credit Wallet",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"amount\": 100.00,\n  \"remarks\": \"Pocket money allowance\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/credit",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "wallets",
-                    "student",
-                    "STUDENT_ID_HERE",
-                    "credit"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Debit Wallet",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"amount\": 50.00,\n  \"remarks\": \"Bought canteen snacks\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/debit",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "wallets",
-                    "student",
-                    "STUDENT_ID_HERE",
-                    "debit"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Wallet Transactions",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/transactions",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "wallets",
-                    "student",
-                    "STUDENT_ID_HERE",
-                    "transactions"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "CRM",
-      "item": [
-        {
-          "name": "Inquiries",
-          "item": [
-            {
-              "name": "Create Inquiry",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n\"studentName\": \"Arjun Patel\",\n\"guardians\": [\n  {\n    \"name\": \"Neha Patel\",\n    \"relation\": \"MOTHER\",\n    \"phone\": \"+61-455-321-678\",\n    \"email\": \"neha.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Dentist\"\n  },\n  {\n    \"name\": \"Manish Patel\",\n    \"relation\": \"FATHER\",\n    \"phone\": \"+61-455-876-543\",\n    \"email\": \"manish.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Business Analyst\"\n  }\n],\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"6a4b5524d763ecb377186650\",\n  \"followUps\": [\n    {\n      \"status\": \"INQUIRY\",\n      \"note\": \"Walk-in, interested in Grade 6\",\n      \"nextFollowUp\": \"2026-07-23\",\n      \"counselorId\": \"6a4b5524d763ecb377186650\"\n    }\n  ]\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Inquiry By ID",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/6a6071b3318a3e722c135359",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "6a6071b3318a3e722c135359"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Inquiries By School",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc3",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "school",
-                    "6a474d2517e9c40cf971ccc3"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Inquiries By School And Status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc2/status/INQUIRY",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "school",
-                    "6a474d2517e9c40cf971ccc2",
-                    "status",
-                    "INQUIRY"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Inquiries By Counselor",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/counselor/STAFF_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "counselor",
-                    "STAFF_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Follow-ups Due",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc2/follow-ups?asOf=2026-07-20",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "school",
-                    "6a474d2517e9c40cf971ccc2",
-                    "follow-ups"
-                  ],
-                  "query": [
-                    {
-                      "key": "asOf",
-                      "value": "2026-07-20"
-                    }
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Update Inquiry",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"studentName\": \"Aarav Nair\",\n  \"source\": \"REFERRAL\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/INQUIRY_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "INQUIRY_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Record Follow-up",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// http://localhost:3456/api/inquiries/INQUIRY_ID_HERE/follow-ups\n\n// {\n//   \"status\": \"INQUIRY\",\n//   \"note\": \"New inquiry received through the website. Initial contact pending.\",\n//   \"nextFollowUp\": \"2026-07-24\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n{\n  \"status\": \"VISIT\",\n  \"note\": \"Campus tour completed. Parent expressed interest in proceeding.\",\n  \"nextFollowUp\": \"2026-07-28\",\n  \"counselorId\": \"6a4b5524d763ecb377186650\"\n}\n\n\n// {\n//   \"status\": \"ADMITTED\",\n//   \"note\": \"Admission application submitted successfully. Awaiting document verification.\",\n//   \"nextFollowUp\": \"2026-07-30\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n\n// {\n//   \"status\": \"LOST\",\n//   \"note\": \"Parent informed that the student has enrolled in another school.\",\n//   \"nextFollowUp\": null,\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/6a609a96318a3e722c135374/follow-ups",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "6a609a96318a3e722c135374",
-                    "follow-ups"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Inquiry",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/inquiries/INQUIRY_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "inquiries",
-                    "INQUIRY_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "Admissions",
-          "item": [
-            {
-              "name": "Get Admission By ID",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "ADMISSION_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Admissions By School",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/school/6a474d2517e9c40cf971ccc2",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "school",
-                    "6a474d2517e9c40cf971ccc2"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Admissions By School And Status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/school/6a474d2517e9c40cf971ccc2/status/PENDING",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "school",
-                    "6a474d2517e9c40cf971ccc2",
-                    "status",
-                    "PENDING"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Admissions By Inquiry",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/inquiry/INQUIRY_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "inquiry",
-                    "INQUIRY_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Update Admission",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"APPROVED\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "ADMISSION_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Convert Admission To Student",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE/convert",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "ADMISSION_ID_HERE",
-                    "convert"
-                  ]
-                },
-                "description": "Convert an admission (id in the URL) into an enrolled student. The body mirrors the create-student payload — the frontend prefills name/admissionNo/dob/gender/admissionDate from the admission and bloodGroup is entered here. schoolId and academicYear are accepted for payload parity but IGNORED: the school comes from the admission, and the academic year is NOT set at conversion (an admission carries no year) — assign it afterwards via POST /api/students/{id}/academic-records. Guardians are copied from the admission automatically and de-duplicated (reused when name+phone or name+email exists)."
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Admission",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions",
-                    "ADMISSION_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Create Admission",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });",
-                      "pm.test(\"Direct admission is not linked to an inquiry\", function () { pm.expect(pm.response.json().inquiryDocsId).to.be.oneOf([null, undefined]); });"
-                    ],
-                    "type": "text/javascript",
-                    "packages": {},
-                    "requests": {}
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// Uncomment/copy one test-case payload at a time before sending.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a complete direct admission without an inquiry\n// inquiryDocsId must remain null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC1 Complete Applicant\",\n//   \"dob\": \"2016-02-01\",\n//   \"gender\": \"FEMALE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Priya Sharma\",\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-666\",\n//       \"email\": \"priya.tc01@example.com\",\n//       \"address\": \"9 Oak Ave\",\n//       \"occupation\": \"Teacher\"\n//     }\n//   ],\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"report-card.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates an admission using only an existing inquiry MongoDB ID\n// School and applicant data are copied, and the inquiry becomes ADMITTED.\n{\n  \"inquiryDocsId\": \"6a5e1fbbfaffc52a626a30b5\"\n}\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission and overrides/adds admission details\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_OVERRIDE_HERE\",\n//   \"studentName\": \"TC3 Overridden Student Name\",\n//   \"dob\": \"2015-05-10\",\n//   \"gender\": \"MALE\",\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"address-proof.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC04\n// Status Code: 201 Created\n// Working: Merges an existing inquiry guardian and adds another guardian\n// Use an inquiry whose existing guardian is named Meera Nair.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_GUARDIAN_MERGE_HERE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Meera Nair\",\n//       \"relation\": \"MOTHER\",\n//       \"address\": \"12 Main Street\"\n//     },\n//     {\n//       \"name\": \"Raj Nair\",\n//       \"relation\": \"FATHER\",\n//       \"phone\": \"+61-400-333-444\",\n//       \"address\": \"12 Main Street\"\n//     }\n//   ]\n// }\n\n\n// TC05\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission with a matching school ID\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_MATCHING_SCHOOL_HERE\",\n//   \"documents\": [\"application-form.pdf\"]\n// }\n\n\n// TC06\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission using the legacy inquiryId alias\n// The response stores the value as inquiryDocsId.\n// {\n//   \"inquiryId\": \"INQUIRY_ID_LEGACY_ALIAS_HERE\"\n// }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects an empty request because direct-admission fields are missing\n// {}\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no schoolId\n// {\n//   \"studentName\": \"TC8 Missing School\"\n// }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank schoolId\n// {\n//   \"schoolId\": \"   \",\n//   \"studentName\": \"TC9 Blank School\"\n// }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\"\n// }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"   \"\n// }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Treats a blank inquiryDocsId as null, then rejects missing direct fields\n// {\n//   \"inquiryDocsId\": \"   \"\n// }\n\n\n// TC13\n// Status Code: 404 Not Found\n// Working: Rejects a non-existent inquiry MongoDB ID\n// {\n//   \"inquiryDocsId\": \"000000000000000000000000\"\n// }\n\n\n// TC14\n// Status Code: 400 Bad Request\n// Working: Rejects an inquiry whose school differs from the supplied schoolId\n// Replace both placeholders with real IDs belonging to different schools.\n// {\n//   \"schoolId\": \"DIFFERENT_SCHOOL_MONGODB_ID\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_FOR_SCHOOL_MISMATCH_HERE\"\n// }\n\n\n// TC15\n// Status Code: 409 Conflict\n// Working: Prevents a second admission for the same inquiry\n// Run TC2 successfully first, then send this payload with the same inquiry ID.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_ONLY_HERE\"\n// }\n\n\n// TC16\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid guardian email address\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC16 Invalid Email\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Invalid Email Parent\",\n//       \"email\": \"not-an-email\"\n//     }\n//   ]\n// }\n\n\n// TC17\n// Status Code: 400 Bad Request\n// Working: Rejects a guardian without a required name\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC17 Missing Guardian Name\",\n//   \"guardians\": [\n//     {\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-999\"\n//     }\n//   ]\n// }\n\n\n// TC18\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported gender enum value\n// Valid values: MALE, FEMALE, OTHER.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC18 Invalid Gender\",\n//   \"gender\": \"INVALID_GENDER\"\n// }\n\n\n// TC19\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported admission status enum value\n// Valid values: PENDING, APPROVED, REJECTED, CONFIRMED.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC19 Invalid Status\",\n//   \"status\": \"NOT_A_STATUS\"\n// }\n\n\n// TC20\n// Status Code: 400 Bad Request\n// Working: Rejects a DOB that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC20 Invalid DOB\",\n//   \"dob\": \"01-02-2016\"\n// }\n\n\n// TC21\n// Status Code: 400 Bad Request\n// Working: Rejects an admissionDate that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC21 Invalid Admission Date\",\n//   \"admissionDate\": \"22/07/2026\"\n// }\n\n",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/admissions",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "admissions"
-                  ]
-                },
-                "description": "// Test case 2: Direct admission with every client-editable field. No inquiry must be read or updated."
-              },
-              "response": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Student",
-      "item": [
-        {
-          "name": "Students",
-          "item": [
-            {
-              "name": "Create Student",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });",
-                      "pm.test(\"Direct student is not linked to an admission\", function () { pm.expect(pm.response.json().admissionDocsId).to.be.oneOf([null, undefined]); });",
-                      "pm.test(\"Admission number is returned\", function () { pm.expect(pm.response.json().admissionNo).to.be.a(\"string\").and.not.empty; });",
-                      "pm.test(\"Academic record id is stored\", function () { pm.expect(pm.response.json().currentAcademicRecordDocsId).to.be.a(\"string\").and.not.empty; });",
-                      "pm.test(\"Guardian links use guardianDocsId\", function () { const guardians = pm.response.json().guardians; pm.expect(guardians).to.be.an(\"array\").that.is.not.empty; pm.expect(guardians[0].guardianDocsId).to.be.a(\"string\").and.not.empty; });"
-                    ],
-                    "type": "text/javascript",
-                    "packages": {},
-                    "requests": {}
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// Copy one test-case JSON object into the body before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a complete direct student, creates/deduplicates the guardian, creates the academic record, stores currentAcademicRecordDocsId, and keeps admissionDocsId null.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"admissionNo\": \"TC-STUDENT-{{$timestamp}}\",\n  \"name\": \"TC1 Complete Direct Student\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"documents\": [\"birth-certificate.pdf\", \"address-proof.pdf\"],\n  \"medicalRemark\": [\"No known allergies\"],\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-22\",\n  \"guardians\": [\n    {\n      \"name\": \"TC1 Parent {{$timestamp}}\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"tc1.{{$timestamp}}@example.com\",\n      \"primary\": true,\n      \"emergencyContact\": true,\n      \"pickupApproved\": true,\n      \"portalAccess\": true\n    },\n     { \"guardianDocsId\": \"6a61d9d92096b5bb7b3597d5\", \"relation\": \"FATHER\", \"primary\": true }\n  ],\n  \"currentAcademicRecord\": {\n    \"academicYear\": \"2026-2027\",\n    \"studentNo\": \"TC-STD-{{$timestamp}}\",\n    \"rollNo\": \"9C-03\",\n    \"sectionNo\": \"C\",\n    \"hostelRoomNo\": \"203\",\n    \"status\": \"ACTIVE\"\n  }\n}\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates a student with only the required fields. admissionDocsId and currentAcademicRecordDocsId remain null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-MINIMAL-{{$timestamp}}\",\n//   \"name\": \"TC2 Minimal Student\"\n// }\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates two new Guardian documents and links both to the student.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-TWO-GUARDIANS-{{$timestamp}}\",\n//   \"name\": \"TC3 Two Guardians\",\n//   \"guardians\": [\n//     { \"name\": \"TC3 Mother {{$timestamp}}\", \"relation\": \"MOTHER\", \"email\": \"tc3.mother.{{$timestamp}}@example.com\", \"primary\": true },\n//     { \"name\": \"TC3 Father {{$timestamp}}\", \"relation\": \"FATHER\", \"email\": \"tc3.father.{{$timestamp}}@example.com\" }\n//   ]\n// }\n\n\n// TC04\n// Status Code: 201 Created\n// Working: Links an existing guardian when guardianDocsId belongs to the same school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-EXISTING-GUARDIAN-{{$timestamp}}\",\n//   \"name\": \"TC4 Existing Guardian\",\n//   \"guardians\": [\n//     { \"guardianDocsId\": \"SAME_SCHOOL_GUARDIAN_ID\", \"relation\": \"FATHER\", \"primary\": true }\n//   ]\n// }\n\n\n// TC05\n// Status Code: 201 Created\n// Working: Deduplicates repeated guardian details and stores one guardian link.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-DEDUPE-GUARDIAN-{{$timestamp}}\",\n//   \"name\": \"TC5 Guardian Deduplication\",\n//   \"guardians\": [\n//     { \"name\": \"TC5 Parent\", \"relation\": \"MOTHER\", \"email\": \"tc5.parent@example.com\" },\n//     { \"name\": \"TC5 Parent\", \"relation\": \"MOTHER\", \"email\": \"tc5.parent@example.com\" }\n//   ]\n// }\n\n\n// TC06\n// Status Code: 201 Created\n// Working: Creates no StudentAcademicRecord when placement is omitted; currentAcademicRecordDocsId remains null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NO-ACADEMIC-{{$timestamp}}\",\n//   \"name\": \"TC6 No Academic Record\"\n// }\n\n\n// TC07\n// Status Code: 201 Created\n// Working: Creates the academic record from the nested currentAcademicRecord object.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NESTED-ACADEMIC-{{$timestamp}}\",\n//   \"name\": \"TC7 Nested Academic\",\n//   \"currentAcademicRecord\": {\n//     \"academicYear\": \"2026-2027\",\n//     \"classDocId\": \"SAME_SCHOOL_CLASS_ID\",\n//     \"sectionNo\": \"A\",\n//     \"rollNo\": \"12\"\n//   }\n// }\n\n\n// TC07A\n// Status Code: 400 Bad Request\n// Working: Rejects retired top-level academic placement fields. Send placement inside currentAcademicRecord instead.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-TOP-ACADEMIC-REJECTED-{{$timestamp}}\",\n//   \"name\": \"TC7A Rejected Top Level Academic\",\n//   \"academicYear\": \"2026-2027\",\n//   \"classDocId\": \"SAME_SCHOOL_CLASS_ID\",\n//   \"sectionNo\": \"A\",\n//   \"rollNo\": \"12\"\n// }\n\n\n// TC08\n// Status Code: 201 Created\n// Working: Ignores a client-supplied admissionDocsId on direct creation; the response value remains null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NO-ADMISSION-LINK-{{$timestamp}}\",\n//   \"name\": \"TC8 Server Owned Admission Link\",\n//   \"admissionDocsId\": \"SHOULD_NOT_BE_STORED\"\n// }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects an empty object because schoolId, admissionNo, and name are required.\n// {}\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no schoolId.\n// { \"admissionNo\": \"TC-MISSING-SCHOOL\", \"name\": \"TC10 Missing School\" }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects a blank schoolId.\n// { \"schoolId\": \"   \", \"admissionNo\": \"TC-BLANK-SCHOOL\", \"name\": \"TC11 Blank School\" }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"name\": \"TC12 Missing Admission Number\" }\n\n\n// TC13\n// Status Code: 400 Bad Request\n// Working: Rejects a blank admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"   \", \"name\": \"TC13 Blank Admission Number\" }\n\n\n// TC14\n// Status Code: 409 Conflict\n// Working: Prevents duplicate students with the same admissionNo. Run a successful case first, then reuse its admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"EXISTING_STUDENT_ADMISSION_NO\", \"name\": \"TC14 Duplicate Admission Number\" }\n\n\n// TC15\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no student name.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-MISSING-NAME\" }\n\n\n// TC16\n// Status Code: 400 Bad Request\n// Working: Rejects a blank student name.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BLANK-NAME\", \"name\": \"   \" }\n\n\n// TC17\n// Status Code: 404 Not Found\n// Working: Rejects a non-existent school.\n// { \"schoolId\": \"000000000000000000000000\", \"admissionNo\": \"TC-NO-SCHOOL\", \"name\": \"TC17 Missing School Document\" }\n\n\n// TC18\n// Status Code: 400 Bad Request\n// Working: Rejects creation when the school's maxStudents package limit is reached.\n// { \"schoolId\": \"SCHOOL_AT_STUDENT_LIMIT_ID\", \"admissionNo\": \"TC-LIMIT\", \"name\": \"TC18 Package Limit\" }\n\n\n// TC19\n// Status Code: 400 Bad Request\n// Working: Rejects a guardian entry that has neither guardianDocsId nor name.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-EMPTY-GUARDIAN\", \"name\": \"TC19 Empty Guardian\",\n//   \"guardians\": [ { \"relation\": \"MOTHER\" } ]\n// }\n\n\n// TC20\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid guardian email.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-EMAIL\", \"name\": \"TC20 Invalid Email\",\n//   \"guardians\": [ { \"name\": \"Invalid Email Parent\", \"email\": \"not-an-email\" } ]\n// }\n\n\n// TC21\n// Status Code: 404 Not Found\n// Working: Rejects a guardianDocsId that does not exist.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-NO-GUARDIAN\", \"name\": \"TC21 Missing Guardian\",\n//   \"guardians\": [ { \"guardianDocsId\": \"000000000000000000000000\", \"relation\": \"FATHER\" } ]\n// }\n\n\n// TC22\n// Status Code: 400 Bad Request\n// Working: Rejects an existing guardian that belongs to another school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-WRONG-GUARDIAN-SCHOOL\", \"name\": \"TC22 Guardian School Mismatch\",\n//   \"guardians\": [ { \"guardianDocsId\": \"OTHER_SCHOOL_GUARDIAN_ID\", \"relation\": \"FATHER\" } ]\n// }\n\n\n// TC23\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported gender. Valid: MALE, FEMALE, OTHER.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-GENDER\", \"name\": \"TC23 Invalid Gender\", \"gender\": \"INVALID\" }\n\n\n// TC24\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported student status. Valid: ACTIVE, INACTIVE, SUSPENDED, ALUMNI.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-STATUS\", \"name\": \"TC24 Invalid Status\", \"status\": \"PENDING\" }\n\n\n// TC25\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported guardian relation.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-RELATION\", \"name\": \"TC25 Invalid Relation\",\n//   \"guardians\": [ { \"name\": \"Parent\", \"relation\": \"PARENT\" } ]\n// }\n\n\n// TC26\n// Status Code: 400 Bad Request\n// Working: Rejects DOB outside ISO yyyy-MM-dd format.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-DOB\", \"name\": \"TC26 Invalid DOB\", \"dob\": \"19-06-2015\" }\n\n\n// TC27\n// Status Code: 400 Bad Request\n// Working: Rejects admissionDate outside ISO yyyy-MM-dd format.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-DATE\", \"name\": \"TC27 Invalid Date\", \"admissionDate\": \"22/07/2026\" }\n\n\n// TC28\n// Status Code: 404 Not Found\n// Working: Rolls back student creation when classDocId does not exist.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-NO-CLASS\", \"name\": \"TC28 Missing Class\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"classDocId\": \"000000000000000000000000\" }\n// }\n\n\n// TC29\n// Status Code: 400 Bad Request\n// Working: Rolls back student creation when classDocId belongs to another school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-WRONG-CLASS\", \"name\": \"TC29 Class School Mismatch\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"classDocId\": \"OTHER_SCHOOL_CLASS_ID\" }\n// }\n\n\n// TC30\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported academic-record status.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-ACADEMIC-STATUS\", \"name\": \"TC30 Invalid Academic Status\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"status\": \"PENDING\" }\n// }\n\n\n// TC31\n// Status Code: 400 Bad Request\n// Working: Rejects malformed JSON.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-JSON\", \"name\": \"Missing closing brace\"\n",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students"
-                  ]
-                },
-                "description": "Direct student creation test matrix. Required fields: schoolId, admissionNo, name. admissionDocsId is server-owned and always remains null for this API. Use guardianDocsId to link an existing guardian, or provide guardian details to find/create and deduplicate one. Academic placement must be supplied inside currentAcademicRecord; top-level academic placement fields are rejected."
-              },
-              "response": []
-            },
-            {
-              "name": "Get All Students",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Student By ID",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/6a5f159a16e5557a888fa571",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "6a5f159a16e5557a888fa571"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Student By Admission No",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/admission/ADM-2026-001",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "admission",
-                    "ADM-2026-001"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Student Siblings",
-              "protocolProfileBehavior": {
-                "disableBodyPruning": true
-              },
-              "request": {
-                "method": "GET",
-                "header": [],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/siblings\n// http://localhost:3456/api/students/docs id here/siblings",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/6a475666826a1781db37539d/siblings",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "6a475666826a1781db37539d",
-                    "siblings"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By School",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/school/6a474d2517e9c40cf971ccc8",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "school",
-                    "6a474d2517e9c40cf971ccc8"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By School And Academic Year",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/school/6a474d2517e9c40cf971ccc8/academic-year/2026-2027",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "school",
-                    "6a474d2517e9c40cf971ccc8",
-                    "academic-year",
-                    "2026-2027"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By Class",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/class/class-8c",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "class",
-                    "class-8c"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By Parent",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/parent/PARENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "parent",
-                    "PARENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By Hostel Room",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/hostel/hostel-room-101",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "hostel",
-                    "hostel-room-101"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Update Student",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"status\": \"ACTIVE\",\n  \"name\": \"Johnny\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "STUDENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Student",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "STUDENT_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "Academic Records",
-          "item": [
-            {
-              "name": "Assign Academic Record",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records\n\n{\n  \"academicYear\": \"2027-2028\",\n  \"studentNo\": \"STD-003\", // not document it \n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/6a4b4482e2823debb8d54fea/academic-records",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "6a4b4482e2823debb8d54fea",
-                    "academic-records"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Promote Student",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records\n// http://localhost:3456/api/students/studentDocId/academic-records\n// 6a4750bd826a1781db37539c\n{\n  \"academicYear\": \"2025-2026\",\n  \"studentNo\": \"STD-004\",\n  \"rollNo\": \"105-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}\n\n// {\n//   \"academicYear\": \"2027-2028\",\n//   \"studentNo\": \"STD-003-PROMOTE\",\n//   \"rollNo\": \"10C-03\",\n//   \"classId\": \"class-10c\",\n//   \"sectionId\": \"section-c\",\n//   \"hostelRoomId\": \"hostel-room-303\",\n//   \"status\": \"ACTIVE\"\n// }"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/6a4b3f96e2823debb8d54fe3/promote",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "6a4b3f96e2823debb8d54fe3",
-                    "promote"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Student Academic History",
-              "protocolProfileBehavior": {
-                "disableBodyPruning": true
-              },
-              "request": {
-                "method": "GET",
-                "header": [],
-                "body": {
-                  "mode": "raw",
-                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-history\n//http://localhost:3456/api/students/studentDocId/academic-history",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/6a4750bd826a1781db37539c/academic-history",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "6a4750bd826a1781db37539c",
-                    "academic-history"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "Guardians",
-          "item": [
-            {
-              "name": "Create Guardian",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Rajesh Nair\",\n  \"phone\": \"+61-400-111-222\",\n  \"alternatePhone\": \"\",\n  \"email\": \"rajesh@example.com\",\n  \"address\": \"12 Main St\",\n  \"occupation\": \"Engineer\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/guardians",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "guardians"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Guardian By ID",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "guardians",
-                    "GUARDIAN_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Guardians By School",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/guardians/school/6a474d2517e9c40cf971ccc2",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "guardians",
-                    "school",
-                    "6a474d2517e9c40cf971ccc2"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Update Guardian",
-              "request": {
-                "method": "PATCH",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"phone\": \"+61-400-999-000\",\n  \"occupation\": \"Doctor\"\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "guardians",
-                    "GUARDIAN_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Delete Guardian",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "guardians",
-                    "GUARDIAN_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Link Guardian To Student",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"guardianDocsId\": \"GUARDIAN_ID_HERE\",\n  \"relation\": \"FATHER\",\n  \"primary\": true,\n  \"emergencyContact\": true,\n  \"pickupApproved\": true,\n  \"portalAccess\": true\n}"
-                },
-                "url": {
-                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/guardians",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "STUDENT_ID_HERE",
-                    "guardians"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Unlink Guardian From Student",
-              "request": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/guardians/GUARDIAN_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "STUDENT_ID_HERE",
-                    "guardians",
-                    "GUARDIAN_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "Get Students By Guardian",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "http://localhost:3456/api/students/guardian/GUARDIAN_ID_HERE",
-                  "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
-                  "port": "3456",
-                  "path": [
-                    "api",
-                    "students",
-                    "guardian",
-                    "GUARDIAN_ID_HERE"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Academics",
       "item": [
         {
@@ -4598,6 +3137,1467 @@
                     "HOMEWORK_ID_HERE",
                     "grade",
                     "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CRM",
+      "item": [
+        {
+          "name": "Inquiries",
+          "item": [
+            {
+              "name": "Create Inquiry",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n\"studentName\": \"Arjun Patel\",\n\"guardians\": [\n  {\n    \"name\": \"Neha Patel\",\n    \"relation\": \"MOTHER\",\n    \"phone\": \"+61-455-321-678\",\n    \"email\": \"neha.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Dentist\"\n  },\n  {\n    \"name\": \"Manish Patel\",\n    \"relation\": \"FATHER\",\n    \"phone\": \"+61-455-876-543\",\n    \"email\": \"manish.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Business Analyst\"\n  }\n],\n  \"source\": \"WALK_IN\",\n  \"counselorId\": \"6a4b5524d763ecb377186650\",\n  \"followUps\": [\n    {\n      \"status\": \"INQUIRY\",\n      \"note\": \"Walk-in, interested in Grade 6\",\n      \"nextFollowUp\": \"2026-07-23\",\n      \"counselorId\": \"6a4b5524d763ecb377186650\"\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Inquiry By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/6a6071b3318a3e722c135359",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "6a6071b3318a3e722c135359"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Inquiries By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc3",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "school",
+                    "6a474d2517e9c40cf971ccc3"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Inquiries By School And Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc2/status/INQUIRY",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2",
+                    "status",
+                    "INQUIRY"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Inquiries By Counselor",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/counselor/STAFF_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "counselor",
+                    "STAFF_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Follow-ups Due",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/school/6a474d2517e9c40cf971ccc2/follow-ups?asOf=2026-07-20",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2",
+                    "follow-ups"
+                  ],
+                  "query": [
+                    {
+                      "key": "asOf",
+                      "value": "2026-07-20"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Inquiry",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"studentName\": \"Aarav Nair\",\n  \"source\": \"REFERRAL\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/INQUIRY_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "INQUIRY_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Record Follow-up",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:3456/api/inquiries/INQUIRY_ID_HERE/follow-ups\n\n// {\n//   \"status\": \"INQUIRY\",\n//   \"note\": \"New inquiry received through the website. Initial contact pending.\",\n//   \"nextFollowUp\": \"2026-07-24\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n{\n  \"status\": \"VISIT\",\n  \"note\": \"Campus tour completed. Parent expressed interest in proceeding.\",\n  \"nextFollowUp\": \"2026-07-28\",\n  \"counselorId\": \"6a4b5524d763ecb377186650\"\n}\n\n\n// {\n//   \"status\": \"ADMITTED\",\n//   \"note\": \"Admission application submitted successfully. Awaiting document verification.\",\n//   \"nextFollowUp\": \"2026-07-30\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n\n// {\n//   \"status\": \"LOST\",\n//   \"note\": \"Parent informed that the student has enrolled in another school.\",\n//   \"nextFollowUp\": null,\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/6a609a96318a3e722c135374/follow-ups",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "6a609a96318a3e722c135374",
+                    "follow-ups"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Inquiry",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/inquiries/INQUIRY_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "inquiries",
+                    "INQUIRY_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admissions",
+          "item": [
+            {
+              "name": "Get Admission By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Admissions By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/school/6a474d2517e9c40cf971ccc2",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Admissions By School And Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/school/6a474d2517e9c40cf971ccc2/status/PENDING",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2",
+                    "status",
+                    "PENDING"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Admissions By Inquiry",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/inquiry/INQUIRY_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "inquiry",
+                    "INQUIRY_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Admission",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"APPROVED\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Convert Admission To Student",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE/convert",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_ID_HERE",
+                    "convert"
+                  ]
+                },
+                "description": "Convert an admission (id in the URL) into an enrolled student. The body mirrors the create-student payload — the frontend prefills name/admissionNo/dob/gender/admissionDate from the admission and bloodGroup is entered here. schoolId and academicYear are accepted for payload parity but IGNORED: the school comes from the admission, and the academic year is NOT set at conversion (an admission carries no year) — assign it afterwards via POST /api/students/{id}/academic-records. Guardians are copied from the admission automatically and de-duplicated (reused when name+phone or name+email exists)."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Admission",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions",
+                    "ADMISSION_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Admission",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });",
+                      "pm.test(\"Direct admission is not linked to an inquiry\", function () { pm.expect(pm.response.json().inquiryDocsId).to.be.oneOf([null, undefined]); });"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// Uncomment/copy one test-case payload at a time before sending.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a complete direct admission without an inquiry\n// inquiryDocsId must remain null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC1 Complete Applicant\",\n//   \"dob\": \"2016-02-01\",\n//   \"gender\": \"FEMALE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Priya Sharma\",\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-666\",\n//       \"email\": \"priya.tc01@example.com\",\n//       \"address\": \"9 Oak Ave\",\n//       \"occupation\": \"Teacher\"\n//     }\n//   ],\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"report-card.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates an admission using only an existing inquiry MongoDB ID\n// School and applicant data are copied, and the inquiry becomes ADMITTED.\n{\n  \"inquiryDocsId\": \"6a5e1fbbfaffc52a626a30b5\"\n}\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission and overrides/adds admission details\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_OVERRIDE_HERE\",\n//   \"studentName\": \"TC3 Overridden Student Name\",\n//   \"dob\": \"2015-05-10\",\n//   \"gender\": \"MALE\",\n//   \"status\": \"PENDING\",\n//   \"documents\": [\"birth-certificate.pdf\", \"address-proof.pdf\"],\n//   \"admissionDate\": \"2026-07-22\"\n// }\n\n\n// TC04\n// Status Code: 201 Created\n// Working: Merges an existing inquiry guardian and adds another guardian\n// Use an inquiry whose existing guardian is named Meera Nair.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_GUARDIAN_MERGE_HERE\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Meera Nair\",\n//       \"relation\": \"MOTHER\",\n//       \"address\": \"12 Main Street\"\n//     },\n//     {\n//       \"name\": \"Raj Nair\",\n//       \"relation\": \"FATHER\",\n//       \"phone\": \"+61-400-333-444\",\n//       \"address\": \"12 Main Street\"\n//     }\n//   ]\n// }\n\n\n// TC05\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission with a matching school ID\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_MATCHING_SCHOOL_HERE\",\n//   \"documents\": [\"application-form.pdf\"]\n// }\n\n\n// TC06\n// Status Code: 201 Created\n// Working: Creates an inquiry-backed admission using the legacy inquiryId alias\n// The response stores the value as inquiryDocsId.\n// {\n//   \"inquiryId\": \"INQUIRY_ID_LEGACY_ALIAS_HERE\"\n// }\n\n\n// TC07\n// Status Code: 400 Bad Request\n// Working: Rejects an empty request because direct-admission fields are missing\n// {}\n\n\n// TC08\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no schoolId\n// {\n//   \"studentName\": \"TC8 Missing School\"\n// }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank schoolId\n// {\n//   \"schoolId\": \"   \",\n//   \"studentName\": \"TC9 Blank School\"\n// }\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with no studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\"\n// }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects a direct admission with a blank studentName\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"   \"\n// }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Treats a blank inquiryDocsId as null, then rejects missing direct fields\n// {\n//   \"inquiryDocsId\": \"   \"\n// }\n\n\n// TC13\n// Status Code: 404 Not Found\n// Working: Rejects a non-existent inquiry MongoDB ID\n// {\n//   \"inquiryDocsId\": \"000000000000000000000000\"\n// }\n\n\n// TC14\n// Status Code: 400 Bad Request\n// Working: Rejects an inquiry whose school differs from the supplied schoolId\n// Replace both placeholders with real IDs belonging to different schools.\n// {\n//   \"schoolId\": \"DIFFERENT_SCHOOL_MONGODB_ID\",\n//   \"inquiryDocsId\": \"INQUIRY_ID_FOR_SCHOOL_MISMATCH_HERE\"\n// }\n\n\n// TC15\n// Status Code: 409 Conflict\n// Working: Prevents a second admission for the same inquiry\n// Run TC2 successfully first, then send this payload with the same inquiry ID.\n// {\n//   \"inquiryDocsId\": \"INQUIRY_ID_ONLY_HERE\"\n// }\n\n\n// TC16\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid guardian email address\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC16 Invalid Email\",\n//   \"guardians\": [\n//     {\n//       \"name\": \"Invalid Email Parent\",\n//       \"email\": \"not-an-email\"\n//     }\n//   ]\n// }\n\n\n// TC17\n// Status Code: 400 Bad Request\n// Working: Rejects a guardian without a required name\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC17 Missing Guardian Name\",\n//   \"guardians\": [\n//     {\n//       \"relation\": \"MOTHER\",\n//       \"phone\": \"+61-400-555-999\"\n//     }\n//   ]\n// }\n\n\n// TC18\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported gender enum value\n// Valid values: MALE, FEMALE, OTHER.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC18 Invalid Gender\",\n//   \"gender\": \"INVALID_GENDER\"\n// }\n\n\n// TC19\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported admission status enum value\n// Valid values: PENDING, APPROVED, REJECTED, CONFIRMED.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC19 Invalid Status\",\n//   \"status\": \"NOT_A_STATUS\"\n// }\n\n\n// TC20\n// Status Code: 400 Bad Request\n// Working: Rejects a DOB that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC20 Invalid DOB\",\n//   \"dob\": \"01-02-2016\"\n// }\n\n\n// TC21\n// Status Code: 400 Bad Request\n// Working: Rejects an admissionDate that is not in ISO yyyy-MM-dd format\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"studentName\": \"TC21 Invalid Admission Date\",\n//   \"admissionDate\": \"22/07/2026\"\n// }\n\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/admissions",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "admissions"
+                  ]
+                },
+                "description": "// Test case 2: Direct admission with every client-editable field. No inquiry must be read or updated."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Student",
+      "item": [
+        {
+          "name": "Students",
+          "item": [
+            {
+              "name": "Create Student",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Expected HTTP 201\", function () { pm.response.to.have.status(201); });",
+                      "pm.test(\"Direct student is not linked to an admission\", function () { pm.expect(pm.response.json().admissionDocsId).to.be.oneOf([null, undefined]); });",
+                      "pm.test(\"Admission number is returned\", function () { pm.expect(pm.response.json().admissionNo).to.be.a(\"string\").and.not.empty; });",
+                      "pm.test(\"Academic record id is stored\", function () { pm.expect(pm.response.json().currentAcademicRecordDocsId).to.be.a(\"string\").and.not.empty; });",
+                      "pm.test(\"Guardian links use guardianDocsId\", function () { const guardians = pm.response.json().guardians; pm.expect(guardians).to.be.an(\"array\").that.is.not.empty; pm.expect(guardians[0].guardianDocsId).to.be.a(\"string\").and.not.empty; });"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// Copy one test-case JSON object into the body before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a complete direct student, creates/deduplicates the guardian, creates the academic record, stores currentAcademicRecordDocsId, and keeps admissionDocsId null.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"admissionNo\": \"TC-STUDENT-{{$timestamp}}\",\n  \"name\": \"TC1 Complete Direct Student\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"documents\": [\"birth-certificate.pdf\", \"address-proof.pdf\"],\n  \"medicalRemark\": [\"No known allergies\"],\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-22\",\n  \"guardians\": [\n    {\n      \"name\": \"TC1 Parent {{$timestamp}}\",\n      \"relation\": \"MOTHER\",\n      \"phone\": \"+61-400-555-666\",\n      \"email\": \"tc1.{{$timestamp}}@example.com\",\n      \"primary\": true,\n      \"emergencyContact\": true,\n      \"pickupApproved\": true,\n      \"portalAccess\": true\n    },\n     { \"guardianDocsId\": \"6a61d9d92096b5bb7b3597d5\", \"relation\": \"FATHER\", \"primary\": true }\n  ],\n  \"currentAcademicRecord\": {\n    \"academicYear\": \"2026-2027\",\n    \"studentNo\": \"TC-STD-{{$timestamp}}\",\n    \"rollNo\": \"9C-03\",\n    \"sectionNo\": \"C\",\n    \"hostelRoomNo\": \"203\",\n    \"status\": \"ACTIVE\"\n  }\n}\n\n\n// TC02\n// Status Code: 201 Created\n// Working: Creates a student with only the required fields. admissionDocsId and currentAcademicRecordDocsId remain null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-MINIMAL-{{$timestamp}}\",\n//   \"name\": \"TC2 Minimal Student\"\n// }\n\n\n// TC03\n// Status Code: 201 Created\n// Working: Creates two new Guardian documents and links both to the student.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-TWO-GUARDIANS-{{$timestamp}}\",\n//   \"name\": \"TC3 Two Guardians\",\n//   \"guardians\": [\n//     { \"name\": \"TC3 Mother {{$timestamp}}\", \"relation\": \"MOTHER\", \"email\": \"tc3.mother.{{$timestamp}}@example.com\", \"primary\": true },\n//     { \"name\": \"TC3 Father {{$timestamp}}\", \"relation\": \"FATHER\", \"email\": \"tc3.father.{{$timestamp}}@example.com\" }\n//   ]\n// }\n\n\n// TC04\n// Status Code: 201 Created\n// Working: Links an existing guardian when guardianDocsId belongs to the same school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-EXISTING-GUARDIAN-{{$timestamp}}\",\n//   \"name\": \"TC4 Existing Guardian\",\n//   \"guardians\": [\n//     { \"guardianDocsId\": \"SAME_SCHOOL_GUARDIAN_ID\", \"relation\": \"FATHER\", \"primary\": true }\n//   ]\n// }\n\n\n// TC05\n// Status Code: 201 Created\n// Working: Deduplicates repeated guardian details and stores one guardian link.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-DEDUPE-GUARDIAN-{{$timestamp}}\",\n//   \"name\": \"TC5 Guardian Deduplication\",\n//   \"guardians\": [\n//     { \"name\": \"TC5 Parent\", \"relation\": \"MOTHER\", \"email\": \"tc5.parent@example.com\" },\n//     { \"name\": \"TC5 Parent\", \"relation\": \"MOTHER\", \"email\": \"tc5.parent@example.com\" }\n//   ]\n// }\n\n\n// TC06\n// Status Code: 201 Created\n// Working: Creates no StudentAcademicRecord when placement is omitted; currentAcademicRecordDocsId remains null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NO-ACADEMIC-{{$timestamp}}\",\n//   \"name\": \"TC6 No Academic Record\"\n// }\n\n\n// TC07\n// Status Code: 201 Created\n// Working: Creates the academic record from the nested currentAcademicRecord object.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NESTED-ACADEMIC-{{$timestamp}}\",\n//   \"name\": \"TC7 Nested Academic\",\n//   \"currentAcademicRecord\": {\n//     \"academicYear\": \"2026-2027\",\n//     \"classDocId\": \"SAME_SCHOOL_CLASS_ID\",\n//     \"sectionNo\": \"A\",\n//     \"rollNo\": \"12\"\n//   }\n// }\n\n\n// TC07A\n// Status Code: 400 Bad Request\n// Working: Rejects retired top-level academic placement fields. Send placement inside currentAcademicRecord instead.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-TOP-ACADEMIC-REJECTED-{{$timestamp}}\",\n//   \"name\": \"TC7A Rejected Top Level Academic\",\n//   \"academicYear\": \"2026-2027\",\n//   \"classDocId\": \"SAME_SCHOOL_CLASS_ID\",\n//   \"sectionNo\": \"A\",\n//   \"rollNo\": \"12\"\n// }\n\n\n// TC08\n// Status Code: 201 Created\n// Working: Ignores a client-supplied admissionDocsId on direct creation; the response value remains null.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n//   \"admissionNo\": \"TC-NO-ADMISSION-LINK-{{$timestamp}}\",\n//   \"name\": \"TC8 Server Owned Admission Link\",\n//   \"admissionDocsId\": \"SHOULD_NOT_BE_STORED\"\n// }\n\n\n// TC09\n// Status Code: 400 Bad Request\n// Working: Rejects an empty object because schoolId, admissionNo, and name are required.\n// {}\n\n\n// TC10\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no schoolId.\n// { \"admissionNo\": \"TC-MISSING-SCHOOL\", \"name\": \"TC10 Missing School\" }\n\n\n// TC11\n// Status Code: 400 Bad Request\n// Working: Rejects a blank schoolId.\n// { \"schoolId\": \"   \", \"admissionNo\": \"TC-BLANK-SCHOOL\", \"name\": \"TC11 Blank School\" }\n\n\n// TC12\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"name\": \"TC12 Missing Admission Number\" }\n\n\n// TC13\n// Status Code: 400 Bad Request\n// Working: Rejects a blank admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"   \", \"name\": \"TC13 Blank Admission Number\" }\n\n\n// TC14\n// Status Code: 409 Conflict\n// Working: Prevents duplicate students with the same admissionNo. Run a successful case first, then reuse its admissionNo.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"EXISTING_STUDENT_ADMISSION_NO\", \"name\": \"TC14 Duplicate Admission Number\" }\n\n\n// TC15\n// Status Code: 400 Bad Request\n// Working: Rejects a request with no student name.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-MISSING-NAME\" }\n\n\n// TC16\n// Status Code: 400 Bad Request\n// Working: Rejects a blank student name.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BLANK-NAME\", \"name\": \"   \" }\n\n\n// TC17\n// Status Code: 404 Not Found\n// Working: Rejects a non-existent school.\n// { \"schoolId\": \"000000000000000000000000\", \"admissionNo\": \"TC-NO-SCHOOL\", \"name\": \"TC17 Missing School Document\" }\n\n\n// TC18\n// Status Code: 400 Bad Request\n// Working: Rejects creation when the school's maxStudents package limit is reached.\n// { \"schoolId\": \"SCHOOL_AT_STUDENT_LIMIT_ID\", \"admissionNo\": \"TC-LIMIT\", \"name\": \"TC18 Package Limit\" }\n\n\n// TC19\n// Status Code: 400 Bad Request\n// Working: Rejects a guardian entry that has neither guardianDocsId nor name.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-EMPTY-GUARDIAN\", \"name\": \"TC19 Empty Guardian\",\n//   \"guardians\": [ { \"relation\": \"MOTHER\" } ]\n// }\n\n\n// TC20\n// Status Code: 400 Bad Request\n// Working: Rejects an invalid guardian email.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-EMAIL\", \"name\": \"TC20 Invalid Email\",\n//   \"guardians\": [ { \"name\": \"Invalid Email Parent\", \"email\": \"not-an-email\" } ]\n// }\n\n\n// TC21\n// Status Code: 404 Not Found\n// Working: Rejects a guardianDocsId that does not exist.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-NO-GUARDIAN\", \"name\": \"TC21 Missing Guardian\",\n//   \"guardians\": [ { \"guardianDocsId\": \"000000000000000000000000\", \"relation\": \"FATHER\" } ]\n// }\n\n\n// TC22\n// Status Code: 400 Bad Request\n// Working: Rejects an existing guardian that belongs to another school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-WRONG-GUARDIAN-SCHOOL\", \"name\": \"TC22 Guardian School Mismatch\",\n//   \"guardians\": [ { \"guardianDocsId\": \"OTHER_SCHOOL_GUARDIAN_ID\", \"relation\": \"FATHER\" } ]\n// }\n\n\n// TC23\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported gender. Valid: MALE, FEMALE, OTHER.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-GENDER\", \"name\": \"TC23 Invalid Gender\", \"gender\": \"INVALID\" }\n\n\n// TC24\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported student status. Valid: ACTIVE, INACTIVE, SUSPENDED, ALUMNI.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-STATUS\", \"name\": \"TC24 Invalid Status\", \"status\": \"PENDING\" }\n\n\n// TC25\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported guardian relation.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-RELATION\", \"name\": \"TC25 Invalid Relation\",\n//   \"guardians\": [ { \"name\": \"Parent\", \"relation\": \"PARENT\" } ]\n// }\n\n\n// TC26\n// Status Code: 400 Bad Request\n// Working: Rejects DOB outside ISO yyyy-MM-dd format.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-DOB\", \"name\": \"TC26 Invalid DOB\", \"dob\": \"19-06-2015\" }\n\n\n// TC27\n// Status Code: 400 Bad Request\n// Working: Rejects admissionDate outside ISO yyyy-MM-dd format.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-DATE\", \"name\": \"TC27 Invalid Date\", \"admissionDate\": \"22/07/2026\" }\n\n\n// TC28\n// Status Code: 404 Not Found\n// Working: Rolls back student creation when classDocId does not exist.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-NO-CLASS\", \"name\": \"TC28 Missing Class\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"classDocId\": \"000000000000000000000000\" }\n// }\n\n\n// TC29\n// Status Code: 400 Bad Request\n// Working: Rolls back student creation when classDocId belongs to another school.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-WRONG-CLASS\", \"name\": \"TC29 Class School Mismatch\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"classDocId\": \"OTHER_SCHOOL_CLASS_ID\" }\n// }\n\n\n// TC30\n// Status Code: 400 Bad Request\n// Working: Rejects an unsupported academic-record status.\n// {\n//   \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-ACADEMIC-STATUS\", \"name\": \"TC30 Invalid Academic Status\",\n//   \"currentAcademicRecord\": { \"academicYear\": \"2026-2027\", \"status\": \"PENDING\" }\n// }\n\n\n// TC31\n// Status Code: 400 Bad Request\n// Working: Rejects malformed JSON.\n// { \"schoolId\": \"6a474d2517e9c40cf971ccc2\", \"admissionNo\": \"TC-BAD-JSON\", \"name\": \"Missing closing brace\"\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students"
+                  ]
+                },
+                "description": "Direct student creation test matrix. Required fields: schoolId, admissionNo, name. admissionDocsId is server-owned and always remains null for this API. Use guardianDocsId to link an existing guardian, or provide guardian details to find/create and deduplicate one. Academic placement must be supplied inside currentAcademicRecord; top-level academic placement fields are rejected."
+              },
+              "response": []
+            },
+            {
+              "name": "Get All Students",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/6a5f159a16e5557a888fa571",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a5f159a16e5557a888fa571"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student By Admission No",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/admission/ADM-2026-001",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "admission",
+                    "ADM-2026-001"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student Siblings",
+              "protocolProfileBehavior": {
+                "disableBodyPruning": true
+              },
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/siblings\n// http://localhost:3456/api/students/docs id here/siblings",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/6a475666826a1781db37539d/siblings",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a475666826a1781db37539d",
+                    "siblings"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/school/6a474d2517e9c40cf971ccc8",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "school",
+                    "6a474d2517e9c40cf971ccc8"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By School And Academic Year",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/school/6a474d2517e9c40cf971ccc8/academic-year/2026-2027",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "school",
+                    "6a474d2517e9c40cf971ccc8",
+                    "academic-year",
+                    "2026-2027"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Class",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/class/class-8c",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "class",
+                    "class-8c"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Parent",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/parent/PARENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "parent",
+                    "PARENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Hostel Room",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/hostel/hostel-room-101",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "hostel",
+                    "hostel-room-101"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Student",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACTIVE\",\n  \"name\": \"Johnny\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Student",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Academic Records",
+          "item": [
+            {
+              "name": "Assign Academic Record",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records\n\n{\n  \"academicYear\": \"2027-2028\",\n  \"studentNo\": \"STD-003\", // not document it \n  \"rollNo\": \"9C-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-203\",\n  \"status\": \"ACTIVE\"\n}\n"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/6a4b4482e2823debb8d54fea/academic-records",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4b4482e2823debb8d54fea",
+                    "academic-records"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Promote Student",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records\n// http://localhost:3456/api/students/studentDocId/academic-records\n// 6a4750bd826a1781db37539c\n{\n  \"academicYear\": \"2025-2026\",\n  \"studentNo\": \"STD-004\",\n  \"rollNo\": \"105-03\",\n  \"classDocId\": \"6a4b4048e2823debb8d54fe4\", // Must be a valid Class MongoDB Object ID\n  \"sectionId\": \"section-c\",\n  \"hostelRoomId\": \"hostel-room-303\",\n  \"status\": \"ACTIVE\"\n}\n\n// {\n//   \"academicYear\": \"2027-2028\",\n//   \"studentNo\": \"STD-003-PROMOTE\",\n//   \"rollNo\": \"10C-03\",\n//   \"classId\": \"class-10c\",\n//   \"sectionId\": \"section-c\",\n//   \"hostelRoomId\": \"hostel-room-303\",\n//   \"status\": \"ACTIVE\"\n// }"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/6a4b3f96e2823debb8d54fe3/promote",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4b3f96e2823debb8d54fe3",
+                    "promote"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Student Academic History",
+              "protocolProfileBehavior": {
+                "disableBodyPruning": true
+              },
+              "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// http://localhost:3456/api/students/STUDENT_ID_HERE/academic-history\n//http://localhost:3456/api/students/studentDocId/academic-history",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/6a4750bd826a1781db37539c/academic-history",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "6a4750bd826a1781db37539c",
+                    "academic-history"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Guardians",
+          "item": [
+            {
+              "name": "Create Guardian",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Rajesh Nair\",\n  \"phone\": \"+61-400-111-222\",\n  \"alternatePhone\": \"\",\n  \"email\": \"rajesh@example.com\",\n  \"address\": \"12 Main St\",\n  \"occupation\": \"Engineer\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/guardians",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "guardians"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Guardian By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "guardians",
+                    "GUARDIAN_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Guardians By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/guardians/school/6a474d2517e9c40cf971ccc2",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "guardians",
+                    "school",
+                    "6a474d2517e9c40cf971ccc2"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Guardian",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"+61-400-999-000\",\n  \"occupation\": \"Doctor\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "guardians",
+                    "GUARDIAN_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Guardian",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/guardians/GUARDIAN_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "guardians",
+                    "GUARDIAN_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Link Guardian To Student",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"guardianDocsId\": \"GUARDIAN_ID_HERE\",\n  \"relation\": \"FATHER\",\n  \"primary\": true,\n  \"emergencyContact\": true,\n  \"pickupApproved\": true,\n  \"portalAccess\": true\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/guardians",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE",
+                    "guardians"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Unlink Guardian From Student",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/guardians/GUARDIAN_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE",
+                    "guardians",
+                    "GUARDIAN_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Students By Guardian",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/students/guardian/GUARDIAN_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "guardian",
+                    "GUARDIAN_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "item": [
+        {
+          "name": "Fees",
+          "item": [
+            {
+              "name": "Create Fee Invoice",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolId\": \"SCHOOL_ID_HERE\",\n  \"studentId\": \"STUDENT_ID_HERE\",\n  \"type\": \"TUITION\",\n  \"amount\": 500.0,\n  \"discount\": 50.0,\n  \"dueDate\": \"2026-08-31\",\n  \"academicYear\": \"2026-2027\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/fees",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Fee By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "FEE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Fees By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Fees By School",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/school/SCHOOL_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "school",
+                    "SCHOOL_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Fees By School And Academic Year",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/school/SCHOOL_ID_HERE/academic-year/2026-2027",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "school",
+                    "SCHOOL_ID_HERE",
+                    "academic-year",
+                    "2026-2027"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Fee Details",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"TUITION\",\n  \"amount\": 550.00,\n  \"dueDate\": \"2026-09-30\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "FEE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Fee",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "FEE_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Record Payment (Collect Fee)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 200.0,\n  \"paymentMode\": \"CASH\",\n  \"remarks\": \"Front desk cash collection\",\n  \"collectedBy\": \"admin\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE/payments",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "FEE_ID_HERE",
+                    "payments"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Payments By Fee",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/FEE_ID_HERE/payments",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "FEE_ID_HERE",
+                    "payments"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Payments By Student",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/payments/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "payments",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Wallets",
+          "item": [
+            {
+              "name": "Get Student Wallet",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "student",
+                    "STUDENT_ID_HERE"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Credit Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 100.00,\n  \"remarks\": \"Pocket money allowance\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/credit",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "student",
+                    "STUDENT_ID_HERE",
+                    "credit"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Debit Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 50.00,\n  \"remarks\": \"Bought canteen snacks\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/debit",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "student",
+                    "STUDENT_ID_HERE",
+                    "debit"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Wallet Transactions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/transactions",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "student",
+                    "STUDENT_ID_HERE",
+                    "transactions"
                   ]
                 }
               },
