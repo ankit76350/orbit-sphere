@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   Users, User, Plus, Trash2, Edit2, Calendar, Award, Phone, Mail, 
-  MapPin, X, GraduationCap, Heart, Info, History, ShieldAlert, RefreshCw
+  MapPin, X, GraduationCap, Heart, Info, History, ShieldAlert, RefreshCw, FileText
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
@@ -14,7 +14,12 @@ const emptyAcademicRecord = () => ({
 });
 
 const emptyInlineGuardian = () => ({
-  guardianDocsId: '', name: '', relation: '', phone: '', email: '', address: '', occupation: '',
+  name: '', relation: '', phone: '', email: '', address: '', occupation: '',
+  primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false,
+});
+
+const emptyExistingGuardianLink = () => ({
+  guardianDocsId: '', relation: '',
   primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false,
 });
 
@@ -23,10 +28,102 @@ const emptyStudentForm = (schoolId = '') => ({
   name: '', admissionNo: generateAdmissionNo(), dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
   walletDocsId: '', medicalRecordDocsId: '', documents: '', medicalRemark: '', status: '', admissionDate: '',
-  guardians: [], currentAcademicRecord: emptyAcademicRecord(),
+  guardians: [], existingGuardianLinks: [], currentAcademicRecord: emptyAcademicRecord(),
 });
 
 const nullable = (value) => value === '' ? null : value;
+const commaSeparatedValues = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
+
+function StudentListEditor({
+  label,
+  apiName,
+  items,
+  itemLabel,
+  addLabel,
+  emptyMessage,
+  placeholder,
+  icon: Icon,
+  showForm,
+  draft,
+  onOpen,
+  onDraftChange,
+  onAdd,
+  onCancel,
+  onRemove,
+}) {
+  return (
+    <div className="border border-slate-200 bg-slate-50 rounded-xl p-3 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+          <span>{label}</span>
+          <code className="font-mono text-[10px] font-medium text-slate-400">{apiName}</code>
+          <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span>
+        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          disabled={showForm}
+          className="shrink-0 text-[11px] font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 flex items-center gap-1"
+        >
+          <Plus size={12} /> {addLabel}
+        </button>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item, index) => (
+            <div
+              key={`${item}-${index}`}
+              className="flex items-start gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
+            >
+              <Icon size={14} className="text-blue-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[9px] uppercase tracking-wide text-slate-400">{itemLabel} {index + 1}</div>
+                <div className="text-xs font-medium text-slate-700 break-words select-all">{item}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(index)}
+                className="text-slate-400 hover:text-rose-600 p-0.5"
+                title={`Remove ${itemLabel.toLowerCase()}`}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+          {emptyMessage}
+        </p>
+      )}
+
+      {showForm && (
+        <div className="border border-blue-200 bg-white rounded-lg p-3 space-y-3">
+          <Input
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                onAdd();
+              }
+            }}
+            placeholder={placeholder}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="default" onClick={onCancel}>Cancel</Button>
+            <Button type="button" variant="primary" onClick={onAdd}>
+              <Plus size={14} />
+              {addLabel}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function StudentScreen({ schoolId, years, year, reload }) {
   const toast = useToast();
@@ -45,6 +142,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // Student Form State
   const [editingStudent, setEditingStudent] = useState(null);
   const [studentForm, setStudentForm] = useState(() => emptyStudentForm(schoolId || ''));
+  const [showStudentDocumentForm, setShowStudentDocumentForm] = useState(false);
+  const [studentDocument, setStudentDocument] = useState('');
+  const [showStudentMedicalRemarkForm, setShowStudentMedicalRemarkForm] = useState(false);
+  const [studentMedicalRemark, setStudentMedicalRemark] = useState('');
 
   // Academic History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -108,6 +209,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   // --- STUDENT ACTIONS ---
   const handleEditStudentClick = (s) => {
     setEditingStudent(s);
+    setShowStudentDocumentForm(false);
+    setStudentDocument('');
+    setShowStudentMedicalRemarkForm(false);
+    setStudentMedicalRemark('');
     setStudentForm((current) => ({
       ...emptyStudentForm(schoolId || ''),
       name: s.name || '',
@@ -131,6 +236,33 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const handleCancelStudentEdit = () => {
     setEditingStudent(null);
     setStudentForm(emptyStudentForm(schoolId || ''));
+    setShowStudentDocumentForm(false);
+    setStudentDocument('');
+    setShowStudentMedicalRemarkForm(false);
+    setStudentMedicalRemark('');
+  };
+
+  const addStudentListValue = (field, draft, clearDraft, closeForm, label) => {
+    const value = draft.trim();
+    if (!value) {
+      toast.error(`Enter a ${label.toLowerCase()}.`);
+      return;
+    }
+    setStudentForm((current) => ({
+      ...current,
+      [field]: [...commaSeparatedValues(current[field]), value].join(', '),
+    }));
+    clearDraft('');
+    closeForm(false);
+  };
+
+  const removeStudentListValue = (field, index) => {
+    setStudentForm((current) => ({
+      ...current,
+      [field]: commaSeparatedValues(current[field])
+        .filter((_, itemIndex) => itemIndex !== index)
+        .join(', '),
+    }));
   };
 
   const submitStudent = async () => {
@@ -152,8 +284,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         photoUrl: nullable(studentForm.photoUrl),
         walletDocsId: nullable(studentForm.walletDocsId),
         medicalRecordDocsId: nullable(studentForm.medicalRecordDocsId),
-        documents: studentForm.documents.split(',').map((value) => value.trim()).filter(Boolean),
-        medicalRemark: studentForm.medicalRemark.split(',').map((value) => value.trim()).filter(Boolean),
+        documents: commaSeparatedValues(studentForm.documents),
+        medicalRemark: commaSeparatedValues(studentForm.medicalRemark),
         status: nullable(studentForm.status),
         admissionDate: nullable(studentForm.admissionDate),
         currentAcademicRecord,
@@ -166,8 +298,14 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         await api.createStudent({
           schoolId: studentForm.schoolId,
           ...common,
-          guardians: studentForm.guardians.map((guardian) => Object.fromEntries(
-            Object.entries(guardian).map(([key, value]) => [key, typeof value === 'string' ? nullable(value) : value])
+          guardians: [
+            ...studentForm.guardians.filter((guardian) => guardian.name && guardian.name.trim()),
+            ...studentForm.existingGuardianLinks.filter((guardian) => guardian.guardianDocsId && guardian.guardianDocsId.trim()),
+          ].map((guardian) => Object.fromEntries(
+            Object.entries(guardian).map(([key, value]) => [
+              key,
+              typeof value === 'string' ? nullable(value.trim()) : value,
+            ])
           )),
         });
         toast.success(`Student "${studentForm.name}" registered successfully.`);
@@ -266,6 +404,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
   const selectedClass = assignmentClasses.find(c => c.id === assignForm.classDocsId);
   const sections = selectedClass ? (selectedClass.sections || []) : [];
+  const studentDocuments = commaSeparatedValues(studentForm.documents);
+  const studentMedicalRemarks = commaSeparatedValues(studentForm.medicalRemark);
 
   if (!schoolId) {
     return <Empty icon={Users} title="Pick a school to begin" hint="Select a school from the top bar to manage students." />;
@@ -491,12 +631,59 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </Field>
                   </div>
 
-                  <Field label="Documents" apiName="documents[]" required={false} hint="Comma-separated document names or references.">
-                    <Input value={studentForm.documents} onChange={(e) => setStudentForm({ ...studentForm, documents: e.target.value })} placeholder="birth-certificate.pdf, report-card.pdf" />
-                  </Field>
-                  <Field label="Medical Remarks" apiName="medicalRemark[]" required={false} hint="Comma-separated remarks.">
-                    <Input value={studentForm.medicalRemark} onChange={(e) => setStudentForm({ ...studentForm, medicalRemark: e.target.value })} placeholder="Asthma, Penicillin allergy" />
-                  </Field>
+                  <StudentListEditor
+                    label="Documents"
+                    apiName="documents[]"
+                    items={studentDocuments}
+                    itemLabel="Document"
+                    addLabel="Add Document"
+                    emptyMessage="No documents have been added."
+                    placeholder="Document name, storage reference, or URL"
+                    icon={FileText}
+                    showForm={showStudentDocumentForm}
+                    draft={studentDocument}
+                    onOpen={() => setShowStudentDocumentForm(true)}
+                    onDraftChange={setStudentDocument}
+                    onAdd={() => addStudentListValue(
+                      'documents',
+                      studentDocument,
+                      setStudentDocument,
+                      setShowStudentDocumentForm,
+                      'Document'
+                    )}
+                    onCancel={() => {
+                      setShowStudentDocumentForm(false);
+                      setStudentDocument('');
+                    }}
+                    onRemove={(index) => removeStudentListValue('documents', index)}
+                  />
+
+                  <StudentListEditor
+                    label="Medical Remarks"
+                    apiName="medicalRemark[]"
+                    items={studentMedicalRemarks}
+                    itemLabel="Remark"
+                    addLabel="Add Remark"
+                    emptyMessage="No medical remarks have been added."
+                    placeholder="Medical remark"
+                    icon={Heart}
+                    showForm={showStudentMedicalRemarkForm}
+                    draft={studentMedicalRemark}
+                    onOpen={() => setShowStudentMedicalRemarkForm(true)}
+                    onDraftChange={setStudentMedicalRemark}
+                    onAdd={() => addStudentListValue(
+                      'medicalRemark',
+                      studentMedicalRemark,
+                      setStudentMedicalRemark,
+                      setShowStudentMedicalRemarkForm,
+                      'Medical remark'
+                    )}
+                    onCancel={() => {
+                      setShowStudentMedicalRemarkForm(false);
+                      setStudentMedicalRemark('');
+                    }}
+                    onRemove={(index) => removeStudentListValue('medicalRemark', index)}
+                  />
 
                   <div className="space-y-3 border-t border-slate-100 pt-3">
                     <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
@@ -517,32 +704,104 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </div>
 
                   {!editingStudent && (
-                    <div className="space-y-2 border-t border-slate-100 pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700">Inline guardians <code className="font-mono text-[10px] font-medium text-slate-400">guardians[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
-                        <button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: [...studentForm.guardians, emptyInlineGuardian()] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+                    <>
+                      <div className="space-y-3 border border-slate-200 bg-slate-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">Inline guardians <code className="font-mono text-[10px] font-medium text-slate-400">guardians[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
+                          <button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: [...studentForm.guardians, emptyInlineGuardian()] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add Guardian</button>
+                        </div>
+                        {studentForm.guardians.length === 0 && (
+                          <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                            No inline guardians have been added.
+                          </p>
+                        )}
+                        {studentForm.guardians.map((guardian, index) => {
+                          const updateGuardian = (patch) => setStudentForm({ ...studentForm, guardians: studentForm.guardians.map((item, i) => i === index ? { ...item, ...patch } : item) });
+                          return (
+                            <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-white">
+                              <div className="flex justify-between items-center"><span className="text-[11px] font-semibold text-slate-500">New guardian {index + 1}</span><button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: studentForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input value={guardian.name} onChange={(e) => updateGuardian({ name: e.target.value })} placeholder="name" />
+                                <Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select>
+                                <Input value={guardian.phone} onChange={(e) => updateGuardian({ phone: e.target.value })} placeholder="phone" />
+                                <Input value={guardian.email} onChange={(e) => updateGuardian({ email: e.target.value })} placeholder="email" />
+                                <Input value={guardian.occupation} onChange={(e) => updateGuardian({ occupation: e.target.value })} placeholder="occupation" />
+                              </div>
+                              <Input value={guardian.address} onChange={(e) => updateGuardian({ address: e.target.value })} placeholder="address" />
+                              <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600">
+                                {['primary', 'emergencyContact', 'pickupApproved', 'portalAccess'].map((flag) => <label key={flag} className="flex items-center gap-1"><input type="checkbox" checked={guardian[flag]} onChange={(e) => updateGuardian({ [flag]: e.target.checked })} /> {flag}</label>)}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      {studentForm.guardians.map((guardian, index) => {
-                        const updateGuardian = (patch) => setStudentForm({ ...studentForm, guardians: studentForm.guardians.map((item, i) => i === index ? { ...item, ...patch } : item) });
-                        return (
-                          <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50/50">
-                            <div className="flex justify-between items-center"><span className="text-[11px] font-semibold text-slate-500">guardian[{index}]</span><button type="button" onClick={() => setStudentForm({ ...studentForm, guardians: studentForm.guardians.filter((_, i) => i !== index) })} className="text-slate-400 hover:text-rose-600"><X size={14} /></button></div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input value={guardian.guardianDocsId} onChange={(e) => updateGuardian({ guardianDocsId: e.target.value })} placeholder="guardianDocsId (MongoDB Object ID)" />
-                              <Input value={guardian.name} onChange={(e) => updateGuardian({ name: e.target.value })} placeholder="name" />
-                              <Select value={guardian.relation} onChange={(e) => updateGuardian({ relation: e.target.value })}><option value="">relation (optional)</option>{RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</Select>
-                              <Input value={guardian.phone} onChange={(e) => updateGuardian({ phone: e.target.value })} placeholder="phone" />
-                              <Input value={guardian.email} onChange={(e) => updateGuardian({ email: e.target.value })} placeholder="email" />
-                              <Input value={guardian.occupation} onChange={(e) => updateGuardian({ occupation: e.target.value })} placeholder="occupation" />
+
+                      <div className="space-y-3 border border-slate-200 bg-slate-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">Existing guardian links <code className="font-mono text-[10px] font-medium text-slate-400">guardians[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
+                          <button
+                            type="button"
+                            onClick={() => setStudentForm({
+                              ...studentForm,
+                              existingGuardianLinks: [...studentForm.existingGuardianLinks, emptyExistingGuardianLink()],
+                            })}
+                            className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"
+                          >
+                            <Plus size={11} /> Add
+                          </button>
+                        </div>
+                        {studentForm.existingGuardianLinks.length === 0 && (
+                          <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                            No existing guardian documents have been linked.
+                          </p>
+                        )}
+                        {studentForm.existingGuardianLinks.map((guardian, index) => {
+                          const updateGuardianLink = (patch) => setStudentForm({
+                            ...studentForm,
+                            existingGuardianLinks: studentForm.existingGuardianLinks.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, ...patch } : item
+                            ),
+                          });
+                          return (
+                            <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-white">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-semibold text-slate-500">Existing guardian link {index + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setStudentForm({
+                                    ...studentForm,
+                                    existingGuardianLinks: studentForm.existingGuardianLinks.filter((_, itemIndex) => itemIndex !== index),
+                                  })}
+                                  className="text-slate-400 hover:text-rose-600"
+                                  title="Remove guardian link"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  value={guardian.guardianDocsId}
+                                  onChange={(e) => updateGuardianLink({ guardianDocsId: e.target.value })}
+                                  placeholder="guardianDocsId (MongoDB Object ID)"
+                                  className="font-mono"
+                                />
+                                <Select value={guardian.relation} onChange={(e) => updateGuardianLink({ relation: e.target.value })}>
+                                  <option value="">relation (optional)</option>
+                                  {RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+                                </Select>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600">
+                                {['primary', 'emergencyContact', 'pickupApproved', 'portalAccess'].map((flag) => (
+                                  <label key={flag} className="flex items-center gap-1">
+                                    <input type="checkbox" checked={guardian[flag]} onChange={(e) => updateGuardianLink({ [flag]: e.target.checked })} /> {flag}
+                                  </label>
+                                ))}
+                              </div>
                             </div>
-                            <Input value={guardian.address} onChange={(e) => updateGuardian({ address: e.target.value })} placeholder="address" />
-                            <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600">
-                              {['primary', 'emergencyContact', 'pickupApproved', 'portalAccess'].map((flag) => <label key={flag} className="flex items-center gap-1"><input type="checkbox" checked={guardian[flag]} onChange={(e) => updateGuardian({ [flag]: e.target.checked })} /> {flag}</label>)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
 
                   <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
