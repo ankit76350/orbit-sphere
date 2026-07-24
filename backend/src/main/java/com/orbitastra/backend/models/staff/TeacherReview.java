@@ -19,13 +19,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class TeacherReview extends SchoolBase {
 
-    private String teacherId;
+    private String teacherDocsId; // References Staff.id
 
-    private String studentId;
+    private String studentDocsId; // References Student.id
 
-    private String parentId;
+    private String parentDocsId; // References Guardian.id
 
-    private String reviewCycleId;
+    private String reviewCycleDocsId; // References ReviewCycle.id
 
     private Double rating;
 

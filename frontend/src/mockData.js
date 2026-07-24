@@ -923,18 +923,18 @@ export const initialReviewCycles = [
 ];
 
 export const initialTeacherReviews = [
-  { id: "tr-rev-1", teacherId: "staff-teacher-1", studentId: "student-1", parentId: null, reviewCycleId: "cycle-1", rating: 4.8, reviewText: "Explains complex mathematical induction processes with structured simplicity. Extremely helpful in assignment review hours.", anonymous: false, created_at: "2026-05-15" },
-  { id: "tr-rev-2", teacherId: "staff-teacher-1", studentId: null, parentId: "parent-2", reviewCycleId: "cycle-1", rating: 4.5, reviewText: "Very responsive during parent-teacher calls. Keeps track of student development metrics.", anonymous: true, created_at: "2026-05-20" },
-  { id: "tr-rev-3", teacherId: "staff-teacher-2", studentId: "student-3", parentId: null, reviewCycleId: "cycle-1", rating: 3.8, reviewText: "Strong literature critiques, but class exercises are sometimes overly rapid.", anonymous: false, created_at: "2026-05-18" }
+  { id: "tr-rev-1", teacherDocsId: "staff-teacher-1", studentDocsId: "student-1", parentDocsId: null, reviewCycleDocsId: "cycle-1", rating: 4.8, reviewText: "Explains complex mathematical induction processes with structured simplicity. Extremely helpful in assignment review hours.", anonymous: false, created_at: "2026-05-15" },
+  { id: "tr-rev-2", teacherDocsId: "staff-teacher-1", studentDocsId: null, parentDocsId: "parent-2", reviewCycleDocsId: "cycle-1", rating: 4.5, reviewText: "Very responsive during parent-teacher calls. Keeps track of student development metrics.", anonymous: true, created_at: "2026-05-20" },
+  { id: "tr-rev-3", teacherDocsId: "staff-teacher-2", studentDocsId: "student-3", parentDocsId: null, reviewCycleDocsId: "cycle-1", rating: 3.8, reviewText: "Strong literature critiques, but class exercises are sometimes overly rapid.", anonymous: false, created_at: "2026-05-18" }
 ];
 
 export const initialStudentReviews = [
-  { id: "st-rev-1", studentId: "student-1", teacherId: "staff-teacher-1", reviewCycleId: "cycle-1", academicScore: 4.5, disciplineScore: 4.8, participationScore: 4.0, behaviorScore: 5.0, comments: "Outstanding diligence and focus on algebra homework completions. Highly cooperative.", created_at: "2026-05-22" },
-  { id: "st-rev-2", studentId: "student-2", teacherId: "staff-teacher-1", reviewCycleId: "cycle-1", academicScore: 3.8, disciplineScore: 4.0, participationScore: 4.5, behaviorScore: 4.2, comments: "Great classroom engagement. Needs slight improvement in homework timelines.", created_at: "2026-05-24" }
+  { id: "st-rev-1", studentDocsId: "student-1", teacherDocsId: "staff-teacher-1", reviewCycleDocsId: "cycle-1", academicScore: 4.5, disciplineScore: 4.8, participationScore: 4.0, behaviorScore: 5.0, comments: "Outstanding diligence and focus on algebra homework completions. Highly cooperative.", created_at: "2026-05-22" },
+  { id: "st-rev-2", studentDocsId: "student-2", teacherDocsId: "staff-teacher-1", reviewCycleDocsId: "cycle-1", academicScore: 3.8, disciplineScore: 4.0, participationScore: 4.5, behaviorScore: 4.2, comments: "Great classroom engagement. Needs slight improvement in homework timelines.", created_at: "2026-05-24" }
 ];
 
 export const initialTeacherPerformanceReviews = [
-  { id: "perf-rev-1", teacherId: "staff-teacher-1", reviewerId: "staff-principal", reviewerRole: "Principal", rating: 4.7, comments: "Maintains exceptional classroom management. Administrative compliance and lesson plans submissions are outstanding.", reviewCycleId: "cycle-1" }
+  { id: "perf-rev-1", teacherDocsId: "staff-teacher-1", reviewerDocsId: "staff-principal", reviewerRole: "Principal", rating: 4.7, comments: "Maintains exceptional classroom management. Administrative compliance and lesson plans submissions are outstanding.", reviewCycleDocsId: "cycle-1" }
 ];
 
 export const initialAlumniProfiles = [
@@ -1057,7 +1057,6 @@ export const initialGalleryMedia = [
   { id: "med-2", albumId: "alb-sports", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211" },
   { id: "med-3", albumId: "alb-science", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf" }
 ];
-
 
 
 

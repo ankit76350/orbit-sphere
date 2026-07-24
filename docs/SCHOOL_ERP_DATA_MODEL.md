@@ -107,9 +107,9 @@ erDiagram
     studentReview {
         string id PK
         string schoolId FK
-        string studentId FK
-        string teacherId FK
-        string reviewCycleId FK
+        string studentDocsId FK
+        string teacherDocsId FK
+        string reviewCycleDocsId FK
         float academicScore
         float disciplineScore
     }
@@ -117,9 +117,9 @@ erDiagram
     teacherPerformanceReview {
         string id PK
         string schoolId FK
-        string teacherId FK
-        string reviewerId FK
-        string reviewCycleId FK
+        string teacherDocsId FK
+        string reviewerDocsId FK
+        string reviewCycleDocsId FK
         float rating
         string comments
     }

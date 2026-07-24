@@ -686,8 +686,36 @@ export function saveReviewCycles(cycles) {
   localStorage.setItem(KEYS.REVIEW_CYCLES, JSON.stringify(cycles));
 }
 
+function getMigratedReviews(key, renamedFields) {
+  const reviews = JSON.parse(localStorage.getItem(key) || "[]");
+  let changed = false;
+  const migrated = reviews.map((review) => {
+    const next = { ...review };
+    for (const [legacyName, currentName] of Object.entries(renamedFields)) {
+      if (!(currentName in next) && legacyName in next) {
+        next[currentName] = next[legacyName];
+        changed = true;
+      }
+      if (legacyName in next) {
+        delete next[legacyName];
+        changed = true;
+      }
+    }
+    return next;
+  });
+  if (changed) {
+    localStorage.setItem(key, JSON.stringify(migrated));
+  }
+  return migrated;
+}
+
 export function getTeacherReviews() {
-  return JSON.parse(localStorage.getItem(KEYS.TEACHER_REVIEWS) || "[]");
+  return getMigratedReviews(KEYS.TEACHER_REVIEWS, {
+    teacherId: "teacherDocsId",
+    studentId: "studentDocsId",
+    parentId: "parentDocsId",
+    reviewCycleId: "reviewCycleDocsId",
+  });
 }
 
 export function saveTeacherReviews(reviews) {
@@ -695,7 +723,11 @@ export function saveTeacherReviews(reviews) {
 }
 
 export function getStudentReviews() {
-  return JSON.parse(localStorage.getItem(KEYS.STUDENT_REVIEWS) || "[]");
+  return getMigratedReviews(KEYS.STUDENT_REVIEWS, {
+    studentId: "studentDocsId",
+    teacherId: "teacherDocsId",
+    reviewCycleId: "reviewCycleDocsId",
+  });
 }
 
 export function saveStudentReviews(reviews) {
@@ -703,7 +735,11 @@ export function saveStudentReviews(reviews) {
 }
 
 export function getTeacherPerformanceReviews() {
-  return JSON.parse(localStorage.getItem(KEYS.TEACHER_PERFORMANCE_REVIEWS) || "[]");
+  return getMigratedReviews(KEYS.TEACHER_PERFORMANCE_REVIEWS, {
+    teacherId: "teacherDocsId",
+    reviewerId: "reviewerDocsId",
+    reviewCycleId: "reviewCycleDocsId",
+  });
 }
 
 export function saveTeacherPerformanceReviews(reviews) {
@@ -901,6 +937,5 @@ export function getBirthdayGallery() {
 export function saveBirthdayGallery(gallery) {
   localStorage.setItem(KEYS.BIRTHDAY_GALLERY, JSON.stringify(gallery));
 }
-
 
 

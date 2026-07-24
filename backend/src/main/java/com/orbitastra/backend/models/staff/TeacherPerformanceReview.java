@@ -19,9 +19,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class TeacherPerformanceReview extends SchoolBase {
 
-    private String teacherId;
+    private String teacherDocsId; // References Staff.id
 
-    private String reviewerId;
+    private String reviewerDocsId; // References Staff.id
 
     private String reviewerRole;
 
@@ -29,5 +29,5 @@ public class TeacherPerformanceReview extends SchoolBase {
 
     private String comments;
 
-    private String reviewCycleId;
+    private String reviewCycleDocsId; // References ReviewCycle.id
 }

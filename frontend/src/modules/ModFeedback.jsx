@@ -94,11 +94,11 @@ export default function ModFeedback({ user }) {
   const [appraisalStatus, setAppraisalStatus] = useState("Approved"); // Approved, Promotion Recommended, PIP Recommended
 
   // Dynamic calculations for scores
-  const getTeacherRatings = (teacherId) => {
-    const reviews = teacherReviews.filter(r => r.teacherId === teacherId);
-    const studReviews = reviews.filter(r => r.studentId !== null);
-    const parentReviews = reviews.filter(r => r.parentId !== null);
-    const principalReviews = mgmtReviews.filter(r => r.teacherId === teacherId);
+  const getTeacherRatings = (teacherDocsId) => {
+    const reviews = teacherReviews.filter(r => r.teacherDocsId === teacherDocsId);
+    const studReviews = reviews.filter(r => r.studentDocsId !== null);
+    const parentReviews = reviews.filter(r => r.parentDocsId !== null);
+    const principalReviews = mgmtReviews.filter(r => r.teacherDocsId === teacherDocsId);
 
     const calcAvg = (list) => list.length === 0 ? 4.5 : Number((list.reduce((sum, r) => sum + r.rating, 0) / list.length).toFixed(1));
 
@@ -179,9 +179,9 @@ export default function ModFeedback({ user }) {
     
     const newRev = {
       id: `st-rev-${Date.now()}`,
-      studentId: targetStudentId,
-      teacherId: user.id || "staff-teacher-1",
-      reviewCycleId: activeCycleId,
+      studentDocsId: targetStudentId,
+      teacherDocsId: user.id || "staff-teacher-1",
+      reviewCycleDocsId: activeCycleId,
       academicScore: parseFloat(scoreAcad),
       disciplineScore: parseFloat(scoreDiscipline),
       participationScore: parseFloat(scorePart),
@@ -208,10 +208,10 @@ export default function ModFeedback({ user }) {
 
     const newRev = {
       id: `tr-rev-${Date.now()}`,
-      teacherId: targetTeacherId,
-      studentId: reviewType === "Student" ? "student-1" : null,
-      parentId: reviewType === "Parent" ? "parent-1" : null,
-      reviewCycleId: activeCycleId,
+      teacherDocsId: targetTeacherId,
+      studentDocsId: reviewType === "Student" ? "student-1" : null,
+      parentDocsId: reviewType === "Parent" ? "parent-1" : null,
+      reviewCycleDocsId: activeCycleId,
       rating: parseFloat(teacherRating),
       reviewText: teacherComments,
       anonymous: isAnonymous,
@@ -242,12 +242,12 @@ export default function ModFeedback({ user }) {
 
     const newRev = {
       id: `perf-rev-${Date.now()}`,
-      teacherId: targetTeacherId,
-      reviewerId: user.id || "staff-principal",
+      teacherDocsId: targetTeacherId,
+      reviewerDocsId: user.id || "staff-principal",
       reviewerRole: "Principal",
       rating: parseFloat(mgmtRating),
       comments: `${mgmtComments}. Appraisal Status: ${appraisalStatus}.`,
-      reviewCycleId: activeCycleId
+      reviewCycleDocsId: activeCycleId
     };
 
     const next = [newRev, ...mgmtReviews];
@@ -441,7 +441,7 @@ export default function ModFeedback({ user }) {
                   <p className="text-xs text-slate-400 italic">No critical reviews reported.</p>
                 ) : (
                   lowRatingsList.map(rev => {
-                    const teacherObj = staff.find(s => s.id === rev.teacherId);
+                    const teacherObj = staff.find(s => s.id === rev.teacherDocsId);
                     return (
                       <div key={rev.id} className="p-3.5 bg-rose-50/40 border border-rose-100 rounded-2xl space-y-1.5">
                         <div className="flex justify-between items-center text-[10px] font-black">
@@ -489,7 +489,7 @@ export default function ModFeedback({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {studentReviews.map(rev => {
-                  const student = students.find(s => s.id === rev.studentId);
+                  const student = students.find(s => s.id === rev.studentDocsId);
                   return (
                     <tr key={rev.id}>
                       <td className="p-3 font-extrabold text-slate-800">{student ? student.name : "Scholar Roster"}</td>
@@ -526,8 +526,8 @@ export default function ModFeedback({ user }) {
           {/* Reviews List */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
             {teacherReviews.map(rev => {
-              const teacherObj = staff.find(s => s.id === rev.teacherId);
-              const author = rev.anonymous ? "Anonymous" : rev.studentId ? "Student Submitter" : "Parent Submitter";
+              const teacherObj = staff.find(s => s.id === rev.teacherDocsId);
+              const author = rev.anonymous ? "Anonymous" : rev.studentDocsId ? "Student Submitter" : "Parent Submitter";
               return (
                 <div key={rev.id} className="bg-slate-50 border border-slate-150 p-5 rounded-2xl flex flex-col justify-between h-44 hover:border-slate-350 transition">
                   <div className="space-y-2">
@@ -582,7 +582,7 @@ export default function ModFeedback({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {mgmtReviews.map(rev => {
-                  const teacher = staff.find(s => s.id === rev.teacherId);
+                  const teacher = staff.find(s => s.id === rev.teacherDocsId);
                   
                   // Simple logic to parse the appraisal recommendation status from comments
                   const isPip = rev.comments.includes("PIP");
@@ -688,11 +688,11 @@ export default function ModFeedback({ user }) {
                 {/* Reviews historic logs */}
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   <h4 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Teacher Feedback logs</h4>
-                  {studentReviews.filter(r => r.studentId === selectedStudentProfileId).length === 0 ? (
+                  {studentReviews.filter(r => r.studentDocsId === selectedStudentProfileId).length === 0 ? (
                     <p className="text-xs text-slate-400 italic">No feedback entries recorded for this student.</p>
                   ) : (
-                    studentReviews.filter(r => r.studentId === selectedStudentProfileId).map(rev => {
-                      const teacher = staff.find(s => s.id === rev.teacherId);
+                    studentReviews.filter(r => r.studentDocsId === selectedStudentProfileId).map(rev => {
+                      const teacher = staff.find(s => s.id === rev.teacherDocsId);
                       return (
                         <div key={rev.id} className="p-3.5 bg-white border border-slate-150 rounded-2xl space-y-2">
                           <div className="flex justify-between items-center text-[10px] font-black">
@@ -768,10 +768,10 @@ export default function ModFeedback({ user }) {
                 {/* Submissions list */}
                 <div className="space-y-3.5 max-h-[200px] overflow-y-auto pr-1">
                   <h4 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Submissions Details</h4>
-                  {teacherReviews.filter(r => r.teacherId === selectedTeacherProfileId).length === 0 ? (
+                  {teacherReviews.filter(r => r.teacherDocsId === selectedTeacherProfileId).length === 0 ? (
                     <p className="text-xs text-slate-400 italic">No feedback entries recorded.</p>
                   ) : (
-                    teacherReviews.filter(r => r.teacherId === selectedTeacherProfileId).map(rev => (
+                    teacherReviews.filter(r => r.teacherDocsId === selectedTeacherProfileId).map(rev => (
                       <div key={rev.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5">
                         <div className="flex justify-between text-[9px] font-black text-slate-400 font-mono">
                           <span>Rating: {rev.rating} ★</span>

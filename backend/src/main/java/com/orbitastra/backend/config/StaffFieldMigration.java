@@ -11,13 +11,16 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.staff.StudentReview;
+import com.orbitastra.backend.models.staff.TeacherPerformanceReview;
+import com.orbitastra.backend.models.staff.TeacherReview;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * Moves the legacy {@code employeeId} value to {@code employeeNo} in existing
- * Staff documents. Documents that already have {@code employeeNo} are left
- * untouched, which makes the migration safe to run on every startup.
+ * Migrates legacy staff-related field names. A value is renamed only when the
+ * replacement field is absent, making every operation idempotent and
+ * non-overwriting.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,15 +31,37 @@ public class StaffFieldMigration {
     private final MongoTemplate mongoTemplate;
 
     @EventListener(ApplicationReadyEvent.class)
-    public void migrateEmployeeNumber() {
-        Query query = Query.query(new Criteria().andOperator(
-                Criteria.where("employeeId").exists(true),
-                Criteria.where("employeeNo").exists(false)));
-        Update update = new Update().rename("employeeId", "employeeNo");
+    public void migrateStaffFields() {
+        long migrated = 0;
+        migrated += renameWhenTargetMissing(Staff.class, "employeeId", "employeeNo");
 
-        long migrated = mongoTemplate.updateMulti(query, update, Staff.class).getModifiedCount();
+        migrated += renameWhenTargetMissing(StudentReview.class, "studentId", "studentDocsId");
+        migrated += renameWhenTargetMissing(StudentReview.class, "teacherId", "teacherDocsId");
+        migrated += renameWhenTargetMissing(StudentReview.class, "reviewCycleId", "reviewCycleDocsId");
+
+        migrated += renameWhenTargetMissing(
+                TeacherPerformanceReview.class, "teacherId", "teacherDocsId");
+        migrated += renameWhenTargetMissing(
+                TeacherPerformanceReview.class, "reviewerId", "reviewerDocsId");
+        migrated += renameWhenTargetMissing(
+                TeacherPerformanceReview.class, "reviewCycleId", "reviewCycleDocsId");
+
+        migrated += renameWhenTargetMissing(TeacherReview.class, "teacherId", "teacherDocsId");
+        migrated += renameWhenTargetMissing(TeacherReview.class, "studentId", "studentDocsId");
+        migrated += renameWhenTargetMissing(TeacherReview.class, "parentId", "parentDocsId");
+        migrated += renameWhenTargetMissing(
+                TeacherReview.class, "reviewCycleId", "reviewCycleDocsId");
+
         if (migrated > 0) {
-            log.info("Migrated employeeId to employeeNo on {} Staff document(s)", migrated);
+            log.info("Migrated {} legacy staff field value(s)", migrated);
         }
+    }
+
+    private long renameWhenTargetMissing(Class<?> documentType, String source, String target) {
+        Query query = Query.query(new Criteria().andOperator(
+                Criteria.where(source).exists(true),
+                Criteria.where(target).exists(false)));
+        return mongoTemplate.updateMulti(
+                query, new Update().rename(source, target), documentType).getModifiedCount();
     }
 }
