@@ -305,7 +305,7 @@ public class InquiryService {
 
     private void validateCounselor(String counselorDocsId, String schoolId) {
         if (counselorDocsId == null || counselorDocsId.isBlank()) {
-            return; // counselor is optional
+            throw new IllegalArgumentException("Counselor Docs ID is required for an inquiry.");
         }
         if (schoolId == null || schoolId.isBlank()) {
             throw new IllegalArgumentException("School ID is required for an inquiry.");

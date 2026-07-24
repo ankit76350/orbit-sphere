@@ -48,9 +48,11 @@ class InquiryServiceTest {
     void createInquiry_withAdmittedStatus_createsAndLinksAdmission() {
         Inquiry inquiry = Inquiry.builder()
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .studentName("Alice Smith")
                 .status(InquiryStatus.ADMITTED)
                 .build();
+        mockCounselor();
         when(inquiryRepository.save(any(Inquiry.class))).thenAnswer(invocation -> {
             Inquiry saved = invocation.getArgument(0);
             if (saved.getId() == null) {
@@ -86,12 +88,14 @@ class InquiryServiceTest {
     void createInquiry_withInitialAdmittedFollowUp_usesEffectiveStatusAndCreatesAdmission() {
         Inquiry inquiry = Inquiry.builder()
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .status(InquiryStatus.INQUIRY)
                 .followUps(List.of(InquiryFollowUp.builder()
                         .status(InquiryStatus.ADMITTED)
                         .note("Application submitted")
                         .build()))
                 .build();
+        mockCounselor();
         when(inquiryRepository.save(any(Inquiry.class))).thenAnswer(invocation -> {
             Inquiry saved = invocation.getArgument(0);
             saved.setId("inquiry-123");
@@ -112,9 +116,11 @@ class InquiryServiceTest {
     void createInquiry_withoutAdmittedStatus_doesNotCreateAdmission() {
         Inquiry inquiry = Inquiry.builder()
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .studentName("Alice Smith")
                 .status(InquiryStatus.INQUIRY)
                 .build();
+        mockCounselor();
         when(inquiryRepository.save(inquiry)).thenAnswer(invocation -> {
             Inquiry saved = invocation.getArgument(0);
             saved.setId("inquiry-123");
@@ -130,15 +136,32 @@ class InquiryServiceTest {
     }
 
     @Test
+    void createInquiry_withoutCounselor_isRejectedBeforeSaving() {
+        Inquiry inquiry = Inquiry.builder()
+                .schoolId("school-123")
+                .studentName("Alice Smith")
+                .build();
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> inquiryService.createInquiry(inquiry));
+
+        assertEquals("Counselor Docs ID is required for an inquiry.", error.getMessage());
+        verify(inquiryRepository, never()).save(any());
+    }
+
+    @Test
     void recordFollowUp_withPastNextFollowUp_throwsIllegalArgumentException() {
         String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
                 .id(inquiryDocsId)
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .status(InquiryStatus.INQUIRY)
                 .build();
 
         when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
+        mockCounselor();
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.COUNSELING)
@@ -159,11 +182,13 @@ class InquiryServiceTest {
         Inquiry existing = Inquiry.builder()
                 .id(inquiryDocsId)
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .status(InquiryStatus.INQUIRY)
                 .build();
 
         when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
+        mockCounselor();
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.COUNSELING)
@@ -265,12 +290,14 @@ class InquiryServiceTest {
         Inquiry existing = Inquiry.builder()
                 .id(inquiryDocsId)
                 .schoolId("school-123")
+                .counselorDocsId("staff-456")
                 .status(InquiryStatus.INQUIRY)
                 .studentName("Alice Smith")
                 .build();
 
         when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
+        mockCounselor();
 
         Admission mockAdmission = Admission.builder().id("admission-999").build();
         when(admissionRepository.findByInquiryDocsId(inquiryDocsId)).thenReturn(java.util.Collections.emptyList());
@@ -375,5 +402,13 @@ class InquiryServiceTest {
                 () -> inquiryService.confirmEnrollment("inquiry-123", "admission-123"));
 
         assertEquals("A lost inquiry cannot be confirmed as enrolled.", error.getMessage());
+    }
+
+    private void mockCounselor() {
+        when(staffRepository.findById("staff-456")).thenReturn(Optional.of(
+                Staff.builder()
+                        .id("staff-456")
+                        .schoolId("school-123")
+                        .build()));
     }
 }

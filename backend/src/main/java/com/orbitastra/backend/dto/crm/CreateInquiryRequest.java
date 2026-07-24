@@ -25,6 +25,7 @@ public class CreateInquiryRequest {
 
     private String source;
 
+    @NotBlank(message = "counselorDocsId is required")
     private String counselorDocsId;
 
     private InquiryStatus status;

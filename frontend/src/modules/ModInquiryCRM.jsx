@@ -17,7 +17,8 @@ export default function ModInquiryCRM({ user }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [grade, setGrade] = useState("Grade 7");
-  const [counselor, setCounselor] = useState("Emma Watson");
+  const [counselors, setCounselors] = useState([]);
+  const [counselorDocsId, setCounselorDocsId] = useState("");
   const [notes, setNotes] = useState("");
   const stages = ["Inquiry", "Counseling", "Visit", "Document Verification", "Admission"];
 
@@ -28,15 +29,26 @@ export default function ModInquiryCRM({ user }) {
         setInquiries(res);
       }
     }).catch(() => {});
+    api.getStaff().then((res) => {
+      if (isMounted && Array.isArray(res)) {
+        setCounselors(res);
+        setCounselorDocsId((current) => current || res[0]?.id || "");
+      }
+    }).catch(() => {});
     return () => { isMounted = false; };
   }, []);
 
   const handleCreate = (e) => {
     e.preventDefault();
-    if (!studentName || !parentName || !phone) {
-      addToast("Validation Failed", "Name and contact phone are required", "error");
+    const selectedCounselor = counselors.find((staff) => staff.id === counselorDocsId);
+    if (!studentName || !parentName || !phone || !selectedCounselor) {
+      addToast("Validation Failed", "Student, parent, phone, and counselor are required", "error");
       return;
     }
+    const counselorName = selectedCounselor.name
+      || `${selectedCounselor.firstName || ""} ${selectedCounselor.lastName || ""}`.trim()
+      || selectedCounselor.employeeNo
+      || counselorDocsId;
     const newInq = {
       id: `inq-${Date.now()}`,
       studentName,
@@ -45,7 +57,8 @@ export default function ModInquiryCRM({ user }) {
       email,
       grade,
       stage: "Inquiry",
-      counselor,
+      counselor: counselorName,
+      counselorDocsId,
       notes,
       createdAt: new Date().toISOString().split("T")[0],
       followUpDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0]
@@ -53,7 +66,24 @@ export default function ModInquiryCRM({ user }) {
     const updated = [newInq, ...inquiries];
     setInquiries(updated);
     saveInquiries(updated);
-    api.createInquiry(newInq).catch(() => {});
+    api.createInquiry({
+      schoolId: selectedCounselor.schoolId,
+      studentName,
+      guardians: [{
+        name: parentName,
+        relation: "MOTHER",
+        phone,
+        email: email || null
+      }],
+      source: "WALK_IN",
+      counselorDocsId,
+      status: "INQUIRY",
+      followUps: [{
+        status: "INQUIRY",
+        note: notes || null,
+        counselorDocsId
+      }]
+    }).catch(() => {});
     logAction(user.id, user.name, user.role, "Lead Inquiry Created", `Captured inquiry CRM lead for applicant student ${studentName}`);
     setStudentName("");
     setParentName("");
@@ -257,12 +287,18 @@ export default function ModInquiryCRM({ user }) {
             <Select
     label="Assigned Consultant"
     options={[
-      { label: "Emma Watson", value: "Emma Watson" },
-      { label: "David Vance", value: "David Vance" },
-      { label: "Grover Cleveland", value: "Grover Cleveland" }
+      { label: "Select a counselor", value: "" },
+      ...counselors.map((staff) => ({
+        label: staff.name
+          || `${staff.firstName || ""} ${staff.lastName || ""}`.trim()
+          || staff.employeeNo
+          || staff.id,
+        value: staff.id
+      }))
     ]}
-    value={counselor}
-    onChange={(e) => setCounselor(e.target.value)}
+    value={counselorDocsId}
+    onChange={(e) => setCounselorDocsId(e.target.value)}
+    required
   />
           </div>
           <div>

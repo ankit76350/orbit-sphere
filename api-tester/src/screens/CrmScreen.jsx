@@ -158,16 +158,20 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       toast.error('Enter a student name or at least one guardian.');
       return;
     }
+    if (!inquiryForm.counselorDocsId) {
+      toast.error('Select a counselor before creating the inquiry.');
+      return;
+    }
     setBusy(true);
     try {
       // Seed the follow-up timeline with the first entry.
-      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorDocsId: inquiryForm.counselorDocsId || null }];
+      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorDocsId: inquiryForm.counselorDocsId }];
       await api.createInquiry({
         schoolId: inquiryForm.schoolId,
         status: inquiryForm.status || null,
         studentName: inquiryForm.studentName,
         source: inquiryForm.source,
-        counselorDocsId: inquiryForm.counselorDocsId || null,
+        counselorDocsId: inquiryForm.counselorDocsId,
         guardians,
         followUps,
       });
@@ -488,9 +492,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         {['WALK_IN', 'PHONE', 'ONLINE', 'REFERRAL', 'OTHER'].map((s) => <option key={s} value={s}>{s}</option>)}
                       </Select>
                     </Field>
-                    <Field label="Counselor" apiName="counselorDocsId" required={false}>
+                    <Field label="Counselor" apiName="counselorDocsId" required>
                       <Select value={inquiryForm.counselorDocsId} onChange={(e) => setInquiryForm({ ...inquiryForm, counselorDocsId: e.target.value })}>
-                        <option value="">— none —</option>
+                        <option value="">— select counselor —</option>
                         {staff.map((s) => {
                           const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();
                           const displayId = s.employeeNo || s.id;
