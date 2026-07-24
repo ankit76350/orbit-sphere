@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Plus, Trash2, Users, X } from 'lucide-react';
+import { BookOpen, Eye, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Empty, Badge, useToast } from '../components/ui.jsx';
 
@@ -11,6 +11,8 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const load = () => {
     if (!schoolId || !year) { setClasses([]); return; }
@@ -46,6 +48,26 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
     try { await api.deleteClass(c.id); toast.success(`Deleted ${c.name}.`); load(); }
     catch (e) { toast.error(e.message); }
   }
+
+  async function openDetails(c) {
+    setSelectedClass(c);
+    setDetailsLoading(true);
+    try {
+      setSelectedClass(await api.getClassById(c.id));
+    } catch (e) {
+      toast.error(e.message || `Failed to load details for ${c.name}.`);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
+
+  const getStaffMember = (staffDocsId) => staff.find((member) => member.id === staffDocsId);
+
+  const formatTimestamp = (value) => {
+    if (!value) return '—';
+    const timestamp = new Date(value);
+    return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
+  };
 
   if (!schoolId) return <Empty icon={BookOpen} title="Pick a school to begin" />;
   if (!year) return <Empty icon={BookOpen} title="No academic year selected" hint="Create one under Academic Year first." />;
@@ -102,7 +124,20 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {classes.slice().sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
-              <div key={c.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-sm transition">
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`View all details for ${c.name}`}
+                onClick={() => openDetails(c)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openDetails(c);
+                  }
+                }}
+                className="border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-blue-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 transition"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 grid place-items-center"><BookOpen size={17} /></div>
@@ -112,7 +147,14 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                       <div className="text-xs text-slate-500 flex items-center gap-1"><Users size={12} /> {(c.sections || []).length} section{(c.sections || []).length === 1 ? '' : 's'}</div>
                     </div>
                   </div>
-                  <button className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5" title="Delete class" onClick={() => remove(c)}>
+                  <button
+                    className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5"
+                    title="Delete class"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      remove(c);
+                    }}
+                  >
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -121,11 +163,153 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                     ? <span className="text-xs text-amber-600">No sections — add some to build a timetable.</span>
                     : c.sections.map((s) => <Badge key={s} color="slate">Section {s}</Badge>)}
                 </div>
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-blue-600">
+                  <span>View all class details</span>
+                  <Eye size={13} />
+                </div>
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      {selectedClass && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedClass(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-details-title"
+            className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex items-start justify-between gap-4 rounded-t-2xl">
+              <div>
+                <h3 id="class-details-title" className="font-bold text-slate-900 text-base flex items-center gap-2">
+                  <BookOpen size={18} className="text-blue-600" />
+                  <span>{selectedClass.name || 'Class details'}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">All details returned by GET /api/classes/{'{classDocsId}'}</p>
+              </div>
+              <button
+                onClick={() => setSelectedClass(null)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
+                title="Close class details"
+              >
+                <X size={17} />
+              </button>
+            </header>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              {detailsLoading && (
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Refreshing the complete class document…
+                </div>
+              )}
+
+              <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  ['Class Name', selectedClass.name],
+                  ['Academic Year', selectedClass.academicYear],
+                  ['MongoDB Object ID', selectedClass.id],
+                  ['School ID', selectedClass.schoolId],
+                  ['Created At', formatTimestamp(selectedClass.createdAt)],
+                  ['Updated At', formatTimestamp(selectedClass.updatedAt)],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+                    <div className={`mt-1 text-xs text-slate-800 break-all ${label.includes('ID') ? 'font-mono select-all' : 'font-semibold'}`}>
+                      {value || '—'}
+                    </div>
+                  </div>
+                ))}
+              </section>
+
+              <section>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Class Teacher</h4>
+                {selectedClass.classTeacherDocsId ? (() => {
+                  const teacher = getStaffMember(selectedClass.classTeacherDocsId);
+                  return (
+                    <div className="border border-slate-200 rounded-xl px-4 py-3">
+                      <div className="font-semibold text-sm text-slate-800">{teacher?.name || 'Teacher record not loaded'}</div>
+                      {teacher?.employeeNo && <div className="text-xs text-slate-500 mt-0.5">Employee No: {teacher.employeeNo}</div>}
+                      <div className="font-mono text-[10px] text-slate-400 mt-1 break-all select-all">
+                        classTeacherDocsId: {selectedClass.classTeacherDocsId}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No class teacher assigned.</div>
+                )}
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Sections</h4>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(selectedClass.sections || []).length} section{(selectedClass.sections || []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {(selectedClass.sections || []).length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedClass.sections.map((section) => <Badge key={section} color="blue">Section {section}</Badge>)}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No sections configured.</div>
+                )}
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Subjects</h4>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(selectedClass.subjects || []).length} subject{(selectedClass.subjects || []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {(selectedClass.subjects || []).length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedClass.subjects.map((subject, index) => {
+                      const teacher = getStaffMember(subject.teacherDocsId);
+                      return (
+                        <div key={`${subject.name || 'subject'}-${index}`} className="border border-slate-200 rounded-xl px-4 py-3">
+                          <div className="font-semibold text-sm text-slate-800">{subject.name || 'Unnamed subject'}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Teacher: {teacher?.name || (subject.teacherDocsId ? 'Teacher record not loaded' : 'Not assigned')}
+                            {teacher?.employeeNo ? ` · ${teacher.employeeNo}` : ''}
+                          </div>
+                          {subject.teacherDocsId && (
+                            <div className="font-mono text-[10px] text-slate-400 mt-1 break-all select-all">
+                              teacherDocsId: {subject.teacherDocsId}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No subjects configured.</div>
+                )}
+              </section>
+
+              <details className="border border-slate-200 rounded-xl overflow-hidden">
+                <summary className="cursor-pointer px-4 py-3 bg-slate-50 text-xs font-semibold text-slate-600">
+                  Raw API document
+                </summary>
+                <pre className="p-4 bg-slate-950 text-slate-100 text-[11px] leading-relaxed overflow-x-auto select-all">
+                  {JSON.stringify(selectedClass, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <footer className="px-6 py-4 border-t border-slate-100 flex justify-end">
+              <Button variant="default" size="sm" onClick={() => setSelectedClass(null)}>Close</Button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

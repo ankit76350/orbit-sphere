@@ -84,6 +84,7 @@ export const api = {
 
   // ----- classes -----
   createClass: (payload) => call('POST', '/api/classes', payload),
+  getClassById: (classDocsId) => call('GET', `/api/classes/${classDocsId}`),
   addSection: (classDocsId, sections) => call('POST', `/api/classes/${classDocsId}/sections`, { sections }),
   deleteClass: (classDocsId) => call('DELETE', `/api/classes/${classDocsId}`),
 
