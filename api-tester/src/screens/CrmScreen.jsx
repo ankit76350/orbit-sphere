@@ -455,6 +455,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </div>
                   <Field label="Initial Status" apiName="status" required={false}>
                     <Select value={inquiryForm.status} onChange={(e) => setInquiryForm({ ...inquiryForm, status: e.target.value })}><option value="">— omitted —</option>{INQUIRY_STAGES.map((status) => <option key={status} value={status}>{status}</option>)}</Select>
+                    <span className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 text-[11px] font-semibold text-purple-700">
+                      In the actual app do not show the admitted status (Initial Status)
+                    </span>
                   </Field>
                   <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Initial followUps[0] (optional)</div>
                   <div className="grid grid-cols-2 gap-3">
