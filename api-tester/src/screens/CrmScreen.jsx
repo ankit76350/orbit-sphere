@@ -101,6 +101,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const [convert, setConvert] = useState(null); // admission being converted
   const [convertForm, setConvertForm] = useState(null);
+  const [showConvertGuardianForm, setShowConvertGuardianForm] = useState(false);
+  const [convertGuardianForm, setConvertGuardianForm] = useState(() => emptyAdmissionGuardianForm());
+  const [showConvertDocumentForm, setShowConvertDocumentForm] = useState(false);
+  const [convertDocument, setConvertDocument] = useState('');
+  const [showConvertMedicalRemarkForm, setShowConvertMedicalRemarkForm] = useState(false);
+  const [convertMedicalRemark, setConvertMedicalRemark] = useState('');
 
   const fetchAll = useCallback(async () => {
     if (!schoolId) return;
@@ -435,6 +441,12 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const openConvert = (adm) => {
     setConvert(adm);
+    setShowConvertGuardianForm(false);
+    setConvertGuardianForm(emptyAdmissionGuardianForm());
+    setShowConvertDocumentForm(false);
+    setConvertDocument('');
+    setShowConvertMedicalRemarkForm(false);
+    setConvertMedicalRemark('');
     setConvertForm({
       admissionNo: adm.admissionNo || '',
       name: adm.studentName || '',
@@ -450,6 +462,95 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         academicYear: '', studentNo: '', rollNo: '', classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
       },
     });
+  };
+
+  const submitConvertGuardian = async () => {
+    if (!convert?.id) return;
+    if (!convertGuardianForm.name.trim()) {
+      toast.error('Guardian name is required.');
+      return;
+    }
+
+    setAdmissionMutation('convert-guardian');
+    try {
+      const updatedAdmission = await api.addAdmissionGuardian(convert.id, {
+        name: convertGuardianForm.name.trim(),
+        relation: convertGuardianForm.relation || null,
+        phone: convertGuardianForm.phone.trim() || null,
+        email: convertGuardianForm.email.trim() || null,
+        address: convertGuardianForm.address.trim() || null,
+        occupation: convertGuardianForm.occupation.trim() || null,
+      });
+      setConvert(updatedAdmission);
+      setAdmissions((current) => current.map((admission) =>
+        admission.id === updatedAdmission.id ? updatedAdmission : admission
+      ));
+      setAdmissionDetails((current) =>
+        current?.id === updatedAdmission.id ? updatedAdmission : current
+      );
+      setConvertGuardianForm(emptyAdmissionGuardianForm());
+      setShowConvertGuardianForm(false);
+      toast.success('Guardian added and included in enrolment.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to add guardian.');
+    } finally {
+      setAdmissionMutation(null);
+    }
+  };
+
+  const submitConvertDocument = async () => {
+    if (!convert?.id) return;
+    const document = convertDocument.trim();
+    if (!document) {
+      toast.error('Enter a document name, URL, or storage reference.');
+      return;
+    }
+
+    setAdmissionMutation('convert-document');
+    try {
+      const updatedAdmission = await api.addAdmissionDocument(convert.id, document);
+      setConvert(updatedAdmission);
+      setConvertForm((current) => current ? {
+        ...current,
+        documents: (updatedAdmission.documents || []).join(', '),
+      } : current);
+      setAdmissions((current) => current.map((admission) =>
+        admission.id === updatedAdmission.id ? updatedAdmission : admission
+      ));
+      setAdmissionDetails((current) =>
+        current?.id === updatedAdmission.id ? updatedAdmission : current
+      );
+      setConvertDocument('');
+      setShowConvertDocumentForm(false);
+      toast.success('Document added and included in enrolment.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to add document.');
+    } finally {
+      setAdmissionMutation(null);
+    }
+  };
+
+  const addConvertMedicalRemark = () => {
+    const remark = convertMedicalRemark.trim();
+    if (!remark) {
+      toast.error('Enter a medical remark.');
+      return;
+    }
+
+    setConvertForm((current) => {
+      if (!current) return current;
+      const currentRemarks = current.medicalRemark
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      return {
+        ...current,
+        medicalRemark: [...currentRemarks, remark].join(', '),
+      };
+    });
+    setConvertMedicalRemark('');
+    setShowConvertMedicalRemarkForm(false);
+    toast.success('Medical remark added to the enrolment payload.');
   };
 
   const submitConvert = async () => {
@@ -483,6 +584,11 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       toast.error(e.message || 'Conversion failed.');
     } finally { setBusy(false); }
   };
+
+  const convertMedicalRemarks = (convertForm?.medicalRemark || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
 
   if (!schoolId) {
     return <Empty icon={UserPlus} title="Pick a school to begin" hint="Select a school in the top bar to manage the admissions pipeline." />;
@@ -1446,33 +1552,294 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 <Field label="Student Status" apiName="status" required={false}><Select value={convertForm.status} onChange={(e) => setConvertForm({ ...convertForm, status: e.target.value })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 <Field label="Admission Date" apiName="admissionDate" required={false}><Input type="date" value={convertForm.admissionDate} onChange={(e) => setConvertForm({ ...convertForm, admissionDate: e.target.value })} /></Field>
               </div>
-              <Field label="Documents" apiName="documents[]" required={false} hint="Copied from the admission; comma-separated."><Input value={convertForm.documents} onChange={(e) => setConvertForm({ ...convertForm, documents: e.target.value })} /></Field>
-              <Field label="Medical Remarks" apiName="medicalRemark[]" required={false} hint="Comma-separated remarks."><Input value={convertForm.medicalRemark} onChange={(e) => setConvertForm({ ...convertForm, medicalRemark: e.target.value })} /></Field>
-              {(convert.guardians && convert.guardians.length > 0) ? (
-                <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                  <div className="text-[11px] font-semibold text-slate-500 mb-1">{convert.guardians.length} guardian{convert.guardians.length === 1 ? '' : 's'} will be created &amp; linked:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {convert.guardians.map((g, i) => (
-                      <span key={i} className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-600">
-                        {g.name}{g.relation ? ` · ${g.relation.replace('_', ' ')}` : ''}
-                      </span>
+
+              <div className="border border-slate-200 bg-slate-50 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+                    <span>Documents</span>
+                    <code className="font-mono text-[10px] font-medium text-slate-400">documents[]</code>
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvertDocumentForm(true)}
+                    disabled={showConvertDocumentForm || admissionMutation === 'convert-document'}
+                    className="shrink-0 text-[11px] font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Add Document
+                  </button>
+                </div>
+
+                {(convert.documents || []).length > 0 ? (
+                  <div className="space-y-2">
+                    {convert.documents.map((document, index) => (
+                      <div
+                        key={`${document}-${index}`}
+                        className="flex items-start gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
+                      >
+                        <FileText size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[9px] uppercase tracking-wide text-slate-400">Document {index + 1}</div>
+                          <div className="text-xs font-medium text-slate-700 break-all select-all">{document}</div>
+                        </div>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                    No documents are currently attached to this admission.
+                  </p>
+                )}
+
+                {showConvertDocumentForm && (
+                  <div className="border border-blue-200 bg-white rounded-lg p-3 space-y-3">
+                    <div>
+                      <div className="text-xs font-bold text-slate-700">Add document to this admission</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        POST /api/admissions/{convert.id}/documents
+                      </div>
+                    </div>
+                    <Input
+                      value={convertDocument}
+                      onChange={(event) => setConvertDocument(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          submitConvertDocument();
+                        }
+                      }}
+                      placeholder="Document name, storage reference, or URL"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="default"
+                        onClick={() => {
+                          setShowConvertDocumentForm(false);
+                          setConvertDocument('');
+                        }}
+                        disabled={admissionMutation === 'convert-document'}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={submitConvertDocument}
+                        disabled={admissionMutation === 'convert-document'}
+                      >
+                        {admissionMutation === 'convert-document' ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                        Add Document
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-slate-200 bg-slate-50 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600">
+                    <span>Medical Remarks</span>
+                    <code className="font-mono text-[10px] font-medium text-slate-400">medicalRemark[]</code>
+                    <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvertMedicalRemarkForm(true)}
+                    disabled={showConvertMedicalRemarkForm}
+                    className="shrink-0 text-[11px] font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Add Remark
+                  </button>
                 </div>
-              ) : (
-                <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                  No guardians on this admission — add them later in the <span className="font-semibold text-slate-500">Guardians</span> tab.
-                </p>
-              )}
-              <div className="space-y-2 border-t border-slate-100 pt-3">
-                <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase text-slate-400">optional</span></div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    ['academicYear', 'Academic Year'], ['studentNo', 'Student No'], ['rollNo', 'Roll No'],
-                    ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
-                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} /></Field>)}
-                  <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
+
+                {convertMedicalRemarks.length > 0 ? (
+                  <div className="space-y-2">
+                    {convertMedicalRemarks.map((remark, index) => (
+                      <div
+                        key={`${remark}-${index}`}
+                        className="flex items-start gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
+                      >
+                        <ClipboardList size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[9px] uppercase tracking-wide text-slate-400">Remark {index + 1}</div>
+                          <div className="text-xs font-medium text-slate-700 break-words select-all">{remark}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                    No medical remarks have been added.
+                  </p>
+                )}
+
+                {showConvertMedicalRemarkForm && (
+                  <div className="border border-blue-200 bg-white rounded-lg p-3 space-y-3">
+                    <div>
+                      <div className="text-xs font-bold text-slate-700">Add medical remark</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        This remark will be included in medicalRemark[] when the student is enrolled.
+                      </div>
+                    </div>
+                    <Input
+                      value={convertMedicalRemark}
+                      onChange={(event) => setConvertMedicalRemark(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addConvertMedicalRemark();
+                        }
+                      }}
+                      placeholder="Medical remark"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="default"
+                        onClick={() => {
+                          setShowConvertMedicalRemarkForm(false);
+                          setConvertMedicalRemark('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="button" variant="primary" onClick={addConvertMedicalRemark}>
+                        <Plus size={14} />
+                        Add Remark
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold text-slate-600">
+                    {(convert.guardians || []).length} guardian{(convert.guardians || []).length === 1 ? '' : 's'} will be created &amp; linked:
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvertGuardianForm(true)}
+                    disabled={showConvertGuardianForm || admissionMutation === 'convert-guardian'}
+                    className="shrink-0 text-[11px] font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Add Guardian
+                  </button>
                 </div>
+
+                {(convert.guardians || []).length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {convert.guardians.map((g, i) => (
+                      <div key={`${g.email || g.phone || g.name || 'guardian'}-${i}`} className="bg-white border border-slate-200 rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">{g.name || 'Unnamed guardian'}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">Guardian {i + 1}</div>
+                          </div>
+                          <Badge color="blue">{g.relation ? g.relation.replaceAll('_', ' ') : 'RELATION NOT PROVIDED'}</Badge>
+                        </div>
+                        <dl className="mt-3 space-y-1.5 text-[11px]">
+                          {[
+                            ['Phone', g.phone],
+                            ['Email', g.email],
+                            ['Address', g.address],
+                            ['Occupation', g.occupation],
+                          ].map(([label, value]) => (
+                            <div key={label} className="grid grid-cols-[68px_1fr] gap-2">
+                              <dt className="text-slate-400">{label}</dt>
+                              <dd className="text-slate-700 break-all select-all">{value || '—'}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 bg-white border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                    No prospective guardians are currently attached to this admission.
+                  </p>
+                )}
+
+                {showConvertGuardianForm && (
+                  <div className="border border-blue-200 bg-white rounded-lg p-3 space-y-3">
+                    <div>
+                      <div className="text-xs font-bold text-slate-700">Add guardian to this admission</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        POST /api/admissions/{convert.id}/guardians
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Field label="Name" apiName="name" required>
+                        <Input
+                          value={convertGuardianForm.name}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, name: event.target.value })}
+                          placeholder="Guardian name"
+                        />
+                      </Field>
+                      <Field label="Relation" apiName="relation" required={false}>
+                        <Select
+                          value={convertGuardianForm.relation}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, relation: event.target.value })}
+                        >
+                          <option value="">— omitted —</option>
+                          {RELATIONS.map((relation) => <option key={relation} value={relation}>{relation.replaceAll('_', ' ')}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label="Phone" apiName="phone" required={false}>
+                        <Input
+                          value={convertGuardianForm.phone}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, phone: event.target.value })}
+                          placeholder="Phone number"
+                        />
+                      </Field>
+                      <Field label="Email" apiName="email" required={false}>
+                        <Input
+                          type="email"
+                          value={convertGuardianForm.email}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, email: event.target.value })}
+                          placeholder="guardian@example.com"
+                        />
+                      </Field>
+                      <Field label="Address" apiName="address" required={false}>
+                        <Input
+                          value={convertGuardianForm.address}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, address: event.target.value })}
+                          placeholder="Address"
+                        />
+                      </Field>
+                      <Field label="Occupation" apiName="occupation" required={false}>
+                        <Input
+                          value={convertGuardianForm.occupation}
+                          onChange={(event) => setConvertGuardianForm({ ...convertGuardianForm, occupation: event.target.value })}
+                          placeholder="Occupation"
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="default"
+                        onClick={() => {
+                          setShowConvertGuardianForm(false);
+                          setConvertGuardianForm(emptyAdmissionGuardianForm());
+                        }}
+                        disabled={admissionMutation === 'convert-guardian'}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={submitConvertGuardian}
+                        disabled={admissionMutation === 'convert-guardian'}
+                      >
+                        {admissionMutation === 'convert-guardian' ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                        Add Guardian
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 border-t border-slate-100 pt-3">
@@ -1488,10 +1855,21 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   </div>;
                 })}
               </div>
+
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase text-slate-400">optional</span></div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['academicYear', 'Academic Year'], ['studentNo', 'Student No'], ['rollNo', 'Roll No'],
+                    ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
+                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} /></Field>)}
+                  <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
+                </div>
+              </div>
             </div>
             <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-end gap-2">
               <Button variant="default" onClick={() => setConvert(null)}>Cancel</Button>
-              <Button variant="primary" onClick={submitConvert} disabled={busy}>
+              <Button variant="primary" onClick={submitConvert} disabled={busy || admissionMutation !== null}>
                 {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Enroll Student
               </Button>
             </footer>
