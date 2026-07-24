@@ -1,6 +1,5 @@
 package com.orbitastra.backend.dto.student;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
@@ -24,7 +23,6 @@ public class AcademicRecordRequest {
 
     private String rollNo;
 
-    @JsonAlias("classDocId")
     private String classDocsId;
 
     private String sectionNo;
@@ -39,8 +37,7 @@ public class AcademicRecordRequest {
         throw new IllegalArgumentException(
                 "Unsupported academic-record field '" + fieldName
                         + "'. Allowed fields are academicYear, identityNo, rollNo, classDocsId, "
-                        + "sectionNo, hostelRoomNo, and status. "
-                        + "classDocId is accepted only as a legacy alias for classDocsId; "
+                        + "sectionNo, hostelRoomNo, and status; "
                         + "schoolId, studentDocsId, and id are server-owned.");
     }
 

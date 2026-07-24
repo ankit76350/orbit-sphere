@@ -73,12 +73,12 @@ class StudentControllerTest {
     }
 
     @Test
-    void academicRecordRequest_acceptsLegacyClassDocIdAsClassDocsId() throws Exception {
+    void academicRecordRequest_acceptsClassDocsId() throws Exception {
         AcademicRecordRequest request = new ObjectMapper().readValue(
                 """
                 {
                   "academicYear": "2027-2028",
-                  "classDocId": "class-mongo-id"
+                  "classDocsId": "class-mongo-id"
                 }
                 """,
                 AcademicRecordRequest.class);

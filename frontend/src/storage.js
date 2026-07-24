@@ -113,7 +113,6 @@ const LEGACY_IDENTIFIER_FIELDS = {
   inquiryId: "inquiryDocsId",
   classTeacherId: "classTeacherDocsId",
   studentDocId: "studentDocsId",
-  classDocId: "classDocsId",
   studentId: "studentDocsId",
   teacherId: "teacherDocsId",
   feeId: "feeDocsId",

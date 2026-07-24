@@ -78,7 +78,6 @@ public class ProjectFieldNamingMigration {
             rename("wallet_transactions", "studentId", "studentDocsId"),
             rename("student_academic_records", "studentDocId", "studentDocsId"),
             rename("student_academic_records", "studentId", "studentDocsId"),
-            rename("student_academic_records", "classDocId", "classDocsId"),
             rename("student_academic_records", "classId", "classDocsId"),
             rename("student_academic_records", "studentNo", "identityNo"),
 
