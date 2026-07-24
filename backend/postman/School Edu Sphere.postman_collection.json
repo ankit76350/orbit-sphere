@@ -1,11 +1,11 @@
 {
   "info": {
-    "_postman_id": "53108658-dd5b-491c-9aeb-a04e51ef353e",
+    "_postman_id": "7aeb00be-524c-4266-82ef-bcbe8d6392cf",
     "name": "School Edu Sphere",
     "description": "Student API collection (Students, Parents, Academic Records).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "47336508",
-    "_collection_link": "https://go.postman.co/collection/47336508-53108658-dd5b-491c-9aeb-a04e51ef353e?source=collection_link"
+    "_collection_link": "https://go.postman.co/collection/47336508-7aeb00be-524c-4266-82ef-bcbe8d6392cf?source=collection_link"
   },
   "item": [
     {
@@ -1166,7 +1166,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a class for one academic year with classTeacherDocsId and nested teacherDocsId references.\n{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Class 9A {{$timestamp}}\",\n  \"classTeacherDocsId\": \"CLASS_TEACHER_STAFF_ID\",\n  \"subjects\": [\n    { \"name\": \"Mathematics\", \"teacherDocsId\": \"MATH_TEACHER_STAFF_ID\" },\n    { \"name\": \"Chemistry\", \"teacherDocsId\": \"CHEMISTRY_TEACHER_STAFF_ID\" }\n  ],\n  \"academicYear\": \"2026-2027\",\n  \"sections\": [\"A\", \"B\"]\n}\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Rejects a class teacher or subject teacher outside the school.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Cross School Class\", \"classTeacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\", \"academicYear\": \"2026-2027\" }\n\n\n// TC03\n// Status Code: 404 Not Found\n// Working: Rejects an unknown school.\n// { \"schoolId\": \"000000000000000000000000\", \"name\": \"Missing School Class\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Deprecated classTeacher/subjects[].teacher aliases are not accepted; use classTeacherDocsId/teacherDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Deprecated Alias Class\", \"classTeacher\": \"OLD_TEACHER_ID\", \"subjects\": [ { \"name\": \"Math\", \"teacher\": \"OLD_TEACHER_ID\" } ] }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a duplicate class name in the same school and academic year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"EXISTING_CLASS_NAME\", \"academicYear\": \"2026-2027\" }\n"
+                  "raw": "// Copy one test-case JSON object at a time before sending. TC01 is active by default.\n\n// TC01\n// Status Code: 201 Created\n// Working: Creates a class for one academic year with classTeacherDocsId and nested teacherDocsId references.\n{\n  \"schoolId\": \"6a62f273b9b6b1032bc2cbb9\",\n//   \"name\": \"Class 9A {{$timestamp}}\",\n  \"name\": \"Class 3\",\n  \"classTeacherDocsId\": \"6a62fd7eb9b6b1032bc2cbc7\",\n  \"subjects\": [\n    { \"name\": \"Mathematics\", \"teacherDocsId\": \"6a62fd7eb9b6b1032bc2cbc7\" },\n    { \"name\": \"Chemistry\", \"teacherDocsId\": \"6a62fd7eb9b6b1032bc2cbc7\" }\n  ],\n  \"academicYear\": \"2026-2026-JA\",\n  \"sections\": [\"A\", \"B\",\"C\", \"D\",\"E\"]\n}\n\n\n// TC02\n// Status Code: 400 Bad Request\n// Working: Rejects a class teacher or subject teacher outside the school.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Cross School Class\", \"classTeacherDocsId\": \"OTHER_SCHOOL_TEACHER_ID\", \"academicYear\": \"2026-2027\" }\n\n\n// TC03\n// Status Code: 404 Not Found\n// Working: Rejects an unknown school.\n// { \"schoolId\": \"000000000000000000000000\", \"name\": \"Missing School Class\" }\n\n\n// TC04\n// Status Code: 400 Bad Request\n// Working: Deprecated classTeacher/subjects[].teacher aliases are not accepted; use classTeacherDocsId/teacherDocsId.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"Deprecated Alias Class\", \"classTeacher\": \"OLD_TEACHER_ID\", \"subjects\": [ { \"name\": \"Math\", \"teacher\": \"OLD_TEACHER_ID\" } ] }\n\n\n// TC05\n// Status Code: 400 Bad Request\n// Working: Rejects a duplicate class name in the same school and academic year.\n// { \"schoolId\": \"SCHOOL_ID_HERE\", \"name\": \"EXISTING_CLASS_NAME\", \"academicYear\": \"2026-2027\" }\n"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/classes",
