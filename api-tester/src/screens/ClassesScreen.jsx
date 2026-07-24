@@ -66,7 +66,7 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
           <Field label="Class teacher" apiName="classTeacherDocsId" required={false}>
             <Select value={form.classTeacherDocsId} onChange={(e) => setForm({ ...form, classTeacherDocsId: e.target.value })}>
               <option value="">— none —</option>
-              {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
+              {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeNo || member.id}</option>)}
             </Select>
           </Field>
           <Field label="Sections" apiName="sections[]" required={false} hint="Comma-separated, e.g. A, B, C">
@@ -82,7 +82,7 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                 <Input value={subject.name} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, name: e.target.value } : item) })} placeholder="name" />
                 <Select value={subject.teacherDocsId} onChange={(e) => setForm({ ...form, subjects: form.subjects.map((item, i) => i === index ? { ...item, teacherDocsId: e.target.value } : item) })}>
                   <option value="">teacher (optional)</option>
-                  {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
+                  {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeNo || member.id}</option>)}
                 </Select>
                 <button type="button" onClick={() => setForm({ ...form, subjects: form.subjects.filter((_, i) => i !== index) })} className="p-1 text-slate-400 hover:text-rose-600"><X size={14} /></button>
               </div>

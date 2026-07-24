@@ -20,7 +20,7 @@ document, its name must end with `DocsId`.
 - A document's own MongoDB primary key remains `id`.
 - The shared tenant field remains `schoolId`, as defined by `BaseDocument`.
 - Business identifiers that are not MongoDB ObjectIds keep their domain names,
-  such as `admissionNo`, `employeeId`, `rollNo`, and `studentNo`.
+  such as `admissionNo`, `employeeNo`, `rollNo`, and `studentNo`.
 - IDs belonging only to embedded values, and not separate MongoDB documents, may
   remain `id`.
 

@@ -958,7 +958,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         >
                           <option value="">— select staff —</option>
                           {(staff || []).map((member) => (
-                            <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>
+                            <option key={member.id} value={member.id}>{member.name || member.employeeNo || member.id}</option>
                           ))}
                         </Select>
                       </Field>
@@ -1069,7 +1069,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                     <Field label="Teacher Docs ID" apiName="teacherDocsId" required>
                       <Select value={hwForm.teacherDocsId} onChange={(e) => setHwForm({ ...hwForm, teacherDocsId: e.target.value })}>
                         <option value="">— select a teacher —</option>
-                        {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeId || member.id}</option>)}
+                        {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.employeeNo || member.id}</option>)}
                       </Select>
                     </Field>
 

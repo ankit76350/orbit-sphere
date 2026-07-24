@@ -36,7 +36,7 @@ erDiagram
     staff {
         string id PK
         string schoolId FK
-        string employeeId
+        string employeeNo
         string name
         string department
         string designation

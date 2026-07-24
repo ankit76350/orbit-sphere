@@ -34,7 +34,8 @@ export const api = {
   updateStaff: (id, payload) => call('PATCH', `/api/staff/${id}`, payload),
   deleteStaff: (id) => call('DELETE', `/api/staff/${id}`),
   getStaffById: (id) => call('GET', `/api/staff/${id}`),
-  getStaffByEmployeeId: (employeeId) => call('GET', `/api/staff/employee/${employeeId}`),
+  getStaffByEmployeeNo: (employeeNo) =>
+    call('GET', `/api/staff/employee/${encodeURIComponent(employeeNo)}`),
 
   // ----- schools admin -----
   createSchool: (payload) => call('POST', '/api/schools', payload),

@@ -16,7 +16,7 @@ export default function StaffScreen({ schoolId, reload }) {
   const [editingStaff, setEditingStaff] = useState(null);
   const [form, setForm] = useState({
     schoolId: schoolId || '',
-    employeeId: '',
+    employeeNo: '',
     name: '',
     department: 'Academic',
     designation: 'Teacher',
@@ -51,7 +51,7 @@ export default function StaffScreen({ schoolId, reload }) {
     setEditingStaff(s);
     setForm({
       schoolId: schoolId || '',
-      employeeId: s.employeeId || '',
+      employeeNo: s.employeeNo || '',
       name: s.name || '',
       department: s.department || 'Academic',
       designation: s.designation || 'Teacher',
@@ -66,7 +66,7 @@ export default function StaffScreen({ schoolId, reload }) {
     setEditingStaff(null);
     setForm({
       schoolId: schoolId || '',
-      employeeId: '',
+      employeeNo: '',
       name: '',
       department: 'Academic',
       designation: 'Teacher',
@@ -183,7 +183,7 @@ export default function StaffScreen({ schoolId, reload }) {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                       <th className="px-4 py-3">Staff details</th>
-                      <th className="px-4 py-3">Employee ID</th>
+                      <th className="px-4 py-3">Employee No</th>
                       <th className="px-4 py-3">Dept & Designation</th>
                       <th className="px-4 py-3 text-right">Salary</th>
                       <th className="px-4 py-3 text-center">System Role</th>
@@ -200,8 +200,8 @@ export default function StaffScreen({ schoolId, reload }) {
                             Joined: {s.joiningDate ? new Date(s.joiningDate).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'}) : '—'}
                           </div>
                         </td>
-                        {/* Employee ID */}
-                        <td className="px-4 py-3 font-mono font-bold text-slate-800 select-all">{s.employeeId}</td>
+                        {/* Employee No */}
+                        <td className="px-4 py-3 font-mono font-bold text-slate-800 select-all">{s.employeeNo}</td>
                         {/* Dept & Designation */}
                         <td className="px-4 py-3">
                           <div className="text-slate-800">{s.designation || 'Staff'}</div>
@@ -272,10 +272,10 @@ export default function StaffScreen({ schoolId, reload }) {
                 </Field>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Employee ID" apiName="employeeId" required={false}>
+                  <Field label="Employee No" apiName="employeeNo" required={false}>
                     <Input
-                      value={form.employeeId}
-                      onChange={(e) => setForm({...form, employeeId: e.target.value})}
+                      value={form.employeeNo}
+                      onChange={(e) => setForm({...form, employeeNo: e.target.value})}
                       placeholder="e.g. EMP-1092"
                     />
                   </Field>

@@ -105,7 +105,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const inquiryById = useMemo(() => Object.fromEntries(inquiries.map((i) => [i.id, i])), [inquiries]);
   const staffName = (id) => {
     const s = staff.find((x) => x.id === id);
-    return s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId : '—';
+    return s ? `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeNo : '—';
   };
   const selectedInquiryCounselor = staff.find((s) => s.id === inquiryForm.counselorDocsId);
   const stageCounts = useMemo(() => {
@@ -442,7 +442,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         <option value="">— none —</option>
                         {staff.map((s) => {
                           const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();
-                          const displayId = s.employeeId || s.id;
+                          const displayId = s.employeeNo || s.id;
                           return <option key={s.id} value={s.id}>{name ? `${name} — ${displayId}` : displayId}</option>;
                         })}
                       </Select>
@@ -753,7 +753,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <Field label="Handled by">
                 <Select value={followUpForm.counselorId} onChange={(e) => setFollowUpForm({ ...followUpForm, counselorId: e.target.value })}>
                   <option value="">— unassigned —</option>
-                  {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeId}</option>)}
+                  {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeNo}</option>)}
                 </Select>
                 {followUpForm.counselorId && (
                   <span className="text-[11px] text-slate-500">

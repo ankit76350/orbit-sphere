@@ -27,9 +27,10 @@ public class StaffService {
             throw new ResourceNotFoundException("School not found with id: " + staff.getSchoolId());
         }
 
-        if (staff.getEmployeeId() != null && !staff.getEmployeeId().isEmpty()) {
-            if (staffRepository.findByEmployeeId(staff.getEmployeeId()).isPresent()) {
-                throw new IllegalArgumentException("Employee ID '" + staff.getEmployeeId() + "' is already taken.");
+        if (staff.getEmployeeNo() != null && !staff.getEmployeeNo().isEmpty()) {
+            if (staffRepository.findByEmployeeNo(staff.getEmployeeNo()).isPresent()) {
+                throw new IllegalArgumentException(
+                        "Employee number '" + staff.getEmployeeNo() + "' is already taken.");
             }
         }
 
@@ -47,9 +48,10 @@ public class StaffService {
                 .orElseThrow(() -> new ResourceNotFoundException("Staff not found with id: " + id));
     }
 
-    public Staff getStaffByEmployeeId(String employeeId) {
-        return staffRepository.findByEmployeeId(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff not found with employee ID: " + employeeId));
+    public Staff getStaffByEmployeeNo(String employeeNo) {
+        return staffRepository.findByEmployeeNo(employeeNo)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Staff not found with employee number: " + employeeNo));
     }
 
     public List<Staff> getStaffBySchool(String schoolId) {
@@ -66,11 +68,12 @@ public class StaffService {
             staff.setSchoolId(staffDetails.getSchoolId());
         }
 
-        if (staffDetails.getEmployeeId() != null && !staffDetails.getEmployeeId().equals(staff.getEmployeeId())) {
-            if (staffRepository.findByEmployeeId(staffDetails.getEmployeeId()).isPresent()) {
-                throw new IllegalArgumentException("Employee ID '" + staffDetails.getEmployeeId() + "' is already taken.");
+        if (staffDetails.getEmployeeNo() != null && !staffDetails.getEmployeeNo().equals(staff.getEmployeeNo())) {
+            if (staffRepository.findByEmployeeNo(staffDetails.getEmployeeNo()).isPresent()) {
+                throw new IllegalArgumentException(
+                        "Employee number '" + staffDetails.getEmployeeNo() + "' is already taken.");
             }
-            staff.setEmployeeId(staffDetails.getEmployeeId());
+            staff.setEmployeeNo(staffDetails.getEmployeeNo());
         }
 
         if (staffDetails.getName() != null) {

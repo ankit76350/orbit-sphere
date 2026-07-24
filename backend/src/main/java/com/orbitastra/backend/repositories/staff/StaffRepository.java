@@ -11,5 +11,5 @@ import com.orbitastra.backend.models.staff.Staff;
 @Repository
 public interface StaffRepository extends MongoRepository<Staff, String> {
     List<Staff> findBySchoolId(String schoolId);
-    Optional<Staff> findByEmployeeId(String employeeId);
+    Optional<Staff> findByEmployeeNo(String employeeNo);
 }

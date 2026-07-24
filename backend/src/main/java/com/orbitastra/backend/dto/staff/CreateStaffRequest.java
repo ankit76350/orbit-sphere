@@ -19,7 +19,7 @@ public class CreateStaffRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    private String employeeId;
+    private String employeeNo;
 
     @NotBlank(message = "name is required")
     private String name;

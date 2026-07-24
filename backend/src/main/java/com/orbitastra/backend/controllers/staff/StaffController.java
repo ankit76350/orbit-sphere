@@ -26,7 +26,7 @@ public class StaffController {
     public ResponseEntity<Staff> createStaff(@Valid @RequestBody CreateStaffRequest request) {
         Staff staff = Staff.builder()
                 .schoolId(request.getSchoolId())
-                .employeeId(request.getEmployeeId())
+                .employeeNo(request.getEmployeeNo())
                 .name(request.getName())
                 .department(request.getDepartment())
                 .designation(request.getDesignation())
@@ -51,9 +51,9 @@ public class StaffController {
         return ResponseEntity.ok(staff);
     }
 
-    @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<Staff> getStaffByEmployeeId(@PathVariable String employeeId) {
-        Staff staff = staffService.getStaffByEmployeeId(employeeId);
+    @GetMapping("/employee/{employeeNo}")
+    public ResponseEntity<Staff> getStaffByEmployeeNo(@PathVariable String employeeNo) {
+        Staff staff = staffService.getStaffByEmployeeNo(employeeNo);
         return ResponseEntity.ok(staff);
     }
 
@@ -66,7 +66,7 @@ public class StaffController {
     @PatchMapping("/{id}")
     public ResponseEntity<Staff> updateStaff(@PathVariable String id, @Valid @RequestBody UpdateStaffRequest request) {
         Staff staffDetails = Staff.builder()
-                .employeeId(request.getEmployeeId())
+                .employeeNo(request.getEmployeeNo())
                 .name(request.getName())
                 .department(request.getDepartment())
                 .designation(request.getDesignation())

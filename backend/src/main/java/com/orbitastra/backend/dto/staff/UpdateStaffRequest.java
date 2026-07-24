@@ -14,7 +14,7 @@ import lombok.Data;
 @Data
 public class UpdateStaffRequest {
 
-    private String employeeId;
+    private String employeeNo;
 
     private String name;
 

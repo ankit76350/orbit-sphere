@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Staff extends SchoolBase {
 
-    private String employeeId;
+    private String employeeNo;
 
     private String name;
 
