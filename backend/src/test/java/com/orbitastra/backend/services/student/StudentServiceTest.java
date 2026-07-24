@@ -587,15 +587,13 @@ public class StudentServiceTest {
         }
 
         @Test
-        void deleteStudent_Success() {
+        void deleteStudent_deletesOnlyStudentAndRetainsAcademicRecords() {
                 when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
-                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
-                                .thenReturn(new ArrayList<>());
 
                 studentService.deleteStudent("student-id-123");
 
                 verify(studentRepository, times(1)).delete(student);
-                verify(studentAcademicRecordRepository, times(1)).deleteAll(anyList());
+                verifyNoInteractions(studentAcademicRecordRepository);
         }
 
         @Test

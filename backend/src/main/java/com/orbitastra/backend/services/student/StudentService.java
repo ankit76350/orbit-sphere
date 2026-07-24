@@ -573,10 +573,10 @@ public class StudentService {
 
     public void deleteStudent(String id) {
         Student student = getStudentEntity(id);
-        // Delete the student's year records first, then the student.
-        studentAcademicRecordRepository.deleteAll(studentAcademicRecordRepository.findByStudentDocsId(id));
+        // Academic records are retained as historical/audit documents even
+        // after the student roster document is removed.
         studentRepository.delete(student);
-        log.info("[deleteStudent] Deleted student {} and all of their academic-year records", id);
+        log.info("[deleteStudent] Deleted student {}; academic-year records were retained", id);
     }
 
     // =======================================================================================
