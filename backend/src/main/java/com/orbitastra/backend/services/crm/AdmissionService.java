@@ -123,6 +123,7 @@ public class AdmissionService {
 
     public Admission updateAdmission(String id, Admission details) {
         Admission admission = getAdmissionById(id);
+        rejectMutationForEnrolledAdmission(admission);
 
         if (details.getAdmissionNo() != null) {
             String requestedAdmissionNo = AdmissionFactory.normalizeAdmissionNo(details.getAdmissionNo());
@@ -164,6 +165,7 @@ public class AdmissionService {
         }
 
         Admission admission = getAdmissionById(admissionDocsId);
+        rejectMutationForEnrolledAdmission(admission);
         List<InquiryGuardian> guardians = admission.getGuardians() == null
                 ? new ArrayList<>()
                 : new ArrayList<>(admission.getGuardians());
@@ -186,6 +188,7 @@ public class AdmissionService {
         }
 
         Admission admission = getAdmissionById(admissionDocsId);
+        rejectMutationForEnrolledAdmission(admission);
         String normalizedDocument = document.trim();
         List<String> documents = admission.getDocuments() == null
                 ? new ArrayList<>()
@@ -421,6 +424,17 @@ public class AdmissionService {
     private ConflictException duplicateAdmissionNoConflict(String admissionNo, Throwable cause) {
         String message = "An admission already exists with admissionNo: " + admissionNo;
         return cause == null ? new ConflictException(message) : new ConflictException(message, cause);
+    }
+
+    private void rejectMutationForEnrolledAdmission(Admission admission) {
+        if (admission.getStatus() == AdmissionStatus.CONFIRMED
+                && admission.getStudentDocsId() != null
+                && !admission.getStudentDocsId().isBlank()) {
+            throw new ConflictException(
+                    "Admission " + admission.getId()
+                            + " is already enrolled as student " + admission.getStudentDocsId()
+                            + " and cannot be changed.");
+        }
     }
 
     private ConflictException duplicateInquiryConflict(String inquiryDocsId, Throwable cause) {

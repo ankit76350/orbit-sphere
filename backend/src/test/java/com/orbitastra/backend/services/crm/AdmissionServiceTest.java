@@ -320,6 +320,29 @@ class AdmissionServiceTest {
     }
 
     @Test
+    void updateAdmission_confirmedAndLinkedStudent_returnsConflictWithoutSaving() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .status(AdmissionStatus.CONFIRMED)
+                .studentDocsId("student-123")
+                .studentName("Already Enrolled")
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.updateAdmission(
+                        "admission-789",
+                        Admission.builder().studentName("Changed Name").build()));
+
+        assertEquals(
+                "Admission admission-789 is already enrolled as student student-123 and cannot be changed.",
+                error.getMessage());
+        assertEquals("Already Enrolled", admission.getStudentName());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
     void addGuardian_initializesListAndSavesUpdatedAdmission() {
         Admission admission = Admission.builder()
                 .id("admission-789")
@@ -360,6 +383,29 @@ class AdmissionServiceTest {
         assertEquals(
                 "A guardian with the same name, phone, or email already exists on this admission.",
                 error.getMessage());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void addGuardian_confirmedAndLinkedStudent_returnsConflictWithoutSaving() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .status(AdmissionStatus.CONFIRMED)
+                .studentDocsId("student-123")
+                .guardians(List.of())
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.addGuardian(
+                        "admission-789",
+                        guardian("Parent One", GuardianRelation.FATHER, null, null, null)));
+
+        assertEquals(
+                "Admission admission-789 is already enrolled as student student-123 and cannot be changed.",
+                error.getMessage());
+        assertTrue(admission.getGuardians().isEmpty());
         verify(admissionRepository, never()).save(any());
     }
 
@@ -408,6 +454,27 @@ class AdmissionServiceTest {
         assertEquals(
                 "Document 'BIRTH-CERTIFICATE.PDF' already exists on this admission.",
                 error.getMessage());
+        verify(admissionRepository, never()).save(any());
+    }
+
+    @Test
+    void addDocument_confirmedAndLinkedStudent_returnsConflictWithoutSaving() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .status(AdmissionStatus.CONFIRMED)
+                .studentDocsId("student-123")
+                .documents(List.of("existing.pdf"))
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> admissionService.addDocument("admission-789", "new-document.pdf"));
+
+        assertEquals(
+                "Admission admission-789 is already enrolled as student student-123 and cannot be changed.",
+                error.getMessage());
+        assertEquals(List.of("existing.pdf"), admission.getDocuments());
         verify(admissionRepository, never()).save(any());
     }
 
