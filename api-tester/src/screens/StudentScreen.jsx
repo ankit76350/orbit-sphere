@@ -125,6 +125,18 @@ function StudentListEditor({
   );
 }
 
+function StudentDetailCard({ label, value, mono = false }) {
+  const displayValue = value === null || value === undefined || value === '' ? '—' : String(value);
+  return (
+    <div className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3 min-w-0">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className={`mt-1 text-xs text-slate-800 break-all ${mono ? 'font-mono select-all' : 'font-semibold'}`}>
+        {displayValue}
+      </div>
+    </div>
+  );
+}
+
 export default function StudentScreen({ schoolId, years, year, reload }) {
   const toast = useToast();
 
@@ -146,6 +158,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const [studentDocument, setStudentDocument] = useState('');
   const [showStudentMedicalRemarkForm, setShowStudentMedicalRemarkForm] = useState(false);
   const [studentMedicalRemark, setStudentMedicalRemark] = useState('');
+
+  // Complete student-details modal
+  const [studentDetails, setStudentDetails] = useState(null);
+  const [loadingStudentDetails, setLoadingStudentDetails] = useState(false);
 
   // Academic History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -330,6 +346,18 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   };
 
+  const openStudentDetails = async (student) => {
+    setStudentDetails(student);
+    setLoadingStudentDetails(true);
+    try {
+      setStudentDetails(await api.getStudent(student.id));
+    } catch (error) {
+      toast.error(error.message || 'Failed to load complete student details.');
+    } finally {
+      setLoadingStudentDetails(false);
+    }
+  };
+
   // --- ACADEMIC HISTORY ACTIONS ---
   const openAcademicHistory = async (s) => {
     setHistoryStudent(s);
@@ -466,7 +494,12 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {students.map((s) => {
                         return (
-                          <tr key={s.id} className="hover:bg-slate-50/50 transition">
+                          <tr
+                            key={s.id}
+                            onClick={() => openStudentDetails(s)}
+                            className="hover:bg-blue-50/40 transition cursor-pointer"
+                            title="Click to view complete student details"
+                          >
                             {/* photo & name */}
                             <td className="px-4 py-3 min-w-[200px]">
                               <div className="flex items-center gap-3">
@@ -507,21 +540,30 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button 
-                                  onClick={() => openAcademicHistory(s)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openAcademicHistory(s);
+                                  }}
                                   className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
                                   title="Academic Promotion History"
                                 >
                                   <History size={14} />
                                 </button>
                                 <button 
-                                  onClick={() => handleEditStudentClick(s)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleEditStudentClick(s);
+                                  }}
                                   className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
                                   title="Edit student profile"
                                 >
                                   <Edit2 size={13} />
                                 </button>
                                 <button 
-                                  onClick={() => deleteStudent(s)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    deleteStudent(s);
+                                  }}
                                   className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
                                   title="Delete student profile"
                                 >
@@ -824,6 +866,225 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
         )}
 
       </div>
+
+      {/* COMPLETE STUDENT DETAILS MODAL */}
+      {studentDetails && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setStudentDetails(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-details-title"
+            className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <img
+                  src={studentDetails.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'}
+                  alt=""
+                  className="w-11 h-11 rounded-full object-cover border border-slate-200 bg-white shrink-0"
+                  onError={(event) => {
+                    event.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80';
+                  }}
+                />
+                <div className="min-w-0">
+                  <h3 id="student-details-title" className="font-bold text-slate-900 text-sm truncate">
+                    {studentDetails.name || 'Student details'}
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Badge color={studentDetails.status === 'ACTIVE' ? 'green' : studentDetails.status === 'SUSPENDED' ? 'rose' : 'slate'}>
+                      {studentDetails.status || '—'}
+                    </Badge>
+                    <span className="text-[10px] font-mono text-slate-400 select-all">
+                      {studentDetails.id}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStudentDetails(null)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
+                title="Close student details"
+              >
+                <X size={17} />
+              </button>
+            </header>
+
+            <div className="p-5 overflow-y-auto space-y-5">
+              {loadingStudentDetails && (
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Loading the complete student document…
+                </div>
+              )}
+
+              <section>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Student profile</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <StudentDetailCard label="Full Name" value={studentDetails.name} />
+                  <StudentDetailCard label="MongoDB Object ID" value={studentDetails.id} mono />
+                  <StudentDetailCard label="School ID" value={studentDetails.schoolId} mono />
+                  <StudentDetailCard label="Admission No" value={studentDetails.admissionNo} mono />
+                  <StudentDetailCard label="Admission Docs ID" value={studentDetails.admissionDocsId} mono />
+                  <StudentDetailCard label="Current Academic Record Docs ID" value={studentDetails.currentAcademicRecordDocsId} mono />
+                  <StudentDetailCard label="Date of Birth" value={studentDetails.dob} />
+                  <StudentDetailCard label="Gender" value={studentDetails.gender} />
+                  <StudentDetailCard label="Blood Group" value={studentDetails.bloodGroup} />
+                  <StudentDetailCard label="Status" value={studentDetails.status} />
+                  <StudentDetailCard label="Admission Date" value={studentDetails.admissionDate} />
+                  <StudentDetailCard label="Wallet Docs ID" value={studentDetails.walletDocsId} mono />
+                  <StudentDetailCard label="Medical Record Docs ID" value={studentDetails.medicalRecordDocsId} mono />
+                  <StudentDetailCard label="Photo URL" value={studentDetails.photoUrl} mono />
+                  <StudentDetailCard
+                    label="Created At"
+                    value={studentDetails.createdAt ? new Date(studentDetails.createdAt).toLocaleString() : null}
+                  />
+                  <StudentDetailCard
+                    label="Updated At"
+                    value={studentDetails.updatedAt ? new Date(studentDetails.updatedAt).toLocaleString() : null}
+                  />
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Guardian links</h4>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(studentDetails.guardians || []).length} linked
+                  </span>
+                </div>
+                {(studentDetails.guardians || []).length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {studentDetails.guardians.map((guardian, index) => (
+                      <div key={`${guardian.guardianDocsId || 'guardian'}-${index}`} className="border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-slate-400">Guardian {index + 1}</div>
+                            <div className="text-xs font-mono font-semibold text-slate-800 break-all select-all mt-0.5">
+                              {guardian.guardianDocsId || '—'}
+                            </div>
+                          </div>
+                          <Badge color="blue">{guardian.relation ? guardian.relation.replaceAll('_', ' ') : '—'}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3 text-[10px]">
+                          {[
+                            ['Primary', guardian.primary],
+                            ['Emergency Contact', guardian.emergencyContact],
+                            ['Pickup Approved', guardian.pickupApproved],
+                            ['Portal Access', guardian.portalAccess],
+                          ].map(([label, enabled]) => (
+                            <div key={label} className={`rounded-lg px-2 py-1.5 font-semibold ${
+                              enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'
+                            }`}>
+                              {label}: {enabled ? 'YES' : 'NO'}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">
+                    No guardian links recorded.
+                  </div>
+                )}
+              </section>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <section>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Documents</h4>
+                    <span className="text-[10px] font-semibold text-slate-400">{(studentDetails.documents || []).length}</span>
+                  </div>
+                  {(studentDetails.documents || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {studentDetails.documents.map((document, index) => (
+                        <div key={`${document}-${index}`} className="flex items-start gap-2 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2">
+                          <FileText size={13} className="text-blue-500 mt-0.5 shrink-0" />
+                          <span className="text-xs text-slate-700 break-all select-all">{document}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No documents recorded.</div>
+                  )}
+                </section>
+
+                <section>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Medical remarks</h4>
+                    <span className="text-[10px] font-semibold text-slate-400">{(studentDetails.medicalRemark || []).length}</span>
+                  </div>
+                  {(studentDetails.medicalRemark || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {studentDetails.medicalRemark.map((remark, index) => (
+                        <div key={`${remark}-${index}`} className="flex items-start gap-2 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2">
+                          <Heart size={13} className="text-rose-500 mt-0.5 shrink-0" />
+                          <span className="text-xs text-slate-700 break-words select-all">{remark}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No medical remarks recorded.</div>
+                  )}
+                </section>
+              </div>
+
+              <section>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Current academic record</h4>
+                  {studentDetails.currentAcademicRecord?.status && (
+                    <Badge color={studentDetails.currentAcademicRecord.status === 'ACTIVE' ? 'green' : 'slate'}>
+                      {studentDetails.currentAcademicRecord.status}
+                    </Badge>
+                  )}
+                </div>
+                {studentDetails.currentAcademicRecord ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      ['MongoDB Object ID', studentDetails.currentAcademicRecord.id, true],
+                      ['School ID', studentDetails.currentAcademicRecord.schoolId, true],
+                      ['Student Docs ID', studentDetails.currentAcademicRecord.studentDocsId, true],
+                      ['Academic Year', studentDetails.currentAcademicRecord.academicYear],
+                      ['Student No', studentDetails.currentAcademicRecord.studentNo],
+                      ['Roll No', studentDetails.currentAcademicRecord.rollNo],
+                      ['Class Docs ID', studentDetails.currentAcademicRecord.classDocsId, true],
+                      ['Section No', studentDetails.currentAcademicRecord.sectionNo],
+                      ['Hostel Room No', studentDetails.currentAcademicRecord.hostelRoomNo],
+                      ['Status', studentDetails.currentAcademicRecord.status],
+                      ['Created At', studentDetails.currentAcademicRecord.createdAt ? new Date(studentDetails.currentAcademicRecord.createdAt).toLocaleString() : null],
+                      ['Updated At', studentDetails.currentAcademicRecord.updatedAt ? new Date(studentDetails.currentAcademicRecord.updatedAt).toLocaleString() : null],
+                    ].map(([label, value, mono]) => (
+                      <StudentDetailCard key={label} label={label} value={value} mono={mono} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">
+                    No current academic record assigned.
+                  </div>
+                )}
+              </section>
+
+              <details className="border border-slate-200 rounded-xl overflow-hidden">
+                <summary className="cursor-pointer px-4 py-3 bg-slate-50 text-xs font-semibold text-slate-600">
+                  Raw API document
+                </summary>
+                <pre className="p-4 bg-slate-950 text-slate-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap break-words select-all">
+                  {JSON.stringify(studentDetails, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+              <Button variant="default" onClick={() => setStudentDetails(null)}>Close</Button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {/* ACADEMIC HISTORY MODAL */}
       {showHistoryModal && historyStudent && (
