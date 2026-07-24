@@ -184,6 +184,7 @@ export default function StaffScreen({ schoolId, reload }) {
                     <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                       <th className="px-4 py-3">Staff details</th>
                       <th className="px-4 py-3">Employee No</th>
+                      <th className="px-4 py-3">MongoDB Object ID</th>
                       <th className="px-4 py-3">Dept & Designation</th>
                       <th className="px-4 py-3 text-right">Salary</th>
                       <th className="px-4 py-3 text-center">System Role</th>
@@ -202,6 +203,10 @@ export default function StaffScreen({ schoolId, reload }) {
                         </td>
                         {/* Employee No */}
                         <td className="px-4 py-3 font-mono font-bold text-slate-800 select-all">{s.employeeNo}</td>
+                        {/* MongoDB Object ID */}
+                        <td className="px-4 py-3 min-w-[210px] font-mono text-[10px] text-slate-500 select-all">
+                          {s.id || '—'}
+                        </td>
                         {/* Dept & Designation */}
                         <td className="px-4 py-3">
                           <div className="text-slate-800">{s.designation || 'Staff'}</div>
