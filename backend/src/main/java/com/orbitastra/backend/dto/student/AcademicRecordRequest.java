@@ -17,9 +17,8 @@ import lombok.Data;
 @Data
 public class AcademicRecordRequest {
 
-    // Optional only for nested student creation (the service can resolve it from
-    // the student's admission date); required by the academic-record and
-    // promote endpoints.
+    // The entire nested record is optional, but its academic year is required
+    // whenever any academic-record value is supplied.
     private String academicYear;
 
     private String identityNo;
@@ -49,6 +48,18 @@ public class AcademicRecordRequest {
     }
 
     public StudentAcademicRecord toModel() {
+        // Jackson creates this DTO even when the client sends
+        // "currentAcademicRecord": {}. Treat an empty (or blank-only) object as
+        // omitted so it cannot create an empty academic-record document or a
+        // currentAcademicRecordDocsId pointer on the student.
+        if (!hasAnyValue()) {
+            return null;
+        }
+        if (!hasText(academicYear)) {
+            throw new IllegalArgumentException(
+                    "currentAcademicRecord.academicYear is required when currentAcademicRecord contains academic details.");
+        }
+
         return StudentAcademicRecord.builder()
                 .academicYear(academicYear)
                 .identityNo(identityNo)
@@ -58,5 +69,19 @@ public class AcademicRecordRequest {
                 .hostelRoomNo(hostelRoomNo)
                 .status(status)
                 .build();
+    }
+
+    public boolean hasAnyValue() {
+        return hasText(academicYear)
+                || hasText(identityNo)
+                || hasText(rollNo)
+                || hasText(classDocsId)
+                || hasText(sectionNo)
+                || hasText(hostelRoomNo)
+                || status != null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

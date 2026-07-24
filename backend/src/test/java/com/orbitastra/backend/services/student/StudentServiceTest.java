@@ -97,7 +97,9 @@ public class StudentServiceTest {
                 when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-                Student created = studentService.persistStudent(student, StudentAcademicRecord.builder().build());
+                Student created = studentService.persistStudent(
+                                student,
+                                StudentAcademicRecord.builder().academicYear("2026-2027").build());
 
                 assertNotNull(created);
                 assertEquals("ADM-001", created.getAdmissionNo());
@@ -189,6 +191,84 @@ public class StudentServiceTest {
                 assertEquals("admissionNo cannot be null or blank.", error.getMessage());
                 verifyNoInteractions(guardianService);
                 verify(studentRepository, never()).save(any());
+        }
+
+        @Test
+        void createStudent_withEmptyAcademicRecord_doesNotCreateRecordOrPointer() {
+                CreateStudentRequest request = new CreateStudentRequest();
+                request.setSchoolId("school-id-123");
+                request.setAdmissionNo("ADM-EMPTY-ACADEMIC");
+                request.setName("Student Without Placement");
+                request.setCurrentAcademicRecord(new AcademicRecordRequest());
+
+                when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+                when(studentRepository.countBySchoolId("school-id-123")).thenReturn(0L);
+                when(studentRepository.findByAdmissionNo("ADM-EMPTY-ACADEMIC")).thenReturn(Optional.empty());
+                when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> {
+                        Student value = invocation.getArgument(0);
+                        value.setId("created-student");
+                        return value;
+                });
+
+                StudentResponse response = studentService.createStudent(request);
+
+                assertNull(response.getCurrentAcademicRecordDocsId());
+                assertNull(response.getCurrentAcademicRecord());
+                verify(studentAcademicRecordRepository, never()).save(any(StudentAcademicRecord.class));
+                verifyNoInteractions(academicYearResolver);
+                verify(studentRepository, times(1)).save(any(Student.class));
+        }
+
+        @Test
+        void academicRecordRequest_withOnlyBlankValues_isTreatedAsOmitted() {
+                AcademicRecordRequest request = new AcademicRecordRequest();
+                request.setAcademicYear(" ");
+                request.setIdentityNo("\t");
+                request.setRollNo("");
+                request.setClassDocsId("  ");
+                request.setSectionNo("\n");
+                request.setHostelRoomNo(" ");
+
+                assertFalse(request.hasAnyValue());
+                assertNull(request.toModel());
+        }
+
+        @Test
+        void createStudent_withAcademicDetailsButNoAcademicYear_isRejectedBeforeWrites() {
+                CreateStudentRequest request = new CreateStudentRequest();
+                request.setSchoolId("school-id-123");
+                request.setAdmissionNo("ADM-MISSING-YEAR");
+                request.setName("Student With Missing Academic Year");
+                AcademicRecordRequest academicRecord = new AcademicRecordRequest();
+                academicRecord.setIdentityNo("TC-STD-1784892426");
+                request.setCurrentAcademicRecord(academicRecord);
+
+                IllegalArgumentException error = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.createStudent(request));
+
+                assertEquals(
+                                "currentAcademicRecord.academicYear is required when currentAcademicRecord contains academic details.",
+                                error.getMessage());
+                verifyNoInteractions(guardianService, schoolRepository, studentRepository,
+                                studentAcademicRecordRepository, academicYearResolver);
+        }
+
+        @Test
+        void persistStudent_withAcademicDetailsButNoAcademicYear_isRejectedWithoutWrites() {
+                StudentAcademicRecord academicRecord = StudentAcademicRecord.builder()
+                                .identityNo("TC-STD-1784892426")
+                                .build();
+
+                IllegalArgumentException error = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.persistStudent(student, academicRecord));
+
+                assertEquals(
+                                "currentAcademicRecord.academicYear is required when currentAcademicRecord contains academic details.",
+                                error.getMessage());
+                verifyNoInteractions(schoolRepository, studentRepository,
+                                studentAcademicRecordRepository, academicYearResolver);
         }
 
         @Test

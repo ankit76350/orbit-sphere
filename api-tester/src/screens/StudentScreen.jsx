@@ -34,6 +34,9 @@ const emptyStudentForm = (schoolId = '') => ({
 
 const nullable = (value) => value === '' ? null : value;
 const commaSeparatedValues = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
+const hasAcademicRecordValue = (record = {}) => Object.values(record).some(
+  (value) => value != null && String(value).trim() !== ''
+);
 
 function StudentListEditor({
   label,
@@ -285,6 +288,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const submitStudent = async () => {
     if (!studentForm.name) {
       toast.error("Name is required.");
+      return;
+    }
+    if (hasAcademicRecordValue(studentForm.currentAcademicRecord)
+      && !studentForm.currentAcademicRecord.academicYear?.trim()) {
+      toast.error("Academic Year is required when current academic record details are provided.");
       return;
     }
     setBusyStudent(true);
@@ -731,7 +739,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   <div className="space-y-3 border-t border-slate-100 pt-3">
                     <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Academic Year" apiName="academicYear" required={false}><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
+                      <Field label="Academic Year" apiName="academicYear" required={hasAcademicRecordValue(studentForm.currentAcademicRecord)} hint="Required whenever any current academic record value is provided."><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
                       <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IDN/YYYY/MM/DDSS. You can replace it with any value before submitting."><Input value={studentForm.currentAcademicRecord.identityNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, identityNo: e.target.value } })} placeholder="IDN/2026/05/0611" className="font-mono" /></Field>
                       <Field label="Roll No" apiName="rollNo" required={false}><Input value={studentForm.currentAcademicRecord.rollNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, rollNo: e.target.value } })} /></Field>
                       <Field label="Class Document ID" apiName="classDocsId" required={false}><Input value={studentForm.currentAcademicRecord.classDocsId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocsId: e.target.value } })} /></Field>

@@ -88,13 +88,9 @@ public class StudentService {
         log.info("[createStudent] Request looks good — school={}, name='{}', admissionNo={}",
                 request.getSchoolId(), request.getName(), request.getAdmissionNo());
 
-        // Step 2 — turn the guardians in the request into links (and avoid duplicates).
-        log.info("[createStudent] Step 2: Preparing the student's guardians");
-        List<GuardianService.GuardianDraft> drafts = toGuardianDrafts(request.getGuardians());
-        List<GuardianLink> guardianLinks = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
-
-        // Step 3 — build the first-year record if the request included class/year details.
-        log.info("[createStudent] Step 3: Building the student's first academic-year record (if any was sent)");
+        // Step 2 — validate and build the first-year record before any related
+        // guardian records can be written.
+        log.info("[createStudent] Step 2: Building the student's first academic-year record (if any was sent)");
         StudentAcademicRecord initialRecord = assembleInitialRecord(request);
         if (initialRecord != null) {
             log.info("[createStudent] Academic record to create — year={}, class={}, section={}, roll={}",
@@ -103,6 +99,11 @@ public class StudentService {
         } else {
             log.info("[createStudent] No class/year details sent — the student will be created without a record for now");
         }
+
+        // Step 3 — turn the guardians in the request into links (and avoid duplicates).
+        log.info("[createStudent] Step 3: Preparing the student's guardians");
+        List<GuardianService.GuardianDraft> drafts = toGuardianDrafts(request.getGuardians());
+        List<GuardianLink> guardianLinks = guardianService.buildDedupedLinks(request.getSchoolId(), null, drafts);
 
         // Step 4 — put together the student object we are going to save.
         log.info("[createStudent] Step 4: Building the student object");
@@ -156,6 +157,14 @@ public class StudentService {
             String admissionDocsId = student.getAdmissionDocsId().trim();
             student.setAdmissionDocsId(admissionDocsId.isEmpty() ? null : admissionDocsId);
         }
+        String requestedInitialAcademicYear = null;
+        if (initialRecord != null) {
+            requestedInitialAcademicYear = normalizeOptional(initialRecord.getAcademicYear());
+            if (requestedInitialAcademicYear == null) {
+                throw new IllegalArgumentException(
+                        "currentAcademicRecord.academicYear is required when currentAcademicRecord contains academic details.");
+            }
+        }
 
         // 5a — the school must exist.
         log.info("[persistStudent] 5a: Looking up the school {}", schoolId);
@@ -191,7 +200,7 @@ public class StudentService {
         StudentAcademicRecord preparedInitialRecord = null;
         if (initialRecord != null) {
             String academicYear = academicYearResolver
-                    .resolve(student.getSchoolId(), initialRecord.getAcademicYear(), student.getAdmissionDate())
+                    .resolve(student.getSchoolId(), requestedInitialAcademicYear, student.getAdmissionDate())
                     .getName();
             preparedInitialRecord = StudentAcademicRecord.builder()
                     .schoolId(student.getSchoolId())

@@ -555,6 +555,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   };
 
   const submitConvert = async () => {
+    const hasAcademicRecordValue = Object.values(convertForm.currentAcademicRecord).some(
+      (value) => value != null && String(value).trim() !== ''
+    );
+    if (hasAcademicRecordValue && !convertForm.currentAcademicRecord.academicYear?.trim()) {
+      toast.error('Academic Year is required when current academic record details are provided.');
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -1863,7 +1870,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   {[
                     ['academicYear', 'Academic Year'], ['identityNo', 'Identity No'], ['rollNo', 'Roll No'],
                     ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
-                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false} hint={key === 'identityNo' ? 'Prefilled as IDN/YYYY/MM/DDSS and editable.' : undefined}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} placeholder={key === 'identityNo' ? 'IDN/2026/05/0611' : undefined} className={key === 'identityNo' ? 'font-mono' : undefined} /></Field>)}
+                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={key === 'academicYear' && Object.values(convertForm.currentAcademicRecord).some((value) => value != null && String(value).trim() !== '')} hint={key === 'identityNo' ? 'Prefilled as IDN/YYYY/MM/DDSS and editable.' : key === 'academicYear' ? 'Required whenever any current academic record value is provided.' : undefined}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} placeholder={key === 'identityNo' ? 'IDN/2026/05/0611' : undefined} className={key === 'identityNo' ? 'font-mono' : undefined} /></Field>)}
                   <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 </div>
               </div>
