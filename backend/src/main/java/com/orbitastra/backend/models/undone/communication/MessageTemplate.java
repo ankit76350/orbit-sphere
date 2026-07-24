@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 public class MessageTemplate extends SchoolBase {
 
     // DLT-registered template id.
-    private String dltId;
+    private String dltNo;
 
     private String name;
 

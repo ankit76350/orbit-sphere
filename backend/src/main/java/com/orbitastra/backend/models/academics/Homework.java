@@ -65,7 +65,7 @@ public class Homework extends SchoolBase {
     @AllArgsConstructor
     public static class StudentAssignment {
 
-        private String studentId;
+        private String studentDocsId;
 
         private String customInstructions;
 

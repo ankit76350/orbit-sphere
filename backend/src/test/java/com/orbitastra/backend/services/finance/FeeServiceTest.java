@@ -51,7 +51,7 @@ public class FeeServiceTest {
 
         fee = new FeeInvoice();
         fee.setId("fee-123");
-        fee.setStudentId("student-123");
+        fee.setStudentDocsId("student-123");
         fee.setSchoolId("school-123");
         fee.setType(FeeType.TUITION);
         fee.setAmount(new BigDecimal("500.00"));

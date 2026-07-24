@@ -89,12 +89,12 @@ export default function ModCelebrations({ user }) {
   const [newEventTarget, setNewEventTarget] = useState("All");
 
   // 2. Upload Celebration Photo
-  const [photoStudentId, setPhotoStudentId] = useState("");
+  const [photoStudentDocsId, setPhotoStudentDocsId] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoCaption, setPhotoCaption] = useState("");
 
   // 3. Warden Meal / Cake Request
-  const [mealStudentId, setMealStudentId] = useState("");
+  const [mealStudentDocsId, setMealStudentDocsId] = useState("");
   const [mealCakeFlavor, setMealCakeFlavor] = useState("Chocolate Fudge");
   const [mealSpecialDiet, setMealSpecialDiet] = useState("None");
   const [mealDate, setMealDate] = useState("");
@@ -177,7 +177,7 @@ export default function ModCelebrations({ user }) {
 
   const filteredRoster = combinedRoster.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.type === "Student" && p.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.type === "Student" && p.admissionNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.type === "Staff" && p.role.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesType = rosterType === "all" || p.type.toLowerCase() === rosterType;
     return matchesSearch && matchesType;
@@ -261,7 +261,7 @@ export default function ModCelebrations({ user }) {
         id: `card-${Date.now()}`,
         schoolId: "school-01",
         personType: selectedPerson.type.toLowerCase(),
-        personId: selectedPerson.id,
+        personDocsId: selectedPerson.id,
         personName: selectedPerson.name,
         cardUrl: cardTheme === "festive"
           ? "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=800"
@@ -358,7 +358,7 @@ export default function ModCelebrations({ user }) {
             id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             schoolId: "school-01",
             personType: person.type.toLowerCase(),
-            personId: person.id,
+            personDocsId: person.id,
             personName: person.name,
             notificationType: ch,
             recipient: rec,
@@ -399,12 +399,12 @@ export default function ModCelebrations({ user }) {
   // 5. Submit Special Meal Request (Warden)
   const handleAddMealRequest = (e) => {
     e.preventDefault();
-    if (!mealStudentId || !mealDate) {
+    if (!mealStudentDocsId || !mealDate) {
       addToast("Required Fields", "Please select a student and target celebration date.", "warning");
       return;
     }
 
-    const matchedStudent = students.find(s => s.id === mealStudentId);
+    const matchedStudent = students.find(s => s.id === mealStudentDocsId);
     if (!matchedStudent) return;
 
     const newRequest = {
@@ -440,12 +440,12 @@ export default function ModCelebrations({ user }) {
   // 7. Upload Birthday Celebration Photo
   const handleUploadBirthdayPhoto = (e) => {
     e.preventDefault();
-    if (!photoStudentId || !photoUrl) {
+    if (!photoStudentDocsId || !photoUrl) {
       addToast("Incomplete details", "Please select a student and input a media URL.", "error");
       return;
     }
 
-    const st = students.find(s => s.id === photoStudentId);
+    const st = students.find(s => s.id === photoStudentDocsId);
     if (!st) return;
 
     // Create record in birthday gallery
@@ -453,7 +453,7 @@ export default function ModCelebrations({ user }) {
       id: `bg-${Date.now()}`,
       schoolId: "school-01",
       personType: "student",
-      personId: st.id,
+      personDocsId: st.id,
       personName: st.name,
       mediaUrl: photoUrl.trim(),
       caption: photoCaption.trim() || `Birthday cake cutting photo of ${st.name}`,
@@ -468,7 +468,7 @@ export default function ModCelebrations({ user }) {
     const mainGalleryMedia = getGalleryMedia();
     const newMainMedia = {
       id: `med-birth-${Date.now()}`,
-      albumId: "alb-birthdays", // Seed album reference
+      albumDocsId: "alb-birthdays", // Seed album reference
       mediaType: "Photo",
       mediaUrl: photoUrl.trim()
     };
@@ -703,7 +703,7 @@ export default function ModCelebrations({ user }) {
                           </p>
                           <p className="text-[10px] text-slate-450 font-bold mt-1">
                             {person.type === "Student"
-                              ? `${person.grade} • Bed ${person.hostelRoomNumber || "Day Boarder"}`
+                              ? `${person.grade} • Bed ${person.hostelRoomNo || "Day Boarder"}`
                               : `${person.department} • ${person.role}`}
                           </p>
                         </div>
@@ -798,7 +798,7 @@ export default function ModCelebrations({ user }) {
                             <td className="p-3 font-mono text-slate-450">{person.dob}</td>
                             <td className="p-3 text-slate-500 font-bold">
                               {person.type === "Student"
-                                ? `${person.grade} (Bed ${person.hostelRoomNumber || "N/A"})`
+                                ? `${person.grade} (Bed ${person.hostelRoomNo || "N/A"})`
                                 : person.department}
                             </td>
                             <td className="p-3 font-extrabold text-slate-800">
@@ -1057,7 +1057,7 @@ export default function ModCelebrations({ user }) {
 
                       <button
                         onClick={() => {
-                          const w = combinedRoster.find(x => x.id === c.personId);
+                          const w = combinedRoster.find(x => x.id === c.personDocsId);
                           if (w) setSelectedPerson(w);
                           setCardTheme(c.theme);
                           setCardMessage(c.message);
@@ -1372,7 +1372,7 @@ export default function ModCelebrations({ user }) {
                     <Badge variant="success">Active Scholar</Badge>
                   </div>
                   <p className="text-xs text-indigo-300 mt-1.5 font-semibold">
-                    {myChild.grade} | Admission ID: <span className="text-white font-black">{myChild.admissionNumber}</span>
+                    {myChild.grade} | Admission ID: <span className="text-white font-black">{myChild.admissionNo}</span>
                   </p>
                 </div>
               </div>
@@ -1422,12 +1422,12 @@ export default function ModCelebrations({ user }) {
             <p className="text-xs text-slate-400 font-semibold leading-relaxed">Download and view cards generated by St. Jude dean cabinet for your child.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {birthdayCards.filter(c => c.personId === myChild.id).length === 0 ? (
+              {birthdayCards.filter(c => c.personDocsId === myChild.id).length === 0 ? (
                 <div className="col-span-2 text-center text-slate-400 py-12 italic text-xs border border-dashed rounded-2xl">
                   No greeting cards have been generated for your child yet.
                 </div>
               ) : (
-                birthdayCards.filter(c => c.personId === myChild.id).map(c => (
+                birthdayCards.filter(c => c.personDocsId === myChild.id).map(c => (
                   <div key={c.id} className="bg-slate-50 border border-slate-150 rounded-2xl overflow-hidden shadow-3xs flex flex-col justify-between">
                     <div className="h-32 bg-slate-200 relative">
                       <img src={c.cardUrl} alt="Greeting Card" className="h-full w-full object-cover" />
@@ -1737,8 +1737,8 @@ CREATE TABLE birthday_gallery (
               { label: "-- Select Celebrant Student --", value: "" },
               ...combinedRoster.filter(p => p.type === "Student").map(s => ({ label: `${s.name} (${s.grade})`, value: s.id }))
             ]}
-            value={photoStudentId}
-            onChange={(e) => setPhotoStudentId(e.target.value)}
+            value={photoStudentDocsId}
+            onChange={(e) => setPhotoStudentDocsId(e.target.value)}
             required
           />
 
@@ -1777,8 +1777,8 @@ CREATE TABLE birthday_gallery (
               { label: "-- Select Student --", value: "" },
               ...studentRoster.map(s => ({ label: `${s.name} (${s.grade})`, value: s.id }))
             ]}
-            value={mealStudentId}
-            onChange={(e) => setMealStudentId(e.target.value)}
+            value={mealStudentDocsId}
+            onChange={(e) => setMealStudentDocsId(e.target.value)}
             required
           />
 

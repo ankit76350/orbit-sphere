@@ -27,7 +27,7 @@ public class DisciplineLogController {
         DisciplineLog log = DisciplineLog.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .violation(request.getViolation())
                 .fineAmount(request.getFineAmount())
                 .actionTaken(request.getActionTaken())
@@ -62,9 +62,9 @@ public class DisciplineLogController {
         return ResponseEntity.ok(disciplineLogService.getDisciplineLogsBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<DisciplineLog>> getDisciplineLogsByStudent(@PathVariable String studentId) {
-        List<DisciplineLog> logs = disciplineLogService.getDisciplineLogsByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<DisciplineLog>> getDisciplineLogsByStudent(@PathVariable String studentDocsId) {
+        List<DisciplineLog> logs = disciplineLogService.getDisciplineLogsByStudent(studentDocsId);
         return ResponseEntity.ok(logs);
     }
 
@@ -75,7 +75,7 @@ public class DisciplineLogController {
         DisciplineLog logDetails = DisciplineLog.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .violation(request.getViolation())
                 .fineAmount(request.getFineAmount())
                 .actionTaken(request.getActionTaken())

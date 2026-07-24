@@ -38,7 +38,7 @@ export default function ModGallery({ user }) {
   const [activeTab, setActiveTab] = useState("showcase");
 
   // Selected Album for detail view (null means grid of albums)
-  const [selectedAlbumId, setSelectedAlbumId] = useState(null);
+  const [selectedAlbumDocsId, setSelectedAlbumDocsId] = useState(null);
 
   // Dialog toggles
   const [isUploadMediaOpen, setIsUploadMediaOpen] = useState(false);
@@ -51,7 +51,7 @@ export default function ModGallery({ user }) {
   const [albumCover, setAlbumCover] = useState("");
 
   // 2. Upload Media
-  const [uploadTargetAlbumId, setUploadTargetAlbumId] = useState("");
+  const [uploadTargetAlbumDocsId, setUploadTargetAlbumDocsId] = useState("");
   const [uploadedUrl, setUploadedUrl] = useState("");
   const [mediaType, setMediaType] = useState("Photo");
 
@@ -70,8 +70,8 @@ export default function ModGallery({ user }) {
   const isStudent = user?.role === "Student" || user?.role === "Parent";
 
   useEffect(() => {
-    if (albums.length > 0 && !uploadTargetAlbumId) {
-      setUploadTargetAlbumId(albums[0].id);
+    if (albums.length > 0 && !uploadTargetAlbumDocsId) {
+      setUploadTargetAlbumDocsId(albums[0].id);
     }
   }, [albums]);
 
@@ -119,7 +119,7 @@ export default function ModGallery({ user }) {
   // 2. Upload Media file
   const handleUploadMedia = (e) => {
     e.preventDefault();
-    const targetId = uploadTargetAlbumId || (albums.length > 0 ? albums[0].id : "");
+    const targetId = uploadTargetAlbumDocsId || (albums.length > 0 ? albums[0].id : "");
     if (!uploadedUrl.trim() || !targetId) {
       addToast("Form Incomplete", "Please specify photo/video source URL and target album.", "error");
       return;
@@ -127,7 +127,7 @@ export default function ModGallery({ user }) {
 
     const newMedia = {
       id: `med-${Date.now()}`,
-      albumId: targetId,
+      albumDocsId: targetId,
       mediaType: mediaType,
       mediaUrl: uploadedUrl.trim()
     };
@@ -150,9 +150,9 @@ export default function ModGallery({ user }) {
   };
 
   // 3. Media Review Approval (Super Admin)
-  const handleApproveAlbum = (albumId) => {
+  const handleApproveAlbum = (albumDocsId) => {
     const updated = albums.map((alb) => {
-      if (alb.id === albumId) {
+      if (alb.id === albumDocsId) {
         logAction(
           user?.id || "sandbox",
           user?.name || "User",
@@ -170,11 +170,11 @@ export default function ModGallery({ user }) {
   };
 
   // 4. Reject / Delete Album
-  const handleDeleteAlbum = (albumId) => {
-    const albName = albums.find(a => a.id === albumId)?.title || "Album";
-    const filteredAlbums = albums.filter((alb) => alb.id !== albumId);
+  const handleDeleteAlbum = (albumDocsId) => {
+    const albName = albums.find(a => a.id === albumDocsId)?.title || "Album";
+    const filteredAlbums = albums.filter((alb) => alb.id !== albumDocsId);
     // Also remove associated media files
-    const filteredMedia = mediaList.filter((med) => med.albumId !== albumId);
+    const filteredMedia = mediaList.filter((med) => med.albumDocsId !== albumDocsId);
 
     setAlbums(filteredAlbums);
     setMediaList(filteredMedia);
@@ -191,8 +191,8 @@ export default function ModGallery({ user }) {
     );
 
     addToast("Album Removed", `"${albName}" has been deleted successfully.`);
-    if (selectedAlbumId === albumId) {
-      setSelectedAlbumId(null);
+    if (selectedAlbumDocsId === albumDocsId) {
+      setSelectedAlbumDocsId(null);
     }
   };
 
@@ -221,9 +221,9 @@ export default function ModGallery({ user }) {
     return matchesSearch && isApproved;
   });
 
-  const activeAlbum = albums.find((alb) => alb.id === selectedAlbumId);
+  const activeAlbum = albums.find((alb) => alb.id === selectedAlbumDocsId);
   const activeAlbumMedia = mediaList.filter((med) => {
-    const matchesAlbum = med.albumId === selectedAlbumId;
+    const matchesAlbum = med.albumDocsId === selectedAlbumDocsId;
     const matchesFormat = galleryFilter === "All" || med.mediaType === galleryFilter;
     return matchesAlbum && matchesFormat;
   });
@@ -255,7 +255,7 @@ export default function ModGallery({ user }) {
         <button
           onClick={() => {
             setActiveTab("showcase");
-            setSelectedAlbumId(null);
+            setSelectedAlbumDocsId(null);
           }}
           className={`px-4 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap ${
             activeTab === "showcase" ? "bg-white text-blue-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
@@ -296,9 +296,9 @@ export default function ModGallery({ user }) {
           {/* Controls Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2 w-full md:w-auto">
-              {selectedAlbumId && (
+              {selectedAlbumDocsId && (
                 <button
-                  onClick={() => setSelectedAlbumId(null)}
+                  onClick={() => setSelectedAlbumDocsId(null)}
                   className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl transition flex items-center justify-center cursor-pointer shrink-0"
                   title="Back to Albums"
                 >
@@ -307,10 +307,10 @@ export default function ModGallery({ user }) {
               )}
               <div>
                 <h3 className="text-xs font-black text-slate-805 uppercase tracking-widest">
-                  {selectedAlbumId ? `Album: ${activeAlbum?.title}` : "Showcase Albums"}
+                  {selectedAlbumDocsId ? `Album: ${activeAlbum?.title}` : "Showcase Albums"}
                 </h3>
                 <p className="text-[11px] text-slate-400 font-semibold mt-1">
-                  {selectedAlbumId
+                  {selectedAlbumDocsId
                     ? `${activeAlbum?.eventType} • Showing ${activeAlbumMedia.length} media files`
                     : "Discover, browse, and curate academic event archives."}
                 </p>
@@ -319,7 +319,7 @@ export default function ModGallery({ user }) {
 
             <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
               {/* Formatter Filter (Only visible when viewing an album) */}
-              {selectedAlbumId && (
+              {selectedAlbumDocsId && (
                 <div className="w-36">
                   <Select
                     options={[
@@ -335,7 +335,7 @@ export default function ModGallery({ user }) {
               )}
 
               {/* Search Field (Only visible on album grid) */}
-              {!selectedAlbumId && (
+              {!selectedAlbumDocsId && (
                 <div className="relative w-48">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input
@@ -358,8 +358,8 @@ export default function ModGallery({ user }) {
                   </Button>
                   <Button
                     onClick={() => {
-                      if (selectedAlbumId) {
-                        setUploadTargetAlbumId(selectedAlbumId);
+                      if (selectedAlbumDocsId) {
+                        setUploadTargetAlbumDocsId(selectedAlbumDocsId);
                       }
                       setIsUploadMediaOpen(true);
                     }}
@@ -372,8 +372,8 @@ export default function ModGallery({ user }) {
             </div>
           </div>
 
-          {/* Album Directory (SelectedAlbumId === null) */}
-          {!selectedAlbumId ? (
+          {/* Album Directory (SelectedAlbumDocsId === null) */}
+          {!selectedAlbumDocsId ? (
             filteredAlbums.length === 0 ? (
               <div className="bg-white border border-slate-100 rounded-3xl p-12 text-center text-slate-400 italic">
                 No showcase albums found matching criteria.
@@ -381,11 +381,11 @@ export default function ModGallery({ user }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredAlbums.map((alb) => {
-                  const mediaCount = mediaList.filter((m) => m.albumId === alb.id).length;
+                  const mediaCount = mediaList.filter((m) => m.albumDocsId === alb.id).length;
                   return (
                     <div
                       key={alb.id}
-                      onClick={() => setSelectedAlbumId(alb.id)}
+                      onClick={() => setSelectedAlbumDocsId(alb.id)}
                       className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-2xs hover:shadow-md transition duration-200 flex flex-col group cursor-pointer"
                     >
                       {/* Album Cover Photo */}
@@ -430,7 +430,7 @@ export default function ModGallery({ user }) {
                               </button>
                             )}
                             <button
-                              onClick={() => setSelectedAlbumId(alb.id)}
+                              onClick={() => setSelectedAlbumDocsId(alb.id)}
                               className="text-xs text-blue-650 font-bold hover:underline flex items-center gap-1"
                             >
                               Explore <Eye className="h-3.5 w-3.5" />
@@ -444,7 +444,7 @@ export default function ModGallery({ user }) {
               </div>
             )
           ) : (
-            /* Album Detail View (SelectedAlbumId !== null) */
+            /* Album Detail View (SelectedAlbumDocsId !== null) */
             <div className="space-y-6">
               {activeAlbumMedia.length === 0 ? (
                 <div className="bg-white border border-slate-100 rounded-3xl p-12 text-center text-slate-400 italic">
@@ -809,8 +809,8 @@ export default function ModGallery({ user }) {
               label: alb.title,
               value: alb.id
             }))}
-            value={uploadTargetAlbumId}
-            onChange={(e) => setUploadTargetAlbumId(e.target.value)}
+            value={uploadTargetAlbumDocsId}
+            onChange={(e) => setUploadTargetAlbumDocsId(e.target.value)}
             required
           />
 

@@ -102,11 +102,145 @@ const KEYS = {
   ACTIONS_LOG: "erp_audit_logs",
   AUTH_USER: "erp_auth_user"
 };
-export function logAction(userId, userName, role, action, details) {
+
+const LEGACY_IDENTIFIER_FIELDS = {
+  employeeId: "employeeNo",
+  admissionId: "admissionDocsId",
+  walletId: "walletDocsId",
+  medicalRecordId: "medicalRecordDocsId",
+  currentAcademicRecordId: "currentAcademicRecordDocsId",
+  guardianId: "guardianDocsId",
+  inquiryId: "inquiryDocsId",
+  classTeacherId: "classTeacherDocsId",
+  studentDocId: "studentDocsId",
+  classDocId: "classDocsId",
+  studentId: "studentDocsId",
+  teacherId: "teacherDocsId",
+  feeId: "feeDocsId",
+  counselorId: "counselorDocsId",
+  recipientId: "recipientDocsId",
+  presentBy: "presentByDocsId",
+  collectedBy: "collectedByDocsId",
+  parentId: "parentDocsId",
+  staffId: "staffDocsId",
+  reviewerId: "reviewerDocsId",
+  reviewCycleId: "reviewCycleDocsId",
+  alumniId: "alumniDocsId",
+  campaignId: "campaignDocsId",
+  mentorAlumniId: "mentorAlumniDocsId",
+  userId: "userDocsId",
+  personId: "personDocsId",
+  templateId: "templateDocsId",
+  documentId: "documentDocsId",
+  requestorId: "requestorDocsId",
+  approverId: "approverDocsId",
+  signerId: "signerDocsId",
+  entityId: "entityDocsId",
+  holderId: "holderDocsId",
+  examId: "examDocsId",
+  policyId: "policyDocsId",
+  albumId: "albumDocsId",
+  buildingId: "buildingDocsId",
+  cameraId: "cameraDocsId",
+  vehicleId: "vehicleDocsId",
+  routeId: "routeDocsId",
+  referenceId: "referenceDocsId",
+  feeHeadIds: "feeHeadDocsIds",
+  dltId: "dltNo",
+  apaarId: "apaarNo",
+  gradeId: "gradeNo",
+  sectionId: "sectionNo",
+  subjectId: "subjectNo",
+  documentNumber: "documentNo",
+  vehicleNumber: "vehicleNo",
+  admissionNumber: "admissionNo",
+  hostelRoomId: "hostelRoomNo",
+  hostelRoomNumber: "hostelRoomNo",
+  hostelBedNumber: "hostelBedNo",
+  transportVehicleNumber: "transportVehicleNo",
+  bedNumber: "bedNo",
+  roomNumber: "roomNo",
+  receiptNumber: "receiptNo",
+  routeCode: "routeNo",
+  createdBy: "createdByName",
+  appliedBy: "appliedByName",
+  filedBy: "filedByName",
+  teacher: "teacherName",
+  actor: "actorName",
+  approvedBy: "approvedByName",
+  sentBy: "sentByName",
+  requestedBy: "requestedByName",
+  reviewedBy: "reviewedByName",
+  handler: "handlerName",
+  executedBy: "executedByName",
+  assignedTo: "assignedToName",
+  invigilator: "invigilatorName"
+};
+
+const CLASS_IDENTIFIER_TARGETS = {
+  erp_homework: "classDocsId",
+  [KEYS.CAMERA_ASSIGNMENTS]: "classNo",
+  [KEYS.ONLINE_CLASSES]: "classNo",
+  [KEYS.CLASS_RECORDINGS]: "classDocsId",
+  [KEYS.AI_NOTES]: "classDocsId"
+};
+
+function renameStoredFields(value, fieldNames) {
+  if (Array.isArray(value)) {
+    return value.reduce(
+      (changed, item) => renameStoredFields(item, fieldNames) || changed,
+      false
+    );
+  }
+  if (!value || typeof value !== "object") return false;
+
+  let changed = false;
+  for (const nestedValue of Object.values(value)) {
+    changed = renameStoredFields(nestedValue, fieldNames) || changed;
+  }
+  for (const [legacyName, currentName] of Object.entries(fieldNames)) {
+    if (!(legacyName in value)) continue;
+    if (!(currentName in value)) {
+      value[currentName] = value[legacyName];
+    }
+    delete value[legacyName];
+    changed = true;
+  }
+  return changed;
+}
+
+function migrateStoredIdentifierNames() {
+  const storageKeys = new Set([
+    ...Object.values(KEYS),
+    "erp_homework",
+    "erp_results",
+    "erp_infirmary",
+    "erp_vehicles"
+  ]);
+
+  for (const key of storageKeys) {
+    const rawValue = localStorage.getItem(key);
+    if (!rawValue) continue;
+    try {
+      const value = JSON.parse(rawValue);
+      const classTarget = CLASS_IDENTIFIER_TARGETS[key];
+      const fieldNames = classTarget
+        ? { ...LEGACY_IDENTIFIER_FIELDS, classId: classTarget }
+        : LEGACY_IDENTIFIER_FIELDS;
+      if (renameStoredFields(value, fieldNames)) {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch {
+      // Ignore unrelated/non-JSON localStorage values.
+    }
+  }
+}
+
+export function logAction(userDocsId, userName, role, action, details) {
   const logs = getLogs();
   const newLog = {
     id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    userId,
+    userDocsId,
     userName,
     userRole: role,
     action,
@@ -117,6 +251,8 @@ export function logAction(userId, userName, role, action, details) {
   localStorage.setItem(KEYS.ACTIONS_LOG, JSON.stringify(logs.slice(0, 100)));
 }
 export function initializeStorage() {
+  migrateStoredIdentifierNames();
+
   if (!localStorage.getItem(KEYS.SCHOOLS)) {
     localStorage.setItem(KEYS.SCHOOLS, JSON.stringify(mockSchools));
   }
@@ -295,7 +431,7 @@ export function initializeStorage() {
         id: "notif-seed-1",
         schoolId: "school-01",
         personType: "student",
-        personId: "student-7",
+        personDocsId: "student-7",
         personName: "Henry Miller",
         notificationType: "Email",
         recipient: "henry.miller.parent@gmail.com",
@@ -306,7 +442,7 @@ export function initializeStorage() {
         id: "notif-seed-2",
         schoolId: "school-01",
         personType: "student",
-        personId: "student-7",
+        personDocsId: "student-7",
         personName: "Henry Miller",
         notificationType: "WhatsApp",
         recipient: "+1 (555) 601-2942",
@@ -317,7 +453,7 @@ export function initializeStorage() {
         id: "notif-seed-3",
         schoolId: "school-01",
         personType: "staff",
-        personId: "staff-hrmanager",
+        personDocsId: "staff-hrmanager",
         personName: "Eleanor Vance",
         notificationType: "Push",
         recipient: "eleanor.vance@stjude.edu",
@@ -334,7 +470,7 @@ export function initializeStorage() {
         id: "card-seed-1",
         schoolId: "school-01",
         personType: "student",
-        personId: "student-7",
+        personDocsId: "student-7",
         personName: "Henry Miller",
         cardUrl: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800",
         message: "May your year be filled with learning, laughter, and high scores on and off the field!",
@@ -351,7 +487,7 @@ export function initializeStorage() {
         id: "bg-seed-1",
         schoolId: "school-01",
         personType: "student",
-        personId: "student-7",
+        personDocsId: "student-7",
         personName: "Henry Miller",
         mediaUrl: "https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600",
         caption: "Henry cutting cake in the Vanguard Hall dining room with friends.",
@@ -365,7 +501,7 @@ export function initializeStorage() {
     const defaultLogs = [
       {
         id: "log-seed-1",
-        userId: "admin-seed",
+        userDocsId: "admin-seed",
         userName: "System Architect",
         userRole: "Super Admin",
         action: "System Booted",
@@ -398,12 +534,11 @@ export async function syncStorageWithBackend() {
     if (Array.isArray(students) && students.length) {
       const normalizedStudents = students.map((s) => ({
         ...s,
-        admissionNumber: s.admissionNo || s.admissionNumber || `ADM-${s.id}`,
-        admissionNo: s.admissionNo || s.admissionNumber,
+        admissionNo: s.admissionNo || `ADM-${s.id}`,
         parentName: s.parentName || (s.guardians && s.guardians[0] ? s.guardians[0].name : "Parent"),
         parentEmail: s.parentEmail || (s.guardians && s.guardians[0] ? s.guardians[0].email : ""),
         parentPhone: s.parentPhone || (s.guardians && s.guardians[0] ? s.guardians[0].phone : ""),
-        grade: s.grade || (s.currentAcademicRecord ? s.currentAcademicRecord.classDocId : "Grade 7"),
+        grade: s.grade || (s.currentAcademicRecord ? s.currentAcademicRecord.classDocsId : "Grade 7"),
         gradeIndex: s.gradeIndex || 7,
         walletBalance: s.walletBalance !== undefined ? s.walletBalance : 100,
         status: s.status || "ACTIVE"
@@ -564,9 +699,9 @@ export function setAuthUser(user) {
     localStorage.removeItem(KEYS.AUTH_USER);
   }
 }
-export function deductWallet(studentId, amount, category, remarks, operName, operRole) {
+export function deductWallet(studentDocsId, amount, category, remarks, operName, operRole) {
   const students = getStudents();
-  const index = students.findIndex((st) => st.id === studentId);
+  const index = students.findIndex((st) => st.id === studentDocsId);
   if (index === -1) return false;
   if (students[index].walletBalance < amount && category !== "Fine Deduction") {
     return false;
@@ -576,7 +711,7 @@ export function deductWallet(studentId, amount, category, remarks, operName, ope
   const txs = getTransactions();
   const tx = {
     id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    studentId,
+    studentDocsId,
     studentName: students[index].name,
     type: "Debit",
     category,
@@ -589,16 +724,16 @@ export function deductWallet(studentId, amount, category, remarks, operName, ope
   logAction(operName, operName, operRole, "Wallet Debit Triggered", `Deducted $${amount} from student ${students[index].name} (${category}). Remarks: ${remarks}`);
   return true;
 }
-export function creditWallet(studentId, amount, remarks, operName, operRole) {
+export function creditWallet(studentDocsId, amount, remarks, operName, operRole) {
   const students = getStudents();
-  const index = students.findIndex((st) => st.id === studentId);
+  const index = students.findIndex((st) => st.id === studentDocsId);
   if (index === -1) return false;
   students[index].walletBalance += amount;
   saveStudents(students);
   const txs = getTransactions();
   const tx = {
     id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    studentId,
+    studentDocsId,
     studentName: students[index].name,
     type: "Credit",
     category: "Parent Topup",
@@ -630,7 +765,7 @@ export function payInvoice(invoiceId, paymentAmount, method, operName, operRole)
     date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
     amount: pay,
     method,
-    receiptNumber: `REC-${Math.floor(1e5 + Math.random() * 9e5)}`
+    receiptNo: `REC-${Math.floor(1e5 + Math.random() * 9e5)}`
   });
   invoices[idx] = invoice;
   saveFees(invoices);
@@ -686,36 +821,8 @@ export function saveReviewCycles(cycles) {
   localStorage.setItem(KEYS.REVIEW_CYCLES, JSON.stringify(cycles));
 }
 
-function getMigratedReviews(key, renamedFields) {
-  const reviews = JSON.parse(localStorage.getItem(key) || "[]");
-  let changed = false;
-  const migrated = reviews.map((review) => {
-    const next = { ...review };
-    for (const [legacyName, currentName] of Object.entries(renamedFields)) {
-      if (!(currentName in next) && legacyName in next) {
-        next[currentName] = next[legacyName];
-        changed = true;
-      }
-      if (legacyName in next) {
-        delete next[legacyName];
-        changed = true;
-      }
-    }
-    return next;
-  });
-  if (changed) {
-    localStorage.setItem(key, JSON.stringify(migrated));
-  }
-  return migrated;
-}
-
 export function getTeacherReviews() {
-  return getMigratedReviews(KEYS.TEACHER_REVIEWS, {
-    teacherId: "teacherDocsId",
-    studentId: "studentDocsId",
-    parentId: "parentDocsId",
-    reviewCycleId: "reviewCycleDocsId",
-  });
+  return JSON.parse(localStorage.getItem(KEYS.TEACHER_REVIEWS) || "[]");
 }
 
 export function saveTeacherReviews(reviews) {
@@ -723,11 +830,7 @@ export function saveTeacherReviews(reviews) {
 }
 
 export function getStudentReviews() {
-  return getMigratedReviews(KEYS.STUDENT_REVIEWS, {
-    studentId: "studentDocsId",
-    teacherId: "teacherDocsId",
-    reviewCycleId: "reviewCycleDocsId",
-  });
+  return JSON.parse(localStorage.getItem(KEYS.STUDENT_REVIEWS) || "[]");
 }
 
 export function saveStudentReviews(reviews) {
@@ -735,11 +838,7 @@ export function saveStudentReviews(reviews) {
 }
 
 export function getTeacherPerformanceReviews() {
-  return getMigratedReviews(KEYS.TEACHER_PERFORMANCE_REVIEWS, {
-    teacherId: "teacherDocsId",
-    reviewerId: "reviewerDocsId",
-    reviewCycleId: "reviewCycleDocsId",
-  });
+  return JSON.parse(localStorage.getItem(KEYS.TEACHER_PERFORMANCE_REVIEWS) || "[]");
 }
 
 export function saveTeacherPerformanceReviews(reviews) {
@@ -937,5 +1036,3 @@ export function getBirthdayGallery() {
 export function saveBirthdayGallery(gallery) {
   localStorage.setItem(KEYS.BIRTHDAY_GALLERY, JSON.stringify(gallery));
 }
-
-

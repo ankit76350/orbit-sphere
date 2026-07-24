@@ -21,13 +21,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class TransportRoute extends SchoolBase {
 
-    private String routeCode;
+    private String routeNo;
 
     private String routeName;
 
     private List<String> stops;
 
-    private String vehicleNumber;
+    private String vehicleNo;
 
     private String driverName;
 

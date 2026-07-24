@@ -125,7 +125,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setBusy(true);
     try {
       // Seed the follow-up timeline with the first entry.
-      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorId: inquiryForm.counselorDocsId || null }];
+      const followUps = [{ status: inquiryForm.status || null, note: inquiryForm.note || null, nextFollowUp: inquiryForm.nextFollowUp || null, counselorDocsId: inquiryForm.counselorDocsId || null }];
       await api.createInquiry({
         schoolId: inquiryForm.schoolId,
         status: inquiryForm.status || null,
@@ -145,7 +145,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const openFollowUp = (inq) => {
     setFollowUpModal(inq);
-    setFollowUpForm({ status: inq.status || 'INQUIRY', note: '', nextFollowUp: '', counselorId: inq.counselorDocsId || '' });
+    setFollowUpForm({ status: inq.status || 'INQUIRY', note: '', nextFollowUp: '', counselorDocsId: inq.counselorDocsId || '' });
   };
 
   const submitFollowUp = async () => {
@@ -155,7 +155,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         status: followUpForm.status,
         note: followUpForm.note || null,
         nextFollowUp: followUpForm.nextFollowUp || null,
-        counselorId: followUpForm.counselorId || null,
+        counselorDocsId: followUpForm.counselorDocsId || null,
       });
       toast.success(`Logged → ${followUpForm.status}`);
       setFollowUpModal(null);
@@ -236,10 +236,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       photoUrl: '', walletDocsId: '', medicalRecordDocsId: '',
       documents: (adm.documents || []).join(', '), medicalRemark: '',
       status: 'ACTIVE', admissionDate: adm.admissionDate || '',
-      admissionId: adm.id, schoolId,
+      admissionDocsId: adm.id, schoolId,
       guardians: [],
       currentAcademicRecord: {
-        academicYear: '', studentNo: '', rollNo: '', classDocId: '', sectionNo: '', hostelRoomNo: '', status: '',
+        academicYear: '', studentNo: '', rollNo: '', classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
       },
     });
   };
@@ -248,7 +248,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     setBusy(true);
     try {
       const payload = {
-        admissionId: convertForm.admissionId || null,
+        admissionDocsId: convertForm.admissionDocsId || null,
         schoolId: convertForm.schoolId || null,
         admissionNo: convertForm.admissionNo || null,
         name: convertForm.name || null,
@@ -626,7 +626,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             </header>
             <div className="p-5 space-y-3 overflow-y-auto">
               <div className="grid grid-cols-3 gap-3">
-                <Field label="Admission ID" apiName="admissionId" required={false} hint="Accepted for payload parity; path id remains authoritative."><Input value={convertForm.admissionId} onChange={(e) => setConvertForm({ ...convertForm, admissionId: e.target.value })} /></Field>
+                <Field label="Admission ID" apiName="admissionDocsId" required={false} hint="Accepted for payload parity; path id remains authoritative."><Input value={convertForm.admissionDocsId} onChange={(e) => setConvertForm({ ...convertForm, admissionDocsId: e.target.value })} /></Field>
                 <Field label="School ID" apiName="schoolId" required={false} hint="Accepted but ignored."><Input value={convertForm.schoolId} onChange={(e) => setConvertForm({ ...convertForm, schoolId: e.target.value })} /></Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -669,7 +669,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     ['academicYear', 'Academic Year'], ['studentNo', 'Student No'], ['rollNo', 'Roll No'],
-                    ['classDocId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
+                    ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
                   ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} /></Field>)}
                   <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 </div>
@@ -730,7 +730,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                       {f.note && <div className="text-xs text-slate-700 mt-1">{f.note}</div>}
                       <div className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-x-3">
                         {f.nextFollowUp && <span className="flex items-center gap-0.5"><Clock size={9} /> next {new Date(f.nextFollowUp).toLocaleDateString()}</span>}
-                        {f.counselorId && <span className="flex items-center gap-0.5"><User size={9} /> {staffName(f.counselorId)}</span>}
+                        {f.counselorDocsId && <span className="flex items-center gap-0.5"><User size={9} /> {staffName(f.counselorDocsId)}</span>}
                       </div>
                     </li>
                   ))}
@@ -751,13 +751,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 </Field>
               </div>
               <Field label="Handled by">
-                <Select value={followUpForm.counselorId} onChange={(e) => setFollowUpForm({ ...followUpForm, counselorId: e.target.value })}>
+                <Select value={followUpForm.counselorDocsId} onChange={(e) => setFollowUpForm({ ...followUpForm, counselorDocsId: e.target.value })}>
                   <option value="">— unassigned —</option>
                   {staff.map((s) => <option key={s.id} value={s.id}>{`${s.firstName || ''} ${s.lastName || ''}`.trim() || s.employeeNo}</option>)}
                 </Select>
-                {followUpForm.counselorId && (
+                {followUpForm.counselorDocsId && (
                   <span className="text-[11px] text-slate-500">
-                    Staff MongoDB ID: <code className="font-mono font-semibold text-slate-700 select-all">{followUpForm.counselorId}</code>
+                    Staff MongoDB ID: <code className="font-mono font-semibold text-slate-700 select-all">{followUpForm.counselorDocsId}</code>
                   </span>
                 )}
               </Field>

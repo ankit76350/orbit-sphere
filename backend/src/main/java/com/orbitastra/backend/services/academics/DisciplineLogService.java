@@ -27,7 +27,7 @@ public class DisciplineLogService {
             throw new ResourceNotFoundException("School not found with id: " + log.getSchoolId());
         }
 
-        studentValidator.validateStudent(log.getStudentId(), log.getSchoolId());
+        studentValidator.validateStudent(log.getStudentDocsId(), log.getSchoolId());
 
         java.time.LocalDate incidentDay = log.getIncidentDate() != null
                 ? log.getIncidentDate().toLocalDate()
@@ -56,8 +56,8 @@ public class DisciplineLogService {
         return disciplineLogRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
     }
 
-    public List<DisciplineLog> getDisciplineLogsByStudent(String studentId) {
-        return disciplineLogRepository.findByStudentId(studentId);
+    public List<DisciplineLog> getDisciplineLogsByStudent(String studentDocsId) {
+        return disciplineLogRepository.findByStudentDocsId(studentDocsId);
     }
 
     public DisciplineLog updateDisciplineLog(String id, DisciplineLog logDetails) {
@@ -71,9 +71,9 @@ public class DisciplineLogService {
             log.setSchoolId(logDetails.getSchoolId());
         }
 
-        if (logDetails.getStudentId() != null && !logDetails.getStudentId().equals(log.getStudentId())) {
-            studentValidator.validateStudent(logDetails.getStudentId(), log.getSchoolId());
-            log.setStudentId(logDetails.getStudentId());
+        if (logDetails.getStudentDocsId() != null && !logDetails.getStudentDocsId().equals(log.getStudentDocsId())) {
+            studentValidator.validateStudent(logDetails.getStudentDocsId(), log.getSchoolId());
+            log.setStudentDocsId(logDetails.getStudentDocsId());
         }
 
         if (logDetails.getViolation() != null) {

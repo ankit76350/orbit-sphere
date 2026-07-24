@@ -26,7 +26,7 @@ public class MedicalRecordController {
     public ResponseEntity<MedicalRecord> createMedicalRecord(@Valid @RequestBody CreateMedicalRecordRequest request) {
         MedicalRecord record = MedicalRecord.builder()
                 .schoolId(request.getSchoolId())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .visitDate(request.getVisitDate())
                 .diagnosis(request.getDiagnosis())
                 .medicines(request.getMedicines())
@@ -54,9 +54,9 @@ public class MedicalRecordController {
         return ResponseEntity.ok(records);
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<MedicalRecord>> getMedicalRecordsByStudent(@PathVariable String studentId) {
-        List<MedicalRecord> records = medicalRecordService.getMedicalRecordsByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<MedicalRecord>> getMedicalRecordsByStudent(@PathVariable String studentDocsId) {
+        List<MedicalRecord> records = medicalRecordService.getMedicalRecordsByStudent(studentDocsId);
         return ResponseEntity.ok(records);
     }
 
@@ -66,7 +66,7 @@ public class MedicalRecordController {
             @Valid @RequestBody UpdateMedicalRecordRequest request) {
         MedicalRecord recordDetails = MedicalRecord.builder()
                 .schoolId(request.getSchoolId())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .visitDate(request.getVisitDate())
                 .diagnosis(request.getDiagnosis())
                 .medicines(request.getMedicines())

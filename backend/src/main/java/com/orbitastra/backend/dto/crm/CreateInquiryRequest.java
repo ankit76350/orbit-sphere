@@ -2,7 +2,6 @@ package com.orbitastra.backend.dto.crm;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import jakarta.validation.Valid;
@@ -26,7 +25,6 @@ public class CreateInquiryRequest {
 
     private String source;
 
-    @JsonAlias("counselorId")
     private String counselorDocsId;
 
     private InquiryStatus status;

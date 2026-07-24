@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 public class SalaryIncrement extends SchoolBase {
 
     @Indexed
-    private String staffId;
+    private String staffDocsId;
 
     // Increment percentage applied to the previous salary.
     private BigDecimal percent;
@@ -42,5 +42,5 @@ public class SalaryIncrement extends SchoolBase {
 
     private LocalDate effectiveDate;
 
-    private String appliedBy; // references Staff.id / User.id
+    private String appliedByName;
 }

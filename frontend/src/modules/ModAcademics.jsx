@@ -52,7 +52,7 @@ export default function ModAcademics({ user }) {
     }
     const newHw = {
       id: `hw-${Date.now()}`,
-      classId: "class-custom",
+      classDocsId: "class-custom",
       className: hwClass,
       subject: hwSubject,
       title: hwTitle,
@@ -80,10 +80,10 @@ export default function ModAcademics({ user }) {
     setHwTitle("");
     setHwInstructions("");
   };
-  const handleScoreChange = (studentId, obtained) => {
+  const handleScoreChange = (studentDocsId, obtained) => {
     if (obtained < 0 || obtained > 100) return;
     const freshResults = getResults();
-    const idx = freshResults.findIndex((r) => r.studentId === studentId && r.examName === editExam);
+    const idx = freshResults.findIndex((r) => r.studentDocsId === studentDocsId && r.examName === editExam);
     const calcGrade = (pct) => {
       if (pct >= 90) return "A+";
       if (pct >= 80) return "A";
@@ -104,10 +104,10 @@ export default function ModAcademics({ user }) {
       }
       freshResults[idx] = studentSheet;
     } else {
-      const stDetails = getStudents().find((s) => s.id === studentId);
+      const stDetails = getStudents().find((s) => s.id === studentDocsId);
       const newSheet = {
-        id: `res-${Date.now()}-${studentId}`,
-        studentId,
+        id: `res-${Date.now()}-${studentDocsId}`,
+        studentDocsId,
         studentName: stDetails ? stDetails.name : "Unknown Roster",
         grade: stDetails ? stDetails.grade : "Grade 7",
         examName: editExam,
@@ -279,12 +279,12 @@ export default function ModAcademics({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {students.map((st) => {
-    const sheet = results.find((r) => r.studentId === st.id && r.examName === editExam);
+    const sheet = results.find((r) => r.studentDocsId === st.id && r.examName === editExam);
     const marksItem = sheet ? sheet.marks.find((m) => m.subject === editSubjectStr) : null;
     const score = marksItem ? marksItem.obtainedMarks : 75;
     const grade = marksItem ? marksItem.grade : "B";
     return <tr key={st.id}>
-                      <td className="p-3 font-extrabold text-slate-800">{st.name} ({st.admissionNumber})</td>
+                      <td className="p-3 font-extrabold text-slate-800">{st.name} ({st.admissionNo})</td>
                       <td className="p-3 font-bold text-slate-450">{editExam}</td>
                       <td className="p-3 text-slate-500 font-bold">{editSubjectStr}</td>
                       <td className="p-3 text-center">

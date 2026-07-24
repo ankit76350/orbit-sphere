@@ -26,13 +26,13 @@ public class StudentWalletService {
     private final WalletTransactionRepository walletTransactionRepository;
     private final StudentRepository studentRepository;
 
-    public StudentWallet getWalletByStudentId(String studentId) {
-        return studentWalletRepository.findByStudentId(studentId)
+    public StudentWallet getWalletByStudentDocsId(String studentDocsId) {
+        return studentWalletRepository.findByStudentDocsId(studentDocsId)
                 .orElseGet(() -> {
-                    Student student = studentRepository.findById(studentId)
-                            .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+                    Student student = studentRepository.findById(studentDocsId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
                     StudentWallet wallet = StudentWallet.builder()
-                            .studentId(studentId)
+                            .studentDocsId(studentDocsId)
                             .schoolId(student.getSchoolId())
                             .balance(BigDecimal.ZERO)
                             .createdAt(LocalDateTime.now())
@@ -43,11 +43,11 @@ public class StudentWalletService {
     }
 
     @Transactional
-    public StudentWallet creditWallet(String studentId, BigDecimal amount, String remarks) {
+    public StudentWallet creditWallet(String studentDocsId, BigDecimal amount, String remarks) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Credit amount must be greater than zero.");
         }
-        StudentWallet wallet = getWalletByStudentId(studentId);
+        StudentWallet wallet = getWalletByStudentDocsId(studentDocsId);
         BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
         BigDecimal newBalance = oldBalance.add(amount);
         wallet.setBalance(newBalance);
@@ -56,7 +56,7 @@ public class StudentWalletService {
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .schoolId(wallet.getSchoolId())
-                .studentId(studentId)
+                .studentDocsId(studentDocsId)
                 .type(TransactionType.CREDIT)
                 .amount(amount)
                 .balanceAfter(newBalance)
@@ -72,11 +72,11 @@ public class StudentWalletService {
     }
 
     @Transactional
-    public StudentWallet debitWallet(String studentId, BigDecimal amount, String remarks) {
+    public StudentWallet debitWallet(String studentDocsId, BigDecimal amount, String remarks) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Debit amount must be greater than zero.");
         }
-        StudentWallet wallet = getWalletByStudentId(studentId);
+        StudentWallet wallet = getWalletByStudentDocsId(studentDocsId);
         BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
         if (oldBalance.compareTo(amount) < 0) {
             throw new IllegalArgumentException("Insufficient wallet balance.");
@@ -88,7 +88,7 @@ public class StudentWalletService {
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .schoolId(wallet.getSchoolId())
-                .studentId(studentId)
+                .studentDocsId(studentDocsId)
                 .type(TransactionType.DEBIT)
                 .amount(amount)
                 .balanceAfter(newBalance)

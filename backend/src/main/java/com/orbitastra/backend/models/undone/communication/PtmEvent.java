@@ -48,7 +48,7 @@ public class PtmEvent extends SchoolBase {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Booking {
-        private String teacherId;   // references Staff.id
+        private String teacherDocsId;   // references Staff.id
         private Integer slotIndex;  // 0-based slot within the event
         private String studentName;
         private String parentName;

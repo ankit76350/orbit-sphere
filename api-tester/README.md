@@ -27,5 +27,5 @@ The dev server proxies `/api/*` to the backend at `http://localhost:3456`
 
 ## Extending
 Add endpoints/edge-cases declaratively in `src/data/catalog.js`. Bodies may use
-`{{schoolId}}`, `{{academicYear}}`, `{{academicYearId}}`, `{{classId}}`,
-`{{section}}`, `{{teacherId}}`, `{{teacherId2}}`, `{{studentId}}`, `{{entityId}}`.
+`{{schoolId}}`, `{{academicYear}}`, `{{academicYearDocsId}}`, `{{classDocsId}}`,
+`{{section}}`, `{{teacherDocsId}}`, `{{teacherId2}}`, `{{studentDocsId}}`, `{{entityDocsId}}`.

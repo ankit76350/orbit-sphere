@@ -25,7 +25,7 @@ public class MedicalRecordService {
             throw new ResourceNotFoundException("School not found with id: " + record.getSchoolId());
         }
 
-        studentValidator.validateStudent(record.getStudentId(), record.getSchoolId());
+        studentValidator.validateStudent(record.getStudentDocsId(), record.getSchoolId());
 
         return medicalRecordRepository.save(record);
     }
@@ -43,8 +43,8 @@ public class MedicalRecordService {
         return medicalRecordRepository.findBySchoolId(schoolId);
     }
 
-    public List<MedicalRecord> getMedicalRecordsByStudent(String studentId) {
-        return medicalRecordRepository.findByStudentId(studentId);
+    public List<MedicalRecord> getMedicalRecordsByStudent(String studentDocsId) {
+        return medicalRecordRepository.findByStudentDocsId(studentDocsId);
     }
 
     public MedicalRecord updateMedicalRecord(String id, MedicalRecord recordDetails) {
@@ -57,9 +57,9 @@ public class MedicalRecordService {
             record.setSchoolId(recordDetails.getSchoolId());
         }
 
-        if (recordDetails.getStudentId() != null && !recordDetails.getStudentId().equals(record.getStudentId())) {
-            studentValidator.validateStudent(recordDetails.getStudentId(), record.getSchoolId());
-            record.setStudentId(recordDetails.getStudentId());
+        if (recordDetails.getStudentDocsId() != null && !recordDetails.getStudentDocsId().equals(record.getStudentDocsId())) {
+            studentValidator.validateStudent(recordDetails.getStudentDocsId(), record.getSchoolId());
+            record.setStudentDocsId(recordDetails.getStudentDocsId());
         }
 
         if (recordDetails.getVisitDate() != null) {

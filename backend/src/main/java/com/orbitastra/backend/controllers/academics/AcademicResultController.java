@@ -27,7 +27,7 @@ public class AcademicResultController {
         AcademicResult academicResult = AcademicResult.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .grade(request.getGrade())
                 .examName(request.getExamName())
                 .marks(request.getMarks())
@@ -64,17 +64,17 @@ public class AcademicResultController {
         return ResponseEntity.ok(academicResultService.getAcademicResultsBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<AcademicResult>> getAcademicResultsByStudent(@PathVariable String studentId) {
-        List<AcademicResult> results = academicResultService.getAcademicResultsByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<AcademicResult>> getAcademicResultsByStudent(@PathVariable String studentDocsId) {
+        List<AcademicResult> results = academicResultService.getAcademicResultsByStudent(studentDocsId);
         return ResponseEntity.ok(results);
     }
 
-    @GetMapping("/school/{schoolId}/student/{studentId}")
+    @GetMapping("/school/{schoolId}/student/{studentDocsId}")
     public ResponseEntity<List<AcademicResult>> getAcademicResultsBySchoolAndStudent(
             @PathVariable String schoolId, 
-            @PathVariable String studentId) {
-        List<AcademicResult> results = academicResultService.getAcademicResultsBySchoolAndStudent(schoolId, studentId);
+            @PathVariable String studentDocsId) {
+        List<AcademicResult> results = academicResultService.getAcademicResultsBySchoolAndStudent(schoolId, studentDocsId);
         return ResponseEntity.ok(results);
     }
 
@@ -85,7 +85,7 @@ public class AcademicResultController {
         AcademicResult resultDetails = AcademicResult.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .grade(request.getGrade())
                 .examName(request.getExamName())
                 .marks(request.getMarks())

@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CameraRecording extends SchoolBase {
 
-    private String cameraId;
+    private String cameraDocsId;
 
     private String recordingUrl;
 

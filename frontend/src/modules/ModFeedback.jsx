@@ -64,8 +64,8 @@ export default function ModFeedback({ user }) {
 
   // Target selectors
   const [activeCycleId, setActiveCycleId] = useState(cycles.find(c => c.status === "Active")?.id || cycles[0]?.id || "");
-  const [targetStudentId, setTargetStudentId] = useState("");
-  const [targetTeacherId, setTargetTeacherId] = useState("");
+  const [targetStudentDocsId, setTargetStudentDocsId] = useState("");
+  const [targetTeacherDocsId, setTargetTeacherDocsId] = useState("");
 
   // Review Forms state
   // 1. Cycle Form
@@ -125,18 +125,18 @@ export default function ModFeedback({ user }) {
 
   // Setup initial active targets
   useEffect(() => {
-    if (students.length > 0 && !targetStudentId) {
-      setTargetStudentId(students[0].id);
+    if (students.length > 0 && !targetStudentDocsId) {
+      setTargetStudentDocsId(students[0].id);
       setSelectedStudentProfileId(students[0].id);
     }
     const teachers = staff.filter(s => s.role === "Teacher");
-    if (teachers.length > 0 && !targetTeacherId) {
-      setTargetTeacherId(teachers[0].id);
+    if (teachers.length > 0 && !targetTeacherDocsId) {
+      setTargetTeacherDocsId(teachers[0].id);
       setSelectedTeacherProfileId(teachers[0].id);
     }
   }, [students, staff]);
 
-  // Form Handlers
+  // Form HandlerNames
   const handleCreateCycle = (e) => {
     e.preventDefault();
     if (!cycleName) return;
@@ -173,13 +173,13 @@ export default function ModFeedback({ user }) {
 
   const handleSubmitStudentReview = (e) => {
     e.preventDefault();
-    if (!targetStudentId) return;
+    if (!targetStudentDocsId) return;
 
-    const targetStudent = students.find(s => s.id === targetStudentId);
+    const targetStudent = students.find(s => s.id === targetStudentDocsId);
     
     const newRev = {
       id: `st-rev-${Date.now()}`,
-      studentDocsId: targetStudentId,
+      studentDocsId: targetStudentDocsId,
       teacherDocsId: user.id || "staff-teacher-1",
       reviewCycleDocsId: activeCycleId,
       academicScore: parseFloat(scoreAcad),
@@ -202,13 +202,13 @@ export default function ModFeedback({ user }) {
 
   const handleSubmitTeacherReview = (e) => {
     e.preventDefault();
-    if (!targetTeacherId) return;
+    if (!targetTeacherDocsId) return;
 
-    const teacherObj = staff.find(s => s.id === targetTeacherId);
+    const teacherObj = staff.find(s => s.id === targetTeacherDocsId);
 
     const newRev = {
       id: `tr-rev-${Date.now()}`,
-      teacherDocsId: targetTeacherId,
+      teacherDocsId: targetTeacherDocsId,
       studentDocsId: reviewType === "Student" ? "student-1" : null,
       parentDocsId: reviewType === "Parent" ? "parent-1" : null,
       reviewCycleDocsId: activeCycleId,
@@ -236,13 +236,13 @@ export default function ModFeedback({ user }) {
 
   const handleSubmitMgmtReview = (e) => {
     e.preventDefault();
-    if (!targetTeacherId) return;
+    if (!targetTeacherDocsId) return;
 
-    const teacherObj = staff.find(s => s.id === targetTeacherId);
+    const teacherObj = staff.find(s => s.id === targetTeacherDocsId);
 
     const newRev = {
       id: `perf-rev-${Date.now()}`,
-      teacherDocsId: targetTeacherId,
+      teacherDocsId: targetTeacherDocsId,
       reviewerDocsId: user.id || "staff-principal",
       reviewerRole: "Principal",
       rating: parseFloat(mgmtRating),
@@ -664,7 +664,7 @@ export default function ModFeedback({ user }) {
             
             <div className="w-full">
               <Select
-                options={students.map(s => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))}
+                options={students.map(s => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))}
                 value={selectedStudentProfileId}
                 onChange={(e) => setSelectedStudentProfileId(e.target.value)}
                 className="text-xs py-1.5 h-9 rounded-xl bg-slate-50"
@@ -836,9 +836,9 @@ export default function ModFeedback({ user }) {
         <form onSubmit={handleSubmitStudentReview} className="space-y-4 pt-1">
           <Select
             label="Select Scholar Student"
-            options={students.map(s => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))}
-            value={targetStudentId}
-            onChange={(e) => setTargetStudentId(e.target.value)}
+            options={students.map(s => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))}
+            value={targetStudentDocsId}
+            onChange={(e) => setTargetStudentDocsId(e.target.value)}
             required
           />
 
@@ -909,8 +909,8 @@ export default function ModFeedback({ user }) {
           <Select
             label="Select Instructor"
             options={staff.filter(s => s.role === "Teacher").map(t => ({ label: t.name, value: t.id }))}
-            value={targetTeacherId}
-            onChange={(e) => setTargetTeacherId(e.target.value)}
+            value={targetTeacherDocsId}
+            onChange={(e) => setTargetTeacherDocsId(e.target.value)}
             required
           />
 
@@ -973,8 +973,8 @@ export default function ModFeedback({ user }) {
           <Select
             label="Select Teacher Roster"
             options={staff.filter(s => s.role === "Teacher").map(t => ({ label: t.name, value: t.id }))}
-            value={targetTeacherId}
-            onChange={(e) => setTargetTeacherId(e.target.value)}
+            value={targetTeacherDocsId}
+            onChange={(e) => setTargetTeacherDocsId(e.target.value)}
             required
           />
 

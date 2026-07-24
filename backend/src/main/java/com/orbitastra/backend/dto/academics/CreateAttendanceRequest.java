@@ -19,8 +19,8 @@ public class CreateAttendanceRequest {
 
     private String academicYear;
 
-    @NotBlank(message = "studentId is required")
-    private String studentId;
+    @NotBlank(message = "studentDocsId is required")
+    private String studentDocsId;
 
     @NotNull(message = "date is required")
     private LocalDate date;
@@ -28,7 +28,7 @@ public class CreateAttendanceRequest {
     @NotNull(message = "status is required")
     private AttendanceStatus status;
 
-    @NotBlank(message = "presentBy is required")
-    private String presentBy;
+    @NotBlank(message = "presentByDocsId is required")
+    private String presentByDocsId;
 
 }

@@ -108,7 +108,7 @@ export default function ModAlumni({ user }) {
 
   // 2. Mentorship Booking Form
   const [selectedMentorId, setSelectedMentorId] = useState("");
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedStudentDocsId, setSelectedStudentDocsId] = useState("");
   const [mentorshipCategory, setMentorshipCategory] = useState("Career Guidance");
   const [mentorshipDate, setMentorshipDate] = useState("");
 
@@ -122,7 +122,7 @@ export default function ModAlumni({ user }) {
   // 4. Donation Form
   const [donorName, setDonorName] = useState(user?.name || "");
   const [donationAmount, setDonationAmount] = useState("");
-  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [selectedCampaignDocsId, setSelectedCampaignDocsId] = useState("");
   const [paymentRef, setPaymentRef] = useState("");
 
   // 5. Campaign Creation Form
@@ -150,7 +150,7 @@ export default function ModAlumni({ user }) {
   // Pre-fill student dropdown if available
   useEffect(() => {
     if (students?.length > 0) {
-      setSelectedStudentId(students[0].id);
+      setSelectedStudentDocsId(students[0].id);
     }
   }, [students]);
 
@@ -165,7 +165,7 @@ export default function ModAlumni({ user }) {
   // Pre-fill campaign dropdown
   useEffect(() => {
     if (campaigns?.length > 0) {
-      setSelectedCampaignId(campaigns[0].id);
+      setSelectedCampaignDocsId(campaigns[0].id);
     }
   }, [campaigns]);
 
@@ -177,9 +177,9 @@ export default function ModAlumni({ user }) {
   const jobReferralsCount = jobs.length;
 
   // Calculate campaign funds raised
-  const getRaisedAmountForCampaign = (campaignId) => {
+  const getRaisedAmountForCampaign = (campaignDocsId) => {
     return donations
-      .filter(d => d.campaignId === campaignId)
+      .filter(d => d.campaignDocsId === campaignDocsId)
       .reduce((sum, d) => sum + Number(d.amount), 0);
   };
 
@@ -272,13 +272,13 @@ export default function ModAlumni({ user }) {
     }
 
     const mentor = profiles.find(p => p.id === selectedMentorId);
-    const student = students.find(s => s.id === selectedStudentId);
+    const student = students.find(s => s.id === selectedStudentDocsId);
     const studentName = student ? student.name : "St. Jude Student";
 
     const newBooking = {
       id: `ment-${Date.now()}`,
-      mentorAlumniId: selectedMentorId,
-      studentId: selectedStudentId || "student-1",
+      mentorAlumniDocsId: selectedMentorId,
+      studentDocsId: selectedStudentDocsId || "student-1",
       studentName: studentName,
       category: mentorshipCategory,
       status: "Active",
@@ -381,7 +381,7 @@ export default function ModAlumni({ user }) {
   // 5. Submit Donation
   const handleSubmitDonation = (e) => {
     e.preventDefault();
-    if (!donationAmount || !selectedCampaignId) {
+    if (!donationAmount || !selectedCampaignDocsId) {
       addToast("Failed to Process", "Specify donation amount and select target campaign.", "error");
       return;
     }
@@ -392,14 +392,14 @@ export default function ModAlumni({ user }) {
       return;
     }
 
-    const campaign = campaigns.find(c => c.id === selectedCampaignId);
+    const campaign = campaigns.find(c => c.id === selectedCampaignDocsId);
     const generatedRef = paymentRef || `REF-${Math.floor(100000 + Math.random() * 900000)}-AL`;
 
     const newDonation = {
       id: `don-${Date.now()}`,
-      alumniId: "sandbox-donor",
+      alumniDocsId: "sandbox-donor",
       alumniName: donorName || "Generous Supporter",
-      campaignId: selectedCampaignId,
+      campaignDocsId: selectedCampaignDocsId,
       amount: amountNum,
       donationDate: new Date().toISOString().split("T")[0],
       paymentReference: generatedRef
@@ -476,7 +476,7 @@ export default function ModAlumni({ user }) {
 
     const newJob = {
       id: `job-${Date.now()}`,
-      alumniId: "sandbox-poster",
+      alumniDocsId: "sandbox-poster",
       referrerName: user?.name || "St. Jude Alumni",
       title: jobTitle,
       company: jobCompany,
@@ -877,7 +877,7 @@ export default function ModAlumni({ user }) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {mentorships.map(booking => {
-                    const mentor = profiles.find(p => p.id === booking.mentorAlumniId);
+                    const mentor = profiles.find(p => p.id === booking.mentorAlumniDocsId);
                     return (
                       <tr key={booking.id}>
                         <td className="p-3 font-extrabold text-slate-850">
@@ -1071,8 +1071,8 @@ export default function ModAlumni({ user }) {
               </h3>
               <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
                 {donations.map(don => {
-                  const campaign = campaigns.find(c => c.id === don.campaignId);
-                  const alumniMatch = profiles.find(p => p.id === don.alumniId);
+                  const campaign = campaigns.find(c => c.id === don.campaignDocsId);
+                  const alumniMatch = profiles.find(p => p.id === don.alumniDocsId);
                   const displayName = don.alumniName || (alumniMatch ? alumniMatch.name : "Anonymous Supporter");
                   return (
                     <div key={don.id} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
@@ -1129,7 +1129,7 @@ export default function ModAlumni({ user }) {
               </div>
             ) : (
               filteredJobs.map(job => {
-                const author = profiles.find(p => p.id === job.alumniId);
+                const author = profiles.find(p => p.id === job.alumniDocsId);
                 const referrer = job.referrerName || (author ? author.name : "St. Jude Graduate");
                 return (
                   <div key={job.id} className="bg-white border border-slate-150 p-5 rounded-3xl flex flex-col justify-between h-[230px] hover:shadow-md transition">
@@ -1261,11 +1261,11 @@ export default function ModAlumni({ user }) {
           <Select
             label="Select Scholar Student *"
             options={students.map(s => ({
-              label: `${s.name} (Grade ${s.grade} | Adm: ${s.admissionNumber})`,
+              label: `${s.name} (Grade ${s.grade} | Adm: ${s.admissionNo})`,
               value: s.id
             }))}
-            value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
+            value={selectedStudentDocsId}
+            onChange={(e) => setSelectedStudentDocsId(e.target.value)}
           />
 
           <Select
@@ -1381,8 +1381,8 @@ export default function ModAlumni({ user }) {
               label: c.title,
               value: c.id
             }))}
-            value={selectedCampaignId}
-            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            value={selectedCampaignDocsId}
+            onChange={(e) => setSelectedCampaignDocsId(e.target.value)}
           />
 
           <Input

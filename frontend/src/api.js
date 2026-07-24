@@ -60,7 +60,7 @@ export const api = {
   deleteAnnouncement: (id) => call('DELETE', `/api/announcements/${id}`),
 
   getNotifications: () => listOr('/api/notifications'),
-  getNotificationsByRecipient: (recipientId) => listOr(`/api/notifications/recipient/${recipientId}`),
+  getNotificationsByRecipient: (recipientDocsId) => listOr(`/api/notifications/recipient/${recipientDocsId}`),
   getNotificationsBySchool: (schoolId = 'SCH-001') => listOr(`/api/notifications/school/${schoolId}`),
   createNotification: (payload) => call('POST', '/api/notifications', payload),
   markNotificationSent: (id) => call('PUT', `/api/notifications/${id}/mark-sent`),
@@ -89,14 +89,14 @@ export const api = {
   createGuardian: (payload) => call('POST', '/api/guardians', payload),
   updateGuardian: (id, payload) => call('PATCH', `/api/guardians/${id}`, payload),
   deleteGuardian: (id) => call('DELETE', `/api/guardians/${id}`),
-  addGuardianLink: (studentId, payload) => call('POST', `/api/students/${studentId}/guardians`, payload),
-  removeGuardianLink: (studentId, guardianDocsId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianDocsId}`),
+  addGuardianLink: (studentDocsId, payload) => call('POST', `/api/students/${studentDocsId}/guardians`, payload),
+  removeGuardianLink: (studentDocsId, guardianDocsId) => call('DELETE', `/api/students/${studentDocsId}/guardians/${guardianDocsId}`),
 
   // ----- Academics: Classes, Attendance, Homework, Results, Discipline, Timetables, Medical -----
   getClasses: (schoolId = 'SCH-001') => listOr(`/api/classes/school/${schoolId}`),
   createClass: (payload) => call('POST', '/api/classes', payload),
-  addSectionToClass: (classId, sections) => call('POST', `/api/classes/${classId}/sections`, { sections }),
-  deleteClass: (classId) => call('DELETE', `/api/classes/${classId}`),
+  addSectionToClass: (classDocsId, sections) => call('POST', `/api/classes/${classDocsId}/sections`, { sections }),
+  deleteClass: (classDocsId) => call('DELETE', `/api/classes/${classDocsId}`),
 
   getAttendance: (schoolId = 'SCH-001') => listOr(`/api/attendance/school/${schoolId}`),
   createAttendance: (payload) => call('POST', '/api/attendance', payload),
@@ -106,8 +106,8 @@ export const api = {
   getHomework: (schoolId = 'SCH-001') => listOr(`/api/homework/school/${schoolId}`),
   createHomework: (payload) => call('POST', '/api/homework', payload),
   assignHomework: (id, scope, studentAssignments) => call('POST', `/api/homework/${id}/assign`, { assignmentScope: scope, studentAssignments }),
-  submitHomework: (id, studentId, text, fileUrl) => call('POST', `/api/homework/${id}/submit/${studentId}`, { submissionText: text, submissionFileUrl: fileUrl }),
-  gradeHomework: (id, studentId, obtainedMarks, feedback) => call('POST', `/api/homework/${id}/grade/${studentId}`, { obtainedMarks, feedback }),
+  submitHomework: (id, studentDocsId, text, fileUrl) => call('POST', `/api/homework/${id}/submit/${studentDocsId}`, { submissionText: text, submissionFileUrl: fileUrl }),
+  gradeHomework: (id, studentDocsId, obtainedMarks, feedback) => call('POST', `/api/homework/${id}/grade/${studentDocsId}`, { obtainedMarks, feedback }),
   updateHomework: (id, payload) => call('PATCH', `/api/homework/${id}`, payload),
   deleteHomework: (id) => call('DELETE', `/api/homework/${id}`),
 
@@ -134,15 +134,15 @@ export const api = {
   createFee: (payload) => call('POST', '/api/fees', payload),
   updateFee: (id, payload) => call('PATCH', `/api/fees/${id}`, payload),
   deleteFee: (id) => call('DELETE', `/api/fees/${id}`),
-  recordFeePayment: (feeId, { amount, paymentMode, remarks, collectedBy }) =>
-    call('POST', `/api/fees/${feeId}/payments`, { amount, paymentMode, remarks, collectedBy }),
-  getFeePayments: (feeId) => listOr(`/api/fees/${feeId}/payments`),
-  getFeePaymentsByStudent: (studentId) => listOr(`/api/fees/payments/student/${studentId}`),
+  recordFeePayment: (feeDocsId, { amount, paymentMode, remarks, collectedByDocsId }) =>
+    call('POST', `/api/fees/${feeDocsId}/payments`, { amount, paymentMode, remarks, collectedByDocsId }),
+  getFeePayments: (feeDocsId) => listOr(`/api/fees/${feeDocsId}/payments`),
+  getFeePaymentsByStudent: (studentDocsId) => listOr(`/api/fees/payments/student/${studentDocsId}`),
 
-  getWallet: (studentId) => call('GET', `/api/wallets/student/${studentId}`),
-  creditWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/credit`, { amount, remarks }),
-  debitWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/debit`, { amount, remarks }),
-  getWalletTransactions: (studentId) => listOr(`/api/wallets/student/${studentId}/transactions`),
+  getWallet: (studentDocsId) => call('GET', `/api/wallets/student/${studentDocsId}`),
+  creditWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/credit`, { amount, remarks }),
+  debitWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/debit`, { amount, remarks }),
+  getWalletTransactions: (studentDocsId) => listOr(`/api/wallets/student/${studentDocsId}/transactions`),
 
   // ----- CRM: Inquiries & Admissions -----
   getInquiries: (schoolId = 'SCH-001') => listOr(`/api/inquiries/school/${schoolId}`),

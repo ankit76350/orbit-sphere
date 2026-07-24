@@ -29,5 +29,5 @@ public class PaymentRequest {
 
     private String remarks;
 
-    private String collectedBy;
+    private String collectedByDocsId;
 }

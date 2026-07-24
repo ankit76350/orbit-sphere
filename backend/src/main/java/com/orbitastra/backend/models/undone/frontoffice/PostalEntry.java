@@ -42,7 +42,7 @@ public class PostalEntry extends SchoolBase {
 
     private PostalMode mode;
 
-    private String handler; // references Staff.id
+    private String handlerName;
 
     private PostalStatus status;
 }

@@ -19,8 +19,8 @@ public class CreateDisciplineLogRequest {
 
     private String academicYear;
 
-    @NotBlank(message = "studentId is required")
-    private String studentId;
+    @NotBlank(message = "studentDocsId is required")
+    private String studentDocsId;
 
     private String violation;
 

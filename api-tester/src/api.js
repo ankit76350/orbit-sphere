@@ -15,7 +15,7 @@ async function call(method, path, body) {
     const msg = data && data.message ? data.message : `${res.status} ${res.statusText}`;
     const err = new Error(msg);
     err.status = res.status;
-    err.data = data; // structured error body (e.g. existingGuardianId on a 409)
+    err.data = data; // structured error body (e.g. existingGuardianDocsId on a 409)
     throw err;
   }
   return data;
@@ -76,27 +76,27 @@ export const api = {
   createNotification: (payload) => call('POST', '/api/notifications', payload),
   getAllNotifications: () => listOr('/api/notifications'),
   getNotificationById: (id) => call('GET', `/api/notifications/${id}`),
-  getNotificationsByRecipient: (recipientId) => listOr(`/api/notifications/recipient/${recipientId}`),
-  getUnsentNotificationsByRecipient: (recipientId) => listOr(`/api/notifications/recipient/${recipientId}/unsent`),
+  getNotificationsByRecipient: (recipientDocsId) => listOr(`/api/notifications/recipient/${recipientDocsId}`),
+  getUnsentNotificationsByRecipient: (recipientDocsId) => listOr(`/api/notifications/recipient/${recipientDocsId}/unsent`),
   getNotificationsBySchool: (schoolId) => listOr(`/api/notifications/school/${schoolId}`),
   markNotificationAsSent: (id) => call('PUT', `/api/notifications/${id}/mark-sent`),
   deleteNotification: (id) => call('DELETE', `/api/notifications/${id}`),
 
   // ----- classes -----
   createClass: (payload) => call('POST', '/api/classes', payload),
-  addSection: (classId, sections) => call('POST', `/api/classes/${classId}/sections`, { sections }),
-  deleteClass: (classId) => call('DELETE', `/api/classes/${classId}`),
+  addSection: (classDocsId, sections) => call('POST', `/api/classes/${classDocsId}/sections`, { sections }),
+  deleteClass: (classDocsId) => call('DELETE', `/api/classes/${classDocsId}`),
 
   // ----- timetables -----
   createTimetable: (payload) => call('POST', '/api/timetables', payload),
   timetableRange: (schoolId, start, end) =>
     listOr(`/api/timetables/school/${schoolId}/range?startDate=${start}&endDate=${end}`),
-  sectionSchedule: (schoolId, classId, section, start, end) =>
-    listOr(`/api/timetables/school/${schoolId}/class/${classId}/section/${encodeURIComponent(section)}?startDate=${start}&endDate=${end}`),
-  teacherSchedule: (schoolId, teacherId, start, end) =>
-    listOr(`/api/timetables/school/${schoolId}/teacher/${teacherId}?startDate=${start}&endDate=${end}`),
-  clearSection: (schoolId, classId, section, start, end) =>
-    call('DELETE', `/api/timetables/school/${schoolId}/class/${classId}/section/${encodeURIComponent(section)}?startDate=${start}&endDate=${end}`),
+  sectionSchedule: (schoolId, classDocsId, section, start, end) =>
+    listOr(`/api/timetables/school/${schoolId}/class/${classDocsId}/section/${encodeURIComponent(section)}?startDate=${start}&endDate=${end}`),
+  teacherSchedule: (schoolId, teacherDocsId, start, end) =>
+    listOr(`/api/timetables/school/${schoolId}/teacher/${teacherDocsId}?startDate=${start}&endDate=${end}`),
+  clearSection: (schoolId, classDocsId, section, start, end) =>
+    call('DELETE', `/api/timetables/school/${schoolId}/class/${classDocsId}/section/${encodeURIComponent(section)}?startDate=${start}&endDate=${end}`),
 
   // ----- students & academic records -----
   students: (schoolId) => listOr(`/api/students/school/${schoolId}`),
@@ -106,7 +106,7 @@ export const api = {
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
   getStudentAcademicHistory: (id) => listOr(`/api/students/${id}/academic-history`),
-  assignAcademicRecord: (studentId, payload) => call('POST', `/api/students/${studentId}/academic-records`, payload),
+  assignAcademicRecord: (studentDocsId, payload) => call('POST', `/api/students/${studentDocsId}/academic-records`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
   getStudentSiblings: (id) => listOr(`/api/students/${id}/siblings`),
   getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
@@ -118,8 +118,8 @@ export const api = {
   updateGuardian: (id, payload) => call('PATCH', `/api/guardians/${id}`, payload),
   deleteGuardian: (id) => call('DELETE', `/api/guardians/${id}`),
   studentsByGuardian: (guardianDocsId) => listOr(`/api/students/guardian/${guardianDocsId}`),
-  addGuardianLink: (studentId, link) => call('POST', `/api/students/${studentId}/guardians`, link),
-  removeGuardianLink: (studentId, guardianDocsId) => call('DELETE', `/api/students/${studentId}/guardians/${guardianDocsId}`),
+  addGuardianLink: (studentDocsId, link) => call('POST', `/api/students/${studentDocsId}/guardians`, link),
+  removeGuardianLink: (studentDocsId, guardianDocsId) => call('DELETE', `/api/students/${studentDocsId}/guardians/${guardianDocsId}`),
 
   // ----- academics: attendance -----
   attendance: (schoolId) => listOr(`/api/attendance/school/${schoolId}`),
@@ -133,8 +133,8 @@ export const api = {
   homeworkByYear: (schoolId, year) => listOr(`/api/homework/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   createHomework: (payload) => call('POST', '/api/homework', payload),
   assignHomework: (id, scope, studentAssignments) => call('POST', `/api/homework/${id}/assign`, { assignmentScope: scope, studentAssignments }),
-  submitHomework: (id, studentId, text, fileUrl) => call('POST', `/api/homework/${id}/submit/${studentId}`, { submissionText: text, submissionFileUrl: fileUrl }),
-  gradeHomework: (id, studentId, obtainedMarks, feedback) => call('POST', `/api/homework/${id}/grade/${studentId}`, { obtainedMarks, feedback }),
+  submitHomework: (id, studentDocsId, text, fileUrl) => call('POST', `/api/homework/${id}/submit/${studentDocsId}`, { submissionText: text, submissionFileUrl: fileUrl }),
+  gradeHomework: (id, studentDocsId, obtainedMarks, feedback) => call('POST', `/api/homework/${id}/grade/${studentDocsId}`, { obtainedMarks, feedback }),
   updateHomework: (id, payload) => call('PATCH', `/api/homework/${id}`, payload),
   deleteHomework: (id) => call('DELETE', `/api/homework/${id}`),
 
@@ -165,10 +165,10 @@ export const api = {
   updateFee: (id, payload) => call('PATCH', `/api/fees/${id}`, payload),
   deleteFee: (id) => call('DELETE', `/api/fees/${id}`),
   // Unified fee collection: mode = CASH | WALLET | ONLINE | CHEQUE
-  recordPayment: (id, { amount, paymentMode, remarks, collectedBy }) =>
-    call('POST', `/api/fees/${id}/payments`, { amount, paymentMode, remarks, collectedBy }),
+  recordPayment: (id, { amount, paymentMode, remarks, collectedByDocsId }) =>
+    call('POST', `/api/fees/${id}/payments`, { amount, paymentMode, remarks, collectedByDocsId }),
   feePayments: (id) => listOr(`/api/fees/${id}/payments`),
-  feePaymentsByStudent: (studentId) => listOr(`/api/fees/payments/student/${studentId}`),
+  feePaymentsByStudent: (studentDocsId) => listOr(`/api/fees/payments/student/${studentDocsId}`),
 
   // ----- crm: inquiries -----
   inquiries: (schoolId) => listOr(`/api/inquiries/school/${schoolId}`),
@@ -184,7 +184,7 @@ export const api = {
   admissions: (schoolId) => listOr(`/api/admissions/school/${schoolId}`),
   admissionsByYear: (schoolId, year) => listOr(`/api/admissions/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   admissionsByStatus: (schoolId, status) => listOr(`/api/admissions/school/${schoolId}/status/${status}`),
-  admissionsByInquiry: (inquiryId) => listOr(`/api/admissions/inquiry/${inquiryId}`),
+  admissionsByInquiry: (inquiryDocsId) => listOr(`/api/admissions/inquiry/${inquiryDocsId}`),
   getAdmission: (id) => call('GET', `/api/admissions/${id}`),
   createAdmission: (payload) => call('POST', '/api/admissions', payload),
   updateAdmission: (id, payload) => call('PATCH', `/api/admissions/${id}`, payload),
@@ -192,8 +192,8 @@ export const api = {
   deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),
 
   // ----- finance: student wallets -----
-  getWallet: (studentId) => call('GET', `/api/wallets/student/${studentId}`),
-  creditWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/credit`, { amount, remarks }),
-  debitWallet: (studentId, amount, remarks) => call('POST', `/api/wallets/student/${studentId}/debit`, { amount, remarks }),
-  walletTransactions: (studentId) => listOr(`/api/wallets/student/${studentId}/transactions`),
+  getWallet: (studentDocsId) => call('GET', `/api/wallets/student/${studentDocsId}`),
+  creditWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/credit`, { amount, remarks }),
+  debitWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/debit`, { amount, remarks }),
+  walletTransactions: (studentDocsId) => listOr(`/api/wallets/student/${studentDocsId}/transactions`),
 };

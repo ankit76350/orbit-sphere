@@ -48,54 +48,54 @@ public class StudentWalletServiceTest {
 
         wallet = new StudentWallet();
         wallet.setId("wallet-123");
-        wallet.setStudentId("student-123");
+        wallet.setStudentDocsId("student-123");
         wallet.setSchoolId("school-123");
         wallet.setBalance(new BigDecimal("100.00"));
     }
 
     @Test
-    void getWalletByStudentId_ExistingWallet_Success() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.of(wallet));
+    void getWalletByStudentDocsId_ExistingWallet_Success() {
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
 
-        StudentWallet result = studentWalletService.getWalletByStudentId("student-123");
+        StudentWallet result = studentWalletService.getWalletByStudentDocsId("student-123");
 
         assertNotNull(result);
         assertEquals("wallet-123", result.getId());
         assertEquals(new BigDecimal("100.00"), result.getBalance());
-        verify(studentWalletRepository, times(1)).findByStudentId("student-123");
+        verify(studentWalletRepository, times(1)).findByStudentDocsId("student-123");
         verifyNoInteractions(studentRepository);
     }
 
     @Test
-    void getWalletByStudentId_NewWallet_Success() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.empty());
+    void getWalletByStudentDocsId_NewWallet_Success() {
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
         when(studentRepository.findById("student-123")).thenReturn(Optional.of(student));
         when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StudentWallet result = studentWalletService.getWalletByStudentId("student-123");
+        StudentWallet result = studentWalletService.getWalletByStudentDocsId("student-123");
 
         assertNotNull(result);
         assertEquals(BigDecimal.ZERO, result.getBalance());
-        assertEquals("student-123", result.getStudentId());
+        assertEquals("student-123", result.getStudentDocsId());
         assertEquals("school-123", result.getSchoolId());
-        verify(studentWalletRepository, times(1)).findByStudentId("student-123");
+        verify(studentWalletRepository, times(1)).findByStudentDocsId("student-123");
         verify(studentRepository, times(1)).findById("student-123");
         verify(studentWalletRepository, times(1)).save(any(StudentWallet.class));
     }
 
     @Test
-    void getWalletByStudentId_StudentNotFound_ThrowsException() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.empty());
+    void getWalletByStudentDocsId_StudentNotFound_ThrowsException() {
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
         when(studentRepository.findById("student-123")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> {
-            studentWalletService.getWalletByStudentId("student-123");
+            studentWalletService.getWalletByStudentDocsId("student-123");
         });
     }
 
     @Test
     void creditWallet_Success() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.of(wallet));
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
         when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -124,7 +124,7 @@ public class StudentWalletServiceTest {
 
     @Test
     void debitWallet_Success() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.of(wallet));
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
         when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -143,7 +143,7 @@ public class StudentWalletServiceTest {
 
     @Test
     void debitWallet_InsufficientBalance_ThrowsException() {
-        when(studentWalletRepository.findByStudentId("student-123")).thenReturn(Optional.of(wallet));
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
 
         assertThrows(IllegalArgumentException.class, () -> {
             studentWalletService.debitWallet("student-123", new BigDecimal("200.00"), "Overdraft");

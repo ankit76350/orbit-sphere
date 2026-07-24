@@ -29,10 +29,10 @@ public class AttendanceController {
         Attendance attendance = Attendance.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .date(request.getDate())
                 .status(request.getStatus())
-                .presentBy(request.getPresentBy())
+                .presentByDocsId(request.getPresentByDocsId())
                 .build();
         Attendance created = attendanceService.createAttendance(attendance);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
@@ -63,9 +63,9 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getAttendanceBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<Attendance>> getAttendanceByStudent(@PathVariable String studentId) {
-        List<Attendance> attendanceList = attendanceService.getAttendanceByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<Attendance>> getAttendanceByStudent(@PathVariable String studentDocsId) {
+        List<Attendance> attendanceList = attendanceService.getAttendanceByStudent(studentDocsId);
         return ResponseEntity.ok(attendanceList);
     }
 
@@ -77,11 +77,11 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceList);
     }
 
-    @GetMapping("/student/{studentId}/date/{date}")
+    @GetMapping("/student/{studentDocsId}/date/{date}")
     public ResponseEntity<List<Attendance>> getAttendanceByStudentAndDate(
-            @PathVariable String studentId, 
+            @PathVariable String studentDocsId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        List<Attendance> attendanceList = attendanceService.getAttendanceByStudentAndDate(studentId, date);
+        List<Attendance> attendanceList = attendanceService.getAttendanceByStudentAndDate(studentDocsId, date);
         return ResponseEntity.ok(attendanceList);
     }
 
@@ -92,10 +92,10 @@ public class AttendanceController {
         Attendance attendanceDetails = Attendance.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .date(request.getDate())
                 .status(request.getStatus())
-                .presentBy(request.getPresentBy())
+                .presentByDocsId(request.getPresentByDocsId())
                 .build();
         Attendance updated = attendanceService.updateAttendance(id, attendanceDetails);
         return ResponseEntity.ok(updated);

@@ -28,14 +28,14 @@ import lombok.NoArgsConstructor;
 public class ApaarRecord extends SchoolBase {
 
     @Indexed(unique = true)
-    private String studentId;
+    private String studentDocsId;
 
     // 11-digit Permanent Education Number.
     private String pen;
 
     // 12-digit APAAR ID (null until generated).
     @Indexed
-    private String apaarId;
+    private String apaarNo;
 
     @Builder.Default
     private Boolean aadhaarVerified = false;

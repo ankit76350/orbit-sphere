@@ -64,6 +64,6 @@ public class Exam extends SchoolBase {
         private LocalTime startTime;
         private LocalTime endTime;
         private String room;
-        private String invigilator; // references Staff.id
+        private String invigilatorName;
     }
 }

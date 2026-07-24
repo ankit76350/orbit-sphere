@@ -88,9 +88,9 @@ erDiagram
     studentAcademicRecord {
         string id PK
         string schoolId FK
-        string studentDocId FK
+        string studentDocsId FK
         string academicYear FK "references AcademicYear.name"
-        string classDocId FK
+        string classDocsId FK
         string sectionNo
         string studentNo
         string rollNo

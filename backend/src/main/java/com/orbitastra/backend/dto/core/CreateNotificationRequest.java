@@ -16,8 +16,8 @@ public class CreateNotificationRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    @NotBlank(message = "recipientId is required")
-    private String recipientId;
+    @NotBlank(message = "recipientDocsId is required")
+    private String recipientDocsId;
 
     private NotificationChannel channel;
 

@@ -1,6 +1,5 @@
 package com.orbitastra.backend.dto.crm;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.crm.Admission;
 
 import lombok.Data;
@@ -18,8 +17,6 @@ public class CreateAdmissionRequest extends AdmissionDetailsRequest {
 
     private String schoolId;
 
-    // Backward-compatible alias for clients predating the inquiryDocsId rename.
-    @JsonAlias("inquiryId")
     private String inquiryDocsId;
 
     @Override

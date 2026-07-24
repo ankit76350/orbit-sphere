@@ -40,7 +40,7 @@ public class SavedReport extends SchoolBase {
     @Builder.Default
     private List<String> columns = new java.util.ArrayList<>();
 
-    private String createdBy; // references Staff.id / User.id
+    private String createdByName;
 
     /** One filter row in the report builder. */
     @Data

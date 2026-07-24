@@ -71,7 +71,7 @@ public class GlobalExceptionHandler {
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("timestamp", new Date());
         body.put("message", ex.getMessage());
-        body.put("existingGuardianId", ex.getExistingGuardianId());
+        body.put("existingGuardianDocsId", ex.getExistingGuardianDocsId());
         body.put("existingGuardianName", ex.getExistingGuardianName());
         body.put("details", request.getDescription(false));
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);

@@ -29,7 +29,7 @@ public class FeePaymentController {
     @PostMapping("/{id}/payments")
     public ResponseEntity<FeeInvoice> recordPayment(@PathVariable String id, @Valid @RequestBody PaymentRequest request) {
         FeeInvoice updated = feePaymentService.recordPayment(
-                id, request.getAmount(), request.getPaymentMode(), request.getRemarks(), request.getCollectedBy());
+                id, request.getAmount(), request.getPaymentMode(), request.getRemarks(), request.getCollectedByDocsId());
         return new ResponseEntity<>(updated, HttpStatus.CREATED);
     }
 
@@ -38,8 +38,8 @@ public class FeePaymentController {
         return ResponseEntity.ok(feePaymentService.getPaymentsByFee(id));
     }
 
-    @GetMapping("/payments/student/{studentId}")
-    public ResponseEntity<List<FeePayment>> getPaymentsByStudent(@PathVariable String studentId) {
-        return ResponseEntity.ok(feePaymentService.getPaymentsByStudent(studentId));
+    @GetMapping("/payments/student/{studentDocsId}")
+    public ResponseEntity<List<FeePayment>> getPaymentsByStudent(@PathVariable String studentDocsId) {
+        return ResponseEntity.ok(feePaymentService.getPaymentsByStudent(studentDocsId));
     }
 }

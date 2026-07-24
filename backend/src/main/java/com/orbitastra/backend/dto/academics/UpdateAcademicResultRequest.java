@@ -18,7 +18,7 @@ public class UpdateAcademicResultRequest {
 
     private String academicYear;
 
-    private String studentId;
+    private String studentDocsId;
 
     private String grade;
 

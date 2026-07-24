@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
 public class SalaryStructure extends SchoolBase {
 
     @Indexed
-    private String staffId;
+    private String staffDocsId;
 
     // Earnings
     private BigDecimal basic;

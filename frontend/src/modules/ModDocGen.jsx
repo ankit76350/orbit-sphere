@@ -90,9 +90,9 @@ export default function ModDocGen({ user }) {
   const [isCardBackSide, setIsCardBackSide] = useState(false);
 
   // 3. Document Generator / Request Form
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedTemplateDocsId, setSelectedTemplateDocsId] = useState("");
   const [targetEntityType, setTargetEntityType] = useState("Student"); // Student, Staff, Alumni
-  const [targetEntityId, setTargetEntityId] = useState("");
+  const [targetEntityDocsId, setTargetEntityDocsId] = useState("");
   const [customTerm, setCustomTerm] = useState("Fall 2026");
   const [customAmount, setCustomAmount] = useState("1500");
 
@@ -123,8 +123,8 @@ export default function ModDocGen({ user }) {
 
   // Load defaults
   useEffect(() => {
-    if (templates.length > 0 && !selectedTemplateId) {
-      setSelectedTemplateId(templates[0].id);
+    if (templates.length > 0 && !selectedTemplateDocsId) {
+      setSelectedTemplateDocsId(templates[0].id);
     }
   }, [templates]);
 
@@ -136,9 +136,9 @@ export default function ModDocGen({ user }) {
 
   useEffect(() => {
     if (targetEntityType === "Student" && students.length > 0) {
-      setTargetEntityId(students[0].id);
+      setTargetEntityDocsId(students[0].id);
     } else if (targetEntityType === "Staff" && staff.length > 0) {
-      setTargetEntityId(staff[0].id);
+      setTargetEntityDocsId(staff[0].id);
     }
   }, [targetEntityType, students, staff]);
 
@@ -193,22 +193,22 @@ export default function ModDocGen({ user }) {
   // 2. Request Certificate / Direct Document Generation
   const handleRequestDocument = (e) => {
     e.preventDefault();
-    if (!selectedTemplateId || !targetEntityId) {
+    if (!selectedTemplateDocsId || !targetEntityDocsId) {
       addToast("Failed to Request", "Select template and target entity.", "error");
       return;
     }
 
-    const template = templates.find(t => t.id === selectedTemplateId);
+    const template = templates.find(t => t.id === selectedTemplateDocsId);
     let entityName = "";
     let entityClass = "Grade 10";
     let entitySec = "A";
 
     if (targetEntityType === "Student") {
-      const stud = students.find(s => s.id === targetEntityId);
+      const stud = students.find(s => s.id === targetEntityDocsId);
       entityName = stud ? stud.name : "Scholar Name";
       entityClass = stud ? stud.grade : "Grade 10";
     } else {
-      const stf = staff.find(s => s.id === targetEntityId);
+      const stf = staff.find(s => s.id === targetEntityDocsId);
       entityName = stf ? stf.name : "Staff Name";
       entityClass = stf ? stf.department : "Science";
     }
@@ -224,12 +224,12 @@ export default function ModDocGen({ user }) {
       // Create Approval Request
       const newApproval = {
         id: `appr-${Date.now()}`,
-        documentId: newDocId,
+        documentDocsId: newDocId,
         documentTitle: `${template.name} (${entityName})`,
-        requestorId: user?.id || "staff-teacher-1",
+        requestorDocsId: user?.id || "staff-teacher-1",
         requestorName: user?.name || "Teacher John",
         requestorRole: user?.role || "Teacher",
-        approverId: "staff-principal",
+        approverDocsId: "staff-principal",
         approverName: "Chloe Smith",
         status: "Pending",
         remarks: "Automatic routing system initialized. Awaiting Principal signing seal.",
@@ -238,10 +238,10 @@ export default function ModDocGen({ user }) {
         payload: {
           docNumber,
           documentType: template.name,
-          entityId: targetEntityId,
+          entityDocsId: targetEntityDocsId,
           entityType: targetEntityType,
           verificationCode,
-          content: compileTemplate(template.templateContent, entityName, targetEntityId, entityClass, entitySec)
+          content: compileTemplate(template.templateContent, entityName, targetEntityDocsId, entityClass, entitySec)
         }
       };
 
@@ -260,13 +260,13 @@ export default function ModDocGen({ user }) {
       addToast("Workflow Initialized", `Approval ticket generated for ${entityName}. Principal notified.`);
     } else {
       // Direct Generation
-      const compiledText = compileTemplate(template.templateContent, entityName, targetEntityId, entityClass, entitySec);
+      const compiledText = compileTemplate(template.templateContent, entityName, targetEntityDocsId, entityClass, entitySec);
 
       const newGenerated = {
         id: newDocId,
-        documentNumber: docNumber,
+        documentNo: docNumber,
         documentType: template.name,
-        entityId: targetEntityId,
+        entityDocsId: targetEntityDocsId,
         entityType: targetEntityType,
         pdfUrl: `${template.name.replace(/ /g, "_")}_${entityName.replace(/ /g, "_")}.pdf`,
         verificationCode: verificationCode,
@@ -319,10 +319,10 @@ export default function ModDocGen({ user }) {
         const pld = app.payload;
         if (pld) {
           const newGenerated = {
-            id: app.documentId,
-            documentNumber: pld.docNumber,
+            id: app.documentDocsId,
+            documentNo: pld.docNumber,
             documentType: pld.documentType,
-            entityId: pld.entityId,
+            entityDocsId: pld.entityDocsId,
             entityType: pld.entityType,
             pdfUrl: `${pld.documentType.replace(/ /g, "_")}_Release.pdf`,
             verificationCode: pld.verificationCode,
@@ -395,7 +395,7 @@ export default function ModDocGen({ user }) {
 
     const newSig = {
       id: `sig-${Date.now()}`,
-      signerId: `staff-${sigRole.toLowerCase()}`,
+      signerDocsId: `staff-${sigRole.toLowerCase()}`,
       signerName: sigName,
       designation: sigRole,
       signatureUrl: `${drawnSigText.replace(/ /g, "_")}_sig.png`,
@@ -428,7 +428,7 @@ export default function ModDocGen({ user }) {
 
     // Search in generated documents
     const match = genDocs.find(
-      d => d.documentNumber.toLowerCase() === searchDocNumber.trim().toLowerCase() ||
+      d => d.documentNo.toLowerCase() === searchDocNumber.trim().toLowerCase() ||
            d.verificationCode.toLowerCase() === searchDocNumber.trim().toLowerCase()
     );
 
@@ -436,7 +436,7 @@ export default function ModDocGen({ user }) {
     setVerifiedDoc(match || null);
 
     if (match) {
-      addToast("Document Verified", `Record ${match.documentNumber} is active and valid.`, "success");
+      addToast("Document Verified", `Record ${match.documentNo} is active and valid.`, "success");
     } else {
       addToast("Record Not Found", "No match found for this document code.", "error");
     }
@@ -476,17 +476,17 @@ export default function ModDocGen({ user }) {
   const handleOpenDocPreview = (doc) => {
     setSelectedJob(doc);
     setPreviewDocTitle(doc.documentType);
-    setPreviewDocNum(doc.documentNumber);
-    setPreviewDocContent(doc.compiledContent || `Bonafide record confirming details of user index: ${doc.entityId}. Clearances active.`);
+    setPreviewDocNum(doc.documentNo);
+    setPreviewDocContent(doc.compiledContent || `Bonafide record confirming details of user index: ${doc.entityDocsId}. Clearances active.`);
     setIsViewDocOpen(true);
   };
 
   // Archive filtered
   const filteredArchive = genDocs.filter(doc => {
     const matchesSearch =
-      doc.documentNumber.toLowerCase().includes(archiveSearch.toLowerCase()) ||
+      doc.documentNo.toLowerCase().includes(archiveSearch.toLowerCase()) ||
       doc.documentType.toLowerCase().includes(archiveSearch.toLowerCase()) ||
-      doc.entityId.toLowerCase().includes(archiveSearch.toLowerCase());
+      doc.entityDocsId.toLowerCase().includes(archiveSearch.toLowerCase());
 
     const matchesFilter =
       archiveFilter === "All" ||
@@ -953,8 +953,8 @@ export default function ModDocGen({ user }) {
                     label: `${t.name} (${t.category})`,
                     value: t.id
                   }))}
-                  value={selectedTemplateId}
-                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  value={selectedTemplateDocsId}
+                  onChange={(e) => setSelectedTemplateDocsId(e.target.value)}
                 />
                 <Select
                   label="Holder Cohort Type *"
@@ -975,8 +975,8 @@ export default function ModDocGen({ user }) {
                       label: `${s.name} (Grade: ${s.grade} | Wallet: $${s.walletBalance})`,
                       value: s.id
                     }))}
-                    value={targetEntityId}
-                    onChange={(e) => setTargetEntityId(e.target.value)}
+                    value={targetEntityDocsId}
+                    onChange={(e) => setTargetEntityDocsId(e.target.value)}
                   />
                 ) : (
                   <Select
@@ -985,8 +985,8 @@ export default function ModDocGen({ user }) {
                       label: `${s.name} (${s.role} • ${s.department})`,
                       value: s.id
                     }))}
-                    value={targetEntityId}
-                    onChange={(e) => setTargetEntityId(e.target.value)}
+                    value={targetEntityDocsId}
+                    onChange={(e) => setTargetEntityDocsId(e.target.value)}
                   />
                 )}
 
@@ -1008,7 +1008,7 @@ export default function ModDocGen({ user }) {
 
               {/* Template Content preview section */}
               {(() => {
-                const tmpl = templates.find(t => t.id === selectedTemplateId);
+                const tmpl = templates.find(t => t.id === selectedTemplateDocsId);
                 return (
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-150 space-y-2">
                     <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Raw Template Content Preview</span>
@@ -1141,7 +1141,7 @@ export default function ModDocGen({ user }) {
                     <Badge variant="success" className="text-[8px] font-black uppercase">Active</Badge>
                   </div>
                   <div className="border-t border-slate-200/60 pt-2 flex justify-between items-center text-[10px] font-bold text-slate-400">
-                    <span className="font-mono text-[9px] text-slate-400">Key ID: {sig.signerId}</span>
+                    <span className="font-mono text-[9px] text-slate-400">Key ID: {sig.signerDocsId}</span>
                     <span className="text-blue-700 italic font-serif tracking-wider font-extrabold pr-2">
                       {sig.signerName}
                     </span>
@@ -1197,7 +1197,7 @@ export default function ModDocGen({ user }) {
                     <div className="flex justify-between items-center border-b border-emerald-100 pb-3">
                       <div>
                         <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Verification Approved</h4>
-                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">Reference ID: {verifiedDoc.documentNumber}</span>
+                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">Reference ID: {verifiedDoc.documentNo}</span>
                       </div>
                       <Badge variant="success" className="text-[9px] font-black uppercase">Valid Record</Badge>
                     </div>
@@ -1209,7 +1209,7 @@ export default function ModDocGen({ user }) {
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 block uppercase">Holder Reference</span>
-                        <span className="font-mono">{verifiedDoc.entityId} ({verifiedDoc.entityType})</span>
+                        <span className="font-mono">{verifiedDoc.entityDocsId} ({verifiedDoc.entityType})</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 block uppercase">Timestamp Issued</span>
@@ -1307,9 +1307,9 @@ export default function ModDocGen({ user }) {
                 <tbody className="divide-y divide-slate-50">
                   {filteredArchive.map(doc => (
                     <tr key={doc.id}>
-                      <td className="p-3 font-extrabold text-blue-700 font-mono">{doc.documentNumber}</td>
+                      <td className="p-3 font-extrabold text-blue-700 font-mono">{doc.documentNo}</td>
                       <td className="p-3 font-bold text-slate-800">{doc.documentType}</td>
-                      <td className="p-3 font-bold text-slate-650 uppercase font-mono">{doc.entityId} ({doc.entityType})</td>
+                      <td className="p-3 font-bold text-slate-650 uppercase font-mono">{doc.entityDocsId} ({doc.entityType})</td>
                       <td className="p-3 font-mono text-slate-500 font-bold">{doc.verificationCode}</td>
                       <td className="p-3 font-mono text-slate-400 font-bold">{doc.generatedAt}</td>
                       <td className="p-3">
@@ -1325,7 +1325,7 @@ export default function ModDocGen({ user }) {
                           </Button>
                           <Button
                             onClick={() => {
-                              addToast("Exporting", `Printing PDF layout: ${doc.documentNumber}`);
+                              addToast("Exporting", `Printing PDF layout: ${doc.documentNo}`);
                             }}
                             className="text-[10px] py-1 h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg"
                           >

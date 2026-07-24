@@ -14,9 +14,9 @@ public interface HomeworkRepository extends MongoRepository<Homework, String> {
     List<Homework> findByClassDocsId(String classDocsId);
     List<Homework> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
 
-    @Query("{ 'studentAssignments.studentId': ?0 }")
-    List<Homework> findByStudentAssignmentsStudentId(String studentId);
+    @Query("{ 'studentAssignments.studentDocsId': ?0 }")
+    List<Homework> findByStudentAssignmentsStudentDocsId(String studentDocsId);
 
-    @Query("{ 'schoolId': ?0, 'studentAssignments.studentId': ?1 }")
-    List<Homework> findBySchoolIdAndStudentAssignmentsStudentId(String schoolId, String studentId);
+    @Query("{ 'schoolId': ?0, 'studentAssignments.studentDocsId': ?1 }")
+    List<Homework> findBySchoolIdAndStudentAssignmentsStudentDocsId(String schoolId, String studentDocsId);
 }

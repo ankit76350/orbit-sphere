@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DocumentSignature extends SchoolBase {
 
-    private String signerId;
+    private String signerDocsId;
 
     private String signerName;
 

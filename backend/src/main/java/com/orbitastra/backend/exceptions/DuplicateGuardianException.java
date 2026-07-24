@@ -7,17 +7,17 @@ package com.orbitastra.backend.exceptions;
  */
 public class DuplicateGuardianException extends RuntimeException {
 
-    private final String existingGuardianId;
+    private final String existingGuardianDocsId;
     private final String existingGuardianName;
 
-    public DuplicateGuardianException(String message, String existingGuardianId, String existingGuardianName) {
+    public DuplicateGuardianException(String message, String existingGuardianDocsId, String existingGuardianName) {
         super(message);
-        this.existingGuardianId = existingGuardianId;
+        this.existingGuardianDocsId = existingGuardianDocsId;
         this.existingGuardianName = existingGuardianName;
     }
 
-    public String getExistingGuardianId() {
-        return existingGuardianId;
+    public String getExistingGuardianDocsId() {
+        return existingGuardianDocsId;
     }
 
     public String getExistingGuardianName() {

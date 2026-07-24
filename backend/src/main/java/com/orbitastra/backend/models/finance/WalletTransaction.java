@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class WalletTransaction extends SchoolBase {
 
-    private String studentId;
+    private String studentDocsId;
 
     private TransactionType type;
 

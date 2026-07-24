@@ -31,7 +31,7 @@ public class Attendance extends AcadmicStudentSchoolBase {
     private AttendanceStatus status;
 
     /** MongoDB id of the staff member who recorded the attendance. */
-    private String presentBy;
+    private String presentByDocsId;
 
     private LocalDateTime presentTime;
 }

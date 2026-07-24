@@ -41,7 +41,7 @@ const SCHED_KEY = "erp_scheduled_reports";
 const SOURCES = {
   students: {
     label: "Students",
-    fields: ["admissionNumber", "name", "grade", "gender", "dob", "parentName", "parentPhone", "walletBalance", "hostelOptIn", "transportOptIn", "status"],
+    fields: ["admissionNo", "name", "grade", "gender", "dob", "parentName", "parentPhone", "walletBalance", "hostelOptIn", "transportOptIn", "status"],
     filterFields: ["grade", "status", "gender"],
     load: () => getStudents()
   },

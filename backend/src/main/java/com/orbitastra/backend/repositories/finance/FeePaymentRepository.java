@@ -9,7 +9,7 @@ import com.orbitastra.backend.models.finance.FeePayment;
 
 @Repository
 public interface FeePaymentRepository extends MongoRepository<FeePayment, String> {
-    List<FeePayment> findByFeeId(String feeId);
-    List<FeePayment> findByStudentIdOrderByPaidOnDesc(String studentId);
+    List<FeePayment> findByFeeDocsId(String feeDocsId);
+    List<FeePayment> findByStudentDocsIdOrderByPaidOnDesc(String studentDocsId);
     List<FeePayment> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
 }

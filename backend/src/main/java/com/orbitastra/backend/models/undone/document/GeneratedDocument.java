@@ -21,11 +21,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GeneratedDocument extends SchoolBase {
 
-    private String documentNumber;
+    private String documentNo;
 
     private String documentType;
 
-    private String entityId; // studentId or staffId
+    private String entityDocsId; // studentDocsId or staffDocsId
 
     private String entityType; // Student, Staff
 

@@ -21,7 +21,7 @@ public class BirthdayCard extends SchoolBase {
 
     private String personType;
 
-    private String personId;
+    private String personDocsId;
 
     private String personName;
 

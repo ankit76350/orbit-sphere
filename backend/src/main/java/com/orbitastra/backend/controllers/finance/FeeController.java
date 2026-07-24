@@ -33,7 +33,7 @@ public class FeeController {
         FeeInvoice fee = FeeInvoice.builder()
                 .schoolId(request.getSchoolId())
                 .academicYear(request.getAcademicYear())
-                .studentId(request.getStudentId())
+                .studentDocsId(request.getStudentDocsId())
                 .type(request.getType())
                 .amount(request.getAmount())
                 .discount(request.getDiscount())
@@ -49,9 +49,9 @@ public class FeeController {
         return ResponseEntity.ok(fee);
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<FeeInvoice>> getFeesByStudent(@PathVariable String studentId) {
-        List<FeeInvoice> fees = feeService.getFeesByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<FeeInvoice>> getFeesByStudent(@PathVariable String studentDocsId) {
+        List<FeeInvoice> fees = feeService.getFeesByStudent(studentDocsId);
         return ResponseEntity.ok(fees);
     }
 

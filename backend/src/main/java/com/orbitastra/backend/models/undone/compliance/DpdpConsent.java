@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 public class DpdpConsent extends SchoolBase {
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 
     // The data-processing purpose consent is sought for (e.g. "Photos & Media", "Health Data").
     private String consentType;

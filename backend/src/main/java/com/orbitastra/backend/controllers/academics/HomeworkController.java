@@ -113,37 +113,37 @@ public class HomeworkController {
         return ResponseEntity.ok(updated);
     }
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<Homework>> getHomeworkByStudent(@PathVariable String studentId) {
-        List<Homework> homeworkList = homeworkService.getHomeworkByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<List<Homework>> getHomeworkByStudent(@PathVariable String studentDocsId) {
+        List<Homework> homeworkList = homeworkService.getHomeworkByStudent(studentDocsId);
         return ResponseEntity.ok(homeworkList);
     }
 
-    @GetMapping("/school/{schoolId}/student/{studentId}")
+    @GetMapping("/school/{schoolId}/student/{studentDocsId}")
     public ResponseEntity<List<Homework>> getHomeworkBySchoolAndStudent(
             @PathVariable String schoolId,
-            @PathVariable String studentId) {
-        List<Homework> homeworkList = homeworkService.getHomeworkBySchoolAndStudent(schoolId, studentId);
+            @PathVariable String studentDocsId) {
+        List<Homework> homeworkList = homeworkService.getHomeworkBySchoolAndStudent(schoolId, studentDocsId);
         return ResponseEntity.ok(homeworkList);
     }
 
-    @PostMapping("/{id}/submit/{studentId}")
+    @PostMapping("/{id}/submit/{studentDocsId}")
     public ResponseEntity<Homework> submitHomework(
             @PathVariable String id,
-            @PathVariable String studentId,
+            @PathVariable String studentDocsId,
             @Valid @RequestBody SubmitHomeworkRequest request) {
         Homework updated = homeworkService.submitHomework(
-                id, studentId, request.getSubmissionText(), request.getSubmissionFileUrl());
+                id, studentDocsId, request.getSubmissionText(), request.getSubmissionFileUrl());
         return ResponseEntity.ok(updated);
     }
 
-    @PostMapping("/{id}/grade/{studentId}")
+    @PostMapping("/{id}/grade/{studentDocsId}")
     public ResponseEntity<Homework> gradeHomework(
             @PathVariable String id,
-            @PathVariable String studentId,
+            @PathVariable String studentDocsId,
             @Valid @RequestBody GradeHomeworkRequest request) {
         Homework updated = homeworkService.gradeHomework(
-                id, studentId, request.getObtainedMarks(), request.getFeedback());
+                id, studentDocsId, request.getObtainedMarks(), request.getFeedback());
         return ResponseEntity.ok(updated);
     }
 

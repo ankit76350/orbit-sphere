@@ -32,7 +32,7 @@ public class NotificationController {
     public ResponseEntity<Notification> createNotification(@Valid @RequestBody CreateNotificationRequest request) {
         Notification notification = Notification.builder()
                 .schoolId(request.getSchoolId())
-                .recipientId(request.getRecipientId())
+                .recipientDocsId(request.getRecipientDocsId())
                 .channel(request.getChannel())
                 .message(request.getMessage())
                 .build();
@@ -52,15 +52,15 @@ public class NotificationController {
         return ResponseEntity.ok(notification);
     }
 
-    @GetMapping("/recipient/{recipientId}")
-    public ResponseEntity<List<Notification>> getNotificationsByRecipient(@PathVariable String recipientId) {
-        List<Notification> notifications = notificationService.getNotificationsByRecipient(recipientId);
+    @GetMapping("/recipient/{recipientDocsId}")
+    public ResponseEntity<List<Notification>> getNotificationsByRecipient(@PathVariable String recipientDocsId) {
+        List<Notification> notifications = notificationService.getNotificationsByRecipient(recipientDocsId);
         return ResponseEntity.ok(notifications);
     }
 
-    @GetMapping("/recipient/{recipientId}/unsent")
-    public ResponseEntity<List<Notification>> getUnsentNotificationsByRecipient(@PathVariable String recipientId) {
-        List<Notification> notifications = notificationService.getNotificationsByRecipientAndSentStatus(recipientId, false);
+    @GetMapping("/recipient/{recipientDocsId}/unsent")
+    public ResponseEntity<List<Notification>> getUnsentNotificationsByRecipient(@PathVariable String recipientDocsId) {
+        List<Notification> notifications = notificationService.getNotificationsByRecipientAndSentStatus(recipientDocsId, false);
         return ResponseEntity.ok(notifications);
     }
 

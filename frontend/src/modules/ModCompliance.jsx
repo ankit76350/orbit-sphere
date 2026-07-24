@@ -55,12 +55,12 @@ const buildApaarSeed = (students) =>
     const mod = i % 7;
     const hasApaar = mod !== 2 && mod !== 5;
     return {
-      studentId: s.id,
+      studentDocsId: s.id,
       name: s.name,
-      admissionNumber: s.admissionNumber,
+      admissionNo: s.admissionNo,
       grade: s.grade,
       pen: fakeDigits(`pen-${s.id}`, 11),
-      apaarId: hasApaar ? fakeDigits(`apaar-${s.id}`, 12) : null,
+      apaarNo: hasApaar ? fakeDigits(`apaar-${s.id}`, 12) : null,
       aadhaarVerified: mod !== 5,
       digilockerLinked: hasApaar && mod !== 3,
       status: hasApaar ? "Generated" : mod === 5 ? "Error" : "Pending"
@@ -155,7 +155,7 @@ export default function ModCompliance({ user }) {
   const [apaarProgress, setApaarProgress] = useState(-1);
 
   // HPC builder state
-  const [hpcStudentId, setHpcStudentId] = useState(() => (getStudents()[0] ? getStudents()[0].id : ""));
+  const [hpcStudentDocsId, setHpcStudentDocsId] = useState(() => (getStudents()[0] ? getStudents()[0].id : ""));
   const [hpcForm, setHpcForm] = useState(() => emptyHpcForm());
   const [hpcSelf, setHpcSelf] = useState("");
   const [hpcPeer, setHpcPeer] = useState("");
@@ -203,7 +203,7 @@ export default function ModCompliance({ user }) {
               ? a
               : {
                   ...a,
-                  apaarId: fakeDigits(`apaar-new-${a.studentId}-${Date.now()}`, 12),
+                  apaarNo: fakeDigits(`apaar-new-${a.studentDocsId}-${Date.now()}`, 12),
                   aadhaarVerified: true,
                   digilockerLinked: true,
                   status: "Generated"
@@ -220,12 +220,12 @@ export default function ModCompliance({ user }) {
     }, 350);
   };
 
-  const handleRetryRow = (studentId) => {
+  const handleRetryRow = (studentDocsId) => {
     const updated = apaar.map((a) =>
-      a.studentId === studentId
+      a.studentDocsId === studentDocsId
         ? {
             ...a,
-            apaarId: fakeDigits(`apaar-retry-${studentId}-${Date.now()}`, 12),
+            apaarNo: fakeDigits(`apaar-retry-${studentDocsId}-${Date.now()}`, 12),
             aadhaarVerified: true,
             digilockerLinked: true,
             status: "Generated"
@@ -234,8 +234,8 @@ export default function ModCompliance({ user }) {
     );
     setApaar(updated);
     saveLS("erp_apaar", updated);
-    const row = apaar.find((a) => a.studentId === studentId);
-    doLog("APAAR Retry", `Re-attempted APAAR generation for ${row ? row.name : studentId}. Verification passed.`);
+    const row = apaar.find((a) => a.studentDocsId === studentDocsId);
+    doLog("APAAR Retry", `Re-attempted APAAR generation for ${row ? row.name : studentDocsId}. Verification passed.`);
     addToast("Retry Successful", "Aadhaar demographic match passed. APAAR ID minted and DigiLocker-linked.", "success");
   };
 
@@ -244,9 +244,9 @@ export default function ModCompliance({ user }) {
     const header = ["AdmissionNo", "PEN", "StudentName", "Grade", "Gender", "DOB", "SocialCategory", "BloodGroup"];
     const cats = ["General", "OBC", "SC", "ST"];
     const rows = students.slice(0, 10).map((s, i) => {
-      const rec = apaar.find((a) => a.studentId === s.id);
+      const rec = apaar.find((a) => a.studentDocsId === s.id);
       return [
-        s.admissionNumber,
+        s.admissionNo,
         rec ? rec.pen : fakeDigits(`pen-${s.id}`, 11),
         `"${s.name}"`,
         `"${s.grade}"`,
@@ -271,7 +271,7 @@ export default function ModCompliance({ user }) {
   };
 
   // ============ HPC handlers ============
-  const hpcStudent = students.find((s) => s.id === hpcStudentId);
+  const hpcStudent = students.find((s) => s.id === hpcStudentDocsId);
 
   const handleHpcAiDraft = () => {
     if (!hpcStudent) return;
@@ -296,7 +296,7 @@ export default function ModCompliance({ user }) {
     if (!hpcStudent) return;
     const record = {
       id: `hpc-${hpcStudent.id}-${Date.now()}`,
-      studentId: hpcStudent.id,
+      studentDocsId: hpcStudent.id,
       studentName: hpcStudent.name,
       grade: hpcStudent.grade,
       term: "Term 1, AY 2026-27",
@@ -306,7 +306,7 @@ export default function ModCompliance({ user }) {
       status: publish ? "Published" : "Draft",
       savedAt: new Date().toISOString().slice(0, 19).replace("T", " ")
     };
-    const next = [...hpcRecords.filter((r) => r.studentId !== hpcStudent.id), record];
+    const next = [...hpcRecords.filter((r) => r.studentDocsId !== hpcStudent.id), record];
     setHpcRecords(next);
     saveLS("erp_hpc", next);
     doLog(publish ? "HPC Published" : "HPC Draft Saved", `Holistic Progress Card ${publish ? "published" : "saved"} for ${hpcStudent.name} (${hpcStudent.grade}).`);
@@ -491,15 +491,15 @@ export default function ModCompliance({ user }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {apaar.slice(0, 30).map((a) => (
-                    <tr key={a.studentId}>
+                    <tr key={a.studentDocsId}>
                       <td className="p-4 font-extrabold text-slate-800">
                         {a.name}
                         <span className="block text-[9px] text-slate-400 font-bold">{a.grade}</span>
                       </td>
-                      <td className="p-4 font-mono text-[10px]">{a.admissionNumber}</td>
+                      <td className="p-4 font-mono text-[10px]">{a.admissionNo}</td>
                       <td className="p-4 font-mono text-[10px] text-slate-500">{a.pen}</td>
                       <td className="p-4 font-mono text-[10px]">
-                        {a.apaarId ? a.apaarId : <span className="text-slate-400 italic">— pending</span>}
+                        {a.apaarNo ? a.apaarNo : <span className="text-slate-400 italic">— pending</span>}
                       </td>
                       <td className="p-4">
                         <Badge variant={a.aadhaarVerified ? "success" : "warning"} className="text-[9px] font-black uppercase">
@@ -521,7 +521,7 @@ export default function ModCompliance({ user }) {
                       </td>
                       <td className="p-4">
                         {a.status !== "Generated" && (
-                          <Button size="sm" variant="outline" onClick={() => handleRetryRow(a.studentId)} className="text-[10px] flex items-center gap-1">
+                          <Button size="sm" variant="outline" onClick={() => handleRetryRow(a.studentDocsId)} className="text-[10px] flex items-center gap-1">
                             <RefreshCw className="h-3 w-3" /> Retry
                           </Button>
                         )}
@@ -621,10 +621,10 @@ export default function ModCompliance({ user }) {
               <Select
                 label="Select Learner"
                 options={students.map((s) => ({ label: `${s.name} — ${s.grade}`, value: s.id }))}
-                value={hpcStudentId}
+                value={hpcStudentDocsId}
                 onChange={(e) => {
-                  setHpcStudentId(e.target.value);
-                  const existing = hpcRecords.find((r) => r.studentId === e.target.value);
+                  setHpcStudentDocsId(e.target.value);
+                  const existing = hpcRecords.find((r) => r.studentDocsId === e.target.value);
                   if (existing) {
                     setHpcForm(existing.domains);
                     setHpcSelf(existing.feedback.self);
@@ -710,7 +710,7 @@ export default function ModCompliance({ user }) {
                   <div className="p-4 bg-indigo-900 text-white rounded-2xl">
                     <span className="text-[9px] uppercase tracking-widest font-extrabold text-indigo-300">Holistic Progress Card</span>
                     <h4 className="text-lg font-black mt-1">{hpcStudent.name}</h4>
-                    <p className="text-[10px] text-indigo-200 font-bold">{hpcStudent.grade} • Adm No: {hpcStudent.admissionNumber}</p>
+                    <p className="text-[10px] text-indigo-200 font-bold">{hpcStudent.grade} • Adm No: {hpcStudent.admissionNo}</p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

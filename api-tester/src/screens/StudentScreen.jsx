@@ -9,7 +9,7 @@ import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../c
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
 
 const emptyAcademicRecord = () => ({
-  academicYear: '', studentNo: '', rollNo: '', classDocId: '', sectionNo: '', hostelRoomNo: '', status: '',
+  academicYear: '', studentNo: '', rollNo: '', classDocsId: '', sectionNo: '', hostelRoomNo: '', status: '',
 });
 
 const emptyInlineGuardian = () => ({
@@ -58,7 +58,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     academicYear: year || '',
     studentNo: '',
     rollNo: '',
-    classDocId: '',
+    classDocsId: '',
     sectionNo: '',
     hostelRoomNo: '',
     status: 'ACTIVE'
@@ -215,7 +215,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       academicYear: year || '',
       studentNo: historyStudent ? historyStudent.admissionNo || '' : '',
       rollNo: '',
-      classDocId: firstClass?.id || '',
+      classDocsId: firstClass?.id || '',
       sectionNo: firstClass?.sections && firstClass.sections.length > 0 ? firstClass.sections[0] : '',
       hostelRoomNo: '',
       status: 'ACTIVE'
@@ -223,17 +223,17 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     setShowAssignModal(true);
   };
 
-  const handleClassSelectChange = (classId) => {
-    const cls = assignmentClasses.find(c => c.id === classId);
+  const handleClassSelectChange = (classDocsId) => {
+    const cls = assignmentClasses.find(c => c.id === classDocsId);
     setAssignForm(f => ({
       ...f,
-      classDocId: classId,
+      classDocsId: classDocsId,
       sectionNo: cls && cls.sections && cls.sections.length > 0 ? cls.sections[0] : ''
     }));
   };
 
   const handleAcademicYearChange = async (academicYear) => {
-    setAssignForm((form) => ({ ...form, academicYear, classDocId: '', sectionNo: '' }));
+    setAssignForm((form) => ({ ...form, academicYear, classDocsId: '', sectionNo: '' }));
     if (!academicYear) {
       setAssignmentClasses([]);
       return;
@@ -263,7 +263,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   };
 
-  const selectedClass = assignmentClasses.find(c => c.id === assignForm.classDocId);
+  const selectedClass = assignmentClasses.find(c => c.id === assignForm.classDocsId);
   const sections = selectedClass ? (selectedClass.sections || []) : [];
 
   if (!schoolId) {
@@ -503,7 +503,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                       <Field label="Academic Year" apiName="academicYear" required={false}><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
                       <Field label="Student No" apiName="studentNo" required={false}><Input value={studentForm.currentAcademicRecord.studentNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, studentNo: e.target.value } })} /></Field>
                       <Field label="Roll No" apiName="rollNo" required={false}><Input value={studentForm.currentAcademicRecord.rollNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, rollNo: e.target.value } })} /></Field>
-                      <Field label="Class Document ID" apiName="classDocId" required={false}><Input value={studentForm.currentAcademicRecord.classDocId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocId: e.target.value } })} /></Field>
+                      <Field label="Class Document ID" apiName="classDocsId" required={false}><Input value={studentForm.currentAcademicRecord.classDocsId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocsId: e.target.value } })} /></Field>
                       <Field label="Section No" apiName="sectionNo" required={false}><Input value={studentForm.currentAcademicRecord.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, sectionNo: e.target.value } })} /></Field>
                       <Field label="Hostel Room No" apiName="hostelRoomNo" required={false}><Input value={studentForm.currentAcademicRecord.hostelRoomNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, hostelRoomNo: e.target.value } })} /></Field>
                       <Field label="Status" apiName="status" required={false}>
@@ -609,7 +609,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     </thead>
                     <tbody className="divide-y divide-slate-200/60 text-slate-700">
                       {academicHistory.map((rec) => {
-                        const targetCls = classes.find(c => c.id === rec.classDocId);
+                        const targetCls = classes.find(c => c.id === rec.classDocsId);
                         return (
                           <tr key={rec.id} className="hover:bg-slate-100/20 transition">
                             <td className="px-4 py-2.5 font-bold text-slate-900">{rec.academicYear}</td>
@@ -667,9 +667,9 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Target Class" apiName="classDocId" required={false}>
+                <Field label="Target Class" apiName="classDocsId" required={false}>
                   <Select 
-                    value={assignForm.classDocId}
+                    value={assignForm.classDocsId}
                     onChange={(e) => handleClassSelectChange(e.target.value)}
                   >
                     <option value="">— omitted —</option>

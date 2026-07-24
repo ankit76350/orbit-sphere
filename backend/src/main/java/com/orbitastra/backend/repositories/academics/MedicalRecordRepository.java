@@ -10,5 +10,5 @@ import com.orbitastra.backend.models.academics.MedicalRecord;
 @Repository
 public interface MedicalRecordRepository extends MongoRepository<MedicalRecord, String> {
     List<MedicalRecord> findBySchoolId(String schoolId);
-    List<MedicalRecord> findByStudentId(String studentId);
+    List<MedicalRecord> findByStudentDocsId(String studentDocsId);
 }

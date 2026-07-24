@@ -34,12 +34,12 @@ public class NotificationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found with id: " + id));
     }
 
-    public List<Notification> getNotificationsByRecipient(String recipientId) {
-        return notificationRepository.findByRecipientId(recipientId);
+    public List<Notification> getNotificationsByRecipient(String recipientDocsId) {
+        return notificationRepository.findByRecipientDocsId(recipientDocsId);
     }
 
-    public List<Notification> getNotificationsByRecipientAndSentStatus(String recipientId, Boolean sent) {
-        return notificationRepository.findByRecipientIdAndSent(recipientId, sent);
+    public List<Notification> getNotificationsByRecipientAndSentStatus(String recipientDocsId, Boolean sent) {
+        return notificationRepository.findByRecipientDocsIdAndSent(recipientDocsId, sent);
     }
 
     public List<Notification> getNotificationsBySchool(String schoolId) {

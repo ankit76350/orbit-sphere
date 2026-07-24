@@ -150,38 +150,38 @@ class AdmissionServiceTest {
 
     @Test
     void createAdmission_inquiryIdOnly_copiesSnapshotAndInfersSchool() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         InquiryGuardian guardian = guardian("Parent One", GuardianRelation.MOTHER,
                 "0400111222", "parent@example.com", "Old Address");
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .studentName("Inquiry Applicant")
                 .guardians(List.of(guardian))
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
-        when(admissionRepository.existsByInquiryDocsId(inquiryId)).thenReturn(false);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
+        when(admissionRepository.existsByInquiryDocsId(inquiryDocsId)).thenReturn(false);
         saveWithGeneratedId();
 
         Admission saved = admissionService.createAdmission(
-                Admission.builder().inquiryDocsId(inquiryId).build());
+                Admission.builder().inquiryDocsId(inquiryDocsId).build());
 
         assertEquals("school-123", saved.getSchoolId());
         assertEquals("Inquiry Applicant", saved.getStudentName());
-        assertEquals(inquiryId, saved.getInquiryDocsId());
+        assertEquals(inquiryDocsId, saved.getInquiryDocsId());
         assertEquals(1, saved.getGuardians().size());
         assertEquals("parent@example.com", saved.getGuardians().get(0).getEmail());
         assertFalse(saved.getGuardians().get(0) == guardian, "The admission must own its snapshot copy");
-        verify(inquiryService).linkAdmission(inquiryId, "admission-789");
+        verify(inquiryService).linkAdmission(inquiryDocsId, "admission-789");
     }
 
     @Test
     void createAdmission_inquiryWithOverrides_mergesApplicantAndGuardianDetails() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         InquiryGuardian existingMother = guardian("Meera Nair", GuardianRelation.MOTHER,
                 "+61-400-111-222", "meera@example.com", "Old Address");
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .studentName("Aarav Nair")
                 .guardians(List.of(existingMother))
@@ -193,15 +193,15 @@ class AdmissionServiceTest {
         LocalDate dob = LocalDate.of(2015, 5, 10);
         Admission request = Admission.builder()
                 .schoolId("school-123")
-                .inquiryDocsId(inquiryId)
+                .inquiryDocsId(inquiryDocsId)
                 .studentName("Aarav Kumar Nair")
                 .dob(dob)
                 .gender(Gender.MALE)
                 .documents(List.of("birth-certificate.pdf"))
                 .guardians(List.of(motherOverride, additionalFather))
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
-        when(admissionRepository.existsByInquiryDocsId(inquiryId)).thenReturn(false);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
+        when(admissionRepository.existsByInquiryDocsId(inquiryDocsId)).thenReturn(false);
         saveWithGeneratedId();
 
         Admission saved = admissionService.createAdmission(request);
@@ -218,87 +218,87 @@ class AdmissionServiceTest {
 
     @Test
     void createAdmission_inquiryWithGuardianOnly_stillSupportsIdOnlyConversion() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .guardians(List.of(guardian("Parent One", GuardianRelation.MOTHER,
                         "0400111222", null, null)))
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
         saveWithGeneratedId();
 
         Admission saved = admissionService.createAdmission(
-                Admission.builder().inquiryDocsId(inquiryId).build());
+                Admission.builder().inquiryDocsId(inquiryDocsId).build());
 
         assertNull(saved.getStudentName());
         assertEquals(1, saved.getGuardians().size());
-        verify(inquiryService).linkAdmission(inquiryId, "admission-789");
+        verify(inquiryService).linkAdmission(inquiryDocsId, "admission-789");
     }
 
     @Test
     void createAdmission_missingInquiry_propagatesNotFoundAndDoesNotSave() {
-        String inquiryId = "missing-inquiry";
-        when(inquiryService.getInquiryById(inquiryId))
-                .thenThrow(new ResourceNotFoundException("Inquiry not found with id: " + inquiryId));
+        String inquiryDocsId = "missing-inquiry";
+        when(inquiryService.getInquiryById(inquiryDocsId))
+                .thenThrow(new ResourceNotFoundException("Inquiry not found with id: " + inquiryDocsId));
 
         assertThrows(ResourceNotFoundException.class, () -> admissionService.createAdmission(
-                Admission.builder().inquiryDocsId(inquiryId).build()));
+                Admission.builder().inquiryDocsId(inquiryDocsId).build()));
 
         verify(admissionRepository, never()).save(any());
     }
 
     @Test
     void createAdmission_duplicateInquiry_returnsConflict() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .studentName("John Doe")
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
-        when(admissionRepository.existsByInquiryDocsId(inquiryId)).thenReturn(true);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
+        when(admissionRepository.existsByInquiryDocsId(inquiryDocsId)).thenReturn(true);
 
         ConflictException ex = assertThrows(ConflictException.class, () -> admissionService.createAdmission(
-                Admission.builder().inquiryDocsId(inquiryId).build()));
+                Admission.builder().inquiryDocsId(inquiryDocsId).build()));
 
-        assertEquals("An admission already exists for inquiryDocsId: " + inquiryId, ex.getMessage());
+        assertEquals("An admission already exists for inquiryDocsId: " + inquiryDocsId, ex.getMessage());
         verify(admissionRepository, never()).save(any());
     }
 
     @Test
     void createAdmission_concurrentDuplicateDetectedByMongoIndex_returnsConflict() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .studentName("John Doe")
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
         when(admissionRepository.save(any(Admission.class)))
                 .thenThrow(new DuplicateKeyException("duplicate inquiryDocsId"));
 
         ConflictException ex = assertThrows(ConflictException.class, () -> admissionService.createAdmission(
-                Admission.builder().inquiryDocsId(inquiryId).build()));
+                Admission.builder().inquiryDocsId(inquiryDocsId).build()));
 
-        assertEquals("An admission already exists for inquiryDocsId: " + inquiryId, ex.getMessage());
+        assertEquals("An admission already exists for inquiryDocsId: " + inquiryDocsId, ex.getMessage());
         verify(inquiryService, never()).linkAdmission(any(), any());
     }
 
     @Test
     void createAdmission_inquiryFromDifferentRequestedSchool_rejected() {
-        String inquiryId = "inquiry-456";
+        String inquiryDocsId = "inquiry-456";
         Inquiry inquiry = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .studentName("John Doe")
                 .build();
-        when(inquiryService.getInquiryById(inquiryId)).thenReturn(inquiry);
+        when(inquiryService.getInquiryById(inquiryDocsId)).thenReturn(inquiry);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> admissionService.createAdmission(
                 Admission.builder()
                         .schoolId("different-school")
-                        .inquiryDocsId(inquiryId)
+                        .inquiryDocsId(inquiryDocsId)
                         .build()));
 
         assertEquals("Inquiry does not belong to the requested school.", ex.getMessage());
@@ -392,7 +392,7 @@ class AdmissionServiceTest {
         request.setDocuments(List.of("corrected-document.pdf"));
         AcademicRecordRequest academicRecord = new AcademicRecordRequest();
         academicRecord.setAcademicYear("2026-2027");
-        academicRecord.setClassDocId("class-9");
+        academicRecord.setClassDocsId("class-9");
         academicRecord.setRollNo("12");
         request.setCurrentAcademicRecord(academicRecord);
         StudentGuardianRequest existingGuardian = StudentGuardianRequest.builder()
@@ -430,7 +430,7 @@ class AdmissionServiceTest {
         assertEquals(LocalDate.of(2014, 8, 22), studentCaptor.getValue().getDob());
         assertEquals(List.of("corrected-document.pdf"), studentCaptor.getValue().getDocuments());
         assertEquals("2026-2027", academicCaptor.getValue().getAcademicYear());
-        assertEquals("class-9", academicCaptor.getValue().getClassDocId());
+        assertEquals("class-9", academicCaptor.getValue().getClassDocsId());
         assertEquals("12", academicCaptor.getValue().getRollNo());
 
         @SuppressWarnings("unchecked")

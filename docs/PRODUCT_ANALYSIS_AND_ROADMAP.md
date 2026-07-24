@@ -52,8 +52,8 @@
 ### A. Foundational / architectural gaps (blockers)
 1. **Real authentication & authorization.** No User/credential entity, no password/JWT/OAuth, no MFA, no session management. The `permissions` arrays in the UI are decorative. → Must-have; nothing ships without it.
 2. **Academic Year / Session entity.** Indian schools live by sessions (Apr–Mar). Every fee, attendance, exam, and class record must be session-scoped. Without it, **year-end promotion/rollover** (promote 5,000 students to next class, carry forward dues, archive records) is impossible. This is the #1 schema mistake to fix now.
-3. **Section entity.** `Student.sectionId` references a class Section that doesn't exist as a model. Class–Section–Subject–Teacher mapping is the backbone of timetable, attendance, and exams.
-4. **Audit trail with user attribution.** No `createdBy/updatedBy` anywhere; frontend audit log capped at 100 localStorage entries. Schools have fraud problems (fee leakage) — an immutable, user-attributed audit log is a selling point, not plumbing.
+3. **Section entity.** `Student.sectionNo` references a class Section that doesn't exist as a model. Class–Section–Subject–Teacher mapping is the backbone of timetable, attendance, and exams.
+4. **Audit trail with user attribution.** No `createdByName/updatedBy` anywhere; frontend audit log capped at 100 localStorage entries. Schools have fraud problems (fee leakage) — an immutable, user-attributed audit log is a selling point, not plumbing.
 5. **Soft deletes and data archival.** Schools must retain records 5–10 years (TC registers are legal documents).
 
 ### B. Academic gaps
@@ -291,7 +291,7 @@ Everyone now claims: parent app, online fees, attendance, report cards, transpor
 | 22 | Dashboards & report builder (filter→columns→Excel/PDF) | Principals buy visibility; kills "can you add a report" tickets | 🏫M/L |
 | 23 | Homework/assignments with attachments + study-material repository | Teacher/parent daily engagement | All |
 | 24 | AI v1: report-card remarks + admin copilot Q&A | Real AI cheaply; marketing differentiation against AI-washing | All |
-| 25 | Granular permission matrix + maker-checker for finance edits | Enterprise objection-handler | 🏫L |
+| 25 | Granular permission matrix + maker-checker for finance edits | Enterprise objection-handlerName | 🏫L |
 
 ### Phase 3 — NICE TO HAVE (expansion; year 2)
 

@@ -44,7 +44,7 @@ public class FeePaymentServiceTest {
     void setUp() {
         fee = new FeeInvoice();
         fee.setId("fee-123");
-        fee.setStudentId("student-123");
+        fee.setStudentDocsId("student-123");
         fee.setSchoolId("school-123");
         fee.setAcademicYear("2026-2027");
         fee.setType(FeeType.TUITION);
@@ -88,7 +88,7 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_PartialPayment_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
-        when(feePaymentRepository.findByFeeId("fee-123"))
+        when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("200.00")).build()));
         stubApplyPaidAmount();
 
@@ -105,7 +105,7 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_FullPayment_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
-        when(feePaymentRepository.findByFeeId("fee-123"))
+        when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("500.00")).build()));
         stubApplyPaidAmount();
 
@@ -172,7 +172,7 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_ViaWallet_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
-        when(feePaymentRepository.findByFeeId("fee-123"))
+        when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("300.00")).build()));
         stubApplyPaidAmount();
 
@@ -192,16 +192,16 @@ public class FeePaymentServiceTest {
 
     @Test
     void getPaymentsByFee_ReturnsPayments() {
-        List<FeePayment> payments = List.of(FeePayment.builder().feeId("fee-123").build());
-        when(feePaymentRepository.findByFeeId("fee-123")).thenReturn(payments);
+        List<FeePayment> payments = List.of(FeePayment.builder().feeDocsId("fee-123").build());
+        when(feePaymentRepository.findByFeeDocsId("fee-123")).thenReturn(payments);
 
         assertEquals(payments, feePaymentService.getPaymentsByFee("fee-123"));
     }
 
     @Test
     void getPaymentsByStudent_ReturnsPayments() {
-        List<FeePayment> payments = List.of(FeePayment.builder().studentId("student-123").build());
-        when(feePaymentRepository.findByStudentIdOrderByPaidOnDesc("student-123")).thenReturn(payments);
+        List<FeePayment> payments = List.of(FeePayment.builder().studentDocsId("student-123").build());
+        when(feePaymentRepository.findByStudentDocsIdOrderByPaidOnDesc("student-123")).thenReturn(payments);
 
         assertEquals(payments, feePaymentService.getPaymentsByStudent("student-123"));
     }

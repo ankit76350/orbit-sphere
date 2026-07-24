@@ -57,7 +57,7 @@ const buildDatesheet = (startDate) => SUBJECTS.map((sub, i) => {
     subject: sub,
     time: i % 2 === 0 ? "09:00 AM - 12:00 PM" : "10:00 AM - 01:00 PM",
     room: `Exam Hall ${String.fromCharCode(65 + i % 3)}`,
-    invigilator: INVIGILATORS[i % INVIGILATORS.length]
+    invigilatorName: INVIGILATORS[i % INVIGILATORS.length]
   };
 });
 
@@ -96,17 +96,17 @@ export default function ModExams({ user }) {
   const [openSheetId, setOpenSheetId] = useState("exam-1");
 
   // ---- admit card tab state ----
-  const [acExamId, setAcExamId] = useState(exams[0]?.id || "");
+  const [acExamDocsId, setAcExamDocsId] = useState(exams[0]?.id || "");
   const [acGrade, setAcGrade] = useState("Grade 10");
   const [bulkProgress, setBulkProgress] = useState(null);
 
   // ---- marks entry tab state ----
-  const [meExamId, setMeExamId] = useState(exams[0]?.id || "");
+  const [meExamDocsId, setMeExamDocsId] = useState(exams[0]?.id || "");
   const [meGrade, setMeGrade] = useState("Grade 10");
   const [meSubject, setMeSubject] = useState("Mathematics");
 
   // ---- report card tab state ----
-  const [rcStudentId, setRcStudentId] = useState(students[0]?.id || "");
+  const [rcStudentDocsId, setRcStudentDocsId] = useState(students[0]?.id || "");
 
   // ---- promotion wizard state ----
   const [wizStep, setWizStep] = useState(1);
@@ -157,7 +157,7 @@ export default function ModExams({ user }) {
   };
 
   /* ============ ADMIT CARD handlers ============ */
-  const acExam = exams.find((e) => e.id === acExamId) || exams[0];
+  const acExam = exams.find((e) => e.id === acExamDocsId) || exams[0];
   const acStudents = students.filter((s) => s.grade === acGrade);
 
   const handleBulkGenerate = () => {
@@ -180,10 +180,10 @@ export default function ModExams({ user }) {
   };
 
   /* ============ MARKS ENTRY handlers ============ */
-  const meKey = `${meExamId}__${meGrade}__${meSubject}`;
+  const meKey = `${meExamDocsId}__${meGrade}__${meSubject}`;
   const sheet = marksStore[meKey] || { marks: {}, maxMarks: 100, locked: false };
   const meStudents = students.filter((s) => s.grade === meGrade);
-  const meExam = exams.find((e) => e.id === meExamId);
+  const meExam = exams.find((e) => e.id === meExamDocsId);
 
   const updateMark = (sid, val) => {
     if (sheet.locked) return;
@@ -210,23 +210,23 @@ export default function ModExams({ user }) {
   const pendingSheets = Math.max(0, exams.filter((e) => e.published).length * SUBJECTS.length - lockedCount);
 
   /* ============ REPORT CARD helpers ============ */
-  const rcStudent = students.find((s) => s.id === rcStudentId);
+  const rcStudent = students.find((s) => s.id === rcStudentDocsId);
   const rcRows = SUBJECTS.map((sub) => {
-    const t1 = 35 + hashNum(rcStudentId + sub + "T1") % 61;
-    const t2 = 35 + hashNum(rcStudentId + sub + "T2") % 61;
+    const t1 = 35 + hashNum(rcStudentDocsId + sub + "T1") % 61;
+    const t2 = 35 + hashNum(rcStudentDocsId + sub + "T2") % 61;
     const avg = Math.round((t1 + t2) / 2);
     return { subject: sub, t1, t2, avg, letter: gradeLetter(avg) };
   });
   const rcOverall = Math.round(rcRows.reduce((sum, r) => sum + r.avg, 0) / rcRows.length);
-  const rcAttendance = 85 + hashNum(rcStudentId + "att") % 13;
+  const rcAttendance = 85 + hashNum(rcStudentDocsId + "att") % 13;
   const rcRemark = rcOverall >= 85 ? "Outstanding performance. Keep up the excellent consistency across terms." : rcOverall >= 70 ? "A very good result. Focused revision will push the weaker subjects higher." : rcOverall >= 55 ? "Satisfactory progress. Needs regular practice in core subjects." : "Requires close attention and remedial classes in core subjects.";
 
   const handlePublishReport = () => {
     if (!rcStudent) return;
-    const updated = publishedReports.includes(rcStudentId) ? publishedReports : [...publishedReports, rcStudentId];
+    const updated = publishedReports.includes(rcStudentDocsId) ? publishedReports : [...publishedReports, rcStudentDocsId];
     setPublishedReports(updated);
     saveLS("erp_report_published", updated);
-    logAction(user.id, user.name, user.role, "Report Card Published", `Published report card of ${rcStudent.name} (${rcStudent.admissionNumber}) to parent app`);
+    logAction(user.id, user.name, user.role, "Report Card Published", `Published report card of ${rcStudent.name} (${rcStudent.admissionNo}) to parent app`);
     addToast("Published to Parent App", `${rcStudent.name}'s report card is now visible to ${rcStudent.parentName}`, "success");
   };
 
@@ -404,7 +404,7 @@ export default function ModExams({ user }) {
                           <th className="p-4">Subject Paper</th>
                           <th className="p-4">Time</th>
                           <th className="p-4">Room</th>
-                          <th className="p-4">Invigilator</th>
+                          <th className="p-4">InvigilatorName</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -413,7 +413,7 @@ export default function ModExams({ user }) {
                             <td className="p-4"><Badge variant="secondary">{row.subject}</Badge></td>
                             <td className="p-4">{row.time}</td>
                             <td className="p-4 text-slate-500">{row.room}</td>
-                            <td className="p-4 text-slate-500">{row.invigilator}</td>
+                            <td className="p-4 text-slate-500">{row.invigilatorName}</td>
                           </tr>)}
                       </tbody>
                     </table>
@@ -445,7 +445,7 @@ export default function ModExams({ user }) {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-end gap-4 bg-white p-5 rounded-3xl border border-slate-100">
               <div className="grid grid-cols-2 gap-4 w-full sm:max-w-md">
-                <Select label="Examination" value={acExamId} onChange={(e) => setAcExamId(e.target.value)} options={examOptions} />
+                <Select label="Examination" value={acExamDocsId} onChange={(e) => setAcExamDocsId(e.target.value)} options={examOptions} />
                 <Select label="Class" value={acGrade} onChange={(e) => setAcGrade(e.target.value)} options={gradeOptions} />
               </div>
               <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
@@ -471,7 +471,7 @@ export default function ModExams({ user }) {
                       <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm shrink-0">{initials}</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-extrabold text-slate-800 truncate">{s.name}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{s.admissionNumber} · {s.grade}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{s.admissionNo} · {s.grade}</p>
                       </div>
                       <div className="grid grid-cols-6 gap-[1.5px] p-1 bg-white border border-slate-300 rounded shrink-0" title="QR verification code">
                         {Array.from({ length: 36 }).map((_, i) => <div key={i} className={`h-1.5 w-1.5 ${(hashNum(s.id) + i * 7) % 3 === 0 ? "bg-slate-900" : "bg-white"}`} />)}
@@ -512,7 +512,7 @@ export default function ModExams({ user }) {
           <div className="space-y-6">
             <div className="flex flex-col lg:flex-row justify-between items-end gap-4 bg-white p-5 rounded-3xl border border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full lg:max-w-2xl">
-                <Select label="Examination" value={meExamId} onChange={(e) => setMeExamId(e.target.value)} options={examOptions} />
+                <Select label="Examination" value={meExamDocsId} onChange={(e) => setMeExamDocsId(e.target.value)} options={examOptions} />
                 <Select label="Class" value={meGrade} onChange={(e) => setMeGrade(e.target.value)} options={gradeOptions} />
                 <Select label="Subject" value={meSubject} onChange={(e) => setMeSubject(e.target.value)} options={SUBJECTS.map((s) => ({ label: s, value: s }))} />
               </div>
@@ -554,7 +554,7 @@ export default function ModExams({ user }) {
                       const pct = num === null ? null : Math.round(num / sheet.maxMarks * 100);
                       const letter = pct === null ? "-" : gradeLetter(pct);
                       return <tr key={s.id}>
-                          <td className="p-4 text-slate-400 font-bold">{s.admissionNumber}</td>
+                          <td className="p-4 text-slate-400 font-bold">{s.admissionNo}</td>
                           <td className="p-4 font-extrabold text-slate-800">{s.name}</td>
                           <td className="p-4">
                             <input
@@ -589,7 +589,7 @@ export default function ModExams({ user }) {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-end gap-4 bg-white p-5 rounded-3xl border border-slate-100">
               <div className="w-full sm:max-w-sm">
-                <Select label="Select Student" value={rcStudentId} onChange={(e) => setRcStudentId(e.target.value)} options={students.map((s) => ({ label: `${s.name} (${s.admissionNumber} · ${s.grade})`, value: s.id }))} />
+                <Select label="Select Student" value={rcStudentDocsId} onChange={(e) => setRcStudentDocsId(e.target.value)} options={students.map((s) => ({ label: `${s.name} (${s.admissionNo} · ${s.grade})`, value: s.id }))} />
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button variant="outline" onClick={() => addToast("Print Queued", "Report card PDF sent to print spooler (simulation)", "info")} className="flex gap-1.5 items-center text-xs">
@@ -612,7 +612,7 @@ export default function ModExams({ user }) {
                 {/* Student info */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-b border-slate-100 text-xs">
                   <div><p className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Student</p><p className="font-extrabold text-slate-800 mt-0.5">{rcStudent.name}</p></div>
-                  <div><p className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Admission No</p><p className="font-extrabold text-slate-800 mt-0.5">{rcStudent.admissionNumber}</p></div>
+                  <div><p className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Admission No</p><p className="font-extrabold text-slate-800 mt-0.5">{rcStudent.admissionNo}</p></div>
                   <div><p className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Class</p><p className="font-extrabold text-slate-800 mt-0.5">{rcStudent.grade}</p></div>
                   <div><p className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Parent / Guardian</p><p className="font-extrabold text-slate-800 mt-0.5">{rcStudent.parentName}</p></div>
                 </div>
@@ -658,8 +658,8 @@ export default function ModExams({ user }) {
                     <tbody className="divide-y divide-slate-100">
                       {CO_SCHOLASTIC.map((c) => <tr key={c.area}>
                           <td className="p-3 font-extrabold text-slate-800">{c.area}</td>
-                          <td className="p-3 text-center">{c.grades[hashNum(rcStudentId + c.area) % 3]}</td>
-                          <td className="p-3 text-center">{c.grades[hashNum(rcStudentId + c.area + "2") % 3]}</td>
+                          <td className="p-3 text-center">{c.grades[hashNum(rcStudentDocsId + c.area) % 3]}</td>
+                          <td className="p-3 text-center">{c.grades[hashNum(rcStudentDocsId + c.area + "2") % 3]}</td>
                         </tr>)}
                     </tbody>
                   </table>
@@ -685,7 +685,7 @@ export default function ModExams({ user }) {
                   <div className="text-center"><div className="w-28 border-b border-slate-400 mb-1" /><p className="text-[8px] uppercase tracking-widest font-extrabold text-slate-400">Principal</p></div>
                 </div>
                 <p className="text-[9px] text-slate-400 font-semibold mt-6 pt-3 border-t border-dashed border-slate-200 leading-relaxed">
-                  Grading Scale: A+ (91-100) · A (81-90) · B (71-80) · C (61-70) · D (45-60) · F (Below 45 — Essential Repeat). Minimum pass 33%. This is a computer-generated document{publishedReports.includes(rcStudentId) ? " · PUBLISHED TO PARENT APP" : ""}.
+                  Grading Scale: A+ (91-100) · A (81-90) · B (71-80) · C (61-70) · D (45-60) · F (Below 45 — Essential Repeat). Minimum pass 33%. This is a computer-generated document{publishedReports.includes(rcStudentDocsId) ? " · PUBLISHED TO PARENT APP" : ""}.
                 </p>
               </div>}
           </div>

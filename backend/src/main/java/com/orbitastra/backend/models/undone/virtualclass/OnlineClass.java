@@ -20,17 +20,17 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OnlineClass extends SchoolBase {
 
-    private String subjectId;
+    private String subjectNo;
 
     private String subjectName;
 
-    private String teacherId;
+    private String teacherDocsId;
 
     private String teacherName;
 
-    private String classId;
+    private String classNo;
 
-    private String sectionId;
+    private String sectionNo;
 
     private String meetingLink;
 

@@ -11,11 +11,11 @@ import com.orbitastra.backend.models.academics.Attendance;
 @Repository
 public interface AttendanceRepository extends MongoRepository<Attendance, String> {
     List<Attendance> findBySchoolId(String schoolId);
-    List<Attendance> findByStudentId(String studentId);
-    List<Attendance> findByStudentIdAndDate(String studentId, LocalDate date);
+    List<Attendance> findByStudentDocsId(String studentDocsId);
+    List<Attendance> findByStudentDocsIdAndDate(String studentDocsId, LocalDate date);
     List<Attendance> findBySchoolIdAndDate(String schoolId, LocalDate date);
     List<Attendance> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
-    List<Attendance> findByStudentIdAndAcademicYear(String studentId, String academicYear);
-    boolean existsByStudentIdAndDate(String studentId, LocalDate date);
-    boolean existsByStudentIdAndDateAndIdNot(String studentId, LocalDate date, String id);
+    List<Attendance> findByStudentDocsIdAndAcademicYear(String studentDocsId, String academicYear);
+    boolean existsByStudentDocsIdAndDate(String studentDocsId, LocalDate date);
+    boolean existsByStudentDocsIdAndDateAndIdNot(String studentDocsId, LocalDate date, String id);
 }

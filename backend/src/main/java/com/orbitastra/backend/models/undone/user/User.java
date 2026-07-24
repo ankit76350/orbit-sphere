@@ -36,7 +36,7 @@ public class User extends SchoolBase {
 
     // References the ID in the corresponding collection:
     // e.g. Staff ID, Student ID, Parent ID, Driver ID
-    private String referenceId;
+    private String referenceDocsId;
 
     @Builder.Default
     private boolean active = true;

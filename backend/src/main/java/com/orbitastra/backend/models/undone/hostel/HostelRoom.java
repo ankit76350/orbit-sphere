@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class HostelRoom extends SchoolBase {
 
-    private String buildingId;
+    private String buildingDocsId;
 
     private Integer floorNo;
 

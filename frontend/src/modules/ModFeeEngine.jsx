@@ -57,10 +57,10 @@ const SEED_CONCESSIONS = {
     { id: "pol-5", name: "Financial Hardship", percent: "Custom", criteria: "Case-by-case, income certificate required", active: true }
   ],
   queue: [
-    { id: "con-1", student: "Ananya Sharma (Grade 8)", type: "Sibling Discount", amount: 10800, requestedBy: "R. Iyer (Accountant)", status: "Pending" },
-    { id: "con-2", student: "Kabir Singh (Grade 9)", type: "Merit Scholarship", amount: 13500, requestedBy: "R. Iyer (Accountant)", status: "Pending" },
-    { id: "con-3", student: "Meera Patel (Grade 6)", type: "Staff Ward", amount: 27000, requestedBy: "S. Kulkarni (Accountant)", status: "Pending" },
-    { id: "con-4", student: "Vivaan Gupta (Grade 7)", type: "Financial Hardship", amount: 18000, requestedBy: "R. Iyer (Accountant)", status: "Approved" }
+    { id: "con-1", student: "Ananya Sharma (Grade 8)", type: "Sibling Discount", amount: 10800, requestedByName: "R. Iyer (Accountant)", status: "Pending" },
+    { id: "con-2", student: "Kabir Singh (Grade 9)", type: "Merit Scholarship", amount: 13500, requestedByName: "R. Iyer (Accountant)", status: "Pending" },
+    { id: "con-3", student: "Meera Patel (Grade 6)", type: "Staff Ward", amount: 27000, requestedByName: "S. Kulkarni (Accountant)", status: "Pending" },
+    { id: "con-4", student: "Vivaan Gupta (Grade 7)", type: "Financial Hardship", amount: 18000, requestedByName: "R. Iyer (Accountant)", status: "Approved" }
   ]
 };
 
@@ -148,7 +148,7 @@ export default function ModFeeEngine({ user }) {
     const next = { ...concessions, queue: concessions.queue.map((q) => q.id === id ? { ...q, status: decision } : q) };
     setConcessions(next);
     saveLS("erp_concessions", next);
-    logAction(user.id, user.name, user.role, `Concession ${decision}`, `${decision} ${item?.type} of ${inr(item?.amount)} for ${item?.student} (maker: ${item?.requestedBy})`);
+    logAction(user.id, user.name, user.role, `Concession ${decision}`, `${decision} ${item?.type} of ${inr(item?.amount)} for ${item?.student} (maker: ${item?.requestedByName})`);
     addToast(`Concession ${decision}`, `${item?.student} — ${item?.type} ${inr(item?.amount)}`, decision === "Approved" ? "success" : "warning");
   };
 
@@ -166,18 +166,18 @@ export default function ModFeeEngine({ user }) {
   });
   const defaulterMap = {};
   dueInvoices.forEach((inv) => {
-    if (!defaulterMap[inv.studentId]) defaulterMap[inv.studentId] = { studentId: inv.studentId, name: inv.studentName, grade: inv.grade, count: 0, due: 0, maxDays: 0 };
-    const rec = defaulterMap[inv.studentId];
+    if (!defaulterMap[inv.studentDocsId]) defaulterMap[inv.studentDocsId] = { studentDocsId: inv.studentDocsId, name: inv.studentName, grade: inv.grade, count: 0, due: 0, maxDays: 0 };
+    const rec = defaulterMap[inv.studentDocsId];
     rec.count += 1;
     rec.due += inv.amount - inv.paidAmount;
     rec.maxDays = Math.max(rec.maxDays, invAging(inv));
   });
   const defaulters = Object.values(defaulterMap).sort((a, b) => b.due - a.due);
 
-  const advanceReminder = (studentId, name) => {
-    const cur = reminderLog[studentId]?.stage ?? 0;
+  const advanceReminder = (studentDocsId, name) => {
+    const cur = reminderLog[studentDocsId]?.stage ?? 0;
     if (cur >= LADDER.length) return;
-    const next = { ...reminderLog, [studentId]: { stage: cur + 1, last: LADDER[cur], date: today() } };
+    const next = { ...reminderLog, [studentDocsId]: { stage: cur + 1, last: LADDER[cur], date: today() } };
     setReminderLog(next);
     saveLS("erp_reminder_log", next);
     logAction(user.id, user.name, user.role, "Dues Escalation", `Stage ${cur + 1} (${LADDER[cur]}) triggered for defaulter ${name}`);
@@ -186,7 +186,7 @@ export default function ModFeeEngine({ user }) {
 
   const handleBulkEscalate = () => {
     if (bulkProgress !== null) return;
-    const targets = defaulters.filter((d) => (reminderLog[d.studentId]?.stage ?? 0) === 0);
+    const targets = defaulters.filter((d) => (reminderLog[d.studentDocsId]?.stage ?? 0) === 0);
     if (targets.length === 0) { addToast("Nothing To Do", "No defaulters remaining at stage-0", "info"); return; }
     setBulkProgress(0);
     let pct = 0;
@@ -196,7 +196,7 @@ export default function ModFeeEngine({ user }) {
         clearInterval(timer);
         setBulkProgress(100);
         const next = { ...reminderLog };
-        targets.forEach((d) => { next[d.studentId] = { stage: 1, last: LADDER[0], date: today() }; });
+        targets.forEach((d) => { next[d.studentDocsId] = { stage: 1, last: LADDER[0], date: today() }; });
         setReminderLog(next);
         saveLS("erp_reminder_log", next);
         logAction(user.id, user.name, user.role, "Bulk Dues Escalation", `WhatsApp stage-1 reminders queued for ${targets.length} defaulter families`);
@@ -278,7 +278,7 @@ export default function ModFeeEngine({ user }) {
     let vouchers = "";
     rows.forEach((inv) => {
       (inv.paymentHistory || []).filter((p) => p.date >= expFrom && p.date <= expTo).forEach((p) => {
-        vouchers += `    <VOUCHER VCHTYPE="Receipt" ACTION="Create">\n      <DATE>${p.date.replace(/-/g, "")}</DATE>\n      <NARRATION>Fee collection ${inv.feeType} - ${inv.studentName} (${p.receiptNumber})</NARRATION>\n      <LEDGERENTRY><LEDGERNAME>Fee Collection</LEDGERNAME><AMOUNT>${p.amount}</AMOUNT></LEDGERENTRY>\n      <LEDGERENTRY><LEDGERNAME>${p.method}</LEDGERNAME><AMOUNT>-${p.amount}</AMOUNT></LEDGERENTRY>\n    </VOUCHER>\n`;
+        vouchers += `    <VOUCHER VCHTYPE="Receipt" ACTION="Create">\n      <DATE>${p.date.replace(/-/g, "")}</DATE>\n      <NARRATION>Fee collection ${inv.feeType} - ${inv.studentName} (${p.receiptNo})</NARRATION>\n      <LEDGERENTRY><LEDGERNAME>Fee Collection</LEDGERNAME><AMOUNT>${p.amount}</AMOUNT></LEDGERENTRY>\n      <LEDGERENTRY><LEDGERNAME>${p.method}</LEDGERNAME><AMOUNT>-${p.amount}</AMOUNT></LEDGERENTRY>\n    </VOUCHER>\n`;
       });
     });
     const xml = `<ENVELOPE>\n  <HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>\n  <BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA>\n${vouchers}  </REQUESTDATA></IMPORTDATA></BODY>\n</ENVELOPE>\n`;
@@ -295,7 +295,7 @@ export default function ModFeeEngine({ user }) {
     let csv = "Date,Receipt No,Student,Fee Head,Method,Amount (INR)\n";
     rows.forEach((inv) => {
       (inv.paymentHistory || []).filter((p) => p.date >= expFrom && p.date <= expTo).forEach((p) => {
-        csv += `${p.date},${p.receiptNumber},"${inv.studentName}",${inv.feeType},${p.method},${p.amount}\n`;
+        csv += `${p.date},${p.receiptNo},"${inv.studentName}",${inv.feeType},${p.method},${p.amount}\n`;
       });
     });
     const fname = `daybook-${expFrom}-to-${expTo}.csv`;
@@ -431,7 +431,7 @@ export default function ModFeeEngine({ user }) {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs font-black text-slate-800">{q.student}</p>
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{q.type} · proposed by {q.requestedBy}</p>
+                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{q.type} · proposed by {q.requestedByName}</p>
                       </div>
                       <Badge variant={q.status === "Approved" ? "success" : q.status === "Rejected" ? "danger" : "warning"}>{q.status}</Badge>
                     </div>
@@ -507,11 +507,11 @@ export default function ModFeeEngine({ user }) {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {defaulters.slice(0, 15).map((d) => {
-                      const log = reminderLog[d.studentId];
+                      const log = reminderLog[d.studentDocsId];
                       const stage = log?.stage ?? 0;
                       const icons = [MessageCircle, Send, Phone, FileWarning];
                       const NextIcon = icons[Math.min(stage, 3)];
-                      return <tr key={d.studentId}>
+                      return <tr key={d.studentDocsId}>
                           <td className="p-4">
                             <p className="font-extrabold text-slate-800">{d.name}</p>
                             <p className="text-[10px] text-slate-400 font-bold mt-0.5">{d.grade}</p>
@@ -524,7 +524,7 @@ export default function ModFeeEngine({ user }) {
                           <td className="p-4 text-slate-500">{log ? `${log.last} · ${log.date}` : "—"}</td>
                           <td className="p-4 text-center">
                             {stage >= LADDER.length ? <Badge variant="danger">Ladder exhausted</Badge> : <button
-                              onClick={() => advanceReminder(d.studentId, d.name)}
+                              onClick={() => advanceReminder(d.studentDocsId, d.name)}
                               className="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[10px] uppercase p-1.5 px-3 rounded-lg font-bold transition cursor-pointer"
                             >
                                 <NextIcon className="h-3 w-3" /> {LADDER[stage]}
@@ -756,7 +756,7 @@ export default function ModFeeEngine({ user }) {
         <form onSubmit={handleCreateMandate} className="space-y-4 pt-1">
           <Select
             label="Student"
-            options={students.slice(0, 40).map((s) => ({ label: `${s.name} — ${s.grade} (${s.admissionNumber})`, value: s.id }))}
+            options={students.slice(0, 40).map((s) => ({ label: `${s.name} — ${s.grade} (${s.admissionNo})`, value: s.id }))}
             value={mndStudent}
             onChange={(e) => setMndStudent(e.target.value)}
           />

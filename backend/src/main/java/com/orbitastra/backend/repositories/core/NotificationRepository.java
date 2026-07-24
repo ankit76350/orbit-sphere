@@ -9,7 +9,7 @@ import com.orbitastra.backend.models.core.Notification;
 
 @Repository
 public interface NotificationRepository extends MongoRepository<Notification, String> {
-    List<Notification> findByRecipientId(String recipientId);
+    List<Notification> findByRecipientDocsId(String recipientDocsId);
     List<Notification> findBySchoolId(String schoolId);
-    List<Notification> findByRecipientIdAndSent(String recipientId, Boolean sent);
+    List<Notification> findByRecipientDocsIdAndSent(String recipientDocsId, Boolean sent);
 }

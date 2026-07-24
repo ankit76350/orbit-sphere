@@ -43,12 +43,12 @@ public class AttendanceService {
         }
     }
 
-    private Staff validatePresenter(String presentById, String schoolId) {
-        if (!hasText(presentById)) {
+    private Staff validatePresenter(String presentByDocsId, String schoolId) {
+        if (!hasText(presentByDocsId)) {
             throw new IllegalArgumentException("Presenter (teacher/staff) ID cannot be null or empty.");
         }
-        Staff presenter = staffRepository.findById(presentById)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff/Teacher not found with id: " + presentById));
+        Staff presenter = staffRepository.findById(presentByDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff/Teacher not found with id: " + presentByDocsId));
         if (!Objects.equals(presenter.getSchoolId(), schoolId)) {
             throw new IllegalArgumentException("Staff/Teacher does not belong to the same school as the attendance record.");
         }
@@ -64,10 +64,10 @@ public class AttendanceService {
      * Attendance never trusts a client-supplied academic-year name to choose a
      * record.
      */
-    private CurrentAcademicRecord resolveCurrentAcademicRecord(String studentId, String schoolId) {
-        Student student = studentValidator.validateStudent(studentId, schoolId);
+    private CurrentAcademicRecord resolveCurrentAcademicRecord(String studentDocsId, String schoolId) {
+        Student student = studentValidator.validateStudent(studentDocsId, schoolId);
         if (student == null || !hasText(student.getCurrentAcademicRecordDocsId())) {
-            throw new IllegalArgumentException("Student " + studentId
+            throw new IllegalArgumentException("Student " + studentDocsId
                     + " does not have a current academic record.");
         }
 
@@ -76,11 +76,11 @@ public class AttendanceService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Current academic record not found with id: " + recordId));
 
-        if (!Objects.equals(record.getStudentDocId(), studentId)
+        if (!Objects.equals(record.getStudentDocsId(), studentDocsId)
                 || !Objects.equals(record.getSchoolId(), schoolId)
                 || !hasText(record.getAcademicYear())) {
             throw new IllegalArgumentException("Current academic record " + recordId
-                    + " is not a valid record for student " + studentId + " in this school.");
+                    + " is not a valid record for student " + studentDocsId + " in this school.");
         }
         return new CurrentAcademicRecord(student, record);
     }
@@ -107,9 +107,9 @@ public class AttendanceService {
         return year;
     }
 
-    private CurrentAcademicRecord validateTarget(String schoolId, String studentId,
+    private CurrentAcademicRecord validateTarget(String schoolId, String studentDocsId,
             String suppliedAcademicYear, LocalDate date) {
-        CurrentAcademicRecord current = resolveCurrentAcademicRecord(studentId, schoolId);
+        CurrentAcademicRecord current = resolveCurrentAcademicRecord(studentDocsId, schoolId);
         String currentAcademicYear = current.record().getAcademicYear();
 
         if (hasText(suppliedAcademicYear)
@@ -121,12 +121,12 @@ public class AttendanceService {
         return current;
     }
 
-    private void rejectDuplicate(String studentId, LocalDate date, String attendanceId) {
+    private void rejectDuplicate(String studentDocsId, LocalDate date, String attendanceId) {
         boolean exists = attendanceId == null
-                ? attendanceRepository.existsByStudentIdAndDate(studentId, date)
-                : attendanceRepository.existsByStudentIdAndDateAndIdNot(studentId, date, attendanceId);
+                ? attendanceRepository.existsByStudentDocsIdAndDate(studentDocsId, date)
+                : attendanceRepository.existsByStudentDocsIdAndDateAndIdNot(studentDocsId, date, attendanceId);
         if (exists) {
-            throw new IllegalArgumentException("Attendance already exists for student " + studentId
+            throw new IllegalArgumentException("Attendance already exists for student " + studentDocsId
                     + " on " + date + ". Update the existing record instead.");
         }
     }
@@ -140,10 +140,10 @@ public class AttendanceService {
             throw new IllegalArgumentException("Attendance status is required.");
         }
 
-        CurrentAcademicRecord current = validateTarget(attendance.getSchoolId(), attendance.getStudentId(),
+        CurrentAcademicRecord current = validateTarget(attendance.getSchoolId(), attendance.getStudentDocsId(),
                 attendance.getAcademicYear(), attendance.getDate());
-        validatePresenter(attendance.getPresentBy(), attendance.getSchoolId());
-        rejectDuplicate(attendance.getStudentId(), attendance.getDate(), null);
+        validatePresenter(attendance.getPresentByDocsId(), attendance.getSchoolId());
+        rejectDuplicate(attendance.getStudentDocsId(), attendance.getDate(), null);
 
         attendance.setAcademicYear(current.record().getAcademicYear());
         attendance.setCurrentAcademicRecordDocsId(current.student().getCurrentAcademicRecordDocsId());
@@ -168,16 +168,16 @@ public class AttendanceService {
         return attendanceRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
     }
 
-    public List<Attendance> getAttendanceByStudent(String studentId) {
-        return attendanceRepository.findByStudentId(studentId);
+    public List<Attendance> getAttendanceByStudent(String studentDocsId) {
+        return attendanceRepository.findByStudentDocsId(studentDocsId);
     }
 
     public List<Attendance> getAttendanceBySchoolAndDate(String schoolId, LocalDate date) {
         return attendanceRepository.findBySchoolIdAndDate(schoolId, date);
     }
 
-    public List<Attendance> getAttendanceByStudentAndDate(String studentId, LocalDate date) {
-        return attendanceRepository.findByStudentIdAndDate(studentId, date);
+    public List<Attendance> getAttendanceByStudentAndDate(String studentDocsId, LocalDate date) {
+        return attendanceRepository.findByStudentDocsIdAndDate(studentDocsId, date);
     }
 
     public Attendance updateAttendance(String id, Attendance attendanceDetails) {
@@ -188,8 +188,8 @@ public class AttendanceService {
 
         String targetSchoolId = hasText(attendanceDetails.getSchoolId())
                 ? attendanceDetails.getSchoolId() : attendance.getSchoolId();
-        String targetStudentId = hasText(attendanceDetails.getStudentId())
-                ? attendanceDetails.getStudentId() : attendance.getStudentId();
+        String targetStudentDocsId = hasText(attendanceDetails.getStudentDocsId())
+                ? attendanceDetails.getStudentDocsId() : attendance.getStudentDocsId();
         LocalDate targetDate = attendanceDetails.getDate() != null
                 ? attendanceDetails.getDate() : attendance.getDate();
 
@@ -197,7 +197,7 @@ public class AttendanceService {
             academicYearResolver.assertImmutable(attendance.getAcademicYear(), attendanceDetails.getAcademicYear());
         }
 
-        CurrentAcademicRecord current = validateTarget(targetSchoolId, targetStudentId,
+        CurrentAcademicRecord current = validateTarget(targetSchoolId, targetStudentDocsId,
                 attendanceDetails.getAcademicYear(), targetDate);
         if (hasText(attendance.getAcademicYear())
                 && !Objects.equals(attendance.getAcademicYear(), current.record().getAcademicYear())) {
@@ -207,28 +207,28 @@ public class AttendanceService {
         if (attendanceDetails.getStatus() == null && attendance.getStatus() == null) {
             throw new IllegalArgumentException("Attendance status is required.");
         }
-        String targetPresenterId = attendanceDetails.getPresentBy() != null
-                ? attendanceDetails.getPresentBy() : attendance.getPresentBy();
+        String targetPresenterId = attendanceDetails.getPresentByDocsId() != null
+                ? attendanceDetails.getPresentByDocsId() : attendance.getPresentByDocsId();
         validatePresenter(targetPresenterId, targetSchoolId);
-        rejectDuplicate(targetStudentId, targetDate, attendance.getId());
+        rejectDuplicate(targetStudentDocsId, targetDate, attendance.getId());
 
         boolean changed = !Objects.equals(attendance.getSchoolId(), targetSchoolId)
-                || !Objects.equals(attendance.getStudentId(), targetStudentId)
+                || !Objects.equals(attendance.getStudentDocsId(), targetStudentDocsId)
                 || !Objects.equals(attendance.getDate(), targetDate)
                 || (attendanceDetails.getStatus() != null
                         && !Objects.equals(attendance.getStatus(), attendanceDetails.getStatus()))
-                || (attendanceDetails.getPresentBy() != null
-                        && !Objects.equals(attendance.getPresentBy(), attendanceDetails.getPresentBy()));
+                || (attendanceDetails.getPresentByDocsId() != null
+                        && !Objects.equals(attendance.getPresentByDocsId(), attendanceDetails.getPresentByDocsId()));
 
         attendance.setSchoolId(targetSchoolId);
-        attendance.setStudentId(targetStudentId);
+        attendance.setStudentDocsId(targetStudentDocsId);
         attendance.setDate(targetDate);
         attendance.setAcademicYear(current.record().getAcademicYear());
         attendance.setCurrentAcademicRecordDocsId(current.student().getCurrentAcademicRecordDocsId());
         if (attendanceDetails.getStatus() != null) {
             attendance.setStatus(attendanceDetails.getStatus());
         }
-        attendance.setPresentBy(targetPresenterId);
+        attendance.setPresentByDocsId(targetPresenterId);
         if (changed) {
             attendance.setPresentTime(LocalDateTime.now());
         }

@@ -3,7 +3,6 @@ package com.orbitastra.backend.dto.student;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.orbitastra.backend.models.student.enums.Gender;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
 
@@ -31,10 +30,8 @@ public class UpdateStudentRequest {
 
     private String photoUrl;
 
-    @JsonAlias("walletId")
     private String walletDocsId;
 
-    @JsonAlias("medicalRecordId")
     private String medicalRecordDocsId;
 
     private List<String> documents;
@@ -51,8 +48,7 @@ public class UpdateStudentRequest {
     private String academicYear;
     private String studentNo;
     private String rollNo;
-    private String classDocId;
-    private String classId;
+    private String classDocsId;
     private String sectionNo;
     private String hostelRoomNo;
 
@@ -60,6 +56,6 @@ public class UpdateStudentRequest {
     @jakarta.validation.constraints.AssertTrue(message = "Academic placement must be provided inside currentAcademicRecord; top-level fields are not supported.")
     public boolean isAcademicPlacementNestedOnly() {
         return academicYear == null && studentNo == null && rollNo == null
-                && classDocId == null && classId == null && sectionNo == null && hostelRoomNo == null;
+                && classDocsId == null && sectionNo == null && hostelRoomNo == null;
     }
 }

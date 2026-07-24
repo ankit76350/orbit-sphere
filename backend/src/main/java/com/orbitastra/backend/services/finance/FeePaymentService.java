@@ -34,15 +34,15 @@ public class FeePaymentService {
     private final StudentWalletService studentWalletService;
 
     @Transactional
-    public FeeInvoice recordPayment(String feeId, BigDecimal amount, PaymentMode mode,
-                                    String remarks, String collectedBy) {
+    public FeeInvoice recordPayment(String feeDocsId, BigDecimal amount, PaymentMode mode,
+                                    String remarks, String collectedByDocsId) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Payment amount must be greater than zero.");
         }
         if (mode == null) {
             throw new IllegalArgumentException("Payment mode is required.");
         }
-        FeeInvoice fee = feeService.getFeeById(feeId);
+        FeeInvoice fee = feeService.getFeeById(feeDocsId);
         if (fee.getStatus() == FeeStatus.PAID) {
             throw new IllegalArgumentException("Invoice is already fully paid.");
         }
@@ -55,7 +55,7 @@ public class FeePaymentService {
         // Wallet mode debits the student's wallet, which records its own WalletTransaction.
         if (mode == PaymentMode.WALLET) {
             studentWalletService.debitWallet(
-                    fee.getStudentId(),
+                    fee.getStudentDocsId(),
                     amount,
                     "Fee payment for invoice " + fee.getId() + " (" + fee.getType() + ")");
         }
@@ -64,13 +64,13 @@ public class FeePaymentService {
         FeePayment payment = FeePayment.builder()
                 .schoolId(fee.getSchoolId())
                 .academicYear(fee.getAcademicYear())
-                .studentId(fee.getStudentId())
-                .feeId(fee.getId())
+                .studentDocsId(fee.getStudentDocsId())
+                .feeDocsId(fee.getId())
                 .receiptNo("RCPT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .amount(amount)
                 .paymentMode(mode)
                 .paidOn(LocalDateTime.now())
-                .collectedBy(collectedBy)
+                .collectedByDocsId(collectedByDocsId)
                 .remarks(remarks)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -78,7 +78,7 @@ public class FeePaymentService {
         feePaymentRepository.save(payment);
 
         // Recompute the cached paidAmount from the source-of-truth payment records.
-        BigDecimal totalPaid = feePaymentRepository.findByFeeId(fee.getId()).stream()
+        BigDecimal totalPaid = feePaymentRepository.findByFeeDocsId(fee.getId()).stream()
                 .map(FeePayment::getAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -86,11 +86,11 @@ public class FeePaymentService {
         return feeService.applyPaidAmount(fee, totalPaid);
     }
 
-    public List<FeePayment> getPaymentsByFee(String feeId) {
-        return feePaymentRepository.findByFeeId(feeId);
+    public List<FeePayment> getPaymentsByFee(String feeDocsId) {
+        return feePaymentRepository.findByFeeDocsId(feeDocsId);
     }
 
-    public List<FeePayment> getPaymentsByStudent(String studentId) {
-        return feePaymentRepository.findByStudentIdOrderByPaidOnDesc(studentId);
+    public List<FeePayment> getPaymentsByStudent(String studentDocsId) {
+        return feePaymentRepository.findByStudentDocsIdOrderByPaidOnDesc(studentDocsId);
     }
 }

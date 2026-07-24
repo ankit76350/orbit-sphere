@@ -46,7 +46,7 @@ const computeSlip = (sf) => {
   if (annual > 1000000) tax += (annual - 1000000) * 0.20;
   const tds = Math.round(tax / 12);
   const deductions = pf + esi + pt + tds;
-  return { staffId: sf.id, name: sf.name, department: sf.department, role: sf.role, gross, basic, hra, da, special, pf, esi, pt, tds, deductions, net: gross - deductions };
+  return { staffDocsId: sf.id, name: sf.name, department: sf.department, role: sf.role, gross, basic, hra, da, special, pf, esi, pt, tds, deductions, net: gross - deductions };
 };
 
 const ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -171,7 +171,7 @@ export default function ModPayroll({ user }) {
   };
 
   // ================= INCREMENTS =================
-  const setDraftPct = (staffId, pct) => setDrafts((prev) => ({ ...prev, [staffId]: pct }));
+  const setDraftPct = (staffDocsId, pct) => setDrafts((prev) => ({ ...prev, [staffDocsId]: pct }));
   const pctFor = (sf) => drafts[sf.id] ?? increments[sf.id]?.pct ?? (sf.reviewRating >= 4.8 ? "12" : sf.reviewRating >= 4.5 ? "8" : sf.reviewRating >= 4.0 ? "5" : "0");
   const statusFor = (sf) => increments[sf.id]?.status || "Draft";
 
@@ -193,7 +193,7 @@ export default function ModPayroll({ user }) {
     setTimeout(() => {
       const eff = "2026-08-01";
       const next = { ...increments };
-      approved.forEach((sf) => { next[sf.id] = { ...next[sf.id], effectiveDate: eff, appliedBy: user.name }; });
+      approved.forEach((sf) => { next[sf.id] = { ...next[sf.id], effectiveDate: eff, appliedByName: user.name }; });
       setIncrements(next);
       saveLS("erp_increments", next);
       setApplying(false);
@@ -369,7 +369,7 @@ export default function ModPayroll({ user }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {monthSlips.map((s) => <tr key={s.staffId} onClick={() => setActiveSlip(s)} className="cursor-pointer hover:bg-slate-50 transition">
+                    {monthSlips.map((s) => <tr key={s.staffDocsId} onClick={() => setActiveSlip(s)} className="cursor-pointer hover:bg-slate-50 transition">
                         <td className="p-4 font-extrabold text-slate-800">{s.name}</td>
                         <td className="p-4 text-slate-500">{s.department}</td>
                         <td className="p-4">{inr(s.gross)}</td>

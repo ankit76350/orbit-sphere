@@ -10,8 +10,8 @@ import com.orbitastra.backend.models.academics.AcademicResult;
 @Repository
 public interface AcademicResultRepository extends MongoRepository<AcademicResult, String> {
     List<AcademicResult> findBySchoolId(String schoolId);
-    List<AcademicResult> findByStudentId(String studentId);
-    List<AcademicResult> findBySchoolIdAndStudentId(String schoolId, String studentId);
+    List<AcademicResult> findByStudentDocsId(String studentDocsId);
+    List<AcademicResult> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
     List<AcademicResult> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
-    List<AcademicResult> findByStudentIdAndAcademicYear(String studentId, String academicYear);
+    List<AcademicResult> findByStudentDocsIdAndAcademicYear(String studentDocsId, String academicYear);
 }

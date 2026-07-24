@@ -117,8 +117,8 @@ public class AdmissionService {
         return admissionRepository.findBySchoolIdAndStatus(schoolId, status);
     }
 
-    public List<Admission> getAdmissionsByInquiry(String inquiryId) {
-        return admissionRepository.findByInquiryDocsId(inquiryId);
+    public List<Admission> getAdmissionsByInquiry(String inquiryDocsId) {
+        return admissionRepository.findByInquiryDocsId(inquiryDocsId);
     }
 
     public Admission updateAdmission(String id, Admission details) {

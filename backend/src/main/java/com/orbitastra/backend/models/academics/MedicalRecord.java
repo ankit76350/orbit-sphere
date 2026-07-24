@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 public class MedicalRecord extends SchoolBase {
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 
     private LocalDate visitDate;
 

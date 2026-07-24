@@ -16,8 +16,8 @@ public class CreateMedicalRecordRequest {
     @NotBlank(message = "schoolId is required")
     private String schoolId;
 
-    @NotBlank(message = "studentId is required")
-    private String studentId;
+    @NotBlank(message = "studentDocsId is required")
+    private String studentDocsId;
 
     private LocalDate visitDate;
 

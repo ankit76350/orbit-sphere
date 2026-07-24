@@ -9,7 +9,7 @@ import com.orbitastra.backend.models.finance.WalletTransaction;
 
 @Repository
 public interface WalletTransactionRepository extends MongoRepository<WalletTransaction, String> {
-    List<WalletTransaction> findByStudentId(String studentId);
-    List<WalletTransaction> findBySchoolIdAndStudentId(String schoolId, String studentId);
-    List<WalletTransaction> findByStudentIdOrderByTransactionDateDesc(String studentId);
+    List<WalletTransaction> findByStudentDocsId(String studentDocsId);
+    List<WalletTransaction> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
+    List<WalletTransaction> findByStudentDocsIdOrderByTransactionDateDesc(String studentDocsId);
 }

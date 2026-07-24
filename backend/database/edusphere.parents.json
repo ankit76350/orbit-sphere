@@ -9,7 +9,7 @@
   "alternatePhone": "0987654321",
   "email": "robert.doe@example.com",
   "address": "123 Whispering Pines Road, Cityville",
-  "studentIds": [
+  "studentDocsIds": [
     "6a4750bd826a1781db37539c"
   ],
   "_class": "com.orbitastra.backend.models.student.Parent"
@@ -133,7 +133,7 @@
   "alternatePhone": "0987654329",
   "email": "matthew.taylor@example.com",
   "address": "300 Innovation Park, Silicon City",
-  "studentIds": [
+  "studentDocsIds": [
     "6a475666826a1781db37539d",
     "6a4756b5826a1781db37539e",
     "6a476254826a1781db3753b7",
@@ -158,7 +158,7 @@
   "alternatePhone": "0987654301",
   "email": "michael.smith@example.com",
   "address": "45 Green Valley Road, Lakeview City",
-  "studentIds": [
+  "studentDocsIds": [
     "6a4b35a2e2823debb8d54fd9",
     "6a4b3800e2823debb8d54fdd",
     "6a4b3f96e2823debb8d54fe3"

@@ -14,7 +14,7 @@ public class UpdateMedicalRecordRequest {
 
     private String schoolId;
 
-    private String studentId;
+    private String studentDocsId;
 
     private LocalDate visitDate;
 

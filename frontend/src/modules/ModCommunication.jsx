@@ -60,7 +60,7 @@ const DLT_TEMPLATES = [
 
 const SEED_COMM_LOG = [
   { id: "msg-1", date: "2026-07-03 09:15", channel: "WhatsApp", audience: "Whole School", preview: "School reopens on Monday, 6th July after campus maintenance. Buses run on normal schedule.", sent: 520, delivered: 511, read: 468, credits: 0, by: "Admin Office" },
-  { id: "msg-2", date: "2026-07-02 14:40", channel: "SMS", audience: "Fee Defaulters", preview: "Dear Parent, the school fee of Rs.12,500 for Term 1 is due on 10-07-2026...", sent: 86, delivered: 84, read: 61, credits: 172, templateId: "1107169876543210001", by: "Accounts Cell" },
+  { id: "msg-2", date: "2026-07-02 14:40", channel: "SMS", audience: "Fee Defaulters", preview: "Dear Parent, the school fee of Rs.12,500 for Term 1 is due on 10-07-2026...", sent: 86, delivered: 84, read: 61, credits: 172, templateDocsId: "1107169876543210001", by: "Accounts Cell" },
   { id: "msg-3", date: "2026-07-01 11:05", channel: "Email", audience: "Grade 10", preview: "Half Yearly Examination pattern & syllabus blueprint attached. Kindly review with your ward.", sent: 74, delivered: 73, read: 49, credits: 0, by: "Examination Cell" },
   { id: "msg-4", date: "2026-06-28 08:30", channel: "Push", audience: "Hostel Boarders", preview: "Hostel mess menu updated for July. Special Sunday breakfast: chhole bhature.", sent: 84, delivered: 80, read: 72, credits: 0, by: "Hostel Warden" },
   { id: "msg-5", date: "2026-06-25 16:20", channel: "WhatsApp", audience: "Route Beta (Metro)", preview: "Route Beta bus will depart 15 minutes early tomorrow due to metro station roadworks.", sent: 38, delivered: 38, read: 35, credits: 0, by: "Transport Desk" }
@@ -97,9 +97,9 @@ const buildTodayIso = () => {
 };
 
 const SEED_DIARY = [
-  { id: "de-1", grade: "Grade 10", date: buildTodayIso(), type: "Homework", subject: "Mathematics", text: "Complete Exercise 4.2 (Quadratic Equations) Q1-Q12. Show full working in fair notebook.", teacher: "Prof. Liam Johnson", acks: 41, total: 74 },
-  { id: "de-2", grade: "Grade 10", date: buildTodayIso(), type: "Reminder", subject: "General", text: "Bring ₹150 for the Science Museum field trip consent + fee by Friday.", teacher: "Class Teacher", acks: 52, total: 74 },
-  { id: "de-3", grade: "Grade 7", date: buildTodayIso(), type: "Remark", subject: "English", text: "Excellent participation in the elocution practice today. Keep revising the poem for assembly.", teacher: "Prof. Olivia Williams", acks: 18, total: 74 }
+  { id: "de-1", grade: "Grade 10", date: buildTodayIso(), type: "Homework", subject: "Mathematics", text: "Complete Exercise 4.2 (Quadratic Equations) Q1-Q12. Show full working in fair notebook.", teacherName: "Prof. Liam Johnson", acks: 41, total: 74 },
+  { id: "de-2", grade: "Grade 10", date: buildTodayIso(), type: "Reminder", subject: "General", text: "Bring ₹150 for the Science Museum field trip consent + fee by Friday.", teacherName: "Class Teacher", acks: 52, total: 74 },
+  { id: "de-3", grade: "Grade 7", date: buildTodayIso(), type: "Remark", subject: "English", text: "Excellent participation in the elocution practice today. Keep revising the poem for assembly.", teacherName: "Prof. Olivia Williams", acks: 18, total: 74 }
 ];
 
 const buildSlots = (startTime, slotMins, slotCount) => {
@@ -138,7 +138,7 @@ export default function ModCommunication({ user }) {
   const [audienceType, setAudienceType] = useState("school");
   const [audienceGrade, setAudienceGrade] = useState("Grade 10");
   const [audienceRoute, setAudienceRoute] = useState(ROUTES[0]);
-  const [dltTemplateId, setDltTemplateId] = useState(DLT_TEMPLATES[0].id);
+  const [dltTemplateDocsId, setDltTemplateDocsId] = useState(DLT_TEMPLATES[0].id);
   const [message, setMessage] = useState("");
   const [language, setLanguage] = useState("English");
   const [autoTranslate, setAutoTranslate] = useState(false);
@@ -158,7 +158,7 @@ export default function ModCommunication({ user }) {
   const [ptmDate, setPtmDate] = useState("2026-08-08");
   const [ptmSlotMins, setPtmSlotMins] = useState("15");
   const [bookTarget, setBookTarget] = useState(null);
-  const [bookStudentId, setBookStudentId] = useState(students[0]?.id || "");
+  const [bookStudentDocsId, setBookStudentDocsId] = useState(students[0]?.id || "");
 
   /* ---- diary state ---- */
   const [diaryGrade, setDiaryGrade] = useState("Grade 10");
@@ -182,7 +182,7 @@ export default function ModCommunication({ user }) {
     : 86;
 
   const smsCredits = Math.max(1, Math.ceil(message.length / 160));
-  const selectedTemplate = DLT_TEMPLATES.find((t) => t.id === dltTemplateId);
+  const selectedTemplate = DLT_TEMPLATES.find((t) => t.id === dltTemplateDocsId);
 
   /* ============ broadcast send ============ */
   const handleSend = () => {
@@ -213,7 +213,7 @@ export default function ModCommunication({ user }) {
         delivered,
         read,
         credits: channel === "SMS" ? sent * smsCredits : 0,
-        templateId: channel === "SMS" ? dltTemplateId : undefined,
+        templateDocsId: channel === "SMS" ? dltTemplateDocsId : undefined,
         language: autoTranslate ? `${language} (auto-translated)` : language,
         by: user.name
       };
@@ -290,9 +290,9 @@ export default function ModCommunication({ user }) {
   const handleBookSlot = (e) => {
     e.preventDefault();
     if (!bookTarget || !activePtm) return;
-    const st = students.find((s) => s.id === bookStudentId);
+    const st = students.find((s) => s.id === bookStudentDocsId);
     if (!st) return;
-    const key = `${bookTarget.teacherId}|${bookTarget.slot}`;
+    const key = `${bookTarget.teacherDocsId}|${bookTarget.slot}`;
     const updated = ptmEvents.map((p) => p.id === activePtm.id
       ? { ...p, bookings: { ...p.bookings, [key]: { studentName: st.name, parentName: st.parentName } } }
       : p);
@@ -313,7 +313,7 @@ export default function ModCommunication({ user }) {
       addToast("Empty Entry", "Write the diary note before publishing", "error");
       return;
     }
-    const entry = { id: `de-${Date.now()}`, grade: diaryGrade, date: diaryDate, type: entryType, subject: entrySubject, text: entryText, teacher: user.name, acks: 0, total: diaryClassSize };
+    const entry = { id: `de-${Date.now()}`, grade: diaryGrade, date: diaryDate, type: entryType, subject: entrySubject, text: entryText, teacherName: user.name, acks: 0, total: diaryClassSize };
     const updated = [entry, ...diary];
     setDiary(updated);
     saveLS("erp_diary", updated);
@@ -469,8 +469,8 @@ export default function ModCommunication({ user }) {
               {channel === "SMS" && <div className="space-y-2">
                   <Select
                     label="DLT Template (TRAI approved)"
-                    value={dltTemplateId}
-                    onChange={(e) => setDltTemplateId(e.target.value)}
+                    value={dltTemplateDocsId}
+                    onChange={(e) => setDltTemplateDocsId(e.target.value)}
                     options={DLT_TEMPLATES.map((t) => ({ label: `${t.name} · ID ${t.id}`, value: t.id }))}
                   />
                   {selectedTemplate && <p className="text-[10px] font-semibold text-slate-400 bg-slate-50 border border-slate-100 rounded-xl p-3 leading-relaxed">{selectedTemplate.body}</p>}
@@ -657,7 +657,7 @@ export default function ModCommunication({ user }) {
                                       <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-wider">Booked</p>
                                     </div>
                                   : <button
-                                      onClick={() => { setBookTarget({ teacherId: t.id, teacherName: t.name, slot }); setBookStudentId(students[0]?.id || ""); }}
+                                      onClick={() => { setBookTarget({ teacherDocsId: t.id, teacherName: t.name, slot }); setBookStudentDocsId(students[0]?.id || ""); }}
                                       className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-2 py-1.5 text-[9px] font-extrabold uppercase tracking-wider hover:bg-emerald-100 transition cursor-pointer min-w-[86px]"
                                     >
                                       Free
@@ -696,7 +696,7 @@ export default function ModCommunication({ user }) {
                     <p>Teacher: <span className="font-extrabold text-slate-800">{bookTarget.teacherName}</span></p>
                     <p>Slot: <span className="font-extrabold text-slate-800">{bookTarget.slot}</span> · {activePtm ? activePtm.date : ""}</p>
                   </div>
-                  <Select label="Student (parent auto-linked)" value={bookStudentId} onChange={(e) => setBookStudentId(e.target.value)} options={students.map((s) => ({ label: `${s.name} (${s.grade}) — parent: ${s.parentName}`, value: s.id }))} />
+                  <Select label="Student (parent auto-linked)" value={bookStudentDocsId} onChange={(e) => setBookStudentDocsId(e.target.value)} options={students.map((s) => ({ label: `${s.name} (${s.grade}) — parent: ${s.parentName}`, value: s.id }))} />
                   <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
                     <Button variant="outline" onClick={() => setBookTarget(null)}>Cancel</Button>
                     <Button type="submit">Confirm Booking</Button>
@@ -734,7 +734,7 @@ export default function ModCommunication({ user }) {
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant={d.type === "Homework" ? "secondary" : d.type === "Remark" ? "success" : "warning"}>{d.type}</Badge>
                           <span className="text-xs font-extrabold text-slate-800">{d.subject}</span>
-                          <span className="text-[10px] font-bold text-slate-400">by {d.teacher}</span>
+                          <span className="text-[10px] font-bold text-slate-400">by {d.teacherName}</span>
                         </div>
                         <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1.5 shrink-0">
                           <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> {d.acks}/{d.total} parents acknowledged

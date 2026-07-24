@@ -24,12 +24,12 @@ public class StudentValidator {
      * Validates that a student with this id exists and belongs to the given
      * school, returning the resolved {@link Student} for callers that need it.
      */
-    public Student validateStudent(String studentId, String schoolId) {
-        if (studentId == null || studentId.isEmpty()) {
+    public Student validateStudent(String studentDocsId, String schoolId) {
+        if (studentDocsId == null || studentDocsId.isEmpty()) {
             throw new IllegalArgumentException("Student ID cannot be null or empty.");
         }
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+        Student student = studentRepository.findById(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
         if (!student.getSchoolId().equals(schoolId)) {
             throw new IllegalArgumentException(
                     "Student does not belong to the specified school, so this action cannot be performed.");

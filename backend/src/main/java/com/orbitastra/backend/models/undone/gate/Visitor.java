@@ -23,7 +23,7 @@ public class Visitor extends SchoolBase {
 
     private String relationship;
 
-    private String studentId;
+    private String studentDocsId;
 
     private String studentName;
 

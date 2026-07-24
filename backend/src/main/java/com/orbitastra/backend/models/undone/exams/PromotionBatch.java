@@ -42,5 +42,5 @@ public class PromotionBatch extends SchoolBase {
     // Total outstanding dues carried forward with the promoted students.
     private BigDecimal duesCarried;
 
-    private String executedBy; // references Staff.id / User.id
+    private String executedByName;
 }

@@ -18,7 +18,7 @@ export default function ModDiscipline({ user }) {
   const [violations, setViolations] = useState(() => getDiscipline());
   const [students, setStudents] = useState(() => getStudents());
   const [isNewOpen, setIsNewOpen] = useState(false);
-  const [targetStudentId, setTargetStudentId] = useState("student-1");
+  const [targetStudentDocsId, setTargetStudentDocsId] = useState("student-1");
   const [violationType, setViolationType] = useState("Curfew Breach: Sneaking snacks post roll-call");
   const [severity, setSeverity] = useState("Medium");
   const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -38,7 +38,7 @@ export default function ModDiscipline({ user }) {
   const handleCreateViolation = (e) => {
     e.preventDefault();
     const studentsList = getStudents();
-    const targetStudent = studentsList.find((s) => s.id === targetStudentId);
+    const targetStudent = studentsList.find((s) => s.id === targetStudentDocsId);
     if (!targetStudent) {
       addToast("Error", "Target student roster not found in LocalStorage", "error");
       return;
@@ -46,7 +46,7 @@ export default function ModDiscipline({ user }) {
     const fineVal = parseFloat(fineAmount) || 0;
     if (fineVal > 0) {
       const pass = deductWallet(
-        targetStudentId,
+        targetStudentDocsId,
         fineVal,
         "Fine Deduction",
         `Disciplinary penalty: ${violationType}`,
@@ -59,7 +59,7 @@ export default function ModDiscipline({ user }) {
     }
     const newViolation = {
       id: `violation-${Date.now()}`,
-      studentId: targetStudentId,
+      studentDocsId: targetStudentDocsId,
       studentName: targetStudent.name,
       violationType,
       severity,
@@ -75,7 +75,7 @@ export default function ModDiscipline({ user }) {
     api.createDisciplineLog({
       schoolId: 'SCH-001',
       academicYear: '2026-2027',
-      studentId: targetStudentId,
+      studentDocsId: targetStudentDocsId,
       studentName: targetStudent.name,
       violationType,
       severity,
@@ -221,9 +221,9 @@ export default function ModDiscipline({ user }) {
         <form onSubmit={handleCreateViolation} className="space-y-4 pt-1">
           <Select
     label="Designate Scholar Student"
-    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNumber}) - available NFC balance: $${s.walletBalance}`, value: s.id }))}
-    value={targetStudentId}
-    onChange={(e) => setTargetStudentId(e.target.value)}
+    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNo}) - available NFC balance: $${s.walletBalance}`, value: s.id }))}
+    value={targetStudentDocsId}
+    onChange={(e) => setTargetStudentDocsId(e.target.value)}
   />
 
           <div className="grid grid-cols-2 gap-4">

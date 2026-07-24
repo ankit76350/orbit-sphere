@@ -25,8 +25,8 @@ public class CreateFeeRequest {
     // Optional: resolved to the current academic year of the school when omitted.
     private String academicYear;
 
-    @NotBlank(message = "studentId is required")
-    private String studentId;
+    @NotBlank(message = "studentDocsId is required")
+    private String studentDocsId;
 
     @NotNull(message = "fee type is required")
     private FeeType type;

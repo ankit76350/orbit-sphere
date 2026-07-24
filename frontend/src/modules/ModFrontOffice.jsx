@@ -38,33 +38,33 @@ const daysOpen = (dateStr) => Math.max(0, Math.floor((Date.now() - new Date(date
 const TODAY = today();
 
 const CALLS_SEED = [
-  { id: "call-1", date: TODAY, time: "09:15", caller: "Rajesh Verma", phone: "+91 98220 44121", type: "Incoming", purpose: "Admission Enquiry", assignedTo: "Front Desk", followUp: TODAY, status: "Open", sentToCRM: false },
-  { id: "call-2", date: TODAY, time: "10:05", caller: "Sunita Iyer", phone: "+91 99860 77310", type: "Incoming", purpose: "Fee Query", assignedTo: "Accounts Office", followUp: "", status: "Closed", sentToCRM: false },
-  { id: "call-3", date: TODAY, time: "11:42", caller: "Transport Desk", phone: "+91 90080 21455", type: "Outgoing", purpose: "Transport", assignedTo: "Transport Incharge", followUp: "", status: "Open", sentToCRM: false },
-  { id: "call-4", date: "2026-07-03", time: "15:20", caller: "Mohd. Faizan Khan", phone: "+91 97400 88213", type: "Incoming", purpose: "Admission Enquiry", assignedTo: "Admissions Cell", followUp: "2026-07-06", status: "Open", sentToCRM: true },
-  { id: "call-5", date: "2026-07-02", time: "12:10", caller: "Deepa Nair", phone: "+91 98450 33902", type: "Incoming", purpose: "Complaint", assignedTo: "Vice Principal", followUp: "2026-07-05", status: "Closed", sentToCRM: false }
+  { id: "call-1", date: TODAY, time: "09:15", caller: "Rajesh Verma", phone: "+91 98220 44121", type: "Incoming", purpose: "Admission Enquiry", assignedToName: "Front Desk", followUp: TODAY, status: "Open", sentToCRM: false },
+  { id: "call-2", date: TODAY, time: "10:05", caller: "Sunita Iyer", phone: "+91 99860 77310", type: "Incoming", purpose: "Fee Query", assignedToName: "Accounts Office", followUp: "", status: "Closed", sentToCRM: false },
+  { id: "call-3", date: TODAY, time: "11:42", caller: "Transport Desk", phone: "+91 90080 21455", type: "Outgoing", purpose: "Transport", assignedToName: "Transport Incharge", followUp: "", status: "Open", sentToCRM: false },
+  { id: "call-4", date: "2026-07-03", time: "15:20", caller: "Mohd. Faizan Khan", phone: "+91 97400 88213", type: "Incoming", purpose: "Admission Enquiry", assignedToName: "Admissions Cell", followUp: "2026-07-06", status: "Open", sentToCRM: true },
+  { id: "call-5", date: "2026-07-02", time: "12:10", caller: "Deepa Nair", phone: "+91 98450 33902", type: "Incoming", purpose: "Complaint", assignedToName: "Vice Principal", followUp: "2026-07-05", status: "Closed", sentToCRM: false }
 ];
 
 const POSTAL_SEED = [
-  { id: "post-1", direction: "Inward", date: TODAY, refNo: "IN/2026/041", party: "CBSE Regional Office, Bengaluru", subject: "Board exam centre allotment circular", mode: "Post", handler: "Meena Kulkarni", status: "Received" },
-  { id: "post-2", direction: "Inward", date: "2026-07-03", refNo: "IN/2026/040", party: "Karnataka Textbook Society", subject: "Grade 6-8 textbook consignment invoice", mode: "Courier", handler: "Meena Kulkarni", status: "Received" },
-  { id: "post-3", direction: "Outward", date: TODAY, refNo: "OUT/2026/027", party: "District Education Officer, Bengaluru South", subject: "Staff statistics return for AY 2026-27", mode: "Post", handler: "Suresh Gowda", status: "Dispatched" },
-  { id: "post-4", direction: "Outward", date: "2026-07-02", refNo: "OUT/2026/026", party: "M/s Royal Garments, Chickpet", subject: "Purchase order — winter uniform blazers", mode: "Courier", handler: "Suresh Gowda", status: "In Transit" }
+  { id: "post-1", direction: "Inward", date: TODAY, refNo: "IN/2026/041", party: "CBSE Regional Office, Bengaluru", subject: "Board exam centre allotment circular", mode: "Post", handlerName: "Meena Kulkarni", status: "Received" },
+  { id: "post-2", direction: "Inward", date: "2026-07-03", refNo: "IN/2026/040", party: "Karnataka Textbook Society", subject: "Grade 6-8 textbook consignment invoice", mode: "Courier", handlerName: "Meena Kulkarni", status: "Received" },
+  { id: "post-3", direction: "Outward", date: TODAY, refNo: "OUT/2026/027", party: "District Education Officer, Bengaluru South", subject: "Staff statistics return for AY 2026-27", mode: "Post", handlerName: "Suresh Gowda", status: "Dispatched" },
+  { id: "post-4", direction: "Outward", date: "2026-07-02", refNo: "OUT/2026/026", party: "M/s Royal Garments, Chickpet", subject: "Purchase order — winter uniform blazers", mode: "Courier", handlerName: "Suresh Gowda", status: "In Transit" }
 ];
 
 const GRIEV_SEED = [
-  { id: "GRV-101", date: "2026-06-24", raisedBy: "Parent", raisedName: "Anand Krishnamurthy", category: "Transport", description: "Route Beta bus arriving 25 minutes late at Lakeside Junction for the past week, children missing first period.", severity: "High", assignedTo: "Transport Incharge", status: "In Review", resolutionNote: "" },
-  { id: "GRV-102", date: "2026-07-01", raisedBy: "Staff", raisedName: "Kavitha Rao (Teacher)", category: "Safety", description: "Loose electrical conduit near the chemistry lab corridor on second floor; needs urgent estate attention.", severity: "High", assignedTo: "Estate Manager", status: "Open", resolutionNote: "" },
-  { id: "GRV-103", date: TODAY, raisedBy: "Parent", raisedName: "Shalini Menon", category: "Fee", description: "Sibling discount not reflected in Term 1 tuition invoice despite approval mail from accounts.", severity: "Medium", assignedTo: "Accounts Office", status: "Open", resolutionNote: "" },
-  { id: "GRV-104", date: "2026-06-18", raisedBy: "Student", raisedName: "Aarav Shetty (Grade 9)", category: "Academic", description: "Library reference section closed during study hall hours three days in a row.", severity: "Low", assignedTo: "Librarian", status: "Resolved", resolutionNote: "Library timings extended to 6 PM; additional assistant rostered for study hall." }
+  { id: "GRV-101", date: "2026-06-24", raisedBy: "Parent", raisedName: "Anand Krishnamurthy", category: "Transport", description: "Route Beta bus arriving 25 minutes late at Lakeside Junction for the past week, children missing first period.", severity: "High", assignedToName: "Transport Incharge", status: "In Review", resolutionNote: "" },
+  { id: "GRV-102", date: "2026-07-01", raisedBy: "Staff", raisedName: "Kavitha Rao (Teacher)", category: "Safety", description: "Loose electrical conduit near the chemistry lab corridor on second floor; needs urgent estate attention.", severity: "High", assignedToName: "Estate Manager", status: "Open", resolutionNote: "" },
+  { id: "GRV-103", date: TODAY, raisedBy: "Parent", raisedName: "Shalini Menon", category: "Fee", description: "Sibling discount not reflected in Term 1 tuition invoice despite approval mail from accounts.", severity: "Medium", assignedToName: "Accounts Office", status: "Open", resolutionNote: "" },
+  { id: "GRV-104", date: "2026-06-18", raisedBy: "Student", raisedName: "Aarav Shetty (Grade 9)", category: "Academic", description: "Library reference section closed during study hall hours three days in a row.", severity: "Low", assignedToName: "Librarian", status: "Resolved", resolutionNote: "Library timings extended to 6 PM; additional assistant rostered for study hall." }
 ];
 
 const CERT_TYPES = ["Transfer Certificate", "Bonafide", "Character", "Migration", "Fee Clearance NOC"];
 const CERT_PREFIX = { "Transfer Certificate": "TC", "Bonafide": "BON", "Character": "CHR", "Migration": "MIG", "Fee Clearance NOC": "NOC" };
 
 const CERT_SEED = [
-  { id: "cert-1", serial: "TC/2026/007", date: "2026-06-20", studentId: "student-9", studentName: "Ishaan Patel", grade: "Grade 8", admissionNumber: "STJ2025-1009", type: "Transfer Certificate", reason: "Family relocating to Pune", issuedBy: "Principal", duplicate: false, lastClass: "Grade 8", conduct: "Good" },
-  { id: "cert-2", serial: "BON/2026/014", date: "2026-06-28", studentId: "student-14", studentName: "Ananya Reddy", grade: "Grade 7", admissionNumber: "STJ2025-1014", type: "Bonafide", reason: "Bank account opening (minor)", issuedBy: "Office Superintendent", duplicate: false }
+  { id: "cert-1", serial: "TC/2026/007", date: "2026-06-20", studentDocsId: "student-9", studentName: "Ishaan Patel", grade: "Grade 8", admissionNo: "STJ2025-1009", type: "Transfer Certificate", reason: "Family relocating to Pune", issuedBy: "Principal", duplicate: false, lastClass: "Grade 8", conduct: "Good" },
+  { id: "cert-2", serial: "BON/2026/014", date: "2026-06-28", studentDocsId: "student-14", studentName: "Ananya Reddy", grade: "Grade 7", admissionNo: "STJ2025-1014", type: "Bonafide", reason: "Bank account opening (minor)", issuedBy: "Office Superintendent", duplicate: false }
 ];
 
 const GRIEV_FLOW = { "Open": "In Review", "In Review": "Resolved", "Resolved": "Closed" };
@@ -116,7 +116,7 @@ export default function ModFrontOffice({ user }) {
       phone: cPhone.trim(),
       type: cType,
       purpose: cPurpose,
-      assignedTo: cAssigned || staff[0]?.name || "Front Desk",
+      assignedToName: cAssigned || staff[0]?.name || "Front Desk",
       followUp: cFollowUp,
       status: "Open",
       sentToCRM: false
@@ -124,7 +124,7 @@ export default function ModFrontOffice({ user }) {
     const updated = [entry, ...calls];
     setCalls(updated);
     saveLS(CALLS_KEY, updated);
-    logAction(user.id, user.name, user.role, "Front Office Call Logged", `${cType} call from ${entry.caller} (${entry.phone}) — ${cPurpose}, assigned to ${entry.assignedTo}`);
+    logAction(user.id, user.name, user.role, "Front Office Call Logged", `${cType} call from ${entry.caller} (${entry.phone}) — ${cPurpose}, assigned to ${entry.assignedToName}`);
     addToast("Call Logged", `Recorded ${cType.toLowerCase()} call from ${entry.caller}.`, "success");
     setIsCallOpen(false);
     setCCaller(""); setCPhone(""); setCFollowUp("");
@@ -152,7 +152,7 @@ export default function ModFrontOffice({ user }) {
   const [pParty, setPParty] = useState("");
   const [pSubject, setPSubject] = useState("");
   const [pMode, setPMode] = useState("Courier");
-  const [pHandler, setPHandler] = useState("");
+  const [pHandlerName, setPHandlerName] = useState("");
 
   const nextRefNo = (direction) => {
     const prefix = direction === "Inward" ? "IN" : "OUT";
@@ -175,7 +175,7 @@ export default function ModFrontOffice({ user }) {
       party: pParty.trim(),
       subject: pSubject.trim(),
       mode: pMode,
-      handler: pHandler || staff[0]?.name || "Front Desk",
+      handlerName: pHandlerName || staff[0]?.name || "Front Desk",
       status: postalView === "Inward" ? "Received" : "Dispatched"
     };
     const updated = [entry, ...postal];
@@ -212,15 +212,15 @@ export default function ModFrontOffice({ user }) {
       category: gCategory,
       description: gDesc.trim(),
       severity: gSeverity,
-      assignedTo: gAssigned || staff[0]?.name || "Vice Principal",
+      assignedToName: gAssigned || staff[0]?.name || "Vice Principal",
       status: "Open",
       resolutionNote: ""
     };
     const updated = [entry, ...grievances];
     setGrievances(updated);
     saveLS(GRIEV_KEY, updated);
-    logAction(user.id, user.name, user.role, "Grievance Raised", `${entry.id} (${gCategory}, ${gSeverity}) by ${entry.raisedName}, assigned to ${entry.assignedTo}`);
-    addToast("Grievance Registered", `${entry.id} logged and routed to ${entry.assignedTo}.`, "success");
+    logAction(user.id, user.name, user.role, "Grievance Raised", `${entry.id} (${gCategory}, ${gSeverity}) by ${entry.raisedName}, assigned to ${entry.assignedToName}`);
+    addToast("Grievance Registered", `${entry.id} logged and routed to ${entry.assignedToName}.`, "success");
     setIsGrvOpen(false);
     setGRaisedName(""); setGDesc("");
   };
@@ -257,7 +257,7 @@ export default function ModFrontOffice({ user }) {
   /* ---------- certificates ---------- */
   const [isCertOpen, setIsCertOpen] = useState(false);
   const [certType, setCertType] = useState("Transfer Certificate");
-  const [certStudentId, setCertStudentId] = useState(students[0]?.id || "");
+  const [certStudentDocsId, setCertStudentDocsId] = useState(students[0]?.id || "");
   const [certReason, setCertReason] = useState("");
   const [tcLastClass, setTcLastClass] = useState("");
   const [tcDuesCleared, setTcDuesCleared] = useState(false);
@@ -277,7 +277,7 @@ export default function ModFrontOffice({ user }) {
     if (dupSource) {
       setDuplicateOf(dupSource);
       setCertType(dupSource.type);
-      setCertStudentId(dupSource.studentId);
+      setCertStudentDocsId(dupSource.studentDocsId);
       setCertReason(`Duplicate of ${dupSource.serial} — original reported lost`);
       setTcLastClass(dupSource.lastClass || "");
       setTcConduct(dupSource.conduct || "Good");
@@ -294,7 +294,7 @@ export default function ModFrontOffice({ user }) {
 
   const handleIssueCert = (e) => {
     e.preventDefault();
-    const student = students.find((s) => s.id === certStudentId);
+    const student = students.find((s) => s.id === certStudentDocsId);
     if (!student) {
       addToast("Student Missing", "Select a valid student from the roster.", "error");
       return;
@@ -311,10 +311,10 @@ export default function ModFrontOffice({ user }) {
       id: `cert-${Date.now()}`,
       serial: nextSerial(certType),
       date: today(),
-      studentId: student.id,
+      studentDocsId: student.id,
       studentName: student.name,
       grade: student.grade,
-      admissionNumber: student.admissionNumber,
+      admissionNo: student.admissionNo,
       type: certType,
       reason: certReason.trim(),
       issuedBy: user.name,
@@ -325,18 +325,18 @@ export default function ModFrontOffice({ user }) {
     const updated = [entry, ...certs];
     setCerts(updated);
     saveLS(CERT_KEY, updated);
-    logAction(user.id, user.name, user.role, "Certificate Issued", `${entry.duplicate ? "DUPLICATE " : ""}${certType} ${entry.serial} issued to ${student.name} (${student.admissionNumber}) — ${entry.reason}`);
+    logAction(user.id, user.name, user.role, "Certificate Issued", `${entry.duplicate ? "DUPLICATE " : ""}${certType} ${entry.serial} issued to ${student.name} (${student.admissionNo}) — ${entry.reason}`);
     addToast("Certificate Issued", `${entry.serial} recorded in the issue register.`, "success");
     setIsCertOpen(false);
     setPreviewCert(entry);
   };
 
   const certBodyText = (c) => {
-    if (c.type === "Transfer Certificate") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNumber}) was a bonafide student of this institution and studied up to ${c.lastClass || c.grade}. All dues to the institution stand cleared. Their conduct during the period of study was found to be ${(c.conduct || "Good").toLowerCase()}. This Transfer Certificate is issued on request: ${c.reason}.`;
-    if (c.type === "Bonafide") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNumber}) is a bonafide student of this institution, presently studying in ${c.grade}. This certificate is issued for the purpose of: ${c.reason}.`;
-    if (c.type === "Character") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNumber}), a student of ${c.grade}, bears a good moral character to the best of our knowledge. Issued for: ${c.reason}.`;
-    if (c.type === "Migration") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNumber}) has no objection from this institution to migrate to another board / institution. Issued for: ${c.reason}.`;
-    return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNumber}) of ${c.grade} has cleared all fee dues payable to the institution as on date. No Objection Certificate issued for: ${c.reason}.`;
+    if (c.type === "Transfer Certificate") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNo}) was a bonafide student of this institution and studied up to ${c.lastClass || c.grade}. All dues to the institution stand cleared. Their conduct during the period of study was found to be ${(c.conduct || "Good").toLowerCase()}. This Transfer Certificate is issued on request: ${c.reason}.`;
+    if (c.type === "Bonafide") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNo}) is a bonafide student of this institution, presently studying in ${c.grade}. This certificate is issued for the purpose of: ${c.reason}.`;
+    if (c.type === "Character") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNo}), a student of ${c.grade}, bears a good moral character to the best of our knowledge. Issued for: ${c.reason}.`;
+    if (c.type === "Migration") return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNo}) has no objection from this institution to migrate to another board / institution. Issued for: ${c.reason}.`;
+    return `This is to certify that ${c.studentName} (Admission No. ${c.admissionNo}) of ${c.grade} has cleared all fee dues payable to the institution as on date. No Objection Certificate issued for: ${c.reason}.`;
   };
 
   const staffOptions = staff.map((s) => ({ label: `${s.name} (${s.role})`, value: s.name }));
@@ -462,7 +462,7 @@ export default function ModFrontOffice({ user }) {
                           </span>
                         </td>
                         <td className="p-4"><Badge variant={c.purpose === "Complaint" ? "danger" : c.purpose === "Admission Enquiry" ? "secondary" : "default"}>{c.purpose}</Badge></td>
-                        <td className="p-4 text-slate-500">{c.assignedTo}</td>
+                        <td className="p-4 text-slate-500">{c.assignedToName}</td>
                         <td className="p-4 text-slate-400 font-bold">{c.followUp || "—"}</td>
                         <td className="p-4 text-center">
                           <button onClick={() => toggleCallStatus(c.id)} className="cursor-pointer" title="Toggle status">
@@ -517,7 +517,7 @@ export default function ModFrontOffice({ user }) {
                       <th className="p-4">{postalView === "Inward" ? "Received From" : "Addressed To"}</th>
                       <th className="p-4">Subject</th>
                       <th className="p-4">Mode</th>
-                      <th className="p-4">Handler</th>
+                      <th className="p-4">HandlerName</th>
                       <th className="p-4 text-center">Status</th>
                     </tr>
                   </thead>
@@ -530,7 +530,7 @@ export default function ModFrontOffice({ user }) {
                           <td className="p-4 font-extrabold text-slate-800">{p.party}</td>
                           <td className="p-4 text-slate-500 max-w-xs">{p.subject}</td>
                           <td className="p-4"><Badge variant="default">{p.mode}</Badge></td>
-                          <td className="p-4 text-slate-500">{p.handler}</td>
+                          <td className="p-4 text-slate-500">{p.handlerName}</td>
                           <td className="p-4 text-center">
                             <Badge variant={p.status === "Received" || p.status === "Dispatched" ? "success" : "warning"}>{p.status}</Badge>
                           </td>
@@ -569,7 +569,7 @@ export default function ModFrontOffice({ user }) {
                             {age} day{age === 1 ? "" : "s"} open {slaBreach ? "· SLA BREACH" : ""}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 font-bold">{g.raisedBy}: {g.raisedName} · Raised {g.date} · Assigned to {g.assignedTo}</p>
+                        <p className="text-xs text-slate-400 font-bold">{g.raisedBy}: {g.raisedName} · Raised {g.date} · Assigned to {g.assignedToName}</p>
                         <p className="text-xs text-slate-600 leading-relaxed max-w-2xl bg-white p-3 rounded-xl border border-slate-150 mt-2 font-medium">{g.description}</p>
                         {g.resolutionNote && <p className="text-xs text-emerald-700 leading-relaxed max-w-2xl bg-emerald-50 p-3 rounded-xl border border-emerald-100 font-medium">
                             <span className="font-black uppercase text-[9px] block mb-1">Resolution note:</span>{g.resolutionNote}
@@ -620,7 +620,7 @@ export default function ModFrontOffice({ user }) {
                         <td className="p-4 text-slate-400 font-bold whitespace-nowrap">{c.date}</td>
                         <td className="p-4">
                           <p className="font-extrabold text-slate-800">{c.studentName}</p>
-                          <p className="text-[9px] uppercase font-bold text-slate-400 mt-0.5">{c.admissionNumber} · {c.grade}</p>
+                          <p className="text-[9px] uppercase font-bold text-slate-400 mt-0.5">{c.admissionNo} · {c.grade}</p>
                         </td>
                         <td className="p-4"><Badge variant={c.type === "Transfer Certificate" ? "danger" : "secondary"}>{c.type}</Badge></td>
                         <td className="p-4 text-slate-500 max-w-xs">{c.reason}</td>
@@ -703,8 +703,8 @@ export default function ModFrontOffice({ user }) {
             <Select
               label="Handled By"
               options={staffOptions}
-              value={pHandler || staffOptions[0]?.value || ""}
-              onChange={(e) => setPHandler(e.target.value)}
+              value={pHandlerName || staffOptions[0]?.value || ""}
+              onChange={(e) => setPHandlerName(e.target.value)}
             />
           </div>
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
@@ -802,9 +802,9 @@ export default function ModFrontOffice({ user }) {
             />
             <Select
               label="Student"
-              options={students.map((s) => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))}
-              value={certStudentId}
-              onChange={(e) => setCertStudentId(e.target.value)}
+              options={students.map((s) => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))}
+              value={certStudentDocsId}
+              onChange={(e) => setCertStudentDocsId(e.target.value)}
               disabled={!!duplicateOf}
             />
           </div>

@@ -15,6 +15,6 @@ public enum AdmissionStatus {
     /** Declined — the application will not proceed. Captured nowhere else in the system. */
     REJECTED,
 
-    /** Enrolled — converted into a Student (set together with the admission's studentId). */
+    /** Enrolled — converted into a Student (set together with the admission's studentDocsId). */
     CONFIRMED
 }

@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GalleryMedia extends SchoolBase {
 
-    private String albumId;
+    private String albumDocsId;
 
     private String mediaType;
 

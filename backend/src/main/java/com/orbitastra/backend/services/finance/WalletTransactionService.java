@@ -15,12 +15,12 @@ public class WalletTransactionService {
 
     private final WalletTransactionRepository walletTransactionRepository;
 
-    public List<WalletTransaction> getTransactionsByStudent(String studentId) {
-        return walletTransactionRepository.findByStudentIdOrderByTransactionDateDesc(studentId);
+    public List<WalletTransaction> getTransactionsByStudent(String studentDocsId) {
+        return walletTransactionRepository.findByStudentDocsIdOrderByTransactionDateDesc(studentDocsId);
     }
 
-    public List<WalletTransaction> getTransactionsBySchoolAndStudent(String schoolId, String studentId) {
-        return walletTransactionRepository.findBySchoolIdAndStudentId(schoolId, studentId);
+    public List<WalletTransaction> getTransactionsBySchoolAndStudent(String schoolId, String studentDocsId) {
+        return walletTransactionRepository.findBySchoolIdAndStudentDocsId(schoolId, studentDocsId);
     }
 
     public WalletTransaction saveTransaction(WalletTransaction transaction) {

@@ -21,17 +21,17 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DocumentApproval extends SchoolBase {
 
-    private String documentId;
+    private String documentDocsId;
 
     private String documentTitle;
 
-    private String requestorId;
+    private String requestorDocsId;
 
     private String requestorName;
 
     private String requestorRole;
 
-    private String approverId;
+    private String approverDocsId;
 
     private String approverName;
 

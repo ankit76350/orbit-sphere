@@ -66,9 +66,9 @@ public class StudentController {
         return ResponseEntity.ok(studentService.getStudentsBySchoolAndAcademicYear(schoolId, academicYear));
     }
 
-    @GetMapping("/class/{classId}")
-    public ResponseEntity<List<StudentResponse>> getStudentsByClass(@PathVariable String classId) {
-        return ResponseEntity.ok(studentService.getStudentsByClass(classId));
+    @GetMapping("/class/{classDocsId}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByClass(@PathVariable String classDocsId) {
+        return ResponseEntity.ok(studentService.getStudentsByClass(classDocsId));
     }
 
     @GetMapping("/guardian/{guardianDocsId}")

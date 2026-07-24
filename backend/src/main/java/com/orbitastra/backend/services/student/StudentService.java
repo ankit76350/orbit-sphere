@@ -98,7 +98,7 @@ public class StudentService {
         StudentAcademicRecord initialRecord = assembleInitialRecord(request);
         if (initialRecord != null) {
             log.info("[createStudent] Academic record to create — year={}, class={}, section={}, roll={}",
-                    initialRecord.getAcademicYear(), initialRecord.getClassDocId(),
+                    initialRecord.getAcademicYear(), initialRecord.getClassDocsId(),
                     initialRecord.getSectionNo(), initialRecord.getRollNo());
         } else {
             log.info("[createStudent] No class/year details sent — the student will be created without a record for now");
@@ -216,23 +216,23 @@ public class StudentService {
             log.info("[persistStudent] Using academic year {}", acadYear);
 
             // If a class was given, make sure it exists and belongs to this school.
-            if (initialRecord.getClassDocId() != null) {
-                SchoolClass schoolClass = schoolClassRepository.findById(initialRecord.getClassDocId())
+            if (initialRecord.getClassDocsId() != null) {
+                SchoolClass schoolClass = schoolClassRepository.findById(initialRecord.getClassDocsId())
                         .orElseThrow(() -> new ResourceNotFoundException(
-                                "Class not found with id: " + initialRecord.getClassDocId()));
+                                "Class not found with id: " + initialRecord.getClassDocsId()));
                 if (!schoolClass.getSchoolId().equals(saved.getSchoolId())) {
                     throw new IllegalArgumentException("Class does not belong to the same school as the student.");
                 }
-                log.info("[persistStudent] Class {} is valid and belongs to this school", initialRecord.getClassDocId());
+                log.info("[persistStudent] Class {} is valid and belongs to this school", initialRecord.getClassDocsId());
             }
 
             StudentAcademicRecord record = StudentAcademicRecord.builder()
                     .schoolId(saved.getSchoolId())
-                    .studentDocId(saved.getId())
+                    .studentDocsId(saved.getId())
                     .academicYear(acadYear)
                     .studentNo(initialRecord.getStudentNo())
                     .rollNo(initialRecord.getRollNo())
-                    .classDocId(initialRecord.getClassDocId())
+                    .classDocsId(initialRecord.getClassDocsId())
                     .sectionNo(initialRecord.getSectionNo())
                     .hostelRoomNo(initialRecord.getHostelRoomNo())
                     .status(saved.getStatus())
@@ -281,9 +281,9 @@ public class StudentService {
     }
 
     /** Finds the student's record for the newest school year they have, or null if they have none. */
-    private StudentAcademicRecord latestRecordOf(String studentDocId) {
-        if (studentDocId == null) return null;
-        return studentAcademicRecordRepository.findByStudentDocId(studentDocId).stream()
+    private StudentAcademicRecord latestRecordOf(String studentDocsId) {
+        if (studentDocsId == null) return null;
+        return studentAcademicRecordRepository.findByStudentDocsId(studentDocsId).stream()
                 .max(Comparator.comparing(StudentAcademicRecord::getAcademicYear,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
                 .orElse(null);
@@ -303,9 +303,9 @@ public class StudentService {
         if (students == null || students.isEmpty()) return new ArrayList<>();
         List<String> ids = students.stream().map(Student::getId).filter(Objects::nonNull).toList();
         // For each student, keep only their newest-year record.
-        Map<String, StudentAcademicRecord> latest = studentAcademicRecordRepository.findByStudentDocIdIn(ids).stream()
+        Map<String, StudentAcademicRecord> latest = studentAcademicRecordRepository.findByStudentDocsIdIn(ids).stream()
                 .collect(Collectors.toMap(
-                        StudentAcademicRecord::getStudentDocId,
+                        StudentAcademicRecord::getStudentDocsId,
                         r -> r,
                         (a, b) -> Comparator.comparing(StudentAcademicRecord::getAcademicYear,
                                 Comparator.nullsFirst(Comparator.naturalOrder())).compare(a, b) >= 0 ? a : b));
@@ -338,23 +338,23 @@ public class StudentService {
     public List<StudentResponse> getStudentsBySchoolAndAcademicYear(String schoolId, String academicYear) {
         List<StudentAcademicRecord> records =
                 studentAcademicRecordRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
-        List<String> ids = records.stream().map(StudentAcademicRecord::getStudentDocId).distinct().toList();
+        List<String> ids = records.stream().map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
         List<Student> students = studentRepository.findAllById(ids);
         // Show the record for the year that was asked for (not the newest one).
         Map<String, StudentAcademicRecord> byStudent = records.stream()
-                .collect(Collectors.toMap(StudentAcademicRecord::getStudentDocId, r -> r, (a, b) -> a));
+                .collect(Collectors.toMap(StudentAcademicRecord::getStudentDocsId, r -> r, (a, b) -> a));
         return students.stream().map(s -> StudentResponse.of(s, byStudent.get(s.getId()))).toList();
     }
 
-    public List<StudentResponse> getStudentsByClass(String classId) {
-        List<String> ids = studentAcademicRecordRepository.findByClassDocId(classId).stream()
-                .map(StudentAcademicRecord::getStudentDocId).distinct().toList();
+    public List<StudentResponse> getStudentsByClass(String classDocsId) {
+        List<String> ids = studentAcademicRecordRepository.findByClassDocsId(classDocsId).stream()
+                .map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
         return buildResponses(studentRepository.findAllById(ids));
     }
 
     public List<StudentResponse> getStudentsByHostelRoom(String hostelRoomNo) {
         List<String> ids = studentAcademicRecordRepository.findByHostelRoomNo(hostelRoomNo).stream()
-                .map(StudentAcademicRecord::getStudentDocId).distinct().toList();
+                .map(StudentAcademicRecord::getStudentDocsId).distinct().toList();
         return buildResponses(studentRepository.findAllById(ids));
     }
 
@@ -412,9 +412,9 @@ public class StudentService {
         // Find that year's record, or start a new one if it does not exist yet.
         final String year = targetYear;
         StudentAcademicRecord record = studentAcademicRecordRepository
-                .findByStudentDocIdAndAcademicYear(student.getId(), year)
+                .findByStudentDocsIdAndAcademicYear(student.getId(), year)
                 .orElseGet(() -> StudentAcademicRecord.builder()
-                        .studentDocId(student.getId())
+                        .studentDocsId(student.getId())
                         .academicYear(year)
                         .createdAt(LocalDateTime.now())
                         .build());
@@ -425,14 +425,14 @@ public class StudentService {
         if (detailsRecord != null) {
             if (detailsRecord.getStudentNo() != null) { record.setStudentNo(detailsRecord.getStudentNo()); changed = true; }
             if (detailsRecord.getRollNo() != null) { record.setRollNo(detailsRecord.getRollNo()); changed = true; }
-            if (detailsRecord.getClassDocId() != null) {
-                SchoolClass schoolClass = schoolClassRepository.findById(detailsRecord.getClassDocId())
+            if (detailsRecord.getClassDocsId() != null) {
+                SchoolClass schoolClass = schoolClassRepository.findById(detailsRecord.getClassDocsId())
                         .orElseThrow(() -> new ResourceNotFoundException(
-                                "Class not found with id: " + detailsRecord.getClassDocId()));
+                                "Class not found with id: " + detailsRecord.getClassDocsId()));
                 if (!schoolClass.getSchoolId().equals(saved.getSchoolId())) {
                     throw new IllegalArgumentException("Class does not belong to the same school as the student.");
                 }
-                record.setClassDocId(detailsRecord.getClassDocId());
+                record.setClassDocsId(detailsRecord.getClassDocsId());
                 changed = true;
             }
             if (detailsRecord.getSectionNo() != null) { record.setSectionNo(detailsRecord.getSectionNo()); changed = true; }
@@ -483,8 +483,8 @@ public class StudentService {
      * replaced (handy for changing their role or flags). The guardian must exist and be in the
      * same school as the student.
      */
-    public StudentResponse addGuardianLink(String studentId, GuardianLink link) {
-        Student student = getStudentEntity(studentId);
+    public StudentResponse addGuardianLink(String studentDocsId, GuardianLink link) {
+        Student student = getStudentEntity(studentDocsId);
         if (link == null || link.getGuardianDocsId() == null || link.getGuardianDocsId().isBlank()) {
             throw new IllegalArgumentException("guardianDocsId is required to link a guardian.");
         }
@@ -501,8 +501,8 @@ public class StudentService {
         return buildResponse(studentRepository.save(student));
     }
 
-    public StudentResponse removeGuardianLink(String studentId, String guardianDocsId) {
-        Student student = getStudentEntity(studentId);
+    public StudentResponse removeGuardianLink(String studentDocsId, String guardianDocsId) {
+        Student student = getStudentEntity(studentDocsId);
         // Only save if a link was actually removed.
         if (student.getGuardians() != null
                 && student.getGuardians().removeIf(g -> guardianDocsId.equals(g.getGuardianDocsId()))) {
@@ -519,7 +519,7 @@ public class StudentService {
     public void deleteStudent(String id) {
         Student student = getStudentEntity(id);
         // Delete the student's year records first, then the student.
-        studentAcademicRecordRepository.deleteAll(studentAcademicRecordRepository.findByStudentDocId(id));
+        studentAcademicRecordRepository.deleteAll(studentAcademicRecordRepository.findByStudentDocsId(id));
         studentRepository.delete(student);
         log.info("[deleteStudent] Deleted student {} and all of their academic-year records", id);
     }
@@ -533,14 +533,14 @@ public class StudentService {
      * year. This is how a student is placed in a class/section for a given year.
      */
     @Transactional
-    public StudentAcademicRecord createOrUpdateAcademicRecord(String studentId, StudentAcademicRecord details) {
-        String normalizedStudentId = normalizeRequired(studentId, "studentId");
+    public StudentAcademicRecord createOrUpdateAcademicRecord(String studentDocsId, StudentAcademicRecord details) {
+        String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
         if (details == null) {
             throw new IllegalArgumentException("Academic record details are required.");
         }
 
         String requestedYear = normalizeRequired(details.getAcademicYear(), "academicYear");
-        Student student = getStudentEntity(normalizedStudentId);
+        Student student = getStudentEntity(normalizedStudentDocsId);
         String studentSchoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
 
         // A record may only reference an academic year owned by the student's school.
@@ -551,20 +551,20 @@ public class StudentService {
         String yearName = academicYear.getName();
 
         var existing = studentAcademicRecordRepository
-                .findByStudentDocIdAndAcademicYear(normalizedStudentId, yearName);
+                .findByStudentDocsIdAndAcademicYear(normalizedStudentDocsId, yearName);
         StudentAcademicRecord record = existing.orElseGet(() -> StudentAcademicRecord.builder()
-                .studentDocId(normalizedStudentId)
+                .studentDocsId(normalizedStudentDocsId)
                 .academicYear(yearName)
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        record.setStudentDocId(normalizedStudentId);
+        record.setStudentDocsId(normalizedStudentDocsId);
         record.setSchoolId(studentSchoolId);
         record.setAcademicYear(yearName);
 
         String requestedStudentNo = normalizeOptional(details.getStudentNo());
         String requestedRollNo = normalizeOptional(details.getRollNo());
-        String requestedClassDocId = normalizeOptional(details.getClassDocId());
+        String requestedClassDocsId = normalizeOptional(details.getClassDocsId());
         String requestedSectionNo = normalizeOptional(details.getSectionNo());
         String requestedHostelRoomNo = normalizeOptional(details.getHostelRoomNo());
 
@@ -574,21 +574,21 @@ public class StudentService {
         if (details.getRollNo() != null) record.setRollNo(requestedRollNo);
         if (details.getHostelRoomNo() != null) record.setHostelRoomNo(requestedHostelRoomNo);
 
-        String effectiveClassDocId = requestedClassDocId != null
-                ? requestedClassDocId
-                : normalizeOptional(record.getClassDocId());
+        String effectiveClassDocsId = requestedClassDocsId != null
+                ? requestedClassDocsId
+                : normalizeOptional(record.getClassDocsId());
         String effectiveSectionNo = requestedSectionNo != null
                 ? requestedSectionNo
                 : normalizeOptional(record.getSectionNo());
         String canonicalSectionNo = null;
 
-        if (effectiveSectionNo != null && effectiveClassDocId == null) {
-            throw new IllegalArgumentException("sectionNo requires a classDocId in the academic record.");
+        if (effectiveSectionNo != null && effectiveClassDocsId == null) {
+            throw new IllegalArgumentException("sectionNo requires a classDocsId in the academic record.");
         }
-        if (effectiveClassDocId != null) {
-            SchoolClass schoolClass = schoolClassRepository.findById(effectiveClassDocId)
+        if (effectiveClassDocsId != null) {
+            SchoolClass schoolClass = schoolClassRepository.findById(effectiveClassDocsId)
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "Class not found with id: " + effectiveClassDocId));
+                            "Class not found with id: " + effectiveClassDocsId));
             if (schoolClass.getSchoolId() == null || !schoolClass.getSchoolId().equals(studentSchoolId)) {
                 throw new IllegalArgumentException("Class does not belong to the same school as the student.");
             }
@@ -607,12 +607,12 @@ public class StudentService {
                                 .orElse(null);
                 if (canonicalSectionNo == null) {
                     throw new IllegalArgumentException("Section '" + effectiveSectionNo
-                            + "' does not exist in class '" + effectiveClassDocId + "'.");
+                            + "' does not exist in class '" + effectiveClassDocsId + "'.");
                 }
             }
         }
 
-        if (requestedClassDocId != null) record.setClassDocId(requestedClassDocId);
+        if (requestedClassDocsId != null) record.setClassDocsId(requestedClassDocsId);
         if (requestedSectionNo != null) record.setSectionNo(canonicalSectionNo);
 
         // Omitted status preserves an existing record's status; only a new record
@@ -638,12 +638,12 @@ public class StudentService {
 
     /** Moves a student up to a new school year. It's the same as adding that year's record. */
     @Transactional
-    public StudentAcademicRecord promoteStudent(String studentId, StudentAcademicRecord promotion) {
+    public StudentAcademicRecord promoteStudent(String studentDocsId, StudentAcademicRecord promotion) {
         if (promotion == null || promotion.getAcademicYear() == null || promotion.getAcademicYear().isBlank()) {
             throw new IllegalArgumentException("Academic year is required for promotion.");
         }
         promotion.setAcademicYear(promotion.getAcademicYear().trim());
-        return createOrUpdateAcademicRecord(studentId, promotion);
+        return createOrUpdateAcademicRecord(studentDocsId, promotion);
     }
 
     private String normalizeOptional(String value) {
@@ -659,11 +659,11 @@ public class StudentService {
                 + " for school '" + student.getSchoolId() + "' and year '" + record.getAcademicYear() + "'.", cause);
     }
 
-    public List<StudentAcademicRecord> getAcademicHistory(String studentId) {
-        if (!studentRepository.existsById(studentId)) {
-            throw new ResourceNotFoundException("Student not found with id: " + studentId);
+    public List<StudentAcademicRecord> getAcademicHistory(String studentDocsId) {
+        if (!studentRepository.existsById(studentDocsId)) {
+            throw new ResourceNotFoundException("Student not found with id: " + studentDocsId);
         }
-        return studentAcademicRecordRepository.findByStudentDocId(studentId);
+        return studentAcademicRecordRepository.findByStudentDocsId(studentDocsId);
     }
 
     /**
@@ -671,7 +671,7 @@ public class StudentService {
      * after adding or changing a year record so the "current year" always stays correct.
      */
     private void syncCurrentAcademicRecordPointer(Student student) {
-        String latestId = studentAcademicRecordRepository.findByStudentDocId(student.getId()).stream()
+        String latestId = studentAcademicRecordRepository.findByStudentDocsId(student.getId()).stream()
                 .max(Comparator.comparing(StudentAcademicRecord::getAcademicYear,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
                 .map(StudentAcademicRecord::getId)
@@ -689,8 +689,8 @@ public class StudentService {
     // =======================================================================================
 
     /** Finds this student's siblings — other students who share at least one guardian with them. */
-    public List<StudentResponse> getSiblings(String studentId) {
-        Student student = getStudentEntity(studentId);
+    public List<StudentResponse> getSiblings(String studentDocsId) {
+        Student student = getStudentEntity(studentDocsId);
         if (student.getGuardians() == null || student.getGuardians().isEmpty()) {
             return new ArrayList<>();
         }
@@ -701,7 +701,7 @@ public class StudentService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .forEach(gid -> studentRepository.findByGuardiansGuardianDocsId(gid).forEach(s -> {
-                    if (!s.getId().equals(studentId)) siblings.put(s.getId(), s);
+                    if (!s.getId().equals(studentDocsId)) siblings.put(s.getId(), s);
                 }));
         return buildResponses(new ArrayList<>(siblings.values()));
     }

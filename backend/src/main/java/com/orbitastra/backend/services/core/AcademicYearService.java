@@ -202,11 +202,11 @@ public class AcademicYearService {
      * Weekly offs are stored as concrete dates (expanded at save time), so
      * this is a plain date filter.
      */
-    public List<HolidayDetail> getHolidaysInRange(String academicYearId, LocalDate start, LocalDate end) {
+    public List<HolidayDetail> getHolidaysInRange(String academicYearDocsId, LocalDate start, LocalDate end) {
         if (start.isAfter(end)) {
             throw new IllegalArgumentException("Start date must be on or before end date.");
         }
-        AcademicYear year = getAcademicYearById(academicYearId);
+        AcademicYear year = getAcademicYearById(academicYearDocsId);
         List<HolidayDetail> result = new ArrayList<>();
         if (year.getHolidays() == null) {
             return result;
@@ -221,8 +221,8 @@ public class AcademicYearService {
     }
 
     /** True if the given date is a holiday (weekly off or dated holiday) in this academic year. */
-    public boolean isHoliday(String academicYearId, LocalDate date) {
-        return !getHolidaysInRange(academicYearId, date, date).isEmpty();
+    public boolean isHoliday(String academicYearDocsId, LocalDate date) {
+        return !getHolidaysInRange(academicYearDocsId, date, date).isEmpty();
     }
 
     /** Same as {@link #getHolidaysInRange} but addressed by school + year name (e.g. "2026-2027"). */

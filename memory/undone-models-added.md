@@ -30,7 +30,7 @@
 - **Library/Inventory** extras → `Book` + `InventoryItem` + `WalletTransaction` already cover them.
 
 ## Conventions used (match existing models)
-`@Document`, Lombok `@Data/@Builder/@NoArgsConstructor/@AllArgsConstructor`, `@CreatedDate`/`@LastModifiedDate`, `@Indexed schoolId` (tenant scope), `academicYear` where year-scoped, enums in `enums/` subpackages, unique compound indexes where frontend implies uniqueness (e.g. `staffId+month` on `Payslip`, `examId+grade+subject` on `ExamMarksSheet`), cross-refs documented as `// references X.id` comments.
+`@Document`, Lombok `@Data/@Builder/@NoArgsConstructor/@AllArgsConstructor`, `@CreatedDate`/`@LastModifiedDate`, `@Indexed schoolId` (tenant scope), `academicYear` where year-scoped, enums in `enums/` subpackages, unique compound indexes where frontend implies uniqueness (e.g. `staffDocsId+month` on `Payslip`, `examDocsId+grade+subject` on `ExamMarksSheet`), cross-refs documented as `// references X.id` comments.
 
 ## Status / next step
 These are pure model POJOs only — **no repositories/services/controllers/DTOs yet**, matching how the rest of `undone/` is staged. Next step when ready: scaffold repository → service → DTO → controller per module (suggested start: `exams` or `feeengine`). Applies the same validated-DTO + tenant-scoping foundation from [backend-foundation-review.md](backend-foundation-review.md).

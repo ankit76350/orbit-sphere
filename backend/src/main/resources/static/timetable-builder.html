@@ -143,17 +143,17 @@ const state = {
   schools: [], classes: [], staff: [],
   years: [],  // academic years of the selected school
   docs: [],   // saved DailyTimetable docs, window = today .. +60 days
-  cols: [],   // {classId, className, section, periods:[{start,end,type,subject,teacherId}]}
+  cols: [],   // {classDocsId, className, section, periods:[{start,end,type,subject,teacherDocsId}]}
 };
 const $ = id => document.getElementById(id);
 const DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
 const DAY_NICE = {MONDAY:'Monday',TUESDAY:'Tuesday',WEDNESDAY:'Wednesday',THURSDAY:'Thursday',FRIDAY:'Friday',SATURDAY:'Saturday',SUNDAY:'Sunday'};
 
 const defaultPeriods = () => [
-  {start:'09:00', end:'09:45', type:'LESSON', subject:'', teacherId:null},
-  {start:'09:45', end:'10:30', type:'LESSON', subject:'', teacherId:null},
-  {start:'10:30', end:'10:50', type:'BREAK',  subject:'Recess', teacherId:null},
-  {start:'10:50', end:'11:35', type:'LESSON', subject:'', teacherId:null},
+  {start:'09:00', end:'09:45', type:'LESSON', subject:'', teacherDocsId:null},
+  {start:'09:45', end:'10:30', type:'LESSON', subject:'', teacherDocsId:null},
+  {start:'10:30', end:'10:50', type:'BREAK',  subject:'Recess', teacherDocsId:null},
+  {start:'10:50', end:'11:35', type:'LESSON', subject:'', teacherDocsId:null},
 ];
 
 const hhmm = t => (t || '').slice(0, 5);
@@ -166,9 +166,9 @@ function niceDate(isoDate) { const d = new Date(isoDate + 'T00:00:00Z');
 function staffName(id) { const s = state.staff.find(x => x.id === id); return s ? s.name : id; }
 function className(id) { const c = state.classes.find(x => x.id === id); return c ? (c.name || id) : id; }
 function overlaps(s1, e1, s2, e2) { return s1 < e2 && s2 < e1; }
-function sectionHasSaved(classId, section) {
+function sectionHasSaved(classDocsId, section) {
   return state.docs.some(d => (d.entries || []).some(e =>
-    e.classId === classId && (e.section || '').toLowerCase() === section.toLowerCase()));
+    e.classDocsId === classDocsId && (e.section || '').toLowerCase() === section.toLowerCase()));
 }
 
 async function fetchJson(url, opts) {
@@ -302,8 +302,8 @@ async function renderViewWeek() {
   let schedule = [];
   try {
     if (sec) {
-      const [classId, section] = sec.split('|');
-      schedule = await fetchJson(`/api/timetables/school/${schoolId}/class/${classId}/section/${section}?startDate=${monday}&endDate=${sunday}`);
+      const [classDocsId, section] = sec.split('|');
+      schedule = await fetchJson(`/api/timetables/school/${schoolId}/class/${classDocsId}/section/${section}?startDate=${monday}&endDate=${sunday}`);
     } else {
       schedule = await fetchJson(`/api/timetables/school/${schoolId}/teacher/${teacher}?startDate=${monday}&endDate=${sunday}`);
     }
@@ -325,8 +325,8 @@ async function renderViewWeek() {
         const div = document.createElement('div');
         div.className = 'lesson' + (s.type === 'BREAK' ? ' brk' : '');
         const main = s.type === 'BREAK' ? '☕ ' + (s.subject || 'Break') : s.subject;
-        const sub = sec ? (s.type === 'BREAK' ? '' : '👩‍🏫 ' + staffName(s.teacherId))
-                        : className(s.classId) + ' — ' + s.section;
+        const sub = sec ? (s.type === 'BREAK' ? '' : '👩‍🏫 ' + staffName(s.teacherDocsId))
+                        : className(s.classDocsId) + ' — ' + s.section;
         div.innerHTML = `<div class="t">${hhmm(s.startTime)} – ${hhmm(s.endTime)}</div>
           <div class="s">${main}</div><div class="w">${sub}</div>`;
         col.appendChild(div);
@@ -345,12 +345,12 @@ function renderSectionChips() {
   state.classes.forEach(c => (c.sections || []).forEach(sec => {
     any = true;
     const chip = document.createElement('span');
-    chip.className = 'chip' + (state.cols.some(col => col.classId === c.id && col.section === sec) ? ' on' : '');
+    chip.className = 'chip' + (state.cols.some(col => col.classDocsId === c.id && col.section === sec) ? ' on' : '');
     chip.innerHTML = `${c.name || c.id} — ${sec} ${sectionHasSaved(c.id, sec) ? '<span class="badge">✓</span>' : ''}`;
     chip.onclick = () => {
-      const i = state.cols.findIndex(col => col.classId === c.id && col.section === sec);
+      const i = state.cols.findIndex(col => col.classDocsId === c.id && col.section === sec);
       if (i >= 0) state.cols.splice(i, 1);
-      else state.cols.push({classId: c.id, className: c.name || c.id, section: sec, periods: defaultPeriods()});
+      else state.cols.push({classDocsId: c.id, className: c.name || c.id, section: sec, periods: defaultPeriods()});
       chip.classList.toggle('on', i < 0);
       renderCols();
     };
@@ -371,9 +371,9 @@ function renderTeachers() {
   });
 }
 
-function savedInfo(classId, section) {
+function savedInfo(classDocsId, section) {
   const dates = state.docs
-    .filter(d => (d.entries || []).some(e => e.classId === classId && (e.section || '').toLowerCase() === section.toLowerCase()))
+    .filter(d => (d.entries || []).some(e => e.classDocsId === classDocsId && (e.section || '').toLowerCase() === section.toLowerCase()))
     .map(d => d.date).sort();
   return dates.length ? {count: dates.length, first: dates[0], last: dates[dates.length - 1]} : null;
 }
@@ -389,7 +389,7 @@ function renderCols() {
     div.className = 'col';
     div.innerHTML = `<h4>${col.className} — Section ${col.section}</h4>`;
 
-    const info = savedInfo(col.classId, col.section);
+    const info = savedInfo(col.classDocsId, col.section);
     if (info) {
       const el = document.createElement('div');
       el.className = 'saved';
@@ -398,7 +398,7 @@ function renderCols() {
       el.querySelector('button').onclick = async () => {
         if (!confirm(`Delete the saved timetable of ${col.className} — Section ${col.section} from ${info.first} to ${info.last}?`)) return;
         try {
-          const r = await fetchJson(`/api/timetables/school/${$('school').value}/class/${col.classId}/section/${col.section}?startDate=${info.first}&endDate=${info.last}`, {method: 'DELETE'});
+          const r = await fetchJson(`/api/timetables/school/${$('school').value}/class/${col.classDocsId}/section/${col.section}?startDate=${info.first}&endDate=${info.last}`, {method: 'DELETE'});
           msg(r.message, true);
           await refreshDocs(); renderSectionChips(); renderCols(); renderViewSelectors();
         } catch (e) { msg('❌ ' + e.message, false); }
@@ -425,13 +425,13 @@ function renderCols() {
 function nextPeriod(col, type) {
   const last = col.periods[col.periods.length - 1];
   const start = last ? last.end : '09:00';
-  return {start, end: start, type, subject: type === 'BREAK' ? 'Break' : '', teacherId: null};
+  return {start, end: start, type, subject: type === 'BREAK' ? 'Break' : '', teacherDocsId: null};
 }
 
 function renderCard(col, p, i) {
   const card = document.createElement('div');
   card.className = 'card' + (p.type === 'BREAK' ? ' break' : '');
-  card.dataset.col = col.classId + '|' + col.section;
+  card.dataset.col = col.classDocsId + '|' + col.section;
   card.dataset.idx = i;
 
   const times = document.createElement('div');
@@ -456,13 +456,13 @@ function renderCard(col, p, i) {
     subj.type = 'text'; subj.placeholder = 'Subject'; subj.value = p.subject;
     subj.oninput = () => { p.subject = subj.value; };
     const drop = document.createElement('div');
-    drop.className = 'drop' + (p.teacherId ? ' filled' : '');
+    drop.className = 'drop' + (p.teacherDocsId ? ' filled' : '');
     renderDrop(drop, p);
     drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
     drop.ondragleave = () => drop.classList.remove('over');
     drop.ondrop = e => {
       e.preventDefault(); drop.classList.remove('over');
-      p.teacherId = e.dataTransfer.getData('text/plain');
+      p.teacherDocsId = e.dataTransfer.getData('text/plain');
       drop.classList.add('filled'); renderDrop(drop, p); markConflicts();
     };
     card.appendChild(subj); card.appendChild(drop);
@@ -471,9 +471,9 @@ function renderCard(col, p, i) {
 }
 
 function renderDrop(drop, p) {
-  if (p.teacherId) {
-    drop.innerHTML = `<span>👩‍🏫 ${staffName(p.teacherId)}</span><span class="x" title="Remove teacher">✕</span>`;
-    drop.querySelector('.x').onclick = () => { p.teacherId = null; drop.classList.remove('filled'); renderDrop(drop, p); markConflicts(); };
+  if (p.teacherDocsId) {
+    drop.innerHTML = `<span>👩‍🏫 ${staffName(p.teacherDocsId)}</span><span class="x" title="Remove teacher">✕</span>`;
+    drop.querySelector('.x').onclick = () => { p.teacherDocsId = null; drop.classList.remove('filled'); renderDrop(drop, p); markConflicts(); };
   } else {
     drop.textContent = 'drop teacher here';
   }
@@ -485,7 +485,7 @@ function markConflicts() {
   const all = [];
   state.cols.forEach(col => col.periods.forEach((p, i) => {
     if (p.start && p.end && p.start < p.end)
-      all.push({col, p, i, key: col.classId + '|' + col.section});
+      all.push({col, p, i, key: col.classDocsId + '|' + col.section});
   }));
   const mark = (x, why) => {
     const card = document.querySelector(`.card[data-col="${x.key}"][data-idx="${x.i}"]`);
@@ -498,8 +498,8 @@ function markConflicts() {
     if (!overlaps(a.p.start, a.p.end, b.p.start, b.p.end)) continue;
     if (a.key === b.key) {
       mark(a, 'Two overlapping periods in this section'); mark(b, 'Two overlapping periods in this section');
-    } else if (a.p.teacherId && a.p.teacherId === b.p.teacherId) {
-      const why = staffName(a.p.teacherId) + ' is placed in two overlapping periods';
+    } else if (a.p.teacherDocsId && a.p.teacherDocsId === b.p.teacherDocsId) {
+      const why = staffName(a.p.teacherDocsId) + ' is placed in two overlapping periods';
       mark(a, why); mark(b, why);
     }
   }
@@ -512,12 +512,12 @@ function markConflicts() {
     (doc.entries || []).forEach(s => {
       all.forEach(x => {
         if (!overlaps(x.p.start, x.p.end, hhmm(s.startTime), hhmm(s.endTime))) return;
-        const sameSection = x.col.classId === s.classId && x.col.section.toLowerCase() === (s.section || '').toLowerCase();
-        const sameTeacher = x.p.teacherId && x.p.teacherId === s.teacherId;
+        const sameSection = x.col.classDocsId === s.classDocsId && x.col.section.toLowerCase() === (s.section || '').toLowerCase();
+        const sameTeacher = x.p.teacherDocsId && x.p.teacherDocsId === s.teacherDocsId;
         if (sameSection) {
           mark(x, `Clashes with the saved timetable of this section on ${doc.date}: ${s.subject} ${hhmm(s.startTime)}–${hhmm(s.endTime)}. Delete it first or change time/dates.`);
         } else if (sameTeacher) {
-          mark(x, `${staffName(s.teacherId)} is already teaching ${className(s.classId)} — ${s.section} on ${doc.date} at ${hhmm(s.startTime)}–${hhmm(s.endTime)}`);
+          mark(x, `${staffName(s.teacherDocsId)} is already teaching ${className(s.classDocsId)} — ${s.section} on ${doc.date} at ${hhmm(s.startTime)}–${hhmm(s.endTime)}`);
         }
       });
     });
@@ -553,13 +553,13 @@ $('save').onclick = async () => {
       if (!p.start || !p.end) return;
       if (p.type === 'BREAK') {
         periods.push({type: 'BREAK', subject: (p.subject || 'Break').trim(), startTime: p.start, endTime: p.end});
-      } else if (p.subject.trim() && p.teacherId) {
-        periods.push({type: 'LESSON', subject: p.subject.trim(), teacherId: p.teacherId, startTime: p.start, endTime: p.end});
-      } else if (p.subject.trim() || p.teacherId) {
+      } else if (p.subject.trim() && p.teacherDocsId) {
+        periods.push({type: 'LESSON', subject: p.subject.trim(), teacherDocsId: p.teacherDocsId, startTime: p.start, endTime: p.end});
+      } else if (p.subject.trim() || p.teacherDocsId) {
         skippedCells.push(col.className + ' ' + col.section + ' @ ' + p.start);
       }
     });
-    if (periods.length) classTimetables.push({classId: col.classId, section: col.section, periods});
+    if (periods.length) classTimetables.push({classDocsId: col.classDocsId, section: col.section, periods});
   });
   if (!classTimetables.length) return msg('Nothing to save — fill subject + teacher in at least one lesson.', false);
 

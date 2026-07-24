@@ -58,7 +58,7 @@ export default function ModTransport({ user }) {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Selection states for actions
-  const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id || "");
+  const [selectedRouteDocsId, setSelectedRouteDocsId] = useState(routes[0]?.id || "");
   const [selectedAttendanceRoute, setSelectedAttendanceRoute] = useState(routes[0]?.id || "");
   
   // Modals state
@@ -69,7 +69,7 @@ export default function ModTransport({ user }) {
   const [isAddAllocOpen, setIsAddAllocOpen] = useState(false);
 
   // Form states
-  const [routeCode, setRouteCode] = useState("");
+  const [routeNo, setRouteNo] = useState("");
   const [routeName, setRouteName] = useState("");
   const [routeStart, setRouteStart] = useState("");
   const [routeEnd, setRouteEnd] = useState("");
@@ -93,8 +93,8 @@ export default function ModTransport({ user }) {
   const [drvExpiry, setDrvExpiry] = useState("2028-06-30");
   const [drvVehId, setDrvVehId] = useState("");
 
-  const [allocStudentId, setAllocStudentId] = useState("");
-  const [allocRouteId, setAllocRouteId] = useState("");
+  const [allocStudentDocsId, setAllocStudentDocsId] = useState("");
+  const [allocRouteDocsId, setAllocRouteDocsId] = useState("");
   const [allocPickupStop, setAllocPickupStop] = useState("");
   const [allocDropStop, setAllocDropStop] = useState("");
   const [allocFee, setAllocFee] = useState("120");
@@ -115,10 +115,10 @@ export default function ModTransport({ user }) {
 
   // Setup initial route details if routes are empty
   useEffect(() => {
-    if (routes.length > 0 && !selectedRouteId) {
-      setSelectedRouteId(routes[0].id);
+    if (routes.length > 0 && !selectedRouteDocsId) {
+      setSelectedRouteDocsId(routes[0].id);
     }
-  }, [routes, selectedRouteId]);
+  }, [routes, selectedRouteDocsId]);
 
   // Simulated GPS Telemetry Interval
   useEffect(() => {
@@ -193,11 +193,11 @@ export default function ModTransport({ user }) {
   // Form Submissions
   const handleCreateRoute = (e) => {
     e.preventDefault();
-    if (!routeCode || !routeName) return;
+    if (!routeNo || !routeName) return;
     
     const newRoute = {
       id: `tr-${Date.now()}`,
-      routeCode: routeCode.toUpperCase(),
+      routeNo: routeNo.toUpperCase(),
       routeName,
       startLocation: routeStart || "Main Terminal",
       endLocation: routeEnd || "St. Jude Terminal",
@@ -209,10 +209,10 @@ export default function ModTransport({ user }) {
     const next = [...routes, newRoute];
     setRoutes(next);
     saveRoutes(next);
-    logAction(user.id, user.name, user.role, "Route Added", `Created route ${routeCode}: ${routeName}`);
-    addToast("Route Created", `Route "${routeCode}" successfully added.`);
+    logAction(user.id, user.name, user.role, "Route Added", `Created route ${routeNo}: ${routeName}`);
+    addToast("Route Created", `Route "${routeNo}" successfully added.`);
     
-    setRouteCode("");
+    setRouteNo("");
     setRouteName("");
     setRouteStart("");
     setRouteEnd("");
@@ -234,7 +234,7 @@ export default function ModTransport({ user }) {
     e.preventDefault();
     if (!stopName) return;
 
-    const targetIdx = routes.findIndex(r => r.id === selectedRouteId);
+    const targetIdx = routes.findIndex(r => r.id === selectedRouteDocsId);
     if (targetIdx === -1) return;
 
     const updatedRoutes = [...routes];
@@ -253,7 +253,7 @@ export default function ModTransport({ user }) {
     setRoutes(updatedRoutes);
     saveRoutes(updatedRoutes);
     
-    logAction(user.id, user.name, user.role, "Stop Added", `Added stop "${stopName}" to route ${updatedRoutes[targetIdx].routeCode}`);
+    logAction(user.id, user.name, user.role, "Stop Added", `Added stop "${stopName}" to route ${updatedRoutes[targetIdx].routeNo}`);
     addToast("Stop Registered", `Stop "${stopName}" added to timeline.`);
     
     setStopName("");
@@ -295,7 +295,7 @@ export default function ModTransport({ user }) {
       phone: drvPhone,
       licenseNo: drvLicense,
       licenseExpiry: drvExpiry,
-      vehicleId: drvVehId || null
+      vehicleDocsId: drvVehId || null
     };
 
     const next = [...drivers, newDrv];
@@ -312,16 +312,16 @@ export default function ModTransport({ user }) {
 
   const handleCreateAllocation = (e) => {
     e.preventDefault();
-    if (!allocStudentId || !allocRouteId) return;
+    if (!allocStudentDocsId || !allocRouteDocsId) return;
 
-    const studentInfo = studentsList.find(s => s.id === allocStudentId);
+    const studentInfo = studentsList.find(s => s.id === allocStudentDocsId);
     if (!studentInfo) return;
 
     const newAlloc = {
       id: `alloc-${Date.now()}`,
-      studentId: allocStudentId,
+      studentDocsId: allocStudentDocsId,
       studentName: studentInfo.name,
-      routeId: allocRouteId,
+      routeDocsId: allocRouteDocsId,
       pickupStopName: allocPickupStop || "First Stop",
       dropStopName: allocDropStop || "Academic Gate",
       feeAmount: parseFloat(allocFee) || 120.00,
@@ -332,29 +332,29 @@ export default function ModTransport({ user }) {
     const next = [...allocations, newAlloc];
     setAllocations(next);
     saveTransportAllocations(next);
-    logAction(user.id, user.name, user.role, "Student Transport Allocated", `Assigned student ${studentInfo.name} to route ID ${allocRouteId}`);
+    logAction(user.id, user.name, user.role, "Student Transport Allocated", `Assigned student ${studentInfo.name} to route ID ${allocRouteDocsId}`);
     addToast("Allocation Success", `${studentInfo.name} assigned to route.`);
 
-    setAllocStudentId("");
+    setAllocStudentDocsId("");
     setIsAddAllocOpen(false);
   };
 
-  const handleToggleAttendance = (studentId, status) => {
+  const handleToggleAttendance = (studentDocsId, status) => {
     const updated = [...attendance];
     const today = new Date().toISOString().split("T")[0];
     
-    const idx = updated.findIndex(a => a.studentId === studentId && a.date === today);
-    const studentInfo = allocations.find(a => a.studentId === studentId);
+    const idx = updated.findIndex(a => a.studentDocsId === studentDocsId && a.date === today);
+    const studentInfo = allocations.find(a => a.studentDocsId === studentDocsId);
 
     if (idx !== -1) {
       updated[idx].status = status;
       updated[idx].timestamp = new Date().toLocaleTimeString();
     } else {
       updated.unshift({
-        id: `att-${Date.now()}-${studentId}`,
-        studentId,
+        id: `att-${Date.now()}-${studentDocsId}`,
+        studentDocsId,
         studentName: studentInfo?.studentName || "Scholar",
-        routeId: selectedAttendanceRoute,
+        routeDocsId: selectedAttendanceRoute,
         date: today,
         status,
         timestamp: new Date().toLocaleTimeString()
@@ -375,9 +375,9 @@ export default function ModTransport({ user }) {
   };
 
   // Calculations for reports & dashboard
-  const activeRoute = routes.find(r => r.id === selectedRouteId);
-  const routeAllocatedCount = (routeId) => allocations.filter(a => a.routeId === routeId).length;
-  const todayAttendanceLogs = attendance.filter(a => a.date === new Date().toISOString().split("T")[0] && a.routeId === selectedAttendanceRoute);
+  const activeRoute = routes.find(r => r.id === selectedRouteDocsId);
+  const routeAllocatedCount = (routeDocsId) => allocations.filter(a => a.routeDocsId === routeDocsId).length;
+  const todayAttendanceLogs = attendance.filter(a => a.date === new Date().toISOString().split("T")[0] && a.routeDocsId === selectedAttendanceRoute);
   
   const totalAllocatedStudents = allocations.length;
   const operationalVehicles = vehicles.filter(v => v.status === "Operational").length;
@@ -387,7 +387,7 @@ export default function ModTransport({ user }) {
 
   // Parent Child Info Lookups
   const parentAllocations = allocations.filter(a => {
-    const stDetail = studentsList.find(s => s.id === a.studentId);
+    const stDetail = studentsList.find(s => s.id === a.studentDocsId);
     return stDetail && (stDetail.parentEmail === user.email || user.role === "Parent");
   });
 
@@ -533,12 +533,12 @@ export default function ModTransport({ user }) {
               <div className="divide-y divide-slate-50 pt-1">
                 {routes.map(r => {
                   const count = routeAllocatedCount(r.id);
-                  const activeVeh = vehicles.find(v => v.vehicleNo === r.vehicleNumber);
+                  const activeVeh = vehicles.find(v => v.vehicleNo === r.vehicleNo);
                   const pct = Math.min(100, Math.round((count / (activeVeh?.capacity || 40)) * 100));
                   return (
                     <div key={r.id} className="py-3.5 flex items-center justify-between gap-4">
                       <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-slate-800">{r.routeCode}: {r.routeName}</h4>
+                        <h4 className="text-xs font-bold text-slate-800">{r.routeNo}: {r.routeName}</h4>
                         <p className="text-[10px] text-slate-400 font-semibold">{r.startLocation} ➔ {r.endLocation}</p>
                       </div>
                       
@@ -594,20 +594,20 @@ export default function ModTransport({ user }) {
               {routes.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => setSelectedRouteId(r.id)}
+                  onClick={() => setSelectedRouteDocsId(r.id)}
                   className={`w-full text-left p-4 rounded-2xl border transition ${
-                    selectedRouteId === r.id 
+                    selectedRouteDocsId === r.id
                       ? "border-blue-500 bg-blue-50/10 shadow-xs" 
                       : "border-slate-150 hover:bg-slate-50"
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <Badge variant="secondary" className="text-[9px] font-black">{r.routeCode}</Badge>
+                    <Badge variant="secondary" className="text-[9px] font-black">{r.routeNo}</Badge>
                     {canModifyCatalog && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteRoute(r.id, r.routeCode);
+                          handleDeleteRoute(r.id, r.routeNo);
                         }} 
                         className="text-slate-400 hover:text-rose-600 transition"
                       >
@@ -629,7 +629,7 @@ export default function ModTransport({ user }) {
                 <div className="flex justify-between items-center border-b pb-4 border-slate-50">
                   <div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">
-                      {activeRoute.routeCode} Route Timeline & Stops
+                      {activeRoute.routeNo} Route Timeline & Stops
                     </h3>
                     <p className="text-xs text-slate-400 mt-1 font-semibold">
                       Sequenced halts mapping coordinate nodes for morning/evening runs.
@@ -750,7 +750,7 @@ export default function ModTransport({ user }) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {drivers.map(drv => {
-                    const assignedVeh = vehicles.find(v => v.id === drv.vehicleId);
+                    const assignedVeh = vehicles.find(v => v.id === drv.vehicleDocsId);
                     
                     // Simple alerts triggers
                     const isExpiringSoon = new Date(drv.licenseExpiry) < new Date("2026-07-01");
@@ -809,15 +809,15 @@ export default function ModTransport({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {allocations.map(alloc => {
-                  const studentInfo = studentsList.find(s => s.id === alloc.studentId);
-                  const routeInfo = routes.find(r => r.id === alloc.routeId);
+                  const studentInfo = studentsList.find(s => s.id === alloc.studentDocsId);
+                  const routeInfo = routes.find(r => r.id === alloc.routeDocsId);
                   
                   return (
                     <tr key={alloc.id}>
                       <td className="p-3 font-extrabold text-slate-800">{alloc.studentName}</td>
                       <td className="p-3 font-bold text-slate-450">{studentInfo ? studentInfo.grade : "Grade 7"}</td>
                       <td className="p-3 text-slate-500 font-bold font-mono">
-                        {routeInfo ? `${routeInfo.routeCode} (${routeInfo.routeName})` : "N/A"}
+                        {routeInfo ? `${routeInfo.routeNo} (${routeInfo.routeName})` : "N/A"}
                       </td>
                       <td className="p-3 text-slate-500 font-bold">{alloc.pickupStopName}</td>
                       <td className="p-3 text-slate-500 font-bold">{alloc.dropStopName}</td>
@@ -852,7 +852,7 @@ export default function ModTransport({ user }) {
 
             <div className="w-56 shrink-0">
               <Select
-                options={routes.map(r => ({ label: `${r.routeCode} - ${r.routeName}`, value: r.id }))}
+                options={routes.map(r => ({ label: `${r.routeNo} - ${r.routeName}`, value: r.id }))}
                 value={selectedAttendanceRoute}
                 onChange={(e) => setSelectedAttendanceRoute(e.target.value)}
                 className="text-xs py-1.5 h-8.5 rounded-xl bg-slate-50"
@@ -862,15 +862,15 @@ export default function ModTransport({ user }) {
 
           {/* Student Roster attendance items */}
           <div className="space-y-3">
-            {allocations.filter(a => a.routeId === selectedAttendanceRoute).length === 0 ? (
+            {allocations.filter(a => a.routeDocsId === selectedAttendanceRoute).length === 0 ? (
               <p className="text-xs text-slate-400 italic p-4 text-center">No students allocated to this transit line.</p>
             ) : (
-              allocations.filter(a => a.routeId === selectedAttendanceRoute).map((alloc) => {
-                const log = todayAttendanceLogs.find(l => l.studentId === alloc.studentId);
+              allocations.filter(a => a.routeDocsId === selectedAttendanceRoute).map((alloc) => {
+                const log = todayAttendanceLogs.find(l => l.studentDocsId === alloc.studentDocsId);
                 const activeStatus = log ? log.status : "Pending";
                 
                 return (
-                  <div key={alloc.studentId} className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-slate-300 transition">
+                  <div key={alloc.studentDocsId} className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-slate-300 transition">
                     <div className="space-y-1">
                       <h4 className="text-xs font-black text-slate-800">{alloc.studentName}</h4>
                       <p className="text-[10px] text-slate-400 font-bold">Halt Stop: {alloc.pickupStopName} ➔ {alloc.dropStopName}</p>
@@ -879,7 +879,7 @@ export default function ModTransport({ user }) {
                     {/* Check-in controls */}
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleToggleAttendance(alloc.studentId, "Boarded")}
+                        onClick={() => handleToggleAttendance(alloc.studentDocsId, "Boarded")}
                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase cursor-pointer transition ${
                           activeStatus === "Boarded" 
                             ? "bg-emerald-600 text-white shadow-xs" 
@@ -889,7 +889,7 @@ export default function ModTransport({ user }) {
                         Boarded
                       </button>
                       <button
-                        onClick={() => handleToggleAttendance(alloc.studentId, "Missed")}
+                        onClick={() => handleToggleAttendance(alloc.studentDocsId, "Missed")}
                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase cursor-pointer transition ${
                           activeStatus === "Missed" 
                             ? "bg-amber-500 text-white shadow-xs" 
@@ -899,7 +899,7 @@ export default function ModTransport({ user }) {
                         Missed
                       </button>
                       <button
-                        onClick={() => handleToggleAttendance(alloc.studentId, "Absent")}
+                        onClick={() => handleToggleAttendance(alloc.studentDocsId, "Absent")}
                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase cursor-pointer transition ${
                           activeStatus === "Absent" 
                             ? "bg-slate-500 text-white shadow-xs" 
@@ -1123,11 +1123,11 @@ export default function ModTransport({ user }) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {allocations.map((alloc) => {
-                    const route = routes.find(r => r.id === alloc.routeId);
+                    const route = routes.find(r => r.id === alloc.routeDocsId);
                     return (
                       <tr key={alloc.id}>
                         <td className="p-3 font-extrabold text-slate-800">{alloc.studentName}</td>
-                        <td className="p-3 font-mono font-bold text-slate-450">{route ? route.routeCode : "N/A"}</td>
+                        <td className="p-3 font-mono font-bold text-slate-450">{route ? route.routeNo : "N/A"}</td>
                         <td className="p-3 font-bold text-slate-500">{alloc.pickupStopName}</td>
                         <td className="p-3 text-right font-mono font-black text-rose-600">${alloc.feeAmount}</td>
                         <td className="p-3 text-slate-400 font-semibold font-mono">Monthly June 2026</td>
@@ -1154,8 +1154,8 @@ export default function ModTransport({ user }) {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Route Code"
-              value={routeCode}
-              onChange={(e) => setRouteCode(e.target.value)}
+              value={routeNo}
+              onChange={(e) => setRouteNo(e.target.value)}
               placeholder="e.g. RT-EPSILON"
               required
             />
@@ -1373,10 +1373,10 @@ export default function ModTransport({ user }) {
             label="Select Scholar Student"
             options={[
               { label: "Select pupil...", value: "" },
-              ...studentsList.map(s => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))
+              ...studentsList.map(s => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))
             ]}
-            value={allocStudentId}
-            onChange={(e) => setAllocStudentId(e.target.value)}
+            value={allocStudentDocsId}
+            onChange={(e) => setAllocStudentDocsId(e.target.value)}
             required
           />
 
@@ -1385,10 +1385,10 @@ export default function ModTransport({ user }) {
               label="Select Target Route"
               options={[
                 { label: "Select transit line...", value: "" },
-                ...routes.map(r => ({ label: `${r.routeCode}: ${r.routeName}`, value: r.id }))
+                ...routes.map(r => ({ label: `${r.routeNo}: ${r.routeName}`, value: r.id }))
               ]}
-              value={allocRouteId}
-              onChange={(e) => setAllocRouteId(e.target.value)}
+              value={allocRouteDocsId}
+              onChange={(e) => setAllocRouteDocsId(e.target.value)}
               required
             />
             <Input

@@ -42,7 +42,7 @@ public class Grievance extends SchoolBase {
 
     private GrievanceSeverity severity;
 
-    private String assignedTo; // references Staff.id
+    private String assignedToName;
 
     @Builder.Default
     private GrievanceStatus status = GrievanceStatus.OPEN;

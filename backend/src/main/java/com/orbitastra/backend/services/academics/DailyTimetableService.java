@@ -104,7 +104,7 @@ public class DailyTimetableService {
         // ---- validate every class section and its periods ----
         Map<String, SchoolClass> classCache = new HashMap<>();
         Set<String> seenClassSections = new HashSet<>();
-        Set<String> teacherIds = new HashSet<>();
+        Set<String> teacherDocsIds = new HashSet<>();
         for (int i = 0; i < sections.size(); i++) {
             ClassSectionTimetable entry = sections.get(i);
             if (entry == null) {
@@ -127,9 +127,9 @@ public class DailyTimetableService {
             validatePeriods(entry.getPeriods(), label);
             entry.getPeriods().stream()
                     .filter(p -> p.getTeacherDocsId() != null)
-                    .forEach(p -> teacherIds.add(p.getTeacherDocsId()));
+                    .forEach(p -> teacherDocsIds.add(p.getTeacherDocsId()));
         }
-        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
+        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherDocsIds);
         raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
 
         // ---- resolve dates: skip holidays (incl. dated weekly offs) of THIS academic year ----
@@ -262,16 +262,16 @@ public class DailyTimetableService {
     }
 
     /** One class section's lessons per date within a range. */
-    public List<DaySchedule> getSectionSchedule(String schoolId, String classId, String section,
+    public List<DaySchedule> getSectionSchedule(String schoolId, String classDocsId, String section,
             LocalDate startDate, LocalDate endDate) {
         return filterRange(schoolId, startDate, endDate,
-                e -> classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
+                e -> classDocsId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
     }
 
     /** One teacher's lessons per date within a range. */
-    public List<DaySchedule> getTeacherSchedule(String schoolId, String teacherId,
+    public List<DaySchedule> getTeacherSchedule(String schoolId, String teacherDocsId,
             LocalDate startDate, LocalDate endDate) {
-        return filterRange(schoolId, startDate, endDate, e -> teacherId.equals(e.getTeacherDocsId()));
+        return filterRange(schoolId, startDate, endDate, e -> teacherDocsId.equals(e.getTeacherDocsId()));
     }
 
     /**
@@ -280,18 +280,18 @@ public class DailyTimetableService {
      * section's old entries are discarded. Creates the day document if the
      * date has none yet.
      */
-    public DailyTimetable updateSectionForDate(String schoolId, LocalDate date, String classId, String section,
+    public DailyTimetable updateSectionForDate(String schoolId, LocalDate date, String classDocsId, String section,
             List<TimetablePeriod> periods) {
         if (!schoolRepository.existsById(schoolId)) {
             throw new ResourceNotFoundException("School not found with id: " + schoolId);
         }
         Map<String, SchoolClass> classCache = new HashMap<>();
-        validateClassSection(schoolId, classId, section, classCache);
-        String label = classLabel(classId, classCache) + " Section " + section;
+        validateClassSection(schoolId, classDocsId, section, classCache);
+        String label = classLabel(classDocsId, classCache) + " Section " + section;
         validatePeriods(periods, label);
-        Set<String> teacherIds = new HashSet<>();
-        periods.stream().filter(p -> p.getTeacherDocsId() != null).forEach(p -> teacherIds.add(p.getTeacherDocsId()));
-        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
+        Set<String> teacherDocsIds = new HashSet<>();
+        periods.stream().filter(p -> p.getTeacherDocsId() != null).forEach(p -> teacherDocsIds.add(p.getTeacherDocsId()));
+        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherDocsIds);
 
         AcademicYear academicYear = requireWorkingDate(schoolId, date);
 
@@ -304,7 +304,7 @@ public class DailyTimetableService {
 
         // the section's own old entries are being replaced, so they cannot clash
         List<TimetableEntry> others = doc.getEntries().stream()
-                .filter(e -> !(classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection())))
+                .filter(e -> !(classDocsId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection())))
                 .collect(Collectors.toList());
 
         List<String> conflicts = new ArrayList<>();
@@ -326,7 +326,7 @@ public class DailyTimetableService {
         }
         raiseIfConflicts(conflicts);
 
-        others.addAll(buildEntries(classId, section, periods));
+        others.addAll(buildEntries(classDocsId, section, periods));
         doc.setEntries(others);
         return dailyTimetableRepository.save(doc);
     }
@@ -346,7 +346,7 @@ public class DailyTimetableService {
         }
         Map<String, SchoolClass> classCache = new HashMap<>();
         Set<String> seenClassSections = new HashSet<>();
-        Set<String> teacherIds = new HashSet<>();
+        Set<String> teacherDocsIds = new HashSet<>();
         for (int i = 0; i < sections.size(); i++) {
             ClassSectionTimetable entry = sections.get(i);
             if (entry == null) {
@@ -368,9 +368,9 @@ public class DailyTimetableService {
             validatePeriods(entry.getPeriods(), label);
             entry.getPeriods().stream()
                     .filter(p -> p.getTeacherDocsId() != null)
-                    .forEach(p -> teacherIds.add(p.getTeacherDocsId()));
+                    .forEach(p -> teacherDocsIds.add(p.getTeacherDocsId()));
         }
-        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherIds);
+        Map<String, Staff> staffCache = validateTeachers(schoolId, teacherDocsIds);
         raiseIfConflicts(findTemplateTeacherConflicts(sections, classCache, staffCache));
 
         AcademicYear academicYear = requireWorkingDate(schoolId, date);
@@ -395,7 +395,7 @@ public class DailyTimetableService {
     }
 
     /** Removes one class section's entries from every day document in the range. */
-    public long clearSection(String schoolId, String classId, String section,
+    public long clearSection(String schoolId, String classDocsId, String section,
             LocalDate startDate, LocalDate endDate) {
         validateRange(startDate, endDate);
         long removed = 0;
@@ -409,7 +409,7 @@ public class DailyTimetableService {
             }
             int before = doc.getEntries().size();
             doc.getEntries().removeIf(
-                    e -> classId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
+                    e -> classDocsId.equals(e.getClassDocsId()) && section.equalsIgnoreCase(e.getSection()));
             if (doc.getEntries().size() == before) {
                 continue;
             }
@@ -464,13 +464,13 @@ public class DailyTimetableService {
     }
 
     /** Builds stored entries (with fresh ids) for one class section's periods. */
-    private static List<TimetableEntry> buildEntries(String classId, String section, List<TimetablePeriod> periods) {
+    private static List<TimetableEntry> buildEntries(String classDocsId, String section, List<TimetablePeriod> periods) {
         List<TimetableEntry> entries = new ArrayList<>();
         for (TimetablePeriod period : periods) {
             boolean isBreak = period.getType() == SlotType.BREAK;
             entries.add(TimetableEntry.builder()
                     .id(new ObjectId().toHexString())
-                    .classDocsId(classId)
+                    .classDocsId(classDocsId)
                     .section(section)
                     .type(isBreak ? SlotType.BREAK : SlotType.LESSON)
                     .subject(isBreak && isBlank(period.getSubject()) ? "Break" : period.getSubject())
@@ -588,9 +588,9 @@ public class DailyTimetableService {
         return "class " + className + " section " + entry.getSection();
     }
 
-    private void validateClassSection(String schoolId, String classId, String section,
+    private void validateClassSection(String schoolId, String classDocsId, String section,
             Map<String, SchoolClass> classCache) {
-        SchoolClass schoolClass = classCache.computeIfAbsent(classId,
+        SchoolClass schoolClass = classCache.computeIfAbsent(classDocsId,
                 id -> schoolClassRepository.findById(id)
                         .orElseThrow(() -> new ResourceNotFoundException("Class not found with id: " + id)));
         if (!schoolId.equals(schoolClass.getSchoolId())) {
@@ -609,13 +609,13 @@ public class DailyTimetableService {
     }
 
     /** Validates all teachers and returns them keyed by id, for name lookups in error messages. */
-    private Map<String, Staff> validateTeachers(String schoolId, Set<String> teacherIds) {
+    private Map<String, Staff> validateTeachers(String schoolId, Set<String> teacherDocsIds) {
         Map<String, Staff> staffById = new HashMap<>();
-        staffRepository.findAllById(teacherIds).forEach(staff -> staffById.put(staff.getId(), staff));
-        for (String teacherId : teacherIds) {
-            Staff staff = staffById.get(teacherId);
+        staffRepository.findAllById(teacherDocsIds).forEach(staff -> staffById.put(staff.getId(), staff));
+        for (String teacherDocsId : teacherDocsIds) {
+            Staff staff = staffById.get(teacherDocsId);
             if (staff == null) {
-                throw new ResourceNotFoundException("Teacher (staff) not found with id: " + teacherId);
+                throw new ResourceNotFoundException("Teacher (staff) not found with id: " + teacherDocsId);
             }
             if (!schoolId.equals(staff.getSchoolId())) {
                 throw new IllegalArgumentException(
@@ -626,27 +626,27 @@ public class DailyTimetableService {
     }
 
     /** Class name for error messages; falls back to the id if the class cannot be resolved. */
-    private String classLabel(String classId, Map<String, SchoolClass> classCache) {
-        SchoolClass schoolClass = classCache.get(classId);
-        if (schoolClass == null && classId != null) {
-            schoolClass = schoolClassRepository.findById(classId).orElse(null);
+    private String classLabel(String classDocsId, Map<String, SchoolClass> classCache) {
+        SchoolClass schoolClass = classCache.get(classDocsId);
+        if (schoolClass == null && classDocsId != null) {
+            schoolClass = schoolClassRepository.findById(classDocsId).orElse(null);
             if (schoolClass != null) {
-                classCache.put(classId, schoolClass);
+                classCache.put(classDocsId, schoolClass);
             }
         }
-        return schoolClass != null && schoolClass.getName() != null ? "'" + schoolClass.getName() + "'" : classId;
+        return schoolClass != null && schoolClass.getName() != null ? "'" + schoolClass.getName() + "'" : classDocsId;
     }
 
     /** Teacher name for error messages; falls back to the id if the staff cannot be resolved. */
-    private String teacherLabel(String teacherId, Map<String, Staff> staffCache) {
-        Staff staff = staffCache.get(teacherId);
-        if (staff == null && teacherId != null) {
-            staff = staffRepository.findById(teacherId).orElse(null);
+    private String teacherLabel(String teacherDocsId, Map<String, Staff> staffCache) {
+        Staff staff = staffCache.get(teacherDocsId);
+        if (staff == null && teacherDocsId != null) {
+            staff = staffRepository.findById(teacherDocsId).orElse(null);
             if (staff != null) {
-                staffCache.put(teacherId, staff);
+                staffCache.put(teacherDocsId, staff);
             }
         }
-        return staff != null && staff.getName() != null ? "'" + staff.getName() + "'" : teacherId;
+        return staff != null && staff.getName() != null ? "'" + staff.getName() + "'" : teacherDocsId;
     }
 
     private void raiseIfConflicts(List<String> conflicts) {

@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Notification extends SchoolBase {
 
-    private String recipientId;
+    private String recipientDocsId;
 
     private NotificationChannel channel;
 

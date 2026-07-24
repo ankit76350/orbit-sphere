@@ -28,7 +28,7 @@ import lombok.NoArgsConstructor;
 public class AiApprovedRemark extends SchoolBase {
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 
     private String grade;
 
@@ -39,7 +39,7 @@ public class AiApprovedRemark extends SchoolBase {
 
     private String text;
 
-    private String approvedBy; // references Staff.id / User.id
+    private String approvedByName;
 
     private LocalDateTime approvedAt;
 }

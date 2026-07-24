@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
  * statutory deductions produced by a payroll run.
  */
 @Document(collection = "payslips")
-@CompoundIndex(name = "staff_month_uniq", def = "{'staffId': 1, 'month': 1}", unique = true)
+@CompoundIndex(name = "staff_month_uniq", def = "{'staffDocsId': 1, 'month': 1}", unique = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
@@ -31,7 +31,7 @@ import lombok.NoArgsConstructor;
 public class Payslip extends SchoolBase {
 
     @Indexed
-    private String staffId;
+    private String staffDocsId;
 
     // Pay period in "YYYY-MM" form, e.g. "2026-05".
     @Indexed

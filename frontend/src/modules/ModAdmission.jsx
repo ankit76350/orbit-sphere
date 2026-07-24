@@ -42,34 +42,33 @@ export default function ModAdmission({ user }) {
       return;
     }
     const students = getStudents();
-    const studentId = `student-${Date.now()}`;
+    const studentDocsId = `student-${Date.now()}`;
     let hostelBuilding;
     let hostelFloor;
-    let hostelRoomNumber;
-    let hostelBedNumber;
+    let hostelRoomNo;
+    let hostelBedNo;
     if (hostelOptIn) {
       const hostels = getHostels();
       const suitableGender = gender === "Female" ? "Girls" : "Boys";
       const vacantRoom = hostels.find(
-        (r) => r.gender === suitableGender && r.beds.some((b) => b.studentId === null)
+        (r) => r.gender === suitableGender && r.beds.some((b) => b.studentDocsId === null)
       );
       if (vacantRoom) {
-        const vacantBed = vacantRoom.beds.find((b) => b.studentId === null);
+        const vacantBed = vacantRoom.beds.find((b) => b.studentDocsId === null);
         if (vacantBed) {
-          vacantBed.studentId = studentId;
+          vacantBed.studentDocsId = studentDocsId;
           vacantBed.studentName = studentFullName;
           hostelBuilding = vacantRoom.buildingName;
           hostelFloor = vacantRoom.floor;
-          hostelRoomNumber = vacantRoom.roomNumber;
-          hostelBedNumber = vacantBed.bedNumber;
+          hostelRoomNo = vacantRoom.roomNo;
+          hostelBedNo = vacantBed.bedNo;
           saveHostels(hostels);
         }
       }
     }
     const newStudent = {
-      id: studentId,
+      id: studentDocsId,
       schoolId: "6a474d2517e9c40cf971ccc2",
-      admissionNumber: tentativeAdNo,
       admissionNo: tentativeAdNo,
       name: studentFullName,
       gradeIndex: parseInt(grade.split(" ")[1]) || 7,
@@ -78,22 +77,22 @@ export default function ModAdmission({ user }) {
       dob: dob || "2015-06-19",
       bloodGroup: "AB+",
       photoUrl: photoPreview || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d",
-      walletId: `wallet-${Date.now()}`,
-      medicalRecordId: `medical-${Date.now()}`,
+      walletDocsId: `wallet-${Date.now()}`,
+      medicalRecordDocsId: `medical-${Date.now()}`,
       status: "ACTIVE",
       admissionDate: new Date().toISOString().split("T")[0],
       joinedDate: new Date().toISOString().split("T")[0],
       parentName,
       parentEmail,
       parentPhone,
-      parentId: `parent-gen-${Date.now()}`,
+      parentDocsId: `parent-gen-${Date.now()}`,
       address: address || "9 Oak Ave",
       hostelOptIn,
       transportOptIn,
       hostelBuilding,
       hostelFloor,
-      hostelRoomNumber,
-      hostelBedNumber,
+      hostelRoomNo,
+      hostelBedNo,
       walletBalance: 100,
       medicalBloodGroup: "AB+",
       medicalAllergies: [],
@@ -117,9 +116,8 @@ export default function ModAdmission({ user }) {
         academicYear: "2026-2027",
         studentNo: `STD-${Math.floor(100 + Math.random() * 900)}`,
         rollNo: "9C-01",
-        classDocId: grade,
         sectionNo: "Section-A",
-        hostelRoomNo: hostelRoomNumber ? `Room ${hostelRoomNumber}` : undefined,
+        hostelRoomNo: hostelRoomNo ? `Room ${hostelRoomNo}` : undefined,
         status: "ACTIVE"
       }
     };
@@ -134,14 +132,14 @@ export default function ModAdmission({ user }) {
       parentEmail,
       appliedGrade: grade,
       status: 'APPROVED',
-      convertedStudentId: newStudent.id
+      convertedStudentDocsId: newStudent.id
     }).catch(() => {});
     logAction(
       user.id,
       user.name,
       user.role,
       "Student Admitted",
-      `Registered student ${studentFullName} (AdNo: ${tentativeAdNo}) in ${grade}. Hostel assignment: ${hostelRoomNumber ? "Room " + hostelRoomNumber : "None"}`
+      `Registered student ${studentFullName} (AdNo: ${tentativeAdNo}) in ${grade}. Hostel assignment: ${hostelRoomNo ? "Room " + hostelRoomNo : "None"}`
     );
     addToast("Success", `Student Registered! Assigned Admission No: ${tentativeAdNo}`, "success");
     setStudentFullName("");

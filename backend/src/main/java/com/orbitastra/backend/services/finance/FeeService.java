@@ -31,7 +31,7 @@ public class FeeService {
     private final AcademicYearResolver academicYearResolver;
 
     public FeeInvoice createFee(FeeInvoice fee) {
-        studentValidator.validateStudent(fee.getStudentId(), fee.getSchoolId());
+        studentValidator.validateStudent(fee.getStudentDocsId(), fee.getSchoolId());
 
         fee.setAcademicYear(academicYearResolver
                 .resolve(fee.getSchoolId(), fee.getAcademicYear(), fee.getDueDate())
@@ -59,8 +59,8 @@ public class FeeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fee not found with id: " + id));
     }
 
-    public List<FeeInvoice> getFeesByStudent(String studentId) {
-        return feeRepository.findByStudentId(studentId);
+    public List<FeeInvoice> getFeesByStudent(String studentDocsId) {
+        return feeRepository.findByStudentDocsId(studentDocsId);
     }
 
     public List<FeeInvoice> getFeesBySchool(String schoolId) {

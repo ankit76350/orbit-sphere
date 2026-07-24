@@ -36,5 +36,5 @@ public class AiAuditEntry extends SchoolBase {
 
     private Long tokens;
 
-    private String actor; // references Staff.id / User.id
+    private String actorName;
 }

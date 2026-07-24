@@ -29,7 +29,7 @@ export default function ModHostel({ user }) {
   const [purpose, setPurpose] = useState("");
   const totalBeds = rooms.reduce((sum, r) => sum + r.capacity, 0);
   const occupiedBeds = rooms.flat().reduce((sum, r) => {
-    return sum + r.beds.filter((b) => b.studentId !== null).length;
+    return sum + r.beds.filter((b) => b.studentDocsId !== null).length;
   }, 0);
   const vacancyBeds = totalBeds - occupiedBeds;
   const handleCreateVisitor = (e) => {
@@ -44,7 +44,7 @@ export default function ModHostel({ user }) {
       id: `vlog-${Date.now()}`,
       visitorName,
       relationship,
-      studentId: visitorIdSelection,
+      studentDocsId: visitorIdSelection,
       studentName: targetStudent ? targetStudent.name : "Unknown Roster",
       entryTime: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 16),
       purpose
@@ -73,7 +73,7 @@ export default function ModHostel({ user }) {
     const freshOut = getOutPasses();
     const updated = freshOut.map((op) => {
       if (op.id === id) {
-        return { ...op, status: newStatus, approvedBy: user.name };
+        return { ...op, status: newStatus, approvedByName: user.name };
       }
       return op;
     });
@@ -83,28 +83,28 @@ export default function ModHostel({ user }) {
     logAction(user.id, user.name, user.role, "Outpass Approved/Declined", `Set status of Outpass ID ${id} (Student: ${match?.studentName}) to: ${newStatus}`);
     addToast("Success", `Mailed outpass status update "${newStatus}" to guardian`);
   };
-  const handleVacateBed = (roomId, bedNum, studentId) => {
+  const handleVacateBed = (roomId, bedNum, studentDocsId) => {
     const freshHostels = getHostels();
     const roomIdx = freshHostels.findIndex((r) => r.id === roomId);
     if (roomIdx === -1) return;
-    const bed = freshHostels[roomIdx].beds.find((b) => b.bedNumber === bedNum);
+    const bed = freshHostels[roomIdx].beds.find((b) => b.bedNo === bedNum);
     if (bed) {
-      bed.studentId = null;
+      bed.studentDocsId = null;
       bed.studentName = void 0;
     }
     setRooms(freshHostels);
     saveHostels(freshHostels);
     const freshStudents = getStudents();
-    const sIdx = freshStudents.findIndex((s) => s.id === studentId);
+    const sIdx = freshStudents.findIndex((s) => s.id === studentDocsId);
     if (sIdx !== -1) {
       freshStudents[sIdx].hostelBuilding = void 0;
       freshStudents[sIdx].hostelFloor = void 0;
-      freshStudents[sIdx].hostelRoomNumber = void 0;
-      freshStudents[sIdx].hostelBedNumber = void 0;
+      freshStudents[sIdx].hostelRoomNo = void 0;
+      freshStudents[sIdx].hostelBedNo = void 0;
       freshStudents[sIdx].hostelOptIn = false;
       saveStudents(freshStudents);
     }
-    logAction(user.id, user.name, user.role, "Bed Vacated", `De-allocated Bed ${bedNum} from Room ${freshHostels[roomIdx].roomNumber} inside Sandbox`);
+    logAction(user.id, user.name, user.role, "Bed Vacated", `De-allocated Bed ${bedNum} from Room ${freshHostels[roomIdx].roomNo} inside Sandbox`);
     addToast("Success", "Bed released. Roster file updated.");
   };
   return <div className="space-y-6">
@@ -184,7 +184,7 @@ export default function ModHostel({ user }) {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {rooms.map((room) => {
-    const occupantsCount = room.beds.filter((b) => b.studentId !== null).length;
+    const occupantsCount = room.beds.filter((b) => b.studentDocsId !== null).length;
     return <div key={room.id} className="bg-slate-50 border border-slate-150 p-5 rounded-2xl flex flex-col gap-4">
                       
                       {
@@ -193,7 +193,7 @@ export default function ModHostel({ user }) {
                       <div className="flex justify-between items-center pb-2.5 border-b border-slate-200">
                         <div>
                           <p className="text-xs font-black text-slate-800">{room.buildingName}</p>
-                          <p className="text-[10px] text-slate-400 font-extrabold uppercase mt-1">Room {room.roomNumber} - {room.floor}</p>
+                          <p className="text-[10px] text-slate-400 font-extrabold uppercase mt-1">Room {room.roomNo} - {room.floor}</p>
                         </div>
                         <Badge variant={occupantsCount === room.capacity ? "danger" : occupantsCount === 0 ? "success" : "warning"}>
                           {occupantsCount} / {room.capacity} Bunks
@@ -206,15 +206,15 @@ export default function ModHostel({ user }) {
                       <div className="space-y-2 text-xs">
                         {room.beds.map((bed, bIdx) => <div key={bIdx} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between font-bold">
                             <span className="text-slate-650 flex gap-1.5 items-center">
-                              <Bed className={`h-4 w-4 ${bed.studentId ? "text-indigo-600" : "text-slate-300"}`} />
-                              {bed.bedNumber}
+                              <Bed className={`h-4 w-4 ${bed.studentDocsId ? "text-indigo-600" : "text-slate-300"}`} />
+                              {bed.bedNo}
                             </span>
 
-                            {bed.studentId ? <div className="flex items-center gap-2">
+                            {bed.studentDocsId ? <div className="flex items-center gap-2">
                                 <span className="text-slate-800 font-black line-clamp-1">{bed.studentName}</span>
                                 <button
       type="button"
-      onClick={() => handleVacateBed(room.id, bed.bedNumber, bed.studentId)}
+      onClick={() => handleVacateBed(room.id, bed.bedNo, bed.studentDocsId)}
       className="text-[9px] uppercase font-bold text-rose-500 bg-rose-50 px-2 py-1 rounded-md hover:bg-rose-600 hover:text-white transition cursor-pointer"
       title="Vacate Bed and update files"
     >
@@ -346,7 +346,7 @@ export default function ModHostel({ user }) {
                             </button>
                           </div>}
 
-                        {pass.approvedBy && <p className="text-[10px] text-slate-400 font-semibold italic">Approved by {pass.approvedBy}</p>}
+                        {pass.approvedByName && <p className="text-[10px] text-slate-400 font-semibold italic">Approved by {pass.approvedByName}</p>}
                       </div>
                     </div>)}
               </div>
@@ -382,7 +382,7 @@ export default function ModHostel({ user }) {
   />
             <Select
     label="Associated Boarder Student"
-    options={getStudents().slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))}
+    options={getStudents().slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))}
     value={visitorIdSelection}
     onChange={(e) => setVisitorIdSelection(e.target.value)}
   />

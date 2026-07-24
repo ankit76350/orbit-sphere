@@ -46,7 +46,7 @@ export default function ModFees({ user }) {
       amount: amt,
       paymentMode: payMethod,
       remarks: "Fee Payment",
-      collectedBy: user ? user.name : "Admin"
+      collectedByDocsId: user ? user.name : "Admin"
     }).catch(() => {});
     if (success) {
       const freshInvoices = getFees();

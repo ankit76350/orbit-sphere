@@ -22,14 +22,14 @@ public class FollowUpRequest {
     @FutureOrPresent(message = "Next follow-up date cannot be in the past.")
     private LocalDate nextFollowUp;
 
-    private String counselorId;
+    private String counselorDocsId;
 
     public InquiryFollowUp toModel() {
         return InquiryFollowUp.builder()
                 .status(status)
                 .note(note)
                 .nextFollowUp(nextFollowUp)
-                .counselorId(counselorId)
+                .counselorDocsId(counselorDocsId)
                 .build();
     }
 }

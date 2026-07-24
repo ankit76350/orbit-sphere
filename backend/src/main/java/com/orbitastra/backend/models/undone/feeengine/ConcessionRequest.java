@@ -28,19 +28,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ConcessionRequest extends SchoolBase {
 
-    private String studentId;
+    private String studentDocsId;
 
     // References ConcessionPolicy.id (null when it is a one-off custom concession).
-    private String policyId;
+    private String policyDocsId;
 
     private BigDecimal amount;
 
-    private String requestedBy; // references Staff.id / User.id
+    private String requestedByName;
 
     @Builder.Default
     private ConcessionStatus status = ConcessionStatus.PENDING;
 
-    private String reviewedBy; // references Staff.id / User.id
+    private String reviewedByName;
 
     private String remarks;
 }

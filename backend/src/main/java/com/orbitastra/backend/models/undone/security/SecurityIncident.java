@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SecurityIncident extends SchoolBase {
 
-    private String cameraId;
+    private String cameraDocsId;
 
     private String incidentType;
 

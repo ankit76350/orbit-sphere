@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 public class HolisticProgressCard extends SchoolBase {
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 
     private String grade;
 

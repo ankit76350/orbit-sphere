@@ -22,11 +22,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class TransportAttendance extends SchoolBase {
 
-    private String studentId;
+    private String studentDocsId;
 
     private String studentName;
 
-    private String routeId;
+    private String routeDocsId;
 
     private String stopName;
 

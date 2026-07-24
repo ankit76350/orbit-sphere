@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 public class FeePayment extends AcadmicStudentSchoolBase {
 
     // The Fee (invoice) this payment is collected against
-    private String feeId;
+    private String feeDocsId;
 
     @Indexed(unique = true)
     private String receiptNo;
@@ -36,7 +36,7 @@ public class FeePayment extends AcadmicStudentSchoolBase {
 
     private LocalDateTime paidOn;
 
-    private String collectedBy;
+    private String collectedByDocsId;
 
     private String remarks;
 }

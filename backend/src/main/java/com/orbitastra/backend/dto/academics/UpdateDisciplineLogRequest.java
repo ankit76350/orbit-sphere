@@ -18,7 +18,7 @@ public class UpdateDisciplineLogRequest {
 
     private String academicYear;
 
-    private String studentId;
+    private String studentDocsId;
 
     private String violation;
 

@@ -44,9 +44,9 @@ public class CommBroadcast extends SchoolBase {
     // Message credits consumed by the send.
     private Integer credits;
 
-    private String templateId; // references MessageTemplate.id
+    private String templateDocsId; // references MessageTemplate.id
 
     private String language;
 
-    private String sentBy; // references Staff.id / User.id
+    private String sentByName;
 }

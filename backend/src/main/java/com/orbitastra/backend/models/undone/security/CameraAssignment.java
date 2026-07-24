@@ -19,11 +19,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CameraAssignment extends SchoolBase {
 
-    private String cameraId;
+    private String cameraDocsId;
 
-    private String gradeId;
+    private String gradeNo;
 
-    private String classId;
+    private String classNo;
 
-    private String sectionId;
+    private String sectionNo;
 }

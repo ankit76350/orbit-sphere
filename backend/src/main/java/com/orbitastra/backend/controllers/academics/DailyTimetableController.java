@@ -63,40 +63,40 @@ public class DailyTimetableController {
     }
 
     /** One class section's timetable per date within a range. */
-    @GetMapping("/school/{schoolId}/class/{classId}/section/{section}")
+    @GetMapping("/school/{schoolId}/class/{classDocsId}/section/{section}")
     public ResponseEntity<List<DaySchedule>> getSectionSchedule(
             @PathVariable String schoolId,
-            @PathVariable String classId,
+            @PathVariable String classDocsId,
             @PathVariable String section,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ResponseEntity.ok(
-                dailyTimetableService.getSectionSchedule(schoolId, classId, section, startDate, endDate));
+                dailyTimetableService.getSectionSchedule(schoolId, classDocsId, section, startDate, endDate));
     }
 
     /** One teacher's timetable per date within a range. */
-    @GetMapping("/school/{schoolId}/teacher/{teacherId}")
+    @GetMapping("/school/{schoolId}/teacher/{teacherDocsId}")
     public ResponseEntity<List<DaySchedule>> getTeacherSchedule(
             @PathVariable String schoolId,
-            @PathVariable String teacherId,
+            @PathVariable String teacherDocsId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return ResponseEntity.ok(dailyTimetableService.getTeacherSchedule(schoolId, teacherId, startDate, endDate));
+        return ResponseEntity.ok(dailyTimetableService.getTeacherSchedule(schoolId, teacherDocsId, startDate, endDate));
     }
 
     /**
      * Replaces one class section's timetable on one date. Body: a JSON array
      * of periods. Other sections of the day are kept and clash-checked.
      */
-    @PutMapping("/school/{schoolId}/date/{date}/class/{classId}/section/{section}")
+    @PutMapping("/school/{schoolId}/date/{date}/class/{classDocsId}/section/{section}")
     public ResponseEntity<DailyTimetable> updateSectionForDate(
             @PathVariable String schoolId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @PathVariable String classId,
+            @PathVariable String classDocsId,
             @PathVariable String section,
             @Valid @RequestBody List<TimetablePeriod> periods) {
         return ResponseEntity.ok(
-                dailyTimetableService.updateSectionForDate(schoolId, date, classId, section, periods));
+                dailyTimetableService.updateSectionForDate(schoolId, date, classDocsId, section, periods));
     }
 
     /**
@@ -123,14 +123,14 @@ public class DailyTimetableController {
     }
 
     /** Removes one class section's entries from every day in the range. */
-    @DeleteMapping("/school/{schoolId}/class/{classId}/section/{section}")
+    @DeleteMapping("/school/{schoolId}/class/{classDocsId}/section/{section}")
     public ResponseEntity<?> clearSection(
             @PathVariable String schoolId,
-            @PathVariable String classId,
+            @PathVariable String classDocsId,
             @PathVariable String section,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        long removed = dailyTimetableService.clearSection(schoolId, classId, section, startDate, endDate);
+        long removed = dailyTimetableService.clearSection(schoolId, classDocsId, section, startDate, endDate);
         return ResponseEntity.ok(Map.of("message", "Removed " + removed + " timetable entr(ies)."));
     }
 

@@ -36,5 +36,5 @@ public class FeeStructure extends SchoolBase {
 
     // References FeeHead.id for each head included in this structure.
     @Builder.Default
-    private List<String> feeHeadIds = new java.util.ArrayList<>();
+    private List<String> feeHeadDocsIds = new java.util.ArrayList<>();
 }

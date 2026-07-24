@@ -1,81 +1,41 @@
 package com.orbitastra.backend.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 
-import com.mongodb.client.result.UpdateResult;
-import com.orbitastra.backend.models.student.Student;
-
-@ExtendWith(MockitoExtension.class)
 class StudentFieldMigrationTest {
 
-    @Mock
-    private MongoTemplate mongoTemplate;
+    @Test
+    void embeddedRename_movesLegacyValueAndPreservesExistingTarget() {
+        Document legacy = new Document("studentId", "student-1");
+        Document alreadyMigrated = new Document("studentId", "legacy-value")
+                .append("studentDocsId", "current-value");
+        List<Document> assignments = new ArrayList<>(
+                List.of(legacy, alreadyMigrated));
 
-    @Mock
-    private UpdateResult updateResult;
+        boolean changed = ProjectFieldNamingMigration.renameInEmbeddedValues(
+                assignments, "studentId", "studentDocsId");
 
-    @InjectMocks
-    private StudentFieldMigration migration;
+        assertTrue(changed);
+        assertFalse(legacy.containsKey("studentId"));
+        assertEquals("student-1", legacy.getString("studentDocsId"));
+        assertFalse(alreadyMigrated.containsKey("studentId"));
+        assertEquals("current-value", alreadyMigrated.getString("studentDocsId"));
+    }
 
     @Test
-    void migrateStudentFields_usesNonOverwritingIdempotentUpdates() {
-        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(Student.class)))
-                .thenReturn(updateResult);
-        when(updateResult.getModifiedCount()).thenReturn(1L);
+    void embeddedRename_isIdempotent() {
+        List<Document> assignments = new ArrayList<>(
+                List.of(new Document("studentDocsId", "student-1")));
 
-        migration.migrateStudentFields();
-
-        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate, times(5)).updateMulti(
-                queryCaptor.capture(), updateCaptor.capture(), eq(Student.class));
-
-        List<Query> queries = queryCaptor.getAllValues();
-        List<Update> updates = updateCaptor.getAllValues();
-
-        assertEquals(Document.parse("{\"$and\":[{\"walletId\":{\"$exists\":true}},{\"walletDocsId\":{\"$exists\":false}}]}"),
-                queries.get(0).getQueryObject());
-        assertEquals(Document.parse("{\"$rename\":{\"walletId\":\"walletDocsId\"}}"),
-                updates.get(0).getUpdateObject());
-
-        assertEquals(Document.parse("{\"$and\":[{\"medicalRecordId\":{\"$exists\":true}},{\"medicalRecordDocsId\":{\"$exists\":false}}]}"),
-                queries.get(1).getQueryObject());
-        assertEquals(Document.parse("{\"$rename\":{\"medicalRecordId\":\"medicalRecordDocsId\"}}"),
-                updates.get(1).getUpdateObject());
-
-        assertEquals(Document.parse("{\"$and\":[{\"currentAcademicRecordId\":{\"$exists\":true}},"
-                        + "{\"currentAcademicRecordDocsId\":{\"$exists\":false}}]}"),
-                queries.get(2).getQueryObject());
-        assertEquals(Document.parse(
-                        "{\"$rename\":{\"currentAcademicRecordId\":\"currentAcademicRecordDocsId\"}}"),
-                updates.get(2).getUpdateObject());
-
-        assertEquals(new Document("documents", null),
-                queries.get(3).getQueryObject());
-        assertEquals(new Document("$set", new Document("documents", List.of())),
-                updates.get(3).getUpdateObject());
-
-        assertEquals(new Document("medicalRemark", null),
-                queries.get(4).getQueryObject());
-        assertEquals(new Document("$set", new Document("medicalRemark", List.of())),
-                updates.get(4).getUpdateObject());
+        assertFalse(ProjectFieldNamingMigration.renameInEmbeddedValues(
+                assignments, "studentId", "studentDocsId"));
     }
 }

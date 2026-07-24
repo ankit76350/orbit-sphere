@@ -154,15 +154,15 @@ public class HomeworkService {
     }
 
     private StudentAcademicRecord validateStudentAssignment(String schoolId, SchoolClass schoolClass,
-            String sectionNo, String studentId) {
-        if (!hasText(studentId)) {
-            throw new IllegalArgumentException("studentId is required for every homework assignment.");
+            String sectionNo, String studentDocsId) {
+        if (!hasText(studentDocsId)) {
+            throw new IllegalArgumentException("studentDocsId is required for every homework assignment.");
         }
 
-        Student student = studentValidator.validateStudent(studentId, schoolId);
+        Student student = studentValidator.validateStudent(studentDocsId, schoolId);
         StudentAcademicRecord academicRecord = studentAcademicRecordRepository
-                .findByStudentDocIdAndAcademicYear(studentId, schoolClass.getAcademicYear())
-                .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentId
+                .findByStudentDocsIdAndAcademicYear(studentDocsId, schoolClass.getAcademicYear())
+                .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentDocsId
                         + " does not have an academic record for academic year " + schoolClass.getAcademicYear()));
 
         // When the denormalised pointer is present, it must point at the same
@@ -172,14 +172,14 @@ public class HomeworkService {
         // against the resolved academic record below.
         if (student != null && hasText(student.getCurrentAcademicRecordDocsId())
                 && !Objects.equals(student.getCurrentAcademicRecordDocsId(), academicRecord.getId())) {
-            throw new IllegalArgumentException("Student with ID " + studentId
+            throw new IllegalArgumentException("Student with ID " + studentDocsId
                     + " does not have this class as the current academic record.");
         }
 
         if (!Objects.equals(academicRecord.getSchoolId(), schoolId)
-                || !Objects.equals(schoolClass.getId(), academicRecord.getClassDocId())
+                || !Objects.equals(schoolClass.getId(), academicRecord.getClassDocsId())
                 || !sectionMatches(sectionNo, academicRecord.getSectionNo())) {
-            throw new IllegalArgumentException("Student with ID " + studentId
+            throw new IllegalArgumentException("Student with ID " + studentDocsId
                     + " is not currently enrolled in class " + schoolClass.getId()
                     + ", section " + sectionNo + ", for academic year " + schoolClass.getAcademicYear());
         }
@@ -192,17 +192,17 @@ public class HomeworkService {
             throw new IllegalArgumentException("Student assignments list must not be empty for GROUP or INDIVIDUAL scope.");
         }
 
-        Set<String> studentIds = new HashSet<>();
+        Set<String> studentDocsIds = new HashSet<>();
         for (Homework.StudentAssignment assignment : assignments) {
             if (assignment == null) {
                 throw new IllegalArgumentException("Student assignments cannot contain null entries.");
             }
-            String studentId = assignment.getStudentId();
-            if (!studentIds.add(studentId == null ? "" : studentId.trim())) {
+            String studentDocsId = assignment.getStudentDocsId();
+            if (!studentDocsIds.add(studentDocsId == null ? "" : studentDocsId.trim())) {
                 throw new IllegalArgumentException("A student cannot be assigned to the same homework more than once: "
-                        + studentId);
+                        + studentDocsId);
             }
-            validateStudentAssignment(schoolId, schoolClass, sectionNo, studentId);
+            validateStudentAssignment(schoolId, schoolClass, sectionNo, studentDocsId);
             if (assignment.getStatus() == null) {
                 assignment.setStatus(HomeworkStatus.ASSIGNED);
             }
@@ -212,20 +212,20 @@ public class HomeworkService {
     private List<Homework.StudentAssignment> assignmentsForSection(String schoolId, SchoolClass schoolClass,
             String sectionNo) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository
-                .findByClassDocIdAndAcademicYear(schoolClass.getId(), schoolClass.getAcademicYear());
+                .findByClassDocsIdAndAcademicYear(schoolClass.getId(), schoolClass.getAcademicYear());
         List<Homework.StudentAssignment> assignments = new ArrayList<>();
-        Set<String> assignedStudentIds = new HashSet<>();
+        Set<String> assignedStudentDocsIds = new HashSet<>();
 
         for (StudentAcademicRecord record : records) {
             if (!Objects.equals(record.getSchoolId(), schoolId)
                     || !sectionMatches(sectionNo, record.getSectionNo())
-                    || !hasText(record.getStudentDocId())) {
+                    || !hasText(record.getStudentDocsId())) {
                 continue;
             }
-            validateStudentAssignment(schoolId, schoolClass, sectionNo, record.getStudentDocId());
-            if (assignedStudentIds.add(record.getStudentDocId())) {
+            validateStudentAssignment(schoolId, schoolClass, sectionNo, record.getStudentDocsId());
+            if (assignedStudentDocsIds.add(record.getStudentDocsId())) {
                 assignments.add(Homework.StudentAssignment.builder()
-                        .studentId(record.getStudentDocId())
+                        .studentDocsId(record.getStudentDocsId())
                         .status(HomeworkStatus.ASSIGNED)
                         .build());
             }
@@ -300,20 +300,20 @@ public class HomeworkService {
         return homeworkRepository.findByClassDocsId(classDocsId);
     }
 
-    public List<Homework> getHomeworkByStudent(String studentId) {
-        return homeworkRepository.findByStudentAssignmentsStudentId(studentId);
+    public List<Homework> getHomeworkByStudent(String studentDocsId) {
+        return homeworkRepository.findByStudentAssignmentsStudentDocsId(studentDocsId);
     }
 
-    public List<Homework> getHomeworkBySchoolAndStudent(String schoolId, String studentId) {
-        return homeworkRepository.findBySchoolIdAndStudentAssignmentsStudentId(schoolId, studentId);
+    public List<Homework> getHomeworkBySchoolAndStudent(String schoolId, String studentDocsId) {
+        return homeworkRepository.findBySchoolIdAndStudentAssignmentsStudentDocsId(schoolId, studentDocsId);
     }
 
-    public Homework submitHomework(String homeworkId, String studentId, String text, String fileUrl) {
+    public Homework submitHomework(String homeworkId, String studentDocsId, String text, String fileUrl) {
         Homework homework = getHomeworkById(homeworkId);
         SchoolClass schoolClass = validateHomeworkAcademicTarget(homework);
-        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentId);
+        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentDocsId);
 
-        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentId);
+        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentDocsId);
         targetAssignment.setSubmissionText(text);
         targetAssignment.setSubmissionFileUrl(fileUrl);
         targetAssignment.setSubmittedAt(LocalDateTime.now());
@@ -322,15 +322,15 @@ public class HomeworkService {
         return homeworkRepository.save(homework);
     }
 
-    public Homework gradeHomework(String homeworkId, String studentId, Integer obtainedMarks, String feedback) {
+    public Homework gradeHomework(String homeworkId, String studentDocsId, Integer obtainedMarks, String feedback) {
         Homework homework = getHomeworkById(homeworkId);
         SchoolClass schoolClass = validateHomeworkAcademicTarget(homework);
-        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentId);
+        validateStudentAssignment(homework.getSchoolId(), schoolClass, homework.getSectionNo(), studentDocsId);
 
         if (obtainedMarks != null && homework.getMaxMarks() != null && obtainedMarks > homework.getMaxMarks()) {
             throw new IllegalArgumentException("obtainedMarks cannot be greater than maxMarks.");
         }
-        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentId);
+        Homework.StudentAssignment targetAssignment = findStudentAssignment(homework, studentDocsId);
         targetAssignment.setObtainedMarks(obtainedMarks);
         targetAssignment.setFeedback(feedback);
         targetAssignment.setStatus(HomeworkStatus.EVALUATED);
@@ -338,15 +338,15 @@ public class HomeworkService {
         return homeworkRepository.save(homework);
     }
 
-    private Homework.StudentAssignment findStudentAssignment(Homework homework, String studentId) {
+    private Homework.StudentAssignment findStudentAssignment(Homework homework, String studentDocsId) {
         if (homework.getStudentAssignments() != null) {
             for (Homework.StudentAssignment assignment : homework.getStudentAssignments()) {
-                if (assignment != null && Objects.equals(assignment.getStudentId(), studentId)) {
+                if (assignment != null && Objects.equals(assignment.getStudentDocsId(), studentDocsId)) {
                     return assignment;
                 }
             }
         }
-        throw new ResourceNotFoundException("Student assignment not found for student: " + studentId);
+        throw new ResourceNotFoundException("Student assignment not found for student: " + studentDocsId);
     }
 
     private void updateSubmittedCount(Homework homework) {

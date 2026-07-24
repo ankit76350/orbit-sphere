@@ -11,9 +11,9 @@ import com.orbitastra.backend.models.finance.enums.FeeStatus;
 @Repository
 public interface FeeRepository extends MongoRepository<FeeInvoice, String> {
     List<FeeInvoice> findBySchoolId(String schoolId);
-    List<FeeInvoice> findByStudentId(String studentId);
-    List<FeeInvoice> findBySchoolIdAndStudentId(String schoolId, String studentId);
+    List<FeeInvoice> findByStudentDocsId(String studentDocsId);
+    List<FeeInvoice> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
     List<FeeInvoice> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
-    List<FeeInvoice> findByStudentIdAndAcademicYear(String studentId, String academicYear);
-    List<FeeInvoice> findByStudentIdAndStatus(String studentId, FeeStatus status);
+    List<FeeInvoice> findByStudentDocsIdAndAcademicYear(String studentDocsId, String academicYear);
+    List<FeeInvoice> findByStudentDocsIdAndStatus(String studentDocsId, FeeStatus status);
 }

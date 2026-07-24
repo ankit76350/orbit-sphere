@@ -23,5 +23,5 @@ public class AcadmicStudentSchoolBase extends SchoolBase{
     private String academicYear;
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 }

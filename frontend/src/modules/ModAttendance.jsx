@@ -27,9 +27,9 @@ export default function ModAttendance({ user }) {
     return () => { isMounted = false; };
   }, []);
 
-  const handleToggleStudentAtt = (studentId, name, type) => {
+  const handleToggleStudentAtt = (studentDocsId, name, type) => {
     const existingIdx = attendance.findIndex(
-      (r) => r.personId === studentId && r.date === attDate && r.type === type
+      (r) => r.personDocsId === studentDocsId && r.date === attDate && r.type === type
     );
     let updated = [...attendance];
     let recordToSave;
@@ -41,9 +41,9 @@ export default function ModAttendance({ user }) {
       addToast("Status Changed", `Set ${name} to "${nextStatus}"`);
     } else {
       recordToSave = {
-        id: `att-${studentId}-${attDate}-${Date.now()}`,
+        id: `att-${studentDocsId}-${attDate}-${Date.now()}`,
         type,
-        personId: studentId,
+        personDocsId: studentDocsId,
         personName: name,
         date: attDate,
         status: "Present",
@@ -58,7 +58,7 @@ export default function ModAttendance({ user }) {
       api.createAttendance({
         schoolId: 'SCH-001',
         academicYear: '2026-2027',
-        studentId: recordToSave.personId,
+        studentDocsId: recordToSave.personDocsId,
         studentName: recordToSave.personName,
         date: recordToSave.date,
         status: recordToSave.status,
@@ -156,7 +156,7 @@ export default function ModAttendance({ user }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
               {gradeStudents.map((st) => {
-    const record = attendance.find((r) => r.personId === st.id && r.date === attDate && r.type === "Student Attendance");
+    const record = attendance.find((r) => r.personDocsId === st.id && r.date === attDate && r.type === "Student Attendance");
     const status = record ? record.status : "Present";
     let cardBorder = "border-slate-100 hover:border-indigo-300";
     if (status === "Absent") cardBorder = "border-rose-200 bg-rose-50/10";
@@ -168,7 +168,7 @@ export default function ModAttendance({ user }) {
     >
                     <div>
                       <p className="text-xs font-extrabold text-slate-850">{st.name}</p>
-                      <p className="text-[10px] text-slate-400 mt-1 font-bold">{st.admissionNumber}</p>
+                      <p className="text-[10px] text-slate-400 mt-1 font-bold">{st.admissionNo}</p>
                     </div>
 
                     <div className="flex items-center gap-1.5 font-bold text-xs shrink-0 select-none">
@@ -205,7 +205,7 @@ export default function ModAttendance({ user }) {
           <div className="bg-white border border-slate-100 rounded-3xl p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
               {boysHostelStudents.slice(0, 15).map((st) => {
-    const record = attendance.find((r) => r.personId === st.id && r.date === attDate && r.type === "Night Attendance");
+    const record = attendance.find((r) => r.personDocsId === st.id && r.date === attDate && r.type === "Night Attendance");
     const status = record ? record.status : "Present";
     return <button
       key={st.id}
@@ -214,7 +214,7 @@ export default function ModAttendance({ user }) {
     >
                     <div>
                       <p className="text-xs font-black text-slate-800">{st.name}</p>
-                      <p className="text-[10px] text-indigo-650 mt-1 font-bold">Room {st.hostelRoomNumber || "101"} - {st.hostelBedNumber || "Bed-1"}</p>
+                      <p className="text-[10px] text-indigo-650 mt-1 font-bold">Room {st.hostelRoomNo || "101"} - {st.hostelBedNo || "Bed-1"}</p>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 select-none">

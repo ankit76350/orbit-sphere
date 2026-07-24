@@ -21,7 +21,7 @@ export default function GuardiansScreen({ schoolId }) {
   const [guardianForm, setGuardianForm] = useState(emptyGuardian);
   const [editing, setEditing] = useState(null);
 
-  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStudentDocsId, setSelectedStudentDocsId] = useState('');
   const emptyLink = { guardianDocsId: '', relation: 'FATHER', primary: false, emergencyContact: false, pickupApproved: false, portalAccess: false };
   const [linkForm, setLinkForm] = useState(emptyLink);
 
@@ -32,7 +32,7 @@ export default function GuardiansScreen({ schoolId }) {
       const [g, s] = await Promise.all([api.guardians(schoolId), api.students(schoolId)]);
       setGuardians(g || []);
       setStudents(s || []);
-      if ((s || []).length && !s.some((x) => x.id === selectedStudentId)) setSelectedStudentId(s[0].id);
+      if ((s || []).length && !s.some((x) => x.id === selectedStudentDocsId)) setSelectedStudentDocsId(s[0].id);
       if ((g || []).length && !g.some((x) => x.id === linkForm.guardianDocsId)) setLinkForm((f) => ({ ...f, guardianDocsId: g[0].id }));
     } catch (e) {
       console.error(e);
@@ -44,7 +44,7 @@ export default function GuardiansScreen({ schoolId }) {
   useEffect(() => setGuardianForm((current) => ({ ...current, schoolId: schoolId || '' })), [schoolId]);
 
   const guardianById = useMemo(() => Object.fromEntries(guardians.map((g) => [g.id, g])), [guardians]);
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
+  const selectedStudent = students.find((s) => s.id === selectedStudentDocsId) || null;
   const studentCountFor = (gid) => students.filter((s) => (s.guardians || []).some((l) => l.guardianDocsId === gid)).length;
 
   // ---- guardian CRUD ----
@@ -64,8 +64,8 @@ export default function GuardiansScreen({ schoolId }) {
       fetchAll();
     } catch (e) {
       // Duplicate: backend returns 409 with the existing guardian — offer to link it instead.
-      if (e.status === 409 && e.data && e.data.existingGuardianId) {
-        const gid = e.data.existingGuardianId;
+      if (e.status === 409 && e.data && e.data.existingGuardianDocsId) {
+        const gid = e.data.existingGuardianDocsId;
         if (confirm(`${e.message}\n\nLink the existing guardian to a student instead?`)) {
           await fetchAll();
           resetGuardian();
@@ -93,10 +93,10 @@ export default function GuardiansScreen({ schoolId }) {
 
   // ---- link management ----
   const addLink = async () => {
-    if (!selectedStudentId || !linkForm.guardianDocsId) { toast.error('Pick a student and a guardian.'); return; }
+    if (!selectedStudentDocsId || !linkForm.guardianDocsId) { toast.error('Pick a student and a guardian.'); return; }
     setBusy(true);
     try {
-      await api.addGuardianLink(selectedStudentId, linkForm);
+      await api.addGuardianLink(selectedStudentDocsId, linkForm);
       toast.success('Guardian linked.');
       setLinkForm({ ...emptyLink, guardianDocsId: linkForm.guardianDocsId });
       fetchAll();
@@ -106,7 +106,7 @@ export default function GuardiansScreen({ schoolId }) {
 
   const removeLink = async (guardianDocsId) => {
     setBusy(true);
-    try { await api.removeGuardianLink(selectedStudentId, guardianDocsId); toast.success('Guardian unlinked.'); fetchAll(); }
+    try { await api.removeGuardianLink(selectedStudentDocsId, guardianDocsId); toast.success('Guardian unlinked.'); fetchAll(); }
     catch (e) { toast.error(e.message); }
     finally { setBusy(false); }
   };
@@ -230,7 +230,7 @@ export default function GuardiansScreen({ schoolId }) {
                   <h3 className="font-bold text-slate-800 text-sm">Student's Guardians</h3>
                   <p className="text-[11px] text-slate-500 mt-0.5">Who is linked to this student, and how.</p>
                 </div>
-                <Select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="!py-1.5 max-w-[55%]">
+                <Select value={selectedStudentDocsId} onChange={(e) => setSelectedStudentDocsId(e.target.value)} className="!py-1.5 max-w-[55%]">
                   {students.length === 0 && <option value="">No students</option>}
                   {students.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>)}
                 </Select>
@@ -303,7 +303,7 @@ export default function GuardiansScreen({ schoolId }) {
                     ))}
                   </div>
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
-                    <Button variant="primary" onClick={addLink} disabled={busy || !selectedStudentId || !linkForm.guardianDocsId}>
+                    <Button variant="primary" onClick={addLink} disabled={busy || !selectedStudentDocsId || !linkForm.guardianDocsId}>
                       {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />} Link Guardian
                     </Button>
                   </div>

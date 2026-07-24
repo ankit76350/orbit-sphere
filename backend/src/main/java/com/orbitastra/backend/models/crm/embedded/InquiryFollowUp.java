@@ -29,7 +29,7 @@ public class InquiryFollowUp {
     private LocalDate nextFollowUp;
 
     // Who recorded this follow-up (references Staff.id).
-    private String counselorId;
+    private String counselorDocsId;
 
     private LocalDateTime recordedAt;
 }

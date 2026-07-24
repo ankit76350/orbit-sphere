@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AiNote extends SchoolBase {
 
-    private String classId;
+    private String classDocsId;
 
     private String notesContent;
 

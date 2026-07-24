@@ -14,18 +14,18 @@ export default function FinanceScreen({ schoolId, year }) {
   // Context
   const [students, setStudents] = useState([]);
   const [fees, setFees] = useState([]);
-  const [wallets, setWallets] = useState({}); // studentId -> wallet
+  const [wallets, setWallets] = useState({}); // studentDocsId -> wallet
   const [loadingData, setLoadingData] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // Master-detail selection
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudentDocsId, setSelectedStudentDocsId] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [detailTab, setDetailTab] = useState('fees'); // 'fees' | 'wallet'
 
   // Modals
   const [payModal, setPayModal] = useState(null); // fee invoice being paid
-  const [payForm, setPayForm] = useState({ amount: '', paymentMode: 'CASH', remarks: '', collectedBy: '' });
+  const [payForm, setPayForm] = useState({ amount: '', paymentMode: 'CASH', remarks: '', collectedByDocsId: '' });
   const [auditStudent, setAuditStudent] = useState(null);
   const [auditTransactions, setAuditTransactions] = useState([]);
   const [receiptsFee, setReceiptsFee] = useState(null); // fee whose receipts are shown
@@ -35,7 +35,7 @@ export default function FinanceScreen({ schoolId, year }) {
   const [editingFee, setEditingFee] = useState(null);
   const emptyFeeForm = {
     schoolId: schoolId || '',
-    studentId: selectedStudentId || '',
+    studentDocsId: selectedStudentDocsId || '',
     academicYear: year || '',
     type: 'TUITION',
     amount: '',
@@ -82,17 +82,17 @@ export default function FinanceScreen({ schoolId, year }) {
   // Keep a valid selection when the student list changes
   useEffect(() => {
     if (students.length === 0) {
-      setSelectedStudentId(null);
-    } else if (!students.some((s) => s.id === selectedStudentId)) {
-      setSelectedStudentId(students[0].id);
+      setSelectedStudentDocsId(null);
+    } else if (!students.some((s) => s.id === selectedStudentDocsId)) {
+      setSelectedStudentDocsId(students[0].id);
     }
-  }, [students, selectedStudentId]);
+  }, [students, selectedStudentDocsId]);
 
   useEffect(() => {
     if (!editingFee) {
-      setFeeForm((current) => ({ ...current, schoolId: schoolId || '', studentId: selectedStudentId || '' }));
+      setFeeForm((current) => ({ ...current, schoolId: schoolId || '', studentDocsId: selectedStudentDocsId || '' }));
     }
-  }, [schoolId, selectedStudentId, editingFee]);
+  }, [schoolId, selectedStudentDocsId, editingFee]);
 
   // ---- Helpers ----
   const getStudentName = (sid) => {
@@ -106,7 +106,7 @@ export default function FinanceScreen({ schoolId, year }) {
   const feesByStudent = useMemo(() => {
     const map = {};
     fees.forEach((f) => {
-      (map[f.studentId] = map[f.studentId] || []).push(f);
+      (map[f.studentDocsId] = map[f.studentDocsId] || []).push(f);
     });
     return map;
   }, [fees]);
@@ -126,9 +126,9 @@ export default function FinanceScreen({ schoolId, year }) {
     );
   }, [students, studentSearch]);
 
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
-  const selectedFees = feesByStudent[selectedStudentId] || [];
-  const selectedWallet = wallets[selectedStudentId];
+  const selectedStudent = students.find((s) => s.id === selectedStudentDocsId) || null;
+  const selectedFees = feesByStudent[selectedStudentDocsId] || [];
+  const selectedWallet = wallets[selectedStudentDocsId];
   const selectedBalance = selectedWallet?.balance || 0;
 
   const getStatusColor = (s) => {
@@ -148,7 +148,7 @@ export default function FinanceScreen({ schoolId, year }) {
   };
 
   const submitFee = async () => {
-    if (!feeForm.studentId || !feeForm.amount) {
+    if (!feeForm.studentDocsId || !feeForm.amount) {
       toast.error('Enter a student ID and amount.');
       return;
     }
@@ -165,7 +165,7 @@ export default function FinanceScreen({ schoolId, year }) {
         await api.updateFee(editingFee.id, mutableFields);
         toast.success('Invoice updated.');
       } else {
-        await api.createFee({ schoolId: feeForm.schoolId, studentId: feeForm.studentId, ...mutableFields });
+        await api.createFee({ schoolId: feeForm.schoolId, studentDocsId: feeForm.studentDocsId, ...mutableFields });
         toast.success('New invoice issued.');
       }
       resetFeeForm();
@@ -181,7 +181,7 @@ export default function FinanceScreen({ schoolId, year }) {
     setEditingFee(fee);
     setFeeForm({
       schoolId: fee.schoolId || schoolId || '',
-      studentId: fee.studentId || selectedStudentId || '',
+      studentDocsId: fee.studentDocsId || selectedStudentDocsId || '',
       academicYear: fee.academicYear || '',
       type: fee.type || 'TUITION',
       amount: String(fee.amount || ''),
@@ -191,7 +191,7 @@ export default function FinanceScreen({ schoolId, year }) {
   };
 
   const handleDeleteFee = async (fee) => {
-    if (!confirm(`Delete this ${fee.type} invoice for ${getStudentName(fee.studentId)}?`)) return;
+    if (!confirm(`Delete this ${fee.type} invoice for ${getStudentName(fee.studentDocsId)}?`)) return;
     try {
       await api.deleteFee(fee.id);
       toast.success('Invoice deleted.');
@@ -204,7 +204,7 @@ export default function FinanceScreen({ schoolId, year }) {
   // ---- Payments (unified recordPayment) ----
   const openPayModal = (fee) => {
     setPayModal(fee);
-    setPayForm({ amount: String(Math.max(0, dueOf(fee))), paymentMode: 'CASH', remarks: '', collectedBy: '' });
+    setPayForm({ amount: String(Math.max(0, dueOf(fee))), paymentMode: 'CASH', remarks: '', collectedByDocsId: '' });
   };
 
   const submitPayment = async () => {
@@ -223,7 +223,7 @@ export default function FinanceScreen({ schoolId, year }) {
         amount,
         paymentMode: payForm.paymentMode,
         remarks: payForm.remarks,
-        collectedBy: payForm.collectedBy,
+        collectedByDocsId: payForm.collectedByDocsId,
       });
       toast.success(`Payment recorded (${payForm.paymentMode}).`);
       setPayModal(null);
@@ -237,7 +237,7 @@ export default function FinanceScreen({ schoolId, year }) {
 
   // ---- Wallet ops ----
   const submitWalletOp = async () => {
-    if (!selectedStudentId || !walletForm.amount) {
+    if (!selectedStudentDocsId || !walletForm.amount) {
       toast.error('Amount is required.');
       return;
     }
@@ -245,10 +245,10 @@ export default function FinanceScreen({ schoolId, year }) {
     try {
       const amount = parseFloat(walletForm.amount);
       if (walletForm.operation === 'CREDIT') {
-        await api.creditWallet(selectedStudentId, amount, walletForm.remarks);
+        await api.creditWallet(selectedStudentDocsId, amount, walletForm.remarks);
         toast.success(`Deposited $${amount.toLocaleString()}.`);
       } else {
-        await api.debitWallet(selectedStudentId, amount, walletForm.remarks);
+        await api.debitWallet(selectedStudentDocsId, amount, walletForm.remarks);
         toast.success(`Debited $${amount.toLocaleString()}.`);
       }
       setWalletForm({ ...walletForm, amount: '', remarks: '' });
@@ -331,11 +331,11 @@ export default function FinanceScreen({ schoolId, year }) {
                 {filteredStudents.map((s) => {
                   const dues = studentDues(s.id);
                   const bal = wallets[s.id]?.balance || 0;
-                  const active = s.id === selectedStudentId;
+                  const active = s.id === selectedStudentDocsId;
                   return (
                     <li key={s.id}>
                       <button
-                        onClick={() => { setSelectedStudentId(s.id); resetFeeForm(); }}
+                        onClick={() => { setSelectedStudentDocsId(s.id); resetFeeForm(); }}
                         className={`w-full text-left px-4 py-3 flex items-center justify-between transition ${active ? 'bg-blue-50/70 border-l-2 border-blue-600' : 'hover:bg-slate-50 border-l-2 border-transparent'}`}
                       >
                         <div className="min-w-0">
@@ -476,7 +476,7 @@ export default function FinanceScreen({ schoolId, year }) {
                       >
                         <div className="space-y-4">
                           {!editingFee && <Field label="School ID" apiName="schoolId" required><Input value={feeForm.schoolId} onChange={(e) => setFeeForm({ ...feeForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>}
-                          {!editingFee && <Field label="Student ID" apiName="studentId" required><Input value={feeForm.studentId} onChange={(e) => setFeeForm({ ...feeForm, studentId: e.target.value })} className="font-mono text-xs" /></Field>}
+                          {!editingFee && <Field label="Student ID" apiName="studentDocsId" required><Input value={feeForm.studentDocsId} onChange={(e) => setFeeForm({ ...feeForm, studentDocsId: e.target.value })} className="font-mono text-xs" /></Field>}
                           <Field label="Academic Year" apiName="academicYear" required={false}>
                             <Input value={feeForm.academicYear} onChange={(e) => setFeeForm({ ...feeForm, academicYear: e.target.value })} placeholder="Leave blank to resolve current year" />
                           </Field>
@@ -530,7 +530,7 @@ export default function FinanceScreen({ schoolId, year }) {
                         ${selectedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
                       <p className="text-xs text-slate-400">Available prepaid balance</p>
-                      <Button variant="default" onClick={() => viewAudit(selectedStudentId)}>
+                      <Button variant="default" onClick={() => viewAudit(selectedStudentDocsId)}>
                         <History size={14} /> View Transaction Ledger
                       </Button>
                     </div>
@@ -575,7 +575,7 @@ export default function FinanceScreen({ schoolId, year }) {
             <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">Collect Payment</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">{getStudentName(payModal.studentId)} · {payModal.type}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{getStudentName(payModal.studentDocsId)} · {payModal.type}</p>
               </div>
               <button onClick={() => setPayModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </header>
@@ -601,8 +601,8 @@ export default function FinanceScreen({ schoolId, year }) {
               <Field label="Remarks" apiName="remarks" required={false}>
                 <Input value={payForm.remarks} onChange={(e) => setPayForm({ ...payForm, remarks: e.target.value })} placeholder="Optional note" />
               </Field>
-              <Field label="Collected By" apiName="collectedBy" required={false}>
-                <Input value={payForm.collectedBy} onChange={(e) => setPayForm({ ...payForm, collectedBy: e.target.value })} placeholder="Staff/user document id" />
+              <Field label="Collected By" apiName="collectedByDocsId" required={false}>
+                <Input value={payForm.collectedByDocsId} onChange={(e) => setPayForm({ ...payForm, collectedByDocsId: e.target.value })} placeholder="Staff/user document id" />
               </Field>
               <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <Button variant="default" onClick={() => setPayModal(null)}>Cancel</Button>
@@ -623,7 +623,7 @@ export default function FinanceScreen({ schoolId, year }) {
             <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">Payment Receipts</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">{receiptsFee.type} · {getStudentName(receiptsFee.studentId)}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{receiptsFee.type} · {getStudentName(receiptsFee.studentDocsId)}</p>
               </div>
               <button onClick={() => setReceiptsFee(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </header>

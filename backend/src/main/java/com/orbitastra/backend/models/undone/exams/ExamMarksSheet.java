@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
  */
 @Document(collection = "exam_marks_sheets")
 @CompoundIndex(name = "exam_grade_subject_uniq",
-        def = "{'examId': 1, 'grade': 1, 'subject': 1}", unique = true)
+        def = "{'examDocsId': 1, 'grade': 1, 'subject': 1}", unique = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
 public class ExamMarksSheet extends SchoolBase {
 
     @Indexed
-    private String examId;
+    private String examDocsId;
 
     private String grade;
 
@@ -54,7 +54,7 @@ public class ExamMarksSheet extends SchoolBase {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class StudentMark {
-        private String studentId;
+        private String studentDocsId;
         private Integer obtainedMarks;
     }
 }

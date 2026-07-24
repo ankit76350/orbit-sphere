@@ -29,5 +29,5 @@ public class Driver extends SchoolBase {
 
     private LocalDate licenseExpiry;
 
-    private String vehicleId;
+    private String vehicleDocsId;
 }

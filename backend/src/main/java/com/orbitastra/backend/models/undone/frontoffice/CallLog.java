@@ -42,7 +42,7 @@ public class CallLog extends SchoolBase {
     // Reason for the call, e.g. "Admission Enquiry", "Fee Query", "Complaint".
     private String purpose;
 
-    private String assignedTo; // references Staff.id
+    private String assignedToName;
 
     private LocalDate followUp;
 

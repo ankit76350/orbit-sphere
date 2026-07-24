@@ -22,9 +22,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AlumniDonation extends SchoolBase {
 
-    private String alumniId;
+    private String alumniDocsId;
 
-    private String campaignId;
+    private String campaignDocsId;
 
     private BigDecimal amount;
 

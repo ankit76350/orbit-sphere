@@ -204,12 +204,12 @@ public class SchoolClassServiceTest {
     }
 
     @Test
-    void addSubject_BlankClassId_IsRejected() {
+    void addSubject_BlankClassDocsId_IsRejected() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 schoolClassService.addSubject("  ",
                         SchoolClass.ClassSubject.builder().name("Mathematics").build()));
 
-        assertEquals("classId is required.", exception.getMessage());
+        assertEquals("classDocsId is required.", exception.getMessage());
         verifyNoInteractions(schoolClassRepository, schoolRepository, staffRepository);
     }
 

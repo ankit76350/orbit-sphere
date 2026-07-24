@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class JobPosting extends SchoolBase {
 
-    private String alumniId;
+    private String alumniDocsId;
 
     private String title;
 

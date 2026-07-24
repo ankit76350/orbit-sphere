@@ -39,14 +39,14 @@ class InquiryServiceTest {
 
     @Test
     void recordFollowUp_withPastNextFollowUp_throwsIllegalArgumentException() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.INQUIRY)
                 .build();
 
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.COUNSELING)
@@ -55,7 +55,7 @@ class InquiryServiceTest {
                 .build();
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            inquiryService.recordFollowUp(inquiryId, entry);
+            inquiryService.recordFollowUp(inquiryDocsId, entry);
         });
 
         assertEquals("Next follow-up date cannot be in the past.", ex.getMessage());
@@ -63,14 +63,14 @@ class InquiryServiceTest {
 
     @Test
     void recordFollowUp_withFutureNextFollowUp_succeeds() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.INQUIRY)
                 .build();
 
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
@@ -79,15 +79,15 @@ class InquiryServiceTest {
                 .nextFollowUp(LocalDate.now().plusDays(5)) // Future date
                 .build();
 
-        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+        Inquiry result = inquiryService.recordFollowUp(inquiryDocsId, entry);
         assertEquals(InquiryStatus.COUNSELING, result.getStatus());
     }
 
     @Test
     void recordFollowUp_withoutHandler_inheritsTopLevelCounselorDocsId() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .counselorDocsId("staff-456")
                 .status(InquiryStatus.INQUIRY)
@@ -96,7 +96,7 @@ class InquiryServiceTest {
                 .id("staff-456")
                 .schoolId("school-123")
                 .build();
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
         when(staffRepository.findById("staff-456")).thenReturn(Optional.of(counselor));
 
@@ -104,22 +104,22 @@ class InquiryServiceTest {
                 .status(InquiryStatus.COUNSELING)
                 .build();
 
-        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+        Inquiry result = inquiryService.recordFollowUp(inquiryDocsId, entry);
 
-        assertEquals("staff-456", entry.getCounselorId());
+        assertEquals("staff-456", entry.getCounselorDocsId());
         assertEquals("staff-456", result.getCounselorDocsId());
     }
 
     @Test
     void recordFollowUp_whenAlreadyAdmitted_changingStatus_throwsIllegalArgumentException() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.ADMITTED)
                 .build();
 
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.COUNSELING) // Trying to revert back to COUNSELING from ADMITTED
@@ -127,7 +127,7 @@ class InquiryServiceTest {
                 .build();
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            inquiryService.recordFollowUp(inquiryId, entry);
+            inquiryService.recordFollowUp(inquiryDocsId, entry);
         });
 
         assertEquals("Cannot change status of an inquiry that is already ADMITTED.", ex.getMessage());
@@ -135,44 +135,44 @@ class InquiryServiceTest {
 
     @Test
     void recordFollowUp_whenAlreadyAdmitted_sameStatus_succeeds() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.ADMITTED)
                 .build();
 
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
         Admission existingAdmission = Admission.builder().id("admission-777").build();
-        when(admissionRepository.findByInquiryDocsId(inquiryId)).thenReturn(java.util.List.of(existingAdmission));
+        when(admissionRepository.findByInquiryDocsId(inquiryDocsId)).thenReturn(java.util.List.of(existingAdmission));
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
                 .status(InquiryStatus.ADMITTED) // Remaining ADMITTED
                 .note("Added additional documentation note")
                 .build();
 
-        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+        Inquiry result = inquiryService.recordFollowUp(inquiryDocsId, entry);
         assertEquals(InquiryStatus.ADMITTED, result.getStatus());
         assertEquals("admission-777", result.getAdmissionDocsId());
     }
 
     @Test
     void recordFollowUp_transitionToAdmitted_createsAdmissionAndLinksId() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.INQUIRY)
                 .studentName("Alice Smith")
                 .build();
 
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
         Admission mockAdmission = Admission.builder().id("admission-999").build();
-        when(admissionRepository.findByInquiryDocsId(inquiryId)).thenReturn(java.util.Collections.emptyList());
+        when(admissionRepository.findByInquiryDocsId(inquiryDocsId)).thenReturn(java.util.Collections.emptyList());
         when(admissionRepository.save(org.mockito.ArgumentMatchers.any(Admission.class))).thenReturn(mockAdmission);
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
@@ -180,23 +180,23 @@ class InquiryServiceTest {
                 .note("Inquiry converted to admission")
                 .build();
 
-        Inquiry result = inquiryService.recordFollowUp(inquiryId, entry);
+        Inquiry result = inquiryService.recordFollowUp(inquiryDocsId, entry);
         assertEquals(InquiryStatus.ADMITTED, result.getStatus());
         assertEquals("admission-999", result.getAdmissionDocsId());
     }
 
     @Test
     void linkAdmission_updatesStatusAndReferenceTogether() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.COUNSELING)
                 .build();
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
-        Inquiry result = inquiryService.linkAdmission(inquiryId, "admission-123");
+        Inquiry result = inquiryService.linkAdmission(inquiryDocsId, "admission-123");
 
         assertEquals(InquiryStatus.ADMITTED, result.getStatus());
         assertEquals("admission-123", result.getAdmissionDocsId());
@@ -206,16 +206,16 @@ class InquiryServiceTest {
 
     @Test
     void linkAdmission_whenAlreadyAdmitted_repairsMissingReferenceWithoutDuplicateFollowUp() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.ADMITTED)
                 .build();
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
-        Inquiry result = inquiryService.linkAdmission(inquiryId, "admission-123");
+        Inquiry result = inquiryService.linkAdmission(inquiryDocsId, "admission-123");
 
         assertEquals("admission-123", result.getAdmissionDocsId());
         assertEquals(0, result.getFollowUps().size());
@@ -223,36 +223,36 @@ class InquiryServiceTest {
 
     @Test
     void linkAdmission_whenLinkedToDifferentAdmission_returnsConflict() {
-        String inquiryId = "6a5e1bb4faffc52a626a30af";
+        String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.ADMITTED)
                 .admissionDocsId("existing-admission")
                 .build();
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
 
         ConflictException ex = assertThrows(
                 ConflictException.class,
-                () -> inquiryService.linkAdmission(inquiryId, "different-admission"));
+                () -> inquiryService.linkAdmission(inquiryDocsId, "different-admission"));
 
-        assertEquals("Inquiry " + inquiryId
+        assertEquals("Inquiry " + inquiryDocsId
                 + " is already linked to admission existing-admission.", ex.getMessage());
     }
 
     @Test
     void confirmEnrollment_marksLinkedInquiryConfirmedAndRecordsTimelineEntry() {
-        String inquiryId = "inquiry-123";
+        String inquiryDocsId = "inquiry-123";
         Inquiry existing = Inquiry.builder()
-                .id(inquiryId)
+                .id(inquiryDocsId)
                 .schoolId("school-123")
                 .status(InquiryStatus.ADMITTED)
                 .admissionDocsId("admission-123")
                 .build();
-        when(inquiryRepository.findById(inquiryId)).thenReturn(Optional.of(existing));
+        when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
         when(inquiryRepository.save(existing)).thenReturn(existing);
 
-        Inquiry result = inquiryService.confirmEnrollment(inquiryId, "admission-123");
+        Inquiry result = inquiryService.confirmEnrollment(inquiryDocsId, "admission-123");
 
         assertEquals(InquiryStatus.CONFIRMED, result.getStatus());
         assertEquals("admission-123", result.getAdmissionDocsId());

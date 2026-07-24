@@ -113,12 +113,12 @@ export default function ModVirtualClass({ user }) {
 
     const newClass = {
       id: `class-${Date.now()}`,
-      subjectId: schedSubject,
+      subjectNo: schedSubject,
       subjectName: schedSubjectName,
-      teacherId: user?.id || "staff-teacher-1",
+      teacherDocsId: user?.id || "staff-teacher-1",
       teacherName: user?.name || "Teacher John",
-      classId: `${schedGrade.split(" ")[1]}-${schedSection}`,
-      sectionId: schedSection,
+      classNo: `${schedGrade.split(" ")[1]}-${schedSection}`,
+      sectionNo: schedSection,
       meetingLink: uniqueMeetId,
       date: schedDate,
       startTime: schedStart,
@@ -171,8 +171,8 @@ export default function ModVirtualClass({ user }) {
       const newRecId = `rec-cls-${classObj.id}`;
       const newRec = {
         id: newRecId,
-        classId: classObj.id,
-        recordingUrl: `https://storage.googleapis.com/stjude-classes/${classObj.subjectId.toLowerCase()}_session.mp4`,
+        classDocsId: classObj.id,
+        recordingUrl: `https://storage.googleapis.com/stjude-classes/${classObj.subjectNo.toLowerCase()}_session.mp4`,
         transcript: `Speaker 1 (${classObj.teacherName}): Good day, class. Today we discussed advanced equations. Specifically, quadratic equations with complex roots. Speaker 2 (Liam Smith): How do we calculate the discriminant? Speaker 1: Excellent. Use the formula: b squared minus four a c.`,
         summary: `Advanced complex equations. Key points: Quadratic discriminant calculus, complex root parameters, and coefficient variables.`
       };
@@ -184,7 +184,7 @@ export default function ModVirtualClass({ user }) {
       // Generate mock Notes
       const newNote = {
         id: `note-cls-${classObj.id}`,
-        classId: classObj.id,
+        classDocsId: classObj.id,
         notesContent: `St. Jude's AI Study Notes - ${classObj.subjectName}. Key Concepts: Complex root systems. Important Formulas: Discriminant D = b² - 4ac. High Score Practice Questions: Calculate complex roots for x² + 4x + 5 = 0. Flashcards: 1. Q: What does D < 0 indicate? A: Complex roots. Mind Map: Quadratic -> Discriminant -> Real or Complex.`,
         generatedAt: new Date().toISOString().replace("T", " ").substring(0, 19)
       };
@@ -287,8 +287,8 @@ export default function ModVirtualClass({ user }) {
     return matchesSearch;
   });
 
-  const activeNotesRecord = aiNotes.find(n => n.classId === selectedClassForNotes);
-  const activeTranscriptRecord = recordings.find(r => r.classId === selectedClassForNotes);
+  const activeNotesRecord = aiNotes.find(n => n.classDocsId === selectedClassForNotes);
+  const activeTranscriptRecord = recordings.find(r => r.classDocsId === selectedClassForNotes);
 
   return (
     <div className="space-y-6">
@@ -419,7 +419,7 @@ export default function ModVirtualClass({ user }) {
                       <div className="space-y-1">
                         <h4 className="text-sm font-black text-slate-850">{cls.subjectName}</h4>
                         <p className="text-[10px] text-blue-650 font-bold uppercase tracking-wider">
-                          {cls.classId} • Section {cls.sectionId}
+                          {cls.classNo} • Section {cls.sectionNo}
                         </p>
                       </div>
 
@@ -488,7 +488,7 @@ export default function ModVirtualClass({ user }) {
                     }`}
                   >
                     <h4 className="text-xs font-black">{cls.subjectName}</h4>
-                    <p className="text-[9px] text-slate-400 mt-1">{cls.classId} • Date: {cls.date}</p>
+                    <p className="text-[9px] text-slate-400 mt-1">{cls.classNo} • Date: {cls.date}</p>
                   </button>
                 );
               })}
@@ -788,4 +788,3 @@ export default function ModVirtualClass({ user }) {
     </div>
   );
 }
-

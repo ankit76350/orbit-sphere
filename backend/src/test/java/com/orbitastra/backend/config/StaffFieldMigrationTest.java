@@ -2,7 +2,7 @@ package com.orbitastra.backend.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,10 +20,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import com.mongodb.client.result.UpdateResult;
-import com.orbitastra.backend.models.staff.Staff;
-import com.orbitastra.backend.models.staff.StudentReview;
-import com.orbitastra.backend.models.staff.TeacherPerformanceReview;
-import com.orbitastra.backend.models.staff.TeacherReview;
 
 @ExtendWith(MockitoExtension.class)
 class StaffFieldMigrationTest {
@@ -35,62 +31,30 @@ class StaffFieldMigrationTest {
     private UpdateResult updateResult;
 
     @InjectMocks
-    private StaffFieldMigration migration;
+    private ProjectFieldNamingMigration migration;
 
     @Test
-    void migrateStaffFields_usesNonOverwritingIdempotentRenames() {
+    void employeeNumberRename_isIdempotentAndNonOverwriting() {
         when(mongoTemplate.updateMulti(
-                any(Query.class), any(Update.class), any(Class.class)))
+                any(Query.class), any(Update.class), eq("staffs")))
                 .thenReturn(updateResult);
         when(updateResult.getModifiedCount()).thenReturn(1L);
 
-        migration.migrateStaffFields();
+        long migrated = migration.renameWhenTargetMissing(
+                new ProjectFieldNamingMigration.FieldRename(
+                        "staffs", "employeeId", "employeeNo"));
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        ArgumentCaptor<Class<?>> typeCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Class.class);
-        verify(mongoTemplate, times(11)).updateMulti(
-                queryCaptor.capture(), updateCaptor.capture(), typeCaptor.capture());
+        verify(mongoTemplate).updateMulti(
+                queryCaptor.capture(), updateCaptor.capture(), eq("staffs"));
 
-        assertEquals(List.of(
-                Staff.class,
-                StudentReview.class, StudentReview.class, StudentReview.class,
-                TeacherPerformanceReview.class, TeacherPerformanceReview.class,
-                TeacherPerformanceReview.class,
-                TeacherReview.class, TeacherReview.class, TeacherReview.class, TeacherReview.class),
-                typeCaptor.getAllValues());
-
-        assertRename(queryCaptor.getAllValues().get(0), updateCaptor.getAllValues().get(0),
-                "employeeId", "employeeNo");
-        assertRename(queryCaptor.getAllValues().get(1), updateCaptor.getAllValues().get(1),
-                "studentId", "studentDocsId");
-        assertRename(queryCaptor.getAllValues().get(2), updateCaptor.getAllValues().get(2),
-                "teacherId", "teacherDocsId");
-        assertRename(queryCaptor.getAllValues().get(3), updateCaptor.getAllValues().get(3),
-                "reviewCycleId", "reviewCycleDocsId");
-        assertRename(queryCaptor.getAllValues().get(4), updateCaptor.getAllValues().get(4),
-                "teacherId", "teacherDocsId");
-        assertRename(queryCaptor.getAllValues().get(5), updateCaptor.getAllValues().get(5),
-                "reviewerId", "reviewerDocsId");
-        assertRename(queryCaptor.getAllValues().get(6), updateCaptor.getAllValues().get(6),
-                "reviewCycleId", "reviewCycleDocsId");
-        assertRename(queryCaptor.getAllValues().get(7), updateCaptor.getAllValues().get(7),
-                "teacherId", "teacherDocsId");
-        assertRename(queryCaptor.getAllValues().get(8), updateCaptor.getAllValues().get(8),
-                "studentId", "studentDocsId");
-        assertRename(queryCaptor.getAllValues().get(9), updateCaptor.getAllValues().get(9),
-                "parentId", "parentDocsId");
-        assertRename(queryCaptor.getAllValues().get(10), updateCaptor.getAllValues().get(10),
-                "reviewCycleId", "reviewCycleDocsId");
-    }
-
-    private void assertRename(Query query, Update update, String source, String target) {
+        assertEquals(1L, migrated);
         assertEquals(new Document("$and", List.of(
-                new Document(source, new Document("$exists", true)),
-                new Document(target, new Document("$exists", false)))),
-                query.getQueryObject());
-        assertEquals(new Document("$rename", new Document(source, target)),
-                update.getUpdateObject());
+                new Document("employeeId", new Document("$exists", true)),
+                new Document("employeeNo", new Document("$exists", false)))),
+                queryCaptor.getValue().getQueryObject());
+        assertEquals(new Document("$rename", new Document("employeeId", "employeeNo")),
+                updateCaptor.getValue().getUpdateObject());
     }
 }

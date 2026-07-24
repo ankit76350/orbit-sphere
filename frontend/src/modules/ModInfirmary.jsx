@@ -12,7 +12,7 @@ export default function ModInfirmary({ user }) {
   const [records, setRecords] = useState(() => getInfirmary());
   const [students] = useState(() => getStudents());
   const [isLogOpen, setIsLogOpen] = useState(false);
-  const [logStudentId, setLogStudentId] = useState("student-1");
+  const [logStudentDocsId, setLogStudentDocsId] = useState("student-1");
   const [symptoms, setSymptoms] = useState("Acute dry cough and low-grade fatigue");
   const [temperature, setTemperature] = useState("98.6");
   const [treatment, setTreatment] = useState("Administered OTC lozenges, requested dorm bedrest");
@@ -30,7 +30,7 @@ export default function ModInfirmary({ user }) {
 
   const handleCreateRecord = (e) => {
     e.preventDefault();
-    const targetStudentDetails = students.find((s) => s.id === logStudentId);
+    const targetStudentDetails = students.find((s) => s.id === logStudentDocsId);
     if (!targetStudentDetails) {
       addToast("Error", " Roster file student lookup mismatched", "error");
       return;
@@ -38,7 +38,7 @@ export default function ModInfirmary({ user }) {
     const tempParsed = parseFloat(temperature) || 98.6;
     const newRecord = {
       id: `health-${Date.now()}`,
-      studentId: logStudentId,
+      studentDocsId: logStudentDocsId,
       studentName: targetStudentDetails.name,
       checkInTime: new Date().toISOString().replace("T", " ").substring(0, 16),
       temperature: tempParsed,
@@ -51,7 +51,7 @@ export default function ModInfirmary({ user }) {
     saveInfirmary(updated);
     api.createMedicalRecord({
       schoolId: 'SCH-001',
-      studentId: logStudentId,
+      studentDocsId: logStudentDocsId,
       studentName: targetStudentDetails.name,
       temperature: tempParsed,
       symptoms,
@@ -212,9 +212,9 @@ export default function ModInfirmary({ user }) {
         <form onSubmit={handleCreateRecord} className="space-y-4 pt-1">
           <Select
     label="Select Patient Student"
-    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))}
-    value={logStudentId}
-    onChange={(e) => setLogStudentId(e.target.value)}
+    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))}
+    value={logStudentDocsId}
+    onChange={(e) => setLogStudentDocsId(e.target.value)}
   />
 
           <div className="grid grid-cols-2 gap-4">

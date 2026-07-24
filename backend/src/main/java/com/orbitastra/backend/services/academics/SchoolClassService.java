@@ -35,22 +35,22 @@ public class SchoolClassService {
         return normalized;
     }
 
-    private String validateTeacher(String teacherId, String schoolId) {
-        String normalizedTeacherId = normalizeOptionalReference(teacherId, "teacherDocsId");
-        if (normalizedTeacherId == null) {
+    private String validateTeacher(String teacherDocsId, String schoolId) {
+        String normalizedTeacherDocsId = normalizeOptionalReference(teacherDocsId, "teacherDocsId");
+        if (normalizedTeacherDocsId == null) {
             return null;
         }
         if (schoolId == null || schoolId.trim().isEmpty()) {
             throw new IllegalArgumentException("Class schoolId is required before assigning a subject teacher.");
         }
 
-        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(normalizedTeacherId)
-                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + normalizedTeacherId));
+        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(normalizedTeacherDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + normalizedTeacherDocsId));
         if (!Objects.equals(teacher.getSchoolId(), schoolId)) {
-            throw new IllegalArgumentException("Teacher with ID " + normalizedTeacherId
+            throw new IllegalArgumentException("Teacher with ID " + normalizedTeacherDocsId
                     + " does not belong to this school.");
         }
-        return normalizedTeacherId;
+        return normalizedTeacherDocsId;
     }
 
     private String normalizeSubjectName(String name) {
@@ -181,16 +181,16 @@ public class SchoolClassService {
         schoolClassRepository.delete(schoolClass);
     }
 
-    public SchoolClass addSubject(String classId, SchoolClass.ClassSubject subject) {
-        if (classId == null || classId.trim().isEmpty()) {
-            throw new IllegalArgumentException("classId is required.");
+    public SchoolClass addSubject(String classDocsId, SchoolClass.ClassSubject subject) {
+        if (classDocsId == null || classDocsId.trim().isEmpty()) {
+            throw new IllegalArgumentException("classDocsId is required.");
         }
         if (subject == null) {
             throw new IllegalArgumentException("Subject request is required.");
         }
 
-        String normalizedClassId = classId.trim();
-        SchoolClass schoolClass = getClassById(normalizedClassId);
+        String normalizedClassDocsId = classDocsId.trim();
+        SchoolClass schoolClass = getClassById(normalizedClassDocsId);
         if (schoolClass.getSchoolId() == null || schoolClass.getSchoolId().trim().isEmpty()) {
             throw new IllegalArgumentException("Cannot add a subject to a class without a schoolId.");
         }
@@ -216,8 +216,8 @@ public class SchoolClassService {
         return schoolClassRepository.save(schoolClass);
     }
 
-    public SchoolClass addSections(String classId, List<String> sections) {
-        SchoolClass schoolClass = getClassById(classId);
+    public SchoolClass addSections(String classDocsId, List<String> sections) {
+        SchoolClass schoolClass = getClassById(classDocsId);
         if (schoolClass.getSections() == null) {
             schoolClass.setSections(new java.util.ArrayList<>());
         }
@@ -233,16 +233,16 @@ public class SchoolClassService {
         return schoolClassRepository.save(schoolClass);
     }
 
-    public SchoolClass removeSection(String classId, String section) {
-        SchoolClass schoolClass = getClassById(classId);
+    public SchoolClass removeSection(String classDocsId, String section) {
+        SchoolClass schoolClass = getClassById(classDocsId);
         if (schoolClass.getSections() != null) {
             schoolClass.getSections().remove(section);
         }
         return schoolClassRepository.save(schoolClass);
     }
 
-    public SchoolClass removeSubject(String classId, String subjectName) {
-        SchoolClass schoolClass = getClassById(classId);
+    public SchoolClass removeSubject(String classDocsId, String subjectName) {
+        SchoolClass schoolClass = getClassById(classDocsId);
         if (schoolClass.getSubjects() != null) {
             schoolClass.getSubjects().removeIf(s -> s.getName() != null && s.getName().equalsIgnoreCase(subjectName));
         }

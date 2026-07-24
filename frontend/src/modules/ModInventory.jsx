@@ -25,7 +25,7 @@ export default function ModInventory({ user }) {
   const [unitPrice, setUnitPrice] = useState("20");
   const [supplier, setSupplier] = useState("Royal Garments Inc.");
   const [supplierContact, setSupplierContact] = useState("contracts@royalgarments.com");
-  const [chkStudentId, setChkStudentId] = useState("student-1");
+  const [chkStudentDocsId, setChkStudentDocsId] = useState("student-1");
   const [chkItemId, setChkItemId] = useState("inv-item-1");
   const [chkQty, setChkQty] = useState("1");
   const handleCreateItem = (e) => {
@@ -69,7 +69,7 @@ export default function ModInventory({ user }) {
     }
     const totalCost = storeItem.unitPrice * qtyVal;
     const cleanStudents = getStudents();
-    const targetStudent = cleanStudents.find((s) => s.id === chkStudentId);
+    const targetStudent = cleanStudents.find((s) => s.id === chkStudentDocsId);
     if (!targetStudent) {
       addToast("Error", "Target student roster not found", "error");
       return;
@@ -79,7 +79,7 @@ export default function ModInventory({ user }) {
       return;
     }
     const walletPassed = deductWallet(
-      chkStudentId,
+      chkStudentDocsId,
       totalCost,
       "Store Purchase",
       `Bought ${qtyVal}x ${storeItem.itemName} from Stationery Store`,
@@ -319,9 +319,9 @@ export default function ModInventory({ user }) {
         <form onSubmit={handleCheckoutSubmit} className="space-y-4 pt-1">
           <Select
     label="Designate Scholar Student Client"
-    options={students.map((s) => ({ label: `${s.name} (${s.admissionNumber}) - Pocket Purse: $${s.walletBalance}`, value: s.id }))}
-    value={chkStudentId}
-    onChange={(e) => setChkStudentId(e.target.value)}
+    options={students.map((s) => ({ label: `${s.name} (${s.admissionNo}) - Pocket Purse: $${s.walletBalance}`, value: s.id }))}
+    value={chkStudentDocsId}
+    onChange={(e) => setChkStudentDocsId(e.target.value)}
   />
 
           <div className="grid grid-cols-2 gap-4">

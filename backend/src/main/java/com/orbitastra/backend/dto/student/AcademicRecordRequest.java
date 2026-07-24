@@ -11,7 +11,7 @@ import lombok.Data;
 /**
  * Client-settable fields of a student's per-year academic record. Reused when
  * creating/updating a student (nested) and by the academic-record / promote
- * endpoints. {@code schoolId} and {@code studentDocId} are derived server-side
+ * endpoints. {@code schoolId} and {@code studentDocsId} are derived server-side
  * from the owning student, never accepted here.
  */
 @Data
@@ -26,7 +26,7 @@ public class AcademicRecordRequest {
 
     private String rollNo;
 
-    private String classDocId;
+    private String classDocsId;
 
     private String sectionNo;
 
@@ -35,7 +35,7 @@ public class AcademicRecordRequest {
     private StudentStatus status;
 
     private static final Set<String> UNSUPPORTED_FIELDS = Set.of(
-            "classId", "sectionId", "hostelRoomId", "schoolId", "studentDocId", "id");
+            "classDocsId", "sectionNo", "hostelRoomId", "schoolId", "studentDocsId", "id");
 
     /** Reject deprecated aliases and server-owned identifiers instead of silently ignoring them. */
     @JsonAnySetter
@@ -43,7 +43,7 @@ public class AcademicRecordRequest {
         if (UNSUPPORTED_FIELDS.contains(fieldName)) {
             throw new IllegalArgumentException(
                     "Unsupported academic-record field '" + fieldName
-                            + "'. Use classDocId, sectionNo, and hostelRoomNo; schoolId and studentDocId are server-owned.");
+                            + "'. Use classDocsId, sectionNo, and hostelRoomNo; schoolId and studentDocsId are server-owned.");
         }
     }
 
@@ -52,7 +52,7 @@ public class AcademicRecordRequest {
                 .academicYear(academicYear)
                 .studentNo(studentNo)
                 .rollNo(rollNo)
-                .classDocId(classDocId)
+                .classDocsId(classDocsId)
                 .sectionNo(sectionNo)
                 .hostelRoomNo(hostelRoomNo)
                 .status(status)

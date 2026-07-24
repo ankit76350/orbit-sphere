@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ClassRecording extends SchoolBase {
 
-    private String classId;
+    private String classDocsId;
 
     private String recordingUrl;
 

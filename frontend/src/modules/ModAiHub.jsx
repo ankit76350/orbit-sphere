@@ -59,9 +59,9 @@ const USAGE_SEED = {
 };
 
 const AUDIT_SEED = [
-  { id: "aud-seed-3", at: "2026-07-03 14:22:10", bundle: "Teacher AI", feature: "Report Remarks", detail: "Generated remark for Class 8 student (Encouraging, English). Approved by teacher.", tokens: 850, actor: "Meera Krishnan" },
-  { id: "aud-seed-2", at: "2026-07-03 11:05:44", bundle: "Principal AI", feature: "Admin Copilot", detail: "Query: 'Fee collection this month?' answered from live fee ledger.", tokens: 1240, actor: "Principal" },
-  { id: "aud-seed-1", at: "2026-07-02 09:41:03", bundle: "Safety AI", feature: "CCTV Anomaly", detail: "Loitering event at Rear Gate Cam-07 flagged for human review.", tokens: 400, actor: "System" }
+  { id: "aud-seed-3", at: "2026-07-03 14:22:10", bundle: "Teacher AI", feature: "Report Remarks", detail: "Generated remark for Class 8 student (Encouraging, English). Approved by teacher.", tokens: 850, actorName: "Meera Krishnan" },
+  { id: "aud-seed-2", at: "2026-07-03 11:05:44", bundle: "Principal AI", feature: "Admin Copilot", detail: "Query: 'Fee collection this month?' answered from live fee ledger.", tokens: 1240, actorName: "Principal" },
+  { id: "aud-seed-1", at: "2026-07-02 09:41:03", bundle: "Safety AI", feature: "CCTV Anomaly", detail: "Loitering event at Rear Gate Cam-07 flagged for human review.", tokens: 400, actorName: "System" }
 ];
 
 const SAFETY_SEED = {
@@ -226,7 +226,7 @@ export default function ModAiHub({ user }) {
         feature,
         detail,
         tokens,
-        actor: user?.name || "User"
+        actorName: user?.name || "User"
       };
       const next = [entry, ...prev].slice(0, 120);
       saveLS("erp_ai_audit", next);
@@ -240,7 +240,7 @@ export default function ModAiHub({ user }) {
   const grades = [...new Set(students.map((s) => s.grade))];
   const [remGrade, setRemGrade] = useState(() => (grades[0] ? grades[0] : "Grade 8"));
   const remStudents = students.filter((s) => s.grade === remGrade);
-  const [remStudentId, setRemStudentId] = useState("");
+  const [remStudentDocsId, setRemStudentDocsId] = useState("");
   const [remTone, setRemTone] = useState("Encouraging");
   const [remLang, setRemLang] = useState("English");
   const [remBusy, setRemBusy] = useState(false);
@@ -264,7 +264,7 @@ export default function ModAiHub({ user }) {
   };
 
   const handleGenerateRemark = (isRegen) => {
-    const student = students.find((s) => s.id === remStudentId) || remStudents[0];
+    const student = students.find((s) => s.id === remStudentDocsId) || remStudents[0];
     if (!student) {
       addToast("No Student", "Pick a class and student first.", "warning");
       return;
@@ -284,13 +284,13 @@ export default function ModAiHub({ user }) {
     if (!remOutput) return;
     const entry = {
       id: `rem-${Date.now()}`,
-      studentId: remOutput.student.id,
+      studentDocsId: remOutput.student.id,
       studentName: remOutput.student.name,
       grade: remOutput.student.grade,
       tone: remOutput.tone,
       lang: remOutput.lang,
       text: remOutput.text,
-      approvedBy: user?.name || "Teacher",
+      approvedByName: user?.name || "Teacher",
       at: new Date().toISOString().slice(0, 19).replace("T", " ")
     };
     const next = [entry, ...remarksHistory].slice(0, 50);
@@ -407,7 +407,7 @@ export default function ModAiHub({ user }) {
     }
     if (q.includes("defaulter") || q.includes("class 8") || q.includes("unpaid")) {
       const g8 = students.filter((s) => s.grade === "Grade 8").map((s) => s.id);
-      const defInvoices = fees.filter((f) => f.status === "Unpaid" && g8.includes(f.studentId));
+      const defInvoices = fees.filter((f) => f.status === "Unpaid" && g8.includes(f.studentDocsId));
       const names = [...new Set(defInvoices.map((f) => f.studentName))];
       const amt = defInvoices.reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0);
       return {
@@ -461,7 +461,7 @@ export default function ModAiHub({ user }) {
         const h = hashNum(s.id);
         const attendance = 68 + (h % 30);
         const attDrop = 4 + (h % 12);
-        const overdue = fe.filter((f) => f.studentId === s.id && f.status !== "Paid").length;
+        const overdue = fe.filter((f) => f.studentDocsId === s.id && f.status !== "Paid").length;
         const gradeDecline = h % 3 === 0;
         let score = 0;
         const reasons = [];
@@ -488,15 +488,15 @@ export default function ModAiHub({ user }) {
             : severity === "Medium"
             ? "Class teacher to have a 1:1 chat; send gentle fee-plan option to parent; monitor for 2 weeks."
             : "No action needed beyond routine monitoring; celebrate a recent win to reinforce engagement.";
-        return { studentId: s.id, name: s.name, grade: s.grade, score: Math.min(score, 96), reasons, severity, intervention };
+        return { studentDocsId: s.id, name: s.name, grade: s.grade, score: Math.min(score, 96), reasons, severity, intervention };
       })
       .filter((r) => r.reasons.length > 0)
       .sort((a, b) => b.score - a.score);
   });
 
   const handleMarkReviewed = (r) => {
-    const entry = { studentId: r.studentId, name: r.name, reviewedBy: user?.name || "Principal", at: new Date().toISOString().slice(0, 19).replace("T", " ") };
-    const next = [...riskReviewed.filter((x) => x.studentId !== r.studentId), entry];
+    const entry = { studentDocsId: r.studentDocsId, name: r.name, reviewedByName: user?.name || "Principal", at: new Date().toISOString().slice(0, 19).replace("T", " ") };
+    const next = [...riskReviewed.filter((x) => x.studentDocsId !== r.studentDocsId), entry];
     setRiskReviewed(next);
     saveLS("erp_ai_risk", next);
     doLog("Risk Case Reviewed", `Early-warning case reviewed for ${r.name} (score ${r.score}).`);
@@ -512,7 +512,7 @@ export default function ModAiHub({ user }) {
 
   const demoStudent = students[0];
   const demoDue = demoStudent
-    ? fees.filter((f) => f.studentId === demoStudent.id).reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0)
+    ? fees.filter((f) => f.studentDocsId === demoStudent.id).reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0)
     : 0;
 
   const WA_QA = {
@@ -545,10 +545,10 @@ export default function ModAiHub({ user }) {
   };
 
   // Weekly digest
-  const [digestStudentId, setDigestStudentId] = useState(() => (getStudents()[0] ? getStudents()[0].id : ""));
-  const digestStudent = students.find((s) => s.id === digestStudentId);
+  const [digestStudentDocsId, setDigestStudentDocsId] = useState(() => (getStudents()[0] ? getStudents()[0].id : ""));
+  const digestStudent = students.find((s) => s.id === digestStudentDocsId);
   const digestDue = digestStudent
-    ? fees.filter((f) => f.studentId === digestStudent.id).reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0)
+    ? fees.filter((f) => f.studentDocsId === digestStudent.id).reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0)
     : 0;
   const digestHash = digestStudent ? hashNum(digestStudent.id) : 0;
   const weekStrip = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => ({
@@ -750,14 +750,14 @@ export default function ModAiHub({ user }) {
                   value={remGrade}
                   onChange={(e) => {
                     setRemGrade(e.target.value);
-                    setRemStudentId("");
+                    setRemStudentDocsId("");
                   }}
                 />
                 <Select
                   label="Student"
-                  options={[{ label: "— Select student —", value: "" }, ...remStudents.map((s) => ({ label: `${s.name} (${s.admissionNumber})`, value: s.id }))]}
-                  value={remStudentId}
-                  onChange={(e) => setRemStudentId(e.target.value)}
+                  options={[{ label: "— Select student —", value: "" }, ...remStudents.map((s) => ({ label: `${s.name} (${s.admissionNo})`, value: s.id }))]}
+                  value={remStudentDocsId}
+                  onChange={(e) => setRemStudentDocsId(e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <Select
@@ -836,7 +836,7 @@ export default function ModAiHub({ user }) {
                             <Badge variant="info" className="text-[9px] font-black shrink-0">{r.lang}</Badge>
                           </div>
                           <p className="text-[11px] text-slate-500 font-semibold mt-1 leading-relaxed">{r.text}</p>
-                          <p className="text-[9px] text-slate-400 font-bold mt-1">Approved by {r.approvedBy} • {r.at}</p>
+                          <p className="text-[9px] text-slate-400 font-bold mt-1">Approved by {r.approvedByName} • {r.at}</p>
                         </div>
                       ))}
                     </div>
@@ -1168,10 +1168,10 @@ export default function ModAiHub({ user }) {
             </div>
 
             {riskList.map((r) => {
-              const reviewed = riskReviewed.some((x) => x.studentId === r.studentId);
+              const reviewed = riskReviewed.some((x) => x.studentDocsId === r.studentDocsId);
               return (
                 <div
-                  key={r.studentId}
+                  key={r.studentDocsId}
                   className={`p-4 rounded-2xl border space-y-2.5 ${
                     r.severity === "High" ? "bg-rose-50/50 border-rose-200" : r.severity === "Medium" ? "bg-amber-50/50 border-amber-200" : "bg-slate-50 border-slate-100"
                   }`}
@@ -1298,8 +1298,8 @@ export default function ModAiHub({ user }) {
                 <div className="w-full sm:w-64">
                   <Select
                     options={students.map((s) => ({ label: `${s.name} — ${s.grade}`, value: s.id }))}
-                    value={digestStudentId}
-                    onChange={(e) => setDigestStudentId(e.target.value)}
+                    value={digestStudentDocsId}
+                    onChange={(e) => setDigestStudentDocsId(e.target.value)}
                   />
                 </div>
               </div>
@@ -1583,7 +1583,7 @@ export default function ModAiHub({ user }) {
                   <Eye className="h-4 w-4 text-slate-400" /> Audit Coverage
                 </span>
                 <h4 className="text-2xl font-black text-slate-800">{audit.length} events</h4>
-                <p className="text-[10px] text-slate-400 font-semibold">Every generation across Teacher, Principal, Parent and Safety bundles is logged below with actor, tokens and purpose.</p>
+                <p className="text-[10px] text-slate-400 font-semibold">Every generation across Teacher, Principal, Parent and Safety bundles is logged below with actorName, tokens and purpose.</p>
               </div>
             </div>
           </div>
@@ -1599,7 +1599,7 @@ export default function ModAiHub({ user }) {
                     <th className="p-4">Feature</th>
                     <th className="p-4">Detail</th>
                     <th className="p-4">Tokens</th>
-                    <th className="p-4">Actor</th>
+                    <th className="p-4">ActorName</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1617,7 +1617,7 @@ export default function ModAiHub({ user }) {
                       <td className="p-4 font-extrabold text-slate-800 whitespace-nowrap">{a.feature}</td>
                       <td className="p-4 text-slate-500 leading-relaxed">{a.detail}</td>
                       <td className="p-4 font-mono text-[10px]">{a.tokens.toLocaleString("en-IN")}</td>
-                      <td className="p-4 text-slate-500 whitespace-nowrap">{a.actor}</td>
+                      <td className="p-4 text-slate-500 whitespace-nowrap">{a.actorName}</td>
                     </tr>
                   ))}
                 </tbody>

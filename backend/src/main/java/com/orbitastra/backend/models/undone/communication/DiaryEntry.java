@@ -37,7 +37,7 @@ public class DiaryEntry extends SchoolBase {
 
     private String text;
 
-    private String teacher; // references Staff.id
+    private String teacherName;
 
     // Acknowledgement tracking.
     @Builder.Default

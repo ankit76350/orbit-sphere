@@ -66,9 +66,9 @@ public class AdmissionController {
         return ResponseEntity.ok(admissionService.getAdmissionsBySchoolAndStatus(schoolId, status));
     }
 
-    @GetMapping("/inquiry/{inquiryId}")
-    public ResponseEntity<List<Admission>> getAdmissionsByInquiry(@PathVariable String inquiryId) {
-        return ResponseEntity.ok(admissionService.getAdmissionsByInquiry(inquiryId));
+    @GetMapping("/inquiry/{inquiryDocsId}")
+    public ResponseEntity<List<Admission>> getAdmissionsByInquiry(@PathVariable String inquiryDocsId) {
+        return ResponseEntity.ok(admissionService.getAdmissionsByInquiry(inquiryDocsId));
     }
 
     @PatchMapping("/{id}")

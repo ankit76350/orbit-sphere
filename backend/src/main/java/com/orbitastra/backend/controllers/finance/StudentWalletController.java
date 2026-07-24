@@ -30,27 +30,27 @@ public class StudentWalletController {
     private final StudentWalletService studentWalletService;
     private final WalletTransactionService walletTransactionService;
 
-    @GetMapping("/student/{studentId}")
-    public ResponseEntity<StudentWallet> getWalletByStudentId(@PathVariable String studentId) {
-        StudentWallet wallet = studentWalletService.getWalletByStudentId(studentId);
+    @GetMapping("/student/{studentDocsId}")
+    public ResponseEntity<StudentWallet> getWalletByStudentDocsId(@PathVariable String studentDocsId) {
+        StudentWallet wallet = studentWalletService.getWalletByStudentDocsId(studentDocsId);
         return ResponseEntity.ok(wallet);
     }
 
-    @PostMapping("/student/{studentId}/credit")
-    public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentId, @Valid @RequestBody WalletOperationRequest request) {
-        StudentWallet wallet = studentWalletService.creditWallet(studentId, request.getAmount(), request.getRemarks());
+    @PostMapping("/student/{studentDocsId}/credit")
+    public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentDocsId, @Valid @RequestBody WalletOperationRequest request) {
+        StudentWallet wallet = studentWalletService.creditWallet(studentDocsId, request.getAmount(), request.getRemarks());
         return ResponseEntity.ok(wallet);
     }
 
-    @PostMapping("/student/{studentId}/debit")
-    public ResponseEntity<StudentWallet> debitWallet(@PathVariable String studentId, @Valid @RequestBody WalletOperationRequest request) {
-        StudentWallet wallet = studentWalletService.debitWallet(studentId, request.getAmount(), request.getRemarks());
+    @PostMapping("/student/{studentDocsId}/debit")
+    public ResponseEntity<StudentWallet> debitWallet(@PathVariable String studentDocsId, @Valid @RequestBody WalletOperationRequest request) {
+        StudentWallet wallet = studentWalletService.debitWallet(studentDocsId, request.getAmount(), request.getRemarks());
         return ResponseEntity.ok(wallet);
     }
 
-    @GetMapping("/student/{studentId}/transactions")
-    public ResponseEntity<List<WalletTransaction>> getTransactionsByStudent(@PathVariable String studentId) {
-        List<WalletTransaction> transactions = walletTransactionService.getTransactionsByStudent(studentId);
+    @GetMapping("/student/{studentDocsId}/transactions")
+    public ResponseEntity<List<WalletTransaction>> getTransactionsByStudent(@PathVariable String studentDocsId) {
+        List<WalletTransaction> transactions = walletTransactionService.getTransactionsByStudent(studentDocsId);
         return ResponseEntity.ok(transactions);
     }
 

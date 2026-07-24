@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +20,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import com.mongodb.client.result.UpdateResult;
-import com.orbitastra.backend.models.crm.Inquiry;
 
 @ExtendWith(MockitoExtension.class)
 class InquiryFieldMigrationTest {
@@ -30,26 +31,30 @@ class InquiryFieldMigrationTest {
     private UpdateResult updateResult;
 
     @InjectMocks
-    private InquiryFieldMigration migration;
+    private ProjectFieldNamingMigration migration;
 
     @Test
-    void migrateInquiryFields_renamesOnlyWhenNewFieldIsMissing() {
-        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(Inquiry.class)))
+    void inquiryCounselorRename_isIdempotentAndNonOverwriting() {
+        when(mongoTemplate.updateMulti(
+                any(Query.class), any(Update.class), eq("inquiries")))
                 .thenReturn(updateResult);
         when(updateResult.getModifiedCount()).thenReturn(1L);
 
-        migration.migrateInquiryFields();
+        migration.renameWhenTargetMissing(
+                new ProjectFieldNamingMigration.FieldRename(
+                        "inquiries", "counselorId", "counselorDocsId"));
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).updateMulti(
-                queryCaptor.capture(), updateCaptor.capture(), eq(Inquiry.class));
+                queryCaptor.capture(), updateCaptor.capture(), eq("inquiries"));
 
-        assertEquals(Document.parse(
-                        "{\"$and\":[{\"counselorId\":{\"$exists\":true}},"
-                                + "{\"counselorDocsId\":{\"$exists\":false}}]}"),
+        assertEquals(new Document("$and", List.of(
+                new Document("counselorId", new Document("$exists", true)),
+                new Document("counselorDocsId", new Document("$exists", false)))),
                 queryCaptor.getValue().getQueryObject());
-        assertEquals(Document.parse("{\"$rename\":{\"counselorId\":\"counselorDocsId\"}}"),
+        assertEquals(new Document("$rename", new Document(
+                "counselorId", "counselorDocsId")),
                 updateCaptor.getValue().getUpdateObject());
     }
 }

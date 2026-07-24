@@ -30,7 +30,7 @@ public class IdCard extends SchoolBase {
 
     private String cardType; // Student, Staff, Parent
 
-    private String holderId;
+    private String holderDocsId;
 
     private String holderName;
 

@@ -33,7 +33,7 @@ import {
 export default function ModStudentMaster({ user }) {
   const { addToast } = useToast();
   const [students, setStudents] = useState(getStudents());
-  const [selectedStudentId, setSelectedStudentId] = useState("student-1");
+  const [selectedStudentDocsId, setSelectedStudentDocsId] = useState("student-1");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("personal");
   const [currentStudent, setCurrentStudent] = useState(null);
@@ -47,28 +47,28 @@ export default function ModStudentMaster({ user }) {
 
     const list = getStudents();
     setStudents(list);
-    const match = list.find((s) => s.id === selectedStudentId);
+    const match = list.find((s) => s.id === selectedStudentDocsId);
     if (match) {
       setCurrentStudent(match);
     } else if (list.length > 0) {
       setCurrentStudent(list[0]);
-      setSelectedStudentId(list[0].id);
+      setSelectedStudentDocsId(list[0].id);
     }
     return () => { isMounted = false; };
-  }, [selectedStudentId]);
+  }, [selectedStudentDocsId]);
   const filteredStudents = students.filter(
-    (st) => st.name.toLowerCase().includes(searchTerm.toLowerCase()) || st.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    (st) => st.name.toLowerCase().includes(searchTerm.toLowerCase()) || st.admissionNo.toLowerCase().includes(searchTerm.toLowerCase())
   );
   if (!currentStudent) {
     return <div className="p-8 text-center bg-white rounded-3xl border border-slate-100 text-slate-400 font-medium">
         No students registered in LocalStorage. Please use the admissions desk.
       </div>;
   }
-  const studentInvoices = getFees().filter((inv) => inv.studentId === currentStudent.id);
-  const studentTransactions = getTransactions().filter((tx) => tx.studentId === currentStudent.id);
-  const studentAttendance = getAttendance().filter((record) => record.personId === currentStudent.id);
-  const studentViolations = getDiscipline().filter((viol) => viol.studentId === currentStudent.id);
-  const studentResults = getResults().filter((res) => res.studentId === currentStudent.id);
+  const studentInvoices = getFees().filter((inv) => inv.studentDocsId === currentStudent.id);
+  const studentTransactions = getTransactions().filter((tx) => tx.studentDocsId === currentStudent.id);
+  const studentAttendance = getAttendance().filter((record) => record.personDocsId === currentStudent.id);
+  const studentViolations = getDiscipline().filter((viol) => viol.studentDocsId === currentStudent.id);
+  const studentResults = getResults().filter((res) => res.studentDocsId === currentStudent.id);
   const formatCurrency = (val) => `$${Number(val).toLocaleString()}`;
   const handleUpdateDoctorLog = (newLogs) => {
     const freshStudents = getStudents();
@@ -104,10 +104,10 @@ export default function ModStudentMaster({ user }) {
 
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scroller-hidden">
           {filteredStudents.length === 0 ? <p className="text-xs text-center text-slate-400 py-6 font-medium">No records found</p> : filteredStudents.map((st) => {
-    const active = st.id === selectedStudentId;
+    const active = st.id === selectedStudentDocsId;
     return <button
       key={st.id}
-      onClick={() => setSelectedStudentId(st.id)}
+      onClick={() => setSelectedStudentDocsId(st.id)}
       className={`w-full text-left p-3 rounded-2xl border transition flex items-center justify-between pointer-events-auto cursor-pointer ${active ? "bg-indigo-50/50 border-indigo-200 text-indigo-900 shadow-xs" : "border-slate-100 hover:border-slate-200 text-slate-700 bg-slate-50/20"}`}
     >
                   <div className="flex items-center gap-2.5">
@@ -116,7 +116,7 @@ export default function ModStudentMaster({ user }) {
                     </div>
                     <div>
                       <p className="text-xs font-bold leading-tight line-clamp-1">{st.name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold tracking-wider leading-none mt-1">{st.admissionNumber}</p>
+                      <p className="text-[10px] text-slate-400 font-bold tracking-wider leading-none mt-1">{st.admissionNo}</p>
                     </div>
                   </div>
                   <span className="text-[9px] bg-white border border-slate-200/80 text-slate-500 font-bold px-1.5 py-0.5 rounded-md shrink-0 uppercase">
@@ -149,7 +149,7 @@ export default function ModStudentMaster({ user }) {
               </div>
               <p className="text-xs text-indigo-300 mt-1.5 font-semibold flex items-center gap-1.5 justify-center sm:justify-start">
                 <BookOpen className="h-3.5 w-3.5" />
-                {currentStudent.grade} | Admission ID: <span className="text-white font-black">{currentStudent.admissionNumber}</span>
+                {currentStudent.grade} | Admission ID: <span className="text-white font-black">{currentStudent.admissionNo}</span>
               </p>
             </div>
           </div>
@@ -333,11 +333,11 @@ export default function ModStudentMaster({ user }) {
                         </div>
                         <div>
                           <p className="text-[9px] text-indigo-500 uppercase font-black uppercase">Room Designation</p>
-                          <p className="font-bold text-indigo-805">Room {currentStudent.hostelRoomNumber}</p>
+                          <p className="font-bold text-indigo-805">Room {currentStudent.hostelRoomNo}</p>
                         </div>
                         <div>
                           <p className="text-[9px] text-indigo-500 uppercase font-black uppercase">Bunk Assignment</p>
-                          <p className="font-bold text-indigo-805">{currentStudent.hostelBedNumber}</p>
+                          <p className="font-bold text-indigo-805">{currentStudent.hostelBedNo}</p>
                         </div>
                       </div>
                     </div>

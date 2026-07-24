@@ -34,7 +34,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   const [editingItem, setEditingItem] = useState(null);
   const [homeworkAction, setHomeworkAction] = useState(null);
   const [homeworkActionForm, setHomeworkActionForm] = useState({
-    assignmentScope: 'CLASS', studentAssignments: [], studentId: '',
+    assignmentScope: 'CLASS', studentAssignments: [], studentDocsId: '',
     submissionText: '', submissionFileUrl: '', obtainedMarks: '', feedback: '',
   });
 
@@ -42,10 +42,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   const [attForm, setAttForm] = useState({
     schoolId: schoolId || '',
     academicYear: year || '',
-    studentId: '',
+    studentDocsId: '',
     date: new Date().toISOString().slice(0, 10),
     status: 'PRESENT',
-    presentBy: staff?.[0]?.id || ''
+    presentByDocsId: staff?.[0]?.id || ''
   });
 
   // 2. Homework Form
@@ -67,7 +67,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   const [resForm, setResForm] = useState({
     schoolId: schoolId || '',
     academicYear: year || '',
-    studentId: '',
+    studentDocsId: '',
     grade: '',
     examName: 'Midterm Exam',
     overallGrade: 'A',
@@ -81,7 +81,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   const [discForm, setDiscForm] = useState({
     schoolId: schoolId || '',
     academicYear: year || '',
-    studentId: '',
+    studentDocsId: '',
     violation: '',
     fineAmount: '',
     actionTaken: '',
@@ -91,7 +91,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   // 5. Medical Form
   const [medForm, setMedForm] = useState({
     schoolId: schoolId || '',
-    studentId: '',
+    studentDocsId: '',
     visitDate: new Date().toISOString().slice(0, 10),
     diagnosis: '',
     doctorName: '',
@@ -122,10 +122,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
       // Set default IDs for selects
       if (stList && stList.length > 0) {
-        setAttForm((f) => ({ ...f, studentId: stList[0].id }));
-        setResForm((f) => ({ ...f, studentId: stList[0].id }));
-        setDiscForm((f) => ({ ...f, studentId: stList[0].id }));
-        setMedForm((f) => ({ ...f, studentId: stList[0].id }));
+        setAttForm((f) => ({ ...f, studentDocsId: stList[0].id }));
+        setResForm((f) => ({ ...f, studentDocsId: stList[0].id }));
+        setDiscForm((f) => ({ ...f, studentDocsId: stList[0].id }));
+        setMedForm((f) => ({ ...f, studentDocsId: stList[0].id }));
       }
       if (clList && clList.length > 0) {
         setHwForm((f) => ({
@@ -199,10 +199,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setAttForm({
         schoolId: schoolId || '',
         academicYear: year || '',
-        studentId: students.length > 0 ? students[0].id : '',
+        studentDocsId: students.length > 0 ? students[0].id : '',
         date: new Date().toISOString().slice(0, 10),
         status: 'PRESENT',
-        presentBy: staff?.[0]?.id || ''
+        presentByDocsId: staff?.[0]?.id || ''
       });
     } else if (subTab === 'homework') {
       setHwForm({
@@ -222,7 +222,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setResForm({
         schoolId: schoolId || '',
         academicYear: year || '',
-        studentId: students.length > 0 ? students[0].id : '',
+        studentDocsId: students.length > 0 ? students[0].id : '',
         grade: '',
         examName: 'Midterm Exam',
         overallGrade: 'A',
@@ -234,7 +234,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setDiscForm({
         schoolId: schoolId || '',
         academicYear: year || '',
-        studentId: students.length > 0 ? students[0].id : '',
+        studentDocsId: students.length > 0 ? students[0].id : '',
         violation: '',
         fineAmount: '',
         actionTaken: '',
@@ -243,7 +243,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     } else if (subTab === 'medical') {
       setMedForm({
         schoolId: schoolId || '',
-        studentId: students.length > 0 ? students[0].id : '',
+        studentDocsId: students.length > 0 ? students[0].id : '',
         visitDate: new Date().toISOString().slice(0, 10),
         diagnosis: '',
         doctorName: '',
@@ -256,7 +256,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 1. Attendance Submit
   const submitAttendance = async () => {
-    if (!attForm.studentId || !attForm.date) {
+    if (!attForm.studentDocsId || !attForm.date) {
       toast.error("Student and Date are required.");
       return;
     }
@@ -297,7 +297,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         teacherDocsId: hwForm.teacherDocsId || null,
         maxMarks: hwForm.maxMarks ? parseInt(hwForm.maxMarks) : null,
         studentAssignments: hwForm.studentAssignments.map((assignment) => ({
-          studentId: assignment.studentId,
+          studentDocsId: assignment.studentDocsId,
           customInstructions: assignment.customInstructions || null,
         })),
       };
@@ -339,9 +339,9 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     setHomeworkActionForm({
       assignmentScope: item.assignmentScope || 'CLASS',
       studentAssignments: (item.studentAssignments || []).map((assignment) => ({
-        studentId: assignment.studentId || '', customInstructions: assignment.customInstructions || '',
+        studentDocsId: assignment.studentDocsId || '', customInstructions: assignment.customInstructions || '',
       })),
-      studentId: students[0]?.id || '', submissionText: '', submissionFileUrl: '', obtainedMarks: '', feedback: '',
+      studentDocsId: students[0]?.id || '', submissionText: '', submissionFileUrl: '', obtainedMarks: '', feedback: '',
     });
   };
 
@@ -352,14 +352,14 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
         await api.assignHomework(homeworkAction.id, homeworkActionForm.assignmentScope, homeworkActionForm.studentAssignments);
         toast.success('Homework assignment payload accepted.');
       } else if (kind === 'submit') {
-        if (!homeworkActionForm.studentId) throw new Error('Choose the student path parameter.');
-        await api.submitHomework(homeworkAction.id, homeworkActionForm.studentId, homeworkActionForm.submissionText || null, homeworkActionForm.submissionFileUrl || null);
+        if (!homeworkActionForm.studentDocsId) throw new Error('Choose the student path parameter.');
+        await api.submitHomework(homeworkAction.id, homeworkActionForm.studentDocsId, homeworkActionForm.submissionText || null, homeworkActionForm.submissionFileUrl || null);
         toast.success('Homework submission payload accepted.');
       } else {
-        if (!homeworkActionForm.studentId) throw new Error('Choose the student path parameter.');
+        if (!homeworkActionForm.studentDocsId) throw new Error('Choose the student path parameter.');
         await api.gradeHomework(
           homeworkAction.id,
-          homeworkActionForm.studentId,
+          homeworkActionForm.studentDocsId,
           homeworkActionForm.obtainedMarks === '' ? null : parseInt(homeworkActionForm.obtainedMarks),
           homeworkActionForm.feedback || null,
         );
@@ -371,7 +371,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
   };
 
   const submitAcademicResult = async () => {
-    if (!resForm.studentId) {
+    if (!resForm.studentDocsId) {
       toast.error("Student is required.");
       return;
     }
@@ -412,7 +412,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 4. Discipline Log Submit
   const submitDisciplineLog = async () => {
-    if (!discForm.studentId) {
+    if (!discForm.studentDocsId) {
       toast.error("Student is required.");
       return;
     }
@@ -443,7 +443,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
   // 5. Medical Record Submit
   const submitMedicalRecord = async () => {
-    if (!medForm.studentId) {
+    if (!medForm.studentDocsId) {
       toast.error("Student is required.");
       return;
     }
@@ -499,10 +499,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setAttForm({
         schoolId: item.schoolId || schoolId || '',
         academicYear: item.academicYear || year || '',
-        studentId: item.studentId || '',
+        studentDocsId: item.studentDocsId || '',
         date: item.date || '',
         status: item.status || 'PRESENT',
-        presentBy: item.presentBy || staff?.[0]?.id || ''
+        presentByDocsId: item.presentByDocsId || staff?.[0]?.id || ''
       });
     } else if (subTab === 'homework') {
       setHwForm({
@@ -522,7 +522,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setResForm({
         schoolId: item.schoolId || schoolId || '',
         academicYear: item.academicYear || year || '',
-        studentId: item.studentId || '',
+        studentDocsId: item.studentDocsId || '',
         grade: item.grade || '',
         examName: item.examName || '',
         overallGrade: item.overallGrade || '',
@@ -534,7 +534,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
       setDiscForm({
         schoolId: item.schoolId || schoolId || '',
         academicYear: item.academicYear || year || '',
-        studentId: item.studentId || '',
+        studentDocsId: item.studentDocsId || '',
         violation: item.violation || '',
         fineAmount: item.fineAmount ? String(item.fineAmount) : '',
         actionTaken: item.actionTaken || '',
@@ -543,7 +543,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
     } else if (subTab === 'medical') {
       setMedForm({
         schoolId: item.schoolId || schoolId || '',
-        studentId: item.studentId || '',
+        studentDocsId: item.studentDocsId || '',
         visitDate: item.visitDate || '',
         diagnosis: item.diagnosis || '',
         doctorName: item.doctorName || '',
@@ -722,10 +722,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {attendance.map((it) => (
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentId)}</td>
+                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentDocsId)}</td>
                               <td className="px-4 py-3">{it.date ? new Date(it.date).toLocaleDateString() : '—'}</td>
                               <td className="px-4 py-3 font-mono text-[10px] text-slate-500">{it.currentAcademicRecordDocsId || '—'}</td>
-                              <td className="px-4 py-3 text-slate-400 font-medium">{it.presentBy || '—'}</td>
+                              <td className="px-4 py-3 text-slate-400 font-medium">{it.presentByDocsId || '—'}</td>
                               <td className="px-4 py-3 text-center">
                                 <Badge color={it.status === 'PRESENT' ? 'green' : it.status === 'ABSENT' ? 'rose' : 'amber'}>
                                   {it.status}
@@ -804,7 +804,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {results.map((it) => (
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentId)}</td>
+                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentDocsId)}</td>
                               <td className="px-4 py-3">{it.examName}</td>
                               <td className="px-4 py-3"><Badge color="green">{it.overallGrade || '—'}</Badge></td>
                               <td className="px-4 py-3 text-center font-mono font-bold text-slate-900">{it.totalPercentage ? `${it.totalPercentage}%` : '—'}</td>
@@ -849,7 +849,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {discipline.map((it) => (
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentId)}</td>
+                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentDocsId)}</td>
                               <td className="px-4 py-3 text-slate-400">{it.incidentDate ? new Date(it.incidentDate).toLocaleString() : '—'}</td>
                               <td className="px-4 py-3 text-slate-800 font-semibold">{it.violation}</td>
                               <td className="px-4 py-3 font-medium text-slate-600">{it.actionTaken || '—'}</td>
@@ -888,7 +888,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {medical.map((it) => (
                             <tr key={it.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentId)}</td>
+                              <td className="px-4 py-3 font-bold text-slate-900">{getStudentName(it.studentDocsId)}</td>
                               <td className="px-4 py-3 text-slate-400">{it.visitDate ? new Date(it.visitDate).toLocaleDateString() : '—'}</td>
                               <td className="px-4 py-3 font-semibold text-rose-800">{it.diagnosis}</td>
                               <td className="px-4 py-3 text-slate-600">{it.doctorName || 'School Nurse'}</td>
@@ -932,10 +932,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={attForm.schoolId} onChange={(e) => setAttForm({ ...attForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Academic Year" apiName="academicYear" required={false}><Input value={attForm.academicYear} onChange={(e) => setAttForm({ ...attForm, academicYear: e.target.value })} /></Field>
-                    <Field label="Select Student" apiName="studentId" required>
+                    <Field label="Select Student" apiName="studentDocsId" required>
                       <Select 
-                        value={attForm.studentId}
-                        onChange={(e) => setAttForm({...attForm, studentId: e.target.value})}
+                        value={attForm.studentDocsId}
+                        onChange={(e) => setAttForm({...attForm, studentDocsId: e.target.value})}
                       >
                         {students.map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
@@ -951,10 +951,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                           onChange={(e) => setAttForm({...attForm, date: e.target.value})}
                         />
                       </Field>
-                      <Field label="Recorded By" apiName="presentBy" required>
+                      <Field label="Recorded By" apiName="presentByDocsId" required>
                         <Select
-                          value={attForm.presentBy}
-                          onChange={(e) => setAttForm({...attForm, presentBy: e.target.value})}
+                          value={attForm.presentByDocsId}
+                          onChange={(e) => setAttForm({...attForm, presentByDocsId: e.target.value})}
                         >
                           <option value="">— select staff —</option>
                           {(staff || []).map((member) => (
@@ -978,7 +978,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitAttendance} disabled={busy || !attForm.studentId || !attForm.date || !attForm.presentBy}>
+                      <Button variant="primary" onClick={submitAttendance} disabled={busy || !attForm.studentDocsId || !attForm.date || !attForm.presentByDocsId}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Log' : 'Mark Log'}
                       </Button>
@@ -1093,12 +1093,12 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                     {!editingItem && <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-600">Student assignments <code className="font-mono text-[10px] font-medium text-slate-400">studentAssignments[]</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></span>
-                        <button type="button" onClick={() => setHwForm({ ...hwForm, studentAssignments: [...hwForm.studentAssignments, { studentId: '', customInstructions: '' }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
+                        <button type="button" onClick={() => setHwForm({ ...hwForm, studentAssignments: [...hwForm.studentAssignments, { studentDocsId: '', customInstructions: '' }] })} className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"><Plus size={11} /> Add</button>
                       </div>
                       {hwForm.studentAssignments.map((assignment, index) => (
                         <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                          <Select value={assignment.studentId} onChange={(e) => setHwForm({ ...hwForm, studentAssignments: hwForm.studentAssignments.map((item, i) => i === index ? { ...item, studentId: e.target.value } : item) })}>
-                            <option value="">studentId (required per row)</option>
+                          <Select value={assignment.studentDocsId} onChange={(e) => setHwForm({ ...hwForm, studentAssignments: hwForm.studentAssignments.map((item, i) => i === index ? { ...item, studentDocsId: e.target.value } : item) })}>
+                            <option value="">studentDocsId (required per row)</option>
                             {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
                           </Select>
                           <Input value={assignment.customInstructions} onChange={(e) => setHwForm({ ...hwForm, studentAssignments: hwForm.studentAssignments.map((item, i) => i === index ? { ...item, customInstructions: e.target.value } : item) })} placeholder="customInstructions" />
@@ -1130,10 +1130,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={resForm.schoolId} onChange={(e) => setResForm({ ...resForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Academic Year" apiName="academicYear" required={false}><Input value={resForm.academicYear} onChange={(e) => setResForm({ ...resForm, academicYear: e.target.value })} /></Field>
-                    <Field label="Select Student" apiName="studentId" required>
+                    <Field label="Select Student" apiName="studentDocsId" required>
                       <Select 
-                        value={resForm.studentId}
-                        onChange={(e) => setResForm({...resForm, studentId: e.target.value})}
+                        value={resForm.studentDocsId}
+                        onChange={(e) => setResForm({...resForm, studentDocsId: e.target.value})}
                       >
                         {students.map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
@@ -1217,7 +1217,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitAcademicResult} disabled={busy || !resForm.studentId}>
+                      <Button variant="primary" onClick={submitAcademicResult} disabled={busy || !resForm.studentDocsId}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Results' : 'Add Report'}
                       </Button>
@@ -1239,10 +1239,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={discForm.schoolId} onChange={(e) => setDiscForm({ ...discForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
                     <Field label="Academic Year" apiName="academicYear" required={false}><Input value={discForm.academicYear} onChange={(e) => setDiscForm({ ...discForm, academicYear: e.target.value })} /></Field>
-                    <Field label="Select Student" apiName="studentId" required>
+                    <Field label="Select Student" apiName="studentDocsId" required>
                       <Select 
-                        value={discForm.studentId}
-                        onChange={(e) => setDiscForm({...discForm, studentId: e.target.value})}
+                        value={discForm.studentDocsId}
+                        onChange={(e) => setDiscForm({...discForm, studentDocsId: e.target.value})}
                       >
                         {students.map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
@@ -1286,7 +1286,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitDisciplineLog} disabled={busy || !discForm.studentId}>
+                      <Button variant="primary" onClick={submitDisciplineLog} disabled={busy || !discForm.studentDocsId}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Log' : 'Register Incident'}
                       </Button>
@@ -1307,10 +1307,10 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
                 ) : (
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={medForm.schoolId} onChange={(e) => setMedForm({ ...medForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
-                    <Field label="Select Student" apiName="studentId" required>
+                    <Field label="Select Student" apiName="studentDocsId" required>
                       <Select 
-                        value={medForm.studentId}
-                        onChange={(e) => setMedForm({...medForm, studentId: e.target.value})}
+                        value={medForm.studentDocsId}
+                        onChange={(e) => setMedForm({...medForm, studentDocsId: e.target.value})}
                       >
                         {students.map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.admissionNo})</option>
@@ -1353,7 +1353,7 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
 
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                       {editingItem && <Button variant="default" onClick={handleCancelEdit}>Cancel</Button>}
-                      <Button variant="primary" onClick={submitMedicalRecord} disabled={busy || !medForm.studentId}>
+                      <Button variant="primary" onClick={submitMedicalRecord} disabled={busy || !medForm.studentDocsId}>
                         {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
                         {editingItem ? 'Save Record' : 'Log Visit'}
                       </Button>
@@ -1378,25 +1378,25 @@ export default function AcademicsScreen({ schoolId, years, year, staff, reload }
               <Card title="Assign" subtitle="POST /assign">
                 <div className="space-y-3">
                   <Field label="Assignment Scope" apiName="assignmentScope" required><Select value={homeworkActionForm.assignmentScope} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, assignmentScope: e.target.value })}>{['CLASS', 'GROUP', 'INDIVIDUAL'].map((scope) => <option key={scope} value={scope}>{scope}</option>)}</Select></Field>
-                  <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-600">studentAssignments[] <span className="text-[9px] uppercase text-slate-400">optional</span></span><button type="button" onClick={() => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: [...homeworkActionForm.studentAssignments, { studentId: '', customInstructions: '' }] })} className="text-[11px] text-blue-600 font-semibold"><Plus size={11} className="inline" /> Add</button></div>
-                  {homeworkActionForm.studentAssignments.map((assignment, index) => <div key={index} className="border border-slate-200 rounded-lg p-2 space-y-2"><Select value={assignment.studentId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.map((item, i) => i === index ? { ...item, studentId: e.target.value } : item) })}><option value="">studentId (required)</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select><div className="flex gap-1"><Input value={assignment.customInstructions} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.map((item, i) => i === index ? { ...item, customInstructions: e.target.value } : item) })} placeholder="customInstructions" className="flex-1" /><button onClick={() => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.filter((_, i) => i !== index) })} className="text-rose-500"><Trash2 size={13} /></button></div></div>)}
+                  <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-600">studentAssignments[] <span className="text-[9px] uppercase text-slate-400">optional</span></span><button type="button" onClick={() => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: [...homeworkActionForm.studentAssignments, { studentDocsId: '', customInstructions: '' }] })} className="text-[11px] text-blue-600 font-semibold"><Plus size={11} className="inline" /> Add</button></div>
+                  {homeworkActionForm.studentAssignments.map((assignment, index) => <div key={index} className="border border-slate-200 rounded-lg p-2 space-y-2"><Select value={assignment.studentDocsId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.map((item, i) => i === index ? { ...item, studentDocsId: e.target.value } : item) })}><option value="">studentDocsId (required)</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select><div className="flex gap-1"><Input value={assignment.customInstructions} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.map((item, i) => i === index ? { ...item, customInstructions: e.target.value } : item) })} placeholder="customInstructions" className="flex-1" /><button onClick={() => setHomeworkActionForm({ ...homeworkActionForm, studentAssignments: homeworkActionForm.studentAssignments.filter((_, i) => i !== index) })} className="text-rose-500"><Trash2 size={13} /></button></div></div>)}
                   <Button variant="primary" onClick={() => runHomeworkAction('assign')} disabled={busy} className="w-full justify-center">Send assign</Button>
                 </div>
               </Card>
-              <Card title="Submit" subtitle="POST /submit/{studentId}">
+              <Card title="Submit" subtitle="POST /submit/{studentDocsId}">
                 <div className="space-y-3">
-                  <Field label="Student (path)" required><Select value={homeworkActionForm.studentId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentId: e.target.value })}><option value="">— choose —</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select></Field>
+                  <Field label="Student (path)" required><Select value={homeworkActionForm.studentDocsId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentDocsId: e.target.value })}><option value="">— choose —</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select></Field>
                   <Field label="Submission Text" apiName="submissionText" required={false}><textarea value={homeworkActionForm.submissionText} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, submissionText: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg min-h-20" /></Field>
                   <Field label="Submission File URL" apiName="submissionFileUrl" required={false}><Input value={homeworkActionForm.submissionFileUrl} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, submissionFileUrl: e.target.value })} /></Field>
-                  <Button variant="primary" onClick={() => runHomeworkAction('submit')} disabled={busy || !homeworkActionForm.studentId} className="w-full justify-center">Send submission</Button>
+                  <Button variant="primary" onClick={() => runHomeworkAction('submit')} disabled={busy || !homeworkActionForm.studentDocsId} className="w-full justify-center">Send submission</Button>
                 </div>
               </Card>
-              <Card title="Grade" subtitle="POST /grade/{studentId}">
+              <Card title="Grade" subtitle="POST /grade/{studentDocsId}">
                 <div className="space-y-3">
-                  <Field label="Student (path)" required><Select value={homeworkActionForm.studentId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentId: e.target.value })}><option value="">— choose —</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select></Field>
+                  <Field label="Student (path)" required><Select value={homeworkActionForm.studentDocsId} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, studentDocsId: e.target.value })}><option value="">— choose —</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</Select></Field>
                   <Field label="Obtained Marks" apiName="obtainedMarks" required={false}><Input type="number" min="0" value={homeworkActionForm.obtainedMarks} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, obtainedMarks: e.target.value })} /></Field>
                   <Field label="Feedback" apiName="feedback" required={false}><textarea value={homeworkActionForm.feedback} onChange={(e) => setHomeworkActionForm({ ...homeworkActionForm, feedback: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg min-h-20" /></Field>
-                  <Button variant="primary" onClick={() => runHomeworkAction('grade')} disabled={busy || !homeworkActionForm.studentId} className="w-full justify-center">Send grade</Button>
+                  <Button variant="primary" onClick={() => runHomeworkAction('grade')} disabled={busy || !homeworkActionForm.studentDocsId} className="w-full justify-center">Send grade</Button>
                 </div>
               </Card>
             </div>

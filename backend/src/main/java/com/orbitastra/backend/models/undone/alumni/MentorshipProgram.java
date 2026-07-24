@@ -21,9 +21,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MentorshipProgram extends SchoolBase {
 
-    private String mentorAlumniId;
+    private String mentorAlumniDocsId;
 
-    private String studentId;
+    private String studentDocsId;
 
     private String studentName;
 

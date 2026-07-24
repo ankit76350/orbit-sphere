@@ -47,8 +47,8 @@ public class InquiryService {
         // Stamp any initial follow-up entries supplied on creation.
         for (InquiryFollowUp f : inquiry.getFollowUps()) {
             if (f.getStatus() == null) f.setStatus(InquiryStatus.INQUIRY);
-            if (f.getCounselorId() == null) f.setCounselorId(inquiry.getCounselorDocsId());
-            validateCounselor(f.getCounselorId(), inquiry.getSchoolId());
+            if (f.getCounselorDocsId() == null) f.setCounselorDocsId(inquiry.getCounselorDocsId());
+            validateCounselor(f.getCounselorDocsId(), inquiry.getSchoolId());
             validateNextFollowUpDate(f.getNextFollowUp());
             if (f.getRecordedAt() == null) f.setRecordedAt(now);
         }
@@ -56,7 +56,7 @@ public class InquiryService {
         if (!inquiry.getFollowUps().isEmpty()) {
             InquiryFollowUp last = inquiry.getFollowUps().get(inquiry.getFollowUps().size() - 1);
             inquiry.setStatus(last.getStatus());
-            if (last.getCounselorId() != null) inquiry.setCounselorDocsId(last.getCounselorId());
+            if (last.getCounselorDocsId() != null) inquiry.setCounselorDocsId(last.getCounselorDocsId());
         } else if (inquiry.getStatus() == null) {
             inquiry.setStatus(InquiryStatus.INQUIRY);
         }
@@ -135,10 +135,10 @@ public class InquiryService {
         if (entry.getStatus() == null) {
             entry.setStatus(inquiry.getStatus());
         }
-        if (entry.getCounselorId() == null) {
-            entry.setCounselorId(inquiry.getCounselorDocsId());
+        if (entry.getCounselorDocsId() == null) {
+            entry.setCounselorDocsId(inquiry.getCounselorDocsId());
         }
-        validateCounselor(entry.getCounselorId(), inquiry.getSchoolId());
+        validateCounselor(entry.getCounselorDocsId(), inquiry.getSchoolId());
         validateNextFollowUpDate(entry.getNextFollowUp());
         entry.setRecordedAt(LocalDateTime.now());
         if (inquiry.getFollowUps() == null) {
@@ -146,8 +146,8 @@ public class InquiryService {
         }
         inquiry.getFollowUps().add(entry);
         inquiry.setStatus(entry.getStatus());
-        if (entry.getCounselorId() != null) {
-            inquiry.setCounselorDocsId(entry.getCounselorId());
+        if (entry.getCounselorDocsId() != null) {
+            inquiry.setCounselorDocsId(entry.getCounselorDocsId());
         }
         handleAdmittedStatus(inquiry);
         inquiry.setUpdatedAt(LocalDateTime.now());
@@ -184,22 +184,22 @@ public class InquiryService {
      * already marked ADMITTED before its admission was linked.
      */
     @Transactional
-    public Inquiry linkAdmission(String inquiryId, String admissionId) {
-        if (admissionId == null || admissionId.isBlank()) {
+    public Inquiry linkAdmission(String inquiryDocsId, String admissionDocsId) {
+        if (admissionDocsId == null || admissionDocsId.isBlank()) {
             throw new IllegalArgumentException("Admission ID is required when linking an inquiry.");
         }
 
-        Inquiry inquiry = getInquiryById(inquiryId);
+        Inquiry inquiry = getInquiryById(inquiryDocsId);
         if (inquiry.getAdmissionDocsId() != null && !inquiry.getAdmissionDocsId().isBlank()
-                && !inquiry.getAdmissionDocsId().equals(admissionId)) {
-            throw new ConflictException("Inquiry " + inquiryId
+                && !inquiry.getAdmissionDocsId().equals(admissionDocsId)) {
+            throw new ConflictException("Inquiry " + inquiryDocsId
                     + " is already linked to admission " + inquiry.getAdmissionDocsId() + ".");
         }
 
         if (inquiry.getStatus() != InquiryStatus.ADMITTED) {
             applyAutomaticStatusChange(inquiry, InquiryStatus.ADMITTED);
         }
-        inquiry.setAdmissionDocsId(admissionId);
+        inquiry.setAdmissionDocsId(admissionDocsId);
         inquiry.setUpdatedAt(LocalDateTime.now());
         return inquiryRepository.save(inquiry);
     }
@@ -210,14 +210,14 @@ public class InquiryService {
      * transaction as the student and admission writes.
      */
     @Transactional
-    public Inquiry confirmEnrollment(String inquiryId, String admissionDocsId) {
+    public Inquiry confirmEnrollment(String inquiryDocsId, String admissionDocsId) {
         if (admissionDocsId == null || admissionDocsId.isBlank()) {
             throw new IllegalArgumentException("Admission ID is required when confirming enrollment.");
         }
-        Inquiry inquiry = getInquiryById(inquiryId);
+        Inquiry inquiry = getInquiryById(inquiryDocsId);
         if (inquiry.getAdmissionDocsId() != null && !inquiry.getAdmissionDocsId().isBlank()
                 && !inquiry.getAdmissionDocsId().equals(admissionDocsId)) {
-            throw new ConflictException("Inquiry " + inquiryId
+            throw new ConflictException("Inquiry " + inquiryDocsId
                     + " is already linked to admission " + inquiry.getAdmissionDocsId() + ".");
         }
         if (inquiry.getStatus() == InquiryStatus.LOST) {
@@ -230,7 +230,7 @@ public class InquiryService {
             inquiry.getFollowUps().add(InquiryFollowUp.builder()
                     .status(InquiryStatus.CONFIRMED)
                     .note("Enrollment confirmed from admission " + admissionDocsId)
-                    .counselorId(inquiry.getCounselorDocsId())
+                    .counselorDocsId(inquiry.getCounselorDocsId())
                     .recordedAt(LocalDateTime.now())
                     .build());
             inquiry.setStatus(InquiryStatus.CONFIRMED);
@@ -269,7 +269,7 @@ public class InquiryService {
         inquiry.getFollowUps().add(InquiryFollowUp.builder()
                 .status(target)
                 .note("Auto-advanced to " + target)
-                .counselorId(inquiry.getCounselorDocsId())
+                .counselorDocsId(inquiry.getCounselorDocsId())
                 .recordedAt(LocalDateTime.now())
                 .build());
         inquiry.setStatus(target);

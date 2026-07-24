@@ -267,43 +267,43 @@ export function generateStudents() {
     const hostelOptIn = i % 5 !== 0;
     const transportOptIn = !hostelOptIn || i % 8 === 0;
     const admissionNum = `STJ2025-${1e3 + i}`;
-    const studentId = `student-${i}`;
+    const studentDocsId = `student-${i}`;
     let hostelBuilding;
     let hostelFloor;
-    let hostelRoomNumber;
-    let hostelBedNumber;
+    let hostelRoomNo;
+    let hostelBedNo;
     if (hostelOptIn) {
       if (gender === "Male") {
         hostelBuilding = "Vanguard Hall (Boys)";
         hostelFloor = i % 2 === 0 ? "Floor 1" : "Floor 2";
         const rn = 100 + i % 15;
-        hostelRoomNumber = String(rn);
-        hostelBedNumber = `Bed-${i % 4 + 1}`;
+        hostelRoomNo = String(rn);
+        hostelBedNo = `Bed-${i % 4 + 1}`;
       } else {
         hostelBuilding = "Seraphina House (Girls)";
         hostelFloor = i % 2 === 0 ? "Floor 1" : "Floor 2";
         const rn = 200 + i % 15;
-        hostelRoomNumber = String(rn);
-        hostelBedNumber = `Bed-${i % 4 + 1}`;
+        hostelRoomNo = String(rn);
+        hostelBedNo = `Bed-${i % 4 + 1}`;
       }
     }
     let transportRoute;
     let transportStop;
-    let transportVehicleNumber;
+    let transportVehicleNo;
     if (transportOptIn) {
       const routes = ["Route Alpha (North)", "Route Beta (Metro)", "Route Gamma (South Peaks)"];
       const stops = ["Civic Center", "Grand Station Square", "Westway Cross", "Lakeside Junction"];
       const vehicles = ["BUS-402X", "BUS-110A", "COACH-77Y"];
       transportRoute = routes[i % routes.length];
       transportStop = stops[i % stops.length];
-      transportVehicleNumber = vehicles[i % vehicles.length];
+      transportVehicleNo = vehicles[i % vehicles.length];
     }
     const bloodGroups = ["O+", "A+", "B+", "AB+", "O-", "A-"];
     const allergies = [["Peanuts", "Penicillin"], [], ["Sulfonamides"], ["Gluten"], [], [], []];
     const conditions = [["Mild Asthma"], [], [], ["Lactose Intolerant"], [], [], []];
     list.push({
-      id: studentId,
-      admissionNumber: admissionNum,
+      id: studentDocsId,
+      admissionNo: admissionNum,
       name: `${fn} ${ln}`,
       gradeIndex: gradeIndex + 6,
       grade,
@@ -319,7 +319,7 @@ export function generateStudents() {
       parentName: `${randomItem(firstNames)} ${ln}`,
       parentEmail: `${fn.toLowerCase()}.${ln.toLowerCase()}.parent@gmail.com`,
       parentPhone: `+1 (555) 601-${randomRange(100, 999)}2`,
-      parentId: `parent-${i}`,
+      parentDocsId: `parent-${i}`,
       // Linked login ID
       address: `${randomRange(100, 999)} Whispering Pines Road, Cityville`,
       joinedDate: "2025-08-20",
@@ -327,11 +327,11 @@ export function generateStudents() {
       transportOptIn,
       hostelBuilding,
       hostelFloor,
-      hostelRoomNumber,
-      hostelBedNumber,
+      hostelRoomNo,
+      hostelBedNo,
       transportRoute,
       transportStop,
-      transportVehicleNumber,
+      transportVehicleNo,
       walletBalance: randomRange(50, 450),
       medicalBloodGroup: randomItem(bloodGroups),
       medicalAllergies: randomItem(allergies),
@@ -347,16 +347,16 @@ export function generateHostels(students) {
   for (let roomNo = 101; roomNo <= 112; roomNo++) {
     const floorNum = roomNo >= 110 ? "Floor 2" : "Floor 1";
     const beds = [
-      { bedNumber: "Bed-1", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-2", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-3", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-4", studentId: null, studentName: void 0 }
+      { bedNo: "Bed-1", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-2", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-3", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-4", studentDocsId: null, studentName: void 0 }
     ];
     rooms.push({
       id: `room-boys-${roomNo}`,
       buildingName: "Vanguard Hall (Boys)",
       floor: floorNum,
-      roomNumber: String(roomNo),
+      roomNo: String(roomNo),
       capacity: 4,
       gender: "Boys",
       beds
@@ -365,30 +365,30 @@ export function generateHostels(students) {
   for (let roomNo = 201; roomNo <= 212; roomNo++) {
     const floorNum = roomNo >= 210 ? "Floor 2" : "Floor 1";
     const beds = [
-      { bedNumber: "Bed-1", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-2", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-3", studentId: null, studentName: void 0 },
-      { bedNumber: "Bed-4", studentId: null, studentName: void 0 }
+      { bedNo: "Bed-1", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-2", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-3", studentDocsId: null, studentName: void 0 },
+      { bedNo: "Bed-4", studentDocsId: null, studentName: void 0 }
     ];
     rooms.push({
       id: `room-girls-${roomNo}`,
       buildingName: "Seraphina House (Girls)",
       floor: floorNum,
-      roomNumber: String(roomNo),
+      roomNo: String(roomNo),
       capacity: 4,
       gender: "Girls",
       beds
     });
   }
-  const hostelStudents = students.filter((s) => s.hostelOptIn && s.hostelRoomNumber && s.hostelBedNumber);
+  const hostelStudents = students.filter((s) => s.hostelOptIn && s.hostelRoomNo && s.hostelBedNo);
   hostelStudents.forEach((st) => {
     const room = rooms.find(
-      (r) => r.buildingName === st.hostelBuilding && r.roomNumber === st.hostelRoomNumber
+      (r) => r.buildingName === st.hostelBuilding && r.roomNo === st.hostelRoomNo
     );
     if (room) {
-      const bed = room.beds.find((b) => b.bedNumber === st.hostelBedNumber);
+      const bed = room.beds.find((b) => b.bedNo === st.hostelBedNo);
       if (bed) {
-        bed.studentId = st.id;
+        bed.studentDocsId = st.id;
         bed.studentName = st.name;
       }
     }
@@ -497,7 +497,7 @@ export function generateWalletTransactions(students) {
     if (!st) continue;
     trans.push({
       id: `tx-${i}-1`,
-      studentId: st.id,
+      studentDocsId: st.id,
       studentName: st.name,
       type: "Credit",
       category: "Parent Topup",
@@ -507,7 +507,7 @@ export function generateWalletTransactions(students) {
     });
     trans.push({
       id: `tx-${i}-2`,
-      studentId: st.id,
+      studentDocsId: st.id,
       studentName: st.name,
       type: "Debit",
       category: "Store Purchase",
@@ -518,7 +518,7 @@ export function generateWalletTransactions(students) {
     if (i % 6 === 0) {
       trans.push({
         id: `tx-${i}-3`,
-        studentId: st.id,
+        studentDocsId: st.id,
         studentName: st.name,
         type: "Debit",
         category: "Fine Deduction",
@@ -538,7 +538,7 @@ export function generateFeeInvoices(students) {
     const isPartialTuition = idx % 3 === 1;
     invoices.push({
       id: `inv-tuition-${idx + 1}`,
-      studentId: st.id,
+      studentDocsId: st.id,
       studentName: st.name,
       grade: st.grade,
       feeType: "Tuition Fee",
@@ -551,9 +551,9 @@ export function generateFeeInvoices(students) {
         { dueDate: "2026-09-15", amount: 2250, paid: isPaidTuition }
       ],
       paymentHistory: isPaidTuition ? [
-        { date: "2026-05-10", amount: tuitionAmount, method: "Bank Transfer", receiptNumber: `REC-${1204 + idx}` }
+        { date: "2026-05-10", amount: tuitionAmount, method: "Bank Transfer", receiptNo: `REC-${1204 + idx}` }
       ] : isPartialTuition ? [
-        { date: "2026-05-11", amount: 2250, method: "Online Wallet", receiptNumber: `REC-${1204 + idx}` }
+        { date: "2026-05-11", amount: 2250, method: "Online Wallet", receiptNo: `REC-${1204 + idx}` }
       ] : []
     });
     if (st.hostelOptIn) {
@@ -561,7 +561,7 @@ export function generateFeeInvoices(students) {
       const hostelPaid = idx % 2 === 0;
       invoices.push({
         id: `inv-hostel-${idx + 1}`,
-        studentId: st.id,
+        studentDocsId: st.id,
         studentName: st.name,
         grade: st.grade,
         feeType: "Hostel Fee",
@@ -570,7 +570,7 @@ export function generateFeeInvoices(students) {
         dueDate: "2026-06-10",
         status: hostelPaid ? "Paid" : "Unpaid",
         paymentHistory: hostelPaid ? [
-          { date: "2026-05-12", amount: hostelAmount, method: "Online Wallet", receiptNumber: `REC-${4839 + idx}` }
+          { date: "2026-05-12", amount: hostelAmount, method: "Online Wallet", receiptNo: `REC-${4839 + idx}` }
         ] : []
       });
     }
@@ -579,7 +579,7 @@ export function generateFeeInvoices(students) {
       const transPaid = idx % 4 !== 0;
       invoices.push({
         id: `inv-trans-${idx + 1}`,
-        studentId: st.id,
+        studentDocsId: st.id,
         studentName: st.name,
         grade: st.grade,
         feeType: "Transport Fee",
@@ -588,7 +588,7 @@ export function generateFeeInvoices(students) {
         dueDate: "2026-06-15",
         status: transPaid ? "Paid" : "Unpaid",
         paymentHistory: transPaid ? [
-          { date: "2026-05-14", amount: transAmount, method: "Card", receiptNumber: `REC-${7710 + idx}` }
+          { date: "2026-05-14", amount: transAmount, method: "Card", receiptNo: `REC-${7710 + idx}` }
         ] : []
       });
     }
@@ -609,7 +609,7 @@ export function generateDisciplineViolations(students) {
     const viol = violations[i % violations.length];
     list.push({
       id: `violation-${i + 1}`,
-      studentId: student.id,
+      studentDocsId: student.id,
       studentName: student.name,
       violationType: viol.type,
       severity: viol.severity,
@@ -677,7 +677,7 @@ export const mockTimetableEvents = [
 export const mockHomework = [
   {
     id: "hw-1",
-    classId: "class-7a",
+    classDocsId: "class-7a",
     className: "Grade 7-A Pioneers",
     subject: "Mathematics",
     title: "Algebraic Identities and factoring quadratics",
@@ -687,7 +687,7 @@ export const mockHomework = [
   },
   {
     id: "hw-2",
-    classId: "class-7a",
+    classDocsId: "class-7a",
     className: "Grade 7-A Pioneers",
     subject: "Classical Physics",
     title: "Kinetic energy vs heat equations worksheet",
@@ -697,7 +697,7 @@ export const mockHomework = [
   },
   {
     id: "hw-3",
-    classId: "class-12s",
+    classDocsId: "class-12s",
     className: "Grade 12-Science Elite",
     subject: "Inorganic Chemistry",
     title: "D-block metal elements transitions and complex stability catalysts",
@@ -723,7 +723,7 @@ export function generateAcademicResults(students) {
       else if (pct >= 60) overallGrade = "C";
       cards.push({
         id: `res-midterm-${idx + 1}`,
-        studentId: st.id,
+        studentDocsId: st.id,
         studentName: st.name,
         grade: st.grade,
         examName: "Midterm 2026",
@@ -751,7 +751,7 @@ export function generateAttendanceHistory(students, staff) {
       logs.push({
         id: `att-stud-${st.id}-${day}`,
         type: "Student Attendance",
-        personId: st.id,
+        personDocsId: st.id,
         personName: st.name,
         date: day,
         status: statusValue,
@@ -764,7 +764,7 @@ export function generateAttendanceHistory(students, staff) {
       logs.push({
         id: `att-night-${st.id}-${day}`,
         type: "Night Attendance",
-        personId: st.id,
+        personDocsId: st.id,
         personName: st.name,
         date: day,
         status: statusValue,
@@ -777,7 +777,7 @@ export function generateAttendanceHistory(students, staff) {
       logs.push({
         id: `att-staff-${sf.id}-${day}`,
         type: "Staff Attendance",
-        personId: sf.id,
+        personDocsId: sf.id,
         personName: sf.name,
         date: day,
         status: statusValue,
@@ -797,18 +797,18 @@ export const initialInventory = [
   { id: "inv-item-7", itemName: "Double-Bunk Wool Blanket (Grey)", category: "Bedding", stock: 40, minAlertStock: 10, unitPrice: 35, supplier: "Loom & Thread Co", supplierContact: "sales@loomandthread.com" }
 ];
 export const initialRoutes = [
-  { id: "tr-1", routeCode: "RT-ALPHA", routeName: "North Foothills Corridor", stops: ["Pines Terminal", "Whispering Valley Gate", "Cedar Falls Hub", "Academic Gate"], vehicleNumber: "BUS-402X", driverName: "Harlan Coben", driverPhone: "555-092-2281" },
-  { id: "tr-2", routeCode: "RT-BETA", routeName: "Metro High Transit Link", stops: ["Union Grand Station", "West Side Crossing", "Oak Creek Green", "Sandalwood Gate"], vehicleNumber: "COACH-77Y", driverName: "Donald Sutherland", driverPhone: "555-882-9382" },
-  { id: "tr-3", routeCode: "RT-GAMMA", routeName: "Southern Lakeshore Loop", stops: ["Marine Crest Parade", "Lakeside Esplanade", "Shady Grove Turn", "Athletic Complex Gate"], vehicleNumber: "BUS-110A", driverName: "Winston Churchill", driverPhone: "555-103-9122" }
+  { id: "tr-1", routeNo: "RT-ALPHA", routeName: "North Foothills Corridor", stops: ["Pines Terminal", "Whispering Valley Gate", "Cedar Falls Hub", "Academic Gate"], vehicleNo: "BUS-402X", driverName: "Harlan Coben", driverPhone: "555-092-2281" },
+  { id: "tr-2", routeNo: "RT-BETA", routeName: "Metro High Transit Link", stops: ["Union Grand Station", "West Side Crossing", "Oak Creek Green", "Sandalwood Gate"], vehicleNo: "COACH-77Y", driverName: "Donald Sutherland", driverPhone: "555-882-9382" },
+  { id: "tr-3", routeNo: "RT-GAMMA", routeName: "Southern Lakeshore Loop", stops: ["Marine Crest Parade", "Lakeside Esplanade", "Shady Grove Turn", "Athletic Complex Gate"], vehicleNo: "BUS-110A", driverName: "Winston Churchill", driverPhone: "555-103-9122" }
 ];
 export const initialVisitors = [
-  { id: "vlog-1", visitorName: "Margaret Thatcher", relationship: "Mother", studentId: "student-2", studentName: "Noah Johnson", entryTime: "2026-05-28 14:30", exitTime: "2026-05-28 16:15", purpose: "Delivering winter boarding garments." },
-  { id: "vlog-2", visitorName: "Arthur Dent", relationship: "Uncle", studentId: "student-4", studentName: "James Brown", entryTime: "2026-05-29 11:00", exitTime: "2026-05-29 13:00", purpose: "Weekend lunch pick-up authorization." }
+  { id: "vlog-1", visitorName: "Margaret Thatcher", relationship: "Mother", studentDocsId: "student-2", studentName: "Noah Johnson", entryTime: "2026-05-28 14:30", exitTime: "2026-05-28 16:15", purpose: "Delivering winter boarding garments." },
+  { id: "vlog-2", visitorName: "Arthur Dent", relationship: "Uncle", studentDocsId: "student-4", studentName: "James Brown", entryTime: "2026-05-29 11:00", exitTime: "2026-05-29 13:00", purpose: "Weekend lunch pick-up authorization." }
 ];
 export const initialOutPasses = [
-  { id: "op-1", studentId: "student-3", studentName: "Oliver Williams", parentName: "Thomas Williams", reason: "Orthodontist dental crown alignment appointment in metropolis.", leaveDate: "2026-06-03 08:00", returnDate: "2026-06-03 17:00", status: "Approved", approvedBy: "Warden Brody" },
-  { id: "op-2", studentId: "student-5", studentName: "Elijah Jones", parentName: "Willa Jones", reason: "Attending elder sister's wedding rehearsal dinner banquet.", leaveDate: "2026-06-05 15:00", returnDate: "2026-06-07 19:00", status: "Pending Warden" },
-  { id: "op-3", studentId: "student-7", studentName: "Henry Miller", parentName: "Gwen Miller", reason: "Family celebration brunch.", leaveDate: "2026-06-10 09:00", returnDate: "2026-06-10 16:00", status: "Pending Parent" }
+  { id: "op-1", studentDocsId: "student-3", studentName: "Oliver Williams", parentName: "Thomas Williams", reason: "Orthodontist dental crown alignment appointment in metropolis.", leaveDate: "2026-06-03 08:00", returnDate: "2026-06-03 17:00", status: "Approved", approvedByName: "Warden Brody" },
+  { id: "op-2", studentDocsId: "student-5", studentName: "Elijah Jones", parentName: "Willa Jones", reason: "Attending elder sister's wedding rehearsal dinner banquet.", leaveDate: "2026-06-05 15:00", returnDate: "2026-06-07 19:00", status: "Pending Warden" },
+  { id: "op-3", studentDocsId: "student-7", studentName: "Henry Miller", parentName: "Gwen Miller", reason: "Family celebration brunch.", leaveDate: "2026-06-10 09:00", returnDate: "2026-06-10 16:00", status: "Pending Parent" }
 ];
 export const initialAnnouncements = [
   { id: "ann-1", title: "Curfew Timing Adjustment for Pre-Exam Prep", content: "Pre-exam silence hours are strictly instituted from 08:30 PM. All hostel study desks must be active and lights in standard rooms dimmed by 10:15 PM.", target: "Hostel", date: "2026-05-28", sender: "Warden Marcus Brody" },
@@ -904,17 +904,17 @@ export const initialVehicles = [
 ];
 
 export const initialDrivers = [
-  { id: "drv-1", name: "Harlan Coben", phone: "555-092-2281", licenseNo: "DL-908234-A", licenseExpiry: "2026-06-25", vehicleId: "veh-1" },
-  { id: "drv-2", name: "Donald Sutherland", phone: "555-882-9382", licenseNo: "DL-381928-B", licenseExpiry: "2028-04-12", vehicleId: "veh-2" },
-  { id: "drv-3", name: "Winston Churchill", phone: "555-103-9122", licenseNo: "DL-120492-C", licenseExpiry: "2026-06-15", vehicleId: "veh-3" }
+  { id: "drv-1", name: "Harlan Coben", phone: "555-092-2281", licenseNo: "DL-908234-A", licenseExpiry: "2026-06-25", vehicleDocsId: "veh-1" },
+  { id: "drv-2", name: "Donald Sutherland", phone: "555-882-9382", licenseNo: "DL-381928-B", licenseExpiry: "2028-04-12", vehicleDocsId: "veh-2" },
+  { id: "drv-3", name: "Winston Churchill", phone: "555-103-9122", licenseNo: "DL-120492-C", licenseExpiry: "2026-06-15", vehicleDocsId: "veh-3" }
 ];
 
 export const initialTransportAllocations = [
-  { id: "alloc-1", studentId: "student-1", studentName: "Liam Smith", routeId: "tr-1", pickupStopName: "Pines Terminal", dropStopName: "Academic Gate", feeAmount: 120, startDate: "2025-08-20", status: "Active" },
-  { id: "alloc-2", studentId: "student-2", studentName: "Noah Johnson", routeId: "tr-1", pickupStopName: "Whispering Valley Gate", dropStopName: "Academic Gate", feeAmount: 100, startDate: "2025-08-20", status: "Active" },
-  { id: "alloc-3", studentId: "student-3", studentName: "Oliver Williams", routeId: "tr-2", pickupStopName: "Union Grand Station", dropStopName: "Sandalwood Gate", feeAmount: 150, startDate: "2025-08-20", status: "Active" },
-  { id: "alloc-4", studentId: "student-4", studentName: "James Brown", routeId: "tr-2", pickupStopName: "West Side Crossing", dropStopName: "Sandalwood Gate", feeAmount: 140, startDate: "2025-08-20", status: "Active" },
-  { id: "alloc-5", studentId: "student-5", studentName: "Elijah Jones", routeId: "tr-3", pickupStopName: "Marine Crest Parade", dropStopName: "Academic Gate", feeAmount: 110, startDate: "2025-08-20", status: "Active" }
+  { id: "alloc-1", studentDocsId: "student-1", studentName: "Liam Smith", routeDocsId: "tr-1", pickupStopName: "Pines Terminal", dropStopName: "Academic Gate", feeAmount: 120, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-2", studentDocsId: "student-2", studentName: "Noah Johnson", routeDocsId: "tr-1", pickupStopName: "Whispering Valley Gate", dropStopName: "Academic Gate", feeAmount: 100, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-3", studentDocsId: "student-3", studentName: "Oliver Williams", routeDocsId: "tr-2", pickupStopName: "Union Grand Station", dropStopName: "Sandalwood Gate", feeAmount: 150, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-4", studentDocsId: "student-4", studentName: "James Brown", routeDocsId: "tr-2", pickupStopName: "West Side Crossing", dropStopName: "Sandalwood Gate", feeAmount: 140, startDate: "2025-08-20", status: "Active" },
+  { id: "alloc-5", studentDocsId: "student-5", studentName: "Elijah Jones", routeDocsId: "tr-3", pickupStopName: "Marine Crest Parade", dropStopName: "Academic Gate", feeAmount: 110, startDate: "2025-08-20", status: "Active" }
 ];
 
 export const initialReviewCycles = [
@@ -950,19 +950,19 @@ export const initialAlumniEvents = [
 ];
 
 export const initialAlumniDonations = [
-  { id: "don-1", alumniId: "alum-1", campaignId: "camp-scholarship", amount: 1500, donationDate: "2026-04-12", paymentReference: "REF-908234-X" },
-  { id: "don-2", alumniId: "alum-2", campaignId: "camp-library", amount: 2500, donationDate: "2026-05-01", paymentReference: "REF-238492-Y" },
-  { id: "don-3", alumniId: "alum-4", campaignId: "camp-scholarship", amount: 500, donationDate: "2026-05-18", paymentReference: "REF-103942-Z" }
+  { id: "don-1", alumniDocsId: "alum-1", campaignDocsId: "camp-scholarship", amount: 1500, donationDate: "2026-04-12", paymentReference: "REF-908234-X" },
+  { id: "don-2", alumniDocsId: "alum-2", campaignDocsId: "camp-library", amount: 2500, donationDate: "2026-05-01", paymentReference: "REF-238492-Y" },
+  { id: "don-3", alumniDocsId: "alum-4", campaignDocsId: "camp-scholarship", amount: 500, donationDate: "2026-05-18", paymentReference: "REF-103942-Z" }
 ];
 
 export const initialMentorshipPrograms = [
-  { id: "ment-1", mentorAlumniId: "alum-1", studentId: "student-1", studentName: "Liam Smith", category: "Career Guidance", status: "Active", sessionDate: "2026-06-18" },
-  { id: "ment-2", mentorAlumniId: "alum-3", studentId: "student-2", studentName: "Noah Johnson", category: "College Admissions", status: "Completed", sessionDate: "2026-05-20" }
+  { id: "ment-1", mentorAlumniDocsId: "alum-1", studentDocsId: "student-1", studentName: "Liam Smith", category: "Career Guidance", status: "Active", sessionDate: "2026-06-18" },
+  { id: "ment-2", mentorAlumniDocsId: "alum-3", studentDocsId: "student-2", studentName: "Noah Johnson", category: "College Admissions", status: "Completed", sessionDate: "2026-05-20" }
 ];
 
 export const initialJobPostings = [
-  { id: "job-1", alumniId: "alum-1", title: "Software Engineering Internship", company: "Google", location: "San Francisco, CA", description: "Summer internship in Google Cloud systems. Requires foundational data structures proficiency and Python/Java skills.", expiryDate: "2026-08-30" },
-  { id: "job-2", alumniId: "alum-4", title: "Associate Product Manager", company: "Microsoft", location: "Redmond, WA", description: "Entry-level APM role focusing on cloud integrations and customer lifecycle tools.", expiryDate: "2026-09-15" }
+  { id: "job-1", alumniDocsId: "alum-1", title: "Software Engineering Internship", company: "Google", location: "San Francisco, CA", description: "Summer internship in Google Cloud systems. Requires foundational data structures proficiency and Python/Java skills.", expiryDate: "2026-08-30" },
+  { id: "job-2", alumniDocsId: "alum-4", title: "Associate Product Manager", company: "Microsoft", location: "Redmond, WA", description: "Entry-level APM role focusing on cloud integrations and customer lifecycle tools.", expiryDate: "2026-09-15" }
 ];
 
 export const initialDocumentTemplates = [
@@ -975,25 +975,25 @@ export const initialDocumentTemplates = [
 ];
 
 export const initialGeneratedDocuments = [
-  { id: "doc-1", documentNumber: "DOC-2026-0001", documentType: "Bonafide Certificate", entityId: "student-1", entityType: "Student", pdfUrl: "Bonafide_Liam_Smith.pdf", verificationCode: "VCODE-48293", generatedAt: "2026-06-01", status: "Valid" },
-  { id: "doc-2", documentNumber: "DOC-2026-0002", documentType: "Transfer Certificate", entityId: "student-2", entityType: "Student", pdfUrl: "TC_Noah_Johnson.pdf", verificationCode: "VCODE-10294", generatedAt: "2026-06-03", status: "Valid" },
-  { id: "doc-3", documentNumber: "DOC-2026-0003", documentType: "Salary Certificate", entityId: "staff-teacher-1", entityType: "Staff", pdfUrl: "Salary_Teacher_1.pdf", verificationCode: "VCODE-99081", generatedAt: "2026-06-05", status: "Valid" }
+  { id: "doc-1", documentNo: "DOC-2026-0001", documentType: "Bonafide Certificate", entityDocsId: "student-1", entityType: "Student", pdfUrl: "Bonafide_Liam_Smith.pdf", verificationCode: "VCODE-48293", generatedAt: "2026-06-01", status: "Valid" },
+  { id: "doc-2", documentNo: "DOC-2026-0002", documentType: "Transfer Certificate", entityDocsId: "student-2", entityType: "Student", pdfUrl: "TC_Noah_Johnson.pdf", verificationCode: "VCODE-10294", generatedAt: "2026-06-03", status: "Valid" },
+  { id: "doc-3", documentNo: "DOC-2026-0003", documentType: "Salary Certificate", entityDocsId: "staff-teacher-1", entityType: "Staff", pdfUrl: "Salary_Teacher_1.pdf", verificationCode: "VCODE-99081", generatedAt: "2026-06-05", status: "Valid" }
 ];
 
 export const initialIdCards = [
-  { id: "card-student-1", cardType: "Student", holderId: "student-1", holderName: "Liam Smith", details: "Grade 10 | Adm: STJ-1002", qrCode: "STJ-STUDENT-LIAM-SMITH", barcode: "10029384", issuedDate: "2026-01-10", expiryDate: "2027-06-30", status: "Active" },
-  { id: "card-staff-1", cardType: "Staff", holderId: "staff-teacher-1", holderName: "John Doe", details: "Teacher | Math Department", qrCode: "STJ-STAFF-JOHN-DOE", barcode: "90082348", issuedDate: "2026-01-10", expiryDate: "2028-12-31", status: "Active" },
-  { id: "card-parent-1", cardType: "Parent", holderId: "parent-1", holderName: "Margaret Thatcher", details: "Parent of Liam Smith", qrCode: "STJ-PARENT-MARGARET", barcode: "30082349", issuedDate: "2026-01-12", expiryDate: "2027-06-30", status: "Active" }
+  { id: "card-student-1", cardType: "Student", holderDocsId: "student-1", holderName: "Liam Smith", details: "Grade 10 | Adm: STJ-1002", qrCode: "STJ-STUDENT-LIAM-SMITH", barcode: "10029384", issuedDate: "2026-01-10", expiryDate: "2027-06-30", status: "Active" },
+  { id: "card-staff-1", cardType: "Staff", holderDocsId: "staff-teacher-1", holderName: "John Doe", details: "Teacher | Math Department", qrCode: "STJ-STAFF-JOHN-DOE", barcode: "90082348", issuedDate: "2026-01-10", expiryDate: "2028-12-31", status: "Active" },
+  { id: "card-parent-1", cardType: "Parent", holderDocsId: "parent-1", holderName: "Margaret Thatcher", details: "Parent of Liam Smith", qrCode: "STJ-PARENT-MARGARET", barcode: "30082349", issuedDate: "2026-01-12", expiryDate: "2027-06-30", status: "Active" }
 ];
 
 export const initialDocumentApprovals = [
-  { id: "appr-1", documentId: "doc-2", documentTitle: "Transfer Certificate (Noah Johnson)", requestorId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverId: "staff-principal", approverName: "Chloe Smith", status: "Approved", remarks: "All academic marks and clearance approved.", approvedAt: "2026-06-03" },
-  { id: "appr-2", documentId: "temp-doc-12", documentTitle: "Salary Increment Letter (John Doe)", requestorId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverId: "staff-principal", approverName: "Chloe Smith", status: "Pending", remarks: "Awaiting final review of HR appraisal parameters.", approvedAt: "" }
+  { id: "appr-1", documentDocsId: "doc-2", documentTitle: "Transfer Certificate (Noah Johnson)", requestorDocsId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverDocsId: "staff-principal", approverName: "Chloe Smith", status: "Approved", remarks: "All academic marks and clearance approved.", approvedAt: "2026-06-03" },
+  { id: "appr-2", documentDocsId: "temp-doc-12", documentTitle: "Salary Increment Letter (John Doe)", requestorDocsId: "staff-teacher-1", requestorName: "John Doe", requestorRole: "Teacher", approverDocsId: "staff-principal", approverName: "Chloe Smith", status: "Pending", remarks: "Awaiting final review of HR appraisal parameters.", approvedAt: "" }
 ];
 
 export const initialDocumentSignatures = [
-  { id: "sig-1", signerId: "staff-principal", signerName: "Chloe Smith", designation: "Principal", signatureUrl: "Principal_Signature_V3.png", active: true },
-  { id: "sig-2", signerId: "staff-accountant", signerName: "Liam Davies", designation: "Chief Accountant", signatureUrl: "Accountant_Signature_V2.png", active: true }
+  { id: "sig-1", signerDocsId: "staff-principal", signerName: "Chloe Smith", designation: "Principal", signatureUrl: "Principal_Signature_V3.png", active: true },
+  { id: "sig-2", signerDocsId: "staff-accountant", signerName: "Liam Davies", designation: "Chief Accountant", signatureUrl: "Accountant_Signature_V2.png", active: true }
 ];
 
 export const initialCameras = [
@@ -1016,34 +1016,34 @@ export const initialCameraGroups = [
 ];
 
 export const initialCameraAssignments = [
-  { id: "asg-1", cameraId: "cam-101", gradeId: "Grade 5", classId: "5-A", sectionId: "A" },
-  { id: "asg-2", cameraId: "cam-102", gradeId: "Grade 5", classId: "5-B", sectionId: "B" },
-  { id: "asg-3", cameraId: "cam-205", gradeId: "Grade 10", classId: "10-A", sectionId: "A" }
+  { id: "asg-1", cameraDocsId: "cam-101", gradeNo: "Grade 5", classNo: "5-A", sectionNo: "A" },
+  { id: "asg-2", cameraDocsId: "cam-102", gradeNo: "Grade 5", classNo: "5-B", sectionNo: "B" },
+  { id: "asg-3", cameraDocsId: "cam-205", gradeNo: "Grade 10", classNo: "10-A", sectionNo: "A" }
 ];
 
 export const initialSecurityIncidents = [
-  { id: "inc-1", cameraId: "cam-hst-2", incidentType: "Fight / Violence", severity: "Critical", description: "Altercation detected in B-Wing corridor between two senior pupils.", status: "Investigation", detectedAt: "2026-06-08 14:32:00" },
-  { id: "inc-2", cameraId: "cam-gate", incidentType: "Unauthorized Entry", severity: "High", description: "Tailgating event registered at vehicle access gate barrier.", status: "Resolved", detectedAt: "2026-06-09 09:15:00" },
-  { id: "inc-3", cameraId: "cam-hst-1", incidentType: "Suspicious Activity", severity: "Low", description: "Loitering behavior flagged at hostel rear access door past midnight.", status: "Alert", detectedAt: "2026-06-10 01:04:00" }
+  { id: "inc-1", cameraDocsId: "cam-hst-2", incidentType: "Fight / Violence", severity: "Critical", description: "Altercation detected in B-Wing corridor between two senior pupils.", status: "Investigation", detectedAt: "2026-06-08 14:32:00" },
+  { id: "inc-2", cameraDocsId: "cam-gate", incidentType: "Unauthorized Entry", severity: "High", description: "Tailgating event registered at vehicle access gate barrier.", status: "Resolved", detectedAt: "2026-06-09 09:15:00" },
+  { id: "inc-3", cameraDocsId: "cam-hst-1", incidentType: "Suspicious Activity", severity: "Low", description: "Loitering behavior flagged at hostel rear access door past midnight.", status: "Alert", detectedAt: "2026-06-10 01:04:00" }
 ];
 
 export const initialCameraRecordings = [
-  { id: "rec-1", cameraId: "cam-205", recordingUrl: "recording_class10a_0609.mp4", startTime: "2026-06-09 09:00:00", endTime: "2026-06-09 10:30:00" },
-  { id: "rec-2", cameraId: "cam-gate", recordingUrl: "recording_gate_0608.mp4", startTime: "2026-06-08 08:00:00", endTime: "2026-06-08 18:00:00" }
+  { id: "rec-1", cameraDocsId: "cam-205", recordingUrl: "recording_class10a_0609.mp4", startTime: "2026-06-09 09:00:00", endTime: "2026-06-09 10:30:00" },
+  { id: "rec-2", cameraDocsId: "cam-gate", recordingUrl: "recording_gate_0608.mp4", startTime: "2026-06-08 08:00:00", endTime: "2026-06-08 18:00:00" }
 ];
 
 export const initialOnlineClasses = [
-  { id: "class-1", subjectId: "Math", subjectName: "Grade 10 Mathematics", teacherId: "staff-teacher-1", teacherName: "John Doe", classId: "10-A", sectionId: "A", meetingLink: "https://meet.google.com/abc-defg-hij", date: "2026-06-12", startTime: "09:00", endTime: "10:00", status: "Upcoming" },
-  { id: "class-2", subjectId: "Science", subjectName: "Grade 10 Science", teacherId: "staff-teacher-1", teacherName: "John Doe", classId: "10-A", sectionId: "A", meetingLink: "https://meet.google.com/xyz-pdqk-wuv", date: "2026-06-10", startTime: "10:30", endTime: "11:30", status: "Live" },
-  { id: "class-3", subjectId: "History", subjectName: "Grade 5 History", teacherId: "staff-teacher-2", teacherName: "Jane Smith", classId: "5-A", sectionId: "A", meetingLink: "https://meet.google.com/mnp-qrst-uvw", date: "2026-06-09", startTime: "14:00", endTime: "15:00", status: "Completed" }
+  { id: "class-1", subjectNo: "Math", subjectName: "Grade 10 Mathematics", teacherDocsId: "staff-teacher-1", teacherName: "John Doe", classNo: "10-A", sectionNo: "A", meetingLink: "https://meet.google.com/abc-defg-hij", date: "2026-06-12", startTime: "09:00", endTime: "10:00", status: "Upcoming" },
+  { id: "class-2", subjectNo: "Science", subjectName: "Grade 10 Science", teacherDocsId: "staff-teacher-1", teacherName: "John Doe", classNo: "10-A", sectionNo: "A", meetingLink: "https://meet.google.com/xyz-pdqk-wuv", date: "2026-06-10", startTime: "10:30", endTime: "11:30", status: "Live" },
+  { id: "class-3", subjectNo: "History", subjectName: "Grade 5 History", teacherDocsId: "staff-teacher-2", teacherName: "Jane Smith", classNo: "5-A", sectionNo: "A", meetingLink: "https://meet.google.com/mnp-qrst-uvw", date: "2026-06-09", startTime: "14:00", endTime: "15:00", status: "Completed" }
 ];
 
 export const initialClassRecordings = [
-  { id: "rec-cls-3", classId: "class-3", recordingUrl: "https://storage.googleapis.com/stjude-classes/history_g5_0609.mp4", transcript: "Speaker 1 (Jane Smith): Welcome class. Today we discuss the origins of the Roman Republic, founded in 509 BC after the overthrow of the Roman monarchy. Speaker 2 (Liam Smith): Did they have elections back then? Speaker 1: Yes, the citizens elected their representatives, forming the early Senate.", summary: "Introduction to the Roman Republic. Key points: Founded in 509 BC, overthrow of monarchic rule, senate representation, and Roman citizen voting rights." }
+  { id: "rec-cls-3", classDocsId: "class-3", recordingUrl: "https://storage.googleapis.com/stjude-classes/history_g5_0609.mp4", transcript: "Speaker 1 (Jane Smith): Welcome class. Today we discuss the origins of the Roman Republic, founded in 509 BC after the overthrow of the Roman monarchy. Speaker 2 (Liam Smith): Did they have elections back then? Speaker 1: Yes, the citizens elected their representatives, forming the early Senate.", summary: "Introduction to the Roman Republic. Key points: Founded in 509 BC, overthrow of monarchic rule, senate representation, and Roman citizen voting rights." }
 ];
 
 export const initialAiNotes = [
-  { id: "note-cls-3", classId: "class-3", notesContent: "St. Jude's AI Notes Generator - Session G5 History. Key Concepts: Roman Republic. Important Dates: 509 BC (Republic Foundation). Definitions: Senate (Council of senior Roman representatives). Flashcards: 1. Q: When was Roman Republic founded? A: 509 BC. Mind Map: Early Rome -> Monarchy -> 509 BC Republic -> Senate -> Consuls.", generatedAt: "2026-06-09 15:15:00" }
+  { id: "note-cls-3", classDocsId: "class-3", notesContent: "St. Jude's AI Notes Generator - Session G5 History. Key Concepts: Roman Republic. Important Dates: 509 BC (Republic Foundation). Definitions: Senate (Council of senior Roman representatives). Flashcards: 1. Q: When was Roman Republic founded? A: 509 BC. Mind Map: Early Rome -> Monarchy -> 509 BC Republic -> Senate -> Consuls.", generatedAt: "2026-06-09 15:15:00" }
 ];
 
 export const initialGalleryAlbums = [
@@ -1053,10 +1053,9 @@ export const initialGalleryAlbums = [
 ];
 
 export const initialGalleryMedia = [
-  { id: "med-1", albumId: "alb-annual", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1511578314322-379afb476865" },
-  { id: "med-2", albumId: "alb-sports", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211" },
-  { id: "med-3", albumId: "alb-science", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf" }
+  { id: "med-1", albumDocsId: "alb-annual", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1511578314322-379afb476865" },
+  { id: "med-2", albumDocsId: "alb-sports", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211" },
+  { id: "med-3", albumDocsId: "alb-science", mediaType: "Photo", mediaUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf" }
 ];
-
 
 

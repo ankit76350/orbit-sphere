@@ -106,7 +106,7 @@ export default function ModCctv({ user }) {
   const [gpsProgress, setGpsProgress] = useState(0);
 
   // AI Face Attendance State Simulation
-  const [aiClassId, setAiClassId] = useState("10-A");
+  const [aiClassNo, setAiClassNo] = useState("10-A");
   const [aiScannerState, setAiScannerState] = useState("idle"); // idle, scanning, complete
   const [scannedNames, setScannedNames] = useState([]);
 
@@ -189,9 +189,9 @@ export default function ModCctv({ user }) {
   };
 
   // 2. Toggle Camera Online/Offline Status
-  const handleToggleCamHealth = (cameraId) => {
+  const handleToggleCamHealth = (cameraDocsId) => {
     const updated = cameras.map(c => {
-      if (c.id === cameraId) {
+      if (c.id === cameraDocsId) {
         const nextStatus = c.status === "Online" ? "Offline" : "Online";
         logAction(
           user?.id || "sandbox",
@@ -217,10 +217,10 @@ export default function ModCctv({ user }) {
     const cam = cameras.find(c => c.id === assignCamId);
     const newAsg = {
       id: `asg-${Date.now()}`,
-      cameraId: assignCamId,
-      gradeId: assignGrade,
-      classId: `${assignGrade.split(" ")[1]}-${assignSection}`,
-      sectionId: assignSection
+      cameraDocsId: assignCamId,
+      gradeNo: assignGrade,
+      classNo: `${assignGrade.split(" ")[1]}-${assignSection}`,
+      sectionNo: assignSection
     };
 
     const nextAsgs = [...assignments, newAsg];
@@ -232,10 +232,10 @@ export default function ModCctv({ user }) {
       user?.name || "User",
       user?.role || "Staff",
       "Camera Mapping Assigned",
-      `Assigned camera "${cam?.name}" to section: ${newAsg.classId}`
+      `Assigned camera "${cam?.name}" to section: ${newAsg.classNo}`
     );
 
-    addToast("Camera Mapped", `"${cam?.name}" successfully bound to classroom ${newAsg.classId}.`);
+    addToast("Camera Mapped", `"${cam?.name}" successfully bound to classroom ${newAsg.classNo}.`);
     setIsAssignCamOpen(false);
   };
 
@@ -250,7 +250,7 @@ export default function ModCctv({ user }) {
     const cam = cameras.find(c => c.id === incCamId);
     const newInc = {
       id: `inc-${Date.now()}`,
-      cameraId: incCamId,
+      cameraDocsId: incCamId,
       incidentType: incType,
       severity: incSeverity,
       description: incDesc,
@@ -296,8 +296,8 @@ export default function ModCctv({ user }) {
   };
 
   // 6. Delete Camera
-  const handleDeleteCamera = (cameraId) => {
-    const updated = cameras.filter(c => c.id !== cameraId);
+  const handleDeleteCamera = (cameraDocsId) => {
+    const updated = cameras.filter(c => c.id !== cameraDocsId);
     setCameras(updated);
     saveCameras(updated);
     addToast("Camera Deregistered", "Successfully removed camera from database console.");
@@ -345,7 +345,7 @@ export default function ModCctv({ user }) {
   });
 
   const filteredIncidents = incidents.filter(inc => {
-    const cam = cameras.find(c => c.id === inc.cameraId);
+    const cam = cameras.find(c => c.id === inc.cameraDocsId);
     const matchesSearch = inc.incidentType.toLowerCase().includes(incidentSearch.toLowerCase()) ||
                           inc.description.toLowerCase().includes(incidentSearch.toLowerCase()) ||
                           (cam && cam.name.toLowerCase().includes(incidentSearch.toLowerCase()));
@@ -918,8 +918,8 @@ export default function ModCctv({ user }) {
                   { label: "Grade 10 - Section A", value: "10-A" },
                   { label: "Grade 5 - Section A", value: "5-A" }
                 ]}
-                value={aiClassId}
-                onChange={(e) => setAiClassId(e.target.value)}
+                value={aiClassNo}
+                onChange={(e) => setAiClassNo(e.target.value)}
               />
 
               <Button
@@ -1065,7 +1065,7 @@ export default function ModCctv({ user }) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredIncidents.map(inc => {
-                    const cam = cameras.find(c => c.id === inc.cameraId);
+                    const cam = cameras.find(c => c.id === inc.cameraDocsId);
                     return (
                       <tr key={inc.id}>
                         <td className="p-3 font-extrabold text-slate-850 flex items-center gap-2">

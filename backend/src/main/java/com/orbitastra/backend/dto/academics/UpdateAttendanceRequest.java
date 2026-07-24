@@ -17,12 +17,12 @@ public class UpdateAttendanceRequest {
 
     private String academicYear;
 
-    private String studentId;
+    private String studentDocsId;
 
     private LocalDate date;
 
     private AttendanceStatus status;
 
-    private String presentBy;
+    private String presentByDocsId;
 
 }

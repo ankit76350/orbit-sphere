@@ -6,33 +6,33 @@ import { DAYS, DAY_LABEL, mondayOf, addDays, dayOfWeek, niceDate, hhmm, today } 
 
 export default function TimetableView({ schoolId, classes, staff }) {
   const [mode, setMode] = useState('class'); // 'class' | 'teacher'
-  const [classId, setClassId] = useState('');
+  const [classDocsId, setClassDocsId] = useState('');
   const [section, setSection] = useState('');
-  const [teacherId, setTeacherId] = useState('');
+  const [teacherDocsId, setTeacherDocsId] = useState('');
   const [weekStart, setWeekStart] = useState(mondayOf(today()));
   const [byDate, setByDate] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const cls = classes.find((c) => c.id === classId);
+  const cls = classes.find((c) => c.id === classDocsId);
   const nameOf = (id) => (staff.find((s) => s.id === id) || {}).name || id;
   const classNameOf = (id) => (classes.find((c) => c.id === id) || {}).name || id;
 
   useEffect(() => {
     const end = addDays(weekStart, 6);
-    const canClass = mode === 'class' && classId && section;
-    const canTeacher = mode === 'teacher' && teacherId;
+    const canClass = mode === 'class' && classDocsId && section;
+    const canTeacher = mode === 'teacher' && teacherDocsId;
     if (!schoolId || (!canClass && !canTeacher)) { setByDate({}); return; }
     setLoading(true);
     const p = mode === 'class'
-      ? api.sectionSchedule(schoolId, classId, section, weekStart, end)
-      : api.teacherSchedule(schoolId, teacherId, weekStart, end);
+      ? api.sectionSchedule(schoolId, classDocsId, section, weekStart, end)
+      : api.teacherSchedule(schoolId, teacherDocsId, weekStart, end);
     p.then((days) => {
       const map = {};
       days.forEach((d) => { map[d.date] = d.entries; });
       setByDate(map);
       setLoading(false);
     });
-  }, [schoolId, mode, classId, section, teacherId, weekStart]);
+  }, [schoolId, mode, classDocsId, section, teacherDocsId, weekStart]);
 
   return (
     <div>
@@ -46,7 +46,7 @@ export default function TimetableView({ schoolId, classes, staff }) {
         {mode === 'class' ? (
           <>
             <Field label="Class">
-              <Select value={classId} onChange={(e) => { const c = classes.find((x) => x.id === e.target.value); setClassId(e.target.value); setSection((c && c.sections && c.sections[0]) || ''); }}>
+              <Select value={classDocsId} onChange={(e) => { const c = classes.find((x) => x.id === e.target.value); setClassDocsId(e.target.value); setSection((c && c.sections && c.sections[0]) || ''); }}>
                 <option value="">Choose…</option>
                 {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
@@ -59,7 +59,7 @@ export default function TimetableView({ schoolId, classes, staff }) {
           </>
         ) : (
           <Field label="Teacher">
-            <Select value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+            <Select value={teacherDocsId} onChange={(e) => setTeacherDocsId(e.target.value)}>
               <option value="">Choose…</option>
               {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>

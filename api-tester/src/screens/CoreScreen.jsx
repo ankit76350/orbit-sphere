@@ -55,7 +55,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
   // --- NOTIFICATION FORM STATE ---
   const [notificationForm, setNotificationForm] = useState({
     schoolId: schoolId || '',
-    recipientId: '',
+    recipientDocsId: '',
     channel: 'PUSH',
     message: ''
   });
@@ -288,7 +288,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       toast.error("School ID is required.");
       return;
     }
-    if (!notificationForm.recipientId) {
+    if (!notificationForm.recipientDocsId) {
       toast.error("Recipient ID is required.");
       return;
     }
@@ -301,7 +301,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
       toast.success("Notification created.");
       setNotificationForm({
         schoolId: schoolId || '',
-        recipientId: '',
+        recipientDocsId: '',
         channel: 'PUSH',
         message: ''
       });
@@ -798,7 +798,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                         <tr key={n.id} className="hover:bg-slate-50/50 transition">
                           {/* recipient */}
                           <td className="px-4 py-3 font-mono font-semibold text-slate-900 select-all">
-                            {n.recipientId}
+                            {n.recipientDocsId}
                           </td>
                           {/* channel */}
                           <td className="px-4 py-3">
@@ -860,10 +860,10 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                 ) : (
                   <div className="space-y-4">
                     <Field label="School ID" apiName="schoolId" required><Input value={notificationForm.schoolId} onChange={(e) => setNotificationForm({ ...notificationForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
-                    <Field label="Recipient User ID" apiName="recipientId" required>
+                    <Field label="Recipient User ID" apiName="recipientDocsId" required>
                       <Input 
-                        value={notificationForm.recipientId}
-                        onChange={(e) => setNotificationForm({...notificationForm, recipientId: e.target.value})}
+                        value={notificationForm.recipientDocsId}
+                        onChange={(e) => setNotificationForm({...notificationForm, recipientDocsId: e.target.value})}
                         placeholder="e.g. staff_id or parent_id"
                       />
                     </Field>
@@ -894,7 +894,7 @@ export default function CoreScreen({ schoolId, schools, year, years, reload }) {
                       <Button 
                         variant="primary" 
                         onClick={dispatchNotification} 
-                        disabled={busyNotification || !notificationForm.recipientId}
+                        disabled={busyNotification || !notificationForm.recipientDocsId}
                       >
                         {busyNotification ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                         Dispatch Alert

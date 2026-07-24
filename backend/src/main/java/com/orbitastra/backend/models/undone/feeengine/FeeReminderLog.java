@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 public class FeeReminderLog extends SchoolBase {
 
     @Indexed
-    private String studentId;
+    private String studentDocsId;
 
     // Current rung of the escalation ladder (0-based).
     @Builder.Default

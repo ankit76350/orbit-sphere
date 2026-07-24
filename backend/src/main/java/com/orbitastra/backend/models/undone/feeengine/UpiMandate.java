@@ -28,9 +28,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpiMandate extends SchoolBase {
 
-    private String studentId;
+    private String studentDocsId;
 
-    private String parentId; // references Guardian.id
+    private String parentDocsId; // references Guardian.id
 
     // Maximum amount authorised per debit under the mandate.
     private BigDecimal amount;

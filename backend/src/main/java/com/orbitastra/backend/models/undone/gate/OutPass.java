@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OutPass extends SchoolBase {
 
-    private String studentId;
+    private String studentDocsId;
 
     private String studentName;
 
@@ -33,5 +33,5 @@ public class OutPass extends SchoolBase {
 
     private String status;
 
-    private String approvedBy;
+    private String approvedByName;
 }

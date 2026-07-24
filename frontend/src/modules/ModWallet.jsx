@@ -18,10 +18,10 @@ export default function ModWallet({ user }) {
   const [transactions, setTransactions] = useState(() => getTransactions());
   const [isTopupOpen, setIsTopupOpen] = useState(false);
   const [isDeductOpen, setIsDeductOpen] = useState(false);
-  const [topupStudentId, setTopupStudentId] = useState("student-1");
+  const [topupStudentDocsId, setTopupStudentDocsId] = useState("student-1");
   const [topupAmount, setTopupAmount] = useState("50");
   const [topupRemarks, setTopupRemarks] = useState("Monthly pocket money allowance");
-  const [deductStudentId, setDeductStudentId] = useState("student-1");
+  const [deductStudentDocsId, setDeductStudentDocsId] = useState("student-1");
   const [deductAmount, setDeductAmount] = useState("15");
   const [deductCategory, setDeductCategory] = useState("Store Purchase");
   const [deductRemarks, setDeductRemarks] = useState("Purchased secondary compass geometry set");
@@ -32,8 +32,8 @@ export default function ModWallet({ user }) {
       addToast("Error", "Input valid amount larger than 0", "error");
       return;
     }
-    const success = creditWallet(topupStudentId, amt, topupRemarks, user.name, user.role);
-    api.creditWallet(topupStudentId, amt, topupRemarks).catch(() => {});
+    const success = creditWallet(topupStudentDocsId, amt, topupRemarks, user.name, user.role);
+    api.creditWallet(topupStudentDocsId, amt, topupRemarks).catch(() => {});
     if (success) {
       setStudents(getStudents());
       setTransactions(getTransactions());
@@ -50,8 +50,8 @@ export default function ModWallet({ user }) {
       addToast("Error", "Input valid deduction quantity", "error");
       return;
     }
-    const success = deductWallet(deductStudentId, amt, deductCategory, deductRemarks, user.name, user.role);
-    api.debitWallet(deductStudentId, amt, deductRemarks).catch(() => {});
+    const success = deductWallet(deductStudentDocsId, amt, deductCategory, deductRemarks, user.name, user.role);
+    api.debitWallet(deductStudentDocsId, amt, deductRemarks).catch(() => {});
     if (success) {
       setStudents(getStudents());
       setTransactions(getTransactions());
@@ -115,13 +115,13 @@ export default function ModWallet({ user }) {
               <tbody className="divide-y divide-slate-50">
                 {students.slice(0, 10).map((st) => <tr key={st.id}>
                     <td className="p-3 font-extrabold text-slate-850">{st.name}</td>
-                    <td className="p-3 font-mono text-[10px] text-slate-400">{st.admissionNumber}</td>
+                    <td className="p-3 font-mono text-[10px] text-slate-400">{st.admissionNo}</td>
                     <td className="p-3">{st.grade}</td>
                     <td className="p-3">
                       <span className="font-extrabold text-emerald-600">${st.walletBalance}</span>
                     </td>
                     <td className="p-3 text-center">
-                      <Badge variant="info">RFID {st.admissionNumber.replace("STJ", "CHIP")}</Badge>
+                      <Badge variant="info">RFID {st.admissionNo.replace("STJ", "CHIP")}</Badge>
                     </td>
                   </tr>)}
               </tbody>
@@ -216,9 +216,9 @@ export default function ModWallet({ user }) {
         <form onSubmit={handleTopupSubmit} className="space-y-4 pt-1">
           <Select
     label="Associate Boarder Student"
-    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNumber}) - Current: $${s.walletBalance}`, value: s.id }))}
-    value={topupStudentId}
-    onChange={(e) => setTopupStudentId(e.target.value)}
+    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNo}) - Current: $${s.walletBalance}`, value: s.id }))}
+    value={topupStudentDocsId}
+    onChange={(e) => setTopupStudentDocsId(e.target.value)}
   />
           <Input
     label="Topup Amount ($ USD)"
@@ -249,9 +249,9 @@ export default function ModWallet({ user }) {
         <form onSubmit={handleDeductSubmit} className="space-y-4 pt-1">
           <Select
     label="Associate Boarder Student"
-    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNumber}) - Available: $${s.walletBalance}`, value: s.id }))}
-    value={deductStudentId}
-    onChange={(e) => setDeductStudentId(e.target.value)}
+    options={students.slice(0, 45).map((s) => ({ label: `${s.name} (${s.admissionNo}) - Available: $${s.walletBalance}`, value: s.id }))}
+    value={deductStudentDocsId}
+    onChange={(e) => setDeductStudentDocsId(e.target.value)}
   />
           <div className="grid grid-cols-2 gap-4">
             <Input

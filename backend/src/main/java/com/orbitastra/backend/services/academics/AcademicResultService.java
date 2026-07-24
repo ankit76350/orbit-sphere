@@ -27,7 +27,7 @@ public class AcademicResultService {
             throw new ResourceNotFoundException("School not found with id: " + academicResult.getSchoolId());
         }
 
-        studentValidator.validateStudent(academicResult.getStudentId(), academicResult.getSchoolId());
+        studentValidator.validateStudent(academicResult.getStudentDocsId(), academicResult.getSchoolId());
 
         // No natural date on a result — the academic year must be supplied.
         academicResult.setAcademicYear(academicYearResolver
@@ -54,12 +54,12 @@ public class AcademicResultService {
         return academicResultRepository.findBySchoolIdAndAcademicYear(schoolId, academicYear);
     }
 
-    public List<AcademicResult> getAcademicResultsByStudent(String studentId) {
-        return academicResultRepository.findByStudentId(studentId);
+    public List<AcademicResult> getAcademicResultsByStudent(String studentDocsId) {
+        return academicResultRepository.findByStudentDocsId(studentDocsId);
     }
 
-    public List<AcademicResult> getAcademicResultsBySchoolAndStudent(String schoolId, String studentId) {
-        return academicResultRepository.findBySchoolIdAndStudentId(schoolId, studentId);
+    public List<AcademicResult> getAcademicResultsBySchoolAndStudent(String schoolId, String studentDocsId) {
+        return academicResultRepository.findBySchoolIdAndStudentDocsId(schoolId, studentDocsId);
     }
 
     public AcademicResult updateAcademicResult(String id, AcademicResult resultDetails) {
@@ -73,9 +73,9 @@ public class AcademicResultService {
             academicResult.setSchoolId(resultDetails.getSchoolId());
         }
 
-        if (resultDetails.getStudentId() != null && !resultDetails.getStudentId().equals(academicResult.getStudentId())) {
-            studentValidator.validateStudent(resultDetails.getStudentId(), academicResult.getSchoolId());
-            academicResult.setStudentId(resultDetails.getStudentId());
+        if (resultDetails.getStudentDocsId() != null && !resultDetails.getStudentDocsId().equals(academicResult.getStudentDocsId())) {
+            studentValidator.validateStudent(resultDetails.getStudentDocsId(), academicResult.getSchoolId());
+            academicResult.setStudentDocsId(resultDetails.getStudentDocsId());
         }
 
         if (resultDetails.getGrade() != null) {
