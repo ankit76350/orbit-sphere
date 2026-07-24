@@ -693,12 +693,14 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-slate-500">
-                            {(() => { const g0 = inq.guardians && inq.guardians[0]; return g0 ? (
-                              <>
-                                {g0.phone && <div className="flex items-center gap-1"><Phone size={9} /> {g0.phone}</div>}
-                                {g0.email && <div className="flex items-center gap-1"><Mail size={9} /> {g0.email}</div>}
-                              </>
-                            ) : <span className="text-slate-300">—</span>; })()}
+                            {(() => {
+                              const g0 = inq.guardians && inq.guardians[0]; return g0 ? (
+                                <>
+                                  {g0.phone && <div className="flex items-center gap-1"><Phone size={9} /> {g0.phone}</div>}
+                                  {g0.email && <div className="flex items-center gap-1"><Mail size={9} /> {g0.email}</div>}
+                                </>
+                              ) : <span className="text-slate-300">—</span>;
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-slate-500">{inq.counselorDocsId ? staffName(inq.counselorDocsId) : '—'}</td>
                           <td className="px-4 py-3">
@@ -900,7 +902,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
                     Do not list here aleady admitted inquiry in the actual app
 
-                    </span>
+                  </span>
                   <Field label="From Inquiry" apiName="inquiryDocsId" required={false} hint={admissionForm.inquiryDocsId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
                     <Select value={admissionForm.inquiryDocsId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
                       <option value="">— none (direct admission) —</option>
@@ -1109,9 +1111,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 ].map(([label, value]) => (
                   <div key={label} className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
                     <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-                    <div className={`mt-1 text-xs text-slate-800 break-all ${
-                      label.includes('ID') ? 'font-mono select-all' : 'font-semibold'
-                    }`}>
+                    <div className={`mt-1 text-xs text-slate-800 break-all ${label.includes('ID') ? 'font-mono select-all' : 'font-semibold'
+                      }`}>
                       {value || '—'}
                     </div>
                   </div>
@@ -1367,9 +1368,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 ].map(([label, value]) => (
                   <div key={label} className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
                     <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-                    <div className={`mt-1 text-xs text-slate-800 break-all ${
-                      label.includes('ID') || label === 'Admission No' ? 'font-mono select-all' : 'font-semibold'
-                    }`}>
+                    <div className={`mt-1 text-xs text-slate-800 break-all ${label.includes('ID') || label === 'Admission No' ? 'font-mono select-all' : 'font-semibold'
+                      }`}>
                       {value || '—'}
                     </div>
                   </div>
@@ -1863,7 +1863,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   {[
                     ['academicYear', 'Academic Year'], ['identityNo', 'Identity No'], ['rollNo', 'Roll No'],
                     ['classDocsId', 'Class Document ID'], ['sectionNo', 'Section No'], ['hostelRoomNo', 'Hostel Room No'],
-                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false} hint={key === 'identityNo' ? 'Prefilled as IND/YYYY/MM/DDSS and editable.' : undefined}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} placeholder={key === 'identityNo' ? 'IND/2026/05/0611' : undefined} className={key === 'identityNo' ? 'font-mono' : undefined} /></Field>)}
+                  ].map(([key, label]) => <Field key={key} label={label} apiName={key} required={false} hint={key === 'identityNo' ? 'Prefilled as IDN/YYYY/MM/DDSS and editable.' : undefined}><Input value={convertForm.currentAcademicRecord[key]} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, [key]: e.target.value } })} placeholder={key === 'identityNo' ? 'IDN/2026/05/0611' : undefined} className={key === 'identityNo' ? 'font-mono' : undefined} /></Field>)}
                   <Field label="Status" apiName="status" required={false}><Select value={convertForm.currentAcademicRecord.status} onChange={(e) => setConvertForm({ ...convertForm, currentAcademicRecord: { ...convertForm.currentAcademicRecord, status: e.target.value } })}><option value="">— omitted —</option>{['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'].map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field>
                 </div>
               </div>

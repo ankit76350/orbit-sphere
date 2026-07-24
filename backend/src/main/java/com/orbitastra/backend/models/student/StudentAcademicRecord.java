@@ -3,7 +3,6 @@ package com.orbitastra.backend.models.student;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
-
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -17,26 +16,15 @@ import lombok.NoArgsConstructor;
 
 @Document(collection = "student_academic_records")
 @CompoundIndexes({
-    // A student may have multiple placement-history records in one academic
-    // year, but only one of them can be the active/current placement.
-    @CompoundIndex(
-            name = "student_academic_year_active_unique_idx",
-            def = "{'studentDocsId': 1, 'academicYear': 1, 'status': 1}",
-            unique = true,
-            partialFilter = "{'status': 'ACTIVE'}"),
-    // Human-readable identity numbers remain unique among active students in a school year.
-    @CompoundIndex(
-            name = "school_year_active_identity_no_unique_idx",
-            def = "{'schoolId': 1, 'academicYear': 1, 'identityNo': 1, 'status': 1}",
-            unique = true,
-            partialFilter = "{'identityNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
-    // Section is intentionally optional: when it is absent MongoDB indexes it
-    // as null, so roll numbers are still unique within the class/year.
-    @CompoundIndex(
-            name = "class_section_year_active_roll_unique_idx",
-            def = "{'classDocsId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}",
-            unique = true,
-            partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
+        // A student may have multiple placement-history records in one academic
+        // year, but only one of them can be the active/current placement.
+        @CompoundIndex(name = "student_academic_year_active_unique_idx", def = "{'studentDocsId': 1, 'academicYear': 1, 'status': 1}", unique = true, partialFilter = "{'status': 'ACTIVE'}"),
+        // Human-readable identity numbers remain unique among active students in a
+        // school year.
+        @CompoundIndex(name = "school_year_active_identity_no_unique_idx", def = "{'schoolId': 1, 'academicYear': 1, 'identityNo': 1, 'status': 1}", unique = true, partialFilter = "{'identityNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
+        // Section is intentionally optional: when it is absent MongoDB indexes it
+        // as null, so roll numbers are still unique within the class/year.
+        @CompoundIndex(name = "class_section_year_active_roll_unique_idx", def = "{'classDocsId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -49,7 +37,7 @@ public class StudentAcademicRecord extends SchoolBase {
 
     private String academicYear; // References AcademicYear.name (unique per school), e.g. "2026-2027"
 
-    private String identityNo; // Prefilled as IND/YYYY/MM/DDSS; remains client-editable.
+    private String identityNo; // Prefilled as IDN/YYYY/MM/DDSS; remains client-editable.
 
     private String rollNo; // year-specific roll number
 
@@ -60,6 +48,5 @@ public class StudentAcademicRecord extends SchoolBase {
     private String hostelRoomNo; // year-specific hostel room number
 
     private StudentStatus status;
-
 
 }

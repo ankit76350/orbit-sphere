@@ -15,7 +15,7 @@ export function generateAdmissionNo(date = new Date()) {
 
 export function generateIdentityNo(date = new Date()) {
   const twoDigits = (value) => String(value).padStart(2, '0');
-  return `IND/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
+  return `IDN/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
 }
 
 export function addDays(iso, n) {

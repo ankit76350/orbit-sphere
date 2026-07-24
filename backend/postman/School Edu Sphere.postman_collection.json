@@ -3744,7 +3744,7 @@
                     "students"
                   ]
                 },
-                "description": "Direct student creation test matrix. Required fields: schoolId, admissionNo, name. admissionDocsId is server-owned and always remains null for this API. Use guardianDocsId to link an existing guardian, or provide guardian details to find/create and deduplicate one. Academic placement must be supplied inside currentAcademicRecord; top-level academic placement fields are rejected."
+                "description": "Direct student creation test matrix. Required fields: schoolId, admissionNo, name. admissionDocsId is server-owned and always remains null for this API. Use guardianDocsId to link an existing guardian, or provide guardian details to fIDN/create and deduplicate one. Academic placement must be supplied inside currentAcademicRecord; top-level academic placement fields are rejected."
               },
               "response": []
             },

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Users, User, Plus, Trash2, Edit2, Calendar, Award, Phone, Mail, 
+import {
+  Users, User, Plus, Trash2, Edit2, Calendar, Award, Phone, Mail,
   MapPin, X, GraduationCap, Heart, Info, History, ShieldAlert, RefreshCw, FileText
 } from 'lucide-react';
 import { api } from '../api.js';
@@ -504,11 +504,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             {/* photo & name */}
                             <td className="px-4 py-3 min-w-[200px]">
                               <div className="flex items-center gap-3">
-                                <img 
-                                  src={s.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'} 
-                                  alt="avatar" 
+                                <img
+                                  src={s.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'}
+                                  alt="avatar"
                                   className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
-                                  onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'; }} 
+                                  onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80'; }}
                                 />
                                 <div className="min-w-0">
                                   <div className="font-bold text-slate-900 text-xs truncate">{s.name}</div>
@@ -529,7 +529,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             {/* gender / dob */}
                             <td className="px-4 py-3">
                               <div className="text-slate-700">{s.gender}</div>
-                              <div className="text-slate-400 text-[10px] mt-0.5">{s.dob ? new Date(s.dob).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'}) : '—'}</div>
+                              <div className="text-slate-400 text-[10px] mt-0.5">{s.dob ? new Date(s.dob).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
                             </td>
                             {/* status */}
                             <td className="px-4 py-3">
@@ -540,7 +540,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             {/* actions */}
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <button 
+                                <button
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     openAcademicHistory(s);
@@ -550,7 +550,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                 >
                                   <History size={14} />
                                 </button>
-                                <button 
+                                <button
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     handleEditStudentClick(s);
@@ -560,7 +560,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                 >
                                   <Edit2 size={13} />
                                 </button>
-                                <button 
+                                <button
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     deleteStudent(s);
@@ -583,8 +583,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             {/* Registration Form */}
             <div className="xl:col-span-4">
-              <Card 
-                title={editingStudent ? "Edit Student Info" : "Register Student"} 
+              <Card
+                title={editingStudent ? "Edit Student Info" : "Register Student"}
                 subtitle={editingStudent ? `Modifying profile: ${editingStudent.name}` : "Enroll a new student to the school roster."}
               >
                 <div className="space-y-4">
@@ -592,23 +592,23 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   <Field label="Full Name" apiName="name" required>
                     <Input
                       value={studentForm.name}
-                      onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
+                      onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
                       placeholder="e.g. John Doe"
                     />
                   </Field>
 
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Admission No" apiName="admissionNo" required hint="Generated as ADM/YYYY/MM/DDSS and editable before submitting.">
-                      <Input 
+                      <Input
                         value={studentForm.admissionNo}
-                        onChange={(e) => setStudentForm({...studentForm, admissionNo: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, admissionNo: e.target.value })}
                         placeholder="ADM/2026/05/0519"
                       />
                     </Field>
                     <Field label="Blood Group" apiName="bloodGroup" required={false}>
-                      <Input 
+                      <Input
                         value={studentForm.bloodGroup}
-                        onChange={(e) => setStudentForm({...studentForm, bloodGroup: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, bloodGroup: e.target.value })}
                         placeholder="e.g. O+"
                       />
                     </Field>
@@ -616,16 +616,16 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Date of Birth" apiName="dob" required={false}>
-                      <Input 
+                      <Input
                         type="date"
                         value={studentForm.dob}
-                        onChange={(e) => setStudentForm({...studentForm, dob: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, dob: e.target.value })}
                       />
                     </Field>
                     <Field label="Gender" apiName="gender" required={false}>
-                      <Select 
+                      <Select
                         value={studentForm.gender}
-                        onChange={(e) => setStudentForm({...studentForm, gender: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, gender: e.target.value })}
                       >
                         <option value="">— omitted —</option>
                         <option value="MALE">MALE</option>
@@ -636,18 +636,18 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </div>
 
                   <Field label="Avatar Photo URL" apiName="photoUrl" required={false}>
-                    <Input 
+                    <Input
                       value={studentForm.photoUrl}
-                      onChange={(e) => setStudentForm({...studentForm, photoUrl: e.target.value})}
+                      onChange={(e) => setStudentForm({ ...studentForm, photoUrl: e.target.value })}
                       placeholder="https://images.unsplash.com/..."
                     />
                   </Field>
 
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Status" apiName="status" required={false}>
-                      <Select 
+                      <Select
                         value={studentForm.status}
-                        onChange={(e) => setStudentForm({...studentForm, status: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value })}
                       >
                         <option value="">— omitted —</option>
                         <option value="ACTIVE">ACTIVE</option>
@@ -657,10 +657,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                       </Select>
                     </Field>
                     <Field label="Admission Date" apiName="admissionDate" required={false}>
-                      <Input 
+                      <Input
                         type="date"
                         value={studentForm.admissionDate}
-                        onChange={(e) => setStudentForm({...studentForm, admissionDate: e.target.value})}
+                        onChange={(e) => setStudentForm({ ...studentForm, admissionDate: e.target.value })}
                       />
                     </Field>
                   </div>
@@ -732,7 +732,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     <div className="text-xs font-bold text-slate-700">Current academic record <code className="font-mono text-[10px] font-medium text-slate-400">currentAcademicRecord</code> <span className="text-[9px] uppercase tracking-wide text-slate-400">optional</span></div>
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Academic Year" apiName="academicYear" required={false}><Input value={studentForm.currentAcademicRecord.academicYear} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, academicYear: e.target.value } })} /></Field>
-                      <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IND/YYYY/MM/DDSS. You can replace it with any value before submitting."><Input value={studentForm.currentAcademicRecord.identityNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, identityNo: e.target.value } })} placeholder="IND/2026/05/0611" className="font-mono" /></Field>
+                      <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IDN/YYYY/MM/DDSS. You can replace it with any value before submitting."><Input value={studentForm.currentAcademicRecord.identityNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, identityNo: e.target.value } })} placeholder="IDN/2026/05/0611" className="font-mono" /></Field>
                       <Field label="Roll No" apiName="rollNo" required={false}><Input value={studentForm.currentAcademicRecord.rollNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, rollNo: e.target.value } })} /></Field>
                       <Field label="Class Document ID" apiName="classDocsId" required={false}><Input value={studentForm.currentAcademicRecord.classDocsId} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, classDocsId: e.target.value } })} /></Field>
                       <Field label="Section No" apiName="sectionNo" required={false}><Input value={studentForm.currentAcademicRecord.sectionNo} onChange={(e) => setStudentForm({ ...studentForm, currentAcademicRecord: { ...studentForm.currentAcademicRecord, sectionNo: e.target.value } })} /></Field>
@@ -851,8 +851,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     {editingStudent && (
                       <Button variant="default" onClick={handleCancelStudentEdit}>Cancel</Button>
                     )}
-                    <Button 
-                      variant="primary" 
+                    <Button
+                      variant="primary"
                       onClick={submitStudent}
                       disabled={busyStudent || !studentForm.name}
                     >
@@ -978,9 +978,8 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                             ['Pickup Approved', guardian.pickupApproved],
                             ['Portal Access', guardian.portalAccess],
                           ].map(([label, enabled]) => (
-                            <div key={label} className={`rounded-lg px-2 py-1.5 font-semibold ${
-                              enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'
-                            }`}>
+                            <div key={label} className={`rounded-lg px-2 py-1.5 font-semibold ${enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'
+                              }`}>
                               {label}: {enabled ? 'YES' : 'NO'}
                             </div>
                           ))}
@@ -1091,7 +1090,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       {showHistoryModal && historyStudent && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-2xl w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative flex flex-col max-h-[90vh]">
-            <button 
+            <button
               onClick={() => setShowHistoryModal(false)}
               className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition"
               title="Close modal"
@@ -1162,7 +1161,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       {showAssignModal && historyStudent && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-55 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative">
-            <button 
+            <button
               onClick={() => setShowAssignModal(false)}
               className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition"
               title="Close modal"
@@ -1178,7 +1177,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             <div className="space-y-4">
               <Field label="Academic Year" apiName="academicYear" required={false} hint="Required by the promote endpoint; optional for a direct academic-record assignment.">
-                <Select 
+                <Select
                   value={assignForm.academicYear}
                   onChange={(e) => handleAcademicYearChange(e.target.value)}
                 >
@@ -1190,7 +1189,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Target Class" apiName="classDocsId" required={false}>
-                  <Select 
+                  <Select
                     value={assignForm.classDocsId}
                     onChange={(e) => handleClassSelectChange(e.target.value)}
                   >
@@ -1204,9 +1203,9 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   {sections.length === 0 ? (
                     <Input value={assignForm.sectionNo} onChange={(e) => setAssignForm({ ...assignForm, sectionNo: e.target.value })} placeholder="Section number" />
                   ) : (
-                    <Select 
+                    <Select
                       value={assignForm.sectionNo}
-                      onChange={(e) => setAssignForm({...assignForm, sectionNo: e.target.value})}
+                      onChange={(e) => setAssignForm({ ...assignForm, sectionNo: e.target.value })}
                     >
                       {sections.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -1217,18 +1216,18 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IND/YYYY/MM/DDSS and editable.">
-                  <Input 
+                <Field label="Identity No" apiName="identityNo" required={false} hint="Prefilled as IDN/YYYY/MM/DDSS and editable.">
+                  <Input
                     value={assignForm.identityNo}
-                    onChange={(e) => setAssignForm({...assignForm, identityNo: e.target.value})}
-                    placeholder="IND/2026/05/0611"
+                    onChange={(e) => setAssignForm({ ...assignForm, identityNo: e.target.value })}
+                    placeholder="IDN/2026/05/0611"
                     className="font-mono"
                   />
                 </Field>
                 <Field label="Roll No" apiName="rollNo" required={false}>
-                  <Input 
+                  <Input
                     value={assignForm.rollNo}
-                    onChange={(e) => setAssignForm({...assignForm, rollNo: e.target.value})}
+                    onChange={(e) => setAssignForm({ ...assignForm, rollNo: e.target.value })}
                     placeholder="e.g. 12"
                   />
                 </Field>
@@ -1239,9 +1238,9 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               </Field>
 
               <Field label="Academic Record Status" apiName="status" required={false}>
-                <Select 
+                <Select
                   value={assignForm.status}
-                  onChange={(e) => setAssignForm({...assignForm, status: e.target.value})}
+                  onChange={(e) => setAssignForm({ ...assignForm, status: e.target.value })}
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>
@@ -1252,9 +1251,9 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
                 <Button variant="default" size="sm" onClick={() => setShowAssignModal(false)}>Cancel</Button>
-                <Button 
-                  variant="primary" 
-                  size="sm" 
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={submitAcademicRecord}
                   disabled={busyAssign}
                 >
