@@ -330,6 +330,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             <div className="xl:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
               <header className="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
                 <h3 className="font-bold text-slate-800 text-sm">Leads / Inquiries</h3>
+                <span className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 text-[11px] font-semibold text-purple-700">
+                  Hide the admit buttonfor th status of Admitted
+                </span>
                 <p className="text-[11px] text-slate-500 mt-0.5">Move a lead along the pipeline, then create an admission from it.</p>
               </header>
               <div className="flex-1 overflow-x-auto">
