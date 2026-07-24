@@ -1,12 +1,19 @@
 package com.orbitastra.backend.services.crm;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
@@ -36,6 +43,91 @@ class InquiryServiceTest {
 
     @InjectMocks
     private InquiryService inquiryService;
+
+    @Test
+    void createInquiry_withAdmittedStatus_createsAndLinksAdmission() {
+        Inquiry inquiry = Inquiry.builder()
+                .schoolId("school-123")
+                .studentName("Alice Smith")
+                .status(InquiryStatus.ADMITTED)
+                .build();
+        when(inquiryRepository.save(any(Inquiry.class))).thenAnswer(invocation -> {
+            Inquiry saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId("inquiry-123");
+            }
+            return saved;
+        });
+        when(admissionRepository.findByInquiryDocsId("inquiry-123")).thenReturn(List.of());
+        when(admissionRepository.save(any(Admission.class))).thenAnswer(invocation -> {
+            Admission saved = invocation.getArgument(0);
+            saved.setId("admission-123");
+            return saved;
+        });
+
+        Inquiry created = inquiryService.createInquiry(inquiry);
+
+        assertEquals(InquiryStatus.ADMITTED, created.getStatus());
+        assertEquals("admission-123", created.getAdmissionDocsId());
+        assertNotNull(created.getCreatedAt());
+        assertNotNull(created.getUpdatedAt());
+        verify(inquiryRepository, times(2)).save(inquiry);
+
+        ArgumentCaptor<Admission> admissionCaptor = ArgumentCaptor.forClass(Admission.class);
+        verify(admissionRepository).save(admissionCaptor.capture());
+        Admission admission = admissionCaptor.getValue();
+        assertEquals("inquiry-123", admission.getInquiryDocsId());
+        assertEquals("school-123", admission.getSchoolId());
+        assertEquals("Alice Smith", admission.getStudentName());
+        assertNotNull(admission.getAdmissionNo());
+    }
+
+    @Test
+    void createInquiry_withInitialAdmittedFollowUp_usesEffectiveStatusAndCreatesAdmission() {
+        Inquiry inquiry = Inquiry.builder()
+                .schoolId("school-123")
+                .status(InquiryStatus.INQUIRY)
+                .followUps(List.of(InquiryFollowUp.builder()
+                        .status(InquiryStatus.ADMITTED)
+                        .note("Application submitted")
+                        .build()))
+                .build();
+        when(inquiryRepository.save(any(Inquiry.class))).thenAnswer(invocation -> {
+            Inquiry saved = invocation.getArgument(0);
+            saved.setId("inquiry-123");
+            return saved;
+        });
+        when(admissionRepository.findByInquiryDocsId("inquiry-123")).thenReturn(List.of());
+        when(admissionRepository.save(any(Admission.class)))
+                .thenReturn(Admission.builder().id("admission-123").build());
+
+        Inquiry created = inquiryService.createInquiry(inquiry);
+
+        assertEquals(InquiryStatus.ADMITTED, created.getStatus());
+        assertEquals("admission-123", created.getAdmissionDocsId());
+        assertEquals(InquiryStatus.ADMITTED, created.getFollowUps().get(0).getStatus());
+    }
+
+    @Test
+    void createInquiry_withoutAdmittedStatus_doesNotCreateAdmission() {
+        Inquiry inquiry = Inquiry.builder()
+                .schoolId("school-123")
+                .studentName("Alice Smith")
+                .status(InquiryStatus.INQUIRY)
+                .build();
+        when(inquiryRepository.save(inquiry)).thenAnswer(invocation -> {
+            Inquiry saved = invocation.getArgument(0);
+            saved.setId("inquiry-123");
+            return saved;
+        });
+
+        Inquiry created = inquiryService.createInquiry(inquiry);
+
+        assertEquals(InquiryStatus.INQUIRY, created.getStatus());
+        verify(inquiryRepository).save(inquiry);
+        verify(admissionRepository, never()).findByInquiryDocsId(any());
+        verify(admissionRepository, never()).save(any());
+    }
 
     @Test
     void recordFollowUp_withPastNextFollowUp_throwsIllegalArgumentException() {

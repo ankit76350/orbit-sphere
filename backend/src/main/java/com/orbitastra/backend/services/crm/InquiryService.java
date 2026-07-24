@@ -37,6 +37,13 @@ public class InquiryService {
     private final StaffRepository staffRepository;
     private final AdmissionRepository admissionRepository;
 
+    /**
+     * Creates the lead and, when its effective initial status is ADMITTED,
+     * atomically creates and links the corresponding admission. The inquiry must
+     * be persisted first because Admission.inquiryDocsId references its generated
+     * MongoDB document ID.
+     */
+    @Transactional
     public Inquiry createInquiry(Inquiry inquiry) {
         validateCounselor(inquiry.getCounselorDocsId(), inquiry.getSchoolId());
 
@@ -63,7 +70,14 @@ public class InquiryService {
 
         inquiry.setCreatedAt(now);
         inquiry.setUpdatedAt(now);
-        return inquiryRepository.save(inquiry);
+        Inquiry saved = inquiryRepository.save(inquiry);
+
+        if (saved.getStatus() == InquiryStatus.ADMITTED) {
+            handleAdmittedStatus(saved);
+            saved.setUpdatedAt(LocalDateTime.now());
+            saved = inquiryRepository.save(saved);
+        }
+        return saved;
     }
 
     public Inquiry getInquiryById(String id) {
