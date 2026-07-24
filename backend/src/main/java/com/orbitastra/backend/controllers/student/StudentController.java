@@ -54,6 +54,12 @@ public class StudentController {
         return ResponseEntity.ok(studentService.getStudentByAdmissionNo(admissionNo));
     }
 
+    @GetMapping(value = "/admission", params = "admissionNo")
+    public ResponseEntity<StudentResponse> getStudentByAdmissionNoQuery(
+            @RequestParam String admissionNo) {
+        return ResponseEntity.ok(studentService.getStudentByAdmissionNo(admissionNo));
+    }
+
     @GetMapping("/school/{schoolId}")
     public ResponseEntity<List<StudentResponse>> getStudentsBySchool(@PathVariable String schoolId) {
         return ResponseEntity.ok(studentService.getStudentsBySchool(schoolId));

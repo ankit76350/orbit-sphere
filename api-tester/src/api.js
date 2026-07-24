@@ -152,7 +152,8 @@ export const api = {
   assignAcademicRecord: (studentDocsId, payload) => call('POST', `/api/students/${studentDocsId}/academic-records`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
   getStudentSiblings: (id) => listOr(`/api/students/${id}/siblings`),
-  getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
+  getStudentByAdmissionNo: (admissionNo) =>
+    call('GET', `/api/students/admission?admissionNo=${encodeURIComponent(admissionNo)}`),
 
   // ----- guardians (many-to-many family) -----
   guardians: (schoolId) => listOr(`/api/guardians/school/${schoolId}`),

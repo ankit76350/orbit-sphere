@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
+import { generateAdmissionNo } from '../lib/date.js';
 
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
 
@@ -19,7 +20,7 @@ const emptyInlineGuardian = () => ({
 
 const emptyStudentForm = (schoolId = '') => ({
   schoolId,
-  name: '', admissionNo: '', dob: '', gender: '', bloodGroup: '',
+  name: '', admissionNo: generateAdmissionNo(), dob: '', gender: '', bloodGroup: '',
   photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80',
   walletDocsId: '', medicalRecordDocsId: '', documents: '', medicalRemark: '', status: '', admissionDate: '',
   guardians: [], currentAcademicRecord: emptyAcademicRecord(),
@@ -414,11 +415,11 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                   </Field>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Admission No" apiName="admissionNo" required={false}>
+                    <Field label="Admission No" apiName="admissionNo" required hint="Generated as ADM/YYYY/MM/DDSS and editable before submitting.">
                       <Input 
                         value={studentForm.admissionNo}
                         onChange={(e) => setStudentForm({...studentForm, admissionNo: e.target.value})}
-                        placeholder="ADM-00212"
+                        placeholder="ADM/2026/05/0519"
                       />
                     </Field>
                     <Field label="Blood Group" apiName="bloodGroup" required={false}>

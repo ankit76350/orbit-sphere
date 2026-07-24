@@ -35,6 +35,21 @@ class AdmissionControllerTest {
     private AdmissionController admissionController;
 
     @Test
+    void getAdmissionByAdmissionNoQuery_preservesSlashFormattedNumber() {
+        Admission admission = Admission.builder()
+                .admissionNo("ADM/2026/05/0519")
+                .build();
+        when(admissionService.getAdmissionByAdmissionNo("ADM/2026/05/0519"))
+                .thenReturn(admission);
+
+        ResponseEntity<Admission> response =
+                admissionController.getAdmissionByAdmissionNoQuery("ADM/2026/05/0519");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("ADM/2026/05/0519", response.getBody().getAdmissionNo());
+    }
+
+    @Test
     void addGuardian_mapsValidatedRequestAndReturnsUpdatedAdmission() {
         InquiryGuardianRequest request = new InquiryGuardianRequest();
         request.setName("Meera Nair");

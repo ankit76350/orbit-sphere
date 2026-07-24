@@ -8,6 +8,11 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export const today = () => new Date().toISOString().slice(0, 10);
 export const hhmm = (t) => (t || '').slice(0, 5);
 
+export function generateAdmissionNo(date = new Date()) {
+  const twoDigits = (value) => String(value).padStart(2, '0');
+  return `ADM/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
+}
+
 export function addDays(iso, n) {
   const d = new Date(iso + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);

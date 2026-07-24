@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
+import { generateAdmissionNo } from '../lib/date.js';
 
 const INQUIRY_STAGES = ['INQUIRY', 'COUNSELING', 'VISIT', 'ADMITTED', 'LOST'];
 const ADMISSION_STAGES = ['PENDING', 'APPROVED', 'REJECTED', 'CONFIRMED'];
@@ -17,6 +18,19 @@ const inquiryColor = (s) => ({
 const admissionColor = (s) => ({
   PENDING: 'amber', APPROVED: 'blue', REJECTED: 'rose', CONFIRMED: 'green',
 }[s] || 'slate');
+
+const emptyAdmissionForm = (schoolId = '') => ({
+  schoolId,
+  inquiryDocsId: '',
+  admissionNo: generateAdmissionNo(),
+  documents: 'birth-certificate.pdf, report-card.pdf',
+  admissionDate: new Date().toISOString().slice(0, 10),
+  studentName: 'Lucas Johnson',
+  dob: '2015-06-19',
+  gender: 'MALE',
+  status: 'PENDING',
+  guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
+});
 
 export default function CrmScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
@@ -51,13 +65,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const removeGuardianRow = (idx) =>
     setInquiryForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== idx) }));
 
-  const emptyAdmission = {
-    schoolId: schoolId || '',
-    inquiryDocsId: '', admissionNo: '', documents: 'birth-certificate.pdf, report-card.pdf', admissionDate: new Date().toISOString().slice(0, 10),
-    studentName: 'Lucas Johnson', dob: '2015-06-19', gender: 'MALE', status: 'PENDING',
-    guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
-  };
-  const [admissionForm, setAdmissionForm] = useState(emptyAdmission);
+  const [admissionForm, setAdmissionForm] = useState(() => emptyAdmissionForm(schoolId || ''));
   const setAdmGuardian = (idx, patch) =>
     setAdmissionForm((f) => ({ ...f, guardians: f.guardians.map((g, i) => (i === idx ? { ...g, ...patch } : g)) }));
   const addAdmGuardian = () =>
@@ -203,7 +211,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   // Jump to Admissions tab with this inquiry preselected in the create form.
   const startAdmission = (inq) => {
     setAdmissionForm({
-      ...emptyAdmission,
+      ...emptyAdmissionForm(schoolId || ''),
       inquiryDocsId: inq.id,
       studentName: inq.studentName || '',
       guardians: (inq.guardians || []).map((g) => ({ ...g })),
@@ -232,7 +240,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
         admissionDate: admissionForm.admissionDate || null,
       });
       toast.success(admissionForm.inquiryDocsId ? 'Admission created (inquiry auto-advanced to ADMITTED).' : 'Direct admission created.');
-      setAdmissionForm(emptyAdmission);
+      setAdmissionForm(emptyAdmissionForm(schoolId || ''));
       fetchAll();
     } catch (e) {
       toast.error(e.message || 'Failed to create admission.');
@@ -609,8 +617,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
               <Card title="New Admission" subtitle="Admissions intentionally carry no academic-year field.">
                 <div className="space-y-3">
                   <Field label="School ID" apiName="schoolId" required><Input value={admissionForm.schoolId} onChange={(e) => setAdmissionForm({ ...admissionForm, schoolId: e.target.value })} className="font-mono text-xs" /></Field>
-                  <Field label="Admission No." apiName="admissionNo" required={false} hint="Leave blank to let the server generate a unique admission number.">
-                    <Input value={admissionForm.admissionNo} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionNo: e.target.value })} placeholder="ADM-2026-0007" className="font-mono" />
+                  <Field label="Admission No." apiName="admissionNo" required={false} hint="Generated as ADM/YYYY/MM/DDSS. You can edit it before submitting; blank values use the same backend fallback format.">
+                    <Input value={admissionForm.admissionNo} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionNo: e.target.value })} placeholder="ADM/2026/05/0519" className="font-mono" />
                   </Field>
                   <Field label="From Inquiry" apiName="inquiryDocsId" required={false} hint={admissionForm.inquiryDocsId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
                     <Select value={admissionForm.inquiryDocsId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>

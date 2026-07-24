@@ -80,7 +80,7 @@ class AdmissionServiceTest {
         assertEquals("Direct Applicant", saved.getStudentName());
         assertEquals(AdmissionStatus.PENDING, saved.getStatus());
         assertNotNull(saved.getAdmissionNo());
-        assertTrue(saved.getAdmissionNo().startsWith("ADM-"));
+        assertTrue(saved.getAdmissionNo().matches("ADM/\\d{4}/\\d{2}/\\d{4}"));
         assertNotNull(saved.getAdmissionDate());
         assertNotNull(saved.getDocuments());
         assertNotNull(saved.getGuardians());

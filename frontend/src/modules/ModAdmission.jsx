@@ -7,6 +7,12 @@ import { getStudents, saveStudents, logAction, getHostels, saveHostels } from ".
 import { api } from "../api";
 import { Button, Input, Select, useToast } from "../components/ui";
 import { Sparkles, FileText, UploadCloud, UserPlus, ShieldCheck } from "lucide-react";
+
+const generateAdmissionNo = (date = new Date()) => {
+  const twoDigits = (value) => String(value).padStart(2, "0");
+  return `ADM/${date.getFullYear()}/${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())}${twoDigits(date.getSeconds())}`;
+};
+
 export default function ModAdmission({ user }) {
   const { addToast } = useToast();
   const [studentFullName, setStudentFullName] = useState("Lucas Johnson");
@@ -21,7 +27,7 @@ export default function ModAdmission({ user }) {
   const [transportOptIn, setTransportOptIn] = useState(false);
   const [feeStructure, setFeeStructure] = useState("tuition-standard");
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [tentativeAdNo] = useState(() => `STJ2026-${Math.floor(1100 + Math.random() * 800)}`);
+  const [admissionNo, setAdmissionNo] = useState(() => generateAdmissionNo());
   const handlePhotoSimulate = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -69,7 +75,7 @@ export default function ModAdmission({ user }) {
     const newStudent = {
       id: studentDocsId,
       schoolId: "6a474d2517e9c40cf971ccc2",
-      admissionNo: tentativeAdNo,
+      admissionNo,
       name: studentFullName,
       gradeIndex: parseInt(grade.split(" ")[1]) || 7,
       grade,
@@ -126,6 +132,7 @@ export default function ModAdmission({ user }) {
     api.createStudent(newStudent).catch(() => {});
     api.createAdmission({
       schoolId: 'SCH-001',
+      admissionNo,
       studentName: studentFullName,
       parentName,
       parentPhone,
@@ -139,15 +146,16 @@ export default function ModAdmission({ user }) {
       user.name,
       user.role,
       "Student Admitted",
-      `Registered student ${studentFullName} (AdNo: ${tentativeAdNo}) in ${grade}. Hostel assignment: ${hostelRoomNo ? "Room " + hostelRoomNo : "None"}`
+      `Registered student ${studentFullName} (AdNo: ${admissionNo}) in ${grade}. Hostel assignment: ${hostelRoomNo ? "Room " + hostelRoomNo : "None"}`
     );
-    addToast("Success", `Student Registered! Assigned Admission No: ${tentativeAdNo}`, "success");
+    addToast("Success", `Student Registered! Assigned Admission No: ${admissionNo}`, "success");
     setStudentFullName("");
     setParentName("");
     setParentPhone("");
     setParentEmail("");
     setAddress("");
     setPhotoPreview(null);
+    setAdmissionNo(generateAdmissionNo());
   };
   return <div className="space-y-6 max-w-4xl mx-auto">
       
@@ -165,7 +173,7 @@ export default function ModAdmission({ user }) {
           <Sparkles className="h-5 w-5 text-indigo-600 animate-pulse" />
           <div>
             <p className="text-[10px] text-indigo-500 uppercase font-extrabold tracking-wider">NEXT ENROLL ADMISSION NUM</p>
-            <p className="text-sm font-black text-slate-800">{tentativeAdNo}</p>
+            <p className="text-sm font-black text-slate-800">{admissionNo}</p>
           </div>
         </div>
       </div>
@@ -244,6 +252,16 @@ export default function ModAdmission({ user }) {
     onChange={(e) => setStudentFullName(e.target.value)}
     required
   />
+              <Input
+    label="Admission Number"
+    value={admissionNo}
+    onChange={(e) => setAdmissionNo(e.target.value)}
+    placeholder="ADM/2026/05/0519"
+    required
+  />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
     label="Date of Birth"
     type="date"

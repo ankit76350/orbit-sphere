@@ -78,7 +78,8 @@ export const api = {
   // ----- Students & Guardians -----
   getStudents: (schoolId = 'SCH-001') => listOr(`/api/students/school/${schoolId}`),
   getStudentsByYear: (schoolId = 'SCH-001', year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
-  getStudentByAdmissionNo: (admissionNo) => call('GET', `/api/students/admission/${admissionNo}`),
+  getStudentByAdmissionNo: (admissionNo) =>
+    call('GET', `/api/students/admission?admissionNo=${encodeURIComponent(admissionNo)}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),

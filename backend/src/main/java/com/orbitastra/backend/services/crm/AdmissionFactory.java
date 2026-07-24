@@ -2,10 +2,9 @@ package com.orbitastra.backend.services.crm;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
@@ -18,6 +17,9 @@ import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
  * factory so defaults and copied fields cannot drift between code paths.
  */
 final class AdmissionFactory {
+
+    private static final DateTimeFormatter ADMISSION_NO_FORMAT =
+            DateTimeFormatter.ofPattern("'ADM/'uuuu/MM/ddss");
 
     private AdmissionFactory() {
     }
@@ -74,11 +76,11 @@ final class AdmissionFactory {
     }
 
     private static String generateAdmissionNo() {
-        String suffix = UUID.randomUUID().toString()
-                .replace("-", "")
-                .substring(0, 16)
-                .toUpperCase(Locale.ROOT);
-        return "ADM-" + LocalDate.now().getYear() + "-" + suffix;
+        return generateAdmissionNo(LocalDateTime.now());
+    }
+
+    static String generateAdmissionNo(LocalDateTime dateTime) {
+        return dateTime.format(ADMISSION_NO_FORMAT);
     }
 
     private static List<InquiryGuardian> mergeGuardians(List<InquiryGuardian> inquiryGuardians,

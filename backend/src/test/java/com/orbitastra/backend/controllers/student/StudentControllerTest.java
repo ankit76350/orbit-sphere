@@ -26,6 +26,21 @@ class StudentControllerTest {
     private StudentController studentController;
 
     @Test
+    void getStudentByAdmissionNoQuery_preservesSlashFormattedNumber() {
+        StudentResponse student = StudentResponse.builder()
+                .admissionNo("ADM/2026/05/0519")
+                .build();
+        when(studentService.getStudentByAdmissionNo("ADM/2026/05/0519"))
+                .thenReturn(student);
+
+        ResponseEntity<StudentResponse> response =
+                studentController.getStudentByAdmissionNoQuery("ADM/2026/05/0519");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("ADM/2026/05/0519", response.getBody().getAdmissionNo());
+    }
+
+    @Test
     void createStudent_normal_returnsCreated() {
         CreateStudentRequest req = new CreateStudentRequest();
         req.setSchoolId("school-1");

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.crm.AddAdmissionDocumentRequest;
@@ -46,6 +47,12 @@ public class AdmissionController {
 
     @GetMapping("/number/{admissionNo}")
     public ResponseEntity<Admission> getAdmissionByAdmissionNo(@PathVariable String admissionNo) {
+        return ResponseEntity.ok(admissionService.getAdmissionByAdmissionNo(admissionNo));
+    }
+
+    @GetMapping(value = "/number", params = "admissionNo")
+    public ResponseEntity<Admission> getAdmissionByAdmissionNoQuery(
+            @RequestParam String admissionNo) {
         return ResponseEntity.ok(admissionService.getAdmissionByAdmissionNo(admissionNo));
     }
 

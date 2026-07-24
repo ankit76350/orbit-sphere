@@ -3778,7 +3778,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:3456/api/students/admission/ADM-2026-001",
+                  "raw": "http://localhost:3456/api/students/admission?admissionNo=ADM%2F2026%2F05%2F0519",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -3787,8 +3787,13 @@
                   "path": [
                     "api",
                     "students",
-                    "admission",
-                    "ADM-2026-001"
+                    "admission"
+                  ],
+                  "query": [
+                    {
+                      "key": "admissionNo",
+                      "value": "ADM/2026/05/0519"
+                    }
                   ]
                 }
               },
