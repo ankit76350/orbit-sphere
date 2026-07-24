@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.services.student.StudentService;
+
+import java.util.Map;
 
 @ExtendWith(MockitoExtension.class)
 class StudentControllerTest {
@@ -54,6 +57,17 @@ class StudentControllerTest {
         assertEquals(HttpStatus.CREATED, res.getStatusCode());
         assertNotNull(res.getBody());
         assertEquals("std-1", res.getBody().getId());
+    }
+
+    @Test
+    void deleteStudent_isNotAllowedAndDoesNotCallService() {
+        ResponseEntity<?> response = studentController.deleteStudent("student-id-123");
+
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.getStatusCode());
+        assertEquals(
+                "Student deletion is not allowed. Student and academic records must be retained.",
+                ((Map<?, ?>) response.getBody()).get("message"));
+        verifyNoInteractions(studentService);
     }
 
     @Test

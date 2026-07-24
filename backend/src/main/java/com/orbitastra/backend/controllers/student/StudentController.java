@@ -120,8 +120,10 @@ public class StudentController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteStudent(@PathVariable String id) {
-        studentService.deleteStudent(id);
-        return ResponseEntity.ok(Map.of("message", "Student deleted successfully."));
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(Map.of(
+                        "message",
+                        "Student deletion is not allowed. Student and academic records must be retained."));
     }
 
     @GetMapping("/{id}/academic-history")

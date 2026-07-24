@@ -568,18 +568,6 @@ public class StudentService {
     }
 
     // =======================================================================================
-    // Deleting a student
-    // =======================================================================================
-
-    public void deleteStudent(String id) {
-        Student student = getStudentEntity(id);
-        // Academic records are retained as historical/audit documents even
-        // after the student roster document is removed.
-        studentRepository.delete(student);
-        log.info("[deleteStudent] Deleted student {}; academic-year records were retained", id);
-    }
-
-    // =======================================================================================
     // Academic-year records (class / section / roll number for a school year)
     // =======================================================================================
 

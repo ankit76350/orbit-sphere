@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Users, User, Plus, Trash2, Edit2, Calendar, Award, Phone, Mail,
+  Users, User, Plus, Edit2, Calendar, Award, Phone, Mail,
   MapPin, X, GraduationCap, Heart, Info, History, ShieldAlert, RefreshCw, FileText
 } from 'lucide-react';
 import { api } from '../api.js';
@@ -344,17 +344,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   };
 
-  const deleteStudent = async (s) => {
-    if (!confirm(`Are you sure you want to delete student "${s.name || ''}"?`)) return;
-    try {
-      await api.deleteStudent(s.id);
-      toast.success("Student record deleted.");
-      fetchStudents();
-    } catch (e) {
-      toast.error("Failed to delete student: " + e.message);
-    }
-  };
-
   const openStudentDetails = async (student) => {
     setStudentDetails(student);
     setLoadingStudentDetails(true);
@@ -567,16 +556,6 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                   title="Edit student profile"
                                 >
                                   <Edit2 size={13} />
-                                </button>
-                                <button
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    deleteStudent(s);
-                                  }}
-                                  className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
-                                  title="Delete student profile"
-                                >
-                                  <Trash2 size={13} />
                                 </button>
                               </div>
                             </td>

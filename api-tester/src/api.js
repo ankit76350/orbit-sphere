@@ -150,7 +150,6 @@ export const api = {
   createStudent: (payload) => call('POST', '/api/students', payload),
   createStudentFromAdmission: (payload) => call('POST', '/api/students/from-admission', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
-  deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
   getStudentAcademicHistory: (id) => listOr(`/api/students/${id}/academic-history`),
   assignAcademicRecord: (studentDocsId, payload) => call('POST', `/api/students/${studentDocsId}/academic-records`, payload),
   promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),

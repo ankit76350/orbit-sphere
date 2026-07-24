@@ -587,16 +587,6 @@ public class StudentServiceTest {
         }
 
         @Test
-        void deleteStudent_deletesOnlyStudentAndRetainsAcademicRecords() {
-                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
-
-                studentService.deleteStudent("student-id-123");
-
-                verify(studentRepository, times(1)).delete(student);
-                verifyNoInteractions(studentAcademicRecordRepository);
-        }
-
-        @Test
         void createOrUpdateAcademicRecord_Success() {
                 StudentAcademicRecord input = StudentAcademicRecord.builder()
                                 .academicYear("2026-2027")
