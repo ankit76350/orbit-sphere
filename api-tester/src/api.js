@@ -1,16 +1,57 @@
 // Friendly API layer for the School Admin console.
 // All calls are same-origin; Vite proxies /api to the backend (see vite.config.js).
 
+export const POST_RESPONSE_EVENT = 'api-tester:post-response';
+
+function publishPostResponse(detail) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(POST_RESPONSE_EVENT, {
+    detail: {
+      ...detail,
+      receivedAt: new Date().toISOString(),
+    },
+  }));
+}
+
 async function call(method, path, body) {
   const opts = { method, headers: {} };
   if (body != null) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(path, opts);
+
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (error) {
+    if (method === 'POST') {
+      publishPostResponse({
+        method,
+        path,
+        ok: false,
+        status: 0,
+        statusText: 'Network Error',
+        data: { message: error.message },
+      });
+    }
+    throw error;
+  }
+
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = text; }
+
+  if (method === 'POST') {
+    publishPostResponse({
+      method,
+      path,
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      data,
+    });
+  }
+
   if (!res.ok) {
     const msg = data && data.message ? data.message : `${res.status} ${res.statusText}`;
     const err = new Error(msg);
