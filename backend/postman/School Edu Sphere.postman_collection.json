@@ -1,11 +1,11 @@
 {
   "info": {
-    "_postman_id": "7aeb00be-524c-4266-82ef-bcbe8d6392cf",
+    "_postman_id": "418610eb-6fef-4b95-ac51-ceb452297d7a",
     "name": "School Edu Sphere",
     "description": "Student API collection (Students, Parents, Academic Records).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "47336508",
-    "_collection_link": "https://go.postman.co/collection/47336508-7aeb00be-524c-4266-82ef-bcbe8d6392cf?source=collection_link"
+    "_collection_link": "https://go.postman.co/collection/47336508-418610eb-6fef-4b95-ac51-ceb452297d7a?source=collection_link"
   },
   "item": [
     {
@@ -3164,7 +3164,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n\"studentName\": \"Arjun Patel\",\n\"guardians\": [\n  {\n    \"name\": \"Neha Patel\",\n    \"relation\": \"MOTHER\",\n    \"phone\": \"+61-455-321-678\",\n    \"email\": \"neha.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Dentist\"\n  },\n  {\n    \"name\": \"Manish Patel\",\n    \"relation\": \"FATHER\",\n    \"phone\": \"+61-455-876-543\",\n    \"email\": \"manish.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Business Analyst\"\n  }\n],\n  \"source\": \"WALK_IN\",\n  \"counselorDocsId\": \"6a4b5524d763ecb377186650\",\n  \"followUps\": [\n    {\n      \"status\": \"INQUIRY\",\n      \"note\": \"Walk-in, interested in Grade 6\",\n      \"nextFollowUp\": \"2026-07-30\",\n      \"counselorDocsId\": \"6a4b5524d763ecb377186650\"\n    }\n  ]\n}"
+                  "raw": "{\n   \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n\"studentName\": \"Arjun Patel\",\n\"guardians\": [\n  {\n    \"name\": \"Neha Patel\",\n    \"relation\": \"MOTHER\",\n    \"phone\": \"+61-455-321-678\",\n    \"email\": \"neha.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Dentist\"\n  },\n  {\n    \"name\": \"Manish Patel\",\n    \"relation\": \"FATHER\",\n    \"phone\": \"+61-455-876-543\",\n    \"email\": \"manish.patel@example.com\",\n    \"address\": \"9 Willow Court\",\n    \"occupation\": \"Business Analyst\"\n  }\n],\n  \"source\": \"WALK_IN\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\",\n  \"followUps\": [\n    {\n      \"status\": \"INQUIRY\",\n      \"note\": \"Walk-in, interested in Grade 6\",\n      \"nextFollowUp\": \"2026-07-23\",\n    //   \"counselorId\": \"6a4b5524d763ecb377186650\"\n    }\n  ]\n}"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/inquiries",
@@ -3341,7 +3341,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "// http://localhost:3456/api/inquiries/INQUIRY_ID_HERE/follow-ups\n\n// {\n//   \"status\": \"INQUIRY\",\n//   \"note\": \"New inquiry received through the website. Initial contact pending.\",\n//   \"nextFollowUp\": \"2026-07-24\",\n//   \"counselorDocsId\": \"6a4b5524d763ecb377186650\"\n// }\n\n{\n  \"status\": \"VISIT\",\n  \"note\": \"Campus tour completed. Parent expressed interest in proceeding.\",\n  \"nextFollowUp\": \"2026-07-28\",\n  \"counselorDocsId\": \"6a4b5524d763ecb377186650\"\n}\n\n\n// {\n//   \"status\": \"ADMITTED\",\n//   \"note\": \"Admission application submitted successfully. Awaiting document verification.\",\n//   \"nextFollowUp\": \"2026-07-30\",\n//   \"counselorDocsId\": \"6a4b5524d763ecb377186650\"\n// }\n\n\n// {\n//   \"status\": \"LOST\",\n//   \"note\": \"Parent informed that the student has enrolled in another school.\",\n//   \"nextFollowUp\": null,\n//   \"counselorDocsId\": \"6a4b5524d763ecb377186650\"\n// }"
+                  "raw": "// http://localhost:3456/api/inquiries/INQUIRY_ID_HERE/follow-ups\n\n// {\n//   \"status\": \"INQUIRY\",\n//   \"note\": \"New inquiry received through the website. Initial contact pending.\",\n//   \"nextFollowUp\": \"2026-07-24\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n{\n  \"status\": \"VISIT\",\n  \"note\": \"Campus tour completed. Parent expressed interest in proceeding.\",\n  \"nextFollowUp\": \"2026-07-28\",\n  \"counselorId\": \"6a4b5524d763ecb377186650\"\n}\n\n\n// {\n//   \"status\": \"ADMITTED\",\n//   \"note\": \"Admission application submitted successfully. Awaiting document verification.\",\n//   \"nextFollowUp\": \"2026-07-30\",\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }\n\n\n// {\n//   \"status\": \"LOST\",\n//   \"note\": \"Parent informed that the student has enrolled in another school.\",\n//   \"nextFollowUp\": null,\n//   \"counselorId\": \"6a4b5524d763ecb377186650\"\n// }"
                 },
                 "url": {
                   "raw": "http://localhost:3456/api/inquiries/6a609a96318a3e722c135374/follow-ups",
@@ -3778,7 +3778,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:3456/api/students/admission?admissionNo=ADM%2F2026%2F05%2F0519",
+                  "raw": "http://localhost:3456/api/students/admission/ADM-2026-001",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -3787,13 +3787,8 @@
                   "path": [
                     "api",
                     "students",
-                    "admission"
-                  ],
-                  "query": [
-                    {
-                      "key": "admissionNo",
-                      "value": "ADM/2026/05/0519"
-                    }
+                    "admission",
+                    "ADM-2026-001"
                   ]
                 }
               },
