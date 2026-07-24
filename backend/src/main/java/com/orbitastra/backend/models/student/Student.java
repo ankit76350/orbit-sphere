@@ -62,8 +62,8 @@ public class Student extends SchoolBase {
 
     // Denormalised pointer to this student's StudentAcademicRecord (in the
     // "student_academic_records" collection) for the current — i.e. most recent —
-    // academic year. Kept in sync by StudentService whenever an academic record is
-    // created, assigned or promoted, so the student's active enrolment is one lookup away.
+    // academic year. Kept in sync by StudentService whenever a new academic record
+    // is assigned, so the student's active enrolment is one lookup away.
     // The full record itself is exposed only on the API view (StudentResponse), not the entity.
     private String currentAcademicRecordDocsId;
 }

@@ -1164,7 +1164,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               <GraduationCap size={18} className="text-blue-600" />
               <span>Assign Academic Record · {historyStudent.name}</span>
             </h3>
-            <p className="text-xs text-slate-500 mt-1 mb-5">Create or promote the student to a specific class and academic year.</p>
+            <p className="text-xs text-slate-500 mt-1 mb-5">Create a new current academic record for a specific class and academic year.</p>
 
             <div className="space-y-4">
               <Field label="Academic Year" apiName="academicYear" required hint="Must be an existing academic year for this school.">

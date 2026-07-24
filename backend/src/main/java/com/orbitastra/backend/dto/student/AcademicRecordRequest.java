@@ -9,8 +9,8 @@ import lombok.Data;
 
 /**
  * Client-settable fields of a student's per-year academic record. Reused when
- * creating/updating a student (nested) and by the academic-record / promote
- * endpoints. {@code schoolId} and {@code studentDocsId} are derived server-side
+ * creating/updating a student (nested) and by the academic-record endpoint.
+ * {@code schoolId} and {@code studentDocsId} are derived server-side
  * from the owning student, never accepted here.
  */
 @Data
