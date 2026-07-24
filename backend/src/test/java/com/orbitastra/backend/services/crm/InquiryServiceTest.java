@@ -203,7 +203,7 @@ class InquiryServiceTest {
     }
 
     @Test
-    void recordFollowUp_whenAlreadyAdmitted_changingStatus_throwsIllegalArgumentException() {
+    void recordFollowUp_whenAlreadyAdmitted_changingStatus_isRejectedWithoutSaving() {
         String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
                 .id(inquiryDocsId)
@@ -222,11 +222,16 @@ class InquiryServiceTest {
             inquiryService.recordFollowUp(inquiryDocsId, entry);
         });
 
-        assertEquals("Cannot change status of an inquiry that is already ADMITTED.", ex.getMessage());
+        assertEquals(
+                "Cannot record another follow-up for an inquiry that is already ADMITTED.",
+                ex.getMessage());
+        verify(inquiryRepository, never()).save(any());
+        verify(admissionRepository, never()).findByInquiryDocsId(any());
+        verify(admissionRepository, never()).save(any());
     }
 
     @Test
-    void recordFollowUp_whenAlreadyAdmitted_sameStatus_succeeds() {
+    void recordFollowUp_whenAlreadyAdmitted_sameStatus_isRejectedWithoutAppendingLog() {
         String inquiryDocsId = "6a5e1bb4faffc52a626a30af";
         Inquiry existing = Inquiry.builder()
                 .id(inquiryDocsId)
@@ -235,19 +240,23 @@ class InquiryServiceTest {
                 .build();
 
         when(inquiryRepository.findById(inquiryDocsId)).thenReturn(Optional.of(existing));
-        when(inquiryRepository.save(existing)).thenReturn(existing);
-
-        Admission existingAdmission = Admission.builder().id("admission-777").build();
-        when(admissionRepository.findByInquiryDocsId(inquiryDocsId)).thenReturn(java.util.List.of(existingAdmission));
 
         InquiryFollowUp entry = InquiryFollowUp.builder()
-                .status(InquiryStatus.ADMITTED) // Remaining ADMITTED
+                .status(InquiryStatus.ADMITTED)
                 .note("Added additional documentation note")
                 .build();
 
-        Inquiry result = inquiryService.recordFollowUp(inquiryDocsId, entry);
-        assertEquals(InquiryStatus.ADMITTED, result.getStatus());
-        assertEquals("admission-777", result.getAdmissionDocsId());
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> inquiryService.recordFollowUp(inquiryDocsId, entry));
+
+        assertEquals(
+                "Cannot record another follow-up for an inquiry that is already ADMITTED.",
+                ex.getMessage());
+        assertEquals(0, existing.getFollowUps().size());
+        verify(inquiryRepository, never()).save(any());
+        verify(admissionRepository, never()).findByInquiryDocsId(any());
+        verify(admissionRepository, never()).save(any());
     }
 
     @Test

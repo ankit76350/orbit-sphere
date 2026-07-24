@@ -130,7 +130,8 @@ public class InquiryService {
      * Records a follow-up on the lead: appends {status, note, nextFollowUp} to the
      * timeline and sets the inquiry's current status to the entry's status. This is
      * the single way a status change is captured, so every move keeps its note and
-     * next-follow-up context.
+     * next-follow-up context. ADMITTED is terminal for this endpoint because the
+     * lead has already moved into the admission workflow.
      */
     @Transactional
     public Inquiry recordFollowUp(String id, InquiryFollowUp entry) {
@@ -138,8 +139,9 @@ public class InquiryService {
             throw new IllegalArgumentException("Follow-up details are required.");
         }
         Inquiry inquiry = getInquiryById(id);
-        if (inquiry.getStatus() == InquiryStatus.ADMITTED && entry.getStatus() != null && entry.getStatus() != InquiryStatus.ADMITTED) {
-            throw new IllegalArgumentException("Cannot change status of an inquiry that is already ADMITTED.");
+        if (inquiry.getStatus() == InquiryStatus.ADMITTED) {
+            throw new IllegalArgumentException(
+                    "Cannot record another follow-up for an inquiry that is already ADMITTED.");
         }
         if (inquiry.getStatus() == InquiryStatus.CONFIRMED
                 && entry.getStatus() != null
