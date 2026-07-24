@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.crm;
+package com.orbitastra.backend.models.crm.embedded;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

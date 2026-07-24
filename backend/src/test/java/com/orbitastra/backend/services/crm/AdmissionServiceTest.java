@@ -35,7 +35,7 @@ import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.InquiryGuardian;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.student.GuardianLink;
 import com.orbitastra.backend.models.student.Student;

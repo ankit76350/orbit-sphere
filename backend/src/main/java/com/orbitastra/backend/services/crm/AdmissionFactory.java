@@ -9,7 +9,7 @@ import java.util.UUID;
 
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.InquiryGuardian;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 
 /**

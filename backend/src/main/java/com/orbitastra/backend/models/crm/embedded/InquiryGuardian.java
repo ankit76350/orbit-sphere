@@ -1,5 +1,6 @@
-package com.orbitastra.backend.models.crm;
+package com.orbitastra.backend.models.crm.embedded;
 
+import com.orbitastra.backend.models.crm.Inquiry;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
 import lombok.AllArgsConstructor;

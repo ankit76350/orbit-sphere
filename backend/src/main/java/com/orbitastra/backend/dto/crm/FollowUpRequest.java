@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.crm;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.crm.InquiryFollowUp;
+import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import jakarta.validation.constraints.FutureOrPresent;

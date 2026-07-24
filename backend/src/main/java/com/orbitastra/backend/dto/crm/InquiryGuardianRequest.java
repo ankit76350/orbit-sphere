@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.crm;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.orbitastra.backend.models.crm.InquiryGuardian;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
 import jakarta.validation.constraints.Email;

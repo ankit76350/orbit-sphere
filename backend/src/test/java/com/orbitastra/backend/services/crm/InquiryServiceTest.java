@@ -15,7 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.models.crm.Admission;
 import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.InquiryFollowUp;
+import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
