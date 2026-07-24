@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.core.AcademicYear;
-import com.orbitastra.backend.models.core.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;

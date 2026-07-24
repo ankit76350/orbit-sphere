@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.core;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.models.core.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 
 import lombok.Data;
 

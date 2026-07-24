@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

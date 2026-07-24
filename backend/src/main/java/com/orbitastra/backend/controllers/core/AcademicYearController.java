@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.dto.core.CreateAcademicYearRequest;
 import com.orbitastra.backend.dto.core.UpdateAcademicYearRequest;
 import com.orbitastra.backend.models.core.AcademicYear;
-import com.orbitastra.backend.models.core.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
 import jakarta.validation.Valid;

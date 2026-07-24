@@ -27,7 +27,7 @@ import com.orbitastra.backend.models.academics.DailyTimetable.TimetableEntry;
 import com.orbitastra.backend.models.academics.SchoolClass;
 import com.orbitastra.backend.models.academics.enums.SlotType;
 import com.orbitastra.backend.models.core.AcademicYear;
-import com.orbitastra.backend.models.core.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.academics.DailyTimetableRepository;
