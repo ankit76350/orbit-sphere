@@ -291,6 +291,10 @@ public class InquiryService {
         inquiry.setStatus(target);
     }
 
+    /**
+     * Deletes only the inquiry document. Any linked admission, student, guardian,
+     * document, or academic-history records are deliberately retained.
+     */
     public void deleteInquiry(String id) {
         Inquiry inquiry = getInquiryById(id);
         inquiryRepository.delete(inquiry);

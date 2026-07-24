@@ -653,6 +653,22 @@ class AdmissionServiceTest {
         verifyNoInteractions(studentService, guardianService);
     }
 
+    @Test
+    void deleteAdmission_deletesOnlyAdmissionAndRetainsLinkedRecords() {
+        Admission admission = Admission.builder()
+                .id("admission-789")
+                .inquiryDocsId("inquiry-456")
+                .studentDocsId("student-123")
+                .documents(List.of("birth-certificate.pdf"))
+                .build();
+        when(admissionRepository.findById("admission-789")).thenReturn(Optional.of(admission));
+
+        admissionService.deleteAdmission("admission-789");
+
+        verify(admissionRepository).delete(admission);
+        verifyNoInteractions(inquiryService, studentService, guardianService);
+    }
+
     private void saveWithGeneratedId() {
         when(admissionRepository.save(any(Admission.class))).thenAnswer(invocation -> {
             Admission admission = invocation.getArgument(0);

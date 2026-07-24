@@ -384,6 +384,10 @@ public class AdmissionService {
                 override == null ? null : override.getPortalAccess());
     }
 
+    /**
+     * Deletes only the admission document. Linked inquiry, student, guardian,
+     * document, and academic-history records are deliberately retained.
+     */
     public void deleteAdmission(String id) {
         Admission admission = getAdmissionById(id);
         admissionRepository.delete(admission);

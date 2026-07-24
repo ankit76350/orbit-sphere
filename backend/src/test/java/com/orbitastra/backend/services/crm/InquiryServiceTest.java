@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -402,6 +403,26 @@ class InquiryServiceTest {
                 () -> inquiryService.confirmEnrollment("inquiry-123", "admission-123"));
 
         assertEquals("A lost inquiry cannot be confirmed as enrolled.", error.getMessage());
+    }
+
+    @Test
+    void deleteInquiry_deletesOnlyInquiryAndRetainsLinkedAdmission() {
+        Inquiry inquiry = Inquiry.builder()
+                .id("inquiry-123")
+                .schoolId("school-123")
+                .admissionDocsId("admission-123")
+                .status(InquiryStatus.ADMITTED)
+                .followUps(List.of(InquiryFollowUp.builder()
+                        .status(InquiryStatus.ADMITTED)
+                        .note("Admission created")
+                        .build()))
+                .build();
+        when(inquiryRepository.findById("inquiry-123")).thenReturn(Optional.of(inquiry));
+
+        inquiryService.deleteInquiry("inquiry-123");
+
+        verify(inquiryRepository).delete(inquiry);
+        verifyNoInteractions(admissionRepository, staffRepository);
     }
 
     private void mockCounselor() {
