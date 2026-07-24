@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.index.IndexInfo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -30,6 +31,10 @@ import lombok.RequiredArgsConstructor;
 public class ProjectFieldNamingMigration {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectFieldNamingMigration.class);
+    private static final List<String> LEGACY_STUDENT_ACADEMIC_RECORD_INDEXES = List.of(
+            "student_academic_year_unique_idx",
+            "school_year_student_no_unique_idx",
+            "class_doc_section_no_year_roll_unique_idx");
 
     private static final List<FieldRename> TOP_LEVEL_RENAMES = List.of(
             rename("staffs", "employeeId", "employeeNo"),
@@ -161,6 +166,8 @@ public class ProjectFieldNamingMigration {
 
     @EventListener(ApplicationReadyEvent.class)
     public void migrateProjectFieldNames() {
+        removeLegacyStudentAcademicRecordIndexes();
+
         long migrated = TOP_LEVEL_RENAMES.stream()
                 .mapToLong(this::migrateTopLevelField)
                 .sum();
@@ -170,6 +177,19 @@ public class ProjectFieldNamingMigration {
 
         if (migrated > 0) {
             log.info("Migrated {} legacy identifier field value(s)", migrated);
+        }
+    }
+
+    private void removeLegacyStudentAcademicRecordIndexes() {
+        var indexOps = mongoTemplate.indexOps("student_academic_records");
+        var existingNames = indexOps.getIndexInfo().stream()
+                .map(IndexInfo::getName)
+                .collect(java.util.stream.Collectors.toSet());
+        for (String indexName : LEGACY_STUDENT_ACADEMIC_RECORD_INDEXES) {
+            if (existingNames.contains(indexName)) {
+                indexOps.dropIndex(indexName);
+                log.info("Removed legacy student academic record index '{}'", indexName);
+            }
         }
     }
 

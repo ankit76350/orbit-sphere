@@ -186,6 +186,162 @@ public class StudentServiceTest {
     }
 
     @Test
+    void createStudent_rejectsSectionThatDoesNotBelongToClassBeforeStudentWrite() {
+        CreateStudentRequest request = validDirectStudentRequest();
+        request.getCurrentAcademicRecord().setClassDocsId("class-9");
+        request.getCurrentAcademicRecord().setSectionNo("C");
+
+        stubCreationChecks();
+        when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                SchoolClass.builder()
+                        .id("class-9")
+                        .schoolId("school-id-123")
+                        .academicYear("2026-2027")
+                        .sections(List.of("A", "B"))
+                        .build()));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.createStudent(request));
+
+        assertEquals("Section 'C' does not exist in class 'class-9'.", error.getMessage());
+        verify(studentRepository, never()).save(any());
+        verify(studentAcademicRecordRepository, never()).save(any());
+    }
+
+    @Test
+    void createStudent_allowsClassWithoutSection() {
+        CreateStudentRequest request = validDirectStudentRequest();
+        request.getCurrentAcademicRecord().setClassDocsId("class-9");
+
+        stubCreationChecks();
+        when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                SchoolClass.builder()
+                        .id("class-9")
+                        .schoolId("school-id-123")
+                        .academicYear("2026-2027")
+                        .sections(List.of("A", "B"))
+                        .build()));
+        when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> {
+            Student value = invocation.getArgument(0);
+            if (value.getId() == null) value.setId("created-student");
+            return value;
+        });
+        when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                .thenAnswer(invocation -> {
+                    StudentAcademicRecord value = invocation.getArgument(0);
+                    value.setId("created-record");
+                    return value;
+                });
+
+        StudentResponse response = studentService.createStudent(request);
+
+        ArgumentCaptor<StudentAcademicRecord> recordCaptor =
+                ArgumentCaptor.forClass(StudentAcademicRecord.class);
+        verify(studentAcademicRecordRepository).save(recordCaptor.capture());
+        assertEquals("class-9", recordCaptor.getValue().getClassDocsId());
+        assertNull(recordCaptor.getValue().getSectionNo());
+        assertEquals("created-record", response.getCurrentAcademicRecordDocsId());
+    }
+
+    @Test
+    void createStudent_rejectsSectionOrRollNumberWithoutClass() {
+        CreateStudentRequest sectionRequest = validDirectStudentRequest();
+        sectionRequest.getCurrentAcademicRecord().setSectionNo("A");
+        stubCreationChecks();
+
+        IllegalArgumentException sectionError = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.createStudent(sectionRequest));
+        assertEquals("sectionNo requires a classDocsId in the academic record.",
+                sectionError.getMessage());
+
+        CreateStudentRequest rollRequest = validDirectStudentRequest();
+        rollRequest.setAdmissionNo("ADM-002");
+        rollRequest.getCurrentAcademicRecord().setRollNo("9C-03");
+        when(studentRepository.findByAdmissionNo("ADM-002")).thenReturn(Optional.empty());
+
+        IllegalArgumentException rollError = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.createStudent(rollRequest));
+        assertEquals("rollNo requires a classDocsId in the academic record.",
+                rollError.getMessage());
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void createStudent_rejectsClassFromAnotherAcademicYear() {
+        CreateStudentRequest request = validDirectStudentRequest();
+        request.getCurrentAcademicRecord().setClassDocsId("class-old");
+
+        stubCreationChecks();
+        when(schoolClassRepository.findById("class-old")).thenReturn(Optional.of(
+                SchoolClass.builder()
+                        .id("class-old")
+                        .schoolId("school-id-123")
+                        .academicYear("2025-2026")
+                        .build()));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> studentService.createStudent(request));
+
+        assertEquals("Class does not belong to academic year '2026-2027'.", error.getMessage());
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void createStudent_rejectsDuplicateStudentNumberBeforeStudentWrite() {
+        CreateStudentRequest request = validDirectStudentRequest();
+        request.getCurrentAcademicRecord().setStudentNo("TC-STD-100");
+        stubCreationChecks();
+        when(studentAcademicRecordRepository
+                .findFirstBySchoolIdAndAcademicYearAndStudentNoAndStatus(
+                        "school-id-123", "2026-2027", "TC-STD-100", StudentStatus.ACTIVE))
+                .thenReturn(Optional.of(StudentAcademicRecord.builder()
+                        .id("existing-record")
+                        .studentDocsId("another-student")
+                        .build()));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> studentService.createStudent(request));
+
+        assertTrue(error.getMessage().contains("studentNo 'TC-STD-100' is already used"));
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void createStudent_rejectsDuplicateRollNumberWithinClassSectionAndYear() {
+        CreateStudentRequest request = validDirectStudentRequest();
+        request.getCurrentAcademicRecord().setClassDocsId("class-9");
+        request.getCurrentAcademicRecord().setSectionNo("c");
+        request.getCurrentAcademicRecord().setRollNo("9C-03");
+        stubCreationChecks();
+        when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                SchoolClass.builder()
+                        .id("class-9")
+                        .schoolId("school-id-123")
+                        .academicYear("2026-2027")
+                        .sections(List.of("A", "B", "C"))
+                        .build()));
+        when(studentAcademicRecordRepository
+                .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
+                        "class-9", "C", "2026-2027", "9C-03", StudentStatus.ACTIVE))
+                .thenReturn(Optional.of(StudentAcademicRecord.builder()
+                        .id("existing-record")
+                        .studentDocsId("another-student")
+                        .build()));
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> studentService.createStudent(request));
+
+        assertTrue(error.getMessage().contains("rollNo '9C-03' is already used"));
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
     void persistStudent_SchoolNotFound_ThrowsException() {
         when(schoolRepository.findById("school-id-123")).thenReturn(Optional.empty());
 
@@ -327,7 +483,10 @@ public class StudentServiceTest {
 
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear(anyString(), anyString())).thenReturn(Optional.empty());
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        anyString(), anyString(), eq(StudentStatus.ACTIVE)))
+                .thenReturn(Optional.empty());
         when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(academicYearResolver.resolve(anyString(), any(), any())).thenReturn(academicYear);
 
@@ -363,7 +522,9 @@ public class StudentServiceTest {
         ));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
         when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -389,14 +550,12 @@ public class StudentServiceTest {
                         .academicYear("2026-2027").build()
         ));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(i -> { StudentAcademicRecord r = i.getArgument(0); r.setId("rec-2026"); return r; });
-        // After the save the record exists and becomes the current one, so the pointer is persisted.
-        when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
-                .thenReturn(List.of(StudentAcademicRecord.builder()
-                        .id("rec-2026").academicYear("2026-2027").build()));
         when(studentRepository.save(any(Student.class))).thenAnswer(i -> i.getArgument(0));
 
         studentService.createOrUpdateAcademicRecord("student-id-123", input);
@@ -434,7 +593,9 @@ public class StudentServiceTest {
         when(academicYearResolver.resolve("school-id-123", "2027-2028", null))
                 .thenReturn(AcademicYear.builder().name("2027-2028").build());
         when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123")).thenReturn(new ArrayList<>());
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2027-2028"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2027-2028", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -445,6 +606,63 @@ public class StudentServiceTest {
         assertEquals("class-new", record.getClassDocsId());
         assertEquals("2027-2028", record.getAcademicYear());
         verify(studentAcademicRecordRepository, times(1)).save(any(StudentAcademicRecord.class));
+    }
+
+    @Test
+    void promoteStudent_sameAcademicYearKeepsHistoryAndRepointsStudent() {
+        StudentAcademicRecord previous = StudentAcademicRecord.builder()
+                .id("record-old")
+                .schoolId("school-id-123")
+                .studentDocsId("student-id-123")
+                .academicYear("2026-2027")
+                .studentNo("TC-STD-100")
+                .rollNo("8A-01")
+                .classDocsId("class-8")
+                .sectionNo("A")
+                .status(StudentStatus.ACTIVE)
+                .build();
+        StudentAcademicRecord promotion = StudentAcademicRecord.builder()
+                .academicYear("2026-2027")
+                .classDocsId("class-9")
+                .sectionNo("C")
+                .rollNo("9C-03")
+                .build();
+
+        when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+        when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                .thenReturn(academicYear);
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
+                .thenReturn(Optional.of(previous));
+        when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                SchoolClass.builder()
+                        .id("class-9")
+                        .schoolId("school-id-123")
+                        .academicYear("2026-2027")
+                        .sections(List.of("A", "B", "C"))
+                        .build()));
+        when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                .thenAnswer(invocation -> {
+                    StudentAcademicRecord value = invocation.getArgument(0);
+                    if (value != previous) value.setId("record-new");
+                    return value;
+                });
+        when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StudentAcademicRecord promoted =
+                studentService.promoteStudent("student-id-123", promotion);
+
+        assertEquals(StudentStatus.INACTIVE, previous.getStatus());
+        assertEquals(StudentStatus.ACTIVE, promoted.getStatus());
+        assertEquals("record-new", promoted.getId());
+        assertEquals("TC-STD-100", promoted.getStudentNo());
+        assertEquals("class-9", promoted.getClassDocsId());
+        assertEquals("C", promoted.getSectionNo());
+        assertEquals("record-new", student.getCurrentAcademicRecordDocsId());
+        verify(studentAcademicRecordRepository, times(2))
+                .save(any(StudentAcademicRecord.class));
+        verify(studentRepository).save(student);
     }
 
     @Test
@@ -485,7 +703,9 @@ public class StudentServiceTest {
                 .academicYear("2026-2027").classDocsId("class-old").build();
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(schoolClassRepository.findById("class-old")).thenReturn(Optional.of(
                 SchoolClass.builder().id("class-old").schoolId("school-id-123")
@@ -502,7 +722,9 @@ public class StudentServiceTest {
                 .academicYear("2026-2027").classDocsId("class-new").sectionNo("C").build();
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
                 SchoolClass.builder().id("class-new").schoolId("school-id-123")
@@ -525,7 +747,9 @@ public class StudentServiceTest {
                 .studentNo(" ").rollNo(" ").hostelRoomNo(" ").build();
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
                 SchoolClass.builder().id("class-new").schoolId("school-id-123")
@@ -542,24 +766,21 @@ public class StudentServiceTest {
     }
 
     @Test
-    void createOrUpdateAcademicRecord_preservesExistingStatusWhenOmitted() {
-        StudentAcademicRecord existing = StudentAcademicRecord.builder()
-                .id("record-2026").studentDocsId("student-id-123").academicYear("2026-2027")
-                .status(StudentStatus.INACTIVE).build();
+    void createOrUpdateAcademicRecord_createsActivePlacementWhenOnlyHistoryExists() {
         StudentAcademicRecord input = StudentAcademicRecord.builder()
                 .academicYear("2026-2027").studentNo("STD-UPDATED").build();
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
-                .thenReturn(Optional.of(existing));
-        when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
-                .thenReturn(List.of(existing));
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
+                .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         StudentAcademicRecord saved = studentService.createOrUpdateAcademicRecord("student-id-123", input);
 
-        assertEquals(StudentStatus.INACTIVE, saved.getStatus());
+        assertEquals(StudentStatus.ACTIVE, saved.getStatus());
         assertEquals("STD-UPDATED", saved.getStudentNo());
     }
 
@@ -569,7 +790,9 @@ public class StudentServiceTest {
                 .academicYear("2026-2027").studentNo("STD-001").build();
         when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
         when(academicYearResolver.resolve("school-id-123", "2026-2027", null)).thenReturn(academicYear);
-        when(studentAcademicRecordRepository.findByStudentDocsIdAndAcademicYear("student-id-123", "2026-2027"))
+        when(studentAcademicRecordRepository
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        "student-id-123", "2026-2027", StudentStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
                 .thenThrow(new DuplicateKeyException("school_year_student_no_unique_idx"));
@@ -608,5 +831,24 @@ public class StudentServiceTest {
         assertEquals(1, siblings.size());
         assertEquals("sibling-id-999", siblings.get(0).getId());
         verify(studentRepository, times(1)).findByGuardiansGuardianDocsId("guardian-1");
+    }
+
+    private CreateStudentRequest validDirectStudentRequest() {
+        CreateStudentRequest request = new CreateStudentRequest();
+        request.setSchoolId("school-id-123");
+        request.setAdmissionNo("ADM-001");
+        request.setName("John Doe");
+        AcademicRecordRequest academicRecordRequest = new AcademicRecordRequest();
+        academicRecordRequest.setAcademicYear("2026-2027");
+        request.setCurrentAcademicRecord(academicRecordRequest);
+        return request;
+    }
+
+    private void stubCreationChecks() {
+        when(schoolRepository.findById("school-id-123")).thenReturn(Optional.of(school));
+        when(studentRepository.countBySchoolId("school-id-123")).thenReturn(0L);
+        when(studentRepository.findByAdmissionNo("ADM-001")).thenReturn(Optional.empty());
+        when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                .thenReturn(academicYear);
     }
 }

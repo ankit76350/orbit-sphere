@@ -17,6 +17,7 @@ import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.student.enums.StudentStatus;
 import com.orbitastra.backend.repositories.academics.HomeworkRepository;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
@@ -161,9 +162,11 @@ public class HomeworkService {
 
         Student student = studentValidator.validateStudent(studentDocsId, schoolId);
         StudentAcademicRecord academicRecord = studentAcademicRecordRepository
-                .findByStudentDocsIdAndAcademicYear(studentDocsId, schoolClass.getAcademicYear())
+                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
+                        studentDocsId, schoolClass.getAcademicYear(), StudentStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("Student with ID " + studentDocsId
-                        + " does not have an academic record for academic year " + schoolClass.getAcademicYear()));
+                        + " does not have an active academic record for academic year "
+                        + schoolClass.getAcademicYear()));
 
         // When the denormalised pointer is present, it must point at the same
         // year-specific record. This prevents assigning work to a stale
@@ -212,7 +215,8 @@ public class HomeworkService {
     private List<Homework.StudentAssignment> assignmentsForSection(String schoolId, SchoolClass schoolClass,
             String sectionNo) {
         List<StudentAcademicRecord> records = studentAcademicRecordRepository
-                .findByClassDocsIdAndAcademicYear(schoolClass.getId(), schoolClass.getAcademicYear());
+                .findByClassDocsIdAndAcademicYearAndStatus(
+                        schoolClass.getId(), schoolClass.getAcademicYear(), StudentStatus.ACTIVE);
         List<Homework.StudentAssignment> assignments = new ArrayList<>();
         Set<String> assignedStudentDocsIds = new HashSet<>();
 

@@ -17,9 +17,26 @@ import lombok.NoArgsConstructor;
 
 @Document(collection = "student_academic_records")
 @CompoundIndexes({
-    @CompoundIndex(name = "student_academic_year_unique_idx", def = "{'studentDocsId': 1, 'academicYear': 1}", unique = true),
-    @CompoundIndex(name = "school_year_student_no_unique_idx", def = "{'schoolId': 1, 'academicYear': 1, 'studentNo': 1}", unique = true, partialFilter = "{'studentNo': {'$type': 'string'}}"),
-    @CompoundIndex(name = "class_doc_section_no_year_roll_unique_idx", def = "{'classDocsId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'sectionNo': {'$type': 'string'}, 'rollNo': {'$type': 'string'}}")
+    // A student may have multiple placement-history records in one academic
+    // year, but only one of them can be the active/current placement.
+    @CompoundIndex(
+            name = "student_academic_year_active_unique_idx",
+            def = "{'studentDocsId': 1, 'academicYear': 1, 'status': 1}",
+            unique = true,
+            partialFilter = "{'status': 'ACTIVE'}"),
+    // Student numbers remain unique among active students in a school year.
+    @CompoundIndex(
+            name = "school_year_active_student_no_unique_idx",
+            def = "{'schoolId': 1, 'academicYear': 1, 'studentNo': 1, 'status': 1}",
+            unique = true,
+            partialFilter = "{'studentNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
+    // Section is intentionally optional: when it is absent MongoDB indexes it
+    // as null, so roll numbers are still unique within the class/year.
+    @CompoundIndex(
+            name = "class_section_year_active_roll_unique_idx",
+            def = "{'classDocsId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}",
+            unique = true,
+            partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
