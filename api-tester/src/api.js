@@ -152,7 +152,6 @@ export const api = {
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   getStudentAcademicHistory: (id) => listOr(`/api/students/${id}/academic-history`),
   assignAcademicRecord: (studentDocsId, payload) => call('POST', `/api/students/${studentDocsId}/academic-records`, payload),
-  promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
   getStudentSiblings: (id) => listOr(`/api/students/${id}/siblings`),
   getStudentByAdmissionNo: (admissionNo) =>
     call('GET', `/api/students/admission?admissionNo=${encodeURIComponent(admissionNo)}`),

@@ -1,7 +1,6 @@
 package com.orbitastra.backend.dto.student;
 
-import java.util.Set;
-
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.StudentStatus;
@@ -25,6 +24,7 @@ public class AcademicRecordRequest {
 
     private String rollNo;
 
+    @JsonAlias("classDocId")
     private String classDocsId;
 
     private String sectionNo;
@@ -33,18 +33,15 @@ public class AcademicRecordRequest {
 
     private StudentStatus status;
 
-    private static final Set<String> UNSUPPORTED_FIELDS = Set.of(
-            "studentNo", "classDocsId", "sectionNo", "hostelRoomId", "schoolId", "studentDocsId", "id");
-
-    /** Reject deprecated aliases and server-owned identifiers instead of silently ignoring them. */
+    /** Reject unknown, deprecated, and server-owned fields instead of silently ignoring them. */
     @JsonAnySetter
     public void rejectUnsupportedField(String fieldName, Object value) {
-        if (UNSUPPORTED_FIELDS.contains(fieldName)) {
-            throw new IllegalArgumentException(
-                    "Unsupported academic-record field '" + fieldName
-                            + "'. Use identityNo, classDocsId, sectionNo, and hostelRoomNo; "
-                            + "schoolId and studentDocsId are server-owned.");
-        }
+        throw new IllegalArgumentException(
+                "Unsupported academic-record field '" + fieldName
+                        + "'. Allowed fields are academicYear, identityNo, rollNo, classDocsId, "
+                        + "sectionNo, hostelRoomNo, and status. "
+                        + "classDocId is accepted only as a legacy alias for classDocsId; "
+                        + "schoolId, studentDocsId, and id are server-owned.");
     }
 
     public StudentAcademicRecord toModel() {

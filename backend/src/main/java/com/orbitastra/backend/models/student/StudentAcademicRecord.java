@@ -22,9 +22,9 @@ import lombok.NoArgsConstructor;
         // Human-readable identity numbers remain unique among active students in a
         // school year.
         @CompoundIndex(name = "school_year_active_identity_no_unique_idx", def = "{'schoolId': 1, 'academicYear': 1, 'identityNo': 1, 'status': 1}", unique = true, partialFilter = "{'identityNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
-        // Section is intentionally optional: when it is absent MongoDB indexes it
-        // as null, so roll numbers are still unique within the class/year.
-        @CompoundIndex(name = "class_section_year_active_roll_unique_idx", def = "{'classDocsId': 1, 'sectionNo': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
+        // A roll number identifies one active student across the whole class in
+        // an academic year, regardless of section.
+        @CompoundIndex(name = "class_year_active_roll_unique_idx", def = "{'classDocsId': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)

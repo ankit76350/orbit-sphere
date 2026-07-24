@@ -572,11 +572,12 @@ public class StudentService {
     // =======================================================================================
 
     /**
-     * Adds a new academic-year record for a student, or updates it if one already exists for that
-     * year. This is how a student is placed in a class/section for a given year.
+     * Creates a new academic placement-history record and makes it the student's
+     * current record. An existing active placement in the same academic year is
+     * retained as history after being marked INACTIVE.
      */
     @Transactional
-    public StudentAcademicRecord createOrUpdateAcademicRecord(String studentDocsId, StudentAcademicRecord details) {
+    public StudentAcademicRecord createAcademicRecord(String studentDocsId, StudentAcademicRecord details) {
         String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
         if (details == null) {
             throw new IllegalArgumentException("Academic record details are required.");
@@ -593,102 +594,33 @@ public class StudentService {
         }
         String yearName = academicYear.getName();
 
-        var existing = studentAcademicRecordRepository
-                .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
-                        normalizedStudentDocsId, yearName, StudentStatus.ACTIVE);
-        StudentAcademicRecord record = existing.orElseGet(() -> StudentAcademicRecord.builder()
-                .studentDocsId(normalizedStudentDocsId)
-                .academicYear(yearName)
-                .createdAt(LocalDateTime.now())
-                .build());
-
-        record.setStudentDocsId(normalizedStudentDocsId);
-        record.setSchoolId(studentSchoolId);
-        record.setAcademicYear(yearName);
-
-        String requestedIdentityNo = normalizeOptional(details.getIdentityNo());
-        String requestedRollNo = normalizeOptional(details.getRollNo());
-        String requestedClassDocsId = normalizeOptional(details.getClassDocsId());
-        String requestedSectionNo = normalizeOptional(details.getSectionNo());
-        String requestedHostelRoomNo = normalizeOptional(details.getHostelRoomNo());
-
-        if (details.getIdentityNo() != null) record.setIdentityNo(requestedIdentityNo);
-        if (details.getRollNo() != null) record.setRollNo(requestedRollNo);
-        if (details.getHostelRoomNo() != null) record.setHostelRoomNo(requestedHostelRoomNo);
-        if (details.getClassDocsId() != null) {
-            boolean classChanged = !Objects.equals(normalizeOptional(record.getClassDocsId()), requestedClassDocsId);
-            record.setClassDocsId(requestedClassDocsId);
-            if (classChanged && details.getSectionNo() == null) {
-                // A class-only placement is valid; never carry the old class's
-                // section into the newly selected class.
-                record.setSectionNo(null);
-            }
-        }
-        if (details.getSectionNo() != null) record.setSectionNo(requestedSectionNo);
-
-        // Omitted status preserves an existing record's status; only a new record
-        // falls back to the student's status.
-        if (details.getStatus() != null) {
-            record.setStatus(details.getStatus());
-        } else if (record.getStatus() == null) {
-            record.setStatus(student.getStatus() != null ? student.getStatus() : StudentStatus.ACTIVE);
-        }
-        record.setUpdatedAt(LocalDateTime.now());
-        normalizeAndValidateAcademicRecord(student, record);
-        rejectAcademicIdentifierConflicts(student, record);
-
-        final StudentAcademicRecord saved;
-        try {
-            saved = studentAcademicRecordRepository.save(record);
-        } catch (DuplicateKeyException ex) {
-            throw duplicateAcademicRecordConflict(student, record, ex);
-        }
-
-        // Keep the current-year pointer and the record write in one transaction.
-        setCurrentAcademicRecordPointer(student, saved);
-        return saved;
-    }
-
-    /**
-     * Creates a new placement-history record. If the student is promoted within
-     * the same academic year, the prior placement becomes INACTIVE and the new
-     * placement becomes the current ACTIVE record.
-     */
-    @Transactional
-    public StudentAcademicRecord promoteStudent(String studentDocsId, StudentAcademicRecord promotion) {
-        if (promotion == null || promotion.getAcademicYear() == null || promotion.getAcademicYear().isBlank()) {
-            throw new IllegalArgumentException("Academic year is required for promotion.");
-        }
-
-        String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
-        Student student = getStudentEntity(normalizedStudentDocsId);
-        String schoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
-        String yearName = academicYearResolver
-                .resolve(schoolId, promotion.getAcademicYear().trim(), null)
-                .getName();
-
         StudentAcademicRecord previousActive = studentAcademicRecordRepository
                 .findFirstByStudentDocsIdAndAcademicYearAndStatusOrderByCreatedAtDesc(
                         normalizedStudentDocsId, yearName, StudentStatus.ACTIVE)
                 .orElse(null);
 
-        StudentAcademicRecord nextPlacement = StudentAcademicRecord.builder()
-                .schoolId(schoolId)
+        if (details.getStatus() != null && details.getStatus() != StudentStatus.ACTIVE) {
+            throw new IllegalArgumentException(
+                    "A newly assigned current academic record must have status ACTIVE.");
+        }
+
+        StudentAcademicRecord record = StudentAcademicRecord.builder()
+                .schoolId(studentSchoolId)
                 .studentDocsId(normalizedStudentDocsId)
                 .academicYear(yearName)
-                .identityNo(normalizeOptional(promotion.getIdentityNo()) != null
-                        ? normalizeOptional(promotion.getIdentityNo())
+                .identityNo(normalizeOptional(details.getIdentityNo()) != null
+                        ? normalizeOptional(details.getIdentityNo())
                         : previousActive != null ? normalizeOptional(previousActive.getIdentityNo()) : null)
-                .rollNo(normalizeOptional(promotion.getRollNo()))
-                .classDocsId(normalizeOptional(promotion.getClassDocsId()))
-                .sectionNo(normalizeOptional(promotion.getSectionNo()))
-                .hostelRoomNo(normalizeOptional(promotion.getHostelRoomNo()))
+                .rollNo(details.getRollNo())
+                .classDocsId(details.getClassDocsId())
+                .sectionNo(details.getSectionNo())
+                .hostelRoomNo(details.getHostelRoomNo())
                 .status(StudentStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        normalizeAndValidateAcademicRecord(student, nextPlacement);
-        rejectAcademicIdentifierConflicts(student, nextPlacement);
+        normalizeAndValidateAcademicRecord(student, record);
+        rejectAcademicIdentifierConflicts(student, record);
 
         if (previousActive != null) {
             previousActive.setStatus(StudentStatus.INACTIVE);
@@ -698,17 +630,19 @@ public class StudentService {
 
         final StudentAcademicRecord saved;
         try {
-            saved = studentAcademicRecordRepository.save(nextPlacement);
+            saved = studentAcademicRecordRepository.save(record);
         } catch (DuplicateKeyException ex) {
-            throw duplicateAcademicRecordConflict(student, nextPlacement, ex);
+            throw duplicateAcademicRecordConflict(student, record, ex);
         }
+
+        // Keep the current-record pointer and the history write in one transaction.
         setCurrentAcademicRecordPointer(student, saved);
         return saved;
     }
 
     /**
      * Applies one validation policy to student creation, academic assignment,
-     * profile updates, and promotion.
+     * profile updates, and new placement-history records.
      */
     private void normalizeAndValidateAcademicRecord(Student student, StudentAcademicRecord record) {
         String schoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
@@ -790,18 +724,15 @@ public class StudentService {
 
         if (record.getRollNo() != null) {
             studentAcademicRecordRepository
-                    .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
-                            record.getClassDocsId(), record.getSectionNo(),
-                            record.getAcademicYear(), record.getRollNo(), StudentStatus.ACTIVE)
+                    .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
+                            record.getClassDocsId(), record.getAcademicYear(),
+                            record.getRollNo(), StudentStatus.ACTIVE)
                     .filter(existing -> !sameAcademicRecord(existing, record))
                     .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
                     .ifPresent(existing -> {
-                        String sectionScope = record.getSectionNo() == null
-                                ? "without a section"
-                                : "in section '" + record.getSectionNo() + "'";
                         throw new ConflictException(
-                                "rollNo '" + record.getRollNo() + "' is already used "
-                                        + sectionScope + " for class '" + record.getClassDocsId()
+                                "rollNo '" + record.getRollNo() + "' is already used in class '"
+                                        + record.getClassDocsId()
                                         + "' in academic year '" + record.getAcademicYear() + "'.");
                     });
         }

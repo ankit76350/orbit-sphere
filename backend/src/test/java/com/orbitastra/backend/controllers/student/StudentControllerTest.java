@@ -13,9 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.services.student.StudentService;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
@@ -68,6 +70,20 @@ class StudentControllerTest {
                 "Student deletion is not allowed. Student and academic records must be retained.",
                 ((Map<?, ?>) response.getBody()).get("message"));
         verifyNoInteractions(studentService);
+    }
+
+    @Test
+    void academicRecordRequest_acceptsLegacyClassDocIdAsClassDocsId() throws Exception {
+        AcademicRecordRequest request = new ObjectMapper().readValue(
+                """
+                {
+                  "academicYear": "2027-2028",
+                  "classDocId": "class-mongo-id"
+                }
+                """,
+                AcademicRecordRequest.class);
+
+        assertEquals("class-mongo-id", request.getClassDocsId());
     }
 
     @Test

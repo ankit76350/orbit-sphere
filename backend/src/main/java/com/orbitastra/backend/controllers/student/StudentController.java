@@ -136,16 +136,8 @@ public class StudentController {
     public ResponseEntity<StudentAcademicRecord> assignAcademicRecord(
             @PathVariable String id,
             @Valid @RequestBody AcademicRecordRequest request) {
-        StudentAcademicRecord created = studentService.createOrUpdateAcademicRecord(id, toAcademicRecord(request));
+        StudentAcademicRecord created = studentService.createAcademicRecord(id, toAcademicRecord(request));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
-    }
-
-    @PostMapping("/{id}/promote")
-    public ResponseEntity<StudentAcademicRecord> promoteStudent(
-            @PathVariable String id,
-            @Valid @RequestBody AcademicRecordRequest request) {
-        StudentAcademicRecord promoted = studentService.promoteStudent(id, toAcademicRecord(request));
-        return ResponseEntity.ok(promoted);
     }
 
     @GetMapping("/{id}/siblings")

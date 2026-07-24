@@ -82,7 +82,6 @@ export const api = {
     call('GET', `/api/students/admission?admissionNo=${encodeURIComponent(admissionNo)}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
-  promoteStudent: (id, payload) => call('POST', `/api/students/${id}/promote`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
 
   getGuardians: (schoolId = 'SCH-001') => listOr(`/api/guardians/school/${schoolId}`),

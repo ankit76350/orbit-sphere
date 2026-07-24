@@ -173,7 +173,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   const [academicHistory, setAcademicHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Promotion / Assign Record State
+  // Academic record assignment state
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [busyAssign, setBusyAssign] = useState(false);
   const [assignForm, setAssignForm] = useState({
@@ -413,6 +413,10 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
   };
 
   const submitAcademicRecord = async () => {
+    if (!assignForm.academicYear) {
+      toast.error("Academic Year is required.");
+      return;
+    }
     setBusyAssign(true);
     try {
       await api.assignAcademicRecord(historyStudent.id, assignForm);
@@ -543,7 +547,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                                     openAcademicHistory(s);
                                   }}
                                   className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
-                                  title="Academic Promotion History"
+                                  title="Academic Record History"
                                 >
                                   <History size={14} />
                                 </button>
@@ -1089,7 +1093,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
               <History size={18} className="text-blue-600" />
               <span>Academic Records for {historyStudent.name}</span>
             </h3>
-            <p className="text-xs text-slate-500 mt-1 mb-5">View promotions history or assign student to a new class and academic year.</p>
+            <p className="text-xs text-slate-500 mt-1 mb-5">View academic placement history or create and assign a new current record.</p>
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-4">
               {loadingHistory ? (
@@ -1136,7 +1140,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             <div className="pt-4 border-t border-slate-100 mt-5 flex items-center justify-between">
               <Button variant="primary" size="sm" onClick={openAssignModal}>
-                <Plus size={14} /> Promote / Assign to Class
+                <Plus size={14} /> Assign New Academic Record
               </Button>
               <Button variant="default" size="sm" onClick={() => setShowHistoryModal(false)}>Close</Button>
             </div>
@@ -1158,12 +1162,12 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
 
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <GraduationCap size={18} className="text-blue-600" />
-              <span>Promote / Assign {historyStudent.name}</span>
+              <span>Assign Academic Record · {historyStudent.name}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-1 mb-5">Create or promote the student to a specific class and academic year.</p>
 
             <div className="space-y-4">
-              <Field label="Academic Year" apiName="academicYear" required={false} hint="Required by the promote endpoint; optional for a direct academic-record assignment.">
+              <Field label="Academic Year" apiName="academicYear" required hint="Must be an existing academic year for this school.">
                 <Select
                   value={assignForm.academicYear}
                   onChange={(e) => handleAcademicYearChange(e.target.value)}
@@ -1211,7 +1215,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                     className="font-mono"
                   />
                 </Field>
-                <Field label="Roll No" apiName="rollNo" required={false}>
+                <Field label="Roll No" apiName="rollNo" required={false} hint="Must be unique across the selected class for this academic year.">
                   <Input
                     value={assignForm.rollNo}
                     onChange={(e) => setAssignForm({ ...assignForm, rollNo: e.target.value })}
