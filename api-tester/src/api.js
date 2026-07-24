@@ -236,7 +236,7 @@ export const api = {
     call('POST', `/api/admissions/${admissionDocsId}/guardians`, payload),
   addAdmissionDocument: (admissionDocsId, document) =>
     call('POST', `/api/admissions/${admissionDocsId}/documents`, { document }),
-  convertAdmission: (id, studentPayload) => call('POST', `/api/admissions/${id}/convert`, studentPayload),
+  convertAdmission: (id, studentPayload) => call('POST', `/api/admissions/${id}/student`, studentPayload),
   deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),
 
   // ----- finance: student wallets -----

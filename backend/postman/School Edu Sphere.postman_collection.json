@@ -3582,7 +3582,7 @@
                   "raw": "{\n  \"schoolId\": \"6a474d2517e9c40cf971ccc2\",\n  \"name\": \"Lucas Johnson\",\n  \"admissionNo\": \"ADM-2026-0003\",\n  \"dob\": \"2015-06-19\",\n  \"gender\": \"MALE\",\n  \"bloodGroup\": \"AB+\",\n  \"status\": \"ACTIVE\",\n  \"admissionDate\": \"2026-07-06\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:3456/api/admissions/ADMISSION_ID_HERE/convert",
+                  "raw": "http://localhost:3456/api/admissions/ADMISSION_DOCS_ID_HERE/student",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -3591,8 +3591,8 @@
                   "path": [
                     "api",
                     "admissions",
-                    "ADMISSION_ID_HERE",
-                    "convert"
+                    "ADMISSION_DOCS_ID_HERE",
+                    "student"
                   ]
                 },
                 "description": "Convert an admission (id in the URL) into an enrolled student. The body mirrors the create-student payload — the frontend prefills name/admissionNo/dob/gender/admissionDate from the admission and bloodGroup is entered here. schoolId and academicYear are accepted for payload parity but IGNORED: the school comes from the admission, and the academic year is NOT set at conversion (an admission carries no year) — assign it afterwards via POST /api/students/{id}/academic-records. Guardians are copied from the admission automatically and de-duplicated (reused when name+phone or name+email exists)."
