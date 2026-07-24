@@ -69,16 +69,25 @@ public class AcademicYearService {
 
     public AcademicYear updateAcademicYear(String id, AcademicYear details) {
         AcademicYear year = getAcademicYearById(id);
-        validateYear(details);
 
         // The name is the key other collections reference (academicYear) —
-        // renaming would orphan those references, so it is immutable.
-        if (!year.getName().equals(details.getName())) {
+        // renaming would orphan those references. The API omits it on update,
+        // and this guard also protects direct service callers.
+        if (details.getName() != null && !year.getName().equals(details.getName())) {
             throw new IllegalArgumentException("The name of an academic year cannot be changed once created ('"
                     + year.getName() + "') — student records, classes and other data reference it by name. "
                     + "Create a new academic year instead.");
         }
-        ensureNoOverlap(details, id);
+
+        AcademicYear validatedDetails = AcademicYear.builder()
+                .schoolId(details.getSchoolId())
+                .name(year.getName())
+                .startDate(details.getStartDate())
+                .endDate(details.getEndDate())
+                .holidays(details.getHolidays())
+                .build();
+        validateYear(validatedDetails);
+        ensureNoOverlap(validatedDetails, id);
 
         year.setSchoolId(details.getSchoolId());
         year.setStartDate(details.getStartDate());

@@ -11,9 +11,11 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * One academic year of one school, e.g. "2026-2027" running 2026-04-01 to
@@ -21,8 +23,8 @@ import lombok.NoArgsConstructor;
  * offs) for that year. Other collections (student academic records, classes,
  * timetables, ...) reference this year by its "name" (unique per school and
  * human readable) in their "academicYear" field — not by the document id.
- * Renaming a year therefore orphans existing references; avoid renames once
- * a year is in use.
+ * Renaming a year therefore orphans existing references, so the name is
+ * immutable after creation.
  */
 @Document(collection = "academic_years")
 @CompoundIndex(name = "school_year_name_idx", def = "{'schoolId': 1, 'name': 1}", unique = true)
@@ -35,6 +37,7 @@ public class AcademicYear extends SchoolBase {
 
     // e.g. "2026-2027" — unique per school; this is what other collections
     // store in their "academicYear" field
+    @Setter(AccessLevel.NONE)
     private String name;
 
     // First day of the academic year

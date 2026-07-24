@@ -5,22 +5,18 @@ import java.util.List;
 
 import com.orbitastra.backend.models.core.HolidayDetail;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
  * Full-replacement payload for an academic year (PUT). The update replaces the
- * dates and holiday calendar, so {@code name} is required. Note the service
- * rejects a change to {@code name} once the year is in use (other data
- * references it by name). Server-owned fields are not accepted here.
+ * dates and holiday calendar. The {@code name} is intentionally not part of
+ * this request because other data references it and it is immutable after
+ * creation. Server-owned fields are not accepted here.
  */
 @Data
 public class UpdateAcademicYearRequest {
 
     private String schoolId;
-
-    @NotBlank(message = "name is required")
-    private String name;
 
     private LocalDate startDate;
 

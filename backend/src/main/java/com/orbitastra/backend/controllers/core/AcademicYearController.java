@@ -151,7 +151,6 @@ public class AcademicYearController {
             @Valid @RequestBody UpdateAcademicYearRequest request) {
         AcademicYear details = AcademicYear.builder()
                 .schoolId(request.getSchoolId())
-                .name(request.getName())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .holidays(request.getHolidays())

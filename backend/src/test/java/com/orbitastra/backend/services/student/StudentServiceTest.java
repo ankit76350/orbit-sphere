@@ -82,8 +82,9 @@ public class StudentServiceTest {
         school.setId("school-id-123");
         school.setMaxStudents(100);
 
-        academicYear = new AcademicYear();
-        academicYear.setName("2026-2027");
+        academicYear = AcademicYear.builder()
+                .name("2026-2027")
+                .build();
     }
 
     @Test
