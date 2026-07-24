@@ -232,6 +232,10 @@ export const api = {
   getAdmission: (id) => call('GET', `/api/admissions/${id}`),
   createAdmission: (payload) => call('POST', '/api/admissions', payload),
   updateAdmission: (id, payload) => call('PATCH', `/api/admissions/${id}`, payload),
+  addAdmissionGuardian: (admissionDocsId, payload) =>
+    call('POST', `/api/admissions/${admissionDocsId}/guardians`, payload),
+  addAdmissionDocument: (admissionDocsId, document) =>
+    call('POST', `/api/admissions/${admissionDocsId}/documents`, { document }),
   convertAdmission: (id, studentPayload) => call('POST', `/api/admissions/${id}/convert`, studentPayload),
   deleteAdmission: (id) => call('DELETE', `/api/admissions/${id}`),
 

@@ -32,6 +32,15 @@ const emptyAdmissionForm = (schoolId = '') => ({
   guardians: [{ name: 'Priya Sharma', relation: 'MOTHER', phone: '+61-400-555-666', email: 'priya@example.com', address: '9 Oak Ave', occupation: 'Teacher' }],
 });
 
+const emptyAdmissionGuardianForm = () => ({
+  name: '',
+  relation: 'MOTHER',
+  phone: '',
+  email: '',
+  address: '',
+  occupation: '',
+});
+
 export default function CrmScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
   const [subTab, setSubTab] = useState('inquiries'); // 'inquiries' | 'admissions'
@@ -45,6 +54,9 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const [loadingInquiryDetails, setLoadingInquiryDetails] = useState(false);
   const [admissionDetails, setAdmissionDetails] = useState(null);
   const [loadingAdmissionDetails, setLoadingAdmissionDetails] = useState(false);
+  const [admissionMutation, setAdmissionMutation] = useState(null);
+  const [admissionGuardianForm, setAdmissionGuardianForm] = useState(() => emptyAdmissionGuardianForm());
+  const [admissionDocument, setAdmissionDocument] = useState('');
 
   const emptyInquiry = {
     schoolId: schoolId || '', studentName: '', status: 'INQUIRY',
@@ -142,6 +154,8 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const openAdmissionDetails = async (admission) => {
     setAdmissionDetails(admission);
+    setAdmissionGuardianForm(emptyAdmissionGuardianForm());
+    setAdmissionDocument('');
     setLoadingAdmissionDetails(true);
     try {
       setAdmissionDetails(await api.getAdmission(admission.id));
@@ -149,6 +163,61 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       toast.error(e.message || 'Failed to load complete admission details.');
     } finally {
       setLoadingAdmissionDetails(false);
+    }
+  };
+
+  const applyAdmissionUpdate = (updatedAdmission) => {
+    setAdmissionDetails(updatedAdmission);
+    setAdmissions((current) => current.map((admission) =>
+      admission.id === updatedAdmission.id ? updatedAdmission : admission
+    ));
+  };
+
+  const submitAdmissionGuardian = async () => {
+    if (!admissionDetails?.id) return;
+    if (!admissionGuardianForm.name.trim()) {
+      toast.error('Guardian name is required.');
+      return;
+    }
+
+    setAdmissionMutation('guardian');
+    try {
+      const updatedAdmission = await api.addAdmissionGuardian(admissionDetails.id, {
+        name: admissionGuardianForm.name.trim(),
+        relation: admissionGuardianForm.relation || null,
+        phone: admissionGuardianForm.phone.trim() || null,
+        email: admissionGuardianForm.email.trim() || null,
+        address: admissionGuardianForm.address.trim() || null,
+        occupation: admissionGuardianForm.occupation.trim() || null,
+      });
+      applyAdmissionUpdate(updatedAdmission);
+      setAdmissionGuardianForm(emptyAdmissionGuardianForm());
+      toast.success('Guardian added to the admission.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to add guardian.');
+    } finally {
+      setAdmissionMutation(null);
+    }
+  };
+
+  const submitAdmissionDocument = async () => {
+    if (!admissionDetails?.id) return;
+    const document = admissionDocument.trim();
+    if (!document) {
+      toast.error('Enter a document name, URL, or storage reference.');
+      return;
+    }
+
+    setAdmissionMutation('document');
+    try {
+      const updatedAdmission = await api.addAdmissionDocument(admissionDetails.id, document);
+      applyAdmissionUpdate(updatedAdmission);
+      setAdmissionDocument('');
+      toast.success('Document added to the admission.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to add document.');
+    } finally {
+      setAdmissionMutation(null);
     }
   };
 
@@ -777,6 +846,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 ) : (
                   <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No guardians recorded.</div>
                 )}
+
               </section>
 
               <section>
@@ -920,6 +990,44 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 ) : (
                   <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No guardians recorded.</div>
                 )}
+
+                <div className="mt-3 border border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3">
+                  <div>
+                    <h6 className="text-xs font-bold text-slate-700">Add guardian</h6>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      POST /api/admissions/{admissionDetails.id}/guardians
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Field label="Name" apiName="name" required>
+                      <Input value={admissionGuardianForm.name} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, name: event.target.value })} placeholder="Meera Nair" />
+                    </Field>
+                    <Field label="Relation" apiName="relation" required={false}>
+                      <Select value={admissionGuardianForm.relation} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, relation: event.target.value })}>
+                        <option value="">— omitted —</option>
+                        {RELATIONS.map((relation) => <option key={relation} value={relation}>{relation.replace('_', ' ')}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Phone" apiName="phone" required={false}>
+                      <Input value={admissionGuardianForm.phone} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, phone: event.target.value })} placeholder="+61-400-111-222" />
+                    </Field>
+                    <Field label="Email" apiName="email" required={false}>
+                      <Input type="email" value={admissionGuardianForm.email} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, email: event.target.value })} placeholder="meera@example.com" />
+                    </Field>
+                    <Field label="Address" apiName="address" required={false}>
+                      <Input value={admissionGuardianForm.address} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, address: event.target.value })} placeholder="12 Main Street" />
+                    </Field>
+                    <Field label="Occupation" apiName="occupation" required={false}>
+                      <Input value={admissionGuardianForm.occupation} onChange={(event) => setAdmissionGuardianForm({ ...admissionGuardianForm, occupation: event.target.value })} placeholder="Teacher" />
+                    </Field>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button variant="primary" onClick={submitAdmissionGuardian} disabled={admissionMutation !== null}>
+                      {admissionMutation === 'guardian' ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                      Add Guardian
+                    </Button>
+                  </div>
+                </div>
               </section>
 
               <section>
@@ -941,6 +1049,33 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                 ) : (
                   <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No documents recorded.</div>
                 )}
+
+                <div className="mt-3 border border-blue-100 bg-blue-50/40 rounded-xl p-4">
+                  <div>
+                    <h6 className="text-xs font-bold text-slate-700">Add document</h6>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      POST /api/admissions/{admissionDetails.id}/documents
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Input
+                      value={admissionDocument}
+                      onChange={(event) => setAdmissionDocument(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          submitAdmissionDocument();
+                        }
+                      }}
+                      placeholder="birth-certificate.pdf or storage URL"
+                      className="flex-1"
+                    />
+                    <Button variant="primary" onClick={submitAdmissionDocument} disabled={admissionMutation !== null}>
+                      {admissionMutation === 'document' ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                      Add Document
+                    </Button>
+                  </div>
+                </div>
               </section>
 
               <details className="border border-slate-200 rounded-xl overflow-hidden">
