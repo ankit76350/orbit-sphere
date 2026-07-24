@@ -415,8 +415,8 @@ public class StudentServiceTest {
                                                 .sections(List.of("A", "B", "C"))
                                                 .build()));
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                                                "class-9", "2026-2027", "9C-03", StudentStatus.ACTIVE))
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNo(
+                                                "class-9", "2026-2027", "9C-03"))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("existing-record")
                                                 .studentDocsId("another-student")
@@ -1231,11 +1231,8 @@ public class StudentServiceTest {
                 UpdateAcademicRecordRequest duplicateRoll = new UpdateAcademicRecordRequest();
                 duplicateRoll.setRollNo("9A-01");
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                                                "class-9",
-                                                "2026-2027",
-                                                "9A-01",
-                                                StudentStatus.ACTIVE))
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNo(
+                                                "class-9", "2026-2027", "9A-01"))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("other-record")
                                                 .studentDocsId("another-student")
@@ -1245,6 +1242,56 @@ public class StudentServiceTest {
                                 ConflictException.class,
                                 () -> studentService.updateAcademicRecord(
                                                 "student-id-123", "record-1", duplicateRoll));
+                verify(studentAcademicRecordRepository, never())
+                                .save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_rejectsDuplicateRollForInactiveRecord() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .classDocsId("class-9")
+                                .sectionNo("A")
+                                .rollNo("OLD-ROLL")
+                                .status(StudentStatus.INACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setRollNo("9A-01");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-9")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2026-2027")
+                                                .sections(List.of("A", "B"))
+                                                .build()));
+                when(studentAcademicRecordRepository
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNo(
+                                                "class-9", "2026-2027", "9A-01"))
+                                .thenReturn(Optional.of(StudentAcademicRecord.builder()
+                                                .id("other-record")
+                                                .studentDocsId("another-student")
+                                                .academicYear("2026-2027")
+                                                .classDocsId("class-9")
+                                                .rollNo("9A-01")
+                                                .status(StudentStatus.ACTIVE)
+                                                .build()));
+
+                ConflictException error = assertThrows(
+                                ConflictException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", request));
+
+                assertTrue(error.getMessage().contains(
+                                "rollNo '9A-01' is already used in class 'class-9'"));
                 verify(studentAcademicRecordRepository, never())
                                 .save(any(StudentAcademicRecord.class));
         }

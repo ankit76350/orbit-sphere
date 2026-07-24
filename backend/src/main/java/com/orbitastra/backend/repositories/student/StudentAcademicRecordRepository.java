@@ -17,8 +17,8 @@ public interface StudentAcademicRecordRepository extends MongoRepository<Student
             String studentDocsId, String academicYear, StudentStatus status);
     Optional<StudentAcademicRecord> findFirstBySchoolIdAndAcademicYearAndIdentityNoAndStatus(
             String schoolId, String academicYear, String identityNo, StudentStatus status);
-    Optional<StudentAcademicRecord> findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-            String classDocsId, String academicYear, String rollNo, StudentStatus status);
+    Optional<StudentAcademicRecord> findFirstByClassDocsIdAndAcademicYearAndRollNo(
+            String classDocsId, String academicYear, String rollNo);
     List<StudentAcademicRecord> findByClassDocsIdAndStatus(
             String classDocsId, StudentStatus status);
     List<StudentAcademicRecord> findByClassDocsIdAndAcademicYearAndStatus(

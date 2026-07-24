@@ -847,11 +847,7 @@ public class StudentService {
     }
 
     private void rejectAcademicIdentifierConflicts(Student student, StudentAcademicRecord record) {
-        if (record.getStatus() != StudentStatus.ACTIVE) {
-            return;
-        }
-
-        if (record.getIdentityNo() != null) {
+        if (record.getStatus() == StudentStatus.ACTIVE && record.getIdentityNo() != null) {
             studentAcademicRecordRepository
                     .findFirstBySchoolIdAndAcademicYearAndIdentityNoAndStatus(
                             record.getSchoolId(), record.getAcademicYear(),
@@ -869,11 +865,9 @@ public class StudentService {
 
         if (record.getRollNo() != null) {
             studentAcademicRecordRepository
-                    .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                            record.getClassDocsId(), record.getAcademicYear(),
-                            record.getRollNo(), StudentStatus.ACTIVE)
+                    .findFirstByClassDocsIdAndAcademicYearAndRollNo(
+                            record.getClassDocsId(), record.getAcademicYear(), record.getRollNo())
                     .filter(existing -> !sameAcademicRecord(existing, record))
-                    .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
                     .ifPresent(existing -> {
                         throw new ConflictException(
                                 "rollNo '" + record.getRollNo() + "' is already used in class '"

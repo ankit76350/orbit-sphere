@@ -36,7 +36,8 @@ public class ProjectFieldNamingMigration {
             "school_year_student_no_unique_idx",
             "school_year_active_student_no_unique_idx",
             "class_doc_section_no_year_roll_unique_idx",
-            "class_section_year_active_roll_unique_idx");
+            "class_section_year_active_roll_unique_idx",
+            "class_year_active_roll_unique_idx");
 
     private static final List<FieldRename> TOP_LEVEL_RENAMES = List.of(
             rename("staffs", "employeeId", "employeeNo"),
