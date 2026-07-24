@@ -620,6 +620,11 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <Field label="Admission No." apiName="admissionNo" required={false} hint="Generated as ADM/YYYY/MM/DDSS. You can edit it before submitting; blank values use the same backend fallback format.">
                     <Input value={admissionForm.admissionNo} onChange={(e) => setAdmissionForm({ ...admissionForm, admissionNo: e.target.value })} placeholder="ADM/2026/05/0519" className="font-mono" />
                   </Field>
+                  <span className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 text-[11px] font-semibold text-purple-700">
+
+                    Do not list here aleady admitted inquiry in the actual app
+
+                    </span>
                   <Field label="From Inquiry" apiName="inquiryDocsId" required={false} hint={admissionForm.inquiryDocsId ? 'Applicant data pulled from the inquiry (editable). Auto-advances it to ADMITTED.' : 'Leave as none for a direct/walk-in admission and fill the details below.'}>
                     <Select value={admissionForm.inquiryDocsId} onChange={(e) => pickAdmissionInquiry(e.target.value)}>
                       <option value="">— none (direct admission) —</option>
