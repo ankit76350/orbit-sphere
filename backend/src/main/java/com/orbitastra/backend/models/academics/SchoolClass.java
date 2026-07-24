@@ -5,6 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
@@ -15,6 +16,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Document(collection = "classes")
+@CompoundIndex(
+        name = "school_academic_year_class_name_idx",
+        def = "{'schoolId': 1, 'academicYear': 1, 'name': 1}",
+        unique = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
