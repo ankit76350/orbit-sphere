@@ -27,6 +27,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [inquiryDetails, setInquiryDetails] = useState(null);
+  const [loadingInquiryDetails, setLoadingInquiryDetails] = useState(false);
+  const [admissionDetails, setAdmissionDetails] = useState(null);
+  const [loadingAdmissionDetails, setLoadingAdmissionDetails] = useState(false);
 
   const emptyInquiry = {
     schoolId: schoolId || '', studentName: '', status: 'INQUIRY',
@@ -116,6 +120,30 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   }, [inquiries]);
 
   // ---- inquiry actions ----
+  const openInquiryDetails = async (inquiry) => {
+    setInquiryDetails(inquiry);
+    setLoadingInquiryDetails(true);
+    try {
+      setInquiryDetails(await api.getInquiry(inquiry.id));
+    } catch (e) {
+      toast.error(e.message || 'Failed to load complete inquiry details.');
+    } finally {
+      setLoadingInquiryDetails(false);
+    }
+  };
+
+  const openAdmissionDetails = async (admission) => {
+    setAdmissionDetails(admission);
+    setLoadingAdmissionDetails(true);
+    try {
+      setAdmissionDetails(await api.getAdmission(admission.id));
+    } catch (e) {
+      toast.error(e.message || 'Failed to load complete admission details.');
+    } finally {
+      setLoadingAdmissionDetails(false);
+    }
+  };
+
   const submitInquiry = async () => {
     const guardians = (inquiryForm.guardians || []).filter((g) => g.name && g.name.trim());
     if (!inquiryForm.studentName && guardians.length === 0) {
@@ -352,7 +380,19 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {inquiries.map((inq, index) => (
-                        <tr key={inq.id} className="hover:bg-slate-50/50 transition">
+                        <tr
+                          key={inq.id}
+                          tabIndex={0}
+                          onClick={() => openInquiryDetails(inq)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openInquiryDetails(inq);
+                            }
+                          }}
+                          className="cursor-pointer hover:bg-blue-50/50 focus-visible:outline-none focus-visible:bg-blue-50 transition"
+                          title="Click to view all inquiry details"
+                        >
                           <td className="px-4 py-3 text-center font-mono font-bold text-slate-500">{index + 1}</td>
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900">{inq.studentName || '—'}</div>
@@ -384,13 +424,13 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-1 items-center">
-                              <button onClick={() => openFollowUp(inq)} className="flex items-center gap-0.5 bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-100 transition" title="Log follow-up / change stage">
+                              <button onClick={(event) => { event.stopPropagation(); openFollowUp(inq); }} className="flex items-center gap-0.5 bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-100 transition" title="Log follow-up / change stage">
                                 <History size={10} /> Log
                               </button>
-                              <button onClick={() => startAdmission(inq)} className="flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-100 transition" title="Create admission from this lead">
+                              <button onClick={(event) => { event.stopPropagation(); startAdmission(inq); }} className="flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-blue-100 transition" title="Create admission from this lead">
                                 <ArrowRight size={10} /> Admit
                               </button>
-                              <button onClick={() => deleteInquiry(inq)} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition"><Trash2 size={13} /></button>
+                              <button onClick={(event) => { event.stopPropagation(); deleteInquiry(inq); }} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition"><Trash2 size={13} /></button>
                             </div>
                           </td>
                         </tr>
@@ -506,7 +546,19 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                         const inq = adm.inquiryDocsId ? inquiryById[adm.inquiryDocsId] : null;
                         const converted = adm.studentDocsId && adm.studentDocsId.length > 0;
                         return (
-                          <tr key={adm.id} className="hover:bg-slate-50/50 transition">
+                          <tr
+                            key={adm.id}
+                            tabIndex={0}
+                            onClick={() => openAdmissionDetails(adm)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openAdmissionDetails(adm);
+                              }
+                            }}
+                            className="cursor-pointer hover:bg-blue-50/50 focus-visible:outline-none focus-visible:bg-blue-50 transition"
+                            title="Click to view all admission details"
+                          >
                             <td className="px-4 py-3 text-center font-mono font-bold text-slate-500">{index + 1}</td>
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-900">{adm.studentName || inq?.studentName || '(unnamed applicant)'}</div>
@@ -524,7 +576,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                             </td>
                             <td className="px-4 py-3 text-slate-500">{(adm.documents || []).length}</td>
                             <td className="px-4 py-3">
-                              <Select value={adm.status} onChange={(e) => changeAdmissionStatus(adm, e.target.value)} className="!py-1 !text-[11px]">
+                              <Select value={adm.status} onClick={(event) => event.stopPropagation()} onChange={(e) => changeAdmissionStatus(adm, e.target.value)} className="!py-1 !text-[11px]">
                                 {ADMISSION_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
                               </Select>
                             </td>
@@ -536,11 +588,11 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                             <td className="px-4 py-3">
                               <div className="flex justify-end gap-1 items-center">
                                 {!converted && (
-                                  <button onClick={() => openConvert(adm)} className="flex items-center gap-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-emerald-100 transition" title="Convert to enrolled student">
+                                  <button onClick={(event) => { event.stopPropagation(); openConvert(adm); }} className="flex items-center gap-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded text-[10px] font-bold hover:bg-emerald-100 transition" title="Convert to enrolled student">
                                     <GraduationCap size={10} /> Convert
                                   </button>
                                 )}
-                                <button onClick={() => deleteAdmission(adm)} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition"><Trash2 size={13} /></button>
+                                <button onClick={(event) => { event.stopPropagation(); deleteAdmission(adm); }} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg transition"><Trash2 size={13} /></button>
                               </div>
                             </td>
                           </tr>
@@ -618,6 +670,281 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
           </>
         )}
       </div>
+
+      {/* INQUIRY DETAILS MODAL */}
+      {inquiryDetails && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150"
+          onClick={() => setInquiryDetails(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inquiry-details-title"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-start gap-4 bg-slate-50 shrink-0">
+              <div>
+                <h4 id="inquiry-details-title" className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                  <ClipboardList size={16} className="text-blue-600" />
+                  Complete Inquiry Details
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  All fields returned by GET /api/inquiries/{inquiryDetails.id}
+                </p>
+              </div>
+              <button onClick={() => setInquiryDetails(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition" title="Close inquiry details">
+                <X size={16} />
+              </button>
+            </header>
+
+            <div className="p-5 overflow-y-auto space-y-5">
+              {loadingInquiryDetails && (
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Loading the complete inquiry document…
+                </div>
+              )}
+
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  ['Student Name', inquiryDetails.studentName],
+                  ['MongoDB Object ID', inquiryDetails.id],
+                  ['School ID', inquiryDetails.schoolId],
+                  ['Source', inquiryDetails.source],
+                  ['Counselor', inquiryDetails.counselorDocsId ? staffName(inquiryDetails.counselorDocsId) : null],
+                  ['Counselor Docs ID', inquiryDetails.counselorDocsId],
+                  ['Admission Docs ID', inquiryDetails.admissionDocsId],
+                  ['Created At', inquiryDetails.createdAt ? new Date(inquiryDetails.createdAt).toLocaleString() : null],
+                  ['Updated At', inquiryDetails.updatedAt ? new Date(inquiryDetails.updatedAt).toLocaleString() : null],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+                    <div className={`mt-1 text-xs text-slate-800 break-all ${
+                      label.includes('ID') ? 'font-mono select-all' : 'font-semibold'
+                    }`}>
+                      {value || '—'}
+                    </div>
+                  </div>
+                ))}
+                <div className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Current Stage</div>
+                  <div className="mt-1">
+                    <Badge color={inquiryColor(inquiryDetails.status)}>
+                      {(inquiryDetails.status || '—').replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">Guardians</h5>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(inquiryDetails.guardians || []).length} guardian{(inquiryDetails.guardians || []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {(inquiryDetails.guardians || []).length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {inquiryDetails.guardians.map((guardian, index) => (
+                      <div key={`${guardian.email || guardian.phone || guardian.name || 'guardian'}-${index}`} className="border border-slate-200 rounded-xl p-4">
+                        <div className="font-bold text-sm text-slate-800">{guardian.name || 'Unnamed guardian'}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{guardian.relation ? guardian.relation.replace('_', ' ') : 'Relation not provided'}</div>
+                        <dl className="mt-3 space-y-1.5 text-xs">
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Phone</dt><dd className="text-slate-700 break-all">{guardian.phone || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Email</dt><dd className="text-slate-700 break-all">{guardian.email || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Address</dt><dd className="text-slate-700">{guardian.address || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Occupation</dt><dd className="text-slate-700">{guardian.occupation || '—'}</dd></div>
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No guardians recorded.</div>
+                )}
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">Follow-up Timeline</h5>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(inquiryDetails.followUps || []).length} entr{(inquiryDetails.followUps || []).length === 1 ? 'y' : 'ies'}
+                  </span>
+                </div>
+                {(inquiryDetails.followUps || []).length > 0 ? (
+                  <div className="space-y-2">
+                    {inquiryDetails.followUps.map((followUp, index) => (
+                      <div key={`${followUp.recordedAt || 'follow-up'}-${index}`} className="border border-slate-200 rounded-xl px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Badge color={inquiryColor(followUp.status)}>{(followUp.status || '—').replace('_', ' ')}</Badge>
+                          <span className="text-[10px] text-slate-400">
+                            {followUp.recordedAt ? new Date(followUp.recordedAt).toLocaleString() : 'Recorded time unavailable'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 mt-2">{followUp.note || 'No note recorded.'}</p>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] text-slate-500">
+                          <span>Next follow-up: {followUp.nextFollowUp || '—'}</span>
+                          <span className="break-all">
+                            Counselor: {followUp.counselorDocsId ? `${staffName(followUp.counselorDocsId)} · ${followUp.counselorDocsId}` : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No follow-ups recorded.</div>
+                )}
+              </section>
+
+              <details className="border border-slate-200 rounded-xl overflow-hidden">
+                <summary className="cursor-pointer px-4 py-3 bg-slate-50 text-xs font-semibold text-slate-600">
+                  Raw API document
+                </summary>
+                <pre className="p-4 bg-slate-950 text-slate-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap break-words select-all">
+                  {JSON.stringify(inquiryDetails, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-end">
+              <Button variant="default" onClick={() => setInquiryDetails(null)}>Close</Button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* ADMISSION DETAILS MODAL */}
+      {admissionDetails && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150"
+          onClick={() => setAdmissionDetails(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admission-details-title"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-start gap-4 bg-slate-50 shrink-0">
+              <div>
+                <h4 id="admission-details-title" className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                  <FileText size={16} className="text-blue-600" />
+                  Complete Admission Details
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  All fields returned by GET /api/admissions/{admissionDetails.id}
+                </p>
+              </div>
+              <button onClick={() => setAdmissionDetails(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition" title="Close admission details">
+                <X size={16} />
+              </button>
+            </header>
+
+            <div className="p-5 overflow-y-auto space-y-5">
+              {loadingAdmissionDetails && (
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Loading the complete admission document…
+                </div>
+              )}
+
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  ['Student Name', admissionDetails.studentName],
+                  ['Admission No', admissionDetails.admissionNo],
+                  ['MongoDB Object ID', admissionDetails.id],
+                  ['School ID', admissionDetails.schoolId],
+                  ['Inquiry Docs ID', admissionDetails.inquiryDocsId],
+                  ['Student Docs ID', admissionDetails.studentDocsId],
+                  ['Admission Date', admissionDetails.admissionDate],
+                  ['Date of Birth', admissionDetails.dob],
+                  ['Gender', admissionDetails.gender],
+                  ['Created At', admissionDetails.createdAt ? new Date(admissionDetails.createdAt).toLocaleString() : null],
+                  ['Updated At', admissionDetails.updatedAt ? new Date(admissionDetails.updatedAt).toLocaleString() : null],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+                    <div className={`mt-1 text-xs text-slate-800 break-all ${
+                      label.includes('ID') || label === 'Admission No' ? 'font-mono select-all' : 'font-semibold'
+                    }`}>
+                      {value || '—'}
+                    </div>
+                  </div>
+                ))}
+                <div className="border border-slate-100 bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Admission Status</div>
+                  <div className="mt-1">
+                    <Badge color={admissionColor(admissionDetails.status)}>{admissionDetails.status || '—'}</Badge>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">Guardians</h5>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(admissionDetails.guardians || []).length} guardian{(admissionDetails.guardians || []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {(admissionDetails.guardians || []).length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {admissionDetails.guardians.map((guardian, index) => (
+                      <div key={`${guardian.email || guardian.phone || guardian.name || 'guardian'}-${index}`} className="border border-slate-200 rounded-xl p-4">
+                        <div className="font-bold text-sm text-slate-800">{guardian.name || 'Unnamed guardian'}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{guardian.relation ? guardian.relation.replace('_', ' ') : 'Relation not provided'}</div>
+                        <dl className="mt-3 space-y-1.5 text-xs">
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Phone</dt><dd className="text-slate-700 break-all">{guardian.phone || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Email</dt><dd className="text-slate-700 break-all">{guardian.email || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Address</dt><dd className="text-slate-700">{guardian.address || '—'}</dd></div>
+                          <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-400">Occupation</dt><dd className="text-slate-700">{guardian.occupation || '—'}</dd></div>
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No guardians recorded.</div>
+                )}
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">Documents</h5>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {(admissionDetails.documents || []).length} document{(admissionDetails.documents || []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {(admissionDetails.documents || []).length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {admissionDetails.documents.map((document, index) => (
+                      <span key={`${document}-${index}`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
+                        <FileText size={12} className="text-slate-400" />
+                        {document}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No documents recorded.</div>
+                )}
+              </section>
+
+              <details className="border border-slate-200 rounded-xl overflow-hidden">
+                <summary className="cursor-pointer px-4 py-3 bg-slate-50 text-xs font-semibold text-slate-600">
+                  Raw API document
+                </summary>
+                <pre className="p-4 bg-slate-950 text-slate-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap break-words select-all">
+                  {JSON.stringify(admissionDetails, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-end">
+              <Button variant="default" onClick={() => setAdmissionDetails(null)}>Close</Button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {/* CONVERT MODAL */}
       {convert && convertForm && (
