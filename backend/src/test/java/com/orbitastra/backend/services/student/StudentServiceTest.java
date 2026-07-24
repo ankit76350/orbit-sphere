@@ -415,8 +415,9 @@ public class StudentServiceTest {
                                                 .sections(List.of("A", "B", "C"))
                                                 .build()));
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNo(
-                                                "class-9", "2026-2027", "9C-03"))
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
+                                                "class-9", "2026-2027", "9C-03",
+                                                StudentStatus.ACTIVE))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("existing-record")
                                                 .studentDocsId("another-student")
@@ -1231,8 +1232,9 @@ public class StudentServiceTest {
                 UpdateAcademicRecordRequest duplicateRoll = new UpdateAcademicRecordRequest();
                 duplicateRoll.setRollNo("9A-01");
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNo(
-                                                "class-9", "2026-2027", "9A-01"))
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
+                                                "class-9", "2026-2027", "9A-01",
+                                                StudentStatus.ACTIVE))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("other-record")
                                                 .studentDocsId("another-student")

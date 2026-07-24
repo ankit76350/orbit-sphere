@@ -22,9 +22,10 @@ import lombok.NoArgsConstructor;
         // Human-readable identity numbers remain unique among active students in a
         // school year.
         @CompoundIndex(name = "school_year_active_identity_no_unique_idx", def = "{'schoolId': 1, 'academicYear': 1, 'identityNo': 1, 'status': 1}", unique = true, partialFilter = "{'identityNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
-        // A roll number identifies one student across the whole class in an
-        // academic year, regardless of section or record status.
-        @CompoundIndex(name = "class_year_roll_unique_idx", def = "{'classDocsId': 1, 'academicYear': 1, 'rollNo': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}}")
+        // A roll number identifies one active student across the whole class in
+        // an academic year, regardless of section. Inactive history may retain a
+        // formerly used roll number without blocking application startup.
+        @CompoundIndex(name = "class_year_active_roll_unique_idx", def = "{'classDocsId': 1, 'academicYear': 1, 'rollNo': 1, 'status': 1}", unique = true, partialFilter = "{'classDocsId': {'$type': 'string'}, 'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)

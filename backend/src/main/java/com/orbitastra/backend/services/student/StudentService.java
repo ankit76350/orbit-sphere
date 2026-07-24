@@ -869,11 +869,13 @@ public class StudentService {
                     });
         }
 
-        if (record.getRollNo() != null) {
+        if (record.getStatus() == StudentStatus.ACTIVE && record.getRollNo() != null) {
             studentAcademicRecordRepository
-                    .findFirstByClassDocsIdAndAcademicYearAndRollNo(
-                            record.getClassDocsId(), record.getAcademicYear(), record.getRollNo())
+                    .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
+                            record.getClassDocsId(), record.getAcademicYear(),
+                            record.getRollNo(), StudentStatus.ACTIVE)
                     .filter(existing -> !sameAcademicRecord(existing, record))
+                    .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
                     .ifPresent(existing -> {
                         throw new ConflictException(
                                 "rollNo '" + record.getRollNo() + "' is already used in class '"
