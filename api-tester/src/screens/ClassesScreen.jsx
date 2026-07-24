@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Empty, Badge, useToast } from '../components/ui.jsx';
 
 const emptyForm = { schoolId: '', academicYear: '', name: '', classTeacherDocsId: '', sections: 'A, B', subjects: [] };
+const emptySubjectForm = { name: '', teacherDocsId: '' };
 
 export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const toast = useToast();
@@ -13,6 +14,9 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
   const [busy, setBusy] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsBusy, setDetailsBusy] = useState('');
+  const [newSections, setNewSections] = useState('');
+  const [newSubject, setNewSubject] = useState(emptySubjectForm);
 
   const load = () => {
     if (!schoolId || !year) { setClasses([]); return; }
@@ -51,6 +55,8 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
 
   async function openDetails(c) {
     setSelectedClass(c);
+    setNewSections('');
+    setNewSubject(emptySubjectForm);
     setDetailsLoading(true);
     try {
       setSelectedClass(await api.getClassById(c.id));
@@ -58,6 +64,54 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
       toast.error(e.message || `Failed to load details for ${c.name}.`);
     } finally {
       setDetailsLoading(false);
+    }
+  }
+
+  const applyClassUpdate = (updatedClass) => {
+    setSelectedClass(updatedClass);
+    setClasses((current) => current.map((item) => item.id === updatedClass.id ? updatedClass : item));
+  };
+
+  async function addSections() {
+    const sections = newSections.split(',').map((section) => section.trim()).filter(Boolean);
+    if (sections.length === 0) {
+      toast.error('Enter at least one section.');
+      return;
+    }
+
+    setDetailsBusy('sections');
+    try {
+      const updatedClass = await api.addSections(selectedClass.id, sections);
+      applyClassUpdate(updatedClass);
+      setNewSections('');
+      toast.success(`${sections.length === 1 ? 'Section' : 'Sections'} ${sections.join(', ')} added to ${updatedClass.name}.`);
+    } catch (e) {
+      toast.error(e.message || 'Failed to add sections.');
+    } finally {
+      setDetailsBusy('');
+    }
+  }
+
+  async function addSubject() {
+    const name = newSubject.name.trim();
+    if (!name) {
+      toast.error('Subject name is required.');
+      return;
+    }
+
+    setDetailsBusy('subject');
+    try {
+      const updatedClass = await api.addSubject(selectedClass.id, {
+        name,
+        teacherDocsId: newSubject.teacherDocsId || null,
+      });
+      applyClassUpdate(updatedClass);
+      setNewSubject(emptySubjectForm);
+      toast.success(`Subject “${name}” added to ${updatedClass.name}.`);
+    } catch (e) {
+      toast.error(e.message || 'Failed to add subject.');
+    } finally {
+      setDetailsBusy('');
     }
   }
 
@@ -260,6 +314,34 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                 ) : (
                   <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No sections configured.</div>
                 )}
+                <div className="mt-3 border border-blue-100 bg-blue-50/50 rounded-xl p-3">
+                  <div className="text-[10px] font-mono text-blue-500 mb-2 break-all">
+                    POST /api/classes/{selectedClass.id}/sections
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      value={newSections}
+                      onChange={(event) => setNewSections(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') addSections();
+                      }}
+                      placeholder="A, B, C"
+                      aria-label="Sections to add"
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={addSections}
+                      disabled={detailsBusy !== '' || !newSections.trim()}
+                      className="justify-center"
+                    >
+                      {detailsBusy === 'sections' ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
+                      Add section{newSections.includes(',') ? 's' : ''}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Separate multiple section names with commas. Request field: <code>section[]</code>.</p>
+                </div>
               </section>
 
               <section>
@@ -292,6 +374,42 @@ export default function ClassesScreen({ schoolId, year, staff = [] }) {
                 ) : (
                   <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-4 py-3">No subjects configured.</div>
                 )}
+                <div className="mt-3 border border-blue-100 bg-blue-50/50 rounded-xl p-3">
+                  <div className="text-[10px] font-mono text-blue-500 mb-2 break-all">
+                    POST /api/classes/{selectedClass.id}/subjects
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+                    <Input
+                      value={newSubject.name}
+                      onChange={(event) => setNewSubject({ ...newSubject, name: event.target.value })}
+                      placeholder="Subject name"
+                      aria-label="Subject name"
+                    />
+                    <Select
+                      value={newSubject.teacherDocsId}
+                      onChange={(event) => setNewSubject({ ...newSubject, teacherDocsId: event.target.value })}
+                      aria-label="Subject teacher"
+                    >
+                      <option value="">Teacher (optional)</option>
+                      {staff.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name || member.employeeNo || member.id}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={addSubject}
+                      disabled={detailsBusy !== '' || !newSubject.name.trim()}
+                      className="justify-center"
+                    >
+                      {detailsBusy === 'subject' ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
+                      Add subject
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Sends <code>name</code> and optional <code>teacherDocsId</code>.</p>
+                </div>
               </section>
 
               <details className="border border-slate-200 rounded-xl overflow-hidden">
