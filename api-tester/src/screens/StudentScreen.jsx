@@ -8,6 +8,10 @@ import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../c
 import { generateAdmissionNo, generateIdentityNo } from '../lib/date.js';
 
 const RELATIONS = ['FATHER', 'MOTHER', 'GRANDFATHER', 'GRANDMOTHER', 'UNCLE', 'AUNT', 'LEGAL_GUARDIAN', 'SIBLING', 'OTHER'];
+const ACADEMIC_RECORD_STATUSES = ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ALUMNI'];
+const EDITABLE_ACADEMIC_RECORD_FIELDS = [
+  'identityNo', 'rollNo', 'classDocsId', 'sectionNo', 'hostelRoomNo', 'status',
+];
 
 const emptyAcademicRecord = (prefillIdentityNo = false) => ({
   academicYear: '', identityNo: prefillIdentityNo ? generateIdentityNo() : '', rollNo: '',
@@ -33,6 +37,7 @@ const emptyStudentForm = (schoolId = '') => ({
 });
 
 const nullable = (value) => value === '' ? null : value;
+const normalizedFieldValue = (value) => value == null ? '' : String(value).trim();
 const commaSeparatedValues = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
 const hasAcademicRecordValue = (record = {}) => Object.values(record).some(
   (value) => value != null && String(value).trim() !== ''
@@ -185,6 +190,21 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     hostelRoomNo: '',
     status: 'ACTIVE'
   });
+
+  // Academic record edit state. Academic year, student and school remain immutable.
+  const [showEditAcademicModal, setShowEditAcademicModal] = useState(false);
+  const [editingAcademicRecord, setEditingAcademicRecord] = useState(null);
+  const [editAcademicForm, setEditAcademicForm] = useState({
+    identityNo: '',
+    rollNo: '',
+    classDocsId: '',
+    sectionNo: '',
+    hostelRoomNo: '',
+    status: 'INACTIVE',
+  });
+  const [editClasses, setEditClasses] = useState([]);
+  const [loadingEditClasses, setLoadingEditClasses] = useState(false);
+  const [busyEditAcademic, setBusyEditAcademic] = useState(false);
 
   // Fetch Students
   const fetchStudents = useCallback(async () => {
@@ -432,8 +452,124 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
     }
   };
 
+  const closeEditAcademicModal = () => {
+    if (busyEditAcademic) return;
+    setShowEditAcademicModal(false);
+    setEditingAcademicRecord(null);
+    setEditClasses([]);
+  };
+
+  const openEditAcademicRecord = async (record) => {
+    const academicRecordDocsId = record.id || record.academicRecordDocsId;
+    if (!academicRecordDocsId) {
+      toast.error('This academic record does not include a MongoDB Object ID and cannot be edited.');
+      return;
+    }
+
+    setEditingAcademicRecord({ ...record, id: academicRecordDocsId });
+    setEditAcademicForm({
+      identityNo: normalizedFieldValue(record.identityNo),
+      rollNo: normalizedFieldValue(record.rollNo),
+      classDocsId: normalizedFieldValue(record.classDocsId),
+      sectionNo: normalizedFieldValue(record.sectionNo),
+      hostelRoomNo: normalizedFieldValue(record.hostelRoomNo),
+      status: normalizedFieldValue(record.status) || 'INACTIVE',
+    });
+    setEditClasses([]);
+    setShowEditAcademicModal(true);
+
+    if (!record.academicYear) return;
+    setLoadingEditClasses(true);
+    try {
+      const targetClasses = await api.classesByYear(schoolId, record.academicYear);
+      setEditClasses(targetClasses || []);
+    } catch (error) {
+      toast.error(error.message || 'Failed to load classes for this academic year.');
+    } finally {
+      setLoadingEditClasses(false);
+    }
+  };
+
+  const handleEditClassChange = (classDocsId) => {
+    const selected = editClasses.find((candidate) => candidate.id === classDocsId);
+    setEditAcademicForm((form) => ({
+      ...form,
+      classDocsId,
+      sectionNo: selected?.sections?.[0] || '',
+    }));
+  };
+
+  const submitAcademicRecordEdit = async () => {
+    if (!editingAcademicRecord || !historyStudent) return;
+
+    const normalizedForm = Object.fromEntries(
+      EDITABLE_ACADEMIC_RECORD_FIELDS.map((field) => [field, normalizedFieldValue(editAcademicForm[field])])
+    );
+    if (!normalizedForm.status) {
+      toast.error('Academic record status is required.');
+      return;
+    }
+    if ((normalizedForm.sectionNo || normalizedForm.rollNo) && !normalizedForm.classDocsId) {
+      toast.error('Select a class before setting a section or roll number.');
+      return;
+    }
+
+    const targetClass = editClasses.find((candidate) => candidate.id === normalizedForm.classDocsId);
+    const classChanged = normalizedForm.classDocsId
+      !== normalizedFieldValue(editingAcademicRecord.classDocsId);
+    if (normalizedForm.classDocsId && !targetClass && classChanged) {
+      toast.error('Select a class that belongs to this academic record year.');
+      return;
+    }
+    if (targetClass && normalizedForm.sectionNo
+      && !(targetClass.sections || []).includes(normalizedForm.sectionNo)) {
+      toast.error(`Section "${normalizedForm.sectionNo}" does not exist in ${targetClass.name}.`);
+      return;
+    }
+
+    const payload = {};
+    EDITABLE_ACADEMIC_RECORD_FIELDS.forEach((field) => {
+      if (normalizedForm[field] !== normalizedFieldValue(editingAcademicRecord[field])) {
+        payload[field] = normalizedForm[field] === '' ? null : normalizedForm[field];
+      }
+    });
+    if (Object.keys(payload).length === 0) {
+      toast.error('Change at least one academic record field before saving.');
+      return;
+    }
+
+    setBusyEditAcademic(true);
+    try {
+      await api.updateAcademicRecord(historyStudent.id, editingAcademicRecord.id, payload);
+      const [history, refreshedStudent] = await Promise.all([
+        api.getStudentAcademicHistory(historyStudent.id),
+        api.getStudent(historyStudent.id),
+      ]);
+      setAcademicHistory(history || []);
+      setHistoryStudent(refreshedStudent);
+      setStudents((current) => current.map((student) =>
+        student.id === refreshedStudent.id ? refreshedStudent : student
+      ));
+      if (studentDetails?.id === refreshedStudent.id) {
+        setStudentDetails(refreshedStudent);
+      }
+      setShowEditAcademicModal(false);
+      setEditingAcademicRecord(null);
+      setEditClasses([]);
+      toast.success('Academic record updated successfully.');
+      if (reload) reload(year);
+    } catch (error) {
+      toast.error(error.message || 'Failed to update academic record.');
+    } finally {
+      setBusyEditAcademic(false);
+    }
+  };
+
   const selectedClass = assignmentClasses.find(c => c.id === assignForm.classDocsId);
   const sections = selectedClass ? (selectedClass.sections || []) : [];
+  const selectedEditClass = editClasses.find(c => c.id === editAcademicForm.classDocsId);
+  const editSections = selectedEditClass?.sections || [];
+  const knownHistoryClasses = [...classes, ...assignmentClasses, ...editClasses];
   const studentDocuments = commaSeparatedValues(studentForm.documents);
   const studentMedicalRemarks = commaSeparatedValues(studentForm.medicalRemark);
 
@@ -1080,7 +1216,7 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
       {/* ACADEMIC HISTORY MODAL */}
       {showHistoryModal && historyStudent && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-2xl w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative flex flex-col max-h-[90vh]">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-4xl w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative flex flex-col max-h-[90vh]">
             <button
               onClick={() => setShowHistoryModal(false)}
               className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition"
@@ -1117,18 +1253,30 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                         <th className="px-4 py-2.5">Identity No</th>
                         <th className="px-4 py-2.5">Roll No</th>
                         <th className="px-4 py-2.5">Status</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/60 text-slate-700">
                       {academicHistory.map((rec) => {
-                        const targetCls = classes.find(c => c.id === rec.classDocsId);
+                        const targetCls = knownHistoryClasses.find(c => c.id === rec.classDocsId);
                         return (
                           <tr key={rec.id} className="hover:bg-slate-100/20 transition">
                             <td className="px-4 py-2.5 font-bold text-slate-900">{rec.academicYear}</td>
                             <td className="px-4 py-2.5">{targetCls ? targetCls.name : 'Unknown Class'} · {rec.sectionNo || '—'}</td>
                             <td className="px-4 py-2.5 font-mono text-slate-500">{rec.identityNo || '—'}</td>
                             <td className="px-4 py-2.5 font-semibold text-slate-900">{rec.rollNo || '—'}</td>
-                            <td className="px-4 py-2.5"><Badge color={rec.status === 'ACTIVE' ? 'green' : 'slate'}>{rec.status}</Badge></td>
+                            <td className="px-4 py-2.5"><Badge color={rec.status === 'ACTIVE' ? 'green' : 'slate'}>{rec.status || '—'}</Badge></td>
+                            <td className="px-4 py-2.5 text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditAcademicRecord(rec)}
+                                title="Edit academic record"
+                              >
+                                <Edit2 size={13} /> Edit
+                              </Button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -1143,6 +1291,139 @@ export default function StudentScreen({ schoolId, years, year, reload }) {
                 <Plus size={14} /> Assign New Academic Record
               </Button>
               <Button variant="default" size="sm" onClick={() => setShowHistoryModal(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT ACADEMIC RECORD MODAL */}
+      {showEditAcademicModal && editingAcademicRecord && historyStudent && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-slate-800 animate-in fade-in zoom-in-95 duration-150 relative max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={closeEditAcademicModal}
+              disabled={busyEditAcademic}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition disabled:opacity-50"
+              title="Close modal"
+            >
+              <X size={16} />
+            </button>
+
+            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2 pr-8">
+              <Edit2 size={18} className="text-blue-600" />
+              <span>Edit Academic Record · {historyStudent.name}</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 mb-5">
+              Only the six editable placement fields are sent to the backend.
+            </p>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <StudentDetailCard label="Academic Year (read-only)" value={editingAcademicRecord.academicYear} />
+                <StudentDetailCard label="Academic Record Docs ID" value={editingAcademicRecord.id} mono />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Identity No" apiName="identityNo" required={false} hint="Must remain unique within the school and academic year.">
+                  <Input
+                    value={editAcademicForm.identityNo}
+                    onChange={(event) => setEditAcademicForm((form) => ({ ...form, identityNo: event.target.value }))}
+                    placeholder="IDN/2026/05/0611"
+                    className="font-mono"
+                  />
+                </Field>
+                <Field label="Roll No" apiName="rollNo" required={false} hint="Must be unique in the selected class and academic year.">
+                  <Input
+                    value={editAcademicForm.rollNo}
+                    onChange={(event) => setEditAcademicForm((form) => ({ ...form, rollNo: event.target.value }))}
+                    placeholder="e.g. 12"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  label="Class"
+                  apiName="classDocsId"
+                  required={false}
+                  hint={loadingEditClasses ? 'Loading classes for the stored academic year…' : 'Only classes from the stored academic year are available.'}
+                >
+                  <Select
+                    value={editAcademicForm.classDocsId}
+                    onChange={(event) => handleEditClassChange(event.target.value)}
+                    disabled={loadingEditClasses}
+                  >
+                    <option value="">— omitted —</option>
+                    {editAcademicForm.classDocsId
+                      && !editClasses.some((candidate) => candidate.id === editAcademicForm.classDocsId) && (
+                        <option value={editAcademicForm.classDocsId}>
+                          Current class · {editAcademicForm.classDocsId}
+                        </option>
+                    )}
+                    {editClasses.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="Section" apiName="sectionNo" required={false} hint="The section must exist in the selected class.">
+                  <Select
+                    value={editAcademicForm.sectionNo}
+                    onChange={(event) => setEditAcademicForm((form) => ({ ...form, sectionNo: event.target.value }))}
+                    disabled={!selectedEditClass}
+                  >
+                    <option value="">— omitted —</option>
+                    {editAcademicForm.sectionNo
+                      && !editSections.includes(editAcademicForm.sectionNo) && !selectedEditClass && (
+                        <option value={editAcademicForm.sectionNo}>{editAcademicForm.sectionNo}</option>
+                    )}
+                    {editSections.map((section) => (
+                      <option key={section} value={section}>{section}</option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+
+              <Field label="Hostel Room No" apiName="hostelRoomNo" required={false}>
+                <Input
+                  value={editAcademicForm.hostelRoomNo}
+                  onChange={(event) => setEditAcademicForm((form) => ({ ...form, hostelRoomNo: event.target.value }))}
+                  placeholder="e.g. 203"
+                />
+              </Field>
+
+              <Field label="Status" apiName="status" required hint="Making this record ACTIVE automatically inactivates the student's other academic records and makes this the current record.">
+                <Select
+                  value={editAcademicForm.status}
+                  onChange={(event) => setEditAcademicForm((form) => ({ ...form, status: event.target.value }))}
+                >
+                  {ACADEMIC_RECORD_STATUSES.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </Select>
+              </Field>
+
+              <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-[11px] leading-relaxed text-purple-700">
+                The academic year, student, and school cannot be changed here. If the current record is made non-active,
+                the backend selects another active record as current or clears the current-record link.
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <Button type="button" variant="default" size="sm" onClick={closeEditAcademicModal} disabled={busyEditAcademic}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={submitAcademicRecordEdit}
+                  disabled={busyEditAcademic || loadingEditClasses}
+                >
+                  {busyEditAcademic ? <RefreshCw size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                  Save Academic Record
+                </Button>
+              </div>
             </div>
           </div>
         </div>

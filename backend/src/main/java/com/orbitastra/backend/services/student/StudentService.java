@@ -16,6 +16,7 @@ import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.academics.SchoolClass;
@@ -300,11 +301,13 @@ public class StudentService {
         if (student.getCurrentAcademicRecordDocsId() != null
                 && !student.getCurrentAcademicRecordDocsId().isBlank()) {
             var pointed = studentAcademicRecordRepository.findById(student.getCurrentAcademicRecordDocsId());
-            if (pointed.isPresent()) {
+            if (pointed.isPresent()
+                    && pointed.get().getStatus() == StudentStatus.ACTIVE) {
                 return pointed.get();
             }
         }
         return studentAcademicRecordRepository.findByStudentDocsId(student.getId()).stream()
+                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
                 .max(academicRecordRecencyComparator())
                 .orElse(null);
     }
@@ -323,10 +326,12 @@ public class StudentService {
         if (students == null || students.isEmpty()) return new ArrayList<>();
         List<String> ids = students.stream().map(Student::getId).filter(Objects::nonNull).toList();
         List<StudentAcademicRecord> records = studentAcademicRecordRepository.findByStudentDocsIdIn(ids);
-        Map<String, StudentAcademicRecord> recordsById = records.stream()
+        Map<String, StudentAcademicRecord> activeRecordsById = records.stream()
+                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
                 .filter(record -> record.getId() != null)
                 .collect(Collectors.toMap(StudentAcademicRecord::getId, record -> record, (a, b) -> a));
-        Map<String, StudentAcademicRecord> latest = records.stream()
+        Map<String, StudentAcademicRecord> latestActive = records.stream()
+                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
                 .collect(Collectors.toMap(
                         StudentAcademicRecord::getStudentDocsId,
                         record -> record,
@@ -334,8 +339,10 @@ public class StudentService {
         return students.stream().map(student -> {
             StudentAcademicRecord current = student.getCurrentAcademicRecordDocsId() == null
                     ? null
-                    : recordsById.get(student.getCurrentAcademicRecordDocsId());
-            return StudentResponse.of(student, current != null ? current : latest.get(student.getId()));
+                    : activeRecordsById.get(student.getCurrentAcademicRecordDocsId());
+            return StudentResponse.of(
+                    student,
+                    current != null ? current : latestActive.get(student.getId()));
         }).toList();
     }
 
@@ -649,6 +656,126 @@ public class StudentService {
         return saved;
     }
 
+    /**
+     * Partially updates only the client-editable fields of an existing academic
+     * record. Ownership, academic year, ids, and audit timestamps remain
+     * server-controlled.
+     */
+    @Transactional
+    public StudentAcademicRecord updateAcademicRecord(
+            String studentDocsId,
+            String academicRecordDocsId,
+            UpdateAcademicRecordRequest request) {
+        String normalizedStudentDocsId = normalizeRequired(studentDocsId, "studentDocsId");
+        String normalizedRecordDocsId =
+                normalizeRequired(academicRecordDocsId, "academicRecordDocsId");
+        if (request == null) {
+            throw new IllegalArgumentException("Academic record update body is required.");
+        }
+        if (!request.hasUpdates()) {
+            throw new IllegalArgumentException(
+                    "At least one editable academic-record field is required.");
+        }
+
+        Student student = getStudentEntity(normalizedStudentDocsId);
+        StudentAcademicRecord record = studentAcademicRecordRepository
+                .findById(normalizedRecordDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Academic record not found with id: " + normalizedRecordDocsId));
+        if (!normalizedStudentDocsId.equals(record.getStudentDocsId())) {
+            throw new IllegalArgumentException(
+                    "Academic record does not belong to student: " + normalizedStudentDocsId);
+        }
+
+        String studentSchoolId = normalizeRequired(student.getSchoolId(), "Student schoolId");
+        if (record.getSchoolId() != null
+                && !studentSchoolId.equals(record.getSchoolId())) {
+            throw new IllegalArgumentException(
+                    "Academic record does not belong to the same school as the student.");
+        }
+        String academicYearName =
+                normalizeRequired(record.getAcademicYear(), "Academic record academicYear");
+        AcademicYear academicYear =
+                academicYearResolver.resolve(studentSchoolId, academicYearName, null);
+        if (academicYear == null
+                || academicYear.getName() == null
+                || academicYear.getName().isBlank()) {
+            throw new IllegalArgumentException(
+                    "Academic year could not be resolved for this school.");
+        }
+
+        record.setSchoolId(studentSchoolId);
+        record.setStudentDocsId(normalizedStudentDocsId);
+        record.setAcademicYear(academicYear.getName());
+
+        if (request.isProvided("identityNo")) {
+            record.setIdentityNo(request.getIdentityNo());
+        }
+        if (request.isProvided("rollNo")) {
+            record.setRollNo(request.getRollNo());
+        }
+        if (request.isProvided("hostelRoomNo")) {
+            record.setHostelRoomNo(request.getHostelRoomNo());
+        }
+
+        if (request.isProvided("classDocsId")) {
+            String previousClassDocsId = normalizeOptional(record.getClassDocsId());
+            String requestedClassDocsId = normalizeOptional(request.getClassDocsId());
+            boolean classChanged = !Objects.equals(previousClassDocsId, requestedClassDocsId);
+            record.setClassDocsId(requestedClassDocsId);
+
+            if (requestedClassDocsId == null) {
+                if (!request.isProvided("sectionNo")) {
+                    record.setSectionNo(null);
+                }
+                if (!request.isProvided("rollNo")) {
+                    record.setRollNo(null);
+                }
+            } else if (classChanged && !request.isProvided("sectionNo")) {
+                // Never carry a section from the old class into the new class.
+                record.setSectionNo(null);
+            }
+        }
+        if (request.isProvided("sectionNo")) {
+            record.setSectionNo(request.getSectionNo());
+        }
+
+        if (request.isProvided("status")) {
+            if (request.getStatus() == null) {
+                throw new IllegalArgumentException("status cannot be null.");
+            }
+            record.setStatus(request.getStatus());
+        }
+
+        normalizeAndValidateAcademicRecord(student, record);
+        rejectAcademicIdentifierConflicts(student, record);
+
+        if (record.getStatus() == StudentStatus.ACTIVE) {
+            for (StudentAcademicRecord existing :
+                    studentAcademicRecordRepository.findByStudentDocsId(normalizedStudentDocsId)) {
+                if (!sameAcademicRecord(existing, record)) {
+                    deactivateAcademicRecord(existing);
+                }
+            }
+        }
+
+        record.setUpdatedAt(LocalDateTime.now());
+        final StudentAcademicRecord saved;
+        try {
+            saved = studentAcademicRecordRepository.save(record);
+        } catch (DuplicateKeyException ex) {
+            throw duplicateAcademicRecordConflict(student, record, ex);
+        }
+
+        if (saved.getStatus() == StudentStatus.ACTIVE) {
+            setCurrentAcademicRecordPointer(student, saved);
+        } else if (Objects.equals(
+                student.getCurrentAcademicRecordDocsId(), saved.getId())) {
+            syncCurrentAcademicRecordPointer(student);
+        }
+        return saved;
+    }
+
     private void deactivateAcademicRecord(StudentAcademicRecord record) {
         if (record == null || record.getStatus() == StudentStatus.INACTIVE) {
             return;
@@ -812,12 +939,12 @@ public class StudentService {
     }
 
     /**
-     * Repairs the pointer by selecting the newest active placement in the newest
-     * academic year. An inactive record is used only when no active record is
-     * available for that year.
+     * Repairs the pointer by selecting the newest active placement. When no
+     * active academic record exists, the pointer is cleared.
      */
     private void syncCurrentAcademicRecordPointer(Student student) {
         String latestId = studentAcademicRecordRepository.findByStudentDocsId(student.getId()).stream()
+                .filter(record -> record.getStatus() == StudentStatus.ACTIVE)
                 .max(academicRecordRecencyComparator())
                 .map(StudentAcademicRecord::getId)
                 .orElse(null);

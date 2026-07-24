@@ -2,6 +2,9 @@ package com.orbitastra.backend.controllers.student;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
+import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.services.student.StudentService;
 import tools.jackson.databind.ObjectMapper;
 
@@ -84,6 +89,56 @@ class StudentControllerTest {
                 AcademicRecordRequest.class);
 
         assertEquals("class-mongo-id", request.getClassDocsId());
+    }
+
+    @Test
+    void updateAcademicRecord_returnsUpdatedRecord() {
+        UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+        request.setIdentityNo("IDN/2027/07/2401");
+        StudentAcademicRecord updated = StudentAcademicRecord.builder()
+                .id("record-1")
+                .studentDocsId("student-1")
+                .identityNo("IDN/2027/07/2401")
+                .build();
+        when(studentService.updateAcademicRecord("student-1", "record-1", request))
+                .thenReturn(updated);
+
+        ResponseEntity<StudentAcademicRecord> response =
+                studentController.updateAcademicRecord("student-1", "record-1", request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("record-1", response.getBody().getId());
+        assertEquals("IDN/2027/07/2401", response.getBody().getIdentityNo());
+    }
+
+    @Test
+    void updateAcademicRecordRequest_tracksExplicitNullAndRejectsServerOwnedFields() throws Exception {
+        UpdateAcademicRecordRequest clearIdentity = new ObjectMapper().readValue(
+                """
+                {
+                  "identityNo": null
+                }
+                """,
+                UpdateAcademicRecordRequest.class);
+
+        assertTrue(clearIdentity.isProvided("identityNo"));
+        assertNull(clearIdentity.getIdentityNo());
+
+        Exception error = assertThrows(
+                Exception.class,
+                () -> new ObjectMapper().readValue(
+                        """
+                        {
+                          "academicYear": "2027-2028"
+                        }
+                        """,
+                        UpdateAcademicRecordRequest.class));
+        Throwable rootCause = error;
+        while (rootCause.getCause() != null) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue(rootCause.getMessage().contains(
+                "Unsupported academic-record update field 'academicYear'"));
     }
 
     @Test

@@ -4046,6 +4046,39 @@
               "response": []
             },
             {
+              "name": "Edit Academic Record",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// PATCH /api/students/{studentDocsId}/academic-records/{academicRecordDocsId}\n// Send at least one field. Omitted fields remain unchanged.\n// Editable fields only: identityNo, rollNo, classDocsId, sectionNo, hostelRoomNo, status.\n// Explicit null or blank clears an optional string; status cannot be null.\n// academicYear, schoolId, studentDocsId, id, createdAt, and updatedAt are server-owned.\n// classDocsId must belong to the record's existing academic year and the student's school.\n// sectionNo must exist in classDocsId; rollNo is unique across that class/year.\n// For ACTIVE records, identityNo is unique in the school/year.\n// Setting status ACTIVE deactivates every other academic record and makes this record current.\n// Making the current record non-ACTIVE points to the newest remaining ACTIVE record or clears the pointer.\n{\n  \"identityNo\": \"IDN/2027/07/2403\",\n  \"rollNo\": \"9C-03\",\n  \"classDocsId\": \"CLASS_DOCS_ID_HERE\",\n  \"sectionNo\": \"C\",\n  \"hostelRoomNo\": \"203\",\n  \"status\": \"ACTIVE\"\n}\n"
+                },
+                "url": {
+                  "raw": "http://localhost:3456/api/students/STUDENT_ID_HERE/academic-records/ACADEMIC_RECORD_DOCS_ID_HERE",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "students",
+                    "STUDENT_ID_HERE",
+                    "academic-records",
+                    "ACADEMIC_RECORD_DOCS_ID_HERE"
+                  ]
+                },
+                "description": "Partially edits only identityNo, rollNo, classDocsId, sectionNo, hostelRoomNo, and status. The record must belong to the path student. Academic year and ownership fields are immutable. Active identifier conflicts return 409; invalid class, section, ownership, status, or payload fields return 400; missing student or record returns 404."
+              },
+              "response": []
+            },
+            {
               "name": "Get Student Academic History",
               "protocolProfileBehavior": {
                 "disableBodyPruning": true

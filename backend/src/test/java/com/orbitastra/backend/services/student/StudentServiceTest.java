@@ -35,6 +35,7 @@ import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
@@ -540,6 +541,7 @@ public class StudentServiceTest {
                                 .academicYear("2026-2027")
                                 .identityNo("IDN/2026/07/2401")
                                 .rollNo("12")
+                                .status(StudentStatus.ACTIVE)
                                 .build();
 
                 when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
@@ -977,6 +979,425 @@ public class StudentServiceTest {
                 assertEquals("A newly assigned current academic record must have status ACTIVE.",
                                 error.getMessage());
                 verify(studentAcademicRecordRepository, never()).save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_updatesOnlyProvidedFieldsAndNormalizesValues() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .identityNo("OLD-ID")
+                                .rollNo("8A-01")
+                                .classDocsId("class-old")
+                                .sectionNo("A")
+                                .hostelRoomNo("101")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setIdentityNo("  NEW-ID  ");
+                request.setClassDocsId("class-new");
+                request.setSectionNo("b");
+                request.setHostelRoomNo(null);
+                student.setCurrentAcademicRecordDocsId("record-1");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(schoolClassRepository.findById("class-new")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-new")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2026-2027")
+                                                .sections(List.of("A", "B"))
+                                                .build()));
+                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
+                                .thenReturn(List.of(record));
+                when(studentAcademicRecordRepository.save(record)).thenReturn(record);
+
+                StudentAcademicRecord updated = studentService.updateAcademicRecord(
+                                "student-id-123", "record-1", request);
+
+                assertEquals("NEW-ID", updated.getIdentityNo());
+                assertEquals("8A-01", updated.getRollNo());
+                assertEquals("class-new", updated.getClassDocsId());
+                assertEquals("B", updated.getSectionNo());
+                assertNull(updated.getHostelRoomNo());
+                assertEquals("2026-2027", updated.getAcademicYear());
+                assertEquals(StudentStatus.ACTIVE, updated.getStatus());
+                verify(studentAcademicRecordRepository).save(record);
+                verify(studentRepository, never()).save(any(Student.class));
+        }
+
+        @Test
+        void updateAcademicRecord_clearingClassClearsOmittedSectionAndRoll() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .rollNo("8A-01")
+                                .classDocsId("class-old")
+                                .sectionNo("A")
+                                .status(StudentStatus.INACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setClassDocsId(" ");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(studentAcademicRecordRepository.save(record)).thenReturn(record);
+
+                StudentAcademicRecord updated = studentService.updateAcademicRecord(
+                                "student-id-123", "record-1", request);
+
+                assertNull(updated.getClassDocsId());
+                assertNull(updated.getSectionNo());
+                assertNull(updated.getRollNo());
+                assertEquals(StudentStatus.INACTIVE, updated.getStatus());
+        }
+
+        @Test
+        void updateAcademicRecord_rejectsEmptyBodyAndNullStatus() {
+                IllegalArgumentException emptyError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123",
+                                                "record-1",
+                                                new UpdateAcademicRecordRequest()));
+                assertEquals(
+                                "At least one editable academic-record field is required.",
+                                emptyError.getMessage());
+
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest nullStatus = new UpdateAcademicRecordRequest();
+                nullStatus.setStatus(null);
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+
+                IllegalArgumentException statusError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", nullStatus));
+                assertEquals("status cannot be null.", statusError.getMessage());
+                verify(studentAcademicRecordRepository, never())
+                                .save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_rejectsMissingOrForeignRecord() {
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setIdentityNo("NEW-ID");
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("missing-record"))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(
+                                ResourceNotFoundException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "missing-record", request));
+
+                StudentAcademicRecord foreignRecord = StudentAcademicRecord.builder()
+                                .id("foreign-record")
+                                .schoolId("school-id-123")
+                                .studentDocsId("another-student")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                when(studentAcademicRecordRepository.findById("foreign-record"))
+                                .thenReturn(Optional.of(foreignRecord));
+
+                IllegalArgumentException ownershipError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "foreign-record", request));
+                assertTrue(ownershipError.getMessage().contains("does not belong to student"));
+                verify(studentAcademicRecordRepository, never())
+                                .save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_rejectsClassFromWrongYearAndUnknownSection() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.INACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest wrongYear = new UpdateAcademicRecordRequest();
+                wrongYear.setClassDocsId("class-wrong-year");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(schoolClassRepository.findById("class-wrong-year")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-wrong-year")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2025-2026")
+                                                .build()));
+
+                IllegalArgumentException yearError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", wrongYear));
+                assertTrue(yearError.getMessage().contains(
+                                "does not belong to academic year '2026-2027'"));
+
+                record.setClassDocsId(null);
+                UpdateAcademicRecordRequest unknownSection = new UpdateAcademicRecordRequest();
+                unknownSection.setClassDocsId("class-valid");
+                unknownSection.setSectionNo("Z");
+                when(schoolClassRepository.findById("class-valid")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-valid")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2026-2027")
+                                                .sections(List.of("A", "B"))
+                                                .build()));
+
+                IllegalArgumentException sectionError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", unknownSection));
+                assertTrue(sectionError.getMessage().contains("does not exist in class"));
+                verify(studentAcademicRecordRepository, never())
+                                .save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_rejectsDuplicateIdentityAndRollForActiveRecord() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .classDocsId("class-9")
+                                .sectionNo("A")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest duplicateIdentity = new UpdateAcademicRecordRequest();
+                duplicateIdentity.setIdentityNo("DUPLICATE-ID");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-9")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2026-2027")
+                                                .sections(List.of("A", "B"))
+                                                .build()));
+                when(studentAcademicRecordRepository
+                                .findFirstBySchoolIdAndAcademicYearAndIdentityNoAndStatus(
+                                                "school-id-123",
+                                                "2026-2027",
+                                                "DUPLICATE-ID",
+                                                StudentStatus.ACTIVE))
+                                .thenReturn(Optional.of(StudentAcademicRecord.builder()
+                                                .id("other-record")
+                                                .studentDocsId("another-student")
+                                                .build()));
+
+                assertThrows(
+                                ConflictException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123",
+                                                "record-1",
+                                                duplicateIdentity));
+
+                record.setIdentityNo(null);
+                UpdateAcademicRecordRequest duplicateRoll = new UpdateAcademicRecordRequest();
+                duplicateRoll.setRollNo("9A-01");
+                when(studentAcademicRecordRepository
+                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
+                                                "class-9",
+                                                "2026-2027",
+                                                "9A-01",
+                                                StudentStatus.ACTIVE))
+                                .thenReturn(Optional.of(StudentAcademicRecord.builder()
+                                                .id("other-record")
+                                                .studentDocsId("another-student")
+                                                .build()));
+
+                assertThrows(
+                                ConflictException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", duplicateRoll));
+                verify(studentAcademicRecordRepository, never())
+                                .save(any(StudentAcademicRecord.class));
+        }
+
+        @Test
+        void updateAcademicRecord_activatingHistoryDeactivatesOthersAndRepointsStudent() {
+                StudentAcademicRecord target = StudentAcademicRecord.builder()
+                                .id("record-target")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.INACTIVE)
+                                .build();
+                StudentAcademicRecord otherActive = StudentAcademicRecord.builder()
+                                .id("record-current")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2025-2026")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                StudentAcademicRecord suspended = StudentAcademicRecord.builder()
+                                .id("record-suspended")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2024-2025")
+                                .status(StudentStatus.SUSPENDED)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setStatus(StudentStatus.ACTIVE);
+                student.setCurrentAcademicRecordDocsId("record-current");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-target"))
+                                .thenReturn(Optional.of(target));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
+                                .thenReturn(List.of(target, otherActive, suspended));
+                when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+                when(studentRepository.save(student)).thenReturn(student);
+
+                StudentAcademicRecord updated = studentService.updateAcademicRecord(
+                                "student-id-123", "record-target", request);
+
+                assertEquals(StudentStatus.ACTIVE, updated.getStatus());
+                assertEquals(StudentStatus.INACTIVE, otherActive.getStatus());
+                assertEquals(StudentStatus.INACTIVE, suspended.getStatus());
+                assertEquals("record-target", student.getCurrentAcademicRecordDocsId());
+                var saveOrder = inOrder(studentAcademicRecordRepository);
+                saveOrder.verify(studentAcademicRecordRepository).save(otherActive);
+                saveOrder.verify(studentAcademicRecordRepository).save(suspended);
+                saveOrder.verify(studentAcademicRecordRepository).save(target);
+                verify(studentRepository).save(student);
+        }
+
+        @Test
+        void updateAcademicRecord_inactivatingCurrentClearsPointerWhenNoActiveRecordRemains() {
+                StudentAcademicRecord current = StudentAcademicRecord.builder()
+                                .id("record-current")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setStatus(StudentStatus.INACTIVE);
+                student.setCurrentAcademicRecordDocsId("record-current");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-current"))
+                                .thenReturn(Optional.of(current));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(studentAcademicRecordRepository.save(current)).thenReturn(current);
+                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
+                                .thenReturn(List.of(current));
+                when(studentRepository.save(student)).thenReturn(student);
+
+                StudentAcademicRecord updated = studentService.updateAcademicRecord(
+                                "student-id-123", "record-current", request);
+
+                assertEquals(StudentStatus.INACTIVE, updated.getStatus());
+                assertNull(student.getCurrentAcademicRecordDocsId());
+                verify(studentRepository).save(student);
+        }
+
+        @Test
+        void updateAcademicRecord_inactivatingCurrentRepointsToNewestRemainingActiveRecord() {
+                StudentAcademicRecord current = StudentAcademicRecord.builder()
+                                .id("record-current")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                StudentAcademicRecord remainingActive = StudentAcademicRecord.builder()
+                                .id("record-remaining")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2025-2026")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setStatus(StudentStatus.SUSPENDED);
+                student.setCurrentAcademicRecordDocsId("record-current");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-current"))
+                                .thenReturn(Optional.of(current));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(studentAcademicRecordRepository.save(current)).thenReturn(current);
+                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
+                                .thenReturn(List.of(current, remainingActive));
+                when(studentRepository.save(student)).thenReturn(student);
+
+                StudentAcademicRecord updated = studentService.updateAcademicRecord(
+                                "student-id-123", "record-current", request);
+
+                assertEquals(StudentStatus.SUSPENDED, updated.getStatus());
+                assertEquals("record-remaining", student.getCurrentAcademicRecordDocsId());
+                verify(studentRepository).save(student);
+        }
+
+        @Test
+        void updateAcademicRecord_translatesConcurrentDuplicateToConflict() {
+                StudentAcademicRecord record = StudentAcademicRecord.builder()
+                                .id("record-1")
+                                .schoolId("school-id-123")
+                                .studentDocsId("student-id-123")
+                                .academicYear("2026-2027")
+                                .status(StudentStatus.ACTIVE)
+                                .build();
+                UpdateAcademicRecordRequest request = new UpdateAcademicRecordRequest();
+                request.setIdentityNo("CONCURRENT-ID");
+
+                when(studentRepository.findById("student-id-123")).thenReturn(Optional.of(student));
+                when(studentAcademicRecordRepository.findById("record-1"))
+                                .thenReturn(Optional.of(record));
+                when(academicYearResolver.resolve("school-id-123", "2026-2027", null))
+                                .thenReturn(academicYear);
+                when(studentAcademicRecordRepository.findByStudentDocsId("student-id-123"))
+                                .thenReturn(List.of(record));
+                when(studentAcademicRecordRepository.save(record))
+                                .thenThrow(new DuplicateKeyException(
+                                                "school_year_active_identity_no_unique_idx"));
+
+                ConflictException error = assertThrows(
+                                ConflictException.class,
+                                () -> studentService.updateAcademicRecord(
+                                                "student-id-123", "record-1", request));
+                assertTrue(error.getMessage().contains("identityNo"));
         }
 
         @Test

@@ -11,6 +11,7 @@ import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.GuardianLinkRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.dto.student.UpdateStudentRequest;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
@@ -138,6 +139,15 @@ public class StudentController {
             @Valid @RequestBody AcademicRecordRequest request) {
         StudentAcademicRecord created = studentService.createAcademicRecord(id, toAcademicRecord(request));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    @PatchMapping("/{studentDocsId}/academic-records/{academicRecordDocsId}")
+    public ResponseEntity<StudentAcademicRecord> updateAcademicRecord(
+            @PathVariable String studentDocsId,
+            @PathVariable String academicRecordDocsId,
+            @Valid @RequestBody UpdateAcademicRecordRequest request) {
+        return ResponseEntity.ok(studentService.updateAcademicRecord(
+                studentDocsId, academicRecordDocsId, request));
     }
 
     @GetMapping("/{id}/siblings")

@@ -78,11 +78,18 @@ export const api = {
   // ----- Students & Guardians -----
   getStudents: (schoolId = 'SCH-001') => listOr(`/api/students/school/${schoolId}`),
   getStudentsByYear: (schoolId = 'SCH-001', year) => listOr(`/api/students/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
+  getStudent: (studentDocsId) => call('GET', `/api/students/${studentDocsId}`),
   getStudentByAdmissionNo: (admissionNo) =>
     call('GET', `/api/students/admission?admissionNo=${encodeURIComponent(admissionNo)}`),
   createStudent: (payload) => call('POST', '/api/students', payload),
   updateStudent: (id, payload) => call('PATCH', `/api/students/${id}`, payload),
   deleteStudent: (id) => call('DELETE', `/api/students/${id}`),
+  getStudentAcademicHistory: (studentDocsId) =>
+    listOr(`/api/students/${studentDocsId}/academic-history`),
+  assignAcademicRecord: (studentDocsId, payload) =>
+    call('POST', `/api/students/${studentDocsId}/academic-records`, payload),
+  updateAcademicRecord: (studentDocsId, academicRecordDocsId, payload) =>
+    call('PATCH', `/api/students/${studentDocsId}/academic-records/${academicRecordDocsId}`, payload),
 
   getGuardians: (schoolId = 'SCH-001') => listOr(`/api/guardians/school/${schoolId}`),
   getGuardianById: (id) => call('GET', `/api/guardians/${id}`),
@@ -94,6 +101,8 @@ export const api = {
 
   // ----- Academics: Classes, Attendance, Homework, Results, Discipline, Timetables, Medical -----
   getClasses: (schoolId = 'SCH-001') => listOr(`/api/classes/school/${schoolId}`),
+  getClassesByYear: (schoolId = 'SCH-001', year) =>
+    listOr(`/api/classes/school/${schoolId}/academic-year/${encodeURIComponent(year)}`),
   createClass: (payload) => call('POST', '/api/classes', payload),
   addSectionToClass: (classDocsId, sections) => call('POST', `/api/classes/${classDocsId}/sections`, { sections }),
   deleteClass: (classDocsId) => call('DELETE', `/api/classes/${classDocsId}`),
