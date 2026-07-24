@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   UserPlus, Phone, Mail, Plus, Trash2, RefreshCw, X, Check,
-  ArrowRight, FileText, GraduationCap, User, ClipboardList, History, Clock
+  ArrowRight, FileText, GraduationCap, User, ClipboardList, History, Clock, Pencil
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Card, Button, Field, Input, Select, Badge, Empty, useToast } from '../components/ui.jsx';
@@ -52,8 +52,11 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   const [busy, setBusy] = useState(false);
   const [inquiryDetails, setInquiryDetails] = useState(null);
   const [loadingInquiryDetails, setLoadingInquiryDetails] = useState(false);
+  const [inquiryEditForm, setInquiryEditForm] = useState(null);
   const [admissionDetails, setAdmissionDetails] = useState(null);
   const [loadingAdmissionDetails, setLoadingAdmissionDetails] = useState(false);
+  const [admissionEditForm, setAdmissionEditForm] = useState(null);
+  const [detailMutation, setDetailMutation] = useState(null);
   const [admissionMutation, setAdmissionMutation] = useState(null);
   const [admissionGuardianForm, setAdmissionGuardianForm] = useState(() => emptyAdmissionGuardianForm());
   const [admissionDocument, setAdmissionDocument] = useState('');
@@ -142,6 +145,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
   // ---- inquiry actions ----
   const openInquiryDetails = async (inquiry) => {
     setInquiryDetails(inquiry);
+    setInquiryEditForm(null);
     setLoadingInquiryDetails(true);
     try {
       setInquiryDetails(await api.getInquiry(inquiry.id));
@@ -154,6 +158,7 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
 
   const openAdmissionDetails = async (admission) => {
     setAdmissionDetails(admission);
+    setAdmissionEditForm(null);
     setAdmissionGuardianForm(emptyAdmissionGuardianForm());
     setAdmissionDocument('');
     setLoadingAdmissionDetails(true);
@@ -166,11 +171,105 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
     }
   };
 
+  const applyInquiryUpdate = (updatedInquiry) => {
+    setInquiryDetails(updatedInquiry);
+    setInquiries((current) => current.map((inquiry) =>
+      inquiry.id === updatedInquiry.id ? updatedInquiry : inquiry
+    ));
+  };
+
   const applyAdmissionUpdate = (updatedAdmission) => {
     setAdmissionDetails(updatedAdmission);
     setAdmissions((current) => current.map((admission) =>
       admission.id === updatedAdmission.id ? updatedAdmission : admission
     ));
+  };
+
+  const beginInquiryEdit = () => {
+    setInquiryEditForm({
+      studentName: inquiryDetails.studentName || '',
+      source: inquiryDetails.source || '',
+      counselorDocsId: inquiryDetails.counselorDocsId || '',
+      guardians: (inquiryDetails.guardians || []).map((guardian) => ({ ...guardian })),
+    });
+  };
+
+  const submitInquiryEdit = async () => {
+    if (!inquiryDetails?.id || !inquiryEditForm) return;
+    if (!inquiryEditForm.counselorDocsId) {
+      toast.error('Select a counselor before saving the inquiry.');
+      return;
+    }
+
+    setDetailMutation('inquiry-edit');
+    try {
+      const updatedInquiry = await api.updateInquiry(inquiryDetails.id, {
+        studentName: inquiryEditForm.studentName.trim(),
+        source: inquiryEditForm.source || null,
+        counselorDocsId: inquiryEditForm.counselorDocsId,
+        guardians: inquiryEditForm.guardians
+          .filter((guardian) => guardian.name && guardian.name.trim())
+          .map((guardian) => ({
+            ...guardian,
+            name: guardian.name.trim(),
+            relation: guardian.relation || null,
+            phone: guardian.phone?.trim() || null,
+            email: guardian.email?.trim() || null,
+            address: guardian.address?.trim() || null,
+            occupation: guardian.occupation?.trim() || null,
+          })),
+      });
+      applyInquiryUpdate(updatedInquiry);
+      setInquiryEditForm(null);
+      toast.success('Inquiry updated.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update inquiry.');
+    } finally {
+      setDetailMutation(null);
+    }
+  };
+
+  const beginAdmissionEdit = () => {
+    setAdmissionEditForm({
+      admissionNo: admissionDetails.admissionNo || '',
+      studentName: admissionDetails.studentName || '',
+      dob: admissionDetails.dob || '',
+      gender: admissionDetails.gender || '',
+      status: admissionDetails.status || '',
+      admissionDate: admissionDetails.admissionDate || '',
+      documents: (admissionDetails.documents || []).join(', '),
+    });
+  };
+
+  const submitAdmissionEdit = async () => {
+    if (!admissionDetails?.id || !admissionEditForm) return;
+    if (!admissionEditForm.admissionNo.trim()) {
+      toast.error('Admission number cannot be blank.');
+      return;
+    }
+
+    setDetailMutation('admission-edit');
+    try {
+      const updatedAdmission = await api.updateAdmission(admissionDetails.id, {
+        admissionNo: admissionEditForm.admissionNo.trim(),
+        studentName: admissionEditForm.studentName.trim(),
+        dob: admissionEditForm.dob || null,
+        gender: admissionEditForm.gender || null,
+        status: admissionEditForm.status || null,
+        admissionDate: admissionEditForm.admissionDate || null,
+        documents: admissionEditForm.documents
+          .split(',')
+          .map((document) => document.trim())
+          .filter(Boolean),
+      });
+      applyAdmissionUpdate(updatedAdmission);
+      setAdmissionEditForm(null);
+      toast.success('Admission updated.');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update admission.');
+    } finally {
+      setDetailMutation(null);
+    }
   };
 
   const submitAdmissionGuardian = async () => {
@@ -777,9 +876,16 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   All fields returned by GET /api/inquiries/{inquiryDetails.id}
                 </p>
               </div>
-              <button onClick={() => setInquiryDetails(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition" title="Close inquiry details">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                {!inquiryEditForm && (
+                  <Button size="sm" onClick={beginInquiryEdit}>
+                    <Pencil size={13} /> Edit
+                  </Button>
+                )}
+                <button onClick={() => { setInquiryEditForm(null); setInquiryDetails(null); }} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition" title="Close inquiry details">
+                  <X size={16} />
+                </button>
+              </div>
             </header>
 
             <div className="p-5 overflow-y-auto space-y-5">
@@ -788,6 +894,98 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <RefreshCw size={13} className="animate-spin" />
                   Loading the complete inquiry document…
                 </div>
+              )}
+
+              {inquiryEditForm && (
+                <section className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 space-y-3">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-700">Edit inquiry</h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      PATCH /api/inquiries/{inquiryDetails.id}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <Field label="Student Name" apiName="studentName" required={false}>
+                      <Input value={inquiryEditForm.studentName} onChange={(event) => setInquiryEditForm({ ...inquiryEditForm, studentName: event.target.value })} />
+                    </Field>
+                    <Field label="Source" apiName="source" required={false}>
+                      <Select value={inquiryEditForm.source} onChange={(event) => setInquiryEditForm({ ...inquiryEditForm, source: event.target.value })}>
+                        <option value="">— omitted —</option>
+                        {['WALK_IN', 'PHONE', 'ONLINE', 'REFERRAL', 'OTHER'].map((source) => <option key={source} value={source}>{source}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Counselor" apiName="counselorDocsId" required>
+                      <Select value={inquiryEditForm.counselorDocsId} onChange={(event) => setInquiryEditForm({ ...inquiryEditForm, counselorDocsId: event.target.value })}>
+                        <option value="">— select counselor —</option>
+                        {staff.map((staffMember) => (
+                          <option key={staffMember.id} value={staffMember.id}>
+                            {`${staffMember.firstName || ''} ${staffMember.lastName || ''}`.trim() || staffMember.employeeNo || staffMember.id}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+
+                  <div className="space-y-2 border-t border-blue-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-600">Guardians</span>
+                      <button
+                        type="button"
+                        onClick={() => setInquiryEditForm({
+                          ...inquiryEditForm,
+                          guardians: [...inquiryEditForm.guardians, { name: '', relation: 'MOTHER', phone: '', email: '', address: '', occupation: '' }],
+                        })}
+                        className="text-[11px] font-semibold text-blue-600 flex items-center gap-1"
+                      >
+                        <Plus size={11} /> Add guardian
+                      </button>
+                    </div>
+                    {inquiryEditForm.guardians.map((guardian, index) => {
+                      const updateGuardian = (patch) => setInquiryEditForm({
+                        ...inquiryEditForm,
+                        guardians: inquiryEditForm.guardians.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, ...patch } : item
+                        ),
+                      });
+                      return (
+                        <div key={index} className="border border-blue-100 bg-white rounded-lg p-3 space-y-2">
+                          <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                            <Input value={guardian.name || ''} onChange={(event) => updateGuardian({ name: event.target.value })} placeholder="Guardian name" />
+                            <Select value={guardian.relation || ''} onChange={(event) => updateGuardian({ relation: event.target.value })}>
+                              <option value="">— relation —</option>
+                              {RELATIONS.map((relation) => <option key={relation} value={relation}>{relation.replace('_', ' ')}</option>)}
+                            </Select>
+                            <button
+                              type="button"
+                              onClick={() => setInquiryEditForm({
+                                ...inquiryEditForm,
+                                guardians: inquiryEditForm.guardians.filter((_, itemIndex) => itemIndex !== index),
+                              })}
+                              className="text-slate-400 hover:text-rose-600 px-1"
+                              title="Remove guardian"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <Input value={guardian.phone || ''} onChange={(event) => updateGuardian({ phone: event.target.value })} placeholder="Phone" />
+                            <Input type="email" value={guardian.email || ''} onChange={(event) => updateGuardian({ email: event.target.value })} placeholder="Email" />
+                            <Input value={guardian.address || ''} onChange={(event) => updateGuardian({ address: event.target.value })} placeholder="Address" />
+                            <Input value={guardian.occupation || ''} onChange={(event) => updateGuardian({ occupation: event.target.value })} placeholder="Occupation" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-blue-100 pt-3">
+                    <Button onClick={() => setInquiryEditForm(null)} disabled={detailMutation !== null}>Cancel</Button>
+                    <Button variant="primary" onClick={submitInquiryEdit} disabled={detailMutation !== null}>
+                      {detailMutation === 'inquiry-edit' ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
+                      Save Inquiry
+                    </Button>
+                  </div>
+                </section>
               )}
 
               <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -902,7 +1100,10 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
       {admissionDetails && (
         <div
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150"
-          onClick={() => setAdmissionDetails(null)}
+          onClick={() => {
+            setAdmissionEditForm(null);
+            setAdmissionDetails(null);
+          }}
         >
           <div
             role="dialog"
@@ -921,9 +1122,24 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   All fields returned by GET /api/admissions/{admissionDetails.id}
                 </p>
               </div>
-              <button onClick={() => setAdmissionDetails(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition" title="Close admission details">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                {!admissionEditForm && (
+                  <Button size="sm" onClick={beginAdmissionEdit}>
+                    <Pencil size={13} />
+                    Edit
+                  </Button>
+                )}
+                <button
+                  onClick={() => {
+                    setAdmissionEditForm(null);
+                    setAdmissionDetails(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
+                  title="Close admission details"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </header>
 
             <div className="p-5 overflow-y-auto space-y-5">
@@ -932,6 +1148,100 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
                   <RefreshCw size={13} className="animate-spin" />
                   Loading the complete admission document…
                 </div>
+              )}
+
+              {admissionEditForm && (
+                <section className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 space-y-4">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-700">Edit admission</h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      PATCH /api/admissions/{admissionDetails.id}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Admission No" apiName="admissionNo" required>
+                      <Input
+                        value={admissionEditForm.admissionNo}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, admissionNo: event.target.value })}
+                        placeholder="ADM/2026/07/2401"
+                      />
+                    </Field>
+                    <Field label="Student Name" apiName="studentName" required={false}>
+                      <Input
+                        value={admissionEditForm.studentName}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, studentName: event.target.value })}
+                        placeholder="Student name"
+                      />
+                    </Field>
+                    <Field label="Date of Birth" apiName="dob" required={false}>
+                      <Input
+                        type="date"
+                        value={admissionEditForm.dob}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, dob: event.target.value })}
+                      />
+                    </Field>
+                    <Field label="Gender" apiName="gender" required={false}>
+                      <Select
+                        value={admissionEditForm.gender}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, gender: event.target.value })}
+                      >
+                        <option value="">— unchanged / omitted —</option>
+                        <option value="MALE">MALE</option>
+                        <option value="FEMALE">FEMALE</option>
+                        <option value="OTHER">OTHER</option>
+                      </Select>
+                    </Field>
+                    <Field label="Status" apiName="status" required={false}>
+                      <Select
+                        value={admissionEditForm.status}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, status: event.target.value })}
+                      >
+                        <option value="">— unchanged / omitted —</option>
+                        {ADMISSION_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Admission Date" apiName="admissionDate" required={false}>
+                      <Input
+                        type="date"
+                        value={admissionEditForm.admissionDate}
+                        onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, admissionDate: event.target.value })}
+                      />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label="Documents" apiName="documents[]" required={false}>
+                        <Input
+                          value={admissionEditForm.documents}
+                          onChange={(event) => setAdmissionEditForm({ ...admissionEditForm, documents: event.target.value })}
+                          placeholder="birth-certificate.pdf, report-card.pdf"
+                        />
+                      </Field>
+                      <p className="mt-1 text-[10px] text-slate-400">Separate multiple document references with commas.</p>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-500">
+                    MongoDB Object ID, School ID, Inquiry Docs ID, and Student Docs ID are server-owned and remain read-only.
+                  </p>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="default"
+                      onClick={() => setAdmissionEditForm(null)}
+                      disabled={detailMutation === 'admission-edit'}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={submitAdmissionEdit}
+                      disabled={detailMutation !== null}
+                    >
+                      {detailMutation === 'admission-edit' ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
+                      Save Admission
+                    </Button>
+                  </div>
+                </section>
               )}
 
               <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1089,7 +1399,15 @@ export default function CrmScreen({ schoolId, year, staff = [] }) {
             </div>
 
             <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-end">
-              <Button variant="default" onClick={() => setAdmissionDetails(null)}>Close</Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  setAdmissionEditForm(null);
+                  setAdmissionDetails(null);
+                }}
+              >
+                Close
+              </Button>
             </footer>
           </div>
         </div>
