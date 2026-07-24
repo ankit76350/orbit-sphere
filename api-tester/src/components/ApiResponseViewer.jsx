@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Clipboard, Server, X } from 'lucide-react';
-import { POST_RESPONSE_EVENT } from '../api.js';
+import { API_MUTATION_RESPONSE_EVENT } from '../api.js';
 
 function responseBodyText(data) {
   if (data === '' || data === undefined) return '';
@@ -8,7 +8,7 @@ function responseBodyText(data) {
   return JSON.stringify(data, null, 2);
 }
 
-export default function PostResponseViewer() {
+export default function ApiResponseViewer() {
   const [response, setResponse] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -17,8 +17,8 @@ export default function PostResponseViewer() {
       setResponse(event.detail);
       setCopied(false);
     };
-    window.addEventListener(POST_RESPONSE_EVENT, showResponse);
-    return () => window.removeEventListener(POST_RESPONSE_EVENT, showResponse);
+    window.addEventListener(API_MUTATION_RESPONSE_EVENT, showResponse);
+    return () => window.removeEventListener(API_MUTATION_RESPONSE_EVENT, showResponse);
   }, []);
 
   const bodyText = useMemo(() => responseBodyText(response?.data), [response]);
@@ -43,15 +43,15 @@ export default function PostResponseViewer() {
       <section
         role="dialog"
         aria-modal="true"
-        aria-labelledby="post-response-title"
+        aria-labelledby="api-response-title"
         className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-4">
           <div>
-            <h2 id="post-response-title" className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <h2 id="api-response-title" className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <Server size={17} className={response.ok ? 'text-emerald-600' : 'text-rose-600'} />
-              Backend POST response
+              Backend {response.method} response
             </h2>
             <p className="text-[11px] text-slate-500 mt-1">Complete response returned by the backend.</p>
           </div>

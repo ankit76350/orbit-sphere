@@ -10,7 +10,7 @@ import GuardiansScreen from './screens/GuardiansScreen.jsx';
 import CoreScreen from './screens/CoreScreen.jsx';
 import { api } from './api.js';
 import { ToastProvider } from './components/ui.jsx';
-import PostResponseViewer from './components/PostResponseViewer.jsx';
+import ApiResponseViewer from './components/ApiResponseViewer.jsx';
 
 function AppContent() {
   const [schools, setSchools] = useState([]);
@@ -167,7 +167,7 @@ function AppContent() {
           )}
         </main>
       </div>
-      <PostResponseViewer />
+      <ApiResponseViewer />
     </div>
   );
 }

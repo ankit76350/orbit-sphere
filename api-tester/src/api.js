@@ -1,11 +1,11 @@
 // Friendly API layer for the School Admin console.
 // All calls are same-origin; Vite proxies /api to the backend (see vite.config.js).
 
-export const POST_RESPONSE_EVENT = 'api-tester:post-response';
+export const API_MUTATION_RESPONSE_EVENT = 'api-tester:mutation-response';
 
-function publishPostResponse(detail) {
+function publishMutationResponse(detail) {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(POST_RESPONSE_EVENT, {
+  window.dispatchEvent(new CustomEvent(API_MUTATION_RESPONSE_EVENT, {
     detail: {
       ...detail,
       receivedAt: new Date().toISOString(),
@@ -14,6 +14,8 @@ function publishPostResponse(detail) {
 }
 
 async function call(method, path, body) {
+  const normalizedMethod = method.toUpperCase();
+  const shouldPublishResponse = normalizedMethod !== 'GET';
   const opts = { method, headers: {} };
   if (body != null) {
     opts.headers['Content-Type'] = 'application/json';
@@ -24,9 +26,9 @@ async function call(method, path, body) {
   try {
     res = await fetch(path, opts);
   } catch (error) {
-    if (method === 'POST') {
-      publishPostResponse({
-        method,
+    if (shouldPublishResponse) {
+      publishMutationResponse({
+        method: normalizedMethod,
         path,
         ok: false,
         status: 0,
@@ -41,9 +43,9 @@ async function call(method, path, body) {
   let data;
   try { data = JSON.parse(text); } catch { data = text; }
 
-  if (method === 'POST') {
-    publishPostResponse({
-      method,
+  if (shouldPublishResponse) {
+    publishMutationResponse({
+      method: normalizedMethod,
       path,
       ok: res.ok,
       status: res.status,
