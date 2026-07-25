@@ -58,6 +58,9 @@ public class Student extends SchoolBase {
     @Builder.Default
     private List<String> medicalRemark = new java.util.ArrayList<>();
 
+    //this will create when we oopen a student wallet
+    //using this api /api/wallets/student/{studentDocsId}
+    @Indexed(unique = true, sparse = true)
     private String walletDocsId;
 
     // Denormalised pointer to this student's StudentAcademicRecord (in the

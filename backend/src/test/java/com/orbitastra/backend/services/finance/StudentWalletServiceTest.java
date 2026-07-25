@@ -67,23 +67,14 @@ public class StudentWalletServiceTest {
     }
 
     @Test
-    void getWalletByStudentDocsId_NewWallet_Success() {
+    void getWalletByStudentDocsId_WalletNotFound_ThrowsException() {
         when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
         when(studentRepository.findById("student-123")).thenReturn(Optional.of(student));
-        when(studentWalletRepository.existsByWalletNo(anyString())).thenReturn(false);
-        when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StudentWallet result = studentWalletService.getWalletByStudentDocsId("student-123");
-
-        assertNotNull(result);
-        assertEquals(BigDecimal.ZERO, result.getBalance());
-        assertEquals("student-123", result.getStudentDocsId());
-        assertEquals("school-123", result.getSchoolId());
-        assertNotNull(result.getWalletNo());
-        assertTrue(result.getWalletNo().startsWith("WLT/"));
-        verify(studentWalletRepository, times(1)).findByStudentDocsId("student-123");
-        verify(studentRepository, times(1)).findById("student-123");
-        verify(studentWalletRepository, times(1)).save(any(StudentWallet.class));
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () -> {
+            studentWalletService.getWalletByStudentDocsId("student-123");
+        });
+        assertEquals("Wallet not found for student John Doe, want to open a wallet account?", ex.getMessage());
     }
 
     @Test
@@ -91,9 +82,10 @@ public class StudentWalletServiceTest {
         when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
         when(studentRepository.findById("student-123")).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> {
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () -> {
             studentWalletService.getWalletByStudentDocsId("student-123");
         });
+        assertEquals("Student not found with id: student-123", ex.getMessage());
     }
 
     @Test
@@ -123,6 +115,15 @@ public class StudentWalletServiceTest {
         });
         assertThrows(IllegalArgumentException.class, () -> {
             studentWalletService.creditWallet("student-123", new BigDecimal("-10.00"), "Invalid credit");
+        });
+    }
+
+    @Test
+    void creditWallet_WalletNotFound_ThrowsException() {
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            studentWalletService.creditWallet("student-123", new BigDecimal("50.00"), "Credit test");
         });
     }
 
@@ -162,6 +163,15 @@ public class StudentWalletServiceTest {
         });
         assertThrows(IllegalArgumentException.class, () -> {
             studentWalletService.debitWallet("student-123", new BigDecimal("-5.00"), "Invalid debit");
+        });
+    }
+
+    @Test
+    void debitWallet_WalletNotFound_ThrowsException() {
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            studentWalletService.debitWallet("student-123", new BigDecimal("30.00"), "Debit test");
         });
     }
 
@@ -239,5 +249,54 @@ public class StudentWalletServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> {
             studentWalletService.getWalletTransactionByReferenceNo("WTR/2026/07/2501");
         });
+    }
+
+    @Test
+    void openWallet_Success() {
+        when(studentRepository.findById("student-123")).thenReturn(Optional.of(student));
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.empty());
+        when(studentWalletRepository.existsByWalletNo(anyString())).thenReturn(false);
+        when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> {
+            StudentWallet w = invocation.getArgument(0);
+            w.setId("wallet-new-123");
+            return w;
+        });
+        when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StudentWallet result = studentWalletService.openWallet("student-123");
+
+        assertNotNull(result);
+        assertEquals(new BigDecimal("0.0"), result.getBalance());
+        assertEquals("student-123", result.getStudentDocsId());
+        assertEquals("school-123", result.getSchoolId());
+        assertNotNull(result.getWalletNo());
+        assertTrue(result.getWalletNo().startsWith("WLT/"));
+        verify(studentRepository, times(1)).findById("student-123");
+        verify(studentWalletRepository, times(1)).findByStudentDocsId("student-123");
+        verify(studentWalletRepository, times(1)).save(any(StudentWallet.class));
+        verify(studentRepository, times(1)).save(argThat(s -> "wallet-new-123".equals(s.getWalletDocsId())));
+    }
+
+    @Test
+    void openWallet_StudentNotFound_ThrowsException() {
+        when(studentRepository.findById("student-123")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            studentWalletService.openWallet("student-123");
+        });
+        verifyNoInteractions(studentWalletRepository);
+    }
+
+    @Test
+    void openWallet_WalletAlreadyExists_ThrowsException() {
+        when(studentRepository.findById("student-123")).thenReturn(Optional.of(student));
+        when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            studentWalletService.openWallet("student-123");
+        });
+        verify(studentRepository, times(1)).findById("student-123");
+        verify(studentWalletRepository, times(1)).findByStudentDocsId("student-123");
+        verify(studentWalletRepository, never()).save(any(StudentWallet.class));
     }
 }

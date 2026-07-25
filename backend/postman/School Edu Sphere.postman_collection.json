@@ -4573,15 +4573,15 @@
           ]
         },
         {
-          "name": "Wallets",
+          "name": "Wallet",
           "item": [
             {
-              "name": "Get Student Wallet",
+              "name": "Get Wallet by Student ID",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE",
+                  "raw": "http://localhost:3456/api/wallets/student/{{studentDocsId}}",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -4591,7 +4591,34 @@
                     "api",
                     "wallets",
                     "student",
-                    "STUDENT_ID_HERE"
+                    "{{studentDocsId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Open Wallet Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/student/{{studentDocsId}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "student",
+                    "{{studentDocsId}}"
                   ]
                 }
               },
@@ -4609,10 +4636,10 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": 100.00,\n  \"remarks\": \"Pocket money allowance\"\n}"
+                  "raw": "{\n  \"amount\": 100.0,\n  \"remarks\": \"Deposit pocket money\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/credit",
+                  "raw": "http://localhost:3456/api/wallets/student/{{studentDocsId}}/credit",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -4622,7 +4649,7 @@
                     "api",
                     "wallets",
                     "student",
-                    "STUDENT_ID_HERE",
+                    "{{studentDocsId}}",
                     "credit"
                   ]
                 }
@@ -4641,10 +4668,10 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": 50.00,\n  \"remarks\": \"Bought canteen snacks\"\n}"
+                  "raw": "{\n  \"amount\": 30.0,\n  \"remarks\": \"Buy stationary\"\n}"
                 },
                 "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/debit",
+                  "raw": "http://localhost:3456/api/wallets/student/{{studentDocsId}}/debit",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -4654,8 +4681,33 @@
                     "api",
                     "wallets",
                     "student",
-                    "STUDENT_ID_HERE",
+                    "{{studentDocsId}}",
                     "debit"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Wallet by Wallet Number",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/no/WLT/2026/07/2501",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "no",
+                    "WLT",
+                    "2026",
+                    "07",
+                    "2501"
                   ]
                 }
               },
@@ -4667,7 +4719,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "http://localhost:3456/api/wallets/student/STUDENT_ID_HERE/transactions",
+                  "raw": "http://localhost:3456/api/wallets/student/{{studentDocsId}}/transactions",
                   "protocol": "http",
                   "host": [
                     "localhost"
@@ -4677,8 +4729,61 @@
                     "api",
                     "wallets",
                     "student",
-                    "STUDENT_ID_HERE",
+                    "{{studentDocsId}}",
                     "transactions"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Wallet Transaction by Reference Number",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/wallets/transactions/no/WTR/2026/07/2501",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "wallets",
+                    "transactions",
+                    "no",
+                    "WTR",
+                    "2026",
+                    "07",
+                    "2501"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Fee Payment by Receipt Number",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://localhost:3456/api/fees/payments/receipt/no/RPN/2026/07/2501",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3456",
+                  "path": [
+                    "api",
+                    "fees",
+                    "payments",
+                    "receipt",
+                    "no",
+                    "RPN",
+                    "2026",
+                    "07",
+                    "2501"
                   ]
                 }
               },

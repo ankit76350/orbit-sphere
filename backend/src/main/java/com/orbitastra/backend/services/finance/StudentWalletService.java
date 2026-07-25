@@ -31,16 +31,29 @@ public class StudentWalletService {
                 .orElseGet(() -> {
                     Student student = studentRepository.findById(studentDocsId)
                             .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
-                    StudentWallet wallet = StudentWallet.builder()
-                            .studentDocsId(studentDocsId)
-                            .schoolId(student.getSchoolId())
-                            .walletNo(generateUniqueWalletNo())
-                            .balance(BigDecimal.ZERO)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build();
-                    return studentWalletRepository.save(wallet);
+                    throw new ResourceNotFoundException("Wallet not found for student " + student.getName() + ", want to open a wallet account?");
                 });
+    }
+
+    @Transactional
+    public StudentWallet openWallet(String studentDocsId) {
+        Student student = studentRepository.findById(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
+        if (studentWalletRepository.findByStudentDocsId(studentDocsId).isPresent()) {
+            throw new IllegalArgumentException("Wallet already exists for student with id: " + studentDocsId);
+        }
+        StudentWallet wallet = StudentWallet.builder()
+                .studentDocsId(studentDocsId)
+                .schoolId(student.getSchoolId())
+                .walletNo(generateUniqueWalletNo())
+                .balance(new BigDecimal("0.0"))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        StudentWallet savedWallet = studentWalletRepository.save(wallet);
+        student.setWalletDocsId(savedWallet.getId());
+        studentRepository.save(student);
+        return savedWallet;
     }
 
     @Transactional
@@ -48,7 +61,8 @@ public class StudentWalletService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Credit amount must be greater than zero.");
         }
-        StudentWallet wallet = getWalletByStudentDocsId(studentDocsId);
+        StudentWallet wallet = studentWalletRepository.findByStudentDocsId(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found for student with id: " + studentDocsId));
         BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
         BigDecimal newBalance = oldBalance.add(amount);
         wallet.setBalance(newBalance);
@@ -75,7 +89,8 @@ public class StudentWalletService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Debit amount must be greater than zero.");
         }
-        StudentWallet wallet = getWalletByStudentDocsId(studentDocsId);
+        StudentWallet wallet = studentWalletRepository.findByStudentDocsId(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found for student with id: " + studentDocsId));
         BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
         if (oldBalance.compareTo(amount) < 0) {
             throw new IllegalArgumentException("Insufficient wallet balance.");
