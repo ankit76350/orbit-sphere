@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.aihub;
+package com.orbitastra.backend.models.undone.a_latter.aihub;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;

@@ -1,7 +1,9 @@
-package com.orbitastra.backend.models.undone.celebrations;
+package com.orbitastra.backend.models.undone.a_latter.alumni;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
+
+import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -11,25 +13,23 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "birthday_notifications")
+@Document(collection = "job_postings")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BirthdayNotification extends SchoolBase {
+public class JobPosting extends SchoolBase {
 
-    private String personType;
+    private String alumniDocsId;
 
-    private String personDocsId;
+    private String title;
 
-    private String personName;
+    private String company;
 
-    private String notificationType;
+    private String location;
 
-    private String recipient;
+    private String description;
 
-    private String message;
-
-    private String sentAt;
+    private LocalDate expiryDate;
 }

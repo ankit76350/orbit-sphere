@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.audit;
+package com.orbitastra.backend.models.undone.a_working.audit;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -28,12 +28,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuditLog extends SchoolBase {
 
+    //might be possible use the DBRef here decide this latter
     @Indexed
     private String userDocsId; // references User.id / Staff.id
 
-    private String userName;
-
-    private String role;
+    private String roleHave;
 
     private String action;
 

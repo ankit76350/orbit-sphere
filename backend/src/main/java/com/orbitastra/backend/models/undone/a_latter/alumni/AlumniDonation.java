@@ -1,7 +1,10 @@
-package com.orbitastra.backend.models.undone.celebrations;
+package com.orbitastra.backend.models.undone.a_latter.alumni;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -11,22 +14,21 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "birthday_gallery")
+@Document(collection = "alumni_donations")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BirthdayGallery extends SchoolBase {
+public class AlumniDonation extends SchoolBase {
 
-    private String personType;
+    private String alumniDocsId;
 
-    private String personDocsId;
+    private String campaignDocsId;
 
-    private String personName;
+    private BigDecimal amount;
 
-    private String mediaUrl;
+    private LocalDate donationDate;
 
-    private String caption;
-
+    private String paymentReference;
 }

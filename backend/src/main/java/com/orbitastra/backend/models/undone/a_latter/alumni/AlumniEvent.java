@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.alumni;
+package com.orbitastra.backend.models.undone.a_latter.alumni;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -10,26 +10,28 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import com.orbitastra.backend.models.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "mentorship_programs")
+@Document(collection = "alumni_events")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MentorshipProgram extends SchoolBase {
+public class AlumniEvent extends SchoolBase {
 
-    private String mentorAlumniDocsId;
+    private String title;
 
-    private String studentDocsId;
+    private String eventType;
 
-    private String studentName;
+    private LocalDate eventDate;
 
-    private String category;
+    private String location;
 
-    private String status;
+    private String description;
 
-    private LocalDate sessionDate;
+    @Builder.Default
+    private Integer rsvps = 0;
 }

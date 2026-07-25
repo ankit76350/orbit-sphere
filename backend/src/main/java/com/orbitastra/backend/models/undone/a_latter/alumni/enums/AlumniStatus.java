@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.alumni.enums;
+package com.orbitastra.backend.models.undone.a_latter.alumni.enums;
 
 public enum AlumniStatus {
     PENDING,

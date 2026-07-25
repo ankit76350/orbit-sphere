@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.aihub;
+package com.orbitastra.backend.models.undone.a_latter.aihub;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -6,8 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.aihub.enums.AiPersona;
-import com.orbitastra.backend.models.undone.aihub.enums.AiTier;
+import com.orbitastra.backend.models.undone.a_latter.aihub.enums.AiPersona;
+import com.orbitastra.backend.models.undone.a_latter.aihub.enums.AiTier;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
