@@ -44,6 +44,7 @@ public class StudentWalletServiceTest {
     void setUp() {
         student = new Student();
         student.setId("student-123");
+        student.setName("John Doe");
         student.setSchoolId("school-123");
 
         wallet = new StudentWallet();

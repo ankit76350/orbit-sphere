@@ -213,9 +213,15 @@ export default function FinanceScreen({ schoolId, year }) {
       toast.error('Enter a valid payment amount.');
       return;
     }
-    if (payForm.paymentMode === 'WALLET' && selectedBalance < amount) {
-      toast.error(`Insufficient wallet balance ($${selectedBalance.toLocaleString()}).`);
-      return;
+    if (payForm.paymentMode === 'WALLET') {
+      if (!selectedWallet) {
+        toast.error('No wallet account opened for this student.');
+        return;
+      }
+      if (selectedBalance < amount) {
+        toast.error(`Insufficient wallet balance ($${selectedBalance.toLocaleString()}).`);
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -523,43 +529,77 @@ export default function FinanceScreen({ schoolId, year }) {
 
                 {detailTab === 'wallet' && (
                   <>
-                    {/* Wallet overview + ledger button */}
-                    <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center gap-3">
-                      <Wallet size={32} className="text-blue-500" />
-                      <div className="text-3xl font-bold font-mono text-slate-800">
-                        ${selectedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                      <p className="text-xs text-slate-400">Available prepaid balance</p>
-                      <Button variant="default" onClick={() => viewAudit(selectedStudentDocsId)}>
-                        <History size={14} /> View Transaction Ledger
-                      </Button>
-                    </div>
-
-                    {/* Wallet operation form */}
-                    <div className="lg:col-span-1">
-                      <Card title="Wallet Operation" subtitle="Deposit or debit prepaid credits.">
-                        <div className="space-y-4">
-                          <Field label="Action *">
-                            <Select value={walletForm.operation} onChange={(e) => setWalletForm({ ...walletForm, operation: e.target.value })}>
-                              <option value="CREDIT">Deposit (+)</option>
-                              <option value="DEBIT">Withdraw (-)</option>
-                            </Select>
-                          </Field>
-                          <Field label="Amount ($)" apiName="amount" required>
-                            <Input type="number" value={walletForm.amount} onChange={(e) => setWalletForm({ ...walletForm, amount: e.target.value })} placeholder="e.g. 50" />
-                          </Field>
-                          <Field label="Remarks" apiName="remarks" required={false}>
-                            <Input value={walletForm.remarks} onChange={(e) => setWalletForm({ ...walletForm, remarks: e.target.value })} placeholder="e.g. Parent deposit" />
-                          </Field>
-                          <div className="pt-3 border-t border-slate-100 flex justify-end">
-                            <Button variant="primary" onClick={submitWalletOp} disabled={busy || !walletForm.amount}>
-                              {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
-                              Post
-                            </Button>
-                          </div>
+                    {!selectedWallet ? (
+                      <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl shadow-sm p-8 flex flex-col items-center justify-center gap-4 text-center">
+                        <Wallet size={48} className="text-slate-300" />
+                        <div>
+                          <h4 className="font-bold text-slate-800 text-sm">Wallet Not Found</h4>
+                          <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                            Wallet not found for student {selectedStudent.name}. Want to open a wallet account?
+                          </p>
                         </div>
-                      </Card>
-                    </div>
+                        <Button
+                          variant="primary"
+                          onClick={async () => {
+                            setBusy(true);
+                            try {
+                              await api.openWallet(selectedStudentDocsId);
+                              toast.success('Wallet opened successfully.');
+                              fetchAll();
+                            } catch (e) {
+                              toast.error(e.message || 'Failed to open wallet.');
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                          disabled={busy}
+                        >
+                          {busy ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                          Open Wallet Account
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Wallet overview + ledger button */}
+                        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center gap-3">
+                          <Wallet size={32} className="text-blue-500" />
+                          <div className="text-[10px] text-slate-400 font-mono">No: {selectedWallet.walletNo}</div>
+                          <div className="text-3xl font-bold font-mono text-slate-800">
+                            ${selectedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </div>
+                          <p className="text-xs text-slate-400">Available prepaid balance</p>
+                          <Button variant="default" onClick={() => viewAudit(selectedStudentDocsId)}>
+                            <History size={14} /> View Transaction Ledger
+                          </Button>
+                        </div>
+
+                        {/* Wallet operation form */}
+                        <div className="lg:col-span-1">
+                          <Card title="Wallet Operation" subtitle="Deposit or debit prepaid credits.">
+                            <div className="space-y-4">
+                              <Field label="Action *">
+                                <Select value={walletForm.operation} onChange={(e) => setWalletForm({ ...walletForm, operation: e.target.value })}>
+                                  <option value="CREDIT">Deposit (+)</option>
+                                  <option value="DEBIT">Withdraw (-)</option>
+                                </Select>
+                              </Field>
+                              <Field label="Amount ($)" apiName="amount" required>
+                                <Input type="number" value={walletForm.amount} onChange={(e) => setWalletForm({ ...walletForm, amount: e.target.value })} placeholder="e.g. 50" />
+                              </Field>
+                              <Field label="Remarks" apiName="remarks" required={false}>
+                                <Input value={walletForm.remarks} onChange={(e) => setWalletForm({ ...walletForm, remarks: e.target.value })} placeholder="e.g. Parent deposit" />
+                              </Field>
+                              <div className="pt-3 border-t border-slate-100 flex justify-end">
+                                <Button variant="primary" onClick={submitWalletOp} disabled={busy || !walletForm.amount}>
+                                  {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
+                                  Post
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>

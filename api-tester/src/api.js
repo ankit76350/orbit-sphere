@@ -244,7 +244,11 @@ export const api = {
 
   // ----- finance: student wallets -----
   getWallet: (studentDocsId) => call('GET', `/api/wallets/student/${studentDocsId}`),
+  openWallet: (studentDocsId) => call('POST', `/api/wallets/student/${studentDocsId}`),
   creditWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/credit`, { amount, remarks }),
   debitWallet: (studentDocsId, amount, remarks) => call('POST', `/api/wallets/student/${studentDocsId}/debit`, { amount, remarks }),
   walletTransactions: (studentDocsId) => listOr(`/api/wallets/student/${studentDocsId}/transactions`),
+  getWalletByWalletNo: (walletNo) => call('GET', `/api/wallets/no/${walletNo}`),
+  getTransactionByReferenceNo: (referenceNo) => call('GET', `/api/wallets/transactions/no/${referenceNo}`),
+  getFeePaymentByReceiptNo: (receiptNo) => call('GET', `/api/fees/payments/receipt/no/${receiptNo}`),
 };
