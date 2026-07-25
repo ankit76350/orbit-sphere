@@ -615,7 +615,7 @@ export default function FinanceScreen({ schoolId, year }) {
             <header className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">Collect Payment</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">{getStudentName(payModal.studentDocsId)} · {payModal.type}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{getStudentName(payModal.studentDocsId)} · {payModal.type} · ID: {payModal.id}</p>
               </div>
               <button onClick={() => setPayModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </header>

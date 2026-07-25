@@ -187,6 +187,41 @@ public class ProjectFieldNamingMigration {
         }
         populateMissingWalletNumbers();
         populateMissingReceiptNumbers();
+        populateMissingInvoiceNumbers();
+    }
+
+    private void populateMissingInvoiceNumbers() {
+        try {
+            mongoTemplate.indexOps("fee_invoices").dropIndex("invoiceNo_1");
+            log.info("Dropped legacy non-unique index invoiceNo_1");
+        } catch (Exception e) {
+            // ignore if not found
+        }
+        var invoices = mongoTemplate.find(
+                Query.query(new Criteria().orOperator(
+                        Criteria.where("invoiceNo").exists(false),
+                        Criteria.where("invoiceNo").is(null),
+                        Criteria.where("invoiceNo").is("")
+                )),
+                com.orbitastra.backend.models.finance.FeeInvoice.class,
+                "fee_invoices");
+        if (invoices.isEmpty()) {
+            return;
+        }
+        log.info("Found {} fee invoices missing an invoiceNo, populating...", invoices.size());
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        for (var invoice : invoices) {
+            String invoiceNo;
+            do {
+                LocalDateTime now = invoice.getCreatedAt() != null ? invoice.getCreatedAt() : LocalDateTime.now();
+                int suffix = random.nextInt(100);
+                invoiceNo = String.format("INV/%d/%02d/%02d%02d", 
+                        now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+            } while (mongoTemplate.exists(Query.query(Criteria.where("invoiceNo").is(invoiceNo)), "fee_invoices"));
+            invoice.setInvoiceNo(invoiceNo);
+            mongoTemplate.save(invoice, "fee_invoices");
+        }
+        log.info("Successfully populated missing invoice numbers.");
     }
 
     private void populateMissingWalletNumbers() {

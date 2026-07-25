@@ -81,6 +81,12 @@ public class FeeController {
         return ResponseEntity.ok(updated);
     }
 
+    @GetMapping("/invoice/no/{*invoiceNo}")
+    public ResponseEntity<FeeInvoice> getFeeByInvoiceNo(@PathVariable String invoiceNo) {
+        FeeInvoice fee = feeService.getFeeByInvoiceNo(invoiceNo);
+        return ResponseEntity.ok(fee);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteFee(@PathVariable String id) {
         feeService.deleteFee(id);

@@ -43,7 +43,7 @@ public class FeeService {
             fee.setPaidAmount(BigDecimal.ZERO);
         }
         if (fee.getInvoiceNo() == null || fee.getInvoiceNo().isBlank()) {
-            fee.setInvoiceNo("INV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            fee.setInvoiceNo(generateUniqueInvoiceNo());
         }
         if (fee.getStatus() == null) {
             fee.setStatus(FeeStatus.UNPAID);
@@ -140,5 +140,23 @@ public class FeeService {
         } else {
             fee.setStatus(FeeStatus.PARTIALLY_PAID);
         }
+    }
+
+    public FeeInvoice getFeeByInvoiceNo(String invoiceNo) {
+        String cleanInvoiceNo = invoiceNo != null && invoiceNo.startsWith("/") ? invoiceNo.substring(1) : invoiceNo;
+        return feeRepository.findByInvoiceNo(cleanInvoiceNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Fee invoice not found with invoiceNo: " + cleanInvoiceNo));
+    }
+
+    private String generateUniqueInvoiceNo() {
+        LocalDateTime now = LocalDateTime.now();
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String invoiceNo;
+        do {
+            int suffix = random.nextInt(100);
+            invoiceNo = String.format("INV/%d/%02d/%02d%02d", 
+                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+        } while (feeRepository.existsByInvoiceNo(invoiceNo));
+        return invoiceNo;
     }
 }

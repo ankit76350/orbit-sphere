@@ -65,6 +65,7 @@ public class FeeServiceTest {
         AcademicYear year = AcademicYear.builder().name("2026-2027").build();
         when(studentValidator.validateStudent("student-123", "school-123")).thenReturn(student);
         when(academicYearResolver.resolve(any(), any(), any())).thenReturn(year);
+        when(feeRepository.existsByInvoiceNo(anyString())).thenReturn(false);
         when(feeRepository.save(fee)).thenReturn(fee);
 
         FeeInvoice created = feeService.createFee(fee);
@@ -74,6 +75,8 @@ public class FeeServiceTest {
         assertEquals("2026-2027", created.getAcademicYear());
         assertEquals(FeeStatus.UNPAID, created.getStatus());
         assertEquals(BigDecimal.ZERO, created.getPaidAmount());
+        assertNotNull(created.getInvoiceNo());
+        assertTrue(created.getInvoiceNo().startsWith("INV/"));
         verify(studentValidator, times(1)).validateStudent("student-123", "school-123");
         verify(feeRepository, times(1)).save(fee);
     }
@@ -130,5 +133,25 @@ public class FeeServiceTest {
         assertEquals(new BigDecimal("500.00"), result.getPaidAmount());
         assertEquals(FeeStatus.PAID, result.getStatus());
         verify(feeRepository, times(1)).save(fee);
+    }
+
+    @Test
+    void getFeeByInvoiceNo_Success() {
+        fee.setInvoiceNo("INV/2026/07/2501");
+        when(feeRepository.findByInvoiceNo("INV/2026/07/2501")).thenReturn(Optional.of(fee));
+
+        FeeInvoice result = feeService.getFeeByInvoiceNo("INV/2026/07/2501");
+
+        assertNotNull(result);
+        assertEquals("INV/2026/07/2501", result.getInvoiceNo());
+    }
+
+    @Test
+    void getFeeByInvoiceNo_NotFound_ThrowsException() {
+        when(feeRepository.findByInvoiceNo("INV/2026/07/2501")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            feeService.getFeeByInvoiceNo("INV/2026/07/2501");
+        });
     }
 }
