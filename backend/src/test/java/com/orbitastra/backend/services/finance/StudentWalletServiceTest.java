@@ -100,6 +100,7 @@ public class StudentWalletServiceTest {
     void creditWallet_Success() {
         when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
         when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(walletTransactionRepository.existsByReferenceNo(anyString())).thenReturn(false);
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         StudentWallet result = studentWalletService.creditWallet("student-123", new BigDecimal("50.00"), "Deposit pocket money");
@@ -129,6 +130,7 @@ public class StudentWalletServiceTest {
     void debitWallet_Success() {
         when(studentWalletRepository.findByStudentDocsId("student-123")).thenReturn(Optional.of(wallet));
         when(studentWalletRepository.save(any(StudentWallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(walletTransactionRepository.existsByReferenceNo(anyString())).thenReturn(false);
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         StudentWallet result = studentWalletService.debitWallet("student-123", new BigDecimal("30.00"), "Buy stationary");
@@ -195,6 +197,47 @@ public class StudentWalletServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> {
             studentWalletService.getWalletByWalletNo("WLT/2026/07/2501");
+        });
+    }
+
+    @Test
+    void getWalletTransactionByReferenceNo_ExistingTransaction_Success() {
+        WalletTransaction transaction = WalletTransaction.builder()
+                .id("txn-123")
+                .referenceNo("WTR/2026/07/2501")
+                .build();
+        when(walletTransactionRepository.findByReferenceNo("WTR/2026/07/2501")).thenReturn(Optional.of(transaction));
+
+        WalletTransaction result = studentWalletService.getWalletTransactionByReferenceNo("WTR/2026/07/2501");
+
+        assertNotNull(result);
+        assertEquals("txn-123", result.getId());
+        assertEquals("WTR/2026/07/2501", result.getReferenceNo());
+        verify(walletTransactionRepository, times(1)).findByReferenceNo("WTR/2026/07/2501");
+    }
+
+    @Test
+    void getWalletTransactionByReferenceNo_WithLeadingSlash_Success() {
+        WalletTransaction transaction = WalletTransaction.builder()
+                .id("txn-123")
+                .referenceNo("WTR/2026/07/2501")
+                .build();
+        when(walletTransactionRepository.findByReferenceNo("WTR/2026/07/2501")).thenReturn(Optional.of(transaction));
+
+        WalletTransaction result = studentWalletService.getWalletTransactionByReferenceNo("/WTR/2026/07/2501");
+
+        assertNotNull(result);
+        assertEquals("txn-123", result.getId());
+        assertEquals("WTR/2026/07/2501", result.getReferenceNo());
+        verify(walletTransactionRepository, times(1)).findByReferenceNo("WTR/2026/07/2501");
+    }
+
+    @Test
+    void getWalletTransactionByReferenceNo_TransactionNotFound_ThrowsException() {
+        when(walletTransactionRepository.findByReferenceNo("WTR/2026/07/2501")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> {
+            studentWalletService.getWalletTransactionByReferenceNo("WTR/2026/07/2501");
         });
     }
 }

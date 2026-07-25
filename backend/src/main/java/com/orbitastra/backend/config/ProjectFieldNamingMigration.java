@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import com.orbitastra.backend.models.finance.StudentWallet;
+import com.orbitastra.backend.models.finance.FeePayment;
 
 import lombok.RequiredArgsConstructor;
 
@@ -185,6 +186,7 @@ public class ProjectFieldNamingMigration {
             log.info("Migrated {} legacy identifier field value(s)", migrated);
         }
         populateMissingWalletNumbers();
+        populateMissingReceiptNumbers();
     }
 
     private void populateMissingWalletNumbers() {
@@ -209,6 +211,30 @@ public class ProjectFieldNamingMigration {
             mongoTemplate.save(wallet, "student_wallets");
         }
         log.info("Successfully populated missing wallet numbers.");
+    }
+
+    private void populateMissingReceiptNumbers() {
+        var payments = mongoTemplate.find(
+                Query.query(Criteria.where("receiptNo").exists(false)),
+                FeePayment.class,
+                "fee_payments");
+        if (payments.isEmpty()) {
+            return;
+        }
+        log.info("Found {} fee payments missing a receiptNo, populating...", payments.size());
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        for (var payment : payments) {
+            String receiptNo;
+            do {
+                LocalDateTime now = payment.getCreatedAt() != null ? payment.getCreatedAt() : LocalDateTime.now();
+                int suffix = random.nextInt(100);
+                receiptNo = String.format("RPN/%d/%02d/%02d%02d", 
+                        now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+            } while (mongoTemplate.exists(Query.query(Criteria.where("receiptNo").is(receiptNo)), "fee_payments"));
+            payment.setReceiptNo(receiptNo);
+            mongoTemplate.save(payment, "fee_payments");
+        }
+        log.info("Successfully populated missing receipt numbers.");
     }
 
     private void removeLegacyStudentAcademicRecordIndexes() {

@@ -61,7 +61,7 @@ public class StudentWalletService {
                 .type(TransactionType.CREDIT)
                 .amount(amount)
                 .balanceAfter(newBalance)
-                .referenceNo("TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .referenceNo(generateUniqueReferenceNo())
                 .remarks(remarks)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
@@ -93,7 +93,7 @@ public class StudentWalletService {
                 .type(TransactionType.DEBIT)
                 .amount(amount)
                 .balanceAfter(newBalance)
-                .referenceNo("TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .referenceNo(generateUniqueReferenceNo())
                 .remarks(remarks)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
@@ -120,5 +120,23 @@ public class StudentWalletService {
                     now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
         } while (studentWalletRepository.existsByWalletNo(walletNo));
         return walletNo;
+    }
+
+    public WalletTransaction getWalletTransactionByReferenceNo(String referenceNo) {
+        String cleanReferenceNo = referenceNo != null && referenceNo.startsWith("/") ? referenceNo.substring(1) : referenceNo;
+        return walletTransactionRepository.findByReferenceNo(cleanReferenceNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet transaction not found with referenceNo: " + cleanReferenceNo));
+    }
+
+    private String generateUniqueReferenceNo() {
+        LocalDateTime now = LocalDateTime.now();
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String referenceNo;
+        do {
+            int suffix = random.nextInt(100);
+            referenceNo = String.format("WTR/%d/%02d/%02d%02d", 
+                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+        } while (walletTransactionRepository.existsByReferenceNo(referenceNo));
+        return referenceNo;
     }
 }

@@ -33,7 +33,7 @@ public class WalletTransaction extends SchoolBase {
     private BigDecimal balanceAfter;
 
     @Indexed(unique = true)
-    private String referenceNo;
+    private String referenceNo; // WTR/2026/05/2578 : -> WTR/YYYY/MM/DDSS make it unique in whole DB.
 
     private String remarks;
 

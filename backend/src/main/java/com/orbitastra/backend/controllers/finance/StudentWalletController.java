@@ -60,6 +60,12 @@ public class StudentWalletController {
         return ResponseEntity.ok(transactions);
     }
 
+    @GetMapping("/transactions/no/{*referenceNo}")
+    public ResponseEntity<WalletTransaction> getTransactionByReferenceNo(@PathVariable String referenceNo) {
+        WalletTransaction transaction = studentWalletService.getWalletTransactionByReferenceNo(referenceNo);
+        return ResponseEntity.ok(transaction);
+    }
+
     @Data
     public static class WalletOperationRequest {
         @NotNull(message = "amount is required")

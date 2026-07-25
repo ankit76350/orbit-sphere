@@ -12,4 +12,6 @@ public interface WalletTransactionRepository extends MongoRepository<WalletTrans
     List<WalletTransaction> findByStudentDocsId(String studentDocsId);
     List<WalletTransaction> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
     List<WalletTransaction> findByStudentDocsIdOrderByTransactionDateDesc(String studentDocsId);
+    boolean existsByReferenceNo(String referenceNo);
+    java.util.Optional<WalletTransaction> findByReferenceNo(String referenceNo);
 }
