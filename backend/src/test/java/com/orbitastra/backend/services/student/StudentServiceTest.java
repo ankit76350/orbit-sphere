@@ -352,8 +352,20 @@ public class StudentServiceTest {
                 IllegalArgumentException rollError = assertThrows(
                                 IllegalArgumentException.class,
                                 () -> studentService.createStudent(rollRequest));
-                assertEquals("rollNo requires a classDocsId in the academic record.",
+                assertEquals("rollNo requires both a classDocsId and a sectionNo in the academic record.",
                                 rollError.getMessage());
+
+                CreateStudentRequest rollWithClassNoSectionRequest = validDirectStudentRequest();
+                rollWithClassNoSectionRequest.setAdmissionNo("ADM-003");
+                rollWithClassNoSectionRequest.getCurrentAcademicRecord().setClassDocsId("class-9");
+                rollWithClassNoSectionRequest.getCurrentAcademicRecord().setRollNo("9C-03");
+                when(studentRepository.findByAdmissionNo("ADM-003")).thenReturn(Optional.empty());
+
+                IllegalArgumentException rollWithClassNoSectionError = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> studentService.createStudent(rollWithClassNoSectionRequest));
+                assertEquals("rollNo requires both a classDocsId and a sectionNo in the academic record.",
+                                rollWithClassNoSectionError.getMessage());
                 verify(studentRepository, never()).save(any());
         }
 
@@ -401,7 +413,7 @@ public class StudentServiceTest {
         }
 
         @Test
-        void createStudent_rejectsDuplicateRollNumberWithinClassAndYearAcrossSections() {
+        void createStudent_rejectsDuplicateRollNumberWithinSameSection() {
                 CreateStudentRequest request = validDirectStudentRequest();
                 request.getCurrentAcademicRecord().setClassDocsId("class-9");
                 request.getCurrentAcademicRecord().setSectionNo("c");
@@ -415,13 +427,13 @@ public class StudentServiceTest {
                                                 .sections(List.of("A", "B", "C"))
                                                 .build()));
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                                                "class-9", "2026-2027", "9C-03",
+                                .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
+                                                "class-9", "C", "2026-2027", "9C-03",
                                                 StudentStatus.ACTIVE))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("existing-record")
                                                 .studentDocsId("another-student")
-                                                .sectionNo("A")
+                                                .sectionNo("C")
                                                 .build()));
 
                 ConflictException error = assertThrows(
@@ -430,6 +442,43 @@ public class StudentServiceTest {
 
                 assertTrue(error.getMessage().contains("rollNo '9C-03' is already used"));
                 verify(studentRepository, never()).save(any());
+        }
+
+        @Test
+        void createStudent_allowsDuplicateRollNumberInDifferentSections() {
+                CreateStudentRequest request = validDirectStudentRequest();
+                request.getCurrentAcademicRecord().setClassDocsId("class-9");
+                request.getCurrentAcademicRecord().setSectionNo("c");
+                request.getCurrentAcademicRecord().setRollNo("9C-03");
+                stubCreationChecks();
+                when(schoolClassRepository.findById("class-9")).thenReturn(Optional.of(
+                                SchoolClass.builder()
+                                                .id("class-9")
+                                                .schoolId("school-id-123")
+                                                .academicYear("2026-2027")
+                                                .sections(List.of("A", "B", "C"))
+                                                .build()));
+                when(studentAcademicRecordRepository
+                                .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
+                                                "class-9", "C", "2026-2027", "9C-03",
+                                                StudentStatus.ACTIVE))
+                                .thenReturn(Optional.empty());
+                when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> {
+                        Student value = invocation.getArgument(0);
+                        if (value.getId() == null)
+                                value.setId("created-student");
+                        return value;
+                });
+                when(studentAcademicRecordRepository.save(any(StudentAcademicRecord.class)))
+                                .thenAnswer(invocation -> {
+                                        StudentAcademicRecord value = invocation.getArgument(0);
+                                        value.setId("created-record");
+                                        return value;
+                                });
+
+                StudentResponse response = studentService.createStudent(request);
+                assertNotNull(response);
+                assertEquals("created-record", response.getCurrentAcademicRecordDocsId());
         }
 
         @Test
@@ -1232,8 +1281,8 @@ public class StudentServiceTest {
                 UpdateAcademicRecordRequest duplicateRoll = new UpdateAcademicRecordRequest();
                 duplicateRoll.setRollNo("9A-01");
                 when(studentAcademicRecordRepository
-                                .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                                                "class-9", "2026-2027", "9A-01",
+                                .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
+                                                "class-9", "A", "2026-2027", "9A-01",
                                                 StudentStatus.ACTIVE))
                                 .thenReturn(Optional.of(StudentAcademicRecord.builder()
                                                 .id("other-record")

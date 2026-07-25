@@ -816,8 +816,8 @@ public class StudentService {
         if (sectionNo != null && classDocsId == null) {
             throw new IllegalArgumentException("sectionNo requires a classDocsId in the academic record.");
         }
-        if (rollNo != null && classDocsId == null) {
-            throw new IllegalArgumentException("rollNo requires a classDocsId in the academic record.");
+        if (rollNo != null && (classDocsId == null || sectionNo == null)) {
+            throw new IllegalArgumentException("rollNo requires both a classDocsId and a sectionNo in the academic record.");
         }
         if (classDocsId == null) {
             return;
@@ -871,15 +871,15 @@ public class StudentService {
 
         if (record.getStatus() == StudentStatus.ACTIVE && record.getRollNo() != null) {
             studentAcademicRecordRepository
-                    .findFirstByClassDocsIdAndAcademicYearAndRollNoAndStatus(
-                            record.getClassDocsId(), record.getAcademicYear(),
+                    .findFirstByClassDocsIdAndSectionNoAndAcademicYearAndRollNoAndStatus(
+                            record.getClassDocsId(), record.getSectionNo(), record.getAcademicYear(),
                             record.getRollNo(), StudentStatus.ACTIVE)
                     .filter(existing -> !sameAcademicRecord(existing, record))
                     .filter(existing -> !Objects.equals(existing.getStudentDocsId(), student.getId()))
                     .ifPresent(existing -> {
                         throw new ConflictException(
                                 "rollNo '" + record.getRollNo() + "' is already used in class '"
-                                        + record.getClassDocsId()
+                                        + record.getClassDocsId() + "' section '" + record.getSectionNo()
                                         + "' in academic year '" + record.getAcademicYear() + "'.");
                     });
         }
