@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
+import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
 import com.orbitastra.backend.services.utils.StudentValidator;
@@ -27,8 +28,22 @@ import lombok.RequiredArgsConstructor;
 public class FeeService {
 
     private final FeeRepository feeRepository;
+    private final FeePaymentRepository feePaymentRepository;
     private final StudentValidator studentValidator;
     private final AcademicYearResolver academicYearResolver;
+
+    /**
+     * Throws if the invoice already has at least one payment recorded against it.
+     * An invoice is considered "locked" once money has been collected — editing or
+     * deleting it at that point would silently corrupt the payment ledger.
+     */
+    private void assertNotLocked(FeeInvoice fee) {
+        if (feePaymentRepository.existsByFeeDocsId(fee.getId())) {
+            throw new IllegalStateException(
+                "Invoice '" + fee.getInvoiceNo() + "' cannot be modified because one or more payments have "
+                + "already been collected against it. Void the payments first.");
+        }
+    }
 
     public FeeInvoice createFee(FeeInvoice fee) {
         studentValidator.validateStudent(fee.getStudentDocsId(), fee.getSchoolId());
@@ -73,6 +88,10 @@ public class FeeService {
 
     public FeeInvoice updateFee(String id, FeeInvoice feeDetails) {
         FeeInvoice fee = getFeeById(id);
+
+        // LOCK CHECK: reject edits once any payment has been collected.
+        assertNotLocked(fee);
+
         academicYearResolver.assertImmutable(fee.getAcademicYear(), feeDetails.getAcademicYear());
 
         if (feeDetails.getType() != null) {
@@ -98,6 +117,10 @@ public class FeeService {
 
     public void deleteFee(String id) {
         FeeInvoice fee = getFeeById(id);
+
+        // LOCK CHECK: reject deletion once any payment has been collected.
+        assertNotLocked(fee);
+
         feeRepository.delete(fee);
     }
 
