@@ -53,11 +53,15 @@ public class FeePaymentService {
         }
 
         // Wallet mode debits the student's wallet, which records its own WalletTransaction.
+        String walletTxnReferenceNo = null;
         if (mode == PaymentMode.WALLET) {
-            studentWalletService.debitWallet(
+            com.orbitastra.backend.models.finance.WalletTransaction txn = studentWalletService.debitWallet(
                     fee.getStudentDocsId(),
                     amount,
                     "Fee payment for invoice " + fee.getId() + " (" + fee.getType() + ")");
+            if (txn != null) {
+                walletTxnReferenceNo = txn.getReferenceNo();
+            }
         }
 
         // Persist the collection record (receipt) — the audit trail for every mode.
@@ -66,7 +70,9 @@ public class FeePaymentService {
                 .academicYear(fee.getAcademicYear())
                 .studentDocsId(fee.getStudentDocsId())
                 .feeDocsId(fee.getId())
-                .receiptNo("RCPT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .receiptNo(generateUniqueReceiptNo())
+                .collectedFromWallet(mode == PaymentMode.WALLET)
+                .walletNo(walletTxnReferenceNo)
                 .amount(amount)
                 .paymentMode(mode)
                 .paidOn(LocalDateTime.now())
@@ -92,5 +98,23 @@ public class FeePaymentService {
 
     public List<FeePayment> getPaymentsByStudent(String studentDocsId) {
         return feePaymentRepository.findByStudentDocsIdOrderByPaidOnDesc(studentDocsId);
+    }
+
+    public FeePayment getPaymentByReceiptNo(String receiptNo) {
+        String cleanReceiptNo = receiptNo != null && receiptNo.startsWith("/") ? receiptNo.substring(1) : receiptNo;
+        return feePaymentRepository.findByReceiptNo(cleanReceiptNo)
+                .orElseThrow(() -> new com.orbitastra.backend.exceptions.ResourceNotFoundException("Fee payment not found with receiptNo: " + cleanReceiptNo));
+    }
+
+    private String generateUniqueReceiptNo() {
+        LocalDateTime now = LocalDateTime.now();
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String receiptNo;
+        do {
+            int suffix = random.nextInt(100);
+            receiptNo = String.format("RPN/%d/%02d/%02d%02d", 
+                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+        } while (feePaymentRepository.existsByReceiptNo(receiptNo));
+        return receiptNo;
     }
 }

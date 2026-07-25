@@ -25,11 +25,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FeeInvoice extends AcadmicStudentSchoolBase {
 
-    // Human-readable invoice number (e.g. "INV-A1B2C3D4"), generated on creation.
+    // Human-readable invoice number (e.g. "INV/2026/05/2578"), generated on creation.
     // The Mongo id stays the technical key; this is what appears on the printed bill.
     @Indexed
-    private String invoiceNo;
+    private String invoiceNo; // INV/2026/05/2578 : -> INV/YYYY/MM/DDSS make it unique in whole DB.
 
+    
     private FeeType type;
 
     private BigDecimal amount;

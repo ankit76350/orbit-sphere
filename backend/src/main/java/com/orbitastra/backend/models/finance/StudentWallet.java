@@ -6,6 +6,7 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
 
 import com.orbitastra.backend.models.base.SchoolBase;
 
@@ -21,7 +22,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class StudentWallet extends SchoolBase {
     private String studentDocsId; // unique in whole DB.
-    @org.springframework.data.mongodb.core.index.Indexed(unique = true)
+    @Indexed(unique = true, sparse = true)
     private String walletNo; // WLT/2026/05/2578 : -> WLT/YYYY/MM/DDSS : unique in whole DB.
     private BigDecimal balance;
 }

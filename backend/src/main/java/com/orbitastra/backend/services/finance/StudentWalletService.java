@@ -44,7 +44,7 @@ public class StudentWalletService {
     }
 
     @Transactional
-    public StudentWallet creditWallet(String studentDocsId, BigDecimal amount, String remarks) {
+    public WalletTransaction creditWallet(String studentDocsId, BigDecimal amount, String remarks) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Credit amount must be greater than zero.");
         }
@@ -53,7 +53,7 @@ public class StudentWalletService {
         BigDecimal newBalance = oldBalance.add(amount);
         wallet.setBalance(newBalance);
         wallet.setUpdatedAt(LocalDateTime.now());
-        StudentWallet savedWallet = studentWalletRepository.save(wallet);
+        studentWalletRepository.save(wallet);
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .schoolId(wallet.getSchoolId())
@@ -67,13 +67,11 @@ public class StudentWalletService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        walletTransactionRepository.save(transaction);
-
-        return savedWallet;
+        return walletTransactionRepository.save(transaction);
     }
 
     @Transactional
-    public StudentWallet debitWallet(String studentDocsId, BigDecimal amount, String remarks) {
+    public WalletTransaction debitWallet(String studentDocsId, BigDecimal amount, String remarks) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Debit amount must be greater than zero.");
         }
@@ -85,7 +83,7 @@ public class StudentWalletService {
         BigDecimal newBalance = oldBalance.subtract(amount);
         wallet.setBalance(newBalance);
         wallet.setUpdatedAt(LocalDateTime.now());
-        StudentWallet savedWallet = studentWalletRepository.save(wallet);
+        studentWalletRepository.save(wallet);
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .schoolId(wallet.getSchoolId())
@@ -99,9 +97,7 @@ public class StudentWalletService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        walletTransactionRepository.save(transaction);
-
-        return savedWallet;
+        return walletTransactionRepository.save(transaction);
     }
 
     public StudentWallet getWalletByWalletNo(String walletNo) {

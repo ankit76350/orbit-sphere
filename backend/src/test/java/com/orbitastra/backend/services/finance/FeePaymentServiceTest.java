@@ -88,6 +88,7 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_PartialPayment_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
+        when(feePaymentRepository.existsByReceiptNo(anyString())).thenReturn(false);
         when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("200.00")).build()));
         stubApplyPaidAmount();
@@ -105,6 +106,7 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_FullPayment_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
+        when(feePaymentRepository.existsByReceiptNo(anyString())).thenReturn(false);
         when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("500.00")).build()));
         stubApplyPaidAmount();
@@ -172,8 +174,16 @@ public class FeePaymentServiceTest {
     @Test
     void recordPayment_ViaWallet_Success() {
         when(feeService.getFeeById("fee-123")).thenReturn(fee);
+        when(feePaymentRepository.existsByReceiptNo(anyString())).thenReturn(false);
         when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("300.00")).build()));
+        
+        com.orbitastra.backend.models.finance.WalletTransaction txn = 
+                com.orbitastra.backend.models.finance.WalletTransaction.builder()
+                        .referenceNo("WTR/2026/07/2501")
+                        .build();
+        when(studentWalletService.debitWallet(anyString(), any(BigDecimal.class), anyString())).thenReturn(txn);
+        
         stubApplyPaidAmount();
 
         FeeInvoice result = feePaymentService.recordPayment(
@@ -186,7 +196,10 @@ public class FeePaymentServiceTest {
                 eq("student-123"),
                 eq(new BigDecimal("300.00")),
                 contains("invoice fee-123"));
-        verify(feePaymentRepository, times(1)).save(any(FeePayment.class));
+        verify(feePaymentRepository, times(1)).save(argThat(p -> 
+            p.isCollectedFromWallet() && 
+            "WTR/2026/07/2501".equals(p.getWalletNo())
+        ));
         verify(feeService, times(1)).applyPaidAmount(fee, new BigDecimal("300.00"));
     }
 
@@ -204,5 +217,46 @@ public class FeePaymentServiceTest {
         when(feePaymentRepository.findByStudentDocsIdOrderByPaidOnDesc("student-123")).thenReturn(payments);
 
         assertEquals(payments, feePaymentService.getPaymentsByStudent("student-123"));
+    }
+
+    @Test
+    void getPaymentByReceiptNo_ExistingPayment_Success() {
+        FeePayment payment = FeePayment.builder()
+                .id("pay-123")
+                .receiptNo("RPN/2026/07/2501")
+                .build();
+        when(feePaymentRepository.findByReceiptNo("RPN/2026/07/2501")).thenReturn(java.util.Optional.of(payment));
+
+        FeePayment result = feePaymentService.getPaymentByReceiptNo("RPN/2026/07/2501");
+
+        assertNotNull(result);
+        assertEquals("pay-123", result.getId());
+        assertEquals("RPN/2026/07/2501", result.getReceiptNo());
+        verify(feePaymentRepository, times(1)).findByReceiptNo("RPN/2026/07/2501");
+    }
+
+    @Test
+    void getPaymentByReceiptNo_WithLeadingSlash_Success() {
+        FeePayment payment = FeePayment.builder()
+                .id("pay-123")
+                .receiptNo("RPN/2026/07/2501")
+                .build();
+        when(feePaymentRepository.findByReceiptNo("RPN/2026/07/2501")).thenReturn(java.util.Optional.of(payment));
+
+        FeePayment result = feePaymentService.getPaymentByReceiptNo("/RPN/2026/07/2501");
+
+        assertNotNull(result);
+        assertEquals("pay-123", result.getId());
+        assertEquals("RPN/2026/07/2501", result.getReceiptNo());
+        verify(feePaymentRepository, times(1)).findByReceiptNo("RPN/2026/07/2501");
+    }
+
+    @Test
+    void getPaymentByReceiptNo_PaymentNotFound_ThrowsException() {
+        when(feePaymentRepository.findByReceiptNo("RPN/2026/07/2501")).thenReturn(java.util.Optional.empty());
+
+        assertThrows(com.orbitastra.backend.exceptions.ResourceNotFoundException.class, () -> {
+            feePaymentService.getPaymentByReceiptNo("RPN/2026/07/2501");
+        });
     }
 }

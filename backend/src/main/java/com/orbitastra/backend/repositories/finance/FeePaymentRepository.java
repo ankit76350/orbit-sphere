@@ -12,4 +12,6 @@ public interface FeePaymentRepository extends MongoRepository<FeePayment, String
     List<FeePayment> findByFeeDocsId(String feeDocsId);
     List<FeePayment> findByStudentDocsIdOrderByPaidOnDesc(String studentDocsId);
     List<FeePayment> findBySchoolIdAndAcademicYear(String schoolId, String academicYear);
+    boolean existsByReceiptNo(String receiptNo);
+    java.util.Optional<FeePayment> findByReceiptNo(String receiptNo);
 }

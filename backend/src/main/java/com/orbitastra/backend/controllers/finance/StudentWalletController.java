@@ -44,13 +44,15 @@ public class StudentWalletController {
 
     @PostMapping("/student/{studentDocsId}/credit")
     public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentDocsId, @Valid @RequestBody WalletOperationRequest request) {
-        StudentWallet wallet = studentWalletService.creditWallet(studentDocsId, request.getAmount(), request.getRemarks());
+        studentWalletService.creditWallet(studentDocsId, request.getAmount(), request.getRemarks());
+        StudentWallet wallet = studentWalletService.getWalletByStudentDocsId(studentDocsId);
         return ResponseEntity.ok(wallet);
     }
 
     @PostMapping("/student/{studentDocsId}/debit")
     public ResponseEntity<StudentWallet> debitWallet(@PathVariable String studentDocsId, @Valid @RequestBody WalletOperationRequest request) {
-        StudentWallet wallet = studentWalletService.debitWallet(studentDocsId, request.getAmount(), request.getRemarks());
+        studentWalletService.debitWallet(studentDocsId, request.getAmount(), request.getRemarks());
+        StudentWallet wallet = studentWalletService.getWalletByStudentDocsId(studentDocsId);
         return ResponseEntity.ok(wallet);
     }
 

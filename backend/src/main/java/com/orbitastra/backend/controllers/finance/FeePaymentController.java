@@ -42,4 +42,10 @@ public class FeePaymentController {
     public ResponseEntity<List<FeePayment>> getPaymentsByStudent(@PathVariable String studentDocsId) {
         return ResponseEntity.ok(feePaymentService.getPaymentsByStudent(studentDocsId));
     }
+
+    @GetMapping("/payments/receipt/no/{*receiptNo}")
+    public ResponseEntity<FeePayment> getPaymentByReceiptNo(@PathVariable String receiptNo) {
+        FeePayment payment = feePaymentService.getPaymentByReceiptNo(receiptNo);
+        return ResponseEntity.ok(payment);
+    }
 }

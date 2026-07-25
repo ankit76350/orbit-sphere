@@ -103,10 +103,10 @@ public class StudentWalletServiceTest {
         when(walletTransactionRepository.existsByReferenceNo(anyString())).thenReturn(false);
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StudentWallet result = studentWalletService.creditWallet("student-123", new BigDecimal("50.00"), "Deposit pocket money");
+        WalletTransaction result = studentWalletService.creditWallet("student-123", new BigDecimal("50.00"), "Deposit pocket money");
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("150.00"), result.getBalance());
+        assertEquals(new BigDecimal("150.00"), result.getBalanceAfter());
         verify(studentWalletRepository, times(1)).save(any(StudentWallet.class));
         verify(walletTransactionRepository, times(1)).save(argThat(tx -> 
             tx.getType() == TransactionType.CREDIT && 
@@ -133,10 +133,10 @@ public class StudentWalletServiceTest {
         when(walletTransactionRepository.existsByReferenceNo(anyString())).thenReturn(false);
         when(walletTransactionRepository.save(any(WalletTransaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StudentWallet result = studentWalletService.debitWallet("student-123", new BigDecimal("30.00"), "Buy stationary");
+        WalletTransaction result = studentWalletService.debitWallet("student-123", new BigDecimal("30.00"), "Buy stationary");
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("70.00"), result.getBalance());
+        assertEquals(new BigDecimal("70.00"), result.getBalanceAfter());
         verify(studentWalletRepository, times(1)).save(any(StudentWallet.class));
         verify(walletTransactionRepository, times(1)).save(argThat(tx -> 
             tx.getType() == TransactionType.DEBIT && 
