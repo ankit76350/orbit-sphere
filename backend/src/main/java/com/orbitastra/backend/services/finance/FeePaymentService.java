@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +13,7 @@ import com.orbitastra.backend.models.finance.FeePayment;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.finance.enums.PaymentMode;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
+import com.orbitastra.backend.services.utils.GenerateUniqueId;
 
 import lombok.RequiredArgsConstructor;
 
@@ -70,7 +70,7 @@ public class FeePaymentService {
                 .academicYear(fee.getAcademicYear())
                 .studentDocsId(fee.getStudentDocsId())
                 .feeDocsId(fee.getId())
-                .receiptNo(generateUniqueReceiptNo())
+                .receiptNo(GenerateUniqueId.generate("RPN", feePaymentRepository::existsByReceiptNo))
                 .collectedFromWallet(mode == PaymentMode.WALLET)
                 .walletNo(walletTxnReferenceNo)
                 .amount(amount)
@@ -104,17 +104,5 @@ public class FeePaymentService {
         String cleanReceiptNo = receiptNo != null && receiptNo.startsWith("/") ? receiptNo.substring(1) : receiptNo;
         return feePaymentRepository.findByReceiptNo(cleanReceiptNo)
                 .orElseThrow(() -> new com.orbitastra.backend.exceptions.ResourceNotFoundException("Fee payment not found with receiptNo: " + cleanReceiptNo));
-    }
-
-    private String generateUniqueReceiptNo() {
-        LocalDateTime now = LocalDateTime.now();
-        java.security.SecureRandom random = new java.security.SecureRandom();
-        String receiptNo;
-        do {
-            int suffix = random.nextInt(100);
-            receiptNo = String.format("RPN/%d/%02d/%02d%02d", 
-                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
-        } while (feePaymentRepository.existsByReceiptNo(receiptNo));
-        return receiptNo;
     }
 }

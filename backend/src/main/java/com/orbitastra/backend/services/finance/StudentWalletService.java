@@ -2,7 +2,6 @@ package com.orbitastra.backend.services.finance;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +14,7 @@ import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.StudentWalletRepository;
 import com.orbitastra.backend.repositories.finance.WalletTransactionRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.services.utils.GenerateUniqueId;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,7 +45,7 @@ public class StudentWalletService {
         StudentWallet wallet = StudentWallet.builder()
                 .studentDocsId(studentDocsId)
                 .schoolId(student.getSchoolId())
-                .walletNo(generateUniqueWalletNo())
+                .walletNo(GenerateUniqueId.generate("WLT", studentWalletRepository::existsByWalletNo))
                 .balance(new BigDecimal("0.0"))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -75,7 +75,7 @@ public class StudentWalletService {
                 .type(TransactionType.CREDIT)
                 .amount(amount)
                 .balanceAfter(newBalance)
-                .referenceNo(generateUniqueReferenceNo())
+                .referenceNo(GenerateUniqueId.generate("WTR", walletTransactionRepository::existsByReferenceNo))
                 .remarks(remarks)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
@@ -106,7 +106,7 @@ public class StudentWalletService {
                 .type(TransactionType.DEBIT)
                 .amount(amount)
                 .balanceAfter(newBalance)
-                .referenceNo(generateUniqueReferenceNo())
+                .referenceNo(GenerateUniqueId.generate("WTR", walletTransactionRepository::existsByReferenceNo))
                 .remarks(remarks)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
@@ -121,33 +121,10 @@ public class StudentWalletService {
                 .orElseThrow(() -> new ResourceNotFoundException("Student wallet not found with walletNo: " + cleanWalletNo));
     }
 
-    private String generateUniqueWalletNo() {
-        LocalDateTime now = LocalDateTime.now();
-        java.security.SecureRandom random = new java.security.SecureRandom();
-        String walletNo;
-        do {
-            int suffix = random.nextInt(100);
-            walletNo = String.format("WLT/%d/%02d/%02d%02d", 
-                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
-        } while (studentWalletRepository.existsByWalletNo(walletNo));
-        return walletNo;
-    }
-
     public WalletTransaction getWalletTransactionByReferenceNo(String referenceNo) {
         String cleanReferenceNo = referenceNo != null && referenceNo.startsWith("/") ? referenceNo.substring(1) : referenceNo;
         return walletTransactionRepository.findByReferenceNo(cleanReferenceNo)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet transaction not found with referenceNo: " + cleanReferenceNo));
     }
 
-    private String generateUniqueReferenceNo() {
-        LocalDateTime now = LocalDateTime.now();
-        java.security.SecureRandom random = new java.security.SecureRandom();
-        String referenceNo;
-        do {
-            int suffix = random.nextInt(100);
-            referenceNo = String.format("WTR/%d/%02d/%02d%02d", 
-                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
-        } while (walletTransactionRepository.existsByReferenceNo(referenceNo));
-        return referenceNo;
-    }
 }

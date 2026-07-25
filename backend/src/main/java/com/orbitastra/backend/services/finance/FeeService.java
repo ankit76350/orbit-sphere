@@ -3,7 +3,6 @@ package com.orbitastra.backend.services.finance;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -13,6 +12,7 @@ import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
+import com.orbitastra.backend.services.utils.GenerateUniqueId;
 import com.orbitastra.backend.services.utils.StudentValidator;
 
 import lombok.RequiredArgsConstructor;
@@ -58,7 +58,7 @@ public class FeeService {
             fee.setPaidAmount(BigDecimal.ZERO);
         }
         if (fee.getInvoiceNo() == null || fee.getInvoiceNo().isBlank()) {
-            fee.setInvoiceNo(generateUniqueInvoiceNo());
+            fee.setInvoiceNo(GenerateUniqueId.generate("INV", feeRepository::existsByInvoiceNo));
         }
         if (fee.getStatus() == null) {
             fee.setStatus(FeeStatus.UNPAID);
@@ -171,15 +171,4 @@ public class FeeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fee invoice not found with invoiceNo: " + cleanInvoiceNo));
     }
 
-    private String generateUniqueInvoiceNo() {
-        LocalDateTime now = LocalDateTime.now();
-        java.security.SecureRandom random = new java.security.SecureRandom();
-        String invoiceNo;
-        do {
-            int suffix = random.nextInt(100);
-            invoiceNo = String.format("INV/%d/%02d/%02d%02d", 
-                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
-        } while (feeRepository.existsByInvoiceNo(invoiceNo));
-        return invoiceNo;
-    }
 }
