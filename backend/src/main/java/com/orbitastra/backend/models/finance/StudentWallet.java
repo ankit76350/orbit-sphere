@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 public class StudentWallet extends SchoolBase {
     @Indexed(unique = true)
     private String studentDocsId; // unique in whole DB.
-    @Indexed(unique = true, sparse = true)
+    @Indexed(unique = true)
     private String walletNo; // WLT/2026/05/2578 : -> WLT/YYYY/MM/DDSS : unique in whole DB.
     private BigDecimal balance;
 }
