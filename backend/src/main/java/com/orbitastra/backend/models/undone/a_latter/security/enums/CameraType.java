@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.security.enums;
+package com.orbitastra.backend.models.undone.a_latter.security.enums;
 
 public enum CameraType {
     IP_RTSP,

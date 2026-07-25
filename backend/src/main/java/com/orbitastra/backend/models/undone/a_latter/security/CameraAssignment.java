@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.security;
+package com.orbitastra.backend.models.undone.a_latter.security;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -11,19 +11,19 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "camera_recordings")
+@Document(collection = "camera_assignments")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CameraRecording extends SchoolBase {
+public class CameraAssignment extends SchoolBase {
 
     private String cameraDocsId;
 
-    private String recordingUrl;
+    private String gradeNo;
 
-    private String startTime;
+    private String classNo;
 
-    private String endTime;
+    private String sectionNo;
 }
