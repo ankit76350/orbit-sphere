@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.celebrations.embedded;
+package com.orbitastra.backend.models.undone.a_working.celebrations.embedded;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.celebrations;
+package com.orbitastra.backend.models.undone.a_working.celebrations;
 
 import java.time.LocalDateTime;
 

@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.undone.celebrations;
+package com.orbitastra.backend.models.undone.a_working.celebrations;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.celebrations.embedded.BirthdayCardSettings;
-import com.orbitastra.backend.models.undone.celebrations.embedded.BirthdayDashboardSettings;
-import com.orbitastra.backend.models.undone.celebrations.embedded.BirthdayNotificationSettings;
+import com.orbitastra.backend.models.undone.a_working.celebrations.embedded.BirthdayCardSettings;
+import com.orbitastra.backend.models.undone.a_working.celebrations.embedded.BirthdayDashboardSettings;
+import com.orbitastra.backend.models.undone.a_working.celebrations.embedded.BirthdayNotificationSettings;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
