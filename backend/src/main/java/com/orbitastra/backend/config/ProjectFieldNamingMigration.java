@@ -15,6 +15,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import com.orbitastra.backend.models.finance.StudentWallet;
+
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -181,6 +184,31 @@ public class ProjectFieldNamingMigration {
         if (migrated > 0) {
             log.info("Migrated {} legacy identifier field value(s)", migrated);
         }
+        populateMissingWalletNumbers();
+    }
+
+    private void populateMissingWalletNumbers() {
+        var wallets = mongoTemplate.find(
+                Query.query(Criteria.where("walletNo").exists(false)),
+                StudentWallet.class,
+                "student_wallets");
+        if (wallets.isEmpty()) {
+            return;
+        }
+        log.info("Found {} student wallets missing a walletNo, populating...", wallets.size());
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        for (var wallet : wallets) {
+            String walletNo;
+            do {
+                LocalDateTime now = wallet.getCreatedAt() != null ? wallet.getCreatedAt() : LocalDateTime.now();
+                int suffix = random.nextInt(100);
+                walletNo = String.format("WLT/%d/%02d/%02d%02d", 
+                        now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+            } while (mongoTemplate.exists(Query.query(Criteria.where("walletNo").is(walletNo)), "student_wallets"));
+            wallet.setWalletNo(walletNo);
+            mongoTemplate.save(wallet, "student_wallets");
+        }
+        log.info("Successfully populated missing wallet numbers.");
     }
 
     private void removeLegacyStudentAcademicRecordIndexes() {

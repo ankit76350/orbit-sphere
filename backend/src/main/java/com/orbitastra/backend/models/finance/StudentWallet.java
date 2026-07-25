@@ -20,6 +20,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentWallet extends SchoolBase {
-    private String studentDocsId;
+    private String studentDocsId; // unique in whole DB.
+    @org.springframework.data.mongodb.core.index.Indexed(unique = true)
+    private String walletNo; // WLT/2026/05/2578 : -> WLT/YYYY/MM/DDSS : unique in whole DB.
     private BigDecimal balance;
 }

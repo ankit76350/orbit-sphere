@@ -11,4 +11,6 @@ import com.orbitastra.backend.models.finance.StudentWallet;
 public interface StudentWalletRepository extends MongoRepository<StudentWallet, String> {
     Optional<StudentWallet> findByStudentDocsId(String studentDocsId);
     Optional<StudentWallet> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
+    boolean existsByWalletNo(String walletNo);
+    Optional<StudentWallet> findByWalletNo(String walletNo);
 }

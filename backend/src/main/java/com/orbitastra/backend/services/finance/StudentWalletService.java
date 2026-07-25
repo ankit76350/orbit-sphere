@@ -34,6 +34,7 @@ public class StudentWalletService {
                     StudentWallet wallet = StudentWallet.builder()
                             .studentDocsId(studentDocsId)
                             .schoolId(student.getSchoolId())
+                            .walletNo(generateUniqueWalletNo())
                             .balance(BigDecimal.ZERO)
                             .createdAt(LocalDateTime.now())
                             .updatedAt(LocalDateTime.now())
@@ -101,5 +102,23 @@ public class StudentWalletService {
         walletTransactionRepository.save(transaction);
 
         return savedWallet;
+    }
+
+    public StudentWallet getWalletByWalletNo(String walletNo) {
+        String cleanWalletNo = walletNo != null && walletNo.startsWith("/") ? walletNo.substring(1) : walletNo;
+        return studentWalletRepository.findByWalletNo(cleanWalletNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Student wallet not found with walletNo: " + cleanWalletNo));
+    }
+
+    private String generateUniqueWalletNo() {
+        LocalDateTime now = LocalDateTime.now();
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String walletNo;
+        do {
+            int suffix = random.nextInt(100);
+            walletNo = String.format("WLT/%d/%02d/%02d%02d", 
+                    now.getYear(), now.getMonthValue(), now.getDayOfMonth(), suffix);
+        } while (studentWalletRepository.existsByWalletNo(walletNo));
+        return walletNo;
     }
 }

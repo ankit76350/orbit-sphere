@@ -36,6 +36,12 @@ public class StudentWalletController {
         return ResponseEntity.ok(wallet);
     }
 
+    @GetMapping("/no/{*walletNo}")
+    public ResponseEntity<StudentWallet> getWalletByWalletNo(@PathVariable String walletNo) {
+        StudentWallet wallet = studentWalletService.getWalletByWalletNo(walletNo);
+        return ResponseEntity.ok(wallet);
+    }
+
     @PostMapping("/student/{studentDocsId}/credit")
     public ResponseEntity<StudentWallet> creditWallet(@PathVariable String studentDocsId, @Valid @RequestBody WalletOperationRequest request) {
         StudentWallet wallet = studentWalletService.creditWallet(studentDocsId, request.getAmount(), request.getRemarks());
