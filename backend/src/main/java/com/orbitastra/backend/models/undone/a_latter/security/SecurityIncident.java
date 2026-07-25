@@ -6,7 +6,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.security.enums.IncidentStatus;
+import com.orbitastra.backend.models.undone.a_latter.security.enums.IncidentStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

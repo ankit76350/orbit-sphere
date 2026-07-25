@@ -6,8 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.security.enums.CameraStatus;
-import com.orbitastra.backend.models.undone.security.enums.CameraType;
+import com.orbitastra.backend.models.undone.a_latter.security.enums.CameraStatus;
+import com.orbitastra.backend.models.undone.a_latter.security.enums.CameraType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
