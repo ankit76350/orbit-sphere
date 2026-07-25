@@ -1,9 +1,7 @@
-package com.orbitastra.backend.models.undone.transport;
+package com.orbitastra.backend.models.undone.a_latter.virtualclass;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
-
-import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -13,21 +11,17 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "drivers")
+@Document(collection = "ai_notes")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Driver extends SchoolBase {
+public class AiNote extends SchoolBase {
 
-    private String name;
+    private String classDocsId;
 
-    private String phone;
+    private String notesContent;
 
-    private String licenseNo;
-
-    private LocalDate licenseExpiry;
-
-    private String vehicleDocsId;
+    private String generatedAt;
 }

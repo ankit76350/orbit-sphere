@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.virtualclass;
+package com.orbitastra.backend.models.undone.a_latter.virtualclass;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -6,7 +6,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.virtualclass.enums.OnlineClassStatus;
+import com.orbitastra.backend.models.undone.a_latter.virtualclass.enums.OnlineClassStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

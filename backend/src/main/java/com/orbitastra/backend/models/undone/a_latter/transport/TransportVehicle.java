@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.transport;
+package com.orbitastra.backend.models.undone.a_latter.transport;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.transport.enums.TransportVehicleStatus;
+import com.orbitastra.backend.models.undone.a_latter.transport.enums.TransportVehicleStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
