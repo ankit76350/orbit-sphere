@@ -4,12 +4,16 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.document.enums.ApprovalStatus;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -21,23 +25,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DocumentApproval extends SchoolBase {
 
-    private String documentDocsId;
+    @Indexed
+    private String generatedDocumentDocsId;
 
-    private String documentTitle;
-
+    @Indexed
     private String requestorDocsId;
 
-    private String requestorName;
-
-    private String requestorRole;
-
+    @Indexed
     private String approverDocsId;
 
-    private String approverName;
-
-    private String status; // Pending, Approved, Rejected
+    @Builder.Default
+    private ApprovalStatus status = ApprovalStatus.PENDING;
 
     private String remarks;
 
-    private LocalDate approvedAt;
+    private LocalDateTime approvedAt;
 }

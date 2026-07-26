@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.document.enums.IdCardStatus;
+import com.orbitastra.backend.models.undone.document.enums.IdCardType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,13 +29,9 @@ public class IdCard extends SchoolBase {
     @Indexed
     private String academicYear;
 
-    private String cardType; // Student, Staff, Parent
+    private IdCardType idCardType; // Student, Staff, Parent
 
     private String holderDocsId;
-
-    private String holderName;
-
-    private String details;
 
     private String qrCode;
 

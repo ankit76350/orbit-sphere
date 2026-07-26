@@ -3,6 +3,7 @@ package com.orbitastra.backend.models.undone.document;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
@@ -20,14 +21,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DocumentSignature extends SchoolBase {
 
+    @Indexed
     private String signerDocsId;
 
-    private String signerName;
-
-    private String designation;
-
+    /**
+     * Signature image.
+     */
     private String signatureUrl;
 
     @Builder.Default
-    private Boolean active = true;
+    private boolean active = true;
 }

@@ -1,8 +1,12 @@
 package com.orbitastra.backend.models.undone.document.enums;
 
 public enum DocumentCategory {
+
+    BONAFIDE,
+    LEAVING_CERTIFICATE,
+    MARKSHEET,
     ID_CARD,
-    STUDENT_CERTIFICATE,
-    STAFF_HR,
-    FINANCE
+    TRANSFER_CERTIFICATE,
+    FEE_RECEIPT,
+    CUSTOM
 }

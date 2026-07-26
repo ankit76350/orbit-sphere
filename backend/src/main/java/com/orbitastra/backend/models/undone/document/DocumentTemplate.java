@@ -6,6 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.document.enums.DocumentCategory;
+import com.orbitastra.backend.models.undone.document.enums.TemplateStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,11 +21,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DocumentTemplate extends SchoolBase {
 
-    private String name;
+    private DocumentCategory category;
 
-    private String category;
-
-    private String templateContent; // JSON template string or rich content
-
-    private String status; // Active, Inactive
+    private TemplateStatus status;
 }
