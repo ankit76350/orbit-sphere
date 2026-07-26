@@ -28,11 +28,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuditLog extends SchoolBase {
 
-    //might be possible use the DBRef here decide this latter
+    // might be possible use the DBRef here decide this latter
     @Indexed
     private String userDocsId; // references User.id / Staff.id
 
-    private String roleHave;
+    // currentRoleOfUser named beause in the future for the same user role might be changed
+    // so that why we are named this currentRoleOfUser 
+    private String currentRoleOfUser;
 
     private String action;
 
