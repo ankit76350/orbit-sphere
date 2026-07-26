@@ -19,7 +19,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * A DPDP Act consent record: a guardian's consent for a specific data-processing
+ * A DPDP Act consent record: a guardian's consent for a specific
+ * data-processing
  * purpose regarding a (minor) student, with the channel it was captured through
  * and its grant/withdrawal timeline.
  */
@@ -31,27 +32,35 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DpdpConsent extends SchoolBase {
 
-        @Indexed
-        private String studentDocsId;
+    @Indexed(unique = true)
+    private String studentDocsId;
 
-        @Indexed
-        private String guardianDocsId;
+    @Indexed
+    private String guardianDocsId;
 
-        private ConsentPurpose consentPurpose;
+    private ConsentPurpose consentPurpose;
 
-        @Builder.Default
-        private ConsentStatus status = ConsentStatus.PENDING;
+    @Builder.Default
+    private ConsentStatus status = ConsentStatus.PENDING;
 
-        private ConsentChannel channel;
+    private ConsentChannel channel;
 
-        private LocalDateTime grantedAt;
+    private LocalDateTime grantedAt;
 
-        private LocalDateTime withdrawnAt;
+    private LocalDateTime withdrawnAt;
 
-        private LocalDateTime expiryAt;
+    /**
+     * Date and time until which this consent remains valid.
+     * Null indicates that the consent remains valid until it is withdrawn.
+     */
+    private LocalDateTime expiryAt;
 
-        //! consentDocumentUrl = https://storage.example.com/consents/consent_123.pdf
-        private String consentDocumentUrl;
+    // ! consentDocumentUrl = https://storage.example.com/consents/consent_123.pdf
+    private String consentDocumentUrl;
 
-        private String remarks;
+    /**
+     * Optional notes explaining rejection, withdrawal,
+     * or any additional information related to this consent.
+     */
+    private String remarks;
 }
