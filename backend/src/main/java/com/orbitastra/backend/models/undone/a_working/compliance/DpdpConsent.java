@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.compliance;
+package com.orbitastra.backend.models.undone.a_working.compliance;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -9,9 +9,9 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.compliance.enums.ConsentChannel;
-import com.orbitastra.backend.models.undone.compliance.enums.ConsentPurpose;
-import com.orbitastra.backend.models.undone.compliance.enums.ConsentStatus;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ConsentChannel;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ConsentPurpose;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ConsentStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

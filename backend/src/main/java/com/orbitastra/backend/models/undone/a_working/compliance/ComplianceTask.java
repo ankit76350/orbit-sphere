@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.compliance;
+package com.orbitastra.backend.models.undone.a_working.compliance;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -11,10 +11,10 @@ import java.util.List;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.compliance.embedded.ComplianceDocument;
-import com.orbitastra.backend.models.undone.compliance.enums.ComplianceAuthority;
-import com.orbitastra.backend.models.undone.compliance.enums.ComplianceStatus;
-import com.orbitastra.backend.models.undone.compliance.enums.ComplianceTaskType;
+import com.orbitastra.backend.models.undone.a_working.compliance.embedded.ComplianceDocument;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ComplianceAuthority;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ComplianceStatus;
+import com.orbitastra.backend.models.undone.a_working.compliance.enums.ComplianceTaskType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

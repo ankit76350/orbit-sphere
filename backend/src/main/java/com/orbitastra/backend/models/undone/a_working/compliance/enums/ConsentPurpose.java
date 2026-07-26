@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.compliance.enums;
+package com.orbitastra.backend.models.undone.a_working.compliance.enums;
 
 /**
  * The purpose for which consent is being requested.
