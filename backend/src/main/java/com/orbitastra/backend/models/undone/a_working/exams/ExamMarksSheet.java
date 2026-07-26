@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.exams;
+package com.orbitastra.backend.models.undone.a_working.exams;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.exams.enums.ExamMarkStatus;
+import com.orbitastra.backend.models.undone.a_working.exams.enums.ExamMarkStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

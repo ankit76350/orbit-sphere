@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.exams.enums;
+package com.orbitastra.backend.models.undone.a_working.exams.enums;
 
 /**
  * Assessment term an exam belongs to. Report cards typically average Term 1 and
