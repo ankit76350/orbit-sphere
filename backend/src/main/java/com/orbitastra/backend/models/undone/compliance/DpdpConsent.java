@@ -9,6 +9,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.compliance.enums.ConsentChannel;
+import com.orbitastra.backend.models.undone.compliance.enums.ConsentPurpose;
 import com.orbitastra.backend.models.undone.compliance.enums.ConsentStatus;
 
 import lombok.AllArgsConstructor;
@@ -29,19 +31,27 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DpdpConsent extends SchoolBase {
 
-    @Indexed
-    private String studentDocsId;
+        @Indexed
+        private String studentDocsId;
 
-    // The data-processing purpose consent is sought for (e.g. "Photos & Media", "Health Data").
-    private String consentType;
+        @Indexed
+        private String guardianDocsId;
 
-    @Builder.Default
-    private ConsentStatus status = ConsentStatus.PENDING;
+        private ConsentPurpose consentPurpose;
 
-    // How consent was captured, e.g. "Parent App", "OTP e-Sign".
-    private String channel;
+        @Builder.Default
+        private ConsentStatus status = ConsentStatus.PENDING;
 
-    private LocalDateTime grantedAt;
+        private ConsentChannel channel;
 
-    private LocalDateTime withdrawnAt;
+        private LocalDateTime grantedAt;
+
+        private LocalDateTime withdrawnAt;
+
+        private LocalDateTime expiryAt;
+
+        //! consentDocumentUrl = https://storage.example.com/consents/consent_123.pdf
+        private String consentDocumentUrl;
+
+        private String remarks;
 }
