@@ -5,6 +5,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -21,7 +22,8 @@ import lombok.NoArgsConstructor;
 /**
  * An examination event (e.g. "Midterm 2026") with its per-subject datesheet.
  *
- * <p>This is the exam DEFINITION / scheduling record. The marks captured against
+ * <p>
+ * This is the exam DEFINITION / scheduling record. The marks captured against
  * it live in {@link ExamMarksSheet}, and the published, per-student report card
  * is the existing {@code academics.AcademicResult} — this model does not
  * duplicate either.
@@ -42,13 +44,12 @@ public class Exam extends SchoolBase {
 
     private ExamTerm term;
 
-    // Which classes/grades this exam applies to (e.g. "All Classes", "Grade 10").
-    private String appliesTo;
-
     private LocalDate startDate;
 
+    private LocalDate endDate;
+
     @Builder.Default
-    private Boolean published = false;
+    private boolean published = false;
 
     @Builder.Default
     private List<DatesheetEntry> datesheet = new java.util.ArrayList<>();
@@ -60,10 +61,11 @@ public class Exam extends SchoolBase {
     @AllArgsConstructor
     public static class DatesheetEntry {
         private LocalDate date;
-        private String subject;
+        private String subjectName;
+        private String classDocsId;
+        private String sectionNo;
         private LocalTime startTime;
         private LocalTime endTime;
         private String room;
-        private String invigilatorName;
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.exams.enums.ExamMarkStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,12 +20,16 @@ import lombok.NoArgsConstructor;
 /**
  * The marks-entry buffer for one (exam, grade, subject) combination — a teacher
  * enters obtained marks here per student, and it is locked once finalised. When
- * results are published these feed the per-student {@code academics.AcademicResult}
+ * results are published these feed the per-student
+ * {@code academics.AcademicResult}
  * report card, so the two are complementary (entry sheet vs published card).
  */
 @Document(collection = "exam_marks_sheets")
-@CompoundIndex(name = "exam_grade_subject_uniq",
-        def = "{'examDocsId': 1, 'grade': 1, 'subject': 1}", unique = true)
+@CompoundIndex(
+    name = "exam_class_subject_uniq",
+    def = "{'examDocsId': 1, 'classDocsId': 1, 'subjectDocsId': 1}",
+    unique = true
+)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
@@ -35,15 +40,17 @@ public class ExamMarksSheet extends SchoolBase {
     @Indexed
     private String examDocsId;
 
-    private String grade;
+    private String classDocsId;
 
-    private String subject;
+    private String sectionNo;
+
+    private String subjectName;
 
     @Builder.Default
     private Integer maxMarks = 100;
 
     @Builder.Default
-    private Boolean locked = false;
+    private boolean locked = false;
 
     @Builder.Default
     private List<StudentMark> marks = new java.util.ArrayList<>();
@@ -54,7 +61,18 @@ public class ExamMarksSheet extends SchoolBase {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class StudentMark {
+
+        /** Student whose marks are recorded. */
         private String studentDocsId;
+
+        /** Marks obtained by the student. Null until evaluated or if not applicable. */
         private Integer obtainedMarks;
+
+        /** Current status of the student's exam entry. */
+        @Builder.Default
+        private ExamMarkStatus status = ExamMarkStatus.PENDING;
+
+        /** Optional remarks such as medical leave, grace marks, or re-evaluation. */
+        private String remarks;
     }
 }
