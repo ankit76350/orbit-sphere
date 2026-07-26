@@ -3,7 +3,6 @@ package com.orbitastra.backend.models.undone.a_working.document;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.index.Indexed;
