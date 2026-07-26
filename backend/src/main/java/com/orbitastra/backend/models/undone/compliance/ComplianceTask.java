@@ -4,21 +4,37 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.compliance.embedded.ComplianceDocument;
+import com.orbitastra.backend.models.undone.compliance.enums.ComplianceAuthority;
+import com.orbitastra.backend.models.undone.compliance.enums.ComplianceStatus;
+import com.orbitastra.backend.models.undone.compliance.enums.ComplianceTaskType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * A dated compliance obligation on the school's regulatory calendar (UDISE+
- * return, board affiliation renewal, safety audit, ...) owned by an issuing
- * authority.
- */
+//! What the ERP can do
+// The dashboard could show
+// Upcoming Compliance
+
+// ⚠ Fire Safety Certificate
+// Due in 3 days
+
+// ⚠ UDISE+ Submission
+// Due in 15 days
+
+// ✓ CBSE Renewal
+// Completed
+
+
 @Document(collection = "compliance_tasks")
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -29,11 +45,34 @@ public class ComplianceTask extends SchoolBase {
 
     private String title;
 
-    // Issuing/regulating body, e.g. "CBSE", "UDISE+", "State Board".
-    private String authority;
+    private ComplianceAuthority authority;
 
+    private ComplianceTaskType type;
+
+    /**
+     * Deadline to complete the task.
+     */
     private LocalDate dueDate;
 
+    /**
+     * Actual completion timestamp.
+     */
+    private LocalDateTime completedAt;
+
+    /**
+     * Expiry/validity of the resulting certificate or document.
+     * Null for one-time tasks.
+     */
+    private LocalDate validUntil;
+
+    private ComplianceStatus status;
+
+    //assignedToDocsId is the person responsible for completing the compliance task.
+    private String assignedToDocsId;
+
+    private String remarks;
+
     @Builder.Default
-    private Boolean completed = false;
+    private List<ComplianceDocument> documents = new ArrayList<>();
+
 }

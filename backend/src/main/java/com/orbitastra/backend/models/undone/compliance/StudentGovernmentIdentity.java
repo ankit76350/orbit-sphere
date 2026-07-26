@@ -3,6 +3,8 @@ package com.orbitastra.backend.models.undone.compliance;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDate;
+
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -10,7 +12,6 @@ import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.undone.compliance.enums.ApaarStatus;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -19,30 +20,46 @@ import lombok.NoArgsConstructor;
  * built on the 11-digit PEN, plus Aadhaar/DigiLocker linkage state. Government
  * (UDISE+) compliance data that does not belong on the core Student document.
  */
-@Document(collection = "apaar_records")
+@Document(collection = "student_government_identities")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ApaarRecord extends SchoolBase {
+public class StudentGovernmentIdentity extends SchoolBase {
 
     @Indexed(unique = true)
     private String studentDocsId;
 
-    // 11-digit Permanent Education Number.
+    /**
+     * Aadhaar number.
+     * Encrypt before storing.
+     */
+    private String aadhaarNo;
+
+    private boolean aadhaarVerified;
+
+    /**
+     * Permanent Education Number.
+     */
     private String pen;
 
-    // 12-digit APAAR ID (null until generated).
-    @Indexed
+    /**
+     * APAAR ID.
+     */
     private String apaarNo;
 
-    @Builder.Default
-    private Boolean aadhaarVerified = false;
+    private ApaarStatus apaarStatus;
 
-    @Builder.Default
-    private Boolean digilockerLinked = false;
+    private boolean digilockerLinked;
 
-    @Builder.Default
-    private ApaarStatus status = ApaarStatus.PENDING;
+    /**
+     * Date on which parent/student consent was received.
+     */
+    private LocalDate consentDate;
+
+    /**
+     * Government remarks if verification failed.
+     */
+    private String remarks;
 }
