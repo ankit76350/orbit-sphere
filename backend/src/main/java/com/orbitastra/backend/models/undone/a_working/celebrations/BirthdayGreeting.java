@@ -21,6 +21,12 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BirthdayGreeting extends SchoolBase {
+    // here useing the student data we will filteer the student upcoming bithday and
+    // we will show the all the student who has birthday....
+    // !this model or collection is used to send the greeting to the student or
+    // staff member who has birthday....
+    // ! this can send greeting to the student or staff member who has birthday.
+    // school will send the notitfcation to the parent of there child when he/she
 
     /**
      * Student/Staff member whose birthday is being celebrated.
