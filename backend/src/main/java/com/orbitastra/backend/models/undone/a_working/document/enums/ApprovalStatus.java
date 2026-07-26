@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.document.enums;
+package com.orbitastra.backend.models.undone.a_working.document.enums;
 
 public enum ApprovalStatus {
     PENDING,

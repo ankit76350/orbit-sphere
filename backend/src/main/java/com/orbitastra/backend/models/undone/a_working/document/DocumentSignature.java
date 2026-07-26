@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.document;
+package com.orbitastra.backend.models.undone.a_working.document;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
