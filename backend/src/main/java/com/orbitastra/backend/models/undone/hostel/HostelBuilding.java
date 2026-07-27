@@ -6,6 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.hostel.enums.HostelStatus;
+import com.orbitastra.backend.models.undone.hostel.enums.HostelType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,7 +21,38 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class HostelBuilding extends SchoolBase {
 
+    /**
+     * Boys Hostel A
+     */
     private String name;
 
-    private Integer floors;
+    /**
+     * Boys / Girls
+     */
+    private HostelType hostelType;
+
+    /**
+     * Number of floors.
+     */
+    private Integer totalFloors;
+
+    /**
+     * Building address.
+     */
+    private String address;
+
+    /**
+     * Hostel Warden.
+     */
+    private String wardenDocsId;
+
+    /**
+     * Contact Number.
+     */
+    private String contactNumber;
+
+    /**
+     * Active / Under Maintenance.
+     */
+    private HostelStatus status;
 }

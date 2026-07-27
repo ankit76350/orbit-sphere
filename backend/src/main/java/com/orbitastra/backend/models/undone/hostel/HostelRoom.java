@@ -6,6 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.hostel.enums.RoomStatus;
+import com.orbitastra.backend.models.undone.hostel.enums.RoomType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,11 +23,33 @@ public class HostelRoom extends SchoolBase {
 
     private String buildingDocsId;
 
-    private Integer floorNo;
+    private Integer floorNumber;
 
-    private String roomNo;
+    private String roomNumber;
 
+    /**
+     * Deluxe
+     * Standard
+     */
+    private RoomType roomType;
+
+    /**
+     * Maximum beds.
+     */
     private Integer capacity;
 
-    private Integer occupiedBeds;
+    /**
+     * AC / Non AC
+     */
+    private Boolean airConditioned;
+
+    /**
+     * Available / Full
+     */
+    private RoomStatus status;
+
+    /**
+     * Remarks.
+     */
+    private String remarks;
 }
