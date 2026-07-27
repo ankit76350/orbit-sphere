@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.gallery;
+package com.orbitastra.backend.models.undone.a_working.gallery;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -6,7 +6,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.gallery.enums.GalleryMediaType;
+import com.orbitastra.backend.models.undone.a_working.gallery.enums.GalleryMediaType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

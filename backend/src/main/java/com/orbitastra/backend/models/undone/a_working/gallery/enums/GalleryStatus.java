@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.gallery.enums;
+package com.orbitastra.backend.models.undone.a_working.gallery.enums;
 
 
 public enum GalleryStatus {
