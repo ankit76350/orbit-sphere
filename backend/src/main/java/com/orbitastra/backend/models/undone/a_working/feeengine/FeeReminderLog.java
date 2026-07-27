@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.feeengine;
+package com.orbitastra.backend.models.undone.a_working.feeengine;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.feeengine.enums.ReminderChannel;
+import com.orbitastra.backend.models.undone.a_working.feeengine.enums.ReminderChannel;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
