@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.hostel;
+package com.orbitastra.backend.models.undone.a_working.hostel;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -6,8 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.hostel.enums.RoomStatus;
-import com.orbitastra.backend.models.undone.hostel.enums.RoomType;
+import com.orbitastra.backend.models.undone.a_working.hostel.enums.RoomStatus;
+import com.orbitastra.backend.models.undone.a_working.hostel.enums.RoomType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

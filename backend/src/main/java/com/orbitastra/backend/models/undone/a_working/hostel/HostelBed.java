@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.undone.hostel;
+package com.orbitastra.backend.models.undone.a_working.hostel;
 
 import java.time.LocalDate;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.hostel.enums.BedStatus;
+import com.orbitastra.backend.models.undone.a_working.hostel.enums.BedStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
