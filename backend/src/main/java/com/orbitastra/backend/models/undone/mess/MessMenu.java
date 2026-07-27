@@ -19,7 +19,6 @@ import lombok.NoArgsConstructor;
  * read time by cross-referencing student allergy data, not stored here.
  */
 @Document(collection = "mess_menus")
-@CompoundIndex(name = "school_day_uniq", def = "{'schoolId': 1, 'dayOfWeek': 1}", unique = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
@@ -27,11 +26,26 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MessMenu extends SchoolBase {
 
-    private DayOfWeek dayOfWeek;
+    @Indexed
+    private LocalDate menuDate;
 
-    private String breakfast;
+    @Indexed
+    private String mealTypeDocsId;
 
-    private String lunch;
+    @Indexed
+    private String messHallDocsId;
 
-    private String dinner;
+    /**
+     * Example:
+     * Rice
+     * Dal Fry
+     * Paneer Butter Masala
+     * Salad
+     */
+    private List<String> menuItems;
+
+    @Builder.Default
+    private Boolean vegetarian = true;
+
+    private String remarks;
 }
