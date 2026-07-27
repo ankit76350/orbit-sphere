@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.undone.gate;
+package com.orbitastra.backend.models.undone.a_working.gate;
 
 import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.gate.enums.GateEntryType;
+import com.orbitastra.backend.models.undone.a_working.gate.enums.GateEntryType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
