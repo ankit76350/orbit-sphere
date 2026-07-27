@@ -124,4 +124,28 @@ public class MessMealType extends SchoolBase {
     private Boolean active = true;
 }
     
-}
+// Kitchen receives Rice
+//         ↓
+// MessKitchenTransaction (PURCHASE)
+//         ↓
+// MessKitchenItem.currentQuantity updated
+
+// ----------------------------------------
+
+// Admin creates today's Lunch menu
+//         ↓
+// MessMenu
+
+// ----------------------------------------
+
+// Student scans RFID
+//         ↓
+// MessAttendance
+
+// ----------------------------------------
+
+// Kitchen uses 18 KG Rice
+//         ↓
+// MessKitchenTransaction (CONSUMPTION)
+//         ↓
+// MessKitchenItem.currentQuantity updated
