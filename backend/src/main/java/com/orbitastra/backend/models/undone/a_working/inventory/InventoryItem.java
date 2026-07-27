@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.inventory;
+package com.orbitastra.backend.models.undone.a_working.inventory;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,8 +13,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.inventory.enums.InventoryItemStatus;
-import com.orbitastra.backend.models.undone.inventory.enums.InventoryUnit;
+import com.orbitastra.backend.models.undone.a_working.inventory.enums.InventoryItemStatus;
+import com.orbitastra.backend.models.undone.a_working.inventory.enums.InventoryUnit;
 
 
 

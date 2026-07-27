@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.inventory.enums;
+package com.orbitastra.backend.models.undone.a_working.inventory.enums;
 
 public enum InventoryTransactionType {
 

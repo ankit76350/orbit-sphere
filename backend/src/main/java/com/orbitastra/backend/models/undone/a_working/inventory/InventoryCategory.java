@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.inventory;
+package com.orbitastra.backend.models.undone.a_working.inventory;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 

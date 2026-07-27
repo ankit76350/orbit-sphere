@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.inventory;
+package com.orbitastra.backend.models.undone.a_working.inventory;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.inventory.enums.InventoryTransactionType;
+import com.orbitastra.backend.models.undone.a_working.inventory.enums.InventoryTransactionType;
 
 
 @Document(collection = "inventory_transactions")
