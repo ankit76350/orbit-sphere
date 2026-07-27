@@ -1,5 +1,18 @@
 package com.orbitastra.backend.models.undone.mess;
 
+import java.time.LocalTime;
+
+import org.springframework.data.domain.Example;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.base.SchoolBase;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
 @Document(collection = "mess_meal_types")
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -7,6 +20,95 @@ package com.orbitastra.backend.models.undone.mess;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessMealType extends SchoolBase {
+
+    //     Example Database
+    // mess_meal_types
+    // Breakfast
+
+    // Lunch
+
+    // Evening Snacks
+
+    // Dinner
+
+    // ↓
+
+    // mess_halls
+    // Main Hostel Mess
+
+    // Girls Hostel Mess
+
+    // Staff Mess
+
+    // ↓
+
+    // mess_menus
+    // 2027-07-01
+
+    // Breakfast
+
+    // Milk
+
+    // Bread
+
+    // Butter
+
+    // Banana
+
+    // ↓
+
+    // mess_attendance
+    // Rahul
+
+    // Breakfast
+
+    // Present
+
+    // 08:12 AM
+
+    // ↓
+
+    // mess_kitchen_items
+    // Rice
+
+    // 200 KG
+
+    // ------------
+
+    // Oil
+
+    // 80 Liter
+
+    // ------------
+
+    // Sugar
+
+    // 120 KG
+
+    // ↓
+
+    // mess_kitchen_transactions
+    // Purchase
+
+    // Rice
+
+    // +100 KG
+
+    // ------------
+
+    // Consumption
+
+    // Rice
+
+    // -18 KG
+
+    // ------------
+
+    // Wastage
+
+    // Milk
+
+    // -5 Liter
 
     @Indexed(unique = true)
     private String name;
