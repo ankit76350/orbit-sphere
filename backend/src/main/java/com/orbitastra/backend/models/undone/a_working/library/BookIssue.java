@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.library;
+package com.orbitastra.backend.models.undone.a_working.library;
 
 
 import java.math.BigDecimal;
@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.library.enums.BookIssueStatus;
+import com.orbitastra.backend.models.undone.a_working.library.enums.BookIssueStatus;
 
 import lombok.*;
 import lombok.experimental.SuperBuilder;
