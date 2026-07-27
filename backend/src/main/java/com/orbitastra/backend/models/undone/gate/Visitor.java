@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.gate.enums.VisitorStatus;
 import com.orbitastra.backend.models.undone.gate.enums.VisitorType;
 
 import lombok.AllArgsConstructor;

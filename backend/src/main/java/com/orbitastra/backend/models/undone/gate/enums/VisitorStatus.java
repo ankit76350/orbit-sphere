@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.gate;
+package com.orbitastra.backend.models.undone.gate.enums;
 
 public enum VisitorStatus {
     EXPECTED,
