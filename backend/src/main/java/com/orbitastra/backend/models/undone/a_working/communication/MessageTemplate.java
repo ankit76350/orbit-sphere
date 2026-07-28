@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.communication;
+package com.orbitastra.backend.models.undone.a_working.communication;
 
 
 import java.util.List;
@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.communication.enums.CommunicationChannel;
+import com.orbitastra.backend.models.undone.a_working.communication.enums.CommunicationChannel;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
