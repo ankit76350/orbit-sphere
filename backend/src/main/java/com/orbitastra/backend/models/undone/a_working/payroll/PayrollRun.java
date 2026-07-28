@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.payroll;
+package com.orbitastra.backend.models.undone.a_working.payroll;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.payroll.enums.PayrollRunStatus;
+import com.orbitastra.backend.models.undone.a_working.payroll.enums.PayrollRunStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

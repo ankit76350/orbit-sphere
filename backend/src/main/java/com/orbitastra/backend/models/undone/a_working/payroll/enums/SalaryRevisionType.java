@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.payroll.enums;
+package com.orbitastra.backend.models.undone.a_working.payroll.enums;
 public enum SalaryRevisionType {
 
     INCREMENT,

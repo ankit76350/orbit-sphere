@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.payroll;
+package com.orbitastra.backend.models.undone.a_working.payroll;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.payroll.enums.PayslipStatus;
+import com.orbitastra.backend.models.undone.a_working.payroll.enums.PayslipStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
