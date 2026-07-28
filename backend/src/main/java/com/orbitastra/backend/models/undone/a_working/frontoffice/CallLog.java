@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.frontoffice;
+package com.orbitastra.backend.models.undone.a_working.frontoffice;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -11,9 +11,9 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.frontoffice.enums.CallDirection;
-import com.orbitastra.backend.models.undone.frontoffice.enums.CallPurpose;
-import com.orbitastra.backend.models.undone.frontoffice.enums.CallStatus;
+import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.CallDirection;
+import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.CallPurpose;
+import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.CallStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
