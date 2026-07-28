@@ -1,7 +1,15 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Whether a postal/courier item is being received or sent. */
+
 public enum PostalDirection {
-    INWARD,
-    OUTWARD
+
+    /**
+     * Mail received by the school.
+     */
+    INCOMING,
+
+    /**
+     * Mail sent by the school.
+     */
+    OUTGOING
 }

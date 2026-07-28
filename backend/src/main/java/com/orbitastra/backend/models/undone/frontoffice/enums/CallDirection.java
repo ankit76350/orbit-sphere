@@ -1,7 +1,8 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Direction of a front-desk phone call. */
-public enum CallType {
+public enum CallDirection {
+
     INCOMING,
+
     OUTGOING
 }

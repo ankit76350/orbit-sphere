@@ -4,13 +4,16 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
+
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.frontoffice.enums.CallDirection;
+import com.orbitastra.backend.models.undone.frontoffice.enums.CallPurpose;
 import com.orbitastra.backend.models.undone.frontoffice.enums.CallStatus;
-import com.orbitastra.backend.models.undone.frontoffice.enums.CallType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,26 +32,39 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CallLog extends SchoolBase {
 
-    private LocalDate date;
+    @Indexed
+    private LocalDateTime callDateTime;
 
-    private LocalTime time;
+    private CallDirection direction;
 
-    private String caller;
+    private String callerName;
 
-    private String phone;
+    @Indexed
+    private String phoneNumber;
 
-    private CallType type;
+    private CallPurpose purpose;
 
-    // Reason for the call, e.g. "Admission Enquiry", "Fee Query", "Complaint".
-    private String purpose;
+    /**
+     * Optional free-text details.
+     */
+    private String notes;
 
-    private String assignedToName;
+    /**
+     * Staff handling the call.
+     */
+    @Indexed
+    private String handledByDocsId;
 
-    private LocalDate followUp;
+    /**
+     * Optional follow-up date.
+     */
+    private LocalDate followUpDate;
+
+    /**
+     * If converted to Admission Inquiry.
+     */
+    private String inquiryDocsId;
 
     @Builder.Default
     private CallStatus status = CallStatus.OPEN;
-
-    @Builder.Default
-    private Boolean sentToCrm = false;
 }

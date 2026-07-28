@@ -1,8 +1,35 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Delivery state of a postal register entry. */
+
 public enum PostalStatus {
+
+    /**
+     * Received by the school.
+     */
     RECEIVED,
+
+    /**
+     * Ready to be dispatched.
+     */
+    PENDING,
+
+    /**
+     * Dispatched from the school.
+     */
     DISPATCHED,
-    IN_TRANSIT
+
+    /**
+     * Successfully delivered.
+     */
+    DELIVERED,
+
+    /**
+     * Returned to the sender.
+     */
+    RETURNED,
+
+    /**
+     * Delivery failed or lost.
+     */
+    FAILED
 }

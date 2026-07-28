@@ -1,8 +1,40 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** How a postal item was carried. */
+
 public enum PostalMode {
-    COURIER,
+
+    /**
+     * India Post / Postal Service.
+     */
     POST,
-    HAND
+
+    /**
+     * Courier service.
+     */
+    COURIER,
+
+    /**
+     * Hand delivered.
+     */
+    HAND_DELIVERY,
+
+    /**
+     * Speed Post.
+     */
+    SPEED_POST,
+
+    /**
+     * Registered Post.
+     */
+    REGISTERED_POST,
+
+    /**
+     * Parcel service.
+     */
+    PARCEL,
+
+    /**
+     * Any other delivery method.
+     */
+    OTHER
 }

@@ -1,9 +1,13 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Resolution state of a grievance. */
-public enum GrievanceStatus {
+public enum ComplaintStatus {
     OPEN,
-    IN_REVIEW,
+
+    IN_PROGRESS,
+
+    ON_HOLD,
+
     RESOLVED,
+
     CLOSED
 }

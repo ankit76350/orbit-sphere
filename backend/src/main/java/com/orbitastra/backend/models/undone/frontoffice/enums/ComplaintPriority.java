@@ -1,8 +1,11 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Priority of a grievance. */
-public enum GrievanceSeverity {
+public enum ComplaintPriority {
     LOW,
+
     MEDIUM,
-    HIGH
+
+    HIGH,
+
+    URGENT
 }

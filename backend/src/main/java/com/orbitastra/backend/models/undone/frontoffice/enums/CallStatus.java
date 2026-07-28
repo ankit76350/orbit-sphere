@@ -1,7 +1,25 @@
 package com.orbitastra.backend.models.undone.frontoffice.enums;
 
-/** Follow-up state of a logged call. */
+
 public enum CallStatus {
+
+    /**
+     * Call logged but no action taken yet.
+     */
     OPEN,
-    CLOSED
+
+    /**
+     * Call is being handled or follow-up is in progress.
+     */
+    IN_PROGRESS,
+
+    /**
+     * Call has been completed/resolved.
+     */
+    CLOSED,
+
+    /**
+     * Follow-up required.
+     */
+    FOLLOW_UP
 }
