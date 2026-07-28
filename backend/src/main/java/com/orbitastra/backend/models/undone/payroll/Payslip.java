@@ -4,6 +4,8 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.YearMonth;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -18,11 +20,16 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * One staff member's payslip for one month — a snapshot of computed earnings and
+ * One staff member's payslip for one month — a snapshot of computed earnings
+ * and
  * statutory deductions produced by a payroll run.
  */
 @Document(collection = "payslips")
-@CompoundIndex(name = "staff_month_uniq", def = "{'staffDocsId': 1, 'month': 1}", unique = true)
+@CompoundIndex(
+    name = "staff_payroll_unique",
+    def = "{'staffDocsId':1,'year':1,'month':1}",
+    unique = true
+)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
@@ -30,29 +37,80 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Payslip extends SchoolBase {
 
+    /**
+     * Payroll Run
+     */
+    @Indexed
+    private String payrollRunDocsId;
+
+    /**
+     * Staff
+     */
     @Indexed
     private String staffDocsId;
 
-    // Pay period in "YYYY-MM" form, e.g. "2026-05".
-    @Indexed
-    private String month;
+    /**
+     * Payroll Year
+     */
+    private Integer year;
 
-    // Earnings
-    private BigDecimal gross;
-    private BigDecimal basic;
+    /**
+     * Payroll Month
+     */
+    private Integer month;
+
+    /**
+     * Earnings
+     */
+    private BigDecimal basicSalary;
+
     private BigDecimal hra;
+
     private BigDecimal da;
-    private BigDecimal special;
 
-    // Statutory + other deductions
+    private BigDecimal specialAllowance;
+
+    /**
+     * Deductions
+     */
     private BigDecimal pf;
+
     private BigDecimal esi;
-    private BigDecimal pt;
+
+    private BigDecimal professionalTax;
+
     private BigDecimal tds;
-    private BigDecimal deductions; // total deductions
 
-    private BigDecimal net;        // net pay
+    private BigDecimal totalDeductions;
 
+    /**
+     * Gross Salary
+     */
+    private BigDecimal grossSalary;
+
+    /**
+     * Net Salary
+     */
+    private BigDecimal netSalary;
+
+    /**
+     * Payslip generated date.
+     */
+    private LocalDate generatedDate;
+
+    /**
+     * Salary payment date.
+     */
+    private LocalDate paymentDate;
+
+    /**
+     * Status
+     */
     @Builder.Default
     private PayslipStatus status = PayslipStatus.GENERATED;
+
+    /**
+     * Remarks
+     */
+    private String remarks;
 }

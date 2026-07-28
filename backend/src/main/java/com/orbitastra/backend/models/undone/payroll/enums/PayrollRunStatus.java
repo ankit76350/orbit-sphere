@@ -1,6 +1,6 @@
 package com.orbitastra.backend.models.undone.payroll.enums;
 
-public enum PayslipStatus {
+public enum PayrollRunStatus {
 
     GENERATED,
 
