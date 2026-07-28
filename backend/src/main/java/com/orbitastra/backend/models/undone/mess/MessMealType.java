@@ -2,12 +2,13 @@ package com.orbitastra.backend.models.undone.mess;
 
 import java.time.LocalTime;
 
-import org.springframework.data.domain.Example;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -21,19 +22,17 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class MessMealType extends SchoolBase {
 
-    //     Example Database
-    // mess_meal_types
+    // Example Database
+    
+    //! mess_meal_types
     // Breakfast
-
     // Lunch
-
     // Evening Snacks
-
     // Dinner
 
     // ↓
 
-    // mess_halls
+    //! mess_halls
     // Main Hostel Mess
 
     // Girls Hostel Mess
@@ -110,11 +109,14 @@ public class MessMealType extends SchoolBase {
 
     // -5 Liter
 
+    // BREAKFAST, LUNCH, SNACKS, DINNER
     @Indexed(unique = true)
     private String name;
 
+    // 07:00
     private LocalTime servingFrom;
 
+    // 09:00
     private LocalTime servingTo;
 
     @Builder.Default
@@ -123,29 +125,29 @@ public class MessMealType extends SchoolBase {
     @Builder.Default
     private Boolean active = true;
 }
-    
+
 // Kitchen receives Rice
-//         ↓
+// ↓
 // MessKitchenTransaction (PURCHASE)
-//         ↓
+// ↓
 // MessKitchenItem.currentQuantity updated
 
 // ----------------------------------------
 
 // Admin creates today's Lunch menu
-//         ↓
+// ↓
 // MessMenu
 
 // ----------------------------------------
 
 // Student scans RFID
-//         ↓
+// ↓
 // MessAttendance
 
 // ----------------------------------------
 
 // Kitchen uses 18 KG Rice
-//         ↓
+// ↓
 // MessKitchenTransaction (CONSUMPTION)
-//         ↓
+// ↓
 // MessKitchenItem.currentQuantity updated

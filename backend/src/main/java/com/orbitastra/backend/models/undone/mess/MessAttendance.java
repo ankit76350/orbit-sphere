@@ -1,5 +1,23 @@
 package com.orbitastra.backend.models.undone.mess;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.mess.enums.ConsumerType;
+import com.orbitastra.backend.models.undone.mess.enums.MealAttendanceMode;
+import com.orbitastra.backend.models.undone.mess.enums.MealAttendanceStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
 @Document(collection = "mess_attendance")
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -8,12 +26,16 @@ package com.orbitastra.backend.models.undone.mess;
 @AllArgsConstructor
 public class MessAttendance extends SchoolBase {
 
+    //  "attendanceDate": "2027-07-01",
     @Indexed
     private LocalDate attendanceDate;
+
+    //  "mealTypeDocsId": "meal_breakfast",
 
     @Indexed
     private String mealTypeDocsId;
 
+    // "messHallDocsId": "hall_main",
     @Indexed
     private String messHallDocsId;
 
@@ -26,8 +48,9 @@ public class MessAttendance extends SchoolBase {
      * Only one of these is filled.
      */
     private String studentDocsId;
-
     private String staffDocsId;
+
+    
 
     @Builder.Default
     private MealAttendanceStatus status = MealAttendanceStatus.PRESENT;
