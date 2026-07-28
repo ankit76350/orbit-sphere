@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.mess.enums;
+package com.orbitastra.backend.models.undone.a_working.mess.enums;
 
 public enum MealAttendanceMode {
 

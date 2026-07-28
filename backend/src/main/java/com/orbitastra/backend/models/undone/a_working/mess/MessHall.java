@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.mess;
+package com.orbitastra.backend.models.undone.a_working.mess;
 
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
