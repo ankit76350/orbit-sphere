@@ -1,33 +1,71 @@
 package com.orbitastra.backend.models.undone.a_latter.transport;
 
-import lombok.EqualsAndHashCode;
-import lombok.experimental.SuperBuilder;
-
 import java.time.LocalDate;
 
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.undone.a_latter.transport.embedded.EmergencyContact;
+import com.orbitastra.backend.models.undone.a_latter.transport.enums.DriverStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Document(collection = "drivers")
 @Data
-@EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 public class Driver extends SchoolBase {
 
-    private String name;
+    /**
+     * Reference to Staff collection.
+     */
+    @Indexed(unique = true)
+    private String staffDocsId;
 
-    private String phone;
+    /**
+     * Driving license number.
+     */
+    @Indexed(unique = true)
+    private String licenseNumber;
 
-    private String licenseNo;
-
+    /**
+     * License expiry date.
+     */
+    @Indexed
     private LocalDate licenseExpiry;
 
-    private String vehicleDocsId;
+    /**
+     * Internal driver badge/employee code.
+     */
+    @Indexed
+    private String badgeNumber;
+
+    /**
+     * Driver joining date.
+     */
+    private LocalDate joiningDate;
+
+    /**
+     * Emergency contact details.
+     */
+    private EmergencyContact emergencyContact;
+
+    /**
+     * Current employment status.
+     */
+    @Indexed
+    private DriverStatus status;
+
+    /**
+     * Additional remarks.
+     */
+    private String remarks;
+
 }

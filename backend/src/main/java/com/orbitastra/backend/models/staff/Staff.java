@@ -39,3 +39,39 @@ public class Staff extends SchoolBase {
 
     private LocalDate dob;
 }
+
+
+
+Part 3
+TransportRoute.java
+RouteStop.java
+GeoLocation.java
+
+
+
+Part 4
+RouteAssignment.java
+AssignmentStatus.java
+
+
+
+Part 5
+TransportAllocation.java
+AllocationStatus.java
+
+
+
+Part 6
+VehicleLocation.java
+TripStatus.java
+
+
+Part 7
+VehicleLocationHistory.java
+
+
+
+Part 8
+TransportAttendance.java
+AttendanceType.java
+AttendanceStatus.java
