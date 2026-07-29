@@ -20,6 +20,16 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class TransportRoute extends SchoolBase {
 
+    //  TransportRoute
+    //       │
+    //       │ 1
+    //       ▼
+    //  RouteStop
+    //       │
+    //       │ uses
+    //       ▼
+    //  GeoLocation
+
     /**
      * Route code.
      *
