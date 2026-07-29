@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.a_latter.transport;
+package com.orbitastra.backend.models.undone.a_working.transport;
 
 
 
@@ -8,10 +8,10 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.a_latter.transport.embedded.VehicleHealth;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.FuelType;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.VehicleStatus;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.VehicleType;
+import com.orbitastra.backend.models.undone.a_working.transport.embedded.VehicleHealth;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.FuelType;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.VehicleStatus;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.VehicleType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

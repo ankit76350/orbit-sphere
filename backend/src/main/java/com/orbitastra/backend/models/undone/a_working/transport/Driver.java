@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.a_latter.transport;
+package com.orbitastra.backend.models.undone.a_working.transport;
 
 import java.time.LocalDate;
 
@@ -6,8 +6,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.a_latter.transport.embedded.EmergencyContact;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.DriverStatus;
+import com.orbitastra.backend.models.undone.a_working.transport.embedded.EmergencyContact;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.DriverStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

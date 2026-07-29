@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.a_latter.transport;
+package com.orbitastra.backend.models.undone.a_working.transport;
 
 
 import java.time.LocalDate;
@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.AttendanceType;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.AttendanceType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

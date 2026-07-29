@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.a_latter.transport;
+package com.orbitastra.backend.models.undone.a_working.transport;
 
 
 
@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
-import com.orbitastra.backend.models.undone.a_latter.transport.embedded.GeoLocation;
-import com.orbitastra.backend.models.undone.a_latter.transport.enums.TripStatus;
+import com.orbitastra.backend.models.undone.a_working.transport.embedded.GeoLocation;
+import com.orbitastra.backend.models.undone.a_working.transport.enums.TripStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
