@@ -46,6 +46,19 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class TransportAttendance extends SchoolBase {
 
+// Student
+//     │
+//     ▼
+// TransportAttendance
+//         │
+//         ├────────► RouteAssignment
+//         │
+//         ├────────► TransportVehicle
+//         │
+//         ├────────► TransportRoute
+//         │
+//         └────────► RouteStop
+
     /**
      * Student.
      */
