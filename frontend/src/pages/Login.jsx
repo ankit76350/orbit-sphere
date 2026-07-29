@@ -25,7 +25,16 @@ export default function Login({ onLoginSuccess }) {
     { role: "Warden", email: "m.brody@stjude.edu", name: "Marcus Brody", desc: "Dorm rooms & out-passes" },
     { role: "Store Manager", email: "store@stjude.edu", name: "Silas Marner", desc: "Inventory stock & sales" },
     { role: "Parent", email: "liam.smith.parent@gmail.com", name: "Edward Smith", desc: "Child dashboard, wallets" },
-    { role: "Student", email: "liam.smith@stjude.edu", name: "Liam Smith", desc: "Check homework, balance" }
+    { role: "Student", email: "liam.smith@stjude.edu", name: "Liam Smith", desc: "Check homework, balance" },
+    { role: "Admission Officer", email: "registrar@stjude.edu", name: "Maya Kapoor", desc: "Applications and enrollment" },
+    { role: "Curriculum Coordinator", email: "curriculum@stjude.edu", name: "Dr. Ananya Rao", desc: "Programmes and curriculum" },
+    { role: "Exam Controller", email: "exams@stjude.edu", name: "Arjun Mehta", desc: "Assessment operations" },
+    { role: "Librarian", email: "library@stjude.edu", name: "Sophia Das", desc: "Library circulation" },
+    { role: "Transport Manager", email: "fleet@stjude.edu", name: "Kabir Singh", desc: "Routes and fleet" },
+    { role: "Nurse", email: "nurse@stjude.edu", name: "Amelia Joseph", desc: "Student health records" },
+    { role: "Safeguarding Officer", email: "safeguarding@stjude.edu", name: "Meera Sen", desc: "Restricted child safety" },
+    { role: "IT Admin", email: "itadmin@stjude.edu", name: "Rohan Verma", desc: "Identity and integrations" },
+    { role: "Compliance Officer", email: "compliance@stjude.edu", name: "Diya Patel", desc: "Board and privacy readiness" }
   ];
   const handleStandardSubmit = (e) => {
     e.preventDefault();

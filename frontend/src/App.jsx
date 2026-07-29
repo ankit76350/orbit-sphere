@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { useState } from "react";
-import { getAuthUser, logoutUser, logAction, getStudents, getFees, getHostels, getVisitors } from "./storage";
+import { getAuthUser, logoutUser, logAction, getStudents, getFees } from "./storage";
 import Login from "./pages/Login";
 import { ToastProvider } from "./components/ui";
 import ModInquiryCRM from "./modules/ModInquiryCRM";
@@ -38,6 +38,9 @@ import ModFeeEngine from "./modules/ModFeeEngine";
 import ModPayroll from "./modules/ModPayroll";
 import ModReports from "./modules/ModReports";
 import ModFrontOffice from "./modules/ModFrontOffice";
+import ModPlatformBlueprint from "./modules/ModPlatformBlueprint";
+import EnterpriseWorkspace from "./modules/enterprise/EnterpriseWorkspace";
+import { enterpriseModules } from "./modules/enterprise/enterpriseCatalog";
 import {
   GraduationCap,
   Sparkles,
@@ -74,13 +77,93 @@ import {
   Receipt,
   Banknote,
   BarChart3,
-  Phone
+  Phone,
+  Building2,
+  Layers3
 } from "lucide-react";
+
+const moduleGroups = {
+  inquiry: "Admissions & SIS",
+  admission: "Admissions & SIS",
+  student: "Admissions & SIS",
+  academics: "Academics",
+  attendance: "Academics",
+  exams: "Academics",
+  virtual_class: "Academics",
+  feedback: "Academics",
+  fees: "Finance & People",
+  fee_engine: "Finance & People",
+  wallet: "Finance & People",
+  staff: "Finance & People",
+  payroll: "Finance & People",
+  hostel: "Campus Operations",
+  transport: "Campus Operations",
+  library: "Campus Operations",
+  mess: "Campus Operations",
+  infirmary: "Campus Operations",
+  inventory: "Campus Operations",
+  security: "Campus Operations",
+  cctv: "Campus Operations",
+  discipline: "Student Support",
+  communication: "Engagement",
+  front_office: "Engagement",
+  gallery: "Engagement",
+  celebrations: "Engagement",
+  alumni: "Engagement",
+  docgen: "Engagement",
+  compliance: "Governance",
+  reports: "Governance",
+  ai_hub: "Platform",
+  super: "Platform",
+  platform_blueprint: "Platform"
+};
+
+const groupOrder = [
+  "Admissions & SIS",
+  "Academics",
+  "Student Support",
+  "Finance & People",
+  "Campus Operations",
+  "Engagement",
+  "Foundation",
+  "Governance",
+  "Platform"
+];
+
+const enterpriseGroupIcons = {
+  Foundation: Settings,
+  Academics: BookOpen,
+  Governance: Shield,
+  "Finance & People": Briefcase,
+  "Campus Operations": Building2,
+  "Admissions & SIS": Users,
+  "Student Support": HeartPulse,
+  Engagement: Award,
+  Platform: Layers3
+};
+
+const extendedRoleProfiles = {
+  "Admission Officer": "Registrar Maya Kapoor",
+  "Curriculum Coordinator": "Dr. Ananya Rao",
+  "Exam Controller": "Controller Arjun Mehta",
+  Librarian: "Librarian Sophia Das",
+  "Transport Manager": "Fleet Manager Kabir Singh",
+  Nurse: "Nurse Amelia Joseph",
+  "Safeguarding Officer": "Safeguarding Lead Meera Sen",
+  "IT Admin": "IT Administrator Rohan Verma",
+  "Compliance Officer": "Compliance Officer Diya Patel"
+};
+
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(getAuthUser());
   const [activeModule, setActiveModule] = useState("home");
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [institutionContext, setInstitutionContext] = useState({
+    school: "St. Jude School Group",
+    campus: "Main Boarding Campus",
+    academicYear: "2026–27"
+  });
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
     setActiveModule("home");
@@ -117,6 +200,9 @@ function MainApp() {
     } else if (nextRole === "Student") {
       swapName = "Liam Smith";
       permissions = ["STUDENT_WALLET", "FEES", "ATTENDANCE", "ACADEMICS"];
+    } else if (extendedRoleProfiles[nextRole]) {
+      swapName = extendedRoleProfiles[nextRole];
+      permissions = [`ROLE_${nextRole.toUpperCase().replaceAll(" ", "_")}`, "SCOPED_ACCESS"];
     }
     const swapped = {
       ...currentUser,
@@ -133,19 +219,19 @@ function MainApp() {
   if (!currentUser) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
-  const modulesList = [
-    { id: "inquiry", label: "Inquiry CRM", icon: Sparkles, roles: ["Super Admin", "Principal"], comp: ModInquiryCRM },
-    { id: "admission", label: "Admissions Panel", icon: GraduationCap, roles: ["Super Admin", "Principal"], comp: ModAdmission },
+  const coreModules = [
+    { id: "inquiry", label: "Inquiry CRM", icon: Sparkles, roles: ["Super Admin", "Principal", "Admission Officer"], comp: ModInquiryCRM },
+    { id: "admission", label: "Admissions Panel", icon: GraduationCap, roles: ["Super Admin", "Principal", "Admission Officer"], comp: ModAdmission },
     { id: "student", label: "Student Master", icon: Users, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModStudentMaster },
     { id: "hostel", label: "Hostel Boarding", icon: Home, roles: ["Super Admin", "Principal", "Warden"], comp: ModHostel },
     { id: "wallet", label: "Pocket Wallet", icon: Wallet, roles: ["Super Admin", "Warden", "Accountant", "Parent"], comp: ModWallet },
     { id: "fees", label: "Fee Accounting", icon: DollarSign, roles: ["Super Admin", "Principal", "Accountant", "Parent"], comp: ModFees },
-    { id: "staff", label: "Staff HRMS", icon: Briefcase, roles: ["Super Admin", "Principal", "Accountant"], comp: ModStaffHRMS },
+    { id: "staff", label: "Staff HRMS", icon: Briefcase, roles: ["Super Admin", "Principal", "Accountant", "HR Manager"], comp: ModStaffHRMS },
     { id: "attendance", label: "Class Attendance", icon: UserCheck, roles: ["Super Admin", "Principal", "Teacher", "Warden", "Parent", "Student"], comp: ModAttendance },
-    { id: "academics", label: "Academic Studies", icon: BookOpen, roles: ["Super Admin", "Principal", "Teacher", "Parent", "Student"], comp: ModAcademics },
-    { id: "exams", label: "Examination Cell", icon: FileText, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Parent", "Student"], comp: ModExams },
-    { id: "library", label: "Campus Library", icon: Book, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModLibrary },
-    { id: "transport", label: "Transport Desk", icon: Bus, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent", "Driver"], comp: ModTransport },
+    { id: "academics", label: "Academic Studies", icon: BookOpen, roles: ["Super Admin", "Principal", "Teacher", "Parent", "Student", "Curriculum Coordinator"], comp: ModAcademics },
+    { id: "exams", label: "Examination Cell", icon: FileText, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Parent", "Student", "Exam Controller"], comp: ModExams },
+    { id: "library", label: "Campus Library", icon: Book, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent", "Librarian"], comp: ModLibrary },
+    { id: "transport", label: "Transport Desk", icon: Bus, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent", "Driver", "Transport Manager"], comp: ModTransport },
     { id: "feedback", label: "Feedback Desk", icon: Award, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModFeedback },
     { id: "alumni", label: "Alumni Directory", icon: Trophy, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModAlumni },
     { id: "docgen", label: "Doc Gen & ID Cards", icon: IdCard, roles: ["Super Admin", "Principal", "Warden", "Accountant", "Parent"], comp: ModDocGen },
@@ -154,39 +240,70 @@ function MainApp() {
     { id: "gallery", label: "School Media Gallery", icon: Image, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModGallery },
     { id: "celebrations", label: "Celebrations Desk", icon: Cake, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Warden", "Parent", "Student", "Accountant", "HR Manager", "Store Manager"], comp: ModCelebrations },
     { id: "discipline", label: "Curfew Discipline", icon: Scale, roles: ["Super Admin", "Principal", "Warden", "Parent"], comp: ModDiscipline },
-    { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant", "Store Manager"], comp: ModInventory },
+    { id: "inventory", label: "Store Inventory", icon: Boxes, roles: ["Super Admin", "Accountant", "Store Manager", "Procurement Officer"], comp: ModInventory },
     { id: "fee_engine", label: "Fee Engine & Dues", icon: Receipt, roles: ["Super Admin", "School Admin", "Principal", "Accountant"], comp: ModFeeEngine },
     { id: "payroll", label: "Payroll & Statutory", icon: Banknote, roles: ["Super Admin", "Principal", "Accountant", "HR Manager"], comp: ModPayroll },
     { id: "communication", label: "Communication Hub", icon: MessageSquare, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Warden", "Accountant", "HR Manager"], comp: ModCommunication },
-    { id: "compliance", label: "Compliance & Boards", icon: BadgeCheck, roles: ["Super Admin", "School Admin", "Principal"], comp: ModCompliance },
+    { id: "compliance", label: "Compliance & Boards", icon: BadgeCheck, roles: ["Super Admin", "School Admin", "Principal", "Compliance Officer"], comp: ModCompliance },
     { id: "ai_hub", label: "AI Suite", icon: Brain, roles: ["Super Admin", "School Admin", "Principal", "Teacher", "Parent"], comp: ModAiHub },
     { id: "reports", label: "Reports & Analytics", icon: BarChart3, roles: ["Super Admin", "School Admin", "Principal", "Accountant", "HR Manager"], comp: ModReports },
     { id: "front_office", label: "Front Office Desk", icon: Phone, roles: ["Super Admin", "School Admin", "Principal", "Accountant"], comp: ModFrontOffice },
-    { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent"], comp: ModFoodMess },
-    { id: "infirmary", label: "Infirmary Clinic", icon: HeartPulse, roles: ["Super Admin", "Principal", "Warden"], comp: ModInfirmary },
-    { id: "security", label: "Security & Gate", icon: Shield, roles: ["Super Admin", "Principal", "Warden"], comp: ModSecurity },
+    { id: "mess", label: "Food & Mess", icon: ChefHat, roles: ["Super Admin", "Warden", "Parent", "Mess Manager"], comp: ModFoodMess },
+    { id: "infirmary", label: "Infirmary Clinic", icon: HeartPulse, roles: ["Super Admin", "Principal", "Warden", "Nurse"], comp: ModInfirmary },
+    { id: "security", label: "Security & Gate", icon: Shield, roles: ["Super Admin", "Principal", "Warden", "Security Guard"], comp: ModSecurity },
     { id: "super", label: "SuperAdmin Systems", icon: Settings, roles: ["Super Admin"], comp: ModSuperAdmin }
   ];
+
+  const modulesList = [
+    ...coreModules.map((module) => ({ ...module, group: moduleGroups[module.id] || "Platform" })),
+    {
+      id: "platform_blueprint",
+      label: "Platform Blueprint",
+      icon: Layers3,
+      roles: ["Super Admin", "School Admin", "Principal", "IT Admin", "Compliance Officer"],
+      group: "Platform",
+      comp: ModPlatformBlueprint
+    },
+    ...enterpriseModules.map((module) => ({
+      id: module.id,
+      label: module.label,
+      icon: enterpriseGroupIcons[module.group] || Layers3,
+      roles: module.roles,
+      group: module.group,
+      enterprise: module
+    }))
+  ];
+
   const accessibleModules = modulesList.filter((item) => {
+    if (currentUser.role === "Super Admin") return true;
+    if (currentUser.role === "School Admin") {
+      return item.id !== "super" && item.id !== "saas_operations";
+    }
     return item.roles.includes(currentUser.role);
   });
+  const groupedAccessibleModules = groupOrder
+    .map((group) => [group, accessibleModules.filter((module) => module.group === group)])
+    .filter(([, modules]) => modules.length > 0);
   const searchFilteredModules = accessibleModules.filter(
-    (m) => m.label.toLowerCase().includes(searchQuery.toLowerCase())
+    (m) => `${m.label} ${m.group}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const CurrentSubModuleComp = () => {
     const match = accessibleModules.find((m) => m.id === activeModule);
     if (match) {
+      if (match.enterprise) {
+        return <EnterpriseWorkspace module={match.enterprise} user={currentUser} context={institutionContext} />;
+      }
       const Comp = match.comp;
-      return <Comp user={currentUser} />;
+      return <Comp user={currentUser} context={institutionContext} />;
     }
-    return <WelcomeSummaryDashboard user={currentUser} setActiveModule={setActiveModule} modulesList={accessibleModules} />;
+    return <WelcomeSummaryDashboard user={currentUser} context={institutionContext} setActiveModule={setActiveModule} modulesList={accessibleModules} />;
   };
   return <div className="min-h-screen flex text-slate-800 bg-[#f8fafc]">
       
       {
     /* 1. LEFT DASHBOARD SIDEBAR */
   }
-      <aside className="w-[260px] bg-white text-slate-600 flex flex-col shrink-0 border-r border-slate-200 h-screen sticky top-0 font-sans shadow-xs">
+      <aside className="w-[288px] bg-white text-slate-600 flex flex-col shrink-0 border-r border-slate-200 h-screen sticky top-0 font-sans shadow-xs">
         
         {
     /* Brand header */
@@ -213,20 +330,26 @@ function MainApp() {
           </button>
 
           <div className="h-px bg-slate-100 my-4" />
-          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest px-3.5 mb-2">CAMPUS CHANNELS</p>
 
-          {accessibleModules.map((item) => {
-    const Icon = item.icon;
-    const active = activeModule === item.id;
-    return <button
-      key={item.id}
-      onClick={() => setActiveModule(item.id)}
-      className={`w-full flex items-center gap-3 px-3.5 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${active ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50 text-slate-600 hover:text-slate-900"}`}
-    >
-                <div className={`w-1.5 h-1.5 rounded-full ${active ? "bg-blue-600" : "bg-slate-300"}`} />
-                {item.label}
-              </button>;
-  })}
+          {groupedAccessibleModules.map(([group, modules]) => <div key={group} className="mb-5">
+              <p className="text-[9px] uppercase font-black text-slate-400 tracking-[0.16em] px-3.5 mb-2">{group}</p>
+              <div className="space-y-1">
+                {modules.map((item) => {
+      const Icon = item.icon;
+      const active = activeModule === item.id;
+      return <button
+        key={item.id}
+        onClick={() => setActiveModule(item.id)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition cursor-pointer text-left ${active ? "bg-blue-50 text-blue-700 font-bold" : "hover:bg-slate-50 text-slate-600 hover:text-slate-900"}`}
+      >
+                    <span className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="leading-tight">{item.label}</span>
+                  </button>;
+    })}
+              </div>
+            </div>)}
         </nav>
 
         {
@@ -245,12 +368,12 @@ function MainApp() {
         {
     /* TOP BAR BAR HEADER */
   }
-        <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center h-16 shrink-0 sticky top-0 z-40 shadow-xs">
+        <header className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center min-h-16 shrink-0 sticky top-0 z-40 shadow-xs gap-4">
           
           {
     /* Quick Search bar */
   }
-          <div className="relative w-80 max-w-full">
+          <div className="relative w-72 max-w-full shrink-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
     type="text"
@@ -269,9 +392,32 @@ function MainApp() {
     }}
     className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-50 text-xs font-bold block"
   >
-                      {m.label}
+                      <span>{m.label}</span>
+                      <span className="block text-[9px] text-slate-400 mt-0.5">{m.group}</span>
                     </button>)}
               </div>}
+          </div>
+
+          <div className="hidden 2xl:flex items-center gap-2 flex-1 justify-center">
+            <select
+              value={institutionContext.campus}
+              onChange={(event) => setInstitutionContext((current) => ({ ...current, campus: event.target.value }))}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option>Main Boarding Campus</option>
+              <option>City Day School Campus</option>
+              <option>International Programme Campus</option>
+              <option>All Campuses</option>
+            </select>
+            <select
+              value={institutionContext.academicYear}
+              onChange={(event) => setInstitutionContext((current) => ({ ...current, academicYear: event.target.value }))}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option>2026–27</option>
+              <option>2025–26</option>
+              <option>2027–28 Planning</option>
+            </select>
           </div>
 
           {
@@ -292,8 +438,8 @@ function MainApp() {
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
 
-              {showRoleSwitcher && <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl p-2.5 w-56 space-y-1 z-50">
-                  <p className="text-[9px] uppercase font-bold text-slate-400 p-2.5 tracking-wider border-b border-slate-100">Simulate Boarding Role</p>
+              {showRoleSwitcher && <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl p-2.5 w-64 space-y-1 z-50 max-h-[70vh] overflow-y-auto">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 p-2.5 tracking-wider border-b border-slate-100">Simulate Scoped Role</p>
                   
                   <button onClick={() => handleSwapRole("Super Admin")} className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705">
                     ♛ Super Admin (All Access)
@@ -316,6 +462,24 @@ function MainApp() {
                   <button onClick={() => handleSwapRole("Student")} className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705">
                     🎓 Student / Scholar login
                   </button>
+                  <div className="h-px bg-slate-100 my-1" />
+                  {[
+                    ["Admission Officer", "🗂 Admission Officer"],
+                    ["Curriculum Coordinator", "📘 Curriculum Coordinator"],
+                    ["Exam Controller", "📝 Exam Controller"],
+                    ["Librarian", "📚 Librarian"],
+                    ["Transport Manager", "🚌 Transport Manager"],
+                    ["Nurse", "🩺 School Nurse"],
+                    ["Safeguarding Officer", "🛡 Safeguarding Officer"],
+                    ["IT Admin", "💻 IT Administrator"],
+                    ["Compliance Officer", "✅ Compliance Officer"]
+                  ].map(([role, label]) => <button
+                    key={role}
+                    onClick={() => handleSwapRole(role)}
+                    className="w-full text-left px-3 py-2 text-xs font-bold rounded-xl hover:bg-slate-50 block text-slate-705"
+                  >
+                      {label}
+                    </button>)}
                 </div>}
             </div>
 
@@ -364,12 +528,11 @@ export default function App() {
 }
 function WelcomeSummaryDashboard({
   user,
+  context,
   setActiveModule,
   modulesList
 }) {
   const students = getStudents();
-  const hostels = getHostels();
-  const visitors = getVisitors();
   const fees = getFees();
   return <div className="space-y-6">
       
@@ -379,14 +542,22 @@ function WelcomeSummaryDashboard({
       <div className="bg-white border border-slate-200 rounded-2xl p-7 relative overflow-hidden shadow-xs">
         <div className="absolute right-0 bottom-0 -mb-24 -mr-24 h-56 w-56 bg-blue-500 rounded-full blur-3xl opacity-10 pointer-events-none" />
         
-        <div className="space-y-2 max-w-xl">
+        <div className="space-y-2 max-w-3xl">
           <span className="bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border border-blue-100">
-            ST. JUDE'S BOARDING ERP HOME
+            {context?.campus || "ST. JUDE'S ERP"} · {context?.academicYear || "CURRENT YEAR"}
           </span>
           <h2 className="text-2xl font-bold text-slate-900 leading-tight">Welcome back, {user.name}!</h2>
           <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-            Institutional databases are persistent inside LocalStorage. Currently logged in under active permissions of <strong className="text-emerald-600">"{user.role}"</strong> credentials. Use the top swapper badge to shift roles during sandbox evaluation.
+            The expanded product scope is now represented by interactive frontend workspaces. You are viewing
+            <strong className="text-emerald-600"> {modulesList.length} modules</strong> available to the
+            <strong className="text-emerald-600"> {user.role}</strong> sandbox persona.
           </p>
+          {modulesList.some((module) => module.id === "platform_blueprint") && <button
+            onClick={() => setActiveModule("platform_blueprint")}
+            className="mt-2 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white hover:bg-indigo-700 transition"
+          >
+              <Layers3 className="h-4 w-4" /> Open Platform Blueprint
+            </button>}
         </div>
       </div>
 
@@ -407,8 +578,8 @@ function WelcomeSummaryDashboard({
 
         <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">ACTIVE DORM ROOMS</span>
-            <p className="text-xl font-bold text-slate-800 mt-1">{hostels.length} Rooms</p>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">ACCESSIBLE WORKSPACES</span>
+            <p className="text-xl font-bold text-slate-800 mt-1">{modulesList.length} Modules</p>
           </div>
           <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
             <Home className="h-5 w-5" />
@@ -417,8 +588,8 @@ function WelcomeSummaryDashboard({
 
         <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">CAMPUS VISITOR COUNT</span>
-            <p className="text-xl font-bold text-slate-800 mt-1">{visitors.length} Logs</p>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">EXPANSION MODULES</span>
+            <p className="text-xl font-bold text-slate-800 mt-1">{modulesList.filter((module) => module.enterprise).length} Added</p>
           </div>
           <div className="h-10 w-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
             <UserCheck className="h-5 w-5" />
@@ -463,7 +634,7 @@ function WelcomeSummaryDashboard({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition capitalize">{m.label}</h4>
-                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Enter Console</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">{m.group || "Module"} · Enter</p>
                   </div>
                 </button>;
   })}
