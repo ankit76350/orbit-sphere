@@ -50,6 +50,21 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class VehicleLocation extends SchoolBase {
 
+//     TransportVehicle
+//        │
+//        │
+//        ▼
+//     VehicleLocation
+//        │
+//        ├────────► RouteAssignment
+//        │
+//        ├────────► TransportRoute
+//        │
+//        └────────► Driver
+
+// we will use the wescoket for the live tracing.....
+// For the historical data we will use the mongodb database....
+
     /**
      * Vehicle being tracked.
      */
