@@ -60,6 +60,17 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class VehicleLocationHistory extends SchoolBase {
 
+//     TransportVehicle
+//         │
+//         ▼
+//     VehicleLocationHistory
+//         │
+//         ├────────► RouteAssignment
+//         │
+//         ├────────► Driver
+//         │
+//         └────────► TransportRoute
+
     /**
      * Vehicle.
      */
