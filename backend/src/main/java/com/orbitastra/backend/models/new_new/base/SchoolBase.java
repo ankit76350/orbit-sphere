@@ -1,13 +1,14 @@
 package com.orbitastra.backend.models.new_new.base;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 
+import com.orbitastra.backend.models.undone.a_new.common.PlatformEnums.RecordState;
+
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -21,17 +22,18 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public abstract class SchoolBase {
-
-    @Id
-    private String id;
-
-    @CreatedDate
-    private LocalDateTime createdAt;
-
-    @LastModifiedDate
-    private LocalDateTime updatedAt;
+public abstract class SchoolBase extends AuditedDocument {
 
     @Indexed
+    @NotBlank
     private String schoolId;
+
+    @Builder.Default
+    private RecordState recordState = RecordState.ACTIVE;
+
+    private Instant archivedAt;
+
+    private Instant deletedAt;
+
+    private String deletedByDocsId;
 }

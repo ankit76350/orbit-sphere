@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.undone.a_new.base;
+package com.orbitastra.backend.models.new_new.base;
 
 import java.time.Instant;
 
