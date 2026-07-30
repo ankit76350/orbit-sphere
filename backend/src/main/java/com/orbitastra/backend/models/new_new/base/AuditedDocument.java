@@ -39,9 +39,7 @@ public abstract class AuditedDocument {
 
     private String updatedByDocsId;
 
+    //For optimistic-locking error
     @Version
     private Long version;
-
-    @Builder.Default
-    private Integer schemaVersion = 1;
 }

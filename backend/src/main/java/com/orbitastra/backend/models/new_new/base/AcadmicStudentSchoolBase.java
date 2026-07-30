@@ -19,6 +19,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 @AllArgsConstructor
 public class AcadmicStudentSchoolBase extends SchoolBase{
 
+    //this is the academic year name and the acadmic year name will be imuttable we can't be able to edit the academic year name after created
     @Indexed
     private String academicYear;
 
