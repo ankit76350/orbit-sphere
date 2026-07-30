@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.undone.a_latter.reports.enums.ReportSource;
 
 import lombok.AllArgsConstructor;

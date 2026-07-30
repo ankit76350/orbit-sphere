@@ -10,7 +10,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.undone.a_working.compliance.embedded.ComplianceDocument;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.ComplianceAuthority;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.ComplianceStatus;

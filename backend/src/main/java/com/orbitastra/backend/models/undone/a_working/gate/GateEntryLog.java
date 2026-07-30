@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.undone.a_working.gate.enums.GateEntryType;
 
 import lombok.AllArgsConstructor;

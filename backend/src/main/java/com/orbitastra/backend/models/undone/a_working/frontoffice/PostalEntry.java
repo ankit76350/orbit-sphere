@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.PostalDirection;
 import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.PostalMode;
 import com.orbitastra.backend.models.undone.a_working.frontoffice.enums.PostalStatus;

@@ -3,7 +3,7 @@ package com.orbitastra.backend.models.undone.a_latter.aihub;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

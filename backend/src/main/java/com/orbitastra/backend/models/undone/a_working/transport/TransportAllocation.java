@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.undone.a_working.transport.enums.AllocationStatus;
 
 import lombok.AllArgsConstructor;

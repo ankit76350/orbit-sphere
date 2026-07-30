@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
-import com.orbitastra.backend.models.base.AcadmicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.base.AcadmicStudentSchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.SchoolBase;
 import com.orbitastra.backend.models.finance.enums.TransactionType;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

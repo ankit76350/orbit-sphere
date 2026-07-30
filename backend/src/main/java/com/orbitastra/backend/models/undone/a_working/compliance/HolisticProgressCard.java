@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.base.AcadmicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.base.AcadmicStudentSchoolBase;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.HpcLevel;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.LearningDomain;
 
