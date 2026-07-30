@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcadmicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DisciplineLog extends AcadmicStudentSchoolBase {
+public class DisciplineLog extends AcademicStudentSchoolBase {
 
     private String violation;
 

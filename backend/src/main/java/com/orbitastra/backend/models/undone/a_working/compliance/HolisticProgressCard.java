@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcadmicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.HpcLevel;
 import com.orbitastra.backend.models.undone.a_working.compliance.enums.LearningDomain;
 
@@ -31,7 +31,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class HolisticProgressCard extends AcadmicStudentSchoolBase {
+public class HolisticProgressCard extends AcademicStudentSchoolBase {
 
 
     /** Assessment across different learning domains. */
