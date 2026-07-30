@@ -21,6 +21,8 @@ import lombok.experimental.SuperBuilder;
         @CompoundIndex(name = "tenant_snapshot_status_time_idx",
                 def = "{'tenantId':1,'status':1,'snapshotAt':-1}")
 })
+
+//!
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder

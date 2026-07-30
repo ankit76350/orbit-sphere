@@ -41,20 +41,10 @@ public class TenantAccount extends AuditedDocument {
         DELETED
     }
 
-    private String tenantCode;
     private String slug;
-    private String legalCustomerName;
-    private TenantStatus status;
     private String hostingRegion;
     private String dataResidencyPolicy;
     private String databasePlacementKey;
-    private String encryptionKeyReference;
-    private String defaultLocale;
-    private String defaultTimeZone;
-    private Instant activatedAt;
-    private Instant suspendedAt;
     private Instant deletionEligibleAt;
 
-    @Builder.Default
-    private List<String> allowedEmailDomains = new ArrayList<>();
 }
