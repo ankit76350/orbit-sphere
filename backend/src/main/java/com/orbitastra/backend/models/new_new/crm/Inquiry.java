@@ -10,11 +10,13 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.common.enums.Gender;
 import com.orbitastra.backend.models.new_new.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.new_new.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.new_new.crm.enums.InquiryStatus;
-import com.orbitastra.backend.models.student.enums.Gender;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +24,21 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * A prospective-student lead captured before a formal admission application is
+ * submitted.
+ *
+ * <p>This document belongs to one school through {@code SchoolBase.schoolId}.
+ * It stores prospective guardian and follow-up snapshots as embedded values.
+ * A later {@link AdmissionApplication} links back to this document through
+ * {@code AdmissionApplication.inquiryDocsId}; the Inquiry deliberately does not
+ * store a reverse application-id list.
+ *
+ * <p>{@code academicYear} stores {@code AcademicYear.name}, never the academic
+ * year document id. {@code interestedClassDocsId} references the future final
+ * class/grade document, and {@code assignedCounselorDocsId} references the staff
+ * member responsible for the lead.
+ */
 @Document(collection = "inquiries")
 @CompoundIndexes({
         @CompoundIndex(
@@ -46,9 +63,11 @@ import lombok.experimental.SuperBuilder;
 public class Inquiry extends SchoolBase {
 
     // Example: "INQ/2026/000001"
+    @NotBlank
     private String inquiryNo;
 
     // Example: "Aarav Sharma"
+    @NotBlank
     private String prospectiveStudentName;
 
     // Example: 2018-08-14
@@ -61,17 +80,19 @@ public class Inquiry extends SchoolBase {
     @Builder.Default
     private List<InquiryGuardian> guardians = new ArrayList<>();
 
-    // Example: "2026-2027"
+    // Links to AcademicYear.name. Example: "2026-2027"
+    @NotBlank
     private String academicYear;
 
-    // Example: "67aa15d9dc3f7d0012345678"
+    // Links to the requested class/grade document id. Example: "67aa15d9dc3f7d0012345678"
     private String interestedClassDocsId;
 
     // Example: InquiryStatus.NEW
+    @NotNull
     @Builder.Default
     private InquiryStatus status = InquiryStatus.NEW;
 
-    // Example: "67aa15d9dc3f7d0055555555"
+    // Links to the assigned staff/counselor document id. Example: "67aa15d9dc3f7d0055555555"
     private String assignedCounselorDocsId;
 
     // Example: "WEBSITE"

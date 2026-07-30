@@ -12,10 +12,12 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.common.enums.Gender;
 import com.orbitastra.backend.models.new_new.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.new_new.crm.enums.AdmissionApplicationStatus;
-import com.orbitastra.backend.models.student.enums.Gender;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +25,25 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * A formal application submitted for one {@link AdmissionCycle}.
+ *
+ * <p>{@code admissionCycleDocsId} is required and references
+ * {@code AdmissionCycle.id}. {@code inquiryDocsId} optionally references the
+ * originating {@link Inquiry}; it is null for direct applications.
+ * {@link AdmissionReview} and {@link AdmissionOffer} documents link to this
+ * application through their {@code admissionApplicationDocsId} fields.
+ *
+ * <p>Applicant and guardian values are submission-time snapshots, so later CRM
+ * edits do not rewrite the submitted application. When enrollment succeeds,
+ * {@code resultingStudentDocsId} links to the created Student document.
+ *
+ * <p>Form answers must be checked by the service against
+ * {@code applicationFormDefinitionDocsId} and
+ * {@code applicationFormVersion}. Offer acceptance, Student creation,
+ * application enrollment, and Inquiry closure must be coordinated
+ * transactionally by the service layer.
+ */
 @Document(collection = "admission_applications")
 @CompoundIndexes({
         @CompoundIndex(
@@ -51,24 +72,30 @@ import lombok.experimental.SuperBuilder;
 public class AdmissionApplication extends SchoolBase {
 
     // Example: "APP/2026/000001"
+    @NotBlank
     private String applicationNo;
 
-    // Example: "67aa15d9dc3f7d0011111111"
+    // Links to AdmissionCycle.id. Example: "67aa15d9dc3f7d0011111111"
+    @NotBlank
     private String admissionCycleDocsId;
 
-    // Example: "67aa15d9dc3f7d0022222222"
+    // Optionally links to Inquiry.id. Example: "67aa15d9dc3f7d0022222222"
     private String inquiryDocsId;
 
-    // Example: "67aa15d9dc3f7d0033333333"
+    // Links to the requested class/grade document id. Example: "67aa15d9dc3f7d0033333333"
+    @NotBlank
     private String appliedClassDocsId;
 
     // Example: "Aarav Sharma"
+    @NotBlank
     private String applicantName;
 
     // Example: 2018-08-14
+    @NotNull
     private LocalDate dateOfBirth;
 
     // Example: Gender.MALE
+    @NotNull
     private Gender gender;
 
     // Example: [{ "fullName": "Rohan Sharma", "relation": "FATHER", "primaryContact": true }]
@@ -76,22 +103,27 @@ public class AdmissionApplication extends SchoolBase {
     private List<InquiryGuardian> guardians = new ArrayList<>();
 
     // Example: AdmissionApplicationStatus.DRAFT
+    @NotNull
     @Builder.Default
     private AdmissionApplicationStatus status = AdmissionApplicationStatus.DRAFT;
 
+    // Links to the form definition used for this snapshot. Example: "67aa15d9dc3f7d0012121212"
+    private String applicationFormDefinitionDocsId;
+
     // Example: 1
+    @NotNull
     @Builder.Default
-    private Integer formVersion = 1;
+    private Integer applicationFormVersion = 1;
 
     // Example: { "previousSchool": "ABC School", "preferredLanguage": "English" }
     @Builder.Default
     private Map<String, Object> formAnswers = new HashMap<>();
 
-    // Example: ["67aa15d9dc3f7d0044444444", "67aa15d9dc3f7d0044444445"]
+    // Links to stored document records. Example: ["67aa15d9dc3f7d0044444444", "67aa15d9dc3f7d0044444445"]
     @Builder.Default
     private List<String> evidenceDocumentDocsIds = new ArrayList<>();
 
-    // Example: "67aa15d9dc3f7d0055555555"
+    // Links to the assigned admission staff document. Example: "67aa15d9dc3f7d0055555555"
     private String assignedAdmissionOfficerDocsId;
 
     // Example: 2026-03-10T09:30:00Z
@@ -103,6 +135,6 @@ public class AdmissionApplication extends SchoolBase {
     // Example: "Family relocation was cancelled"
     private String withdrawalReason;
 
-    // Example: "67aa15d9dc3f7d0066666666"
+    // Links to the Student created after enrollment. Example: "67aa15d9dc3f7d0066666666"
     private String resultingStudentDocsId;
 }
