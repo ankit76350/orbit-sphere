@@ -61,8 +61,8 @@ public class Inquiry extends SchoolBase {
     @Builder.Default
     private List<InquiryGuardian> guardians = new ArrayList<>();
 
-    // Example: "67aa15d9dc3f7d0098765432"
-    private String academicYearDocsId;
+    // Example: "2026-2027"
+    private String academicYear;
 
     // Example: "67aa15d9dc3f7d0012345678"
     private String interestedClassDocsId;

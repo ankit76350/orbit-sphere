@@ -23,7 +23,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_academic_year_cycle_name_uniq",
-                def = "{'schoolId': 1, 'academicYearDocsId': 1, 'name': 1}",
+                def = "{'schoolId': 1, 'academicYear': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_cycle_status_dates_idx",
@@ -36,8 +36,8 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class AdmissionCycle extends SchoolBase {
 
-    // Example: "67aa15d9dc3f7d0098765432"
-    private String academicYearDocsId;
+    // Example: "2026-2027"
+    private String academicYear;
 
     // Example: "Admissions 2026-2027"
     private String name;
