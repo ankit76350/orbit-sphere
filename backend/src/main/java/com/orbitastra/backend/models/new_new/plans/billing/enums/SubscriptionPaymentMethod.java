@@ -1,5 +1,8 @@
 package com.orbitastra.backend.models.new_new.plans.billing.enums;
 
+/**
+ * Payment method used for SaaS subscription collection.
+ */
 public enum SubscriptionPaymentMethod {
     UPI,
     CARD,

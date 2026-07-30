@@ -16,6 +16,8 @@ import com.orbitastra.backend.models.new_new.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.new_new.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.new_new.plans.enums.PlanStatus;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +25,19 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * Platform-level, versioned definition of one SaaS subscription plan.
+ *
+ * <p>This document is not school-owned and therefore extends AuditedDocument
+ * directly. The immutable business identity is {@code planCode + planVersion}.
+ * A published version should not be rewritten; material entitlement or pricing
+ * changes create a new version.
+ *
+ * <p>SchoolSubscription links to this document through
+ * {@code planDefinitionDocsId} and stores the selected {@code planVersion}.
+ * {@code effectiveFrom/effectiveUntil} control when this plan version may be
+ * sold, not the billing period of an existing subscription.
+ */
 @Document(collection = "plan_definitions")
 @CompoundIndexes({
         @CompoundIndex(
@@ -41,35 +56,45 @@ import lombok.experimental.SuperBuilder;
 public class PlanDefinition extends AuditedDocument {
 
     // Example: "PREMIUM"
+    @NotBlank
     private String planCode;
 
     // Example: 1
+    @NotNull
     @Builder.Default
     private Integer planVersion = 1;
 
     // Example: "Premium"
+    @NotBlank
     private String name;
 
     // Example: "Advanced ERP modules and AI capabilities for growing schools."
     private String description;
 
     // Example: PlanStatus.ACTIVE
-    private PlanStatus status;
+    @NotNull
+    @Builder.Default
+    private PlanStatus status = PlanStatus.DRAFT;
 
     // Example: BillingCycle.YEARLY
+    @NotNull
     private BillingCycle billingCycle;
 
     // Example: 49999.00
+    @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal listPrice;
 
     // Example: "INR"
+    @NotBlank
     private String currencyCode;
 
     // Example: 2000
+    @NotNull
     private Long maxStudents;
 
     // Example: 250
+    @NotNull
     private Long maxUsers;
 
     // Example: 2026-04-01T00:00:00Z
@@ -79,6 +104,7 @@ public class PlanDefinition extends AuditedDocument {
     private Instant effectiveUntil;
 
     // Example: true
+    @NotNull
     @Builder.Default
     private Boolean publiclyAvailable = false;
 

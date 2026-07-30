@@ -13,17 +13,28 @@ import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.plans.billing.enums.SubscriptionPaymentMethod;
 import com.orbitastra.backend.models.new_new.plans.billing.enums.SubscriptionPaymentStatus;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * Financial payment aggregate received or attempted against one subscription
+ * invoice.
+ *
+ * <p>{@code schoolSubscriptionDocsId} and
+ * {@code subscriptionInvoiceDocsId} link to the contracted subscription and
+ * invoice. Gateway references are external provider identifiers and are unique
+ * per provider where present. Offline methods may leave gateway fields null.
+ */
 @Document(collection = "subscription_payments")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "subscription_payment_no_uniq",
-                def = "{'paymentNo': 1}",
+                name = "school_subscription_payment_no_uniq",
+                def = "{'schoolId': 1, 'paymentNo': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "gateway_payment_reference_uniq",
@@ -42,25 +53,32 @@ import lombok.experimental.SuperBuilder;
 public class SubscriptionPayment extends SchoolBase {
 
     // Example: "SPAY/2026/000001"
+    @NotBlank
     private String paymentNo;
 
-    // Example: "67aa1a44dc3f7d0011223344"
+    // Links to SchoolSubscription.id. Example: "67aa1a44dc3f7d0011223344"
+    @NotBlank
     private String schoolSubscriptionDocsId;
 
-    // Example: "67ab10e8dc3f7d0055443322"
+    // Links to SubscriptionInvoice.id. Example: "67ab10e8dc3f7d0055443322"
+    @NotBlank
     private String subscriptionInvoiceDocsId;
 
     // Example: SubscriptionPaymentStatus.SUCCEEDED
+    @NotNull
     private SubscriptionPaymentStatus status;
 
     // Example: SubscriptionPaymentMethod.UPI
+    @NotNull
     private SubscriptionPaymentMethod paymentMethod;
 
     // Example: 53100.00
+    @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal amount;
 
     // Example: "INR"
+    @NotBlank
     private String currencyCode;
 
     // Example: "RAZORPAY"

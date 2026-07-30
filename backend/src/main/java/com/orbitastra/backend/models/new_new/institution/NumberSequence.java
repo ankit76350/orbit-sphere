@@ -9,6 +9,8 @@ import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.new_new.institution.enums.SequenceResetPolicy;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,9 +19,17 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Generates school-scoped business numbers. The next value must be allocated
- * atomically with MongoDB findAndModify and $inc; never read and then update it
- * in separate operations.
+ * Generates one type of school-scoped human-readable business number.
+ *
+ * <p>The unique key is {@code schoolId + sequenceType + scopeKey}. A global
+ * sequence uses scopeKey {@code "GLOBAL"}; an academic-year sequence uses the
+ * immutable academic-year name such as {@code "2026-2027"}.
+ *
+ * <p>{@code nextValue} means the next unused numeric value. Allocation must use
+ * one atomic MongoDB {@code findAndModify} operation that returns the old value
+ * while applying {@code $inc}; never read and update in separate operations.
+ * Formatting tokens are interpreted by the service and stored output numbers
+ * remain immutable business identifiers.
  */
 @Document(collection = "number_sequences")
 @CompoundIndex(
@@ -34,9 +44,11 @@ import lombok.experimental.SuperBuilder;
 public class NumberSequence extends SchoolBase {
 
     // Example: NumberSequenceType.STUDENT_ADMISSION
+    @NotNull
     private NumberSequenceType sequenceType;
 
-    // Example: "AY_2026_2027"
+    // Example: "2026-2027" or "GLOBAL"
+    @NotBlank
     private String scopeKey;
 
     // Example: "ADM/{YYYY}/"
@@ -46,14 +58,17 @@ public class NumberSequence extends SchoolBase {
     private String suffixTemplate;
 
     // Example: 1
+    @NotNull
     @Builder.Default
     private Long nextValue = 1L;
 
     // Example: 6
+    @NotNull
     @Builder.Default
     private Integer paddingWidth = 6;
 
     // Example: SequenceResetPolicy.ACADEMIC_YEAR
+    @NotNull
     @Builder.Default
     private SequenceResetPolicy resetPolicy = SequenceResetPolicy.NEVER;
 

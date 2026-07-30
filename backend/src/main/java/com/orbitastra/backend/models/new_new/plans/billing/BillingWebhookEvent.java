@@ -9,12 +9,27 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.plans.billing.enums.WebhookProcessingStatus;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * Durable, idempotent record of one payment-provider webhook.
+ *
+ * <p>The provider event id is unique per gateway. The payload is encrypted at
+ * rest and represented by a verification hash; secrets and raw signing keys are
+ * never stored. The integration must resolve and verify the School tenant before
+ * persisting this SchoolBase document.
+ *
+ * <p>Webhook processing updates this record and uses relatedEntityType plus
+ * relatedEntityDocsId to link to the affected invoice, payment, attempt, or
+ * subscription after resolution.
+ */
 @Document(collection = "billing_webhook_events")
 @CompoundIndexes({
         @CompoundIndex(
@@ -33,24 +48,33 @@ import lombok.experimental.SuperBuilder;
 public class BillingWebhookEvent extends SchoolBase {
 
     // Example: "RAZORPAY"
+    @NotBlank
     private String gatewayProvider;
 
     // Example: "evt_R7pw2V6n8"
+    @NotBlank
     private String providerEventId;
 
     // Example: "payment.captured"
+    @NotBlank
     private String providerEventType;
 
     // Example: WebhookProcessingStatus.RECEIVED
-    private WebhookProcessingStatus processingStatus;
+    @NotNull
+    @Builder.Default
+    private WebhookProcessingStatus processingStatus = WebhookProcessingStatus.RECEIVED;
 
     // Example: true
-    private Boolean signatureValid;
+    @NotNull
+    @Builder.Default
+    private Boolean signatureValid = false;
 
     // Example: "sha256:9af3d98e..."
+    @NotBlank
     private String payloadHash;
 
     // Example: "kms:v1:encrypted-webhook-payload"
+    @NotBlank
     private String encryptedPayload;
 
     // Example: "SUBSCRIPTION_PAYMENT"
@@ -60,9 +84,12 @@ public class BillingWebhookEvent extends SchoolBase {
     private String relatedEntityDocsId;
 
     // Example: 1
-    private Integer processingAttemptCount;
+    @NotNull
+    @Builder.Default
+    private Integer processingAttemptCount = 0;
 
     // Example: 2026-04-10T09:15:01Z
+    @NotNull
     private Instant receivedAt;
 
     // Example: 2026-04-10T09:15:03Z

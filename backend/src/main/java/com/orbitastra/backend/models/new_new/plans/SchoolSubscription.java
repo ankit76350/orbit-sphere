@@ -13,6 +13,8 @@ import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.new_new.plans.enums.SubscriptionStatus;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +22,19 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+/**
+ * Current and historical contracted subscription periods for one school.
+ *
+ * <p>The inherited {@code schoolId} links to School.id.
+ * {@code planDefinitionDocsId + planVersion} identify the selected immutable
+ * PlanDefinition version. Contract price, billing cycle, and optional capacity
+ * overrides are stored here because one school can negotiate terms different
+ * from the public plan defaults.
+ *
+ * <p>Exactly one document per school may have {@code current = true}. The
+ * current subscription is found by {@code schoolId + current}; subscription
+ * fields are deliberately not duplicated in School.
+ */
 @Document(collection = "school_subscriptions")
 @CompoundIndexes({
                 @CompoundIndex(name = "school_subscription_no_uniq", def = "{'schoolId': 1, 'subscriptionNo': 1}", unique = true),
@@ -32,48 +47,57 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SchoolSubscription extends SchoolBase {
-        // SchoolSubscription stores the current subscription state:
 
         // Example: "SUB/2026/000001"
+        @NotBlank
         private String subscriptionNo;
 
-        // Example: "67aa1202dc3f7d0012345678"
+        // Links to PlanDefinition.id. Example: "67aa1202dc3f7d0012345678"
+        @NotBlank
         private String planDefinitionDocsId;
 
         // Example: 1
+        @NotNull
         private Integer planVersion;
 
         // Example: SubscriptionStatus.ACTIVE
+        @NotNull
         private SubscriptionStatus status;
 
         // Example: BillingCycle.YEARLY
+        @NotNull
         private BillingCycle billingCycle;
 
         // Example: 2026-04-01T00:00:00Z
+        @NotNull
         private Instant currentPeriodStart;
 
         // Example: 2027-03-31T23:59:59Z
+        @NotNull
         private Instant currentPeriodEnd;
 
         // Example: true
+        @NotNull
         @Builder.Default
         private Boolean autoRenew = true;
 
         // Example: 45000.00
+        @NotNull
         @Field(targetType = FieldType.DECIMAL128)
         private BigDecimal contractedPrice;
 
         // Example: "INR"
+        @NotBlank
         private String currencyCode;
+
+        // Optional per-school student limit; null uses PlanDefinition.maxStudents. Example: 2500
+        private Long maxStudentsOverride;
+
+        // Optional per-school user limit; null uses PlanDefinition.maxUsers. Example: 300
+        private Long maxUsersOverride;
 
         // Example: "customer_Qx7B2mR9"
         private String billingCustomerReference;
-
-        // Example: "67aa15d9dc3f7d0098765432"
-        // We will later decide that we need this or not when we will deal with this
-        // backend/src/main/java/com/orbitastra/backend/models/new_new/plans/SchoolSubscription.java
-        // package com.orbitastra.backend.models.undone.a_new.legal;
-        private String contractDocsId;
 
         // Example: 2027-02-15T10:30:00Z
         private Instant cancelledAt;
@@ -82,6 +106,7 @@ public class SchoolSubscription extends SchoolBase {
         private String cancellationReason;
 
         // Example: true
+        @NotNull
         @Builder.Default
         private Boolean current = true;
 }
