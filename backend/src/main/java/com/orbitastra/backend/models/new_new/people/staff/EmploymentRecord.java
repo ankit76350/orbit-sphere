@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.employment;
+package com.orbitastra.backend.models.new_new.people.staff;
 
 import java.time.LocalDate;
 
@@ -7,7 +7,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.employment.enums.EmploymentStatus;
+import com.orbitastra.backend.models.new_new.people.staff.enums.EmploymentStatus;
+import com.orbitastra.backend.models.new_new.people.staff.enums.EmploymentType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -64,6 +65,10 @@ public class EmploymentRecord extends SchoolBase {
     // Example: EmploymentStatus.ACTIVE
     @NotNull
     private EmploymentStatus status;
+
+    // Example: EmploymentType.FULL_TIME
+    @NotNull
+    private EmploymentType employmentType;
 
     // Joining date or beginning of this employment period. Example: 2026-04-01
     @NotNull

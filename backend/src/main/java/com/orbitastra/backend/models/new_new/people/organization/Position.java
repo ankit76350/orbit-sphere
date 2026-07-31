@@ -5,8 +5,6 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.employment.enums.EmploymentType;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -57,10 +55,6 @@ public class Position extends SchoolBase {
     // Optionally links to the supervising Position.id.
     // Example: "67aa15d9dc3f7d0022222222"
     private String reportsToPositionDocsId;
-
-    // Example: EmploymentType.FULL_TIME
-    @NotNull
-    private EmploymentType employmentType;
 
     // Approved number of employees for this position. Example: 8
     @NotNull

@@ -4,9 +4,8 @@
 
 ```text
 people/
-├── staff/          Staff profile, government identity, address and contact
+├── staff/          Staff profile, identity and employment history
 ├── organization/   Department and Position definitions
-├── employment/     Employment and position-assignment history
 ├── credential/     Qualifications, licences and compliance credentials
 ├── leave/          Leave policies, balances and requests
 ├── recruitment/    Vacancies, candidate applications and interviews
