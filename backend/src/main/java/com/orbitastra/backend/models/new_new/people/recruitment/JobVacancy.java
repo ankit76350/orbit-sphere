@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.credential.enums.StaffCredentialType;
 import com.orbitastra.backend.models.new_new.people.recruitment.enums.JobVacancyStatus;
+import com.orbitastra.backend.models.new_new.people.staff.enums.StaffCredentialType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
