@@ -22,6 +22,15 @@ public enum NumberSequenceType {
     /** Permanent employee/staff number. */
     EMPLOYEE_NUMBER,
 
+    /** Staff leave request number. */
+    STAFF_LEAVE_REQUEST,
+
+    /** Approved staff vacancy number. */
+    JOB_VACANCY,
+
+    /** Candidate recruitment application number. */
+    RECRUITMENT_APPLICATION,
+
     /** School fee invoice number. */
     FEE_INVOICE,
 

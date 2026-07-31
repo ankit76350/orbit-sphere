@@ -19,18 +19,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Canonical human record shared by student, guardian, staff and alumni profiles.
- * Searchable sensitive values use keyed blind indexes; raw values are encrypted.
+ * Canonical human record shared by student, guardian, staff and alumni
+ * profiles.
+ * Searchable sensitive values use keyed blind indexes; raw values are
+ * encrypted.
  */
 @Document(collection = "person_records")
 @CompoundIndexes({
-        @CompoundIndex(name = "tenant_person_no_uniq",
-                def = "{'tenantId':1,'personNo':1}", unique = true),
-        @CompoundIndex(name = "tenant_government_id_lookup_uniq",
-                def = "{'tenantId':1,'governmentIdLookupHash':1}", unique = true,
-                partialFilter = "{'governmentIdLookupHash':{'$type':'string'}}"),
-        @CompoundIndex(name = "tenant_contact_lookup_idx",
-                def = "{'tenantId':1,'contactLookupHashes':1}")
+                @CompoundIndex(name = "tenant_person_no_uniq", def = "{'tenantId':1,'personNo':1}", unique = true),
+                @CompoundIndex(name = "tenant_government_id_lookup_uniq", def = "{'tenantId':1,'governmentIdLookupHash':1}", unique = true, partialFilter = "{'governmentIdLookupHash':{'$type':'string'}}"),
+                @CompoundIndex(name = "tenant_contact_lookup_idx", def = "{'tenantId':1,'contactLookupHashes':1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -39,22 +37,21 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class PersonRecord extends TenantScopedDocument {
 
-    private String personNo;
-    private String displayName;
-    private String sortName;
-    private LocalDate dateOfBirth;
-    private String genderCode;
-    private String nationalityCode;
-    private String preferredLanguage;
-    private String encryptedDemographics;
-    private String encryptedContacts;
-    private String encryptedAddresses;
-    private String governmentIdLookupHash;
-    private Confidentiality confidentiality;
 
-    @Builder.Default
-    private List<String> contactLookupHashes = new ArrayList<>();
+        // ! private LocalDate dateOfBirth;
+        // ! private String gender;
+        // private String nationalityCode;
+        // private String preferredLanguage;
+        // private String demographics;
+        // private String phoneNumber;
+        // private String emergencyContactNumber;
+        // private String email;
+        // private String addresses;
+        private String adharnumber;
+        private String pannumber;
 
-    @Builder.Default
-    private List<String> profileTypeCodes = new ArrayList<>();
+        @Builder.Default
+        private List<String> contactLookupHashes = new ArrayList<>();
+
+        // private String profileImage;
 }
