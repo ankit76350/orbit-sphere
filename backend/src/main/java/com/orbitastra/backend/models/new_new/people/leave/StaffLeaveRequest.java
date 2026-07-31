@@ -105,7 +105,7 @@ public class StaffLeaveRequest extends SchoolBase {
     // Example: "67aa15d9dc3f7d0044444444"
     private String coverStaffDocsId;
 
-    // Links to uploaded medical or supporting documents.
+    // References DocumentRecord.id values for medical/supporting documents.
     // Example: ["67aa15d9dc3f7d0055555555"]
     @Builder.Default
     private List<String> evidenceDocumentDocsIds = new ArrayList<>();

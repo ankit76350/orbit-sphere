@@ -94,7 +94,7 @@ admission pipeline state.
 | `applicationFormDefinitionDocsId` | Form definition used when the application was submitted. |
 | `applicationFormVersion` | Exact version of that form definition. |
 | `formAnswers` | Submitted answers interpreted using the form definition and version. |
-| `evidenceDocumentDocsIds` | Links to uploaded document records. |
+| `evidenceDocumentDocsIds` | References uploaded `DocumentRecord.id` values. |
 | `assignedAdmissionOfficerDocsId` | Staff member managing the application. |
 | `resultingStudentDocsId` | Student created when the application reaches `ENROLLED`. |
 

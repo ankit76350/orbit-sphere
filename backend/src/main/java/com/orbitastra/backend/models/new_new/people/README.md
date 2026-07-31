@@ -30,7 +30,7 @@ Staff
 ├── StaffLeaveBalance[]
 │   └── StaffLeaveRequest[]
 ├── StaffGovernmentIdentity[]
-│   └── evidenceDocumentDocsId -> stored document id
+│   └── evidenceDocumentDocsId -> DocumentRecord.id
 ├── StaffAddress (embedded)
 └── EmergencyContact (embedded)
 

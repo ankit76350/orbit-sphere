@@ -40,7 +40,8 @@ public class OnboardingTask {
     @Builder.Default
     private OnboardingTaskStatus status = OnboardingTaskStatus.PENDING;
 
-    // Links to supporting completion evidence.
+    // References DocumentRecord.id for supporting completion evidence.
+    // Example: "67aa15d9dc3f7d0011111111"
     private String evidenceDocumentDocsId;
 
     // Example: 2026-08-24T11:00:00Z

@@ -58,7 +58,6 @@ public class StaffGovernmentIdentity extends SchoolBase {
     private String issuingCountryCode;
 
     // Application-encrypted value; never plaintext.
-    // Example: "kms:v1:encrypted-identity-value"
     @NotBlank
     private String encryptedIdentityNumber;
 
@@ -70,7 +69,7 @@ public class StaffGovernmentIdentity extends SchoolBase {
     // Safe value for UI display. Example: "XXXX-XXXX-1234"
     private String maskedIdentityNumber;
 
-    // Links to the uploaded evidence document.
+    // References DocumentRecord.id for the uploaded evidence.
     // Example: "67aa15d9dc3f7d0044444444"
     private String evidenceDocumentDocsId;
 

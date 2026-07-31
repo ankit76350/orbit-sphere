@@ -119,7 +119,8 @@ public class AdmissionApplication extends SchoolBase {
     @Builder.Default
     private Map<String, Object> formAnswers = new HashMap<>();
 
-    // Links to stored document records. Example: ["67aa15d9dc3f7d0044444444", "67aa15d9dc3f7d0044444445"]
+    // References DocumentRecord.id values.
+    // Example: ["67aa15d9dc3f7d0044444444", "67aa15d9dc3f7d0044444445"]
     @Builder.Default
     private List<String> evidenceDocumentDocsIds = new ArrayList<>();
 

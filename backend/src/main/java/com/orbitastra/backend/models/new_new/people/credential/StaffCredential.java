@@ -86,7 +86,7 @@ public class StaffCredential extends SchoolBase {
     // Example: 2026-07-31T09:30:00Z
     private Instant verifiedAt;
 
-    // Links to the uploaded supporting document.
+    // References DocumentRecord.id for the uploaded supporting document.
     // Example: "67aa15d9dc3f7d0033333333"
     private String evidenceDocumentDocsId;
 }
