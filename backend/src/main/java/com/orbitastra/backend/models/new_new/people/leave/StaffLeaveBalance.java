@@ -3,7 +3,6 @@ package com.orbitastra.backend.models.new_new.people.leave;
 import java.math.BigDecimal;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
@@ -37,15 +36,10 @@ import lombok.experimental.SuperBuilder;
  * silently overwriting balance changes.
  */
 @Document(collection = "staff_leave_balances")
-@CompoundIndexes({
-        @CompoundIndex(
-                name = "school_staff_leave_type_year_uniq",
-                def = "{'schoolId': 1, 'staffDocsId': 1, 'leaveTypeDocsId': 1, 'academicYear': 1}",
-                unique = true),
-        @CompoundIndex(
-                name = "school_leave_balance_year_staff_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'staffDocsId': 1}")
-})
+@CompoundIndex(
+        name = "school_year_staff_leave_type_uniq",
+        def = "{'schoolId': 1, 'academicYear': 1, 'staffDocsId': 1, 'leaveTypeDocsId': 1}",
+        unique = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder

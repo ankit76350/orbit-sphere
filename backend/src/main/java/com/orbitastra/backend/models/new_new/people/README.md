@@ -150,7 +150,15 @@ leave requests.
 ## StaffLeaveRequest — `staff_leave_requests`
 
 Links Staff, LeaveType, and StaffLeaveBalance. `requestNo` is generated with
-`NumberSequenceType.STAFF_LEAVE_REQUEST`.
+`NumberSequenceType.STAFF_LEAVE_REQUEST`. The balance is uniquely identified by:
+
+```text
+schoolId + academicYear + staffDocsId + leaveTypeDocsId
+```
+
+`staffLeaveBalanceDocsId` provides a direct link to that balance.
+`coverStaffDocsId` optionally identifies the staff member assigned to cover the
+absent employee's duties.
 
 Submitting, approving, rejecting, or cancelling a request must update the
 balance consistently. Approval should reserve or consume days and cancellation

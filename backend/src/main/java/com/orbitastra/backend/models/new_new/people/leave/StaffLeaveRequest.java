@@ -39,10 +39,13 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_staff_leave_dates_status_idx",
-                def = "{'schoolId': 1, 'staffDocsId': 1, 'fromDate': 1, 'toDate': 1, 'status': 1}"),
+                def = "{'schoolId': 1, 'staffDocsId': 1, 'status': 1, 'fromDate': 1, 'toDate': 1}"),
         @CompoundIndex(
                 name = "school_leave_decision_queue_idx",
-                def = "{'schoolId': 1, 'status': 1, 'submittedAt': 1}")
+                def = "{'schoolId': 1, 'status': 1, 'submittedAt': 1}"),
+        @CompoundIndex(
+                name = "school_year_staff_leave_history_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'staffDocsId': 1, 'submittedAt': -1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
