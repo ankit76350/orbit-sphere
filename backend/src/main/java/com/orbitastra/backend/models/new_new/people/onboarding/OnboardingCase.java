@@ -23,9 +23,6 @@ import lombok.experimental.SuperBuilder;
 
 /**
  * Tracks onboarding work after a Staff profile and EmploymentRecord are created.
- *
- * <p>The recruitment link is optional so schools can onboard employees hired
- * outside the recruitment module.
  */
 @Document(collection = "staff_onboarding_cases")
 @CompoundIndexes({
@@ -43,9 +40,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OnboardingCase extends SchoolBase {
-
-    // Optionally links to RecruitmentApplication.id.
-    private String recruitmentApplicationDocsId;
 
     // Links to Staff.id. Example: "67aa15d9dc3f7d0011111111"
     @NotBlank

@@ -8,7 +8,6 @@ people/
 ├── organization/   Department and Position definitions
 ├── credential/     Qualifications, licences and compliance credentials
 ├── leave/          Leave policies, balances and requests
-├── recruitment/    Vacancies, candidate applications and interviews
 ├── onboarding/     New-employee joining cases and checklists
 ├── performance/    Performance cycles, criteria and assessments
 ├── development/    Training and professional-development history
@@ -41,15 +40,11 @@ LeaveType
 └── StaffLeaveBalance[]
     └── StaffLeaveRequest[]
 
-Position
-└── JobVacancy[]
-    └── RecruitmentApplication[]
-        ├── RecruitmentInterview[] (embedded)
-        ├── resultingStaffDocsId -> Staff.id
-        └── OnboardingCase
-            ├── staffDocsId            -> Staff.id
-            ├── employmentRecordDocsId -> EmploymentRecord.id
-            └── OnboardingTask[] (embedded)
+Staff
+└── OnboardingCase
+    ├── staffDocsId            -> Staff.id
+    ├── employmentRecordDocsId -> EmploymentRecord.id
+    └── OnboardingTask[] (embedded)
 
 PerformanceCycle
 ├── PerformanceCriterion[] (embedded)
@@ -176,35 +171,11 @@ identity number is never stored as plaintext.
 The encryption key must be resolved through the school's key-vault/KMS
 reference.
 
-## JobVacancy — `staff_job_vacancies`
-
-Stores an approved requirement to recruit one or more employees for a Position.
-`vacancyNo` is generated with `NumberSequenceType.JOB_VACANCY`. The workflow is:
-
-```text
-DRAFT -> PENDING_APPROVAL -> APPROVED -> OPEN -> CLOSED/FILLED
-```
-
-The service must calculate how many candidates were hired from the linked
-RecruitmentApplication records. It must not maintain a separate filled counter
-that can drift from the real data.
-
-## RecruitmentApplication — `staff_recruitment_applications`
-
-Stores one candidate's application for one JobVacancy. `applicationNo` is
-generated with `NumberSequenceType.RECRUITMENT_APPLICATION`. Interview history
-is embedded because it belongs only to that application.
-
-Candidate name, phone, email, address, and other personal data are stored in
-`encryptedCandidateProfile`. `candidateLookupHash` is a keyed hash used to
-prevent duplicate applications without exposing those values. After the
-candidate is hired, `resultingStaffDocsId` links the application to Staff.
-
 ## OnboardingCase — `staff_onboarding_cases`
 
-Tracks the joining checklist after Staff and EmploymentRecord are created. It
-can optionally link to RecruitmentApplication. This link is optional because a
-school may directly add a staff member without using recruitment.
+Tracks the joining checklist after Staff and EmploymentRecord are created.
+Schools directly create the staff member and their employment record before
+starting onboarding.
 
 OnboardingTask is embedded because each task belongs to exactly one onboarding
 case. The service derives the overall onboarding status from required tasks and
