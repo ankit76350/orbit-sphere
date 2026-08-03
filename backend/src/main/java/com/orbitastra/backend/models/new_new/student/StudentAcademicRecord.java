@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.student.enums.EnrollmentStatus;
+import com.orbitastra.backend.models.new_new.student.enums.AcademicRecordStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,16 +19,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Academic-year class and section placement for one Student.
+ * Academic-year class and section record for one Student.
  *
- * <p>A student can have historical enrollments, but only one ACTIVE enrollment
+ * <p>A student can have historical academic records, but only one ACTIVE record
  * in an academic year. Student and AcademicYear references are inherited from
  * AcademicStudentSchoolBase.
  */
-@Document(collection = "student_enrollments")
+@Document(collection = "student_academic_records")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_year_student_active_enrollment_uniq",
+                name = "school_year_student_active_academic_record_uniq",
                 def = "{'schoolId': 1, 'academicYear': 1, 'studentDocsId': 1, 'status': 1}",
                 unique = true,
                 partialFilter = "{'status': 'ACTIVE'}"),
@@ -41,7 +41,7 @@ import lombok.experimental.SuperBuilder;
                 name = "school_year_class_section_roster_idx",
                 def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'status': 1}"),
         @CompoundIndex(
-                name = "school_student_enrollment_history_idx",
+                name = "school_student_academic_record_history_idx",
                 def = "{'schoolId': 1, 'studentDocsId': 1, 'academicYear': -1, 'effectiveFrom': -1}")
 })
 @Data
@@ -49,7 +49,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentEnrollment extends AcademicStudentSchoolBase {
+public class StudentAcademicRecord extends AcademicStudentSchoolBase {
 
     // Links to the academic class/grade document. Example: "67aa15d9dc3f7d0011111111"
     @NotBlank
@@ -66,15 +66,15 @@ public class StudentEnrollment extends AcademicStudentSchoolBase {
     @NotNull
     private LocalDate effectiveFrom;
 
-    // Null while this enrollment remains current. Example: 2027-03-31
+    // Null while this academic record remains current. Example: 2027-03-31
     private LocalDate effectiveUntil;
 
-    // Example: EnrollmentStatus.ACTIVE
+    // Example: AcademicRecordStatus.ACTIVE
     @NotNull
     @Builder.Default
-    private EnrollmentStatus status = EnrollmentStatus.ACTIVE;
+    private AcademicRecordStatus status = AcademicRecordStatus.ACTIVE;
 
-    // Previous enrollment replaced by this placement.
+    // Previous academic record replaced by this placement.
     // Example: "67aa15d9dc3f7d0033333333"
-    private String previousEnrollmentDocsId;
+    private String previousAcademicRecordDocsId;
 }

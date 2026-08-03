@@ -25,7 +25,7 @@ import lombok.experimental.SuperBuilder;
 /**
  * Stable personal profile of one student belonging to a school.
  *
- * <p>Academic-year placement is stored in StudentEnrollment. Health, hostel,
+ * <p>Academic-year placement is stored in StudentAcademicRecord. Health, hostel,
  * transport, attendance, fees, and wallet data belong to their own modules and
  * are not duplicated in this profile.
  */

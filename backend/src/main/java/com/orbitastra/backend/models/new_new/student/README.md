@@ -6,12 +6,12 @@
 student/
 ├── Student.java
 ├── Guardian.java
-├── StudentEnrollment.java
+├── StudentAcademicRecord.java
 ├── embedded/
 │   └── GuardianLink.java
 └── enums/
     ├── StudentStatus.java
-    └── EnrollmentStatus.java
+    └── AcademicRecordStatus.java
 ```
 
 Gender and GuardianRelation are shared from `new_new/common/enums` instead of
@@ -25,7 +25,7 @@ AdmissionApplication (optional)
     ├── GuardianLink[] (embedded)
     │   └── guardianDocsId -> Guardian.id
     ├── profilePhotoDocumentId -> DocumentRecord.id
-    └── StudentEnrollment[]
+    └── StudentAcademicRecord[]
         ├── academicYear -> AcademicYear.name
         ├── classDocsId  -> future academic class/grade id
         └── sectionDocsId -> future academic section id
@@ -48,7 +48,7 @@ allow at most one `primaryContact = true` per student.
 
 Student intentionally does not store:
 
-- current enrollment id;
+- current academic-record id;
 - health or medical records;
 - hostel room or boarding assignment;
 - transport assignment;
@@ -56,9 +56,9 @@ Student intentionally does not store:
 - attendance or academic results;
 - temporary or signed profile-photo URLs.
 
-Those values belong to their owning modules. Current enrollment is queried from
-StudentEnrollment using its active-enrollment index, avoiding a duplicated
-pointer that can become stale.
+Those values belong to their owning modules. The current academic record is
+queried from StudentAcademicRecord using its active-record index, avoiding a
+duplicated pointer that can become stale.
 
 ## Guardian — `guardians`
 
@@ -76,19 +76,19 @@ Connects a Student to a Guardian and stores information that belongs to that
 specific relationship: relation, primary contact, emergency contact, pickup
 authorization, and portal access.
 
-## StudentEnrollment — `student_enrollments`
+## StudentAcademicRecord — `student_academic_records`
 
 Stores class and section placement for one student in one academic year. It
 extends `AcademicStudentSchoolBase`, so `schoolId`, `studentDocsId`, and
 `academicYear` are inherited.
 
-One student can have enrollment history, but only one ACTIVE enrollment is
-allowed in the same academic year. When changing class or section:
+One student can have academic placement history, but only one ACTIVE academic
+record is allowed in the same academic year. When changing class or section:
 
-1. set the old enrollment's status to TRANSFERRED;
+1. set the old record's status to TRANSFERRED;
 2. set its `effectiveUntil`;
-3. create the new ACTIVE enrollment;
-4. link `previousEnrollmentDocsId` to the old record.
+3. create the new ACTIVE academic record;
+4. link `previousAcademicRecordDocsId` to the old record.
 
 These changes should be performed transactionally. `rollNo` is generated using
 `NumberSequenceType.STUDENT_ROLL_NUMBER` when the school enables automatic roll
@@ -100,7 +100,7 @@ The old references were intentionally not copied as follows:
 
 - `PersonRecord`: student identity is stored directly in Student.
 - `GuardianStudentRelationship`: replaced by embedded GuardianLink.
-- `StudentAcademicRecord`: renamed and redesigned as StudentEnrollment.
+- `StudentEnrollment`: redesigned as StudentAcademicRecord.
 - `StudentLifecycleEvent`: defer until lifecycle audit history is required.
 - Health, hostel, transport, attendance, conduct, and student-life records:
   build them in their own future modules.
@@ -109,5 +109,5 @@ The old references were intentionally not copied as follows:
 
 Models contain only essential persistence requirements. DTOs and services
 validate date ordering, contact formats, guardian-link rules, tenant ownership,
-student status transitions, enrollment transitions, class/section ownership,
+student status transitions, academic-record transitions, class/section ownership,
 roll-number generation, and admission conversion.
