@@ -1,0 +1,180 @@
+# Academics domain model
+
+## Package structure
+
+```text
+academics/
+├── structure/
+│   ├── Subject.java
+│   ├── SchoolClass.java
+│   ├── ClassSection.java
+│   └── SubjectOffering.java
+├── curriculum/
+│   ├── CurriculumFramework.java
+│   ├── LearningOutcome.java
+│   └── CurriculumUnit.java
+├── grading/
+│   ├── GradingScheme.java
+│   └── embedded/GradeBand.java
+├── timetable/
+│   ├── TimetableEntry.java
+│   └── TeacherSubstitution.java
+├── homework/
+│   ├── Homework.java
+│   └── HomeworkSubmission.java
+├── attendance/
+│   ├── AttendanceSession.java
+│   └── StudentAttendanceRecord.java
+├── examination/
+│   ├── Exam.java
+│   ├── ExamSchedule.java
+│   ├── StudentMark.java
+│   ├── ReportCard.java
+│   └── embedded/ReportCardSubjectResult.java
+└── enums/
+```
+
+All top-level documents extend `SchoolBase`. Every reference lookup must also
+include `schoolId`. Every `academicYear` field stores `AcademicYear.name`, such
+as `"2026-2027"`; it never stores `AcademicYear.id`.
+
+## Main relationship map
+
+```text
+AffiliationProgramme (optional)
+└── CurriculumFramework
+    ├── LearningOutcome[]
+    └── SchoolClass[] (per AcademicYear.name)
+        └── ClassSection[]
+            ├── StudentAcademicRecord[]
+            ├── SubjectOffering[] ──> Subject
+            │   └── CurriculumUnit[] ──> LearningOutcome[]
+            ├── TimetableEntry[]
+            │   └── TeacherSubstitution[] (one dated replacement)
+            ├── Homework[]
+            │   └── HomeworkSubmission[] (per student and attempt)
+            └── AttendanceSession[]
+                └── StudentAttendanceRecord[] (per student)
+
+GradingScheme
+├── SubjectOffering (optional default scheme)
+└── Exam (optional default scheme)
+    └── ExamSchedule[] (class/section/subject/component)
+        └── StudentMark[]
+
+StudentMark[] + attendance summary
+└── ReportCard (versioned published snapshot)
+```
+
+## Structure
+
+`Subject` is the stable school subject master. `SchoolClass` is a year-specific
+grade/class. `ClassSection` is a section within that class. `SubjectOffering`
+assigns a subject and one or more teachers to a class or section for the year.
+This replaces the old subjects and sections embedded inside `SchoolClass`, which
+could not support section-specific teachers or independent updates.
+
+`StudentAcademicRecord.classDocsId` references `SchoolClass.id` and
+`StudentAcademicRecord.sectionDocsId` references `ClassSection.id`. The service
+must verify that the section belongs to the selected class and academic year.
+
+## Curriculum and grading
+
+`CurriculumFramework` represents a versioned board or school curriculum.
+`LearningOutcome` stores reusable competencies. `CurriculumUnit` is the actual
+teaching unit planned for one `SubjectOffering` in one academic year.
+
+`GradingScheme` embeds a small ordered list of `GradeBand` values. Services must
+reject overlapping bands, gaps that are not intentional, invalid boundaries,
+and changes to a scheme already used for published results. Create a new scheme
+version instead of rewriting historical grading rules.
+
+## Timetable
+
+`TimetableEntry` is one recurring weekly slot. It replaces the old
+school-wide `DailyTimetable` document, whose embedded entries would grow and
+cause many teachers to update the same MongoDB document. Holidays come from
+`AcademicYear`; the service calculates whether a recurring slot occurs on a
+requested date. `TeacherSubstitution` records a replacement only for one date.
+
+Services must validate time ordering and prevent overlapping active slots for
+the same section, teacher, or room. A unique index prevents identical section
+start times, but interval overlap is a service rule.
+
+## Homework
+
+`Homework` stores assignment instructions and targeting. `HomeworkSubmission`
+stores one student's numbered attempt. Submission counts are calculated with a
+count query and are not persisted on `Homework`. Files reference private
+`DocumentRecord.id` values; URLs are never stored.
+
+For `HomeworkScope.SELECTED_STUDENTS`, `targetStudentDocsIds` contains the small
+selected set. Class and section assignments use their references and do not
+copy an entire roster into the homework document.
+
+## Attendance
+
+`AttendanceSession` is the register header for daily or period attendance.
+`StudentAttendanceRecord` is one student row. This split allows concurrent
+updates and efficient student history without growing a single class document.
+
+The student row stores both `attendanceSessionDocsId` and
+`studentAcademicRecordDocsId`. Services must copy `attendanceDate` and
+`academicYear` from the session, obtain the student from the academic record,
+and reject students outside that session's class/section. Locking a session and
+making final row changes should be transactional. Staff attendance and hostel
+night roll calls belong to their own people and hostel modules.
+
+## Examinations and report cards
+
+`Exam` is the overall examination. `ExamSchedule` is one class/section subject
+component, such as theory or practical. `StudentMark` stores one student's mark
+for that component. The schedule owns maximum and passing marks; the student
+mark stores the obtained value and participation state.
+
+`ReportCard` is a versioned snapshot generated from selected exams, grading
+rules, and attendance. Once published, do not recalculate it in place. A
+correction creates the next `reportVersion`; the generated PDF, if any, is a
+`DocumentRecord` reference.
+
+Mark submission, locking, publication, report generation, and report
+publication require transactions or idempotent workflows. The service must
+ensure `AcademicYear.resultsLocked` is respected.
+
+## Mapping from the reference models
+
+- `CourseOffering` became the simpler `SubjectOffering`.
+- `ScheduleOccurrence` became a recurring `TimetableEntry`; dated teacher
+  changes use `TeacherSubstitution`.
+- `LearningActivity` and `LearnerSubmission` are represented by `Homework` and
+  `HomeworkSubmission` for the current ERP scope.
+- `AttendanceSession` and `StudentAttendanceRecord` were retained with school
+  tenancy and `AcademicYear.name` conventions.
+- `AssessmentSession` was separated into `Exam` and `ExamSchedule`.
+- `AssessmentAttempt`, `GradebookRecord`, and the old `AcademicResult` were
+  consolidated into `StudentMark`, while published summaries use `ReportCard`.
+- `CurriculumFramework`, `CurriculumUnit`, `LearningOutcome`, and `ReportCard`
+  were retained in simplified forms.
+
+## Intentionally deferred or moved
+
+- `AssessmentBankItem`: defer until a question-bank and online-exam module is
+  designed.
+- `AccommodationPlan`: belongs to a future student inclusion/support module.
+- `ScheduleConstraint`: add later with automated/AI timetable generation.
+- Generic LMS activities, discussions, plagiarism checks, rubrics, and virtual
+  classes: design in a future learning/LMS module; homework remains here.
+- `MedicalRecord`: moved out of academics; design it in the health module.
+- `DisciplineLog`: moved out of academics; design it in the conduct module.
+- Promotion/rollover does not need a duplicate result model. It closes the old
+  `StudentAcademicRecord`, creates the next year's record, and updates
+  `Student.currentAcademicRecordDocsId` transactionally. Add a separate batch
+  audit model only when the rollover workflow is implemented.
+
+## Validation responsibility
+
+Models contain only essential persistence requirements. DTOs and services must
+validate tenant ownership, immutable academic-year names, date/time ordering,
+class-section relationships, teacher assignments, timetable collisions,
+homework targeting, score ranges, grading bands, state transitions, publication
+authorization, and cross-document consistency.

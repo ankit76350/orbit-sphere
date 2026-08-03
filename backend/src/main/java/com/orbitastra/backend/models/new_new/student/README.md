@@ -28,8 +28,8 @@ AdmissionApplication (optional)
     ├── currentAcademicRecordDocsId -> current StudentAcademicRecord.id
     └── StudentAcademicRecord[]
         ├── academicYear -> AcademicYear.name
-        ├── classDocsId  -> future academic class/grade id
-        └── sectionDocsId -> future academic section id
+        ├── classDocsId  -> SchoolClass.id
+        └── sectionDocsId -> ClassSection.id
 ```
 
 All top-level documents extend `SchoolBase`. Every reference lookup must include

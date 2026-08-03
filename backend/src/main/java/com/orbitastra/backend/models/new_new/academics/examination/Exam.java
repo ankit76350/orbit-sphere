@@ -1,0 +1,79 @@
+package com.orbitastra.backend.models.new_new.academics.examination;
+
+import java.time.Instant;
+import java.time.LocalDate;
+
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.orbitastra.backend.models.new_new.academics.enums.ExamStatus;
+import com.orbitastra.backend.models.new_new.base.SchoolBase;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+
+/** One examination event, such as a unit test, midterm, or final examination. */
+@Document(collection = "exams")
+@CompoundIndexes({
+        @CompoundIndex(
+                name = "school_year_exam_code_uniq",
+                def = "{'schoolId': 1, 'academicYear': 1, 'examCode': 1}",
+                unique = true),
+        @CompoundIndex(
+                name = "school_year_exam_status_start_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'status': 1, 'startDate': 1}")
+})
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Exam extends SchoolBase {
+
+    // Stores AcademicYear.name. Example: "2026-2027"
+    @NotBlank
+    private String academicYear;
+
+    // Stable key within the academic year. Example: "MIDTERM_2026"
+    @NotBlank
+    private String examCode;
+
+    // Example: "Midterm Examination 2026"
+    @NotBlank
+    private String name;
+
+    // School-defined term/reporting period name. Example: "Term 1"
+    @NotBlank
+    private String reportingPeriodName;
+
+    // Example: 2026-08-10
+    @NotNull
+    private LocalDate startDate;
+
+    // Example: 2026-08-20
+    @NotNull
+    private LocalDate endDate;
+
+    // Optionally links to the default GradingScheme.id.
+    // Example: "67aa15d9dc3f7d0011111111"
+    private String gradingSchemeDocsId;
+
+    // Example: ExamStatus.PUBLISHED
+    @NotNull
+    @Builder.Default
+    private ExamStatus status = ExamStatus.DRAFT;
+
+    // Example: 2026-07-20T08:30:00Z
+    private Instant publishedAt;
+
+    // Links to the publishing Staff.id.
+    // Example: "67aa15d9dc3f7d0022222222"
+    private String publishedByDocsId;
+}

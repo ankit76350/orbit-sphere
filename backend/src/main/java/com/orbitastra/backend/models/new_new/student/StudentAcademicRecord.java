@@ -51,11 +51,11 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class StudentAcademicRecord extends AcademicStudentSchoolBase {
 
-    // Links to the academic class/grade document. Example: "67aa15d9dc3f7d0011111111"
+    // Links to SchoolClass.id. Example: "67aa15d9dc3f7d0011111111"
     @NotBlank
     private String classDocsId;
 
-    // Optional until the student is assigned to a section.
+    // Optionally links to ClassSection.id until the student is assigned.
     // Example: "67aa15d9dc3f7d0022222222"
     private String sectionNo;
 
