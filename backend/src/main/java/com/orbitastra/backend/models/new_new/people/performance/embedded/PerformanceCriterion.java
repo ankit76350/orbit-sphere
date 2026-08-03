@@ -1,6 +1,6 @@
 package com.orbitastra.backend.models.new_new.people.performance.embedded;
 
-import com.orbitastra.backend.models.new_new.people.performance.enums.PerformanceRespondentType;
+import com.orbitastra.backend.models.new_new.people.performance.enums.PerformanceReviewerType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,9 +26,9 @@ public class PerformanceCriterion {
     @NotBlank
     private String label;
 
-    // Respondent group allowed to score this criterion.
+    // Reviewer group allowed to score this criterion.
     @NotNull
-    private PerformanceRespondentType respondentType;
+    private PerformanceReviewerType reviewerType;
 
     // Contribution to the final score. Example: 40
     @NotNull

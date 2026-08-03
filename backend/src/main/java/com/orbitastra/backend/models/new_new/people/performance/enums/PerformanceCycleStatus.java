@@ -10,7 +10,7 @@ public enum PerformanceCycleStatus {
     /** Cycle is configured to open later. */
     SCHEDULED,
 
-    /** Respondents may submit assessments. */
+    /** Reviewers may submit assessments. */
     OPEN,
 
     /** Submissions are closed and final review is underway. */

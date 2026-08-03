@@ -179,12 +179,12 @@ because the criterion configuration is owned by and versioned with its cycle.
 
 ## PerformanceAssessment — `staff_performance_assessments`
 
-Stores one respondent's assessment of one Staff member within one
-PerformanceCycle. Respondents may be the staff member, manager, peer, student,
+Stores one reviewer's assessment of one Staff member within one
+PerformanceCycle. Reviewers may be the staff member, manager, peer, student,
 parent, or a school-defined category.
 
-For anonymous feedback, the respondent's document id is omitted and only a
-keyed `respondentLookupHash` is saved. That hash prevents duplicate submissions
+For anonymous feedback, the reviewer's document id is omitted and only a keyed
+`reviewerLookupHash` is saved. That hash prevents duplicate submissions
 without exposing identity. Access to raw assessments and aggregate results must
 be controlled separately by role and cycle policy.
 
