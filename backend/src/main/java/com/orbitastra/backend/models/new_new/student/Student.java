@@ -45,7 +45,12 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'status': 1, 'fullName': 1}"),
         @CompoundIndex(
                 name = "school_guardian_students_idx",
-                def = "{'schoolId': 1, 'guardians.guardianDocsId': 1}")
+                def = "{'schoolId': 1, 'guardians.guardianDocsId': 1}"),
+        @CompoundIndex(
+                name = "school_current_academic_record_uniq",
+                def = "{'schoolId': 1, 'currentAcademicRecordDocsId': 1}",
+                unique = true,
+                partialFilter = "{'currentAcademicRecordDocsId': {'$type': 'string'}}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -99,6 +104,11 @@ public class Student extends SchoolBase {
     @NotNull
     @Builder.Default
     private StudentStatus status = StudentStatus.ACTIVE;
+
+    // References the student's current StudentAcademicRecord.id.
+    // Null until an academic record is assigned.
+    // Example: "67aa15d9dc3f7d0033333333"
+    private String currentAcademicRecordDocsId;
 
     // References DocumentRecord.id for the profile photo.
     // Example: "67aa15d9dc3f7d0022222222"

@@ -25,6 +25,7 @@ AdmissionApplication (optional)
     ├── GuardianLink[] (embedded)
     │   └── guardianDocsId -> Guardian.id
     ├── profilePhotoDocumentId -> DocumentRecord.id
+    ├── currentAcademicRecordDocsId -> current StudentAcademicRecord.id
     └── StudentAcademicRecord[]
         ├── academicYear -> AcademicYear.name
         ├── classDocsId  -> future academic class/grade id
@@ -48,7 +49,6 @@ allow at most one `primaryContact = true` per student.
 
 Student intentionally does not store:
 
-- current academic-record id;
 - health or medical records;
 - hostel room or boarding assignment;
 - transport assignment;
@@ -56,9 +56,11 @@ Student intentionally does not store:
 - attendance or academic results;
 - temporary or signed profile-photo URLs.
 
-Those values belong to their owning modules. The current academic record is
-queried from StudentAcademicRecord using its active-record index, avoiding a
-duplicated pointer that can become stale.
+Those values belong to their owning modules. `currentAcademicRecordDocsId`
+provides a direct pointer to the current StudentAcademicRecord. When a current
+record changes, the service must close the old record, create/activate the new
+record, and update this pointer in the same transaction so it cannot become
+stale.
 
 ## Guardian — `guardians`
 
