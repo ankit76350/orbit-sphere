@@ -8,7 +8,6 @@ people/
 ├── organization/   Department and Position definitions
 ├── credential/     Qualifications, licences and compliance credentials
 ├── leave/          Leave policies, balances and requests
-├── onboarding/     New-employee joining cases and checklists
 ├── performance/    Performance cycles, criteria and assessments
 ├── development/    Training and professional-development history
 └── reviews/draft/  Older review drafts retained only for later cleanup
@@ -39,12 +38,6 @@ Department
 LeaveType
 └── StaffLeaveBalance[]
     └── StaffLeaveRequest[]
-
-Staff
-└── OnboardingCase
-    ├── staffDocsId            -> Staff.id
-    ├── employmentRecordDocsId -> EmploymentRecord.id
-    └── OnboardingTask[] (embedded)
 
 PerformanceCycle
 ├── PerformanceCriterion[] (embedded)
@@ -170,17 +163,6 @@ identity number is never stored as plaintext.
 
 The encryption key must be resolved through the school's key-vault/KMS
 reference.
-
-## OnboardingCase — `staff_onboarding_cases`
-
-Tracks the joining checklist after Staff and EmploymentRecord are created.
-Schools directly create the staff member and their employment record before
-starting onboarding.
-
-OnboardingTask is embedded because each task belongs to exactly one onboarding
-case. The service derives the overall onboarding status from required tasks and
-enforces that linked Staff and EmploymentRecord belong to the same school and
-person.
 
 ## StaffDevelopmentRecord — `staff_development_records`
 
