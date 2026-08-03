@@ -26,7 +26,7 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_outcome_subject_class_order_idx",
-                def = "{'schoolId': 1, 'curriculumFrameworkDocsId': 1, 'subjectCode': 1, 'classCode': 1, 'sequence': 1}")
+                def = "{'schoolId': 1, 'curriculumFrameworkDocsId': 1, 'subjectDocsId': 1, 'classCode': 1, 'sequence': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -51,10 +51,9 @@ public class LearningOutcome extends SchoolBase {
     // Example: "The learner solves and verifies one-variable linear equations."
     private String description;
 
-    // References an embedded SchoolClass.subjects[].subjectCode.
-    // Example: "MATHEMATICS"
+    // Links to Subject.id. Example: "67aa15d9dc3f7d0022222222"
     @NotBlank
-    private String subjectCode;
+    private String subjectDocsId;
 
     // Stable SchoolClass.classCode, not a year-specific class id. Example: "GRADE_7"
     private String classCode;

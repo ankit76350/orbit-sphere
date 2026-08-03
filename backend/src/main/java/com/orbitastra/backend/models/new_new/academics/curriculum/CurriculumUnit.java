@@ -54,7 +54,7 @@ public class CurriculumUnit extends SchoolBase {
 
     // Optional embedded SchoolClass.sections[].sectionCode; null means class-wide.
     // Example: "A"
-    private String sectionCode;
+    private String sectionNo;
 
     // References an embedded SchoolClass.subjects[].subjectCode.
     // Example: "MATHEMATICS"
