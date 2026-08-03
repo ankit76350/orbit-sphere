@@ -8,7 +8,7 @@ people/
 ├── organization/   Department and Position definitions
 ├── credential/     Qualifications, licences and compliance credentials
 ├── leave/          Leave policies, balances and requests
-├── performance/    Performance cycles, criteria and assessments
+├── reviews/        Staff review cycles, criteria and submitted reviews
 ├── development/    Training and professional-development history
 └── reviews/draft/  Older review drafts retained only for later cleanup
 ```
@@ -39,10 +39,10 @@ LeaveType
 └── StaffLeaveBalance[]
     └── StaffLeaveRequest[]
 
-PerformanceCycle
-├── PerformanceCriterion[] (embedded)
-└── PerformanceAssessment[]
-    └── subjectStaffDocsId -> Staff.id
+ReviewCycle
+├── ReviewCriterion[] (embedded)
+└── StaffReview[]
+    └── reviewedStaffDocsId -> Staff.id
 
 Staff
 └── StaffDevelopmentRecord[]
@@ -171,21 +171,21 @@ and other professional-development activity for one Staff member. It keeps
 approval, completion, cost, learning hours, certificate evidence, learned skill
 codes, and an optional impact evaluation.
 
-## PerformanceCycle — `staff_performance_cycles`
+## ReviewCycle — `staff_review_cycles`
 
-Defines one performance-review period and its scoring criteria. It stores
-`AcademicYear.name`, never AcademicYear.id. PerformanceCriterion is embedded
-because the criterion configuration is owned by and versioned with its cycle.
+Defines one staff-review period and its scoring criteria. It stores
+`AcademicYear.name`, never AcademicYear.id. ReviewCriterion is embedded because
+the criterion configuration is owned by and versioned with its cycle.
 
-## PerformanceAssessment — `staff_performance_assessments`
+## StaffReview — `staff_reviews`
 
-Stores one reviewer's assessment of one Staff member within one
-PerformanceCycle. Reviewers may be the staff member, manager, peer, student,
-parent, or a school-defined category.
+Stores one reviewer's review of one Staff member within one ReviewCycle.
+Reviewers may be the staff member, manager, peer, student, parent, or a
+school-defined category.
 
 For anonymous feedback, the reviewer's document id is omitted and only a keyed
 `reviewerLookupHash` is saved. That hash prevents duplicate submissions
-without exposing identity. Access to raw assessments and aggregate results must
+without exposing identity. Access to raw reviews and aggregate results must
 be controlled separately by role and cycle policy.
 
 ## Embedded values
@@ -201,10 +201,3 @@ trimmed lowercase form before persistence.
 The persistence models contain only essential required constraints. Request DTOs
 and services validate formats, date ordering, allowed employment transitions,
 tenant ownership, identity encryption, evidence access, and conditional fields.
-
-The existing `ReviewCycle`, `TeacherPerformanceReview`, `TeacherReview`, and
-`StudentReview` files are isolated under `people/reviews/draft`. They remain
-older draft models. `PerformanceCycle` and `PerformanceAssessment` replace the
-first two for staff performance. The other two belong to a later
-feedback/student design review. They have not been deleted because deletion
-should happen only after explicitly approving that cleanup.

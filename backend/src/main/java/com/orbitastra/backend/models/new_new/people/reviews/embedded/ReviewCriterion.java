@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.people.performance.embedded;
+package com.orbitastra.backend.models.new_new.people.reviews.embedded;
 
-import com.orbitastra.backend.models.new_new.people.performance.enums.PerformanceReviewerType;
+import com.orbitastra.backend.models.new_new.people.reviews.enums.ReviewerType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,13 +10,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Scoring criterion embedded in a PerformanceCycle.
+ * Scoring criterion embedded in a ReviewCycle.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PerformanceCriterion {
+public class ReviewCriterion {
 
     // Stable key within the cycle. Example: "TEACHING_QUALITY"
     @NotBlank
@@ -28,7 +28,7 @@ public class PerformanceCriterion {
 
     // Reviewer group allowed to score this criterion.
     @NotNull
-    private PerformanceReviewerType reviewerType;
+    private ReviewerType reviewerType;
 
     // Contribution to the final score. Example: 40
     @NotNull

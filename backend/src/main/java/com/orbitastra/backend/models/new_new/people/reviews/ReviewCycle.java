@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.performance;
+package com.orbitastra.backend.models.new_new.people.reviews;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.performance.embedded.PerformanceCriterion;
-import com.orbitastra.backend.models.new_new.people.performance.enums.PerformanceCycleStatus;
+import com.orbitastra.backend.models.new_new.people.reviews.embedded.ReviewCriterion;
+import com.orbitastra.backend.models.new_new.people.reviews.enums.ReviewCycleStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,16 +22,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * School-defined staff performance-review cycle for one academic year.
+ * School-defined staff review cycle for one academic year.
  */
-@Document(collection = "staff_performance_cycles")
+@Document(collection = "staff_review_cycles")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_performance_year_cycle_code_uniq",
+                name = "school_review_year_cycle_code_uniq",
                 def = "{'schoolId': 1, 'academicYear': 1, 'cycleCode': 1}",
                 unique = true),
         @CompoundIndex(
-                name = "school_performance_status_dates_idx",
+                name = "school_review_status_dates_idx",
                 def = "{'schoolId': 1, 'status': 1, 'startDate': 1, 'endDate': 1}")
 })
 @Data
@@ -39,7 +39,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PerformanceCycle extends SchoolBase {
+public class ReviewCycle extends SchoolBase {
 
     // Stores AcademicYear.name, never its document id. Example: "2026-2027"
     @NotBlank
@@ -49,7 +49,7 @@ public class PerformanceCycle extends SchoolBase {
     @NotBlank
     private String cycleCode;
 
-    // Example: "Annual Staff Performance Review"
+    // Example: "Annual Staff Review"
     @NotBlank
     private String name;
 
@@ -61,10 +61,10 @@ public class PerformanceCycle extends SchoolBase {
     @NotNull
     private LocalDate endDate;
 
-    // Example: PerformanceCycleStatus.OPEN
+    // Example: ReviewCycleStatus.OPEN
     @NotNull
     @Builder.Default
-    private PerformanceCycleStatus status = PerformanceCycleStatus.DRAFT;
+    private ReviewCycleStatus status = ReviewCycleStatus.DRAFT;
 
     // Example: true
     @NotNull
@@ -73,5 +73,5 @@ public class PerformanceCycle extends SchoolBase {
 
     // Embedded scoring configuration.
     @Builder.Default
-    private List<PerformanceCriterion> criteria = new ArrayList<>();
+    private List<ReviewCriterion> criteria = new ArrayList<>();
 }

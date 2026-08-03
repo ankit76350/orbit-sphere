@@ -1,9 +1,9 @@
-package com.orbitastra.backend.models.new_new.people.performance.enums;
+package com.orbitastra.backend.models.new_new.people.reviews.enums;
 
 /**
- * Relationship of a performance-assessment reviewer to the staff member.
+ * Relationship of a reviewer to the staff member being reviewed.
  */
-public enum PerformanceReviewerType {
+public enum ReviewerType {
     /** Staff member assesses themself. */
     SELF,
 
