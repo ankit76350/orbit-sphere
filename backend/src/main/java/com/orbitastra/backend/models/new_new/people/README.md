@@ -138,6 +138,12 @@ allocatedDays
 - pendingDays
 ```
 
+`usedDays` contains approved leave, including approved future leave.
+`pendingDays` contains only requests awaiting approval. On approval, the service
+moves the requested days from `pendingDays` to `usedDays` atomically so the same
+request is never counted twice. A positive `adjustmentDays` value adds leave and
+a negative value removes leave.
+
 The inherited optimistic-lock version must be used when approving concurrent
 leave requests.
 

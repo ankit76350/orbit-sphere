@@ -52,6 +52,7 @@ public class LeaveType extends SchoolBase {
     private String description;
 
     // Default allowance for one academic year. Example: 12.0
+    // annualAllowanceDays : means how many leave days a staff member receives each academic year.
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     @Builder.Default
@@ -62,12 +63,14 @@ public class LeaveType extends SchoolBase {
     @Builder.Default
     private Boolean paid = true;
 
+    // carryForwardAllowed : determines whether unused leave can move to the next academic year.
     // Example: false
     @NotNull
     @Builder.Default
     private Boolean carryForwardAllowed = false;
 
     // Maximum days that may carry into the next year. Example: 5.0
+    // maximumCarryForwardDays : limits how many unused days can move forward.
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     @Builder.Default

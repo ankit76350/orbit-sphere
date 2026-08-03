@@ -67,7 +67,7 @@ public class StaffLeaveRequest extends SchoolBase {
     private String leaveTypeDocsId;
 
     // Links to StaffLeaveBalance.id.
-    // Example: "67aa15d9dc3f7d0033333333"
+    //! Example: "67aa15d9dc3f7d0033333333"
     @NotBlank
     private String staffLeaveBalanceDocsId;
 
@@ -101,7 +101,7 @@ public class StaffLeaveRequest extends SchoolBase {
     @Builder.Default
     private Boolean coverRequired = false;
 
-    // Optionally links to the covering Staff.id.
+    //! Optionally links to the covering Staff.id.
     // Example: "67aa15d9dc3f7d0044444444"
     private String coverStaffDocsId;
 

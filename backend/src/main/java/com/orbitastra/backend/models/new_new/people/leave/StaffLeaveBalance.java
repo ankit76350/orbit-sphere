@@ -26,8 +26,12 @@ import lombok.experimental.SuperBuilder;
  * persisted as another field:
  *
  * <pre>
- * allocated + carriedForward + adjustments - used - pending
+ * allocatedDays + carriedForwardDays + adjustmentDays - usedDays - pendingDays
  * </pre>
+ *
+ * <p>When a request is submitted, its days are added to {@code pendingDays}.
+ * When approved, the same days are moved from {@code pendingDays} to
+ * {@code usedDays}. A request must never be counted in both fields.
  *
  * <p>The inherited optimistic-lock version protects concurrent approvals from
  * silently overwriting balance changes.
@@ -75,20 +79,22 @@ public class StaffLeaveBalance extends SchoolBase {
     @Builder.Default
     private BigDecimal carriedForwardDays = BigDecimal.ZERO;
 
-    // Approved leave deducted from the balance, including future approved leave.
+    // Total approved leave, including approved leave scheduled in the future.
     // Example: 4.5
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     @Builder.Default
     private BigDecimal usedDays = BigDecimal.ZERO;
 
-    // Submitted/approved days reserved for future leave. Example: 2.0
+    // Submitted leave still awaiting approval; approved leave is excluded.
+    // Example: 2.0
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     @Builder.Default
     private BigDecimal pendingDays = BigDecimal.ZERO;
 
-    // Manual credit or debit adjustment. Example: 1.0 or -1.0
+    // Net manual correction: a positive value adds leave; a negative value removes it.
+    // Example: 1.0 or -1.0
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     @Builder.Default
