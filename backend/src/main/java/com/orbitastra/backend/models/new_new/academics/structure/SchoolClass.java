@@ -1,9 +1,14 @@
 package com.orbitastra.backend.models.new_new.academics.structure;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.new_new.academics.structure.embedded.ClassSection;
+import com.orbitastra.backend.models.new_new.academics.structure.embedded.ClassSubject;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
@@ -18,8 +23,9 @@ import lombok.experimental.SuperBuilder;
 /**
  * One grade or class configured for one academic year.
  *
- * <p>Sections, subjects, students, and timetable entries reference this
- * document. The academic year is stored by AcademicYear.name.
+ * <p>Its bounded sections and subject assignments are embedded because they
+ * exist only inside this class. Other documents reference the class by id and
+ * an embedded section or subject by its stable code.
  */
 @Document(collection = "school_classes")
 @CompoundIndexes({
@@ -29,7 +35,16 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_year_class_active_order_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'active': 1, 'displayOrder': 1}")
+                def = "{'schoolId': 1, 'academicYear': 1, 'active': 1, 'displayOrder': 1}"),
+        @CompoundIndex(
+                name = "school_year_class_teacher_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'sections.classTeacherDocsId': 1}"),
+        @CompoundIndex(
+                name = "school_year_subject_teacher_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'subjects.teacherDocsIds': 1}"),
+        @CompoundIndex(
+                name = "school_year_subject_code_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'subjects.subjectCode': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -42,10 +57,6 @@ public class SchoolClass extends SchoolBase {
     @NotBlank
     private String academicYear;
 
-    // Stable key within the year. Example: "GRADE_7"
-    @NotBlank
-    private String classCode;
-
     // Example: "Grade 7"
     @NotBlank
     private String name;
@@ -55,11 +66,20 @@ public class SchoolClass extends SchoolBase {
     private String affiliationProgrammeDocsId;
 
     // Optionally links to CurriculumFramework.id.
-    // Example: "67aa15d9dc3f7d0022222222"
+    //! Example: "67aa15d9dc3f7d0022222222"
     private String curriculumFrameworkDocsId;
 
-    // Sorting order used by the UI. Example: 7
+    //! Sorting order used by the UI. Example: 7
     private Integer displayOrder;
+
+    // Sections owned by this class. Example: [{"sectionCode": "A", "name": "Section A"}]
+    @Builder.Default
+    private List<ClassSection> sections = new ArrayList<>();
+
+    // Subject and teacher assignments owned by this class.
+    // Example: [{"subjectCode": "MATHEMATICS", "name": "Mathematics", "sectionCode": "A"}]
+    @Builder.Default
+    private List<ClassSubject> subjects = new ArrayList<>();
 
     // Example: true
     @NotNull

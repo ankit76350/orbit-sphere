@@ -18,9 +18,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ReportCardSubjectResult {
 
-    // Links to Subject.id. Example: "67aa15d9dc3f7d0011111111"
+    // References SchoolClass.subjects[].subjectCode. Example: "MATHEMATICS"
     @NotBlank
-    private String subjectDocsId;
+    private String subjectCode;
 
     // Preserved display name. Example: "Mathematics"
     @NotBlank

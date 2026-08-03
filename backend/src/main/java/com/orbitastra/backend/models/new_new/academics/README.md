@@ -5,10 +5,10 @@
 ```text
 academics/
 ├── structure/
-│   ├── Subject.java
 │   ├── SchoolClass.java
-│   ├── ClassSection.java
-│   └── SubjectOffering.java
+│   └── embedded/
+│       ├── ClassSection.java
+│       └── ClassSubject.java
 ├── curriculum/
 │   ├── CurriculumFramework.java
 │   ├── LearningOutcome.java
@@ -45,19 +45,19 @@ AffiliationProgramme (optional)
 └── CurriculumFramework
     ├── LearningOutcome[]
     └── SchoolClass[] (per AcademicYear.name)
-        └── ClassSection[]
-            ├── StudentAcademicRecord[]
-            ├── SubjectOffering[] ──> Subject
-            │   └── CurriculumUnit[] ──> LearningOutcome[]
-            ├── TimetableEntry[]
-            │   └── TeacherSubstitution[] (one dated replacement)
-            ├── Homework[]
-            │   └── HomeworkSubmission[] (per student and attempt)
-            └── AttendanceSession[]
-                └── StudentAttendanceRecord[] (per student)
+        ├── ClassSection[] (embedded; referenced by sectionCode)
+        ├── ClassSubject[] (embedded; referenced by subjectCode)
+        ├── StudentAcademicRecord[]
+        ├── CurriculumUnit[] ──> LearningOutcome[]
+        ├── TimetableEntry[]
+        │   └── TeacherSubstitution[] (one dated replacement)
+        ├── Homework[]
+        │   └── HomeworkSubmission[] (per student and attempt)
+        └── AttendanceSession[]
+            └── StudentAttendanceRecord[] (per student)
 
 GradingScheme
-├── SubjectOffering (optional default scheme)
+├── ClassSubject (optional default scheme)
 └── Exam (optional default scheme)
     └── ExamSchedule[] (class/section/subject/component)
         └── StudentMark[]
@@ -68,21 +68,29 @@ StudentMark[] + attendance summary
 
 ## Structure
 
-`Subject` is the stable school subject master. `SchoolClass` is a year-specific
-grade/class. `ClassSection` is a section within that class. `SubjectOffering`
-assigns a subject and one or more teachers to a class or section for the year.
-This replaces the old subjects and sections embedded inside `SchoolClass`, which
-could not support section-specific teachers or independent updates.
+`SchoolClass` is the only top-level structure collection. Its bounded
+`ClassSection` and `ClassSubject` lists are embedded. This keeps class setup
+simple and allows the class, its sections, subjects, and teacher assignments to
+be created or loaded in one operation.
 
 `StudentAcademicRecord.classDocsId` references `SchoolClass.id` and
-`StudentAcademicRecord.sectionDocsId` references `ClassSection.id`. The service
-must verify that the section belongs to the selected class and academic year.
+`StudentAcademicRecord.sectionCode` references an embedded
+`SchoolClass.sections[].sectionCode`. Other academic documents use
+`subjectCode` and `sectionCode`; embedded records do not have MongoDB document
+IDs. Services must keep those codes unique inside a class and must not rename a
+code after dependent records exist.
+
+For a class-wide subject, `ClassSubject.sectionCode` is null. When different
+sections have different teachers, repeat that subject with the appropriate
+section code and teacher list. Services must enforce uniqueness of
+`(subjectCode, sectionCode)` inside one SchoolClass.
 
 ## Curriculum and grading
 
 `CurriculumFramework` represents a versioned board or school curriculum.
 `LearningOutcome` stores reusable competencies. `CurriculumUnit` is the actual
-teaching unit planned for one `SubjectOffering` in one academic year.
+teaching unit planned for a `classDocsId`, optional `sectionCode`, and
+`subjectCode` in one academic year.
 
 `GradingScheme` embeds a small ordered list of `GradeBand` values. Services must
 reject overlapping bands, gaps that are not intentional, invalid boundaries,
@@ -109,8 +117,8 @@ count query and are not persisted on `Homework`. Files reference private
 `DocumentRecord.id` values; URLs are never stored.
 
 For `HomeworkScope.SELECTED_STUDENTS`, `targetStudentDocsIds` contains the small
-selected set. Class and section assignments use their references and do not
-copy an entire roster into the homework document.
+selected set. Class and section assignments use `classDocsId` and `sectionCode`
+and do not copy an entire roster into the homework document.
 
 ## Attendance
 
@@ -143,7 +151,8 @@ ensure `AcademicYear.resultsLocked` is respected.
 
 ## Mapping from the reference models
 
-- `CourseOffering` became the simpler `SubjectOffering`.
+- `CourseOffering`, standalone subjects, and standalone sections became
+  embedded `ClassSubject` and `ClassSection` values inside `SchoolClass`.
 - `ScheduleOccurrence` became a recurring `TimetableEntry`; dated teacher
   changes use `TeacherSubstitution`.
 - `LearningActivity` and `LearnerSubmission` are represented by `Homework` and
@@ -175,6 +184,6 @@ ensure `AcademicYear.resultsLocked` is respected.
 
 Models contain only essential persistence requirements. DTOs and services must
 validate tenant ownership, immutable academic-year names, date/time ordering,
-class-section relationships, teacher assignments, timetable collisions,
+class-section-code and subject-code relationships, teacher assignments, timetable collisions,
 homework targeting, score ranges, grading bands, state transitions, publication
 authorization, and cross-document consistency.

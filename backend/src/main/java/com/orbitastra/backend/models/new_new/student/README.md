@@ -29,7 +29,7 @@ AdmissionApplication (optional)
     └── StudentAcademicRecord[]
         ├── academicYear -> AcademicYear.name
         ├── classDocsId  -> SchoolClass.id
-        └── sectionDocsId -> ClassSection.id
+        └── sectionCode -> SchoolClass.sections[].sectionCode
 ```
 
 All top-level documents extend `SchoolBase`. Every reference lookup must include
@@ -82,7 +82,8 @@ authorization, and portal access.
 
 Stores class and section placement for one student in one academic year. It
 extends `AcademicStudentSchoolBase`, so `schoolId`, `studentDocsId`, and
-`academicYear` are inherited.
+`academicYear` are inherited. `sectionCode` references the stable code of an
+embedded section inside the selected SchoolClass; it is not a document id.
 
 One student can have academic placement history, but only one ACTIVE academic
 record is allowed in the same academic year. When changing class or section:

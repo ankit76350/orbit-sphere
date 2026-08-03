@@ -20,16 +20,16 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-/** One teachable unit in a year-specific SubjectOffering. */
+/** One teachable unit for an embedded subject in a year-specific SchoolClass. */
 @Document(collection = "curriculum_units")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_year_offering_unit_code_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'subjectOfferingDocsId': 1, 'unitCode': 1}",
+                name = "school_year_class_section_subject_unit_code_uniq",
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'subjectCode': 1, 'unitCode': 1}",
                 unique = true),
         @CompoundIndex(
-                name = "school_year_offering_unit_order_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'subjectOfferingDocsId': 1, 'status': 1, 'sequence': 1}")
+                name = "school_year_class_subject_unit_order_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'subjectCode': 1, 'status': 1, 'sequence': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -47,10 +47,19 @@ public class CurriculumUnit extends SchoolBase {
     @NotBlank
     private String curriculumFrameworkDocsId;
 
-    // Links to SubjectOffering.id.
+    // Links to SchoolClass.id.
     // Example: "67aa15d9dc3f7d0022222222"
     @NotBlank
-    private String subjectOfferingDocsId;
+    private String classDocsId;
+
+    // Optional embedded SchoolClass.sections[].sectionCode; null means class-wide.
+    // Example: "A"
+    private String sectionCode;
+
+    // References an embedded SchoolClass.subjects[].subjectCode.
+    // Example: "MATHEMATICS"
+    @NotBlank
+    private String subjectCode;
 
     // Stable code within the offering. Example: "ALGEBRA_01"
     @NotBlank

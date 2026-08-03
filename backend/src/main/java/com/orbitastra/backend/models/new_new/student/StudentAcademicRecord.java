@@ -34,12 +34,12 @@ import lombok.experimental.SuperBuilder;
                 partialFilter = "{'status': 'ACTIVE'}"),
         @CompoundIndex(
                 name = "school_year_class_section_active_roll_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'rollNo': 1, 'status': 1}",
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'rollNo': 1, 'status': 1}",
                 unique = true,
                 partialFilter = "{'rollNo': {'$type': 'string'}, 'status': 'ACTIVE'}"),
         @CompoundIndex(
                 name = "school_year_class_section_roster_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'status': 1}"),
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'status': 1}"),
         @CompoundIndex(
                 name = "school_student_academic_record_history_idx",
                 def = "{'schoolId': 1, 'studentDocsId': 1, 'academicYear': -1, 'effectiveFrom': -1}")
@@ -55,9 +55,9 @@ public class StudentAcademicRecord extends AcademicStudentSchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Optionally links to ClassSection.id until the student is assigned.
-    // Example: "67aa15d9dc3f7d0022222222"
-    private String sectionNo;
+    // References an embedded SchoolClass.sections[].sectionCode.
+    // Example: "A"
+    private String sectionCode;
 
     // Year- and class-specific roll number. Example: "23"
     private String rollNo;

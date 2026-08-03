@@ -29,7 +29,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_exam_class_section_subject_component_uniq",
-                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'subjectDocsId': 1, 'componentCode': 1}",
+                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionCode': 1, 'subjectCode': 1, 'componentCode': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_exam_date_status_idx",
@@ -57,17 +57,13 @@ public class ExamSchedule extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Optionally links to ClassSection.id; null means all sections.
-    // Example: "67aa15d9dc3f7d0033333333"
-    private String sectionDocsId;
+    // Optional SchoolClass.sections[].sectionCode; null means all sections.
+    // Example: "A"
+    private String sectionCode;
 
-    // Links to Subject.id. Example: "67aa15d9dc3f7d0044444444"
+    // References SchoolClass.subjects[].subjectCode. Example: "MATHEMATICS"
     @NotBlank
-    private String subjectDocsId;
-
-    // Optionally links to SubjectOffering.id.
-    // Example: "67aa15d9dc3f7d0055555555"
-    private String subjectOfferingDocsId;
+    private String subjectCode;
 
     // Distinguishes theory, practical, oral, or another component.
     // Example: "THEORY"

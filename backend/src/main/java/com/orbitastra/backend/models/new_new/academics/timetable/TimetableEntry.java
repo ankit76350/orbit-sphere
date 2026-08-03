@@ -32,7 +32,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_year_section_day_start_active_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'sectionDocsId': 1, 'dayOfWeek': 1, 'startTime': 1}",
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'dayOfWeek': 1, 'startTime': 1}",
                 unique = true,
                 partialFilter = "{'active': true}"),
         @CompoundIndex(
@@ -40,7 +40,7 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'academicYear': 1, 'teacherDocsIds': 1, 'dayOfWeek': 1, 'startTime': 1, 'active': 1}"),
         @CompoundIndex(
                 name = "school_year_class_section_day_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'dayOfWeek': 1, 'startTime': 1}")
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'dayOfWeek': 1, 'startTime': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -57,17 +57,17 @@ public class TimetableEntry extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Links to ClassSection.id. Example: "67aa15d9dc3f7d0022222222"
+    // References an embedded SchoolClass.sections[].sectionCode. Example: "A"
     @NotBlank
-    private String sectionDocsId;
+    private String sectionCode;
 
     // Example: TimetableSlotType.LESSON
     @NotNull
     private TimetableSlotType slotType;
 
-    // Required for LESSON; links to SubjectOffering.id.
-    // Example: "67aa15d9dc3f7d0033333333"
-    private String subjectOfferingDocsId;
+    // Required for LESSON; references SchoolClass.subjects[].subjectCode.
+    // Example: "MATHEMATICS"
+    private String subjectCode;
 
     // Required for LESSON; links to assigned Staff.id values.
     // Example: ["67aa15d9dc3f7d0044444444"]

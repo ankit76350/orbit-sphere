@@ -30,11 +30,11 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_attendance_session_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'attendanceDate': 1, 'classDocsId': 1, 'sectionDocsId': 1, 'sessionType': 1, 'periodCode': 1}",
+                def = "{'schoolId': 1, 'academicYear': 1, 'attendanceDate': 1, 'classDocsId': 1, 'sectionCode': 1, 'sessionType': 1, 'periodCode': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_attendance_date_status_idx",
-                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionDocsId': 1}"),
+                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionCode': 1}"),
         @CompoundIndex(
                 name = "school_attendance_opened_by_idx",
                 def = "{'schoolId': 1, 'openedByDocsId': 1, 'attendanceDate': -1}")
@@ -58,9 +58,9 @@ public class AttendanceSession extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Links to ClassSection.id. Example: "67aa15d9dc3f7d0022222222"
+    // References an embedded SchoolClass.sections[].sectionCode. Example: "A"
     @NotBlank
-    private String sectionDocsId;
+    private String sectionCode;
 
     // Example: AttendanceSessionType.DAILY
     @NotNull
@@ -69,9 +69,9 @@ public class AttendanceSession extends SchoolBase {
     // Required for PERIOD sessions. Example: "P03"
     private String periodCode;
 
-    // Optionally links to SubjectOffering.id for a PERIOD session.
-    // Example: "67aa15d9dc3f7d0033333333"
-    private String subjectOfferingDocsId;
+    // Optionally references SchoolClass.subjects[].subjectCode for a PERIOD session.
+    // Example: "MATHEMATICS"
+    private String subjectCode;
 
     // Optionally links to TimetableEntry.id.
     // Example: "67aa15d9dc3f7d0044444444"

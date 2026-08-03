@@ -31,7 +31,7 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_exam_student_marks_idx",
-                def = "{'schoolId': 1, 'examDocsId': 1, 'studentDocsId': 1, 'subjectDocsId': 1}"),
+                def = "{'schoolId': 1, 'examDocsId': 1, 'studentDocsId': 1, 'subjectCode': 1}"),
         @CompoundIndex(
                 name = "school_exam_mark_entry_queue_idx",
                 def = "{'schoolId': 1, 'examDocsId': 1, 'examScheduleDocsId': 1, 'status': 1}")
@@ -56,10 +56,9 @@ public class StudentMark extends AcademicStudentSchoolBase {
     @NotBlank
     private String studentAcademicRecordDocsId;
 
-    // Copied from ExamSchedule for efficient reporting; links to Subject.id.
-    // Example: "67aa15d9dc3f7d0044444444"
+    // Copied from ExamSchedule for efficient reporting. Example: "MATHEMATICS"
     @NotBlank
-    private String subjectDocsId;
+    private String subjectCode;
 
     // Example: ExamParticipationStatus.ATTENDED
     @NotNull
