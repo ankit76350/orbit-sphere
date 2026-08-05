@@ -73,9 +73,13 @@ public class AttendanceSession extends SchoolBase {
     // Example: "MATHEMATICS"
     private String subjectCode;
 
-    // Optionally links to TimetableEntry.id.
+    // Optionally links to DailyTimetable.id for a PERIOD session.
     // Example: "67aa15d9dc3f7d0044444444"
-    private String timetableEntryDocsId;
+    private String dailyTimetableDocsId;
+
+    // Optionally references an embedded DailyTimetable.entries[].entryId.
+    // Example: "entry_000124"
+    private String timetableEntryId;
 
     // Example: AttendanceSessionStatus.OPEN
     @NotNull

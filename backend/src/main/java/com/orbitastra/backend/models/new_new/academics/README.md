@@ -15,8 +15,8 @@ academics/
 │   ├── GradingScheme.java
 │   └── embedded/GradeBand.java
 ├── timetable/
-│   ├── TimetableEntry.java
-│   └── TeacherSubstitution.java
+│   ├── DailyTimetable.java
+│   └── embedded/TimetableEntry.java
 ├── homework/
 │   ├── Homework.java
 │   └── HomeworkSubmission.java
@@ -45,12 +45,14 @@ AffiliationProgramme (optional)
     ├── ClassSubject[] (embedded; referenced by subjectCode)
     ├── CurriculumDocument[] ──> DocumentRecord
     ├── StudentAcademicRecord[]
-    ├── TimetableEntry[]
-    │   └── TeacherSubstitution[] (one dated replacement)
     ├── Homework[]
     │   └── HomeworkSubmission[] (per student and attempt)
     └── AttendanceSession[]
         └── StudentAttendanceRecord[] (per student)
+
+School + date
+└── DailyTimetable (one document)
+    └── TimetableEntry[] (all class and section periods for that date)
 
 GradingScheme
 ├── ClassSubject (optional default scheme)
@@ -99,15 +101,21 @@ version instead of rewriting historical grading rules.
 
 ## Timetable
 
-`TimetableEntry` is one recurring weekly slot. It replaces the old
-school-wide `DailyTimetable` document, whose embedded entries would grow and
-cause many teachers to update the same MongoDB document. Holidays come from
-`AcademicYear`; the service calculates whether a recurring slot occurs on a
-requested date. `TeacherSubstitution` records a replacement only for one date.
+`DailyTimetable` is the complete timetable of one school for one calendar date.
+Its embedded entries contain every class and section period for that day. The
+unique `schoolId + date` index guarantees that a school cannot have two daily
+timetable documents for the same date. Holidays and weekly offs do not require
+a document.
 
-Services must validate time ordering and prevent overlapping active slots for
-the same section, teacher, or room. A unique index prevents identical section
-start times, but interval overlap is a service rule.
+An entry has its own service-generated `entryId`, allowing one embedded period
+to be updated with MongoDB array filters. A teacher substitution is handled by
+changing that date's entry, so a separate substitution collection is not used.
+The inherited optimistic-lock version prevents concurrent whole-document edits
+from silently overwriting each other.
+
+Services must validate unique entry IDs, class and section ownership, subject
+and teacher assignments, time ordering, and overlapping periods before saving
+the complete daily document.
 
 ## Homework
 
@@ -133,6 +141,9 @@ and reject students outside that session's class/section. Locking a session and
 making final row changes should be transactional. Staff attendance and hostel
 night roll calls belong to their own people and hostel modules.
 
+A period attendance session may optionally link to `DailyTimetable.id` through
+`dailyTimetableDocsId` and to one embedded entry through `timetableEntryId`.
+
 ## Examinations and report cards
 
 `Exam` is the overall examination. `ExamSchedule` is one class/section subject
@@ -153,8 +164,8 @@ ensure `AcademicYear.resultsLocked` is respected.
 
 - `CourseOffering`, standalone subjects, and standalone sections became
   embedded `ClassSubject` and `ClassSection` values inside `SchoolClass`.
-- `ScheduleOccurrence` became a recurring `TimetableEntry`; dated teacher
-  changes use `TeacherSubstitution`.
+- `ScheduleDefinition`, `ScheduleOccurrence`, and `SubstitutionAssignment` were
+  replaced by one date-specific `DailyTimetable` containing embedded entries.
 - `LearningActivity` and `LearnerSubmission` are represented by `Homework` and
   `HomeworkSubmission` for the current ERP scope.
 - `AttendanceSession` and `StudentAttendanceRecord` were retained with school
