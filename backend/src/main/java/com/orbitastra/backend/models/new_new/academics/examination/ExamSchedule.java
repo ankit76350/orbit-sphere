@@ -29,7 +29,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_exam_class_section_subject_component_uniq",
-                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionCode': 1, 'subjectCode': 1, 'componentCode': 1}",
+                def = "{'schoolId': 1, 'examDocsId': 1, 'classDocsId': 1, 'sectionNo': 1, 'subjectCode': 1, 'componentCode': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_exam_date_status_idx",
@@ -57,9 +57,9 @@ public class ExamSchedule extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Optional SchoolClass.sections[].sectionCode; null means all sections.
+    // Optional SchoolClass.sections[].sectionNo; null means all sections.
     // Example: "A"
-    private String sectionCode;
+    private String sectionNo;
 
     // References SchoolClass.subjects[].subjectCode. Example: "MATHEMATICS"
     @NotBlank

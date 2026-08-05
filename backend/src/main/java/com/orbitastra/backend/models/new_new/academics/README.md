@@ -41,7 +41,7 @@ as `"2026-2027"`; it never stores `AcademicYear.id`.
 ```text
 AffiliationProgramme (optional)
 └── SchoolClass[] (per AcademicYear.name)
-    ├── ClassSection[] (embedded; referenced by sectionCode)
+    ├── ClassSection[] (embedded; referenced by sectionNo)
     ├── ClassSubject[] (embedded; referenced by subjectCode)
     ├── CurriculumDocument[] ──> DocumentRecord
     ├── StudentAcademicRecord[]
@@ -72,16 +72,16 @@ simple and allows the class, its sections, subjects, and teacher assignments to
 be created or loaded in one operation.
 
 `StudentAcademicRecord.classDocsId` references `SchoolClass.id` and
-`StudentAcademicRecord.sectionCode` references an embedded
-`SchoolClass.sections[].sectionCode`. Other academic documents use
-`subjectCode` and `sectionCode`; embedded records do not have MongoDB document
+`StudentAcademicRecord.sectionNo` references an embedded
+`SchoolClass.sections[].sectionNo`. Other academic documents use
+`subjectCode` and `sectionNo`; embedded records do not have MongoDB document
 IDs. Services must keep those codes unique inside a class and must not rename a
 code after dependent records exist.
 
-For a class-wide subject, `ClassSubject.sectionCode` is null. When different
+For a class-wide subject, `ClassSubject.sectionNo` is null. When different
 sections have different teachers, repeat that subject with the appropriate
 section code and teacher list. Services must enforce uniqueness of
-`(subjectCode, sectionCode)` inside one SchoolClass.
+`(subjectCode, sectionNo)` inside one SchoolClass.
 
 ## Curriculum documents and grading
 
@@ -127,7 +127,7 @@ count query and are not persisted on `Homework`. Files reference private
 `DocumentRecord.id` values; URLs are never stored.
 
 For `HomeworkScope.SELECTED_STUDENTS`, `targetStudentDocsIds` contains the small
-selected set. Class and section assignments use `classDocsId` and `sectionCode`
+selected set. Class and section assignments use `classDocsId` and `sectionNo`
 and do not copy an entire roster into the homework document.
 
 ## Attendance

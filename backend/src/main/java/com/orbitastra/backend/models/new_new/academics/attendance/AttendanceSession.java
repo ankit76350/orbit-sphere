@@ -30,11 +30,11 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_attendance_session_uniq",
-                def = "{'schoolId': 1, 'academicYear': 1, 'attendanceDate': 1, 'classDocsId': 1, 'sectionCode': 1, 'sessionType': 1, 'periodCode': 1}",
+                def = "{'schoolId': 1, 'academicYear': 1, 'attendanceDate': 1, 'classDocsId': 1, 'sectionNo': 1, 'sessionType': 1, 'periodCode': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_attendance_date_status_idx",
-                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionCode': 1}"),
+                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionNo': 1}"),
         @CompoundIndex(
                 name = "school_attendance_opened_by_idx",
                 def = "{'schoolId': 1, 'openedByDocsId': 1, 'attendanceDate': -1}")
@@ -58,9 +58,9 @@ public class AttendanceSession extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // References an embedded SchoolClass.sections[].sectionCode. Example: "A"
+    // References an embedded SchoolClass.sections[].sectionNo. Example: "A"
     @NotBlank
-    private String sectionCode;
+    private String sectionNo;
 
     // Example: AttendanceSessionType.DAILY
     @NotNull

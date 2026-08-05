@@ -34,7 +34,7 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_year_class_section_homework_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionCode': 1, 'status': 1, 'dueAt': 1}"),
+                def = "{'schoolId': 1, 'academicYear': 1, 'classDocsId': 1, 'sectionNo': 1, 'status': 1, 'dueAt': 1}"),
         @CompoundIndex(
                 name = "school_teacher_homework_idx",
                 def = "{'schoolId': 1, 'teacherDocsId': 1, 'academicYear': 1, 'status': 1, 'publishedAt': -1}"),
@@ -57,9 +57,9 @@ public class Homework extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // References SchoolClass.sections[].sectionCode when section-specific.
+    // References SchoolClass.sections[].sectionNo when section-specific.
     // Example: "A"
-    private String sectionCode;
+    private String sectionNo;
 
     // References SchoolClass.subjects[].subjectCode.
     // Example: "MATHEMATICS"

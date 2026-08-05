@@ -7,16 +7,23 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** One section embedded in its owning SchoolClass document. */
+/**
+ * One section embedded in its owning SchoolClass document.
+ *
+ * <p>{@code sectionNo} is the only section identifier. It is both the stable
+ * reference other documents store and the value shown in the UI, so no separate
+ * display name is kept. It must be unique inside the owning class and must not
+ * be renamed after dependent records exist.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ClassSection {
 
-    // Example: "Section A - Pioneers"
+    // Stable reference within the class; also the display value. Example: "A"
     @NotBlank
-    private String name;
+    private String sectionNo;
 
     // Optionally links to the class teacher's Staff.id.
     // Example: "67aa15d9dc3f7d0011111111"

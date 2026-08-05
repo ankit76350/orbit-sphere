@@ -36,9 +36,9 @@ public class TimetableEntry {
     @NotBlank
     private String classDocsId;
 
-    // Stores the embedded ClassSection.name. Example: "Section A"
+    // References an embedded SchoolClass.sections[].sectionNo. Example: "A"
     @NotBlank
-    private String sectionName;
+    private String sectionNo;
 
     // Example: TimetableSlotType.LESSON
     @NotNull

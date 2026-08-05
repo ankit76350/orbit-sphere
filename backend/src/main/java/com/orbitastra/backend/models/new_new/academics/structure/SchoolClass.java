@@ -68,12 +68,12 @@ public class SchoolClass extends SchoolBase {
     //! Sorting order used by the UI. Example: 7
     private Integer displayOrder;
 
-    // Sections owned by this class. Example: [{"sectionCode": "A", "name": "Section A"}]
+    // Sections owned by this class. Example: [{"sectionNo": "A"}, {"sectionNo": "B"}]
     @Builder.Default
     private List<ClassSection> sections = new ArrayList<>();
 
     // Subject and teacher assignments owned by this class.
-    // Example: [{"subjectCode": "MATHEMATICS", "name": "Mathematics", "sectionCode": "A"}]
+    // Example: [{"subjectCode": "MATHEMATICS", "name": "Mathematics", "sectionNo": "A"}]
     @Builder.Default
     private List<ClassSubject> subjects = new ArrayList<>();
 

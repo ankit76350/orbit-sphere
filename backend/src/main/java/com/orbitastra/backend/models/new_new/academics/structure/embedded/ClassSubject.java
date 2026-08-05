@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 /**
  * One subject assignment embedded in its owning SchoolClass document.
  *
- * <p>{@code sectionCode} is null for a class-wide assignment. Repeat the same
+ * <p>{@code sectionNo} is null for a class-wide assignment. Repeat the same
  * {@code subjectCode} with different section codes when teachers differ by
  * section.
  */
@@ -40,8 +40,8 @@ public class ClassSubject {
     @NotNull
     private SubjectType subjectType;
 
-    // Optional ClassSection.sectionCode; null means all sections. Example: "A"
-    private String sectionCode;
+    // Optional ClassSection.sectionNo; null means all sections. Example: "A"
+    private String sectionNo;
 
     // Links to assigned Staff.id values.
     // Example: ["67aa15d9dc3f7d0011111111"]

@@ -57,7 +57,7 @@ school and academic year:
 
 - `startTime` is earlier than `endTime`;
 - `classDocsId` belongs to the school and academic year;
-- `sectionName` exists in the selected `SchoolClass`;
+- `sectionNo` exists in the selected `SchoolClass`;
 - a `LESSON` has a valid `subjectCode` and `teacherDocsId`;
 - breaks and assemblies do not require subject or teacher links;
 - the same class/section has no overlapping periods;
