@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.base.AcadmicStudentSchoolBase;
 import com.orbitastra.backend.models.new_new.academics.enums.AttendanceSource;
 import com.orbitastra.backend.models.new_new.academics.enums.AttendanceStatus;
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
@@ -39,7 +40,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StudentAttendanceRecord extends AcademicStudentSchoolBase {
+public class StudentAttendanceRecord extends AcadmicStudentSchoolBase {
 
     // Links to AttendanceSession.id.
     // Example: "67aa15d9dc3f7d0011111111"
