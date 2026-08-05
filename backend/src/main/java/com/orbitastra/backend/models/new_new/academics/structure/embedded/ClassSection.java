@@ -25,10 +25,6 @@ public class ClassSection {
     // Maximum planned student count. Example: 40
     private Integer capacity;
 
-    // Optionally links to a future facility/resource document.
-    //! Example: "67aa15d9dc3f7d0022222222"
-    private String roomResourceDocsId;
-
     // Example: true
     @NotNull
     @Builder.Default

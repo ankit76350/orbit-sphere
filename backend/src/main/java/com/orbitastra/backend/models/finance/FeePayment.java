@@ -28,8 +28,8 @@ public class FeePayment extends AcademicStudentSchoolBase {
     private String feeDocsId;
 
     @Indexed(unique = true)
-    private String receiptNo; // RPN/2026/05/2578 : -> RPN/YYYY/MM/DDSS make it unique in whole DB.
-
+    private String receiptNo; // RPN/2026/05/2578 : -> RPN/YYYY/MM/DDSS make 1234
+    
     private boolean collectedFromWallet;
 
     private String walletNo;

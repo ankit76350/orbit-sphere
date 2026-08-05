@@ -41,10 +41,6 @@ public class CurriculumFramework extends SchoolBase {
     // Example: "67aa15d9dc3f7d0011111111"
     private String affiliationProgrammeDocsId;
 
-    // Stable school-scoped key. Example: "CBSE_SECONDARY"
-    @NotBlank
-    private String frameworkCode;
-
     // Example: "CBSE Secondary Curriculum"
     @NotBlank
     private String name;

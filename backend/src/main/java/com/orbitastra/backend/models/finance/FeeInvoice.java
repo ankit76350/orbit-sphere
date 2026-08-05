@@ -28,7 +28,7 @@ public class FeeInvoice extends AcademicStudentSchoolBase {
     // Human-readable invoice number (e.g. "INV/2026/05/2578"), generated on creation.
     // The Mongo id stays the technical key; this is what appears on the printed bill.
     @Indexed(unique = true)
-    private String invoiceNo; // INV/2026/05/2578 : -> INV/YYYY/MM/DDSS make it unique in whole DB.
+    private String invoiceNo; // IN26/05/2578 : -> INV/YYYY/MM/DDSS make it unique in whole DB.
 
     
     private FeeType type;

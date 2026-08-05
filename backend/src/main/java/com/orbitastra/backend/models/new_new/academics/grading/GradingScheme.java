@@ -44,15 +44,12 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class GradingScheme extends SchoolBase {
 
-    // Stable key. Example: "CBSE_PERCENTAGE"
-    @NotBlank
-    private String schemeCode;
-
     // Example: "CBSE Percentage Grading"
     @NotBlank
     private String name;
 
     // Example: "2026.1"
+    //If the school changes A1 from 91–100 to 90–100, create a new version instead of changing the scheme used by old report cards.
     @NotBlank
     private String schemeVersion;
 

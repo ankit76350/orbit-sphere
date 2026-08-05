@@ -52,9 +52,6 @@ public class ClassSubject {
     //! Example: "67aa15d9dc3f7d0022222222"
     private String gradingSchemeDocsId;
 
-    // Planned periods per week. Example: 6
-    private Integer periodsPerWeek;
-
     // Example: true
     @NotNull
     @Builder.Default
