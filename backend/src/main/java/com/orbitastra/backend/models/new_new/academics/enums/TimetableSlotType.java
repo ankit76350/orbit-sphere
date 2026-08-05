@@ -1,6 +1,6 @@
 package com.orbitastra.backend.models.new_new.academics.enums;
 
-/** Purpose of a recurring timetable slot. */
+/** Purpose of an embedded daily timetable slot. */
 public enum TimetableSlotType {
     LESSON,
     BREAK,

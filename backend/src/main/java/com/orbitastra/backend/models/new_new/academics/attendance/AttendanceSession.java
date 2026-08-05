@@ -77,8 +77,8 @@ public class AttendanceSession extends SchoolBase {
     // Example: "67aa15d9dc3f7d0044444444"
     private String dailyTimetableDocsId;
 
-    // Optionally references an embedded DailyTimetable.entries[].entryId.
-    // Example: "entry_000124"
+    // Optionally references an embedded DailyTimetable.entries[]._id ObjectId.
+    // Example: "67aa15d9dc3f7d0011111111"
     private String timetableEntryId;
 
     // Example: AttendanceSessionStatus.OPEN

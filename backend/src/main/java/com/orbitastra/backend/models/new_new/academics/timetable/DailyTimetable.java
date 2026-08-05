@@ -30,6 +30,17 @@ import lombok.experimental.SuperBuilder;
  * <p>A teacher replacement is applied directly to that date's embedded entry.
  * The inherited optimistic-lock version prevents concurrent edits from
  * silently overwriting one another.
+ *
+ * <p>After initial creation, services must update individual entries with
+ * MongoDB array filters using {@code entries._id}. They must not read this
+ * document, change one entry in memory, and save the complete document. Every
+ * targeted update must include the expected inherited {@code version} and must
+ * fail when no matching version is modified.
+ *
+ * <p>Before adding or replacing entries, services must validate class,
+ * section, subject, teacher, and time conflicts and must reject a write that
+ * would make the BSON document approach MongoDB's 16 MiB document limit. The
+ * complete persistence contract is documented in this package's README.
  */
 @Document(collection = "daily_timetables")
 @CompoundIndexes({
@@ -57,7 +68,8 @@ public class DailyTimetable extends SchoolBase {
     @NotNull
     private LocalDate date;
 
-    // Every class and section period scheduled for this date.
+    // Every class and section period scheduled for this date. Attendance,
+    // homework, examination, result, and submission data must never be embedded here.
     @NotNull
     @Builder.Default
     private List<TimetableEntry> entries = new ArrayList<>();

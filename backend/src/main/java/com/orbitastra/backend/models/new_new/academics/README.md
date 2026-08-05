@@ -107,15 +107,17 @@ unique `schoolId + date` index guarantees that a school cannot have two daily
 timetable documents for the same date. Holidays and weekly offs do not require
 a document.
 
-An entry has its own service-generated `entryId`, allowing one embedded period
+An entry has its own service-generated MongoDB ObjectId stored as `_id`, allowing one embedded period
 to be updated with MongoDB array filters. A teacher substitution is handled by
 changing that date's entry, so a separate substitution collection is not used.
 The inherited optimistic-lock version prevents concurrent whole-document edits
 from silently overwriting each other.
 
-Services must validate unique entry IDs, class and section ownership, subject
+Services must validate unique embedded entry ObjectIds, class and section ownership, subject
 and teacher assignments, time ordering, and overlapping periods before saving
-the complete daily document.
+the complete daily document. Atomic array-update, optimistic-lock, validation,
+and BSON-size requirements are defined in `timetable/README.md` and must be
+followed when the new repository and service are implemented.
 
 ## Homework
 
@@ -142,7 +144,8 @@ making final row changes should be transactional. Staff attendance and hostel
 night roll calls belong to their own people and hostel modules.
 
 A period attendance session may optionally link to `DailyTimetable.id` through
-`dailyTimetableDocsId` and to one embedded entry through `timetableEntryId`.
+`dailyTimetableDocsId` and to one embedded entry's `_id` through
+`timetableEntryId`.
 
 ## Examinations and report cards
 
