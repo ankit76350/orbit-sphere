@@ -21,10 +21,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * One editable attendance register for a class section on a date.
+ * One attendance register for a class section on a date.
  *
- * <p>It may represent daily attendance or one timetable period. Student rows
- * are stored separately in StudentAttendanceRecord.
+ * <p>It may represent daily attendance or one timetable period. Student rows are
+ * stored separately in StudentAttendanceRecord so the register does not grow
+ * with the roster and two teachers can mark concurrently.
+ *
+ * <p>Who opened the register and when are the inherited {@code createdByDocsId}
+ * and {@code createdAt}; who last changed it are {@code updatedByDocsId} and
+ * {@code updatedAt}. Only locking needs its own fields, because that is a
+ * business decision rather than a write.
  */
 @Document(collection = "attendance_sessions")
 @CompoundIndexes({
@@ -34,10 +40,7 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_attendance_date_status_idx",
-                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionNo': 1}"),
-        @CompoundIndex(
-                name = "school_attendance_opened_by_idx",
-                def = "{'schoolId': 1, 'openedByDocsId': 1, 'attendanceDate': -1}")
+                def = "{'schoolId': 1, 'attendanceDate': 1, 'status': 1, 'classDocsId': 1, 'sectionNo': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -73,32 +76,25 @@ public class AttendanceSession extends SchoolBase {
     // Example: "MATHEMATICS"
     private String subjectCode;
 
-    // Optionally links to DailyTimetable.id for a PERIOD session.
-    // Example: "67aa15d9dc3f7d0044444444"
-    private String dailyTimetableDocsId;
-
-    // Optionally references an embedded DailyTimetable.entries[]._id ObjectId.
-    // Example: "67aa15d9dc3f7d0011111111"
+    // Optionally references the DailyTimetable.entries[]._id this register was
+    // taken for. The parent daily document is found by schoolId + attendanceDate.
+    // Example: "67aa15d9dc3f7d0022222222"
     private String timetableEntryId;
+
+    // Links to the Staff.id teaching this session; for a PERIOD register this is
+    // the teacher of record, which may differ from whoever entered the marks.
+    // Example: "67aa15d9dc3f7d0033333333"
+    private String teacherDocsId;
 
     // Example: AttendanceSessionStatus.OPEN
     @NotNull
     @Builder.Default
     private AttendanceSessionStatus status = AttendanceSessionStatus.OPEN;
 
-    // Links to the Staff.id that opened the register.
-    // Example: "67aa15d9dc3f7d0055555555"
-    @NotBlank
-    private String openedByDocsId;
-
-    // Example: 2026-06-05T03:00:00Z
-    @NotNull
-    private Instant openedAt;
-
     // Example: 2026-06-05T03:20:00Z
     private Instant lockedAt;
 
     // Links to the Staff.id that locked the register.
-    // Example: "67aa15d9dc3f7d0055555555"
+    // Example: "67aa15d9dc3f7d0044444444"
     private String lockedByDocsId;
 }
