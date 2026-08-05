@@ -65,10 +65,6 @@ public class SchoolClass extends SchoolBase {
     // Example: "67aa15d9dc3f7d0011111111"
     private String affiliationProgrammeDocsId;
 
-    // Optionally links to CurriculumFramework.id.
-    //! Example: "67aa15d9dc3f7d0022222222"
-    private String curriculumFrameworkDocsId;
-
     //! Sorting order used by the UI. Example: 7
     private Integer displayOrder;
 

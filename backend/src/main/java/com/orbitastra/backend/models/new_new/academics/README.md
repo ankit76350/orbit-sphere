@@ -10,9 +10,7 @@ academics/
 │       ├── ClassSection.java
 │       └── ClassSubject.java
 ├── curriculum/
-│   ├── CurriculumFramework.java
-│   ├── LearningOutcome.java
-│   └── CurriculumUnit.java
+│   └── CurriculumDocument.java
 ├── grading/
 │   ├── GradingScheme.java
 │   └── embedded/GradeBand.java
@@ -42,19 +40,17 @@ as `"2026-2027"`; it never stores `AcademicYear.id`.
 
 ```text
 AffiliationProgramme (optional)
-└── CurriculumFramework
-    ├── LearningOutcome[]
-    └── SchoolClass[] (per AcademicYear.name)
-        ├── ClassSection[] (embedded; referenced by sectionCode)
-        ├── ClassSubject[] (embedded; referenced by subjectCode)
-        ├── StudentAcademicRecord[]
-        ├── CurriculumUnit[] ──> LearningOutcome[]
-        ├── TimetableEntry[]
-        │   └── TeacherSubstitution[] (one dated replacement)
-        ├── Homework[]
-        │   └── HomeworkSubmission[] (per student and attempt)
-        └── AttendanceSession[]
-            └── StudentAttendanceRecord[] (per student)
+└── SchoolClass[] (per AcademicYear.name)
+    ├── ClassSection[] (embedded; referenced by sectionCode)
+    ├── ClassSubject[] (embedded; referenced by subjectCode)
+    ├── CurriculumDocument[] ──> DocumentRecord
+    ├── StudentAcademicRecord[]
+    ├── TimetableEntry[]
+    │   └── TeacherSubstitution[] (one dated replacement)
+    ├── Homework[]
+    │   └── HomeworkSubmission[] (per student and attempt)
+    └── AttendanceSession[]
+        └── StudentAttendanceRecord[] (per student)
 
 GradingScheme
 ├── ClassSubject (optional default scheme)
@@ -85,12 +81,16 @@ sections have different teachers, repeat that subject with the appropriate
 section code and teacher list. Services must enforce uniqueness of
 `(subjectCode, sectionCode)` inside one SchoolClass.
 
-## Curriculum and grading
+## Curriculum documents and grading
 
-`CurriculumFramework` represents a versioned board or school curriculum.
-`LearningOutcome` stores reusable competencies. `CurriculumUnit` is the actual
-teaching unit planned for a `classDocsId`, optional `sectionCode`, and
-`subjectCode` in one academic year.
+`CurriculumDocument` is a lightweight publishing record created by a school
+department for one `classDocsId` and embedded `subjectCode`. It stores the
+academic year, department, title, document version, and draft/published state.
+
+The actual PDF, image, DOCX, or other file is stored in object storage through
+`DocumentRecord`; MongoDB stores only `documentDocsId`. A revised file creates
+the next `documentVersion`. Publish the new version and archive the old version
+instead of overwriting historical curriculum files.
 
 `GradingScheme` embeds a small ordered list of `GradeBand` values. Services must
 reject overlapping bands, gaps that are not intentional, invalid boundaries,
@@ -162,8 +162,9 @@ ensure `AcademicYear.resultsLocked` is respected.
 - `AssessmentSession` was separated into `Exam` and `ExamSchedule`.
 - `AssessmentAttempt`, `GradebookRecord`, and the old `AcademicResult` were
   consolidated into `StudentMark`, while published summaries use `ReportCard`.
-- `CurriculumFramework`, `CurriculumUnit`, `LearningOutcome`, and `ReportCard`
-  were retained in simplified forms.
+- `CurriculumFramework`, `CurriculumUnit`, and `LearningOutcome` were replaced
+  by one document-driven `CurriculumDocument`. `ReportCard` was retained in a
+  simplified form.
 
 ## Intentionally deferred or moved
 
