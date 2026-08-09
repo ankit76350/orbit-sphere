@@ -24,7 +24,21 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-/** One dated subject paper or practical component within an Exam. */
+/**
+ * One dated subject paper or practical component within an Exam, for one class
+ * section.
+ *
+ * <p>{@code sectionNo} is required. One row per section keeps the uniqueness key
+ * meaningful — a nullable "all sections" row could otherwise coexist with a
+ * section-specific row and both would apply to the same students. It also lets
+ * each section carry its own date, room, and invigilators, which is normal when
+ * a hall cannot seat the whole grade.
+ *
+ * <p>This document is the register header for {@link ExamAttendance}, in the same
+ * way {@code AttendanceSession} is the header for
+ * {@code StudentAttendanceRecord}. Reaching {@code COMPLETED} closes attendance
+ * for the component.
+ */
 @Document(collection = "exam_schedules")
 @CompoundIndexes({
         @CompoundIndex(
@@ -57,11 +71,11 @@ public class ExamSchedule extends SchoolBase {
     @NotBlank
     private String classDocsId;
 
-    // Optional SchoolClass.sections[].sectionNo; null means all sections.
-    // Example: "A"
+    // References an embedded SchoolClass.sections[].sectionNo. Example: "A"
+    @NotBlank
     private String sectionNo;
 
-    // References SchoolClass.subjects[].subjectCode. Example: "MATHEMATICS"
+    //? References SchoolClass.subjects[].subjectCode. Example: "MATHEMATICS"
     @NotBlank
     private String subjectCode;
 
