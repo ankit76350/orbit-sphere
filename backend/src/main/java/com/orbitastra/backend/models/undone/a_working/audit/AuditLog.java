@@ -40,6 +40,12 @@ public class AuditLog extends SchoolBase {
 
     private String details;
 
+    private String resourceDocsId;
+
+    private String oldValue;
+
+    private String newValue;
+
     @Indexed
     private LocalDateTime timestamp;
 }
