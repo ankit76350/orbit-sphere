@@ -6,6 +6,8 @@
 academics/
 ├── structure/
 │   ├── SchoolClass.java
+│   ├── AcademicTerm.java
+│   ├── README.md
 │   └── embedded/
 │       ├── ClassSection.java
 │       └── ClassSubject.java
@@ -26,9 +28,13 @@ academics/
 ├── examination/
 │   ├── Exam.java
 │   ├── ExamSchedule.java
+│   ├── ExamAttendance.java
 │   ├── StudentMark.java
 │   ├── ReportCard.java
-│   └── embedded/ReportCardSubjectResult.java
+│   ├── README.md
+│   └── embedded/
+│       ├── ReportCardSubjectResult.java
+│       └── ReportCardComponentResult.java
 └── enums/
 ```
 
@@ -54,14 +60,21 @@ School + date
 └── DailyTimetable (one document)
     └── TimetableEntry[] (all class and section periods for that date)
 
+AcademicYear.name
+└── AcademicTerm[] (reporting periods, ordered by sequence)
+    └── Exam[] (weightPercent = share of the term)
+
 GradingScheme
 ├── ClassSubject (optional default scheme)
 └── Exam (optional default scheme)
     └── ExamSchedule[] (class/section/subject/component)
-        └── StudentMark[]
+        ├── ExamAttendance[] (per student: hall presence + answer copy)
+        └── StudentMark[] (per student: evaluated result)
 
 StudentMark[] + attendance summary
-└── ReportCard (versioned published snapshot)
+└── ReportCard (versioned published snapshot, per AcademicTerm)
+    └── ReportCardSubjectResult[] (embedded)
+        └── ReportCardComponentResult[] (embedded)
 ```
 
 ## Structure
@@ -82,6 +95,14 @@ For a class-wide subject, `ClassSubject.sectionNo` is null. When different
 sections have different teachers, repeat that subject with the appropriate
 section code and teacher list. Services must enforce uniqueness of
 `(subjectCode, sectionNo)` inside one SchoolClass.
+
+`AcademicTerm` is the second structure collection. It defines the reporting
+periods of one academic year and replaces the earlier free-text
+`reportingPeriodName` on `Exam` and `ReportCard`. Referencing a term by
+`termDocsId` means a renamed term cannot orphan the exams and report cards that
+belong to it, and it gives weighting a home. Terms are ordered by `sequence`, and
+`resultsLocked` blocks result changes for one period while
+`AcademicYear.resultsLocked` remains the year-wide override.
 
 ## Curriculum documents and grading
 
@@ -149,19 +170,49 @@ A period attendance session may optionally link to `DailyTimetable.id` through
 
 ## Examinations and report cards
 
-`Exam` is the overall examination. `ExamSchedule` is one class/section subject
-component, such as theory or practical. `StudentMark` stores one student's mark
-for that component. The schedule owns maximum and passing marks; the student
-mark stores the obtained value and participation state.
+`Exam` is the overall examination and belongs to one `AcademicTerm`.
+`ExamSchedule` is one class/section subject component, such as theory or
+practical. Its `sectionNo` is required: one row per section keeps the uniqueness
+key meaningful and lets each section carry its own date, room, and invigilators.
 
-`ReportCard` is a versioned snapshot generated from selected exams, grading
-rules, and attendance. Once published, do not recalculate it in place. A
+Each schedule owns two student-level collections at the same grain:
+
+- `ExamAttendance` is the examination-hall register. It records whether the
+  student appeared and which answer copy was issued, so `ExamSchedule` is its
+  session header exactly as `AttendanceSession` is for
+  `StudentAttendanceRecord`.
+- `StudentMark` is the evaluated result. The schedule owns maximum and passing
+  marks; the mark stores the awarded value, any `graceMarks` adjustment, and the
+  participation state.
+
+They are separate because an invigilator writes one during the exam and an
+evaluator writes the other days later. That split also enables blind evaluation:
+`answerCopyNo` lives only on the attendance row, so marks can be entered against
+a copy number and the service resolves the student.
+
+`answerCopyNo` is unique within one `Exam`, which prevents the same physical
+booklet being recorded for two students. Supplementary booklets go in
+`additionalAnswerCopyNos` and must be checked by the service, since a MongoDB
+unique index cannot span both fields.
+
+`ReportCard` is a versioned snapshot for one `AcademicTerm`, generated from
+selected exams, grading rules, and attendance. It must remain reprintable years
+later without reading any other collection, so it copies in the term name, class
+name, section, roll number, grading scheme, attendance day counts, rank, and the
+per-component breakdown. Once published, do not recalculate it in place. A
 correction creates the next `reportVersion`; the generated PDF, if any, is a
 `DocumentRecord` reference.
 
+Weighting has two levels only: `Exam.weightPercent` inside a term and
+`AcademicTerm.weightPercent` inside the year. Both are optional and null means
+raw aggregation.
+
 Mark submission, locking, publication, report generation, and report
 publication require transactions or idempotent workflows. The service must
-ensure `AcademicYear.resultsLocked` is respected.
+respect both `AcademicYear.resultsLocked` and `AcademicTerm.resultsLocked`.
+
+The full contract, including copy-number rules, attendance/marks agreement, lock
+ordering, and snapshot obligations, is in `examination/README.md`.
 
 ## Mapping from the reference models
 
@@ -176,6 +227,10 @@ ensure `AcademicYear.resultsLocked` is respected.
 - `AssessmentSession` was separated into `Exam` and `ExamSchedule`.
 - `AssessmentAttempt`, `GradebookRecord`, and the old `AcademicResult` were
   consolidated into `StudentMark`, while published summaries use `ReportCard`.
+- The old `Exam`/`ExamMarksSheet` pair embedded the datesheet and every student
+  mark in one document. That became `ExamSchedule` plus per-student
+  `ExamAttendance` and `StudentMark` rows, and answer-copy accountability was
+  added, which the reference models did not cover at all.
 - `CurriculumFramework`, `CurriculumUnit`, and `LearningOutcome` were replaced
   by one document-driven `CurriculumDocument`. `ReportCard` was retained in a
   simplified form.

@@ -49,9 +49,10 @@ never replace `sectionNo` as the reference used by other documents.
 | `ClassSubject` (embedded in `SchoolClass`) | `sectionNo` | no | subject applies to all sections of the class |
 | `StudentAcademicRecord` | `sectionNo` | no | student is placed in the class without a section |
 | `Homework` | `sectionNo` | no | homework applies to the whole class |
-| `ExamSchedule` | `sectionNo` | no | component applies to all sections |
+| `ExamSchedule` | `sectionNo` | yes | — a paper is always scheduled per section |
 | `AttendanceSession` | `sectionNo` | yes | — a register is always section-specific |
 | `TimetableEntry` (embedded in `DailyTimetable`) | `sectionNo` | yes | — a period is always section-specific |
+| `ReportCard` | `sectionNo` | no | placement snapshot; null when the student had no section |
 
 Every one of these is resolved as `schoolId + classDocsId + sectionNo`. A
 `sectionNo` is only meaningful inside its owning `SchoolClass`; the same value
@@ -66,6 +67,7 @@ Homework               school_year_class_section_homework_idx
 AttendanceSession      school_attendance_session_uniq               (unique)
 AttendanceSession      school_attendance_date_status_idx
 ExamSchedule           school_exam_class_section_subject_component_uniq (unique)
+ReportCard             school_term_class_section_report_idx
 ```
 
 Renaming the field would silently invalidate these index definitions, which is
@@ -122,8 +124,8 @@ child documents
 ```
 
 There is no foreign key and no cascade. Changing `name` after creation would
-orphan every document that already copied the old value, across 17 collections
-and 23 compound indexes, with no way to detect the break at write time. The
+orphan every document that already copied the old value, across 19 collections
+and 29 compound indexes, with no way to detect the break at write time. The
 lookup pair is always:
 
 ```text
@@ -135,19 +137,20 @@ schoolId + academicYear name
 
 ### Where the value is copied
 
-Five collections inherit `academicYear` from `AcademicStudentSchoolBase`:
+Six collections inherit `academicYear` from `AcademicStudentSchoolBase`:
 
 ```text
 StudentAcademicRecord   HomeworkSubmission   StudentAttendanceRecord
-StudentMark             ReportCard
+StudentMark             ReportCard           ExamAttendance
 ```
 
-Twelve more declare it directly:
+Thirteen more declare it directly:
 
 ```text
-SchoolClass      CurriculumDocument   DailyTimetable      Homework
-AttendanceSession  Exam               ExamSchedule        Inquiry
-AdmissionCycle   StaffLeaveBalance    StaffLeaveRequest   ReviewCycle
+SchoolClass      AcademicTerm         CurriculumDocument  DailyTimetable
+Homework         AttendanceSession    Exam                ExamSchedule
+Inquiry          AdmissionCycle       StaffLeaveBalance   StaffLeaveRequest
+ReviewCycle
 ```
 
 ### Rules
@@ -166,7 +169,7 @@ AdmissionCycle   StaffLeaveBalance    StaffLeaveRequest   ReviewCycle
    trusting a submitted string.
 4. **A mistyped year is fixed by recreating, not renaming.** If no child document
    references it yet, delete and recreate. If any does, treat it as a coordinated
-   migration across all 17 collections.
+   migration across all 19 collections.
 5. **Rollover creates a new document.** Moving to the next year never edits the
    existing one; it creates `AcademicYear` for the new name and closes the
    previous year's records.
