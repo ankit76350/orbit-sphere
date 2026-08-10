@@ -5,12 +5,12 @@ defined in `frontend/src/modules` and
 `frontend/src/modules/enterprise/enterpriseCatalog.js`.
 
 It started as 228 document models in 43 domain packages and now contains
-**176 models in 39 packages**, because a package is deleted from here once its
+**175 models in 38 packages**, because a package is deleted from here once its
 final design has been produced in `models/new_new`.
 
 This tree is reference material only. It is not connected to repositories,
-services, controllers, or migrations, and it **no longer compiles**: 175 of its
-176 classes import a `a_new.base` package that is not present in the repository.
+services, controllers, or migrations, and it **no longer compiles**: 174 of its
+175 classes import a `a_new.base` package that is not present in the repository.
 Do not add it to a build.
 
 Read [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) before adopting the
@@ -30,6 +30,7 @@ Recover any original file from git history if a deferred idea is needed later.
 | `people` | `new_new/people` and `new_new/student` |
 | `admissions` | `new_new/crm` |
 | `documents` | `new_new/documents`; generation and template models remain sketched in `a_working/document` |
+| `audit` | `new_new/audit`, combined with the `a_working/audit` sketch |
 
 Not carried across, and intentionally deferred rather than lost:
 `AssessmentBankItem`, `AccommodationPlan`, `ScheduleConstraint`,
@@ -68,7 +69,7 @@ Packages struck through have been finalized in `new_new` and deleted from here.
 
 | Area | Packages |
 |---|---|
-| SaaS foundation | `saas`, `institution`, `identity`, `audit` |
+| SaaS foundation | `saas`, `institution`, `identity`, ~~`audit`~~ |
 | People and SIS | ~~`people`~~, ~~`admissions`~~, `aid`, `alumni` |
 | Academics | ~~`academics`~~, `learning`, `conduct`, `studentlife`, `feedback` |
 | Finance and HR | `billing`, `accounting`, `payroll`, `procurement` |
