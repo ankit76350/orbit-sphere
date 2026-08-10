@@ -46,6 +46,8 @@ public class AuditLog extends SchoolBase {
 
     private String newValue;
 
+    private String ipAddress;
+
     @Indexed
     private LocalDateTime timestamp;
 }
