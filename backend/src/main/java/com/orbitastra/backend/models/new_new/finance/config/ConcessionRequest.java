@@ -31,53 +31,58 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * A request to give one student a discount, raised by a parent or by the fee desk
- * and decided by a member of staff.
+ * A request to give one student a discount. A parent or the fee desk asks for it,
+ * and a staff member says yes or no.
  *
- * <p>Nothing comes off a student's fees until this record is APPROVED. That is
- * the whole reason it exists: a discount always has a named person who asked and
- * a named person who allowed it.
+ * <p>No money comes off a student's fees until this record is APPROVED. That is
+ * why the record exists. Every discount has a name against who asked for it and a
+ * name against who allowed it.
  *
- * <p>{@code scope} is what makes a discount standing or one-off, and it is the
- * field to read first:
+ * <p>Read {@code scope} first. It says how far the discount reaches:
  *
  * <ul>
- * <li>ACADEMIC_YEAR — invoice generation picks the request up by itself and
- * applies it to every eligible bill dated between {@code validFrom} and
- * {@code validUntil}. The family asks once and never again.</li>
- * <li>INVOICE — applies only to {@code targetInvoiceDocsId} and to nothing else.
- * This is the extra help a family asks for on one hard month, and it must not
- * leak into next month's bill.</li>
+ * <li>ACADEMIC_YEAR — the billing job finds this request on its own and takes the
+ * discount off every matching bill dated between {@code validFrom} and
+ * {@code validUntil}. The family asks once and does not have to ask again.</li>
+ * <li>INVOICE — the discount comes off only the one bill named in
+ * {@code targetInvoiceDocsId}, and off nothing else. This is extra help for one
+ * hard month, and it must not carry over to the next bill.</li>
  * </ul>
  *
- * <p>There is no yearly ceiling and nothing to draw down. The discount is worked
- * out fresh from {@code percent} on every bill, so the same request applied to a
- * bigger tuition amount simply gives a bigger discount. Money that has a limit
- * belongs in AidAward, which tracks what is left of a fund.
+ * <p>This record does not hold a limit and does not hold a running total. The
+ * discount is worked out again from {@code percent} on every bill, so a bigger
+ * tuition amount simply gives a bigger discount.
  *
- * <p>The rate and the eligible heads are copied from the policy when the request
- * is raised, and the approver may change them before approving. Whatever is
- * stored here at approval time is what invoices use, so later edits to the policy
- * do not quietly change a discount that was already granted.
+ * <p>If the school wants a yearly limit, it is set on the fee head as
+ * {@code maximumConcessionPerYear}. How much of that limit is already used is
+ * worked out by adding up the discounts on the student's bills. We do not keep a
+ * total here, because a total has to be put right every time a bill is voided or
+ * reversed, and if we forget to do that the student loses discount they should
+ * have got. Adding up the bill lines is always right.
  *
- * <p>{@code appliedFeeHeadDocsIds} has to name at least one head. Anything not on
- * that list is billed in full, which is what keeps a tuition concession off the
- * transport and hostel lines.
+ * <p>The rate and the fee heads are copied from the policy when the request is
+ * made, and the approver may change them before saying yes. Whatever is saved here
+ * at that moment is what the bills use, so changing the policy later does not
+ * change a discount that was already given.
  *
- * <p>{@code concessionPolicyDocsId} being null means a discount with no standing
- * policy behind it. Those still need an approver, and {@code reason} becomes the
- * only record of why it was allowed.
+ * <p>{@code appliedFeeHeadDocsIds} must name at least one fee head. Anything not
+ * in that list is charged in full. This is what stops a tuition discount from also
+ * coming off transport and hostel.
  *
- * <p>A student may hold only one APPROVED ACADEMIC_YEAR request per policy per
- * year, which the unique index enforces. It deliberately covers approved rows
- * only, so a request that was turned down or taken back does not block the family
- * from asking again with better paperwork, and it deliberately skips INVOICE rows,
- * so a family may ask for one-off help as often as the month demands.
+ * <p>{@code concessionPolicyDocsId} being null means there is no policy behind
+ * this discount. It still needs an approver, and {@code reason} is then the only
+ * record of why it was allowed.
  *
- * <p>The service checks that an ACADEMIC_YEAR request carries both validity dates
- * and no target invoice, that an INVOICE request carries a target invoice and no
- * validity dates, that the rate matches the type, that a GUARDIAN never appears as
- * the approver, and that the approver is not the person who raised it.
+ * <p>A student can have only one APPROVED ACADEMIC_YEAR request per policy per
+ * year, and the unique index makes sure of it. The index only looks at approved
+ * rows, so a request that was refused or taken back does not stop the family
+ * asking again with better papers. It also skips INVOICE rows, so a family can ask
+ * for one-off help as often as they need to.
+ *
+ * <p>The service checks all of this: an ACADEMIC_YEAR request has both dates and
+ * no target bill, an INVOICE request has a target bill and no dates, the rate
+ * matches the type, a guardian is never the approver, and the approver is not the
+ * same person who asked.
  */
 @Document(collection = "concession_requests")
 @CompoundIndexes({

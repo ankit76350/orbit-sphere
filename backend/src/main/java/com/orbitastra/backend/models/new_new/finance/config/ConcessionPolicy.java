@@ -32,17 +32,21 @@ import lombok.experimental.SuperBuilder;
  * <p>This is only the rule. Giving it to a student is a separate
  * ConcessionRequest, so the discount always has a named approver behind it.
  *
- * <p>A concession is a discount the school decides on its own. It has no budget
- * and no yearly ceiling: a 25 percent tuition waiver takes 25 percent off tuition
- * on every bill it is allowed to touch, for as long as the request granting it is
- * valid. A scholarship that has a fund to draw down, an application form and a
- * committee belongs in AidProgramme instead. Both end up reducing an invoice
- * line, but only one of them has money that can run out.
+ * <p>A concession is a discount the school decides to give, and there is no money
+ * set aside for it. A 25 percent tuition discount takes 25 percent off tuition on
+ * every bill it is allowed to touch, for as long as the request is valid. A
+ * scholarship is a different thing: it has a fund that can run out, a form to fill
+ * in and a committee to decide. That belongs in AidProgramme. Both end up
+ * reducing a bill, but only the scholarship has money that runs out.
  *
- * <p>{@code eligibleFeeHeadDocsIds} has to name at least one head. There is no
- * "empty means everything" shortcut, because the cost of getting that wrong is a
- * tuition waiver that also wipes out transport, hostel and exam charges. A school
- * that really does want every head listed has to list every head.
+ * <p>No limit is saved here. If the school wants to cap what it gives away, it
+ * sets {@code maximumConcessionPerYear} on the fee head, and that one setting
+ * covers every discount a student has on that head.
+ *
+ * <p>{@code eligibleFeeHeadDocsIds} must name at least one fee head. An empty
+ * list is not allowed and does not mean "all of them". This is on purpose: if we
+ * got it wrong, a tuition discount would also come off transport, hostel and exam
+ * charges. A school that really wants every head has to list every head.
  */
 @Document(collection = "concession_policies")
 @CompoundIndexes({

@@ -28,11 +28,11 @@ import lombok.NoArgsConstructor;
  * The service works it out and the report DTOs never recalculate it, so a printed
  * bill and a reprint years later always show the same numbers.
  *
- * <p>{@code discounts} says where the money taken off this line came from, one
- * entry per source. A line can be reduced by more than one thing at once: a
- * student may hold a year-long tuition concession and still be given extra help
- * on this one bill. {@code discountAmount} is the sum of those entries and is the
- * only figure the line total uses.
+ * <p>{@code discounts} says where the money taken off this line came from, with
+ * one entry for each source. A line can have more than one discount on it at the
+ * same time: a student may have a year-long tuition discount and still be given
+ * extra help on this one bill. {@code discountAmount} is those entries added up,
+ * and it is the only figure the line total uses.
  */
 @Data
 @Builder

@@ -95,7 +95,15 @@ One thing the school can charge for. The reusable setting, not the charge.
 | `defaultAmount` | Starting value a structure line may override. |
 | `taxable`, `taxRatePercent` | GST applicability and rate. |
 | `concessionAllowed` | Whether a discount may touch this head. |
+| `maximumConcessionPerYear` | Most discount one student may get on this head in a year, across every concession and award. Null means no limit. |
 | `revenueLedgerAccountDocsId` | Income account to post to; null means placed by hand. |
+
+The yearly concession limit lives here and nowhere else. A concession says what
+share to take off; the head says how much the school is prepared to give away in
+total. How much of the limit is used is read back by adding up
+`InvoiceLineDiscount.amount` for that student, year and head over the invoices
+that are not void — there is no stored counter, so voiding or reversing an invoice
+puts the allowance back by itself.
 
 ### FeeStructure — `fee_structures`
 
@@ -121,14 +129,16 @@ person who raised it. The rate and the eligible heads are copied onto the reques
 when it is raised, so editing the policy later cannot change a discount already
 granted.
 
-A concession is worked out from three things and nothing else:
+A concession is worked out from three things:
 
 **rate + eligible fee heads + validity**
 
-There is no yearly ceiling and no running total to draw down. The discount is
-recomputed from `percent` on every bill, so a request never has to be updated
-after it is approved. Money that genuinely runs out belongs in `AidAward`, which
-is the model that tracks a remaining balance.
+The request itself holds no ceiling and no running total, so it never has to be
+updated after it is approved. The discount is recomputed from `percent` on every
+bill. Where the school wants to cap what it gives away, that cap is
+`FeeHead.maximumConcessionPerYear` and applies to every discount a student holds on
+that head. Money that genuinely runs out belongs in `AidAward`, which is the model
+that tracks a remaining balance.
 
 `scope` is the field to read first:
 

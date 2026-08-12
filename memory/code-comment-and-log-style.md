@@ -1,7 +1,8 @@
 # Code Comment & Log Style — keep it simple
 
-**Convention (set 2026-07-21):** Write every code comment and log message in plain, everyday
-language that a beginner can follow. Say plainly what the code is doing at that point.
+**Convention (set 2026-07-21, restated 2026-08-12):** Write every code comment and log message
+in plain, everyday language that a beginner can follow. Say plainly what the code is doing at
+that point.
 
 ## Rules
 - Avoid jargon/fancy words like *materialise, de-duplicate, resolve, assemble, persist,
@@ -12,6 +13,22 @@ language that a beginner can follow. Say plainly what the code is doing at that 
 - Keep step-by-step logging for multi-step flows (it helps trace the sequence). Keep the
   `[methodName]` prefix on each log line so it's clear which function is running.
 - Comments explain the *why* in one plain sentence.
+
+## This covers class javadoc too (added 2026-08-12)
+The rule is not only for `//` comments. Class and field javadoc on the models must read the
+same way. Keep the sentences short and ordinary. Say what the thing is and why it is there.
+
+Do not write clever or literary lines. These were all rewritten out of the finance models
+because they sounded good but were hard to read:
+
+| Instead of | Write |
+|---|---|
+| "the one that gets missed silently eats a family's allowance" | "if we forget to put it back, the student loses discount they should have got" |
+| "a balance you cannot explain is a balance you cannot audit" | "if we only keep a total, nobody can check where it came from" |
+| "the invoice lines are the only record that cannot drift" | "the invoice lines are always right, so we add them up instead of keeping a separate total" |
+
+Rule of thumb: if a sentence sounds like a line from an article, rewrite it as something you
+would actually say out loud to a new developer.
 
 ## Example (from `StudentService.createStudent`)
 ```

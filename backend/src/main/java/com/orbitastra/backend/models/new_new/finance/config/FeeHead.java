@@ -37,6 +37,13 @@ import lombok.experimental.SuperBuilder;
  * it is set, issuing an invoice for this head can post to the right income
  * account by itself. When it is null the accounts team has to place the amount
  * by hand.
+ *
+ * <p>{@code maximumConcessionPerYear} is the only yearly limit in the fee part of
+ * the system, and we keep it here rather than on a concession on purpose. A
+ * concession says what share to take off. The fee head says how much the school is
+ * willing to give away in total. Keeping the limit on the head means one setting
+ * covers every discount a student has, instead of each concession carrying its own
+ * limit that somebody then has to keep in step with the rest.
  */
 @Document(collection = "fee_heads")
 @CompoundIndexes({
@@ -107,6 +114,15 @@ public class FeeHead extends SchoolBase {
     @NotNull
     @Builder.Default
     private Boolean concessionAllowed = true;
+
+    // The most discount one student can get on this head in one academic year,
+    // counting all their concessions and awards together. Null means no limit,
+    // which is the normal setting. This is a limit the school puts on itself, not
+    // a promise to any one family: the school is saying it will not give away more
+    // than this much on this head to a single student in a year, however many
+    // discounts that student has. Example: 20000.00
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal maximumConcessionPerYear;
 
     // Whether a late-payment charge may be added for this head. Example: true
     @NotNull
