@@ -138,13 +138,13 @@ schoolId + academicYear name
 
 ### Where the value is copied
 
-Twelve collections inherit `academicYear` from `AcademicStudentSchoolBase`:
+Eleven collections inherit `academicYear` from `AcademicStudentSchoolBase`:
 
 ```text
 StudentAcademicRecord   HomeworkSubmission   StudentAttendanceRecord
 StudentMark             ReportCard           ExamAttendance
 FeeInvoice              FeePayment           ConcessionRequest
-AidApplication          AidAward             FeeReminderLog
+AidApplication          AidAward
 ```
 
 Fifteen more declare it directly:

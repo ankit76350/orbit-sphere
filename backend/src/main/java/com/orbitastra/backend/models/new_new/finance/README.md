@@ -52,8 +52,6 @@ FeeInvoice  (one per student, per installment)
   |                                 +--> RefundTransaction
   |                                 +--> SettlementBatch --> PaymentGateway
   |                                 +--> UpiMandate (auto debits)
-  |
-  +--> FeeReminderLog  (when unpaid)
 
 StoredValueAccount  (wallet)
   +--> StoredValueLedgerEntry[]   append-only, sequenced
@@ -288,12 +286,18 @@ bills that already used it.
 No API key or webhook secret is ever stored in the database. `credentialVaultKey`
 and `webhookSecretVaultKey` hold only the names used to look them up.
 
-## dunning — chasing unpaid fees
+## dunning — chasing unpaid fees — not built yet
 
-`FeeReminderLog` holds one row per student per year, not one per reminder. It
-exists so reminders escalate along `ReminderChannel` instead of repeating the
-same WhatsApp message. `pausedUntil` and `pauseReason` matter as much as the
-stage: a family that has agreed a date must stop being chased until then.
+There is no model for fee reminders yet. `FeeReminderLog` and `ReminderChannel`
+were written and then removed on 2026-08-12, because chasing unpaid fees is really
+a notification job and it should be designed together with the rest of the
+notification system rather than on its own inside finance.
+
+Pick this up when the notification system is built. The old version is in git
+history if it helps, and the ideas worth keeping were: one row per student per
+year rather than one per reminder sent, reminders getting stronger each time
+instead of repeating the same message, and a way to pause chasing a family that
+has agreed a date to pay.
 
 ## Rules the services must enforce
 
