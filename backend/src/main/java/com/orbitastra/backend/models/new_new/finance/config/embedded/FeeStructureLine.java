@@ -25,6 +25,13 @@ import lombok.NoArgsConstructor;
  * head's default amount. {@code frequency} may also override the head, which is
  * how one head such as Transport can be monthly for day scholars and one-time
  * for others.
+ *
+ * <p>Only the head's id is stored. Nothing about the head is copied here, because
+ * a structure line is a setting, not a bill. Tax comes from the head alone, since
+ * a tax rate follows what the service is and not which class the student is in.
+ * FeeInvoiceLine does copy the head's code, name and tax rate, because a bill has
+ * to keep showing what the parent was charged even after the head is renamed or
+ * the tax rate changes.
  */
 @Data
 @Builder
@@ -36,13 +43,11 @@ public class FeeStructureLine {
     @NotNull
     private Integer lineNo;
 
-    // Links to FeeHead.id. Example: "67ac1188dc3f7d0011aa22bb"
+    // Which fee head is charged. Links to FeeHead.id, and the head is loaded to
+    // get its code and name for display.
+    // Example: "67ac1188dc3f7d0011aa22bb"
     @NotBlank
     private String feeHeadDocsId;
-
-    // Head code copied in so the line still reads correctly on its own. Example: "TUITION"
-    @NotBlank
-    private String feeHeadCode;
 
     // Amount for this class, which overrides the head's default. Example: 2500.00
     @NotNull
@@ -51,10 +56,6 @@ public class FeeStructureLine {
 
     // Overrides the head's frequency when set. Example: FeeFrequency.MONTHLY
     private FeeFrequency frequency;
-
-    // Overrides the head's tax rate when set. Example: 18.00
-    @Field(targetType = FieldType.DECIMAL128)
-    private BigDecimal taxRatePercent;
 
     // False when a family may choose not to take this charge, such as transport.
     // Example: true

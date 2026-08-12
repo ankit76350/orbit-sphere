@@ -13,7 +13,10 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.finance.enums.ConcessionType;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,15 +32,17 @@ import lombok.experimental.SuperBuilder;
  * <p>This is only the rule. Giving it to a student is a separate
  * ConcessionRequest, so the discount always has a named approver behind it.
  *
- * <p>A concession is a discount the school decides on its own. A scholarship
- * that has a budget, an application form and a committee belongs in AidProgramme
- * instead. Both end up reducing an invoice line, but only one of them needs a
- * fund to be tracked.
+ * <p>A concession is a discount the school decides on its own. It has no budget
+ * and no yearly ceiling: a 25 percent tuition waiver takes 25 percent off tuition
+ * on every bill it is allowed to touch, for as long as the request granting it is
+ * valid. A scholarship that has a fund to draw down, an application form and a
+ * committee belongs in AidProgramme instead. Both end up reducing an invoice
+ * line, but only one of them has money that can run out.
  *
- * <p>{@code eligibleFeeHeadDocsIds} being empty means the discount may be
- * applied to any head that allows concessions. When the list has entries, only
- * those heads may be reduced, which stops a tuition waiver from also wiping out
- * a transport charge.
+ * <p>{@code eligibleFeeHeadDocsIds} has to name at least one head. There is no
+ * "empty means everything" shortcut, because the cost of getting that wrong is a
+ * tuition waiver that also wipes out transport, hostel and exam charges. A school
+ * that really does want every head listed has to list every head.
  */
 @Document(collection = "concession_policies")
 @CompoundIndexes({
@@ -55,6 +60,7 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ConcessionPolicy extends SchoolBase {
+//! Basicaaly this is defifnication of the discount policy from the school
 
     // Stable key used by concession requests. Example: "SIBLING_SECOND_CHILD"
     @NotBlank
@@ -71,24 +77,25 @@ public class ConcessionPolicy extends SchoolBase {
     @NotNull
     private ConcessionType concessionType;
 
-    // Share taken off when the type is PERCENT. Example: 25.00
+    // Share taken off when the type is PERCENT. A full waiver is 100.00 here.
+    // Example: 25.00
+    @DecimalMin("0.00")
+    @DecimalMax("100.00")
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal percent;
 
-    // Money taken off when the type is FIXED_AMOUNT. Example: 5000.00
+    // Money taken off one bill when the type is FIXED_AMOUNT. This is per
+    // invoice, not per year. Example: 5000.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal fixedAmount;
-
-    // Most that may be taken off in one year, whatever the rule works out to.
-    // Example: 20000.00
-    @Field(targetType = FieldType.DECIMAL128)
-    private BigDecimal maximumAmountPerYear;
 
     // Example: "INR"
     @NotBlank
     private String currencyCode;
 
-    // Heads this discount may reduce. Empty means any head that allows it.
+    // Heads this discount may reduce. At least one, and nothing outside this list
+    // is ever touched. Example: the id of the TUITION head
+    @NotEmpty
     @Builder.Default
     private List<String> eligibleFeeHeadDocsIds = new ArrayList<>();
 

@@ -28,26 +28,24 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * The full set of charges one class pays in one academic year, plus the dates
- * those charges fall due.
+ * The list of fees one class pays in one year, and the dates each part has to be
+ * paid by.
  *
- * <p>A structure is the template and a FeeInvoice is what comes out of it.
- * Applying an ACTIVE structure to the students of a class creates one invoice
- * per student per installment.
+ * <p>This is only a plan. Using the plan is what makes the real bills: for every
+ * student in the class, one FeeInvoice for each installment.
  *
- * <p>Structures are versioned, not edited. Once a version has produced invoices
- * its lines must stay as they are, because those invoices are financial records.
- * A mid-year fee change means creating {@code version + 1}, marking the old
- * version SUPERSEDED, and leaving already-issued invoices alone.
+ * <p>A plan that has already made bills must never be changed. Parents were given
+ * those bills, so the plan behind them has to stay exactly as it was. To change
+ * fees in the middle of the year, save a new copy with the next version number,
+ * mark the old copy SUPERSEDED, and leave the bills already sent alone.
  *
- * <p>{@code academicYear} stores the immutable AcademicYear name, never the
- * AcademicYear document id. {@code classDocsId} being null means the structure
- * applies to every class in the year, which is how a school charges one common
- * set of fees.
+ * <p>Think of a school textbook. The title "Maths Class 5" stays the same, and
+ * only the edition number changes when it is printed again. Here
+ * {@code structureCode} is the title and {@code structureVersion} is the edition.
  *
- * <p>The service and request DTOs check that installment shares add up to 100,
- * that due dates fall inside the academic year, that a line's head is active,
- * and that only one version of a structure is ACTIVE at a time.
+ * <p>Before saving, the service makes sure the installment shares add up to 100,
+ * the due dates fall inside the school year, every fee head used is still active,
+ * and only one version of a plan is ACTIVE at a time.
  */
 @Document(collection = "fee_structures")
 @CompoundIndexes({
@@ -69,27 +67,37 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class FeeStructure extends SchoolBase {
 
-    // Links to AcademicYear.name. Example: "2026-2027"
+    // The school year this plan is for. Holds the AcademicYear name, not its id.
+    // Example: "2026-2027"
     @NotBlank
     private String academicYear;
 
-    // Stable key for this structure across its versions. Example: "PRIMARY_DAY"
+    // The short name you give this fee plan. It stays the same in every version,
+    // like a book title that does not change when a new edition is printed. It is
+    // what tells the system that version 1 and version 2 are the same plan.
+    // The class cannot be used for this, because one class can have two plans,
+    // such as one for day scholars and one for hostel students.
+    // Example: "PRIMARY_DAY"
     @NotBlank
     private String structureCode;
 
-    // Version of the structure, starting at 1. Example: 1
+    // Edition number of this plan, starting at 1. It goes up by one every time
+    // the fees change during the year. Example: 1
     @NotNull
     @Builder.Default
     private Integer structureVersion = 1;
 
-    // Name shown to staff. Example: "Primary Day Scholar Fees"
+    // Full name staff see on screen. This one may be reworded any time.
+    // Example: "Primary Day Scholar Fees"
     @NotBlank
     private String name;
 
-    // Links to SchoolClass.id. Null means every class in the year.
+    // The class this plan is for. Links to SchoolClass.id. Leave it empty when
+    // the plan is for every class in the year.
     // Example: "67ab3322dc3f7d0044556677"
     private String classDocsId;
 
+    // Only an ACTIVE plan may be used to make bills.
     // Example: FeeStructureStatus.ACTIVE
     @NotNull
     @Builder.Default
@@ -99,14 +107,14 @@ public class FeeStructure extends SchoolBase {
     @NotBlank
     private String currencyCode;
 
-    // First date invoices may be created from this version. Example: 2026-04-01
+    // First date bills may be made from this version. Example: 2026-04-01
     private LocalDate effectiveFrom;
 
-    // Last date invoices may be created from this version. Example: 2027-03-31
+    // Last date bills may be made from this version. Example: 2027-03-31
     private LocalDate effectiveUntil;
 
-    // Yearly total of all lines, worked out and saved so lists load fast.
-    // Example: 48000.00
+    // Everything in the lines added up for the year. It is saved here so lists
+    // load fast and do not have to add it up every time. Example: 48000.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal annualTotal;
 
@@ -115,22 +123,23 @@ public class FeeStructure extends SchoolBase {
     @Builder.Default
     private List<FeeStructureLine> lines = new ArrayList<>();
 
-    // When each part of it has to be paid.
+    // When each part has to be paid.
     @Valid
     @Builder.Default
     private List<FeeInstallment> installments = new ArrayList<>();
 
-    // Links to the staff identity that approved this version.
+    // Who approved this version. Links to the staff identity.
     // Example: "67aa15d9dc3f7d0044444444"
     private String approvedByDocsId;
 
     // Example: 2026-03-20T06:45:00Z
     private Instant approvedAt;
 
-    // Version that replaced this one. Example: "67ac4455dc3f7d0088990011"
+    // The newer version that took over from this one.
+    // Example: "67ac4455dc3f7d0088990011"
     private String supersededByStructureDocsId;
 
-    // Why the fees changed, kept for parent questions later.
+    // Why the fees changed. Kept so the school can answer parents later.
     // Example: "Board affiliation charge added from the second term."
     private String changeReason;
 }

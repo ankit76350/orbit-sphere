@@ -55,18 +55,25 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class FeeHead extends SchoolBase {
 
-    // Stable key used by fee structures and invoice lines. Example: "TUITION"
+    // Stable key the school chooses, used by fee structures and invoice lines.
+    // One category holds many heads, so this is what tells them apart: a school
+    // may define LIBRARY_LATE_FINE, LOST_ID_CARD and BREAKAGE_CHARGE, all under
+    // category FINE. Must not be renamed once invoices exist.
+    // Example: "LIBRARY_LATE_FINE"
     @NotBlank
     private String headCode;
 
-    // Name shown to staff and printed on the bill. Example: "Tuition Fee"
+    // Name shown to staff and printed on the bill. Unlike headCode this may be
+    // reworded at any time, because bills keep their own copy of it.
+    // Example: "Library Late Return Fine"
     @NotBlank
     private String name;
 
-    // Example: "Regular monthly teaching fee for classes I to V."
+    // Example: "Charged per day once a borrowed book is overdue."
     private String description;
 
-    // Grouping used for reports. Example: FeeCategory.TUITION
+    // Fixed platform-wide grouping used for reports. Schools cannot add to this
+    // list; they add heads instead. Example: FeeCategory.FINE
     @NotNull
     private FeeCategory category;
 

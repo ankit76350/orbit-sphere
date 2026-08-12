@@ -1,12 +1,15 @@
 package com.orbitastra.backend.models.new_new.finance.billing.embedded;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.new_new.finance.enums.FeeCategory;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -25,9 +28,11 @@ import lombok.NoArgsConstructor;
  * The service works it out and the report DTOs never recalculate it, so a printed
  * bill and a reprint years later always show the same numbers.
  *
- * <p>{@code concessionRequestDocsId} and {@code aidAwardDocsId} say where the
- * discount on this line came from. When both are null but a discount exists, it
- * was a one-off entry and {@code discountReason} has to explain it.
+ * <p>{@code discounts} says where the money taken off this line came from, one
+ * entry per source. A line can be reduced by more than one thing at once: a
+ * student may hold a year-long tuition concession and still be given extra help
+ * on this one bill. {@code discountAmount} is the sum of those entries and is the
+ * only figure the line total uses.
  */
 @Data
 @Builder
@@ -69,23 +74,17 @@ public class FeeInvoiceLine {
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal unitAmount;
 
-    // Money taken off this line. Example: 1875.00
+    // Money taken off this line, and the sum of the discounts list below.
+    // Example: 2500.00
     @NotNull
     @Builder.Default
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
-    // Links to ConcessionRequest.id when a school discount caused it.
-    // Example: "67ac7788dc3f7d0033445566"
-    private String concessionRequestDocsId;
-
-    // Links to AidAward.id when a scholarship caused it.
-    // Example: "67ac8899dc3f7d0044556677"
-    private String aidAwardDocsId;
-
-    // Needed when a discount was given with no policy or award behind it.
-    // Example: "One-off waiver approved by the principal."
-    private String discountReason;
+    // Where each part of the discount came from. Empty when nothing was taken off.
+    @Valid
+    @Builder.Default
+    private List<InvoiceLineDiscount> discounts = new ArrayList<>();
 
     // Tax rate copied in at billing time. Example: 0.00
     @Field(targetType = FieldType.DECIMAL128)

@@ -42,10 +42,10 @@ FeeStructure  (per class, per year, versioned)
         v
 FeeInvoice  (one per student, per installment)
   +--> FeeInvoiceLine[]
-  |       ^
-  |       |  discount comes from exactly one of:
-  |       +-- ConcessionRequest  (school discount, approved)
-  |       +-- AidAward           (scholarship, funded)
+  |       +--> InvoiceLineDiscount[]   one per source, may be several
+  |               ^
+  |               +-- ConcessionRequest  (school discount, approved)
+  |               +-- AidAward           (scholarship, funded)
   |
   |<---- PaymentAllocation ----> FeePayment
   |                                 |
@@ -117,11 +117,44 @@ A mid-year fee change creates `structureVersion + 1` and marks the old version
 
 The policy is the rule; the request grants it to one student. Nothing comes off a
 student's fees until a request is `APPROVED`, and the approver must not be the
-person who raised it. Amounts are copied onto the request at approval time, so
-editing the policy later cannot change a discount already granted.
+person who raised it. The rate and the eligible heads are copied onto the request
+when it is raised, so editing the policy later cannot change a discount already
+granted.
 
-`concessionPolicyDocsId` null means a one-off discount with no standing policy —
+A concession is worked out from three things and nothing else:
+
+**rate + eligible fee heads + validity**
+
+There is no yearly ceiling and no running total to draw down. The discount is
+recomputed from `percent` on every bill, so a request never has to be updated
+after it is approved. Money that genuinely runs out belongs in `AidAward`, which
+is the model that tracks a remaining balance.
+
+`scope` is the field to read first:
+
+| Scope | Applies to | Needs |
+|---|---|---|
+| `ACADEMIC_YEAR` | every eligible invoice dated in the validity window, picked up automatically by the generation job | `validFrom`, `validUntil`; no target invoice |
+| `INVOICE` | only `targetInvoiceDocsId` | a target invoice; no validity dates |
+
+The family asks once for an `ACADEMIC_YEAR` concession and never again. An
+`INVOICE` concession is the extra help asked for on one hard month and must not
+reach next month's bill.
+
+`appliedFeeHeadDocsIds` must name at least one head. There is no "empty means
+everything" shortcut, so a tuition waiver can never wipe out transport, hostel or
+exam charges by accident.
+
+`concessionPolicyDocsId` null means a discount with no standing policy behind it —
 still approved, with `reason` as the only record of why.
+
+`requestedByType` says whether the parent asked from the portal or the fee desk
+raised it, and which collection `requestedByDocsId` points at. A `GUARDIAN` can
+never be the approver.
+
+The unique index allows one `APPROVED` `ACADEMIC_YEAR` request per policy per
+student per year. It skips `INVOICE` rows on purpose, so a family may ask for
+one-off help as often as the month demands.
 
 ## billing — invoices, payments, refunds
 
