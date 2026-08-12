@@ -28,8 +28,32 @@ public enum NumberSequenceType {
     /** School fee invoice number. */
     FEE_INVOICE,
 
-    /** School fee receipt number. */
+    /** School fee receipt number, allocated only once a payment succeeds. */
     FEE_RECEIPT,
+
+    /** School fee payment number, allocated when the payment is first recorded. */
+    FEE_PAYMENT,
+
+    /** Fee refund number. */
+    FEE_REFUND,
+
+    /** Fee concession request number. */
+    CONCESSION_REQUEST,
+
+    /** Student wallet account number. */
+    WALLET_ACCOUNT,
+
+    /** Financial aid or scholarship application number. */
+    AID_APPLICATION,
+
+    /** Financial aid or scholarship award number. */
+    AID_AWARD,
+
+    /** Accounting journal entry number. */
+    JOURNAL_ENTRY,
+
+    /** UPI AutoPay mandate number. */
+    UPI_MANDATE,
 
     /** SaaS subscription invoice number. */
     SUBSCRIPTION_INVOICE,
