@@ -1,10 +1,38 @@
-# notification — not built yet
+# notification — to be built last
 
 This package is empty on purpose. There are no models here yet.
 
-The notification system will be designed and built later. When that happens, this
-is where it will live, and this file says what it has to cover so nobody builds a
-smaller version of it somewhere else first.
+**Decided on 2026-08-14: this is the last thing we design.** Every other module —
+transport, documents, hostel, mess, library, payroll and the rest — gets designed
+before this one. Nobody should pick this up early, even though several other
+packages are waiting on it.
+
+When it is finally built, this is where it lives, and this file says what it has
+to cover so nobody builds a smaller version of it somewhere else first.
+
+## Why last, and what that costs
+
+Building it last is a choice, not an oversight. The trade is worth writing down
+so the decision can be revisited on purpose rather than by accident.
+
+**What we get:** every module that sends messages will already exist by the time
+this is designed. Instead of guessing what attendance alerts, fee reminders, exam
+results and trip permissions each need, we will be able to look at all of them and
+design once against the real list.
+
+**What it costs:** several things are stuck until then.
+
+- Chasing unpaid fees. `FeeReminderLog` and `ReminderChannel` were removed from
+  `finance` on 2026-08-12 and parked here, so there is no dunning at all until
+  this exists.
+- Every module built in the meantime will want to send something and will not be
+  able to. Each of those is a place that has to be revisited afterwards.
+
+**The one rule that must hold in the meantime:** when a module needs to send a
+message and this package is still empty, say it is deferred. Do not add a
+`sendEmail` helper, a `notifications` collection, or a `reminderSentAt` field to
+get around it. Those are the small local versions this package exists to prevent,
+and each one is harder to remove than it was to add.
 
 ## What it will handle
 
@@ -126,3 +154,16 @@ Things to think about when the time comes:
 If a task needs notifications and this package is still empty, say it is deferred
 rather than modelling it here or somewhere else. This whole system is designed in
 one go, or not at all.
+
+## When to start
+
+When there is no module left to design. That is the signal, and it was chosen
+deliberately on 2026-08-14.
+
+Before writing the first model, do one pass over the finished packages and write
+down every message each one needs to send, to whom, and in what circumstances.
+Waiting until last is only worth it if that list actually gets used — otherwise
+we have paid the cost of waiting and taken none of the benefit.
+
+Keep a running note of the places that had to say "deferred" along the way. Those
+are the first things to connect once this package exists.
