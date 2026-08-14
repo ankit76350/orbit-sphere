@@ -127,6 +127,7 @@ public class UserAccount extends SchoolBase {
     // Email tidied to lower case with spaces trimmed, used to find the account
     // at sign-in. Null when the person signs in by phone.
     // Example: "priya.sharma@orbitastra.edu.in"
+    //!we will pass email id and phone number during the 
     private String normalizedEmail;
 
     // Phone tidied to international form, used to find the account at sign-in.
