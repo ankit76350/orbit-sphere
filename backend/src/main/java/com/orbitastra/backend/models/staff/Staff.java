@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.undone.user.enums.Role;
+import com.orbitastra.backend.models.staff.enums.Role;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
