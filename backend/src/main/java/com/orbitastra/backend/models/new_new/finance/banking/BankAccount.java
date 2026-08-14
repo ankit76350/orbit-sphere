@@ -52,7 +52,7 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BankAccount extends SchoolBase {
-
+     //! this will belong to school means this is show the school bank account
     // Name staff pick from. Example: "SBI Fee Collection Account"
     @NotBlank
     private String name;
