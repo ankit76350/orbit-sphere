@@ -129,17 +129,9 @@ public class SettlementBatch extends SchoolBase {
     // Reference the bank showed for the credit. Example: "NEFT/RZP/9137524608"
     private String bankReference;
 
-    // Links to ReconciliationRun.id that matched this payout.
-    // Example: "67afaabbdc3f7d0011223344"
-    private String reconciliationRunDocsId;
-
     // Links to DocumentRecord.id for the provider's payout statement.
     // Example: "67ad3344dc3f7d0066778899"
     private String statementDocumentDocsId;
-
-    // Links to JournalEntry.id posted for the payout and the provider's charge.
-    // Example: "67ae5566dc3f7d0066778899"
-    private String journalEntryDocsId;
 
     // When the payout details were loaded into the school's records.
     // Example: 2026-04-11T03:30:00Z

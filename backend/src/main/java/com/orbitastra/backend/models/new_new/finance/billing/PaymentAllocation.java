@@ -115,8 +115,4 @@ public class PaymentAllocation extends SchoolBase {
     // Why the allocation was undone.
     // Example: "Money moved to the correct invoice after a parent query."
     private String reversalReason;
-
-    // Links to JournalEntry.id posted for this allocation.
-    // Example: "67ae5566dc3f7d0055667788"
-    private String journalEntryDocsId;
 }

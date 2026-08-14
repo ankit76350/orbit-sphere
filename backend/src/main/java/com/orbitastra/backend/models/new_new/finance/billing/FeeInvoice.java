@@ -194,11 +194,6 @@ public class FeeInvoice extends AcademicStudentSchoolBase {
     @Builder.Default
     private List<FeeInvoiceLine> lines = new ArrayList<>();
 
-    // Links to JournalEntry.id posted when this invoice was issued. Null while
-    // the books are not in use yet.
-    // Example: "67ad2233dc3f7d0022334455"
-    private String journalEntryDocsId;
-
     // Links to DocumentRecord.id for the printed or emailed bill.
     // Example: "67ad3344dc3f7d0033445566"
     private String invoiceDocumentDocsId;

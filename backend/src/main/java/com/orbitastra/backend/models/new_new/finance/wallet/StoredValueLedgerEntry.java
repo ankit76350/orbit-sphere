@@ -142,10 +142,6 @@ public class StoredValueLedgerEntry extends SchoolBase {
     // Example: "67af2233dc3f7d0022334455"
     private String reversedByLedgerEntryDocsId;
 
-    // Links to JournalEntry.id posted for this movement.
-    // Example: "67ae5566dc3f7d0055667788"
-    private String journalEntryDocsId;
-
     // Plain reason for the entry, needed for every hand-typed correction.
     // Example: "Balance corrected after a cash top-up was entered twice."
     private String remarks;

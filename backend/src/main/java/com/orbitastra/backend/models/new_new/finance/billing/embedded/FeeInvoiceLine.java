@@ -100,9 +100,4 @@ public class FeeInvoiceLine {
     @NotNull
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal lineTotal;
-
-    // Income account this line posts to, copied from the head so a later change
-    // to the head does not move an old posting.
-    // Example: "67ac20a1dc3f7d0066554433"
-    private String revenueLedgerAccountDocsId;
 }

@@ -112,10 +112,6 @@ public class StoredValueAccount extends SchoolBase {
     // When the newest entry was written. Example: 2026-06-14T08:30:00Z
     private Instant lastEntryAt;
 
-    // Liability account this wallet sits under in the books.
-    // Example: "67ac20a1dc3f7d0066554433"
-    private String ledgerAccountDocsId;
-
     // Balance below which the family is told to top up. Example: 500.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal lowBalanceThreshold;

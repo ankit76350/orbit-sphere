@@ -151,8 +151,4 @@ public class RefundTransaction extends SchoolBase {
     // Why sending the money back failed.
     // Example: "Bank rejected the transfer because the account number was wrong."
     private String failureReason;
-
-    // Links to JournalEntry.id posted for this refund.
-    // Example: "67ae5566dc3f7d0055667788"
-    private String journalEntryDocsId;
 }

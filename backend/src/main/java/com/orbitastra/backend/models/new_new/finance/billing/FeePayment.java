@@ -186,10 +186,6 @@ public class FeePayment extends AcademicStudentSchoolBase {
     // Example: "67ad99aadc3f7d0099001122"
     private String settlementBatchDocsId;
 
-    // Links to JournalEntry.id posted for this payment.
-    // Example: "67adaabbdc3f7d0000112233"
-    private String journalEntryDocsId;
-
     // Links to DocumentRecord.id for the printed receipt.
     // Example: "67adbbccdc3f7d0011223344"
     private String receiptDocumentDocsId;

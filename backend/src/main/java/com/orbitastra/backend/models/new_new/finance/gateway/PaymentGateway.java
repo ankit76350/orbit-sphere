@@ -107,10 +107,6 @@ public class PaymentGateway extends SchoolBase {
     // Example: "67ad8899dc3f7d0088990011"
     private String bankAccountDocsId;
 
-    // Expense account the provider's charges are posted to.
-    // Example: "67ac20a1dc3f7d0044332211"
-    private String feeLedgerAccountDocsId;
-
     // Whether a signed test callback has been received. Example: true
     @NotNull
     @Builder.Default

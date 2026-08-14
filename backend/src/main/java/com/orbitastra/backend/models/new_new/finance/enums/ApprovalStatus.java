@@ -2,7 +2,7 @@ package com.orbitastra.backend.models.new_new.finance.enums;
 
 /**
  * Shared maker-checker state for finance records that one user raises and a
- * different user decides, such as a ConcessionRequest or a BudgetPlan.
+ * different user decides, such as a ConcessionRequest.
  *
  * <p>The rule that the person who raised the record cannot also approve it is
  * checked by the service, not by this enum.

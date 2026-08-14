@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.accounting;
+package com.orbitastra.backend.models.new_new.finance.banking;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
@@ -28,8 +28,13 @@ import lombok.experimental.SuperBuilder;
  * <li>{@code maskedAccountNumber} is the only version safe to show on screen.</li>
  * </ul>
  *
- * <p>{@code ledgerAccountDocsId} ties the bank account to the books, so a
- * payment landing here posts to the matching asset account by itself.
+ * <p>This is a plain record of where the school's money sits. Payments, refunds,
+ * gateways and settlement batches all point at it to say which bank the money went
+ * into or came out of.
+ *
+ * <p>There is no link to a bookkeeping account here. The books are not built yet,
+ * so a field for that was removed rather than left pointing at nothing. When the
+ * books are built, this is where the link back to them will go.
  */
 @Document(collection = "bank_accounts")
 @CompoundIndexes({
@@ -51,10 +56,6 @@ public class BankAccount extends SchoolBase {
     // Name staff pick from. Example: "SBI Fee Collection Account"
     @NotBlank
     private String name;
-
-    // Asset account in the books this bank account maps to.
-    // Example: "67ac20a1dc3f7d0011998877"
-    private String ledgerAccountDocsId;
 
     // Example: "State Bank of India"
     @NotBlank
@@ -90,12 +91,6 @@ public class BankAccount extends SchoolBase {
     // Example: "INR"
     @NotBlank
     private String currencyCode;
-
-    // Whether statement lines for this account have to be matched.
-    // Example: true
-    @NotNull
-    @Builder.Default
-    private Boolean reconciliationRequired = true;
 
     // The account used by default when none is chosen. Only one per school
     // should have this set, which the service checks. Example: true

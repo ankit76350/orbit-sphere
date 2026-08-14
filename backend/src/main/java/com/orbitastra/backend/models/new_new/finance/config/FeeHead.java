@@ -33,11 +33,6 @@ import lombok.experimental.SuperBuilder;
  * renamed once invoices exist. {@code defaultAmount} is only a starting value;
  * a FeeStructure line may override it for a particular class.
  *
- * <p>{@code revenueLedgerAccountDocsId} is what connects fees to the books. When
- * it is set, issuing an invoice for this head can post to the right income
- * account by itself. When it is null the accounts team has to place the amount
- * by hand.
- *
  * <p>{@code maximumConcessionPerYear} is the only yearly limit in the fee part of
  * the system, and we keep it here rather than on a concession on purpose. A
  * concession says what share to take off. The fee head says how much the school is
@@ -128,9 +123,6 @@ public class FeeHead extends SchoolBase {
     @NotNull
     @Builder.Default
     private Boolean lateFeeApplicable = true;
-
-    // Income account this head is posted to. Example: "67ac20a1dc3f7d0066554433"
-    private String revenueLedgerAccountDocsId;
 
     // Order this head appears in on screens and printed bills. Example: 10
     @Builder.Default

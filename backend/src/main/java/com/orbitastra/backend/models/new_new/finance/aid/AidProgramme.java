@@ -136,10 +136,6 @@ public class AidProgramme extends SchoolBase {
     @Builder.Default
     private Boolean renewable = false;
 
-    // Expense account the help is posted to in the books.
-    // Example: "67ac20a1dc3f7d0055443322"
-    private String expenseLedgerAccountDocsId;
-
     // Whether new applications may still be taken. Example: true
     @NotNull
     @Builder.Default

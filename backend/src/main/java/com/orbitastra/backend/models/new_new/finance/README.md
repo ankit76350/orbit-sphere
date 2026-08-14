@@ -1,8 +1,7 @@
 # School finance model mapping
 
 These models cover the money that moves between families and the school: what is
-charged, what is collected, what is discounted, and how all of it lands in the
-books.
+charged, what is collected, what is discounted, and where the money ends up.
 
 They are **not** the SaaS subscription models. `plans/billing` bills schools for
 the platform; this package bills parents for school fees. The two never share a
@@ -17,7 +16,7 @@ Six of them extend `AcademicStudentSchoolBase` and additionally carry
 | Source | Contribution |
 |---|---|
 | `undone/a_new/billing` | invoice, payment, allocation, refund, settlement, wallet |
-| `undone/a_new/accounting` | ledger, journal, fiscal period, bank, reconciliation, budget |
+| `undone/a_new/accounting` | bank account (the rest was removed 2026-08-12) |
 | `undone/a_new/aid` | scholarship programme, application, award |
 | `undone/a_working/feeengine` | fee heads, structures, concessions, gateway, mandate, dunning |
 | `models/finance` (legacy) | the four collections this package supersedes |
@@ -56,10 +55,8 @@ FeeInvoice  (one per student, per installment)
 StoredValueAccount  (wallet)
   +--> StoredValueLedgerEntry[]   append-only, sequenced
 
-Everything above posts to:
-JournalEntry --> JournalLine[] --> LedgerAccount
-  within FiscalPeriod, matched by ReconciliationRun --> ReconciliationItem[]
-  against BankAccount, planned by BudgetPlan
+BankAccount  (which bank the money sat in)
+  ^-- FeePayment, RefundTransaction, PaymentGateway, SettlementBatch
 ```
 
 ## What replaces the legacy `models/finance`
@@ -77,7 +74,6 @@ supersedes `students` and `guardians`.
 | `StudentWallet.balance` | `StoredValueAccount` + `StoredValueLedgerEntry` | a balance you cannot explain is a balance you cannot audit |
 | `WalletTransaction` (mutable) | append-only ledger with `sequenceNo` | statements read in order, corrections are reversals |
 | `@Indexed(unique = true)` on `invoiceNo` | `{schoolId, invoiceNo}` unique | two schools may both have `INV/2026/000001` |
-| nothing | `JournalEntry` and the accounting package | fees never reached the books at all |
 
 ## config — fee configuration
 
@@ -94,7 +90,6 @@ One thing the school can charge for. The reusable setting, not the charge.
 | `taxable`, `taxRatePercent` | GST applicability and rate. |
 | `concessionAllowed` | Whether a discount may touch this head. |
 | `maximumConcessionPerYear` | Most discount one student may get on this head in a year, across every concession and award. Null means no limit. |
-| `revenueLedgerAccountDocsId` | Income account to post to; null means placed by hand. |
 
 The yearly concession limit lives here and nowhere else. A concession says what
 share to take off; the head says how much the school is prepared to give away in
@@ -243,23 +238,41 @@ stored per entry so a statement line needs no running sum, and
 exactly one entry of a given type. If the account balance and the entries ever
 disagree, the entries win.
 
-## accounting — the books
+## banking — where the money sits
 
 | Collection | Purpose |
 |---|---|
-| `ledger_accounts` | Chart of accounts as a tree; group headings have `postingAllowed = false`. |
-| `fiscal_periods` | Finance periods, separate from the academic year, opened and closed for posting. |
-| `journal_entries` | Debits and credits; immutable once `POSTED`. |
 | `bank_accounts` | Encrypted number, lookup hash, masked display — never plain text. |
-| `reconciliation_runs` | One attempt at matching a bank statement to the books. |
-| `reconciliation_items` | One statement line each; own collection because a month can run to thousands. |
-| `budget_plans` | Planned income and spend per account per period, versioned. |
 
-`JournalEntry` is where the whole module converges. Its unique index on
-`{schoolId, sourceType, sourceDocsId, idempotencyKey}` is what stops one business
-event from posting to the books twice, however many times a webhook fires or a
-batch job is re-run. `totalDebit` must equal `totalCredit` before a post is
-allowed.
+`BankAccount` is a plain record of the school's bank accounts. `FeePayment`,
+`RefundTransaction`, `PaymentGateway` and `SettlementBatch` point at it to say
+which bank the money went into or came out of.
+
+## accounting — the books — not built yet
+
+There is no bookkeeping in the module. `LedgerAccount`, `JournalEntry`,
+`JournalLine`, `FiscalPeriod`, `BudgetPlan`, `BudgetLine`, `ReconciliationRun`
+and `ReconciliationItem` were written and then removed on 2026-08-12, along with
+their six enums.
+
+The reason: none of it is needed to bill families and collect money, and
+double-entry bookkeeping is a large thing to carry while nobody is using it.
+Invoices, payments and allocations answer questions about one student. The books
+answer questions about the school as a business — what it earned, what it spent,
+whether the bank agrees. Build them when somebody actually asks one of those
+questions, or when an export to Tally or Zoho Books is needed.
+
+The pointer fields that led into the books were removed with the models, rather
+than left behind pointing at collections that no longer exist:
+`journalEntryDocsId` from `FeeInvoice`, `FeePayment`, `PaymentAllocation`,
+`RefundTransaction`, `SettlementBatch` and `StoredValueLedgerEntry`;
+`revenueLedgerAccountDocsId` from `FeeHead` and `FeeInvoiceLine`;
+`ledgerAccountDocsId` from `StoredValueAccount` and `BankAccount`;
+`expenseLedgerAccountDocsId` from `AidProgramme`; `feeLedgerAccountDocsId` from
+`PaymentGateway`; and `reconciliationRunDocsId` plus `reconciliationRequired`
+from `SettlementBatch` and `BankAccount`.
+
+Put them back when the books are built. The old versions are in git history.
 
 ## aid — scholarships and funded help
 
@@ -308,42 +321,36 @@ uniqueness). Everything below lives in the service and request-DTO layer.
 
 1. Invoice line totals must sum to the header totals; `outstandingAmount` equals
    `grandTotal - allocatedPaymentTotal - writtenOffTotal`.
-2. Journal `totalDebit` must equal `totalCredit` before a post is allowed, and
-   each line carries an amount in exactly one of `debit`/`credit`.
-3. Active allocations against a payment must never exceed its amount, nor exceed
+2. Active allocations against a payment must never exceed its amount, nor exceed
    the target invoice's outstanding amount.
-4. A refund must never exceed `FeePayment.amount - FeePayment.refundedAmount`.
-5. Wallet balances must never go negative, and
+3. A refund must never exceed `FeePayment.amount - FeePayment.refundedAmount`.
+4. Wallet balances must never go negative, and
    `availableBalance + heldBalance` must match the newest ledger entry.
-6. `AidProgramme.awardedAmount` must never exceed `budgetAmount`;
+5. `AidProgramme.awardedAmount` must never exceed `budgetAmount`;
    `AidAward.utilizedAmount` must never exceed `awardAmount`.
-7. Fee-structure installment `sharePercent` values must sum to 100 when shares
+6. Fee-structure installment `sharePercent` values must sum to 100 when shares
    are used.
 
 **Immutability**
 
-8. Never edit a `POSTED` journal entry, an issued invoice's amounts, or any
-   ledger entry. Correct by reversal, which always leaves both rows.
-9. Never reuse or reassign a business number. `receiptNo` is allocated only on
+7. Never edit an issued invoice's amounts or any wallet ledger entry. Correct by
+   reversal, which always leaves both rows.
+8. Never reuse or reassign a business number. `receiptNo` is allocated only on
    success.
-10. Version fee structures and budgets rather than editing ones already in use.
+9. Version fee structures rather than editing ones already in use.
 
 **Separation of duties**
 
-11. The raiser and the approver must be different people for
-    `ConcessionRequest`, `RefundTransaction`, `BudgetPlan`, journal approval, and
-    `AidApplication` verification versus decision.
+10. The raiser and the approver must be different people for
+    `ConcessionRequest`, `RefundTransaction`, and `AidApplication` verification
+    versus decision.
 
 **Scope and idempotency**
 
-12. `schoolId` comes from the authenticated session, never from the request body,
+11. `schoolId` comes from the authenticated session, never from the request body,
     and every query includes it.
-13. Both sides of an allocation, and every document a journal line references,
-    must belong to the same `schoolId`.
-14. Every gateway callback and batch job must supply an `idempotencyKey`.
-15. `academicYear` is resolved server-side against the school's `AcademicYear`
+12. Both sides of an allocation must belong to the same `schoolId`.
+13. Every gateway callback and batch job must supply an `idempotencyKey`.
+14. `academicYear` is resolved server-side against the school's `AcademicYear`
     documents, never trusted from a request; `sectionNo` is verified to exist in
     the referenced `SchoolClass`.
-16. Posting requires an `OPEN` (or `SOFT_CLOSED`, for accountants) fiscal period
-    whose dates contain the accounting date, and a `LedgerAccount` with
-    `postingAllowed = true`.
