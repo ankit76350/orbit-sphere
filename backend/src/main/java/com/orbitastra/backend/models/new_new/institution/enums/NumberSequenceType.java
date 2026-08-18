@@ -76,6 +76,9 @@ public enum NumberSequenceType {
     /** Permission for a student to leave during school hours. */
     STUDENT_OUT_PASS,
 
+    /** One visit to the school nurse. */
+    CLINIC_VISIT,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

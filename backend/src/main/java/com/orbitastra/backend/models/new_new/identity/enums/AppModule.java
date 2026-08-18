@@ -60,6 +60,13 @@ public enum AppModule {
     /** Visitors, gate movements and letting a child out during school hours. */
     GATE,
 
+    /**
+     * Health profiles, clinic visits, medicines given and vaccinations. Held apart
+     * from STUDENTS on purpose: a class teacher needs a child's timetable but not
+     * their medical notes, and only the alerts marked for it reach other screens.
+     */
+    HEALTH,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
