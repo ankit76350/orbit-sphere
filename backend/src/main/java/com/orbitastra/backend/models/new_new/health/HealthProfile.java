@@ -36,7 +36,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code alerts} is the part staff actually read. Each one carries what to do
  * rather than only what is wrong, because "nut allergy" is no help at the moment it
- * counts. An alert marked {@code showOnStudentScreens} appears wherever the child
+ * counts. An alert at HIGH or LIFE_THREATENING severity appears wherever the child
  * is named, not only here, so a teacher taking a class on a trip cannot miss it.
  *
  * <p>{@code routineMedicineConsent} is the standing permission for the school to

@@ -2,14 +2,18 @@ package com.orbitastra.backend.models.new_new.health;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.health.embedded.GuardianInformed;
 import com.orbitastra.backend.models.new_new.health.enums.ClinicVisitOutcome;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -33,9 +37,15 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code outcome} is the field a parent asks about and the one that decides
  * whether anybody else needs telling. SENT_HOME and worse all mean a guardian must
- * be contacted, which is why {@code guardianInformedAt} sits next to it. A child
- * sent home with nobody recorded as having been told is the situation this model
- * exists to make visible.
+ * be contacted, which is why {@code guardiansInformed} sits next to it. A child sent
+ * home with nobody recorded as having been told is the situation this model exists to
+ * make visible.
+ *
+ * <p>{@code guardiansInformed} is a list because ringing one guardian often is not
+ * the end of it. The nurse tries the mother, gets no answer, tries the father,
+ * reaches him. There is no separate "was anybody told" flag: a flag could be set true
+ * with the list empty, which is exactly the claim nobody should be able to make. An
+ * empty list is the only way of saying nobody knows.
  *
  * <p>{@code studentOutPassDocsId} links a child sent home to the gate record that
  * let them out. Being sent home ill and being collected early are the same event
@@ -70,8 +80,8 @@ import lombok.experimental.SuperBuilder;
                 name = "school_clinic_day_idx",
                 def = "{'schoolId': 1, 'visitDate': -1, 'outcome': 1}"),
         @CompoundIndex(
-                name = "school_clinic_followup_idx",
-                def = "{'schoolId': 1, 'guardianInformed': 1, 'visitDate': -1}")
+                name = "school_clinic_guardian_idx",
+                def = "{'schoolId': 1, 'guardiansInformed.guardianDocsId': 1, 'visitDate': -1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -125,18 +135,13 @@ public class ClinicVisit extends AcademicStudentSchoolBase {
     // Example: "67aa15d9dc3f7d0077777777"
     private String referredByStaffDocsId;
 
-    // Whether a guardian has been told. Must be true for SENT_HOME and worse.
-    // Example: true
-    @NotNull
+    // Every guardian who was told, each with the time they were told. Empty means
+    // nobody has been told yet, which must not stay true for an outcome of
+    // SENT_HOME or worse. Guardians who could not be reached are not listed here;
+    // those attempts go in remarks.
+    @Valid
     @Builder.Default
-    private Boolean guardianInformed = false;
-
-    // Links to Guardian.id for whoever was told.
-    // Example: "67aa15d9dc3f7d0066666666"
-    private String guardianInformedDocsId;
-
-    // When they were told. Example: 2026-08-19T05:40:00Z
-    private Instant guardianInformedAt;
+    private List<GuardianInformed> guardiansInformed = new ArrayList<>();
 
     // Links to StudentOutPass.id when the child was collected and taken home.
     // Example: "67b61126dc3f7d0055667788"

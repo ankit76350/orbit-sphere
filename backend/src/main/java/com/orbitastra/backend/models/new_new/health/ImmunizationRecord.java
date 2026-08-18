@@ -92,10 +92,6 @@ public class ImmunizationRecord extends SchoolBase {
     // Who gave it. Example: "Sunrise Clinic, Dr Anita Rao"
     private String providerName;
 
-    // Batch number from the card, kept because recalls happen by batch.
-    // Example: "MMR-2019-B4471"
-    private String batchNumber;
-
     // How much the school knows this really happened.
     // Example: ImmunizationVerificationStatus.VERIFIED
     @NotNull
@@ -111,6 +107,8 @@ public class ImmunizationRecord extends SchoolBase {
     // Example: "67aa15d9dc3f7d0044444444"
     private String verifiedByDocsId;
 
-    // Anything worth knowing. Example: "Card was faded; mother confirmed the date."
+    // Anything worth knowing, including a batch number in the rare case the school
+    // gave the jab itself and wants one on record.
+    // Example: "Card was faded; mother confirmed the date."
     private String remarks;
 }

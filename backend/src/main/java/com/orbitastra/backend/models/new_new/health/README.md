@@ -37,7 +37,7 @@ Student
   +--> ClinicVisit[]          one per trip to the nurse
   |      |
   |      +--> StudentOutPass  (gate) when the child was sent home
-  |      +--> Guardian        who was told, and when
+  |      +--> GuardianInformed[]  who was told, and when
   |
   +--> MedicationAdministration[]   one per dose given, or not given
 ```
@@ -85,8 +85,21 @@ bar this field has to meet.
 
 `severity` decides how loudly it shows. A nut allergy that can kill and a dislike of
 onions are both `ALLERGY`, and showing them identically is how the important one gets
-missed. `showOnStudentScreens` pushes an alert out of the health record and onto
-every screen naming the child, so a teacher taking a trip cannot miss it.
+missed.
+
+**Severity alone decides where an alert appears.** `HIGH` and `LIFE_THREATENING` are
+pushed onto every screen that names the child, so a teacher taking a trip cannot miss
+them. Everything below that stays in the health record.
+
+There is deliberately **no separate "show this one" switch.** A switch would allow an
+alert marked `LIFE_THREATENING` with visibility turned off — the one combination that
+must never exist. One field, one source of truth, and a fatal allergy cannot be
+hidden by accident.
+
+A family wanting a serious condition kept quiet is a real situation, and it is not
+solved by hiding an alert. An alert exists so staff can **act**; something nobody may
+act on belongs in the support and safeguarding module, where access is narrower than
+the whole health team.
 
 ## Alerts are deliberately *not* encrypted
 
@@ -190,7 +203,7 @@ unwell is not being away.
   it. Actually processing a claim is a finance job.
 - **Growth charts and percentiles.** `heightCm` and `weightKg` are recorded; drawing
   a chart is a report, not a model.
-- **Notifying a parent automatically.** `guardianInformed` records that somebody
+- **Notifying a parent automatically.** `guardiansInformed` records that somebody
   told them. Nothing here records a message being sent — that is `notification`,
   which is designed last. Do not add a `notifiedAt` field to get around it.
 
@@ -200,8 +213,9 @@ unwell is not being away.
 
 1. Reading anything in this package requires the `HEALTH` module. Student access is
    not enough.
-2. The only exception is a `HealthAlert` with `showOnStudentScreens = true`, which
-   any staff member who may see the child may read.
+2. The only exception is a `HealthAlert` at `HIGH` or `LIFE_THREATENING` severity,
+   which any staff member who may see the child may read. Severity is the only thing
+   that decides this — there is no per-alert visibility switch to get wrong.
 3. Free-text notes are encrypted before saving and decrypted only for a staff member
    with the `HEALTH` module.
 
@@ -227,14 +241,19 @@ unwell is not being away.
 **Clinic visits**
 
 12. An outcome of `SENT_HOME`, `REFERRED_TO_HOSPITAL` or `EMERGENCY_SERVICES`
-    requires `guardianInformed = true` with a guardian and a time recorded.
-13. A child sent home is not marked absent by this package. Attendance is decided
+    requires at least one entry in `guardiansInformed`. There is no separate flag to
+    set — an empty list is the only way of saying nobody knows, so the claim cannot be
+    made without naming who was told and when.
+13. Only guardians actually reached go in `guardiansInformed`. Failed attempts go in
+    `remarks`; a list of people who did not answer is not a record that anybody was
+    told.
+14. A child sent home is not marked absent by this package. Attendance is decided
     by the attendance models.
-14. `arrivedAt` is never after `leftAt`.
+15. `arrivedAt` is never after `leftAt`.
 
 **Immunizations**
 
-15. The same vaccine and dose number is never recorded twice for one child.
-16. `administeredOn` is not in the future.
-17. `verificationStatus` moves to `VERIFIED` only when a staff member has looked at
+16. The same vaccine and dose number is never recorded twice for one child.
+17. `administeredOn` is not in the future.
+18. `verificationStatus` moves to `VERIFIED` only when a staff member has looked at
     the evidence, and that member is recorded.

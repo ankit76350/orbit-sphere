@@ -23,9 +23,19 @@ import lombok.NoArgsConstructor;
  * adrenaline pen in the staff room and call an ambulance" is a plan somebody can
  * follow while frightened.
  *
- * <p>{@code severity} decides what a teacher sees first. A nut allergy that can
- * kill and a dislike of onions are both allergies, and showing them the same way is
- * how the important one gets missed.
+ * <p>{@code severity} decides both what a teacher sees first and where the alert
+ * appears at all. HIGH and LIFE_THREATENING are shown on every screen that names
+ * the child; the rest live in the health record only.
+ *
+ * <p>There is deliberately no separate "show this one" switch. A switch would let
+ * somebody save an alert marked LIFE_THREATENING and then turn its visibility off,
+ * which is the one combination that must never exist. With severity alone there is
+ * one source of truth, and a fatal allergy cannot be hidden by accident.
+ *
+ * <p>A family who wants a serious condition kept quiet is a real situation and is
+ * not solved by hiding an alert. An alert exists so staff can act; something nobody
+ * may act on belongs in the support and safeguarding module, where access is
+ * narrower than the whole health team.
  *
  * <p>The details are held as ordinary text rather than encrypted, unlike the
  * clinical notes on a visit. That is on purpose: an alert is no use locked away.
@@ -61,12 +71,6 @@ public class HealthAlert {
     // Example: "Use the adrenaline pen in the staff room, then call an ambulance
     // and ring the mother on the number in the profile."
     private String whatToDo;
-
-    // Whether this is shown on every screen that names the child, rather than
-    // only in the health record. Example: true
-    @NotNull
-    @Builder.Default
-    private Boolean showOnStudentScreens = false;
 
     // Who told the school, so it can be checked later.
     // Example: "Mother, at admission. Paediatrician's letter on file."
