@@ -64,6 +64,12 @@ public enum NumberSequenceType {
     /** Generated certificate number. */
     CERTIFICATE,
 
+    /** Request from a parent or student for a document. */
+    DOCUMENT_REQUEST,
+
+    /** Identity card number, printed on the card. */
+    ID_CARD,
+
     /** Visitor pass number. */
     VISITOR_PASS,
 
