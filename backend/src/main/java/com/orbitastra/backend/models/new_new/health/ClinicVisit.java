@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.health.embedded.GuardianInformed;
+import com.orbitastra.backend.models.new_new.common.embedded.GuardianInformed;
 import com.orbitastra.backend.models.new_new.health.enums.ClinicVisitOutcome;
 
 import jakarta.validation.Valid;
