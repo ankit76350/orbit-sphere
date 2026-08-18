@@ -67,6 +67,22 @@ A pass sitting at `CHECKED_IN` overnight is either somebody nobody checked out o
 guard who forgot. Either way it needs looking at, and it is visible rather than
 buried.
 
+## A visit can be about several children, an out pass cannot
+
+`VisitorPass.studentDocsIds` is a **list**. One visitor often comes about more than
+one child at once — a parent of three attends one parents' evening, an uncle
+collects two brothers in one trip. Issuing a badge per child would mean three
+badges for one person standing at the gate, and three rows to check out afterwards.
+
+`StudentOutPass` is deliberately **one per child**, and the asymmetry is on
+purpose. A pass is not just a note about who came; it is a permission to release a
+named child, with its own approval, its own exit time and its own return time. Two
+siblings leaving at the same moment still need two records, because "which child is
+out of the building" must have an exact answer, and one row covering two children
+cannot say that one of them came back and the other did not.
+
+So: one visit, many children discussed. One release, one child.
+
 ## `StudentOutPass` is the serious one
 
 Everything else here is about knowing who is in the building. This one is about
@@ -237,8 +253,12 @@ school is a decision that needs an owner.
 15. Rows are never edited or deleted. A wrong row is corrected by adding the right
     one with an explanation in `remarks`.
 16. A student going `OUT` during school hours without a `studentOutPassDocsId` is
-    written with an `exceptionCode`, not refused silently.
-17. Attendance is never derived from gate movements without an explicit decision to
+    written with an `exceptionType`, not refused silently. The log always accepts
+    what happened and marks it; refusing the row would leave no record that the
+    child left.
+17. Any row with an `exceptionType` appears on a daily exceptions list.
+18. `remarks` is required when `exceptionType` is `OTHER` or `MANUAL_CORRECTION`.
+19. Attendance is never derived from gate movements without an explicit decision to
     do so. Being in the building is not being in class.
-18. Non-working days come from `AcademicYear.holidays`; no weekday is assumed to be
+20. Non-working days come from `AcademicYear.holidays`; no weekday is assumed to be
     a day off.

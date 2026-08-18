@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.gate.enums.MovementDirection;
+import com.orbitastra.backend.models.new_new.gate.enums.MovementExceptionType;
 import com.orbitastra.backend.models.new_new.gate.enums.MovementSubjectType;
 import com.orbitastra.backend.models.new_new.gate.enums.VerificationMethod;
 
@@ -52,6 +53,11 @@ import lombok.experimental.SuperBuilder;
  * <p>{@code movementDate} repeats the date part of {@code occurredAt} on purpose,
  * so a day's movements can be read with a plain equality match instead of a range,
  * which is the query the gate screen runs all day long.
+ *
+ * <p>{@code exceptionType} is how the log stays honest. A child who walks out with
+ * no pass is written down and marked, never refused: refusing the row would leave
+ * no record that they left, which is the opposite of what this collection is for.
+ * The mark is what puts the row on a list somebody reads.
  *
  * <p>The service checks that the gate is active, that a subject going OUT has a
  * matching IN earlier the same day where the school expects one, and that rows are
@@ -131,10 +137,13 @@ public class GateMovement extends SchoolBase {
     private String deviceReference;
 
     // Set when something was not right, such as a card that did not match or a
-    // child leaving with no pass. Example: "NO_OUT_PASS"
-    private String exceptionCode;
+    // child leaving with no pass. The movement is still written; it is marked so
+    // it lands on a list somebody looks at.
+    // Example: MovementExceptionType.NO_OUT_PASS
+    private MovementExceptionType exceptionType;
 
-    // Anything worth knowing, including the explanation for a correcting row.
+    // Anything worth knowing, and required whenever exceptionType is OTHER or
+    // MANUAL_CORRECTION.
     // Example: "Card left at home; identity confirmed by the class teacher."
     private String remarks;
 }

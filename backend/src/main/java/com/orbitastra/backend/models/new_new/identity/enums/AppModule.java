@@ -51,8 +51,14 @@ public enum AppModule {
     /** Payment gateways, mandates, settlements and bank accounts. */
     FEES_SETUP,
 
-    /** Uploaded and generated documents. */
+    /** Uploaded and generated documents, certificates and ID cards. */
     DOCUMENTS,
+
+    /** Routes, vehicles, drivers, student allocations and boarding. */
+    TRANSPORT,
+
+    /** Visitors, gate movements and letting a child out during school hours. */
+    GATE,
 
     /** Messages sent to families and staff. */
     NOTIFICATIONS,

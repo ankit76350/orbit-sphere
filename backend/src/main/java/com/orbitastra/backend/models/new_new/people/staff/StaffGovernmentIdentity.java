@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.staff.enums.GovernmentIdentityType;
+import com.orbitastra.backend.models.new_new.common.enums.GovernmentIdentityType;
 import com.orbitastra.backend.models.new_new.people.staff.enums.IdentityVerificationStatus;
 
 import jakarta.validation.constraints.NotBlank;

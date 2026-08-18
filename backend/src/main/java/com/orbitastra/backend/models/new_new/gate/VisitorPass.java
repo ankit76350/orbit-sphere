@@ -2,6 +2,8 @@ package com.orbitastra.backend.models.new_new.gate;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
@@ -33,8 +35,14 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code hostStaffDocsId} is who agreed to see them, and it is required. A
  * visitor with nobody expecting them is somebody who talked their way in. When a
- * visit is about a child, {@code studentDocsId} says which one, so "who came to see
- * my son and when" has an answer.
+ * visit is about children, {@code studentDocsIds} says which ones, so "who came to
+ * see my son and when" has an answer.
+ *
+ * <p>{@code studentDocsIds} is a list because one visitor often comes about more
+ * than one child at a time. A parent with three children here attends one parents'
+ * evening, not three, and an uncle collecting two brothers makes one trip. Making
+ * the guard issue a pass per child would mean three badges for one person standing
+ * at the gate, and three rows to check out afterwards.
  *
  * <p>{@code scanPayload} works the same way as the one on an ID card, and for the
  * same reason: a meaningless random token, never a web address, so a badge dropped
@@ -71,8 +79,7 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'hostStaffDocsId': 1, 'visitDate': -1}"),
         @CompoundIndex(
                 name = "school_visitor_pass_student_idx",
-                def = "{'schoolId': 1, 'studentDocsId': 1, 'visitDate': -1}",
-                partialFilter = "{'studentDocsId': {'$type': 'string'}}")
+                def = "{'schoolId': 1, 'studentDocsIds': 1, 'visitDate': -1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -106,9 +113,13 @@ public class VisitorPass extends SchoolBase {
     @NotBlank
     private String hostStaffDocsId;
 
-    // Links to Student.id when the visit is about one child. Null otherwise.
-    // Example: "67aa15d9dc3f7d0055555555"
-    private String studentDocsId;
+    // Links to Student.id for every child this visit is about. A list because one
+    // visitor often comes about more than one child at once, such as a parent of
+    // three attending one parents' evening. Empty when the visit has nothing to do
+    // with any particular child, which is normal for a vendor or a courier.
+    // Example: ["67aa15d9dc3f7d0055555555", "67aa15d9dc3f7d0055555666"]
+    @Builder.Default
+    private List<String> studentDocsIds = new ArrayList<>();
 
     // The day of the visit. Example: 2026-08-19
     @NotNull

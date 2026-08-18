@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.common.enums.GovernmentIdentityType;
 import com.orbitastra.backend.models.new_new.gate.enums.VisitorType;
 
 import jakarta.validation.constraints.NotBlank;
@@ -97,9 +98,8 @@ public class Visitor extends SchoolBase {
     @NotBlank
     private String maskedContactNumber;
 
-    // What ID they showed, such as an Aadhaar or a driving licence.
-    // Example: "AADHAAR"
-    private String identityDocumentType;
+    // What ID they showed. Example: GovernmentIdentityType.AADHAAR
+    private GovernmentIdentityType identityDocumentType;
 
     // The ID number, encrypted before it is saved.
     // Example: "enc:v1:9a8b7c6d5e4f3021"
