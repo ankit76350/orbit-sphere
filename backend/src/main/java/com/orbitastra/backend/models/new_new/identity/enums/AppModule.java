@@ -67,6 +67,13 @@ public enum AppModule {
      */
     HEALTH,
 
+    /**
+     * Incidents, discipline cases, the actions decided, and recognitions. Also held
+     * apart from STUDENTS: what a child did wrong in Class VI should not be on
+     * every screen for the rest of their time at the school.
+     */
+    CONDUCT,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 

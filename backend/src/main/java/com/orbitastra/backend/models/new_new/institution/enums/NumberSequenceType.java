@@ -79,6 +79,15 @@ public enum NumberSequenceType {
     /** One visit to the school nurse. */
     CLINIC_VISIT,
 
+    /** One conduct incident, which may involve several students. */
+    CONDUCT_EVENT,
+
+    /** One student's conduct case arising from an incident. */
+    CONDUCT_CASE,
+
+    /** One recognition or award given to a student. */
+    STUDENT_RECOGNITION,
+
     /** School-configured type not represented above. */
     CUSTOM
 }
