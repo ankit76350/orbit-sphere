@@ -35,6 +35,23 @@ import lombok.experimental.SuperBuilder;
  * being accepted straight away, which is why the status is checked at the reader
  * rather than the card simply being trusted.
  *
+ * <p>{@code scanPayload} is what the QR code and the barcode on the card both
+ * encode. One string covers both, because a QR and a barcode are two ways of
+ * printing the same value, not two different values. A handheld reader or a
+ * teacher's phone scans it and the school's own app looks the card up.
+ *
+ * <p>This QR works the opposite way round from the one on a certificate, and the
+ * difference matters. A certificate's QR is meant to open a public page, because
+ * an employer outside the school needs to check it. A child's card must never do
+ * that. A stranger who picks up a lost card has to learn nothing at all from
+ * scanning it, so {@code scanPayload} is a meaningless random token, not a web
+ * address, and only a signed-in member of staff can turn it into a name.
+ *
+ * <p>The token is random rather than the card number so that two scans of two
+ * cards cannot be lined up against each other to work out how many cards the
+ * school has issued or in what order. As with a certificate, the picture of the QR
+ * is never saved: it is drawn again from this string whenever the card is printed.
+ *
  * <p>A lost card is the case that matters most. The old row stays LOST rather than
  * being edited into the new one, so a card somebody else is holding is on record
  * as no longer valid. The replacement is a new row pointing back through
@@ -48,8 +65,9 @@ import lombok.experimental.SuperBuilder;
  * enforces.
  *
  * <p>The service checks that a lost or damaged card is closed before a
- * replacement is issued, that the photo belongs to the person on the card, and
- * that an expired card is not accepted by a reader whatever its status says.
+ * replacement is issued, that the photo belongs to the person on the card, that
+ * an expired card is not accepted by a reader whatever its status says, and that
+ * resolving a {@code scanPayload} needs a signed-in member of staff.
  */
 @Document(collection = "id_cards")
 @CompoundIndexes({
@@ -67,6 +85,11 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'rfidNumber': 1}",
                 unique = true,
                 partialFilter = "{'rfidNumber': {'$type': 'string'}}"),
+        @CompoundIndex(
+                name = "id_card_scan_payload_uniq",
+                def = "{'scanPayload': 1}",
+                unique = true,
+                partialFilter = "{'scanPayload': {'$type': 'string'}}"),
         @CompoundIndex(
                 name = "school_id_card_status_idx",
                 def = "{'schoolId': 1, 'status': 1, 'validUntil': 1}")
@@ -107,8 +130,11 @@ public class IdCard extends SchoolBase {
     // Null for a printed card with no chip. Example: "04A2B7C9D1"
     private String rfidNumber;
 
-    // What a scanner reads from the code printed on the card. Holds no personal
-    // details, only enough to look the card up. Example: "IDC/2026/001204"
+    // What the QR code and the barcode on the card both encode. A meaningless
+    // random token, never a web address and never the card number, so a stranger
+    // who scans a lost card learns nothing. Only a signed-in member of staff can
+    // turn it into a name. The picture of the QR is not saved; it is drawn again
+    // from this string. Example: "c8f1a94e2d7b40639aa5"
     private String scanPayload;
 
     // Day the card was handed over. Example: 2026-04-10

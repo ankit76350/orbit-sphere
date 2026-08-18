@@ -22,7 +22,7 @@ DocumentRecord      the stored file — used by both jobs
    |                                    |
 DocumentTemplate  --- versioned ---> IssuedDocument      (the certificate)
    |   wording, placeholders,          documentNo + verificationCode
-   |   requiresApproval                dataSnapshotJson
+   |   requiresApproval                the finished PDF
    |                                        ^
    |                                        |
    +--------------------------------->  DocumentRequest  (somebody asked)
@@ -152,18 +152,93 @@ for word as it did in 2026**, and it will not if somebody reworded the template 
 between. So `IssuedDocument` also copies in `templateKeySnapshot` and
 `templateVersionSnapshot` rather than reading them through the link.
 
-## The snapshot that stops silent lies
+## Scanning the QR code
 
-`IssuedDocument.dataSnapshotJson` keeps the values that were put into the
-template.
+A certificate carries a QR code so somebody can point a phone at it instead of
+typing a sixteen-character code.
 
-Without it, a reprint would rebuild the certificate from **today's** data. A
-transfer certificate issued when a child was in Class VIII would quietly reprint
-saying Class X. The paper would look official and be wrong, and nobody would
-notice.
+```text
+1. Paper is printed with a QR code that encodes scanPayload:
+      https://verify.orbitastra.edu.in/d/K7M2-9QXP-4T8B-LZ3R
 
-Same reasoning as `FeeInvoiceLine` keeping its own copy of the fee head name, and
-`FeeInvoice` keeping `classDocsId` as it was on the billing date.
+2. An employer scans it and their phone opens that address.
+
+3. The page looks up issued_documents by verificationCode.
+
+4. It answers with only four things:
+      holder name    (from holderNameSnapshot)
+      document type
+      issue date
+      status         VALID / SUPERSEDED / REVOKED / EXPIRED
+
+   and, when the status is SUPERSEDED, a link to the one that replaced it.
+```
+
+**The QR holds no personal details.** It is a pointer, not a copy. Anybody who
+finds a discarded certificate on a bus learns nothing from scanning it that they
+could not already read on the paper in their hand. Encoding the student's name or
+class into the QR would put that data on every photocopy, forever, outside the
+school's control.
+
+**The QR picture is never saved.** It is drawn from `scanPayload` whenever it is
+needed. Storing an image of something you already hold as text is storing it
+twice, and the picture would then have to be kept in step with the string.
+
+**`scanPayload` is saved rather than worked out each time**, even though it is
+usually just a web address with the code on the end. It records what was
+*physically printed*. If the school later moves to a different address, the QR
+codes on papers already handed out still point at the old one — and that is only
+knowable if the old string was kept.
+
+For the template author: put the QR wherever you want it by adding a `{{qrCode}}`
+placeholder and listing it in `placeholderKeys`, the same as any other blank.
+
+### The card QR works the opposite way round
+
+`IdCard` has its own `scanPayload`, which is why the two fields share a name. But
+the two QR codes are built on **opposite** privacy rules, and mixing them up would
+be a real mistake.
+
+| | Certificate QR | ID card QR |
+|---|---|---|
+| Who scans it | anybody outside the school | school staff |
+| What it encodes | a public web address | a meaningless random token |
+| A stranger scanning it | sees name, type, date, status | sees nothing |
+| Resolving it | needs no sign-in, by design | needs a signed-in staff member |
+
+A certificate QR **must** open a public page — an employer verifying a transfer
+certificate has no school login and never will.
+
+A child's ID card must **never** do that. Somebody who picks up a lost card in a
+market has to learn nothing from scanning it. So the card's token is random and
+meaningless, and only the school's own app can turn it into a name.
+
+The token is random rather than the card number for a second reason: sequential
+values can be lined up against each other to work out how many cards the school
+has issued and in what order.
+
+One string covers both the QR and the barcode on a card, because those are two
+ways of printing the same value rather than two different values. As with a
+certificate, the picture is never saved — it is drawn again from the string each
+time the card is printed.
+
+## A reprint hands out the same file, it does not remake the paper
+
+`IssuedDocument.documentRecordDocsId` names the finished PDF, and that file is
+what a reprint gives out. The paper is never built a second time.
+
+This matters because rebuilding it would use **today's** data. A transfer
+certificate issued when a child was in Class VIII would quietly reprint saying
+Class X — official-looking and wrong, with nobody noticing.
+
+Keeping the file rather than the values it was built from also means there is no
+second copy of the data to drift out of step with the paper. The PDF is the
+record.
+
+An earlier version of this design also kept the values as JSON on the issued
+document. It was dropped on 2026-08-14: with the PDF stored, it answered nothing
+the file did not already answer. It would only be worth bringing back to re-render
+in another language, or to query what a certificate said without opening it.
 
 ## Where the wording lives
 
@@ -244,40 +319,46 @@ That belongs to `notification`, which by decision on 2026-08-14 is designed
 1. A template with documents issued from it is never edited. A change makes a new
    version and marks the old one `SUPERSEDED`.
 2. Only one version per `templateKey` is `ACTIVE` at a time.
-3. `bodyTemplate` is required for `HTML`; `templateFileDocsId` is required for
+3. `templateVersion` runs from 1 with **no gaps**. An abandoned draft reuses its
+   number rather than leaving a hole, because the previous version is found by
+   subtracting one and a hole would make that answer wrong. There is no
+   `supersedes` pointer on a template — the version number is the chain.
+4. `bodyTemplate` is required for `HTML`; `templateFileDocsId` is required for
    `DOCX` and `PDF_FORM`.
 
 **Requests**
 
-4. A guardian may only request documents about their own children.
-5. A student may only request documents about themself.
-6. A rejection carries a reason, and the reviewer is not the person who asked.
-7. `status` becomes `ISSUED` only once `issuedDocumentDocsId` is set.
+5. A guardian may only request documents about their own children.
+6. A student may only request documents about themself.
+7. A rejection carries a reason, and the reviewer is not the person who asked.
+8. `status` becomes `ISSUED` only once `issuedDocumentDocsId` is set.
 
 **Issued documents**
 
-8. Never edited and never deleted. A mistake is fixed by issuing a corrected copy
+9. Never edited and never deleted. A mistake is fixed by issuing a corrected copy
    and marking this one `SUPERSEDED` with `supersededByDocumentDocsId` set.
-9. `verificationCode` is long, random, and never counted upwards.
-10. The public verification endpoint returns only holder name, document type,
+10. `verificationCode` is long, random, and never counted upwards.
+11. The public verification endpoint returns only holder name, document type,
     issue date and status. Never marks, fees, address or family details.
-11. `dataSnapshotJson` is written at issue time and never updated.
-12. A reprint increments `printCount` and never creates a second record.
-13. Revoking carries a reason.
+12. `scanPayload` holds a pointer only. Never encode a name, class, marks or any
+    other personal detail into the QR itself.
+13. The QR image is generated from `scanPayload` on demand and never stored.
+14. A reprint increments `printCount` and never creates a second record.
+15. Revoking carries a reason.
 
 **Stored files**
 
-14. `objectKey` is never returned to a client. Signed URLs are short-lived and
+16. `objectKey` is never returned to a client. Signed URLs are short-lived and
     issued only after the three checks above.
-15. DTOs and services validate file extensions, maximum sizes, media-type
+17. DTOs and services validate file extensions, maximum sizes, media-type
     allowlists, the upload result, the object key, and ownership of the business
     record the file is being attached to.
 
 **ID cards**
 
-16. One `ACTIVE` card per person at a time.
-17. A lost or damaged card is closed before a replacement is issued, and the
+18. One `ACTIVE` card per person at a time.
+19. A lost or damaged card is closed before a replacement is issued, and the
     replacement points back through `replacesCardDocsId`.
-18. A reader accepts a card only when it is `ACTIVE` and `validUntil` has not
+20. A reader accepts a card only when it is `ACTIVE` and `validUntil` has not
     passed — the date is checked at the reader, not trusted to a status field.
-19. `rfidNumber` is unique inside the school when set.
+21. `rfidNumber` is unique inside the school when set.

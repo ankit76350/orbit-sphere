@@ -43,14 +43,25 @@ import lombok.experimental.SuperBuilder;
  * one must not reveal anything, which is why it is not the thing the public check
  * uses.
  *
+ * <p>{@code scanPayload} is the same idea made easier to use. It holds exactly
+ * what the QR code on the paper encodes, which is normally the verification web
+ * address with {@code verificationCode} on the end. Somebody points a phone at the
+ * paper instead of typing sixteen characters, and lands on the same check.
+ *
+ * <p>It is saved rather than worked out each time, because it records what was
+ * physically printed. If the school later moves to a different web address, the
+ * QR codes on papers already handed out still point at the old one, and that is
+ * only knowable if the old string was kept. The QR picture itself is never saved:
+ * it can be drawn again from this string in a moment, and storing an image of
+ * something you already hold as text is storing it twice.
+ *
  * <p>The template key and version are copied in rather than being read through the
  * link, so a reprint years later comes out word for word as it did on the day,
  * even after the template has been reworded twice.
  *
- * <p>{@code dataSnapshotJson} keeps the values that were put into the template.
- * Without it a reprint would rebuild the certificate from today's data, and a
- * transfer certificate issued when a child was in Class VIII would quietly reprint
- * saying Class X.
+ * <p>The finished PDF itself is kept, named by {@code documentRecordDocsId}. A
+ * reprint hands out that same file again rather than making the paper afresh, so
+ * there is nothing to rebuild and no stored copy of the values that went into it.
  *
  * <p>The service checks that an issued document is never edited, that revoking one
  * carries a reason, that a superseded one points at its replacement, and that the
@@ -92,6 +103,14 @@ public class IssuedDocument extends SchoolBase {
     @NotBlank
     private String verificationCode;
 
+    // Exactly what the QR code on the paper encodes, saved as it was printed.
+    // Normally the verification web address with the code on the end. Holds no
+    // personal details: whoever scans it still has to ask the school what the
+    // document says. The QR picture itself is not saved anywhere, because it can
+    // be drawn again from this string whenever it is needed.
+    // Example: "https://verify.orbitastra.edu.in/d/K7M2-9QXP-4T8B-LZ3R"
+    private String scanPayload;
+
     // Example: DocumentType.TRANSFER_CERTIFICATE
     @NotNull
     private DocumentType documentType;
@@ -107,6 +126,7 @@ public class IssuedDocument extends SchoolBase {
 
     // Name as it was printed on the paper, copied in so a reprint and the public
     // check both still show what was actually issued. Example: "Arjun Sharma"
+    //! A staff member gets an experience letter in 2026 as Priya Nair. She marries, and the Staff record becomes Priya Menon. In 2028 an employer verifies her 2026 letter.
     @NotBlank
     private String holderNameSnapshot;
 
@@ -128,11 +148,6 @@ public class IssuedDocument extends SchoolBase {
     // Example: 2
     @NotNull
     private Integer templateVersionSnapshot;
-
-    // The values that were put into the template, kept as JSON. Without this a
-    // reprint would rebuild the paper from today's data and quietly say something
-    // different. Example: "{\"studentName\":\"Arjun Sharma\",\"class\":\"VIII\"}"
-    private String dataSnapshotJson;
 
     // Links to DocumentRecord.id for the finished PDF.
     // Example: "67b41124dc3f7d0033445566"
@@ -169,10 +184,6 @@ public class IssuedDocument extends SchoolBase {
     // Links to the IssuedDocument.id that replaced this one.
     // Example: "67b41126dc3f7d0055667788"
     private String supersededByDocumentDocsId;
-
-    // Links to the IssuedDocument.id this one replaced.
-    // Example: "67b41127dc3f7d0066778899"
-    private String supersedesDocumentDocsId;
 
     // Example: 2026-09-02T11:00:00Z
     private Instant revokedAt;

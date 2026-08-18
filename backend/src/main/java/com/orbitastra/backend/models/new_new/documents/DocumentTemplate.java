@@ -115,6 +115,7 @@ public class DocumentTemplate extends SchoolBase {
 
     // How long the paper is good for, in days. Null means it never runs out,
     // which is normal for a transfer certificate. Example: 180
+    //! each certificate is good for 6 months from its issue date
     private Integer validityDays;
 
     // Example: DocumentTemplateStatus.ACTIVE
@@ -126,11 +127,8 @@ public class DocumentTemplate extends SchoolBase {
     private LocalDate effectiveFrom;
 
     // Last day it may be used. Example: 2027-03-31
+    //! stop making certificates from this wording after March
     private LocalDate effectiveTo;
-
-    // Links to the DocumentTemplate.id this version replaced.
-    // Example: "67b41123dc3f7d0022334455"
-    private String supersedesTemplateDocsId;
 
     // Links to the staff identity that approved the wording.
     // Example: "67aa15d9dc3f7d0055555555"
