@@ -22,23 +22,38 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * One thing a school can charge for, such as Tuition, Lab or Exam.
+ * One thing the school charges money for.
  *
- * <p>This is the reusable setting that invoice lines are built from. It is not
- * the charge itself; the amount actually billed to a student is copied onto
- * FeeInvoiceLine when the invoice is made, so changing a head later never
- * rewrites bills that have already gone out.
+ * <p>One row for each: Tuition Fee, Transport Fee, Hostel Fee, Exam Fee, Library
+ * Fine. A school sets these up once and then uses them for years.
  *
- * <p>{@code headCode} is the stable key other records point at and must not be
- * renamed once invoices exist. {@code defaultAmount} is only a starting value;
- * a FeeStructure line may override it for a particular class.
+ * <p>This is only the setting. It is not the charge on anybody's bill. When a bill
+ * is made, the name and the amount are copied onto a FeeInvoiceLine, so renaming a
+ * head next year does not change a bill that has already gone out.
  *
- * <p>{@code maximumConcessionPerYear} is the only yearly limit in the fee part of
- * the system, and we keep it here rather than on a concession on purpose. A
- * concession says what share to take off. The fee head says how much the school is
- * willing to give away in total. Keeping the limit on the head means one setting
- * covers every discount a student has, instead of each concession carrying its own
- * limit that somebody then has to keep in step with the rest.
+ * <p>The amount here is only a starting value. A FeeStructure decides what each
+ * class actually pays, because Class XII tuition is not Class I tuition.
+ *
+ * <p>Where a charge comes from:
+ *
+ * <pre>
+ * FeeHead          "we charge for transport"        <- this file
+ *   FeeStructure   "Class VI pays 2000 a month"
+ *     FeeInvoice   "Arjun owes 2000 for August"
+ * </pre>
+ *
+ * <p>Some heads are not set up by hand at all. A late library book and a broken
+ * window both end up as a charge under a FINE head, raised by the library and the
+ * conduct parts of the system.
+ *
+ * <p>{@code headCode} is the key everything else points at. Do not rename it once
+ * bills exist.
+ *
+ * <p>{@code maximumConcessionPerYear} is the only yearly discount limit anywhere in
+ * the fee system, and it sits here on purpose. A concession says what share to take
+ * off. This says how much the school is willing to give away in total. Keeping it
+ * here means one setting covers every discount a student has, instead of each
+ * concession carrying its own limit that somebody then has to keep in step.
  */
 @Document(collection = "fee_heads")
 @CompoundIndexes({
@@ -57,78 +72,96 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class FeeHead extends SchoolBase {
 
-    // Stable key the school chooses, used by fee structures and invoice lines.
-    // One category holds many heads, so this is what tells them apart: a school
-    // may define LIBRARY_LATE_FINE, LOST_ID_CARD and BREAKAGE_CHARGE, all under
-    // category FINE. Must not be renamed once invoices exist.
+    // The key the school picks, which fee structures and bills point at. Never
+    // rename it once bills exist, or the old bills stop making sense.
+    //
+    // One category holds many heads, and this is what tells them apart. A school
+    // can have LIBRARY_LATE_FINE, LOST_ID_CARD and BREAKAGE_CHARGE, all three
+    // under the FINE category.
     // Example: "LIBRARY_LATE_FINE"
     @NotBlank
     private String headCode;
 
-    // Name shown to staff and printed on the bill. Unlike headCode this may be
-    // reworded at any time, because bills keep their own copy of it.
+    // The name staff see on screen and parents see on the bill. You can reword
+    // this whenever you like, because every bill keeps its own copy of the name.
     // Example: "Library Late Return Fine"
     @NotBlank
     private String name;
 
-    // Example: "Charged per day once a borrowed book is overdue."
+    // A longer note for staff, saying when this charge is used.
+    // Example: "Charged for each day a borrowed book is late."
     private String description;
 
-    // Fixed platform-wide grouping used for reports. Schools cannot add to this
-    // list; they add heads instead. Example: FeeCategory.FINE
+    // Which group this charge belongs to, used for reports such as "how much did
+    // we collect in tuition this year". The list of groups is fixed and schools
+    // cannot add to it; they make new heads instead.
+    // Example: FeeCategory.FINE
     @NotNull
     private FeeCategory category;
 
-    // How often this head is normally charged. Example: FeeFrequency.MONTHLY
+    // How often this is normally charged: every month, every term, once a year, or
+    // only when something happens. A fee structure can change this for one class.
+    // Example: FeeFrequency.MONTHLY
     @NotNull
     private FeeFrequency frequency;
 
-    // Starting amount, which a fee structure line may override. Example: 2500.00
+    // A starting amount, so somebody setting up a class does not begin from
+    // nothing. What a class actually pays is decided in the fee structure, and it
+    // wins over this. Example: 2500.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal defaultAmount;
 
-    // Example: "INR"
+    // Which money this is in. Example: "INR"
     @NotBlank
     private String currencyCode;
 
-    // Whether GST or another tax applies to this head. Example: false
+    // Whether GST or another tax has to be added to this charge. Most school fees
+    // do not have tax; things like a bus service sometimes do. Example: false
     @NotNull
     @Builder.Default
     private Boolean taxable = false;
 
-    // Tax rate to use when taxable is true. Example: 18.00
+    // How much tax to add, as a share. Only used when taxable is true.
+    // Example: 18.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal taxRatePercent;
 
-    // Whether money collected under this head can be given back. Example: false
+    // Whether money taken under this head can be given back. A hostel deposit can
+    // be; a month's tuition already taught cannot. Example: false
     @NotNull
     @Builder.Default
     private Boolean refundable = false;
 
-    // Whether a concession or scholarship may reduce this head. Example: true
+    // Whether a discount or a scholarship is allowed to reduce this charge. Turn
+    // it off for things nobody should get a discount on, such as a fine.
+    // Example: true
     @NotNull
     @Builder.Default
     private Boolean concessionAllowed = true;
 
-    // The most discount one student can get on this head in one academic year,
-    // counting all their concessions and awards together. Null means no limit,
-    // which is the normal setting. This is a limit the school puts on itself, not
-    // a promise to any one family: the school is saying it will not give away more
-    // than this much on this head to a single student in a year, however many
-    // discounts that student has. Example: 20000.00
+    // The most discount one student can get on this charge in one academic year,
+    // adding up every discount and scholarship they have. Null means no limit, and
+    // that is the normal setting.
+    //
+    // This is the school limiting itself, not a promise to any family. It is the
+    // school saying: whatever discounts a child has, we will not take more than
+    // this much off this charge in one year. Example: 20000.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal maximumConcessionPerYear;
 
-    // Whether a late-payment charge may be added for this head. Example: true
+    // Whether a late-payment charge can be added when this is not paid on time.
+    // Example: true
     @NotNull
     @Builder.Default
     private Boolean lateFeeApplicable = true;
 
-    // Order this head appears in on screens and printed bills. Example: 10
+    // Where this appears in the list on screens and on a printed bill. A smaller
+    // number comes first, so tuition can sit above a small fine. Example: 10
     @Builder.Default
     private Integer sortOrder = 0;
 
-    // Whether new fee structures may still use this head. Example: true
+    // Whether this can still be used in a new fee structure. Turning it off stops
+    // new use but leaves every bill already raised under it alone. Example: true
     @NotNull
     @Builder.Default
     private Boolean active = true;
