@@ -88,6 +88,9 @@ public enum NumberSequenceType {
     /** One recognition or award given to a student. */
     STUDENT_RECOGNITION,
 
+    /** Accession number written inside a book when it joins the library. */
+    BOOK_ACCESSION,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

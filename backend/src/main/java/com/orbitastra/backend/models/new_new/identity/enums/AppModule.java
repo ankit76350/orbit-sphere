@@ -74,6 +74,9 @@ public enum AppModule {
      */
     CONDUCT,
 
+    /** Books, copies, loans, reservations and the borrowing rules. */
+    LIBRARY,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
