@@ -79,7 +79,6 @@ public class MessAttendance extends AcademicStudentSchoolBase {
 
     // Links to HostelAllocation.id this row was built from.
     // Example: "67ba1126dc3f7d0055667788"
-    @NotBlank
     private String hostelAllocationDocsId;
 
     // Example: MealAttendanceStatus.PRESENT
