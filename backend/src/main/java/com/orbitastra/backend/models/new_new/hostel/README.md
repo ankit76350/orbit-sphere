@@ -85,9 +85,17 @@ on, never rewritten, with a fee head saying where each lands:
 | `monthlyMessFee` | `MESS` | the food |
 | `securityDepositAmount` | `DEPOSIT` | **money held, not money earned** |
 
-The deposit is the one worth noticing. It is given back at the end, less anything owed,
-which is why it has its own category, its own refund date and its own deduction reason.
-`FeeCategory.DEPOSIT` had nothing feeding it until now.
+The deposit is the one worth noticing. It is money the school is **holding**, not money
+it has earned, which is why it has a category of its own. `FeeCategory.DEPOSIT` had
+nothing feeding it until now.
+
+**Giving it back is not recorded here.** A refund is money going out, and finance already
+models that as a [RefundTransaction](../finance/billing/RefundTransaction.java) against
+the invoice that charged the deposit. An earlier version of this model kept the refunded
+amount, the date and the deduction reason as well; those were dropped on 2026-08-19,
+because they were a second copy of one money movement and the hostel's copy is the one
+nobody would update. Same reason a library fine does not record whether it was paid, and
+a conduct fine does not either.
 
 **Mess charges ride on this record** rather than a separate subscription, because at a
 boarding school everybody with a bed eats. A day scholar who wants to eat in the mess is
@@ -143,6 +151,28 @@ gate's cannot disagree about when the child actually left.
 `emergencyContactDuringLeave` is separate because a child at their grandmother's is not
 reachable on the number the school usually rings — and the one time that matters is the
 one time nobody thought to ask.
+
+## Consent forms are scattered, and that is a known problem
+
+`guardianConsentDocumentDocsId` here is the family agreeing their child boards at the
+school. It stays because it duplicates nothing — there is no generic attachment
+mechanism, so each model holds its own document ids.
+
+But it is the fourth of its kind:
+
+| Package | Field |
+|---|---|
+| `hostel` | `HostelAllocation.guardianConsentDocumentDocsId` |
+| `health` | `HealthProfile.routineMedicineConsentDocumentDocsId` |
+| `health` | `MedicationAdministration.guardianConsentDocumentDocsId` |
+| `conduct` | `StudentRecognition.publicationConsentDocumentDocsId` |
+
+Four consent fields across three packages, each with its own date and its own boolean.
+`undone/a_working/compliance` has an unbuilt `DpdpConsent` model, and consent management
+is a real deferred module. When it is designed, these four should fold into it rather
+than a fifth being added.
+
+Not worth doing now. Worth writing down so it is not a surprise later.
 
 ## Deliberately left out
 

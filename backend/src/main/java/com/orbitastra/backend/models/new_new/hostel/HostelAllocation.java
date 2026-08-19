@@ -163,16 +163,6 @@ public class HostelAllocation extends AcademicStudentSchoolBase {
         // Why it was suspended or ended. Example: "Family moved to Pune."
         private String statusReason;
 
-        // How much of the deposit was given back. Example: 14200.00
-        @Field(targetType = FieldType.DECIMAL128)
-        private BigDecimal depositRefundedAmount;
-
-        // When it was given back. Example: 2027-04-10
-        private LocalDate depositRefundedOn;
-
-        // Why some of it was kept. Example: "Broken window latch, 800."
-        private String depositDeductionReason;
-
         // Links to DocumentRecord.id for the family's signed agreement that their child
         // boards here. Example: "67ba1125dc3f7d0044556677"
         private String guardianConsentDocumentDocsId;
