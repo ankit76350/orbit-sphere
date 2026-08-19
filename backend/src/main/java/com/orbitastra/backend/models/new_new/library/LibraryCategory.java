@@ -32,8 +32,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "library_categories")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_library_category_code_uniq",
-                def = "{'schoolId': 1, 'categoryCode': 1}",
+                name = "school_library_category_name_uniq",
+                def = "{'schoolId': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_library_category_active_idx",
@@ -45,10 +45,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LibraryCategory extends SchoolBase {
-
-    // Stable key books point at. Example: "COMP_EXAMS"
-    @NotBlank
-    private String categoryCode;
 
     // Name shown to children and staff. Example: "Competitive Exams"
     @NotBlank

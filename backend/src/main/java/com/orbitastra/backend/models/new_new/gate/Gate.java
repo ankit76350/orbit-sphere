@@ -36,8 +36,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "gates")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_gate_code_uniq",
-                def = "{'schoolId': 1, 'gateCode': 1}",
+                name = "school_gate_name_uniq",
+                def = "{'schoolId': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_gate_active_idx",
@@ -49,10 +49,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Gate extends SchoolBase {
-
-    // Stable key movements point at. Example: "MAIN"
-    @NotBlank
-    private String gateCode;
 
     // Name staff and guards see. Example: "Main Gate, Link Road side"
     @NotBlank

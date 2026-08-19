@@ -33,8 +33,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "hostel_buildings")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_hostel_building_code_uniq",
-                def = "{'schoolId': 1, 'buildingCode': 1}",
+                name = "school_hostel_building_name_uniq",
+                def = "{'schoolId': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_hostel_building_active_idx",
@@ -46,10 +46,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class HostelBuilding extends SchoolBase {
-
-    // Stable key rooms point at. Example: "TAGORE"
-    @NotBlank
-    private String buildingCode;
 
     // Name everybody uses. Example: "Tagore House"
     @NotBlank

@@ -31,8 +31,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "mess_meal_types")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_meal_type_code_uniq",
-                def = "{'schoolId': 1, 'mealCode': 1}",
+                name = "school_meal_type_name_uniq",
+                def = "{'schoolId': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_meal_type_order_idx",
@@ -44,10 +44,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessMealType extends SchoolBase {
-
-    // Stable key menus and attendance point at. Example: "BREAKFAST"
-    @NotBlank
-    private String mealCode;
 
     // Name children see. Example: "Breakfast"
     @NotBlank

@@ -79,11 +79,11 @@ import lombok.experimental.SuperBuilder;
  */
 @Document(collection = "hostel_allocations")
 @CompoundIndexes({
-                @CompoundIndex(name = "school_hostel_allocation_no_uniq", def = "{'schoolId': 1, 'allocationNo': 1}", unique = true),
-                @CompoundIndex(name = "school_year_student_hostel_uniq", def = "{'schoolId': 1, 'academicYear': 1, 'studentDocsId': 1}", unique = true, partialFilter = "{'status': 'ACTIVE'}"),
-                @CompoundIndex(name = "school_hostel_bed_active_uniq", def = "{'schoolId': 1, 'hostelBedDocsId': 1}", unique = true, partialFilter = "{'status': 'ACTIVE'}"),
-                @CompoundIndex(name = "school_year_building_allocation_idx", def = "{'schoolId': 1, 'academicYear': 1, 'hostelBuildingDocsId': 1, 'status': 1}"),
-                @CompoundIndex(name = "school_year_hostel_billing_idx", def = "{'schoolId': 1, 'academicYear': 1, 'status': 1, 'checkInDate': 1}")
+        @CompoundIndex(name = "school_hostel_allocation_no_uniq", def = "{'schoolId': 1, 'allocationNo': 1}", unique = true),
+        @CompoundIndex(name = "school_year_student_hostel_uniq", def = "{'schoolId': 1, 'academicYear': 1, 'studentDocsId': 1}", unique = true, partialFilter = "{'status': 'ACTIVE'}"),
+        @CompoundIndex(name = "school_hostel_bed_active_uniq", def = "{'schoolId': 1, 'hostelBedDocsId': 1}", unique = true, partialFilter = "{'status': 'ACTIVE'}"),
+        @CompoundIndex(name = "school_year_building_allocation_idx", def = "{'schoolId': 1, 'academicYear': 1, 'hostelBuildingDocsId': 1, 'status': 1}"),
+        @CompoundIndex(name = "school_year_hostel_billing_idx", def = "{'schoolId': 1, 'academicYear': 1, 'status': 1, 'checkInDate': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -92,85 +92,85 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class HostelAllocation extends AcademicStudentSchoolBase {
 
-        // School-scoped number from NumberSequence type HOSTEL_ALLOCATION.
-        // Example: "HA/2026/000214"
-        @NotBlank
-        private String allocationNo;
+    // School-scoped number from NumberSequence type HOSTEL_ALLOCATION.
+    // Example: "HA/2026/000214"
+    @NotBlank
+    private String allocationNo;
 
-        // Links to HostelBuilding.id, copied in for the same reason.
-        // Example: "67ba1122dc3f7d0011223344"
-        @NotBlank
-        private String hostelBuildingDocsId;
+    // Links to HostelBuilding.id, copied in for the same reason.
+    // Example: "67ba1122dc3f7d0011223344"
+    @NotBlank
+    private String hostelBuildingDocsId;
 
-        // Links to HostelRoom.id, copied in so a room list reads without loading beds.
-        // Example: "67ba1123dc3f7d0022334455"
-        @NotBlank
-        private String hostelRoomDocsId;
+    // Links to HostelRoom.id, copied in so a room list reads without loading beds.
+    // Example: "67ba1123dc3f7d0022334455"
+    @NotBlank
+    private String hostelRoomDocsId;
 
-        // Links to HostelBed.id. The exact bed, so a roll call can say where a child
-        // sleeps. Example: "67ba1124dc3f7d0033445566"
-        @NotBlank
-        private String hostelBedDocsId;
+    // Links to HostelBed.id. The exact bed, so a roll call can say where a child
+    // sleeps. Example: "67ba1124dc3f7d0033445566"
+    @NotBlank
+    private String hostelBedDocsId;
 
-        // What the family pays each month for the bed. Copied when the allocation was
-        // made and never rewritten when the price list changes. Example: 6000.00
-        @NotNull
-        @Field(targetType = FieldType.DECIMAL128)
-        private BigDecimal monthlyHostelFee;
+    // What the family pays each month for the bed. Copied when the allocation was
+    // made and never rewritten when the price list changes. Example: 6000.00
+    @NotNull
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal monthlyHostelFee;
 
-        // What the family pays each month for food, on the same terms.
-        // Example: 4500.00
-        @Field(targetType = FieldType.DECIMAL128)
-        private BigDecimal monthlyMessFee;
+    // What the family pays each month for food, on the same terms.
+    // Example: 4500.00
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal monthlyMessFee;
 
-        // Taken once and given back at the end, less anything owed. Money held, not
-        // money earned. Example: 15000.00
-        @Field(targetType = FieldType.DECIMAL128)
-        private BigDecimal securityDepositAmount;
+    // Taken once and given back at the end, less anything owed. Money held, not
+    // money earned. Example: 15000.00
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal securityDepositAmount;
 
-        // Example: "INR"
-        @NotBlank
-        private String currencyCode;
+    // Example: "INR"
+    @NotBlank
+    private String currencyCode;
 
-        // Links to FeeHead.id for the bed charge, normally FeeCategory.HOSTEL.
-        // Example: "67ac1188dc3f7d0011aa22bb"
-        @NotBlank
-        private String hostelFeeHeadDocsId;
+    // Links to FeeHead.id for the bed charge, normally FeeCategory.HOSTEL.
+    // Example: "67ac1188dc3f7d0011aa22bb"
+    @NotBlank
+    private String hostelFeeHeadDocsId;
 
-        // Links to FeeHead.id for the food charge, normally FeeCategory.MESS.
-        // Example: "67ac1189dc3f7d0011aa22cc"
-        private String messFeeHeadDocsId;
+    // Links to FeeHead.id for the food charge, normally FeeCategory.MESS.
+    // Example: "67ac1189dc3f7d0011aa22cc"
+    private String messFeeHeadDocsId;
 
-        // Links to FeeHead.id for the deposit, normally FeeCategory.DEPOSIT.
-        // Example: "67ac118adc3f7d0011aa22dd"
-        private String depositFeeHeadDocsId;
+    // Links to FeeHead.id for the deposit, normally FeeCategory.DEPOSIT.
+    // Example: "67ac118adc3f7d0011aa22dd"
+    private String depositFeeHeadDocsId;
 
-        // First day the child lives here. Example: 2026-04-05
-        @NotNull
-        private LocalDate checkInDate;
+    // First day the child lives here. Example: 2026-04-05
+    @NotNull
+    private LocalDate checkInDate;
 
-        // Last day, when it is known in advance. Example: 2027-03-25
-        private LocalDate plannedCheckOutDate;
+    // Last day, when it is known in advance. Example: 2027-03-25
+    private LocalDate plannedCheckOutDate;
 
-        // The day they actually moved out. Example: 2027-03-24
-        private LocalDate actualCheckOutDate;
+    // The day they actually moved out. Example: 2027-03-24
+    private LocalDate actualCheckOutDate;
 
-        // Example: HostelAllocationStatus.ACTIVE
-        @NotNull
-        @Builder.Default
-        private HostelAllocationStatus status = HostelAllocationStatus.ACTIVE;
+    // Example: HostelAllocationStatus.ACTIVE
+    @NotNull
+    @Builder.Default
+    private HostelAllocationStatus status = HostelAllocationStatus.ACTIVE;
 
-        // Why it was suspended or ended. Example: "Family moved to Pune."
-        private String statusReason;
+    // Why it was suspended or ended. Example: "Family moved to Pune."
+    private String statusReason;
 
-        // Links to DocumentRecord.id for the family's signed agreement that their child
-        // boards here. Example: "67ba1125dc3f7d0044556677"
-        private String guardianConsentDocumentDocsId;
+    // Links to DocumentRecord.id for the family's signed agreement that their child
+    // boards here. Example: "67ba1125dc3f7d0044556677"
+    private String guardianConsentDocumentDocsId;
 
-        // Links to the staff identity that approved the allocation.
-        // Example: "67aa15d9dc3f7d0055555555"
-        private String approvedByDocsId;
+    // Links to the staff identity that approved the allocation.
+    // Example: "67aa15d9dc3f7d0055555555"
+    private String approvedByDocsId;
 
-        // Example: "Placed with his brother's room on the mother's request."
-        private String remarks;
+    // Example: "Placed with his brother's room on the mother's request."
+    private String remarks;
 }

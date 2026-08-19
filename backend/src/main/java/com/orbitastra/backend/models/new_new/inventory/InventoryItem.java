@@ -83,8 +83,14 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class InventoryItem extends SchoolBase {
 
-    // The school's own code for this item, quoted on a purchase order and written on a
-    // store card. Do not rename it once movements exist. Example: "PROV-RICE-01"
+    // The school's own code for this item, quoted on a purchase order and written on the
+    // bin card on the rack. It is the one thing here that gets physically written down,
+    // which is why it exists at all: nobody can write a document id on a shelf label.
+    //
+    // Generated from NumberSequence type INVENTORY_ITEM when the school does not supply
+    // one, so nobody has to invent five hundred codes before the store can be used. A
+    // school with its own scheme passes its own. Do not rename it once movements exist.
+    // Example: "PROV-RICE-01"
     @NotBlank
     private String itemCode;
 

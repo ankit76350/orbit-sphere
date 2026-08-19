@@ -100,6 +100,9 @@ public enum NumberSequenceType {
     /** Stock given out that is expected back. */
     STOCK_ISSUE,
 
+    /** Code for a new inventory item, so a store need not invent hundreds by hand. */
+    INVENTORY_ITEM,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

@@ -28,8 +28,8 @@ import lombok.experimental.SuperBuilder;
 @Document(collection = "mess_halls")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_mess_hall_code_uniq",
-                def = "{'schoolId': 1, 'hallCode': 1}",
+                name = "school_mess_hall_name_uniq",
+                def = "{'schoolId': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_mess_hall_active_idx",
@@ -41,10 +41,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessHall extends SchoolBase {
-
-    // Stable key menus and attendance point at. Example: "MAIN_MESS"
-    @NotBlank
-    private String hallCode;
 
     // Example: "Main Dining Hall"
     @NotBlank
