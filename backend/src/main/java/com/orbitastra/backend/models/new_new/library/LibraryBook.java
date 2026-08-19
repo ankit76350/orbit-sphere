@@ -26,7 +26,7 @@ import lombok.experimental.SuperBuilder;
  * spelled the author differently. "How many copies of this do we have" then has no
  * answer, because the four rows do not know they are the same book.
  *
- * <p>Nothing about lending lives here. A title is never available or on loan; a copy is.
+ * <p>Nothing about lending lives here. A title is never available or issued; a copy is.
  * Asking whether the library has a book free means asking its copies.
  *
  * <p>{@code isbn} is not unique in this collection and not required. Old books predate

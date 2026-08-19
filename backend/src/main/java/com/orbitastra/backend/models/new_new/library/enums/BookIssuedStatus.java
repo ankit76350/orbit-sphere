@@ -1,10 +1,10 @@
 package com.orbitastra.backend.models.new_new.library.enums;
 
 /**
- * How a loan is going, or how it ended.
+ * How an issued book is going, or how it came back.
  *
  * <p>OVERDUE is a state rather than something worked out from the date on every read.
- * A nightly job moves loans into it, which means the overdue list is a plain query and
+ * A nightly job moves issued books into it, which means the overdue list is a plain query and
  * the day a book became late is on the record instead of being recalculated differently
  * by every screen.
  *
@@ -12,9 +12,9 @@ package com.orbitastra.backend.models.new_new.library.enums;
  * school is still owed something for it. Treating them the same is how a damaged book
  * quietly becomes the library's problem instead of the borrower's.
  */
-public enum BookLoanStatus {
+public enum BookIssuedStatus {
     /** Out with the borrower, not yet late. */
-    ON_LOAN,
+    ISSUED,
 
     /** Out with the borrower and past the due date. */
     OVERDUE,

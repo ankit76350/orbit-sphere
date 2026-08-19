@@ -41,16 +41,16 @@ import lombok.experimental.SuperBuilder;
  * free. There is nothing private behind it, so the pattern used for IdCard would be
  * protecting nothing here.
  *
- * <p>{@code status} is kept on the copy rather than worked out from the loans. A
+ * <p>{@code status} is kept on the copy rather than worked out from the issue register. A
  * librarian looking for a book needs to know in one read whether it should be on the
- * shelf, without searching the loan register for every copy in the building.
+ * shelf, without searching the issue register for every copy in the building.
  *
  * <p>{@code replacementCost} is what the borrower is charged if they lose it. It is
  * recorded per copy rather than per title because the same book bought in 2015 and 2025
  * did not cost the same, and charging a family today's price for a fifteen-year-old
  * paperback is not defensible.
  *
- * <p>The service checks that a copy on loan is not withdrawn, that only an AVAILABLE
+ * <p>The service checks that a copy that is out is not withdrawn, that only an AVAILABLE
  * copy is issued, and that the title's copy counts are kept in step.
  */
 @Document(collection = "book_copies")
@@ -120,7 +120,7 @@ public class BookCopy extends SchoolBase {
     // Example: 2026-09-02T07:15:00Z
     private Instant statusChangedAt;
 
-    // Why, when the status is not AVAILABLE or ON_LOAN.
+    // Why, when the status is not AVAILABLE or ISSUED.
     // Example: "Spine broken; sent for rebinding on 2 September."
     private String statusReason;
 }

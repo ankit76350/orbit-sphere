@@ -3,7 +3,7 @@ package com.orbitastra.backend.models.new_new.library.enums;
 /**
  * Who is borrowing.
  *
- * <p>Says which collection {@code borrowerDocsId} points at, so one loan register
+ * <p>Says which collection {@code borrowerDocsId} points at, so one issue register
  * covers the whole school rather than needing a separate one for staff.
  *
  * <p>It also picks the LibraryPolicy: a teacher normally keeps a book longer and may

@@ -15,7 +15,7 @@ LibraryBook              the TITLE — one row however many copies exist
       +--> BookCopy[]    one PHYSICAL book, own accession number
       |         |
       |         v
-      |     BookLoan     one copy, one borrower, once
+      |     BookIssued   one copy, one borrower, once
       |         |          fine snapshot taken at issue
       |         +--> FeeInvoice        (finance bills the fine)
       |
@@ -23,6 +23,30 @@ LibraryBook              the TITLE — one row however many copies exist
 
 LibraryPolicy            rules per borrower type — days, limits, fines
 ```
+
+### Models from other packages used here
+
+Markdown links do not render inside the diagram above, so the clickable list is here.
+
+| Model | Lives in | Used for |
+|---|---|---|
+| [FeeInvoice](../finance/billing/FeeInvoice.java) | `finance/billing` | the bill a fine ends up on |
+| [FeeHead](../finance/config/FeeHead.java) | `finance/config` | which head a fine is charged under |
+| [FeeCategory](../finance/enums/FeeCategory.java) | `finance/enums` | `FINE`, and `LIBRARY` for library fees |
+| [Student](../student/Student.java) | `student` | a borrower, when `BorrowerType.STUDENT` |
+| [Staff](../people/staff/Staff.java) | `people/staff` | a borrower or the librarian |
+| [DocumentRecord](../documents/DocumentRecord.java) | `documents` | a book's cover image |
+| [AppModule](../identity/enums/AppModule.java) | `identity/enums` | the `LIBRARY` permission |
+| [NumberSequenceType](../institution/enums/NumberSequenceType.java) | `institution/enums` | `BOOK_ACCESSION` |
+| [AcademicYear](../core/AcademicYear.java) | `core` | holidays, when counting fine days |
+
+Referred to only as precedent, not used directly:
+[ConcessionRequest](../finance/config/ConcessionRequest.java),
+[TransportAllocation](../transport/TransportAllocation.java),
+[ConductAction](../conduct/ConductAction.java),
+[IdCard](../documents/IdCard.java),
+[VisitorPass](../gate/VisitorPass.java),
+[IssuedDocument](../documents/IssuedDocument.java).
 
 ## The collections
 
@@ -32,7 +56,7 @@ LibraryPolicy            rules per borrower type — days, limits, fines
 | `library_books` | One title, however many copies. |
 | `book_copies` | One physical book on one shelf. |
 | `library_policies` | Borrowing rules, one row per borrower type. |
-| `book_loans` | One copy out with one borrower. The issue register. |
+| `book_issues` | One copy issued to one borrower. The issue register. |
 | `book_reservations` | The queue for a title whose copies are all out. |
 
 ## Title and copy are separate
@@ -45,7 +69,7 @@ Without it, the title, author, publisher and ISBN get retyped for every copy —
 the fourth, somebody has spelled the author differently. "How many copies of this do we
 have" then has no answer, because the four rows don't know they're the same book.
 
-**A title is never available or on loan; a copy is.** Asking whether the library has a
+**A title is never available or issued; a copy is.** Asking whether the library has a
 book free means asking its copies. `totalCopyCount` and `availableCopyCount` on the
 title are running totals kept so a search screen can show "2 of 3 available" without
 loading every copy — the copies stay the real record, and the totals must always be
@@ -55,7 +79,7 @@ This is the fifth time this shape appears:
 
 | The thing | The instance / event |
 |---|---|
-| `LibraryBook` | `BookCopy` → `BookLoan` |
+| `LibraryBook` | `BookCopy` → `BookIssued` |
 | `Visitor` | `VisitorPass` |
 | `TransportRoute` | `TransportTrip` |
 | `HealthProfile` | `ClinicVisit` |
@@ -88,17 +112,17 @@ Three QR/barcode rules now exist in the codebase, and they differ on purpose:
 | `IdCard` / `VisitorPass` | a random token | sees nothing |
 | `BookCopy` | the book's own barcode | sees a book is a book |
 
-## Fine terms are copied onto the loan
+## Fine terms are copied onto the record
 
-`LibraryPolicy` holds the **current** rules. `BookLoan` copies `dailyFineAmount` and
+`LibraryPolicy` holds the **current** rules. `BookIssued` copies `dailyFineAmount` and
 `maximumFineAmount` onto itself when the book goes out.
 
 Raising the daily fine in November must not change what somebody who borrowed in October
-owes, and shortening the loan period must not make an existing loan retroactively late.
+owes, and shortening the issue period must not make an existing issue retroactively late.
 Same rule as `ConcessionRequest` copying its rate and `TransportAllocation` copying its
 fare — **a policy is a price list, never a promise already made.**
 
-Because the loan snapshots what it needs, `LibraryPolicy` has no version number and can
+Because each issued book snapshots what it needs, `LibraryPolicy` has no version number and can
 be edited freely.
 
 ## `maximumFineAmount` matters more than it looks
@@ -121,7 +145,7 @@ Same pattern `ConductAction` now uses for a `RESTITUTION` fine.
 
 ## `OVERDUE` is a state, not a calculation
 
-A nightly job moves loans from `ON_LOAN` to `OVERDUE`.
+A nightly job moves issued books from `ISSUED` to `OVERDUE`.
 
 The alternative — every screen comparing `dueOn` to today — means the overdue list is
 computed slightly differently in three places, and the day a book *became* late isn't
@@ -196,15 +220,15 @@ not need it, and everything else here works without it. Same honest note as
 2. An `accessionNumber` is never reused, including after a copy is `WITHDRAWN`.
 3. A title with copies is never deleted; a category still used by a title is never
    deleted.
-4. A copy that is `ON_LOAN` cannot be `WITHDRAWN`.
+4. A copy that is `ISSUED` cannot be `WITHDRAWN`.
 
 **Issuing**
 
 5. Only an `AVAILABLE` copy may be issued.
-6. The borrower must be under their policy's `maximumOpenLoans`.
-7. `dueOn` is worked out from the policy's `loanDays` at issue time, and the fine terms
-   are snapshotted onto the loan in the same step.
-8. Issuing sets the copy to `ON_LOAN` and decrements the title's available count in the
+6. The borrower must be under their policy's `maximumBooksAtOnce`.
+7. `dueOn` is worked out from the policy's `issuePeriodDays` at issue time, and the fine terms
+   are snapshotted onto the issue record in the same step.
+8. Issuing sets the copy to `ISSUED` and decrements the title's available count in the
    same operation.
 9. A copy allocated to a reservation may not be issued to anybody else.
 
@@ -216,7 +240,7 @@ not need it, and everything else here works without it. Same honest note as
 **Returning**
 
 11. `returnedCondition` is recorded on every return.
-12. The fine is worked out from the loan's own snapshotted terms, never the current
+12. The fine is worked out from the record's own snapshotted terms, never the current
     policy, and never exceeds `maximumFineAmountSnapshot`.
 13. Returning puts the copy back to `AVAILABLE` — or `RESERVED` if somebody is waiting
     — and restores the title's count.
@@ -230,6 +254,6 @@ not need it, and everything else here works without it. Same honest note as
 
 **Overdue**
 
-18. A nightly job moves due loans to `OVERDUE`. No screen decides it for itself.
+18. A nightly job moves overdue books to `OVERDUE`. No screen decides it for itself.
 19. Non-working days come from `AcademicYear.holidays` when counting fine days; no
     weekday is assumed to be a day off.

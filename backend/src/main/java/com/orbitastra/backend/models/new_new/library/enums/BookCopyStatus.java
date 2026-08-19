@@ -4,8 +4,8 @@ package com.orbitastra.backend.models.new_new.library.enums;
  * Whether one physical copy can be lent right now.
  *
  * <p>Only AVAILABLE may be issued. The point of keeping this on the copy rather than
- * working it out from the loans is the shelf: a librarian looking for a book needs to
- * know in one read whether it should be there, without searching the loan register
+ * working it out from the issue register is the shelf: a librarian looking for a book needs to
+ * know in one read whether it should be there, without searching the issue register
  * for every copy.
  */
 public enum BookCopyStatus {
@@ -13,7 +13,7 @@ public enum BookCopyStatus {
     AVAILABLE,
 
     /** Somebody has it. */
-    ON_LOAN,
+    ISSUED,
 
     /** Held back for whoever is next in the queue. */
     RESERVED,

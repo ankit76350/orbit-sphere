@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.library.enums.BookCondition;
-import com.orbitastra.backend.models.new_new.library.enums.BookLoanStatus;
+import com.orbitastra.backend.models.new_new.library.enums.BookIssuedStatus;
 import com.orbitastra.backend.models.new_new.library.enums.BorrowerType;
 
 import jakarta.validation.constraints.NotBlank;
@@ -26,24 +26,23 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * One copy, out with one borrower, once.
+ * One copy issued to one borrower, once.
  *
- * <p>Named a loan rather than an issue because "issue" also means a problem, and code
- * that reads {@code loan.getStatus()} is clearer than code that reads
- * {@code issue.getStatus()}. The register a librarian calls the issue register is this
- * collection.
+ * <p>Named for what a school librarian actually says. This collection is the issue
+ * register: the book was issued to somebody on a date, and it comes back or it does
+ * not.
  *
  * <p>Students and staff share one register, told apart by {@code borrowerType}. Two
  * registers would make "where is this copy" two queries and a merge, for no gain.
  *
- * <p>The fine terms are **copied onto the loan** when it is issued, not read from the
+ * <p>The fine terms are **copied onto the record** when the book is issued, not read from the
  * policy at return time. Raising the daily fine in November must not change what
- * somebody who borrowed a book in October owes, and shortening the loan period must not
- * make an existing loan retroactively late. Same rule ConcessionRequest and
+ * somebody issued a book in October owes, and shortening the issue period must not
+ * make an existing issue retroactively late. Same rule ConcessionRequest and
  * TransportAllocation follow.
  *
  * <p>{@code status} carries OVERDUE as a real state rather than something every screen
- * works out from the date for itself. A nightly job moves loans into it, so the overdue
+ * works out from the date for itself. A nightly job moves records into it, so the overdue
  * list is a plain query and the day a book became late is on the record.
  *
  * <p>A fine is money owed, so it goes on a bill rather than staying in a library note.
@@ -58,27 +57,27 @@ import lombok.experimental.SuperBuilder;
  * a damaged book quietly becomes the library's problem instead of the borrower's.
  *
  * <p>The service checks that the copy was AVAILABLE, that the borrower is under their
- * policy's open-loan limit, that renewals do not exceed the limit or happen while
+ * policy's limit on books held at once, that renewals do not exceed the limit or happen while
  * somebody is waiting, and that returning a copy puts the title's counts back.
  */
-@Document(collection = "book_loans")
+@Document(collection = "book_issues")
 @CompoundIndexes({
         @CompoundIndex(
-                name = "school_loan_copy_open_uniq",
+                name = "school_issue_copy_open_uniq",
                 def = "{'schoolId': 1, 'bookCopyDocsId': 1}",
                 unique = true,
-                partialFilter = "{'status': {'$in': ['ON_LOAN', 'OVERDUE']}}"),
+                partialFilter = "{'status': {'$in': ['ISSUED', 'OVERDUE']}}"),
         @CompoundIndex(
-                name = "school_loan_borrower_idx",
+                name = "school_issue_borrower_idx",
                 def = "{'schoolId': 1, 'borrowerType': 1, 'borrowerDocsId': 1, 'issuedOn': -1}"),
         @CompoundIndex(
-                name = "school_loan_overdue_idx",
+                name = "school_issue_overdue_idx",
                 def = "{'schoolId': 1, 'status': 1, 'dueOn': 1}"),
         @CompoundIndex(
-                name = "school_year_loan_idx",
+                name = "school_year_issue_idx",
                 def = "{'schoolId': 1, 'academicYear': 1, 'issuedOn': -1}"),
         @CompoundIndex(
-                name = "school_loan_unbilled_fine_idx",
+                name = "school_issue_unbilled_fine_idx",
                 def = "{'schoolId': 1, 'feeInvoiceDocsId': 1, 'returnedOn': -1}")
 })
 @Data
@@ -86,7 +85,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookLoan extends SchoolBase {
+public class BookIssued extends SchoolBase {
 
     // Links to AcademicYear.name, so a year's borrowing can be counted.
     // Example: "2026-2027"
@@ -117,7 +116,7 @@ public class BookLoan extends SchoolBase {
     @NotNull
     private LocalDate issuedOn;
 
-    // The day it is due back, worked out from the policy's loanDays at issue time.
+    // The day it is due back, worked out from the policy's issuePeriodDays at issue time.
     // Example: 2026-09-02
     @NotNull
     private LocalDate dueOn;
@@ -125,10 +124,10 @@ public class BookLoan extends SchoolBase {
     // The day it came back. Null while it is still out. Example: 2026-09-05
     private LocalDate returnedOn;
 
-    // Example: BookLoanStatus.RETURNED
+    // Example: BookIssuedStatus.RETURNED
     @NotNull
     @Builder.Default
-    private BookLoanStatus status = BookLoanStatus.ON_LOAN;
+    private BookIssuedStatus status = BookIssuedStatus.ISSUED;
 
     // What condition it went out in, so what comes back can be compared.
     // Example: BookCondition.GOOD
@@ -137,12 +136,12 @@ public class BookLoan extends SchoolBase {
     // What condition it came back in. Example: BookCondition.FAIR
     private BookCondition returnedCondition;
 
-    // How many times the loan has been extended. Example: 1
+    // How many times it has been extended. Example: 1
     @NotNull
     @Builder.Default
     private Integer renewalCount = 0;
 
-    // Daily fine copied from the policy when the loan was made, so a later change to
+    // Daily fine copied from the policy when the book went out, so a later change to
     // the policy cannot change what this borrower owes. Example: 2.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal dailyFineAmountSnapshot;

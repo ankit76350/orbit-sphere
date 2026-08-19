@@ -26,11 +26,11 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>A teacher normally keeps a book longer and may hold more at once than a Class III
  * child, so the rules live in a row per borrower type rather than as constants in code.
- * A school that wants to change its loan period should not need a deployment.
+ * A school that wants to change its issue period should not need a deployment.
  *
- * <p>The rules here are the **current** ones. They are not the rules a particular loan
- * was made under: a loan copies {@code dailyFineAmount} and {@code maximumFineAmount}
- * onto itself when it is issued, so shortening the loan period in November cannot make
+ * <p>The rules here are the **current** ones. They are not the rules a particular book
+ * went out under: each issued book copies {@code dailyFineAmount} and {@code maximumFineAmount}
+ * onto itself when it is issued, so shortening the issue period in November cannot make
  * a book borrowed in October retroactively overdue, and raising the fine cannot change
  * what an existing borrower owes.
  *
@@ -38,7 +38,7 @@ import lombok.experimental.SuperBuilder;
  * policy, and TransportAllocation when it copies a fare from a stop. A policy is a price
  * list, never a promise already made.
  *
- * <p>Because the loan snapshots what it needs, this model has no version number. There
+ * <p>Because each issued book snapshots what it needs, this model has no version number. There
  * is one active row per borrower type and it may be edited freely.
  *
  * <p>{@code maximumFineAmount} matters more than it looks. Without it a book forgotten
@@ -71,14 +71,14 @@ public class LibraryPolicy extends SchoolBase {
     // How many books this kind of borrower may hold at once. Example: 2
     @NotNull
     @Positive
-    private Integer maximumOpenLoans;
+    private Integer maximumBooksAtOnce;
 
-    // How many days a loan lasts. Example: 14
+    // How many days a book may be kept. Example: 14
     @NotNull
     @Positive
-    private Integer loanDays;
+    private Integer issuePeriodDays;
 
-    // How many times a loan may be extended, when nobody else is waiting.
+    // How many times it may be extended, when nobody else is waiting.
     // Example: 1
     @NotNull
     @Builder.Default

@@ -109,9 +109,9 @@ public class BookReservation extends SchoolBase {
     // Example: 2026-08-27T05:30:00Z
     private Instant holdExpiresAt;
 
-    // Links to BookLoan.id once the reservation turned into a loan.
+    // Links to BookIssued.id once the reservation turned into an issued book.
     // Example: "67b91126dc3f7d0055667788"
-    private String bookLoanDocsId;
+    private String bookIssuedDocsId;
 
     // When it ended, however it ended. Example: 2026-08-25T04:20:00Z
     private Instant closedAt;

@@ -14,7 +14,7 @@ public enum ReservationStatus {
     /** A copy has come back and is being held. The hold expires if nobody comes. */
     READY_FOR_COLLECTION,
 
-    /** Turned into a loan. */
+    /** Turned into an issued book. */
     COLLECTED,
 
     /** Was held and nobody came for it in time. */
