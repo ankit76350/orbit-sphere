@@ -92,6 +92,10 @@ comparing the two needs something they can actually read.
   `KitchenStockTransaction` and `MealRecipe` from the sketches are all inventory: items,
   quantities on hand, reorder levels, batches. That is the inventory module's problem,
   and modelling half of it here would mean two stock systems.
+
+  **That module now exists.** See [inventory](../inventory/README.md). Kitchen provisions
+  are `InventoryItem` rows in a `KITCHEN` store, food cooked for a meal is a
+  `CONSUMPTION` movement, and spoilage is `WASTAGE`. Recipes are still not modelled.
 - **Per-meal billing.** See above. Add it only if a school genuinely wants to charge day
   scholars per meal, and design it then.
 - **Day scholars eating in the mess.** `MessAttendance` is built from a hostel

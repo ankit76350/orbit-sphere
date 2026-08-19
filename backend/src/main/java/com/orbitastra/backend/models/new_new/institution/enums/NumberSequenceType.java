@@ -97,6 +97,9 @@ public enum NumberSequenceType {
     /** A boarder's request to go home and come back. */
     HOSTEL_LEAVE_REQUEST,
 
+    /** Stock given out that is expected back. */
+    STOCK_ISSUE,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

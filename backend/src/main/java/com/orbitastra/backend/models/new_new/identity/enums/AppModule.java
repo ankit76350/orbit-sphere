@@ -86,6 +86,12 @@ public enum AppModule {
     /** Halls, meal times, menus and who ate. */
     MESS,
 
+    /**
+     * Every store in the school and everything in them: stationery, food, linen,
+     * sports kit, lab apparatus, cleaning supplies and maintenance materials.
+     */
+    INVENTORY,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
