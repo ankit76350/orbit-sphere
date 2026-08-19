@@ -55,14 +55,14 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class HostelBed extends SchoolBase {
 
-    // Links to HostelRoom.id. Example: "67ba1123dc3f7d0022334455"
-    @NotBlank
-    private String hostelRoomDocsId;
-
     // Links to HostelBuilding.id, copied in so free beds can be found for a whole
     // building without loading every room. Example: "67ba1122dc3f7d0011223344"
     @NotBlank
     private String hostelBuildingDocsId;
+
+    // Links to HostelRoom.id. Example: "67ba1123dc3f7d0022334455"
+    @NotBlank
+    private String hostelRoomDocsId;
 
     // Which bed in the room, as marked. Example: "204-B"
     @NotBlank
