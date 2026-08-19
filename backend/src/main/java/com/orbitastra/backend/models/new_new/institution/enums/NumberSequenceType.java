@@ -91,6 +91,12 @@ public enum NumberSequenceType {
     /** Accession number written inside a book when it joins the library. */
     BOOK_ACCESSION,
 
+    /** One student's hostel bed for a year. */
+    HOSTEL_ALLOCATION,
+
+    /** A boarder's request to go home and come back. */
+    HOSTEL_LEAVE_REQUEST,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

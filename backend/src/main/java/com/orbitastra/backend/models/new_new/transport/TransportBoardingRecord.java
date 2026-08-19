@@ -8,8 +8,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.new_new.common.enums.IdentificationMethod;
 import com.orbitastra.backend.models.new_new.transport.embedded.GeoLocation;
-import com.orbitastra.backend.models.new_new.transport.enums.BoardingCaptureMethod;
 import com.orbitastra.backend.models.new_new.transport.enums.BoardingStatus;
 import com.orbitastra.backend.models.new_new.transport.enums.TripDirection;
 
@@ -111,8 +111,8 @@ public class TransportBoardingRecord extends AcademicStudentSchoolBase {
     // When the child got off. Null until they do. Example: 2026-08-18T02:10:00Z
     private Instant alightedAt;
 
-    // How the boarding was recorded. Example: BoardingCaptureMethod.RFID_CARD
-    private BoardingCaptureMethod captureMethod;
+    // How the boarding was recorded. Example: IdentificationMethod.RFID_TAP
+    private IdentificationMethod captureMethod;
 
     // Where the bus was when the child got on, when the device reported it.
     // Example: 19.1198, 72.8475

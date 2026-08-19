@@ -11,7 +11,7 @@ import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.gate.enums.MovementDirection;
 import com.orbitastra.backend.models.new_new.gate.enums.MovementExceptionType;
 import com.orbitastra.backend.models.new_new.gate.enums.MovementSubjectType;
-import com.orbitastra.backend.models.new_new.gate.enums.VerificationMethod;
+import com.orbitastra.backend.models.new_new.common.enums.IdentificationMethod;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -113,9 +113,9 @@ public class GateMovement extends SchoolBase {
     private LocalDate movementDate;
 
     // How the person was identified, and therefore how much this row is worth.
-    // Example: VerificationMethod.RFID_TAP
+    // Example: IdentificationMethod.RFID_TAP
     @NotNull
-    private VerificationMethod verificationMethod;
+    private IdentificationMethod verificationMethod;
 
     // Links to IdCard.id when a card was used. Example: "67b4112cdc3f7d0011223344"
     private String idCardDocsId;

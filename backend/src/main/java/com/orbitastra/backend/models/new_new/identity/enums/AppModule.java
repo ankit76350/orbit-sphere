@@ -77,6 +77,15 @@ public enum AppModule {
     /** Books, copies, issues, reservations and the borrowing rules. */
     LIBRARY,
 
+    /**
+     * Buildings, rooms, beds, who sleeps where, leave and the nightly roll call.
+     * A warden needs this and a class teacher does not.
+     */
+    HOSTEL,
+
+    /** Halls, meal times, menus and who ate. */
+    MESS,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
