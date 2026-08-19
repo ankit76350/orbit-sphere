@@ -27,7 +27,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>{@code hasCardReader} says whether the gate can identify people by itself.
  * A gate without one is worked by a guard typing names, and the movements from it
- * carry VerificationMethod.MANUAL. Knowing which gates those are matters when
+ * carry IdentificationMethod.MANUAL. Knowing which gates those are matters when
  * somebody argues about a time.
  *
  * <p>{@code active} being false closes a gate without deleting it, so the

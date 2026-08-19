@@ -30,7 +30,7 @@ import lombok.experimental.SuperBuilder;
  * both into one model would leave most of the fields empty most of the time.
  *
  * <p>{@code rfidNumber} is what makes the card work on a bus. Transport already
- * expects it: BoardingCaptureMethod.RFID_CARD assumes something issued the card
+ * expects it: IdentificationMethod.RFID_TAP assumes something issued the card
  * that gets tapped. This is that something. A card that is not ACTIVE must stop
  * being accepted straight away, which is why the status is checked at the reader
  * rather than the card simply being trusted.
