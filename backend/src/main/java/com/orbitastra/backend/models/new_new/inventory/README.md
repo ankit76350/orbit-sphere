@@ -66,13 +66,43 @@ Named as precedent: [BookIssued](../library/BookIssued.java),
 
 | Collection | Purpose |
 |---|---|
-| `inventory_categories` | The school's own grouping of what it stocks. |
+| `inventory_categories` | The school's own grouping of what it stocks. May nest one level. |
 | `inventory_items` | One thing the school keeps. **No quantity.** |
 | `inventory_stores` | One place stock is physically kept. |
 | `stock_balances` | How much of one item is in one store. |
 | `stock_batches` | One lot of a perishable, with its expiry. |
 | `stock_movements` | The ledger. Every change. Append-only. |
 | `stock_issues` | Something given out that is expected back. |
+
+## Categories may nest one level, and store type is not a substitute
+
+`parentCategoryDocsId` points at **another row in the same collection** — never at itself.
+Null means top level.
+
+```text
+Kitchen Provisions        parentCategoryDocsId = null
+  ├── Grains and Pulses   parentCategoryDocsId = Kitchen Provisions
+  ├── Vegetables          parentCategoryDocsId = Kitchen Provisions
+  └── Dairy               parentCategoryDocsId = Kitchen Provisions
+```
+
+**Why `InventoryStore.storeType` does not replace this.** It was briefly dropped on that
+argument and restored the same day, because the argument was wrong twice over:
+
+- **A school with one main store gets no grouping from the store at all.** `storeType` is a
+  single value, and that is the common case for a smaller school — exactly where a flat list
+  of thirty categories is hardest to use.
+- **They are different axes.** A category says what a thing *is*; a store says where it *is
+  kept*. Cleaning supplies may sit in three stores and still all be housekeeping spending.
+  Neither can stand in for the other.
+
+**Why not a separate `InventorySubCategory` model.** It moves the problem onto
+`InventoryItem`, which would then have to point at either a category or a sub-category.
+Carrying both lets them disagree, carrying only the sub-category forces a dummy one under
+every category, and a flag to choose between them is worse than either. Items are used far
+more than categories, so ambiguity there costs more than one nullable field here.
+
+The tree is for grouping only — stock is never counted against a category.
 
 ## Quantity does not live on the item
 
@@ -204,35 +234,37 @@ cooked for a meal is a `CONSUMPTION` movement, and spoilage is `WASTAGE`.
 2. An item's `unitOfMeasure` is never changed once movements exist.
 3. A category or store still in use is never deleted; a store still holding stock cannot be
    closed.
+4. A category's parent chain must not loop back on itself. A category that is its own
+   grandparent would hang any report walking the tree.
 
 **The ledger**
 
-4. `quantity` is always positive. Direction comes from `movementType`.
-5. Stock never goes below zero. An issue larger than `quantityAvailable` is refused, not
+5. `quantity` is always positive. Direction comes from `movementType`.
+6. Stock never goes below zero. An issue larger than `quantityAvailable` is refused, not
    allowed to go negative.
-6. `StockBalance` must always be rebuildable from `StockMovement`, and a recompute job
+7. `StockBalance` must always be rebuildable from `StockMovement`, and a recompute job
    exists.
-7. `quantityAvailable` always equals `quantityOnHand` minus `quantityReserved`.
-8. Movements are never edited or deleted. A mistake is a compensating row with an
+8. `quantityAvailable` always equals `quantityOnHand` minus `quantityReserved`.
+9. Movements are never edited or deleted. A mistake is a compensating row with an
    explanation in `remarks`.
-9. A transfer writes both a `TRANSFER_OUT` and a `TRANSFER_IN` with one `transferGroupId`,
+10. A transfer writes both a `TRANSFER_OUT` and a `TRANSFER_IN` with one `transferGroupId`,
    in a single operation.
-10. `WASTAGE`, `ADJUSTMENT_INCREASE` and `ADJUSTMENT_DECREASE` all require a `reason` and
+11. `WASTAGE`, `ADJUSTMENT_INCREASE` and `ADJUSTMENT_DECREASE` all require a `reason` and
     an `approvedByStaffDocsId`.
 
 **Batches**
 
-11. A batch-tracked item's movements must name a `stockBatchDocsId`.
-12. The batches of one item in one store must add up to that balance's `quantityOnHand`.
-13. The oldest unexpired batch is drawn on first.
-14. An expired batch is never issued; its remainder is written off as `WASTAGE`.
+12. A batch-tracked item's movements must name a `stockBatchDocsId`.
+13. The batches of one item in one store must add up to that balance's `quantityOnHand`.
+14. The oldest unexpired batch is drawn on first.
+15. An expired batch is never issued; its remainder is written off as `WASTAGE`.
 
 **Issuing**
 
-15. Only a `NON_CONSUMABLE` item opens a `StockIssue`. A consumable issue is a movement
+16. Only a `NON_CONSUMABLE` item opens a `StockIssue`. A consumable issue is a movement
     alone.
-16. `quantityReturned` never exceeds `quantityIssued`.
-17. A return writes a `RETURN` movement back into the store it came from.
-18. Writing off as `NOT_RETURNED` requires an approver and a reason.
-19. A replacement charge is billed by finance under a `FINE` head. This package never
+17. `quantityReturned` never exceeds `quantityIssued`.
+18. A return writes a `RETURN` movement back into the store it came from.
+19. Writing off as `NOT_RETURNED` requires an approver and a reason.
+20. A replacement charge is billed by finance under a `FINE` head. This package never
     touches an invoice directly.
