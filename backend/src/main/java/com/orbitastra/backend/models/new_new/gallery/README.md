@@ -12,7 +12,16 @@ in it is a picture of somebody's child.
 GalleryAlbum                     one occasion — "Sports Day 2026"
   |  eventType, eventDate, visibility, status
   |
-  +--> coverMediaDocsId ------> one of its own GalleryMedia rows
+  +--> parentAlbumDocsId ------> another GalleryAlbum. albums nest.
+  |
+  |      Sports Day 2026
+  |        +-- Track events        <- a GalleryAlbum too
+  |        |     +-- media
+  |        +-- Field events        <- and this
+  |        |     +-- media
+  |        +-- media               <- photographs may sit directly here as well
+  |
+  +--> coverMediaDocsId ------> a GalleryMedia row, from this album or one below it
   |
   +--> GalleryMedia[]            one photograph or clip
           |
@@ -50,6 +59,52 @@ Named as precedent:
 |---|---|
 | `gallery_albums` | One occasion's photographs, gathered together. |
 | `gallery_media` | One photograph or clip. |
+
+## Albums nest, and a child can never be more visible than its parent
+
+`parentAlbumDocsId` points at **another row in this same collection** — never at itself. Null
+means top level.
+
+A school with a hundred pictures from one day needs a way to break them up, and a flat list of
+a hundred albums is not it. So "Sports Day 2026" holds "Track events" and "Field events", and
+photographs may hang off any of the three.
+
+**The rule that matters more than the convenience:** a sub-album can never be more visible than
+the album it sits in. If "Sports Day 2026" is `PARENTS` and somebody sets "Track events" to
+`PUBLIC`, the effective visibility is still `PARENTS`.
+
+Otherwise a school could restrict a whole day's photographs and have one folder inside it
+quietly open to the internet — which is exactly the mistake this package exists to prevent. The
+same narrower-wins rule already governs media against its album; the tree just extends it one
+more level.
+
+Depth is not limited by the model, but two levels is what a school actually uses. A parent chain
+that loops back on itself is refused: an album that is its own grandparent would hang any screen
+walking the tree.
+
+### There is no stored count, and there cannot usefully be one
+
+An earlier version kept `mediaCount` and `subAlbumCount` on the album. Both were dropped on
+2026-08-19, and the reason is worth keeping:
+
+**A count here can only ever be right for one audience.** Visibility sits on every media row and
+every album, with the narrower winning — so a parent sees fewer photographs in "Sports Day 2026"
+than a member of staff does. One stored number cannot be true for both, and a cached one is
+quietly wrong for whoever it was not computed for.
+
+So a listing counts what the person asking is allowed to see, in one grouped query per screen. An
+album holds tens of photographs, not thousands, and `school_media_album_order_idx` exists for
+exactly that.
+
+Caching it would also mean every upload, publish and withdrawal walking upward to correct every
+ancestor — two more things that can drift, on a read that was cheap to start with.
+
+Contrast `StockBalance.quantityOnHand` and `FeeInvoice.allocatedPaymentTotal`, which **are**
+cached: those summarise thousands of rows, are read constantly, and mean the same thing to
+everybody who reads them. None of that is true here.
+
+`coverMediaDocsId` may point at a photograph from **this album or any album below it**, because
+a parent album that holds only sub-albums has none of its own to choose from.
 
 ## Files are `DocumentRecord` ids, never URLs
 
@@ -116,9 +171,6 @@ separate cover image. A cover cannot then outlive the picture it came from — i
 is withdrawn because a family changed their mind, the cover has to change too, and pointing at
 the row makes that automatic rather than something somebody has to remember.
 
-**`mediaCount` counts only `PUBLISHED` media.** A parent tapping *"Sports Day (48)"* and
-finding twelve pictures has been told something untrue.
-
 ## `altText` is not decoration
 
 A parent using a screen reader, or on a slow connection in a village, gets **nothing at all**
@@ -163,15 +215,25 @@ family and one that works for most.
    step.
 6. A `WITHDRAWN` row is never deleted. Somebody will ask why a picture vanished.
 
+**Albums and nesting**
+
+7. A parent chain must never loop. An album that is its own ancestor would hang any screen
+   walking the tree.
+8. A sub-album's effective visibility is the **narrower** of its own and every ancestor's.
+   Setting a child to `PUBLIC` inside a `PARENTS` album does not make it public.
+9. No count of media or sub-albums is stored on an album. A listing counts what the person
+   asking is allowed to see, because visibility makes the number viewer-dependent.
+10. Deleting or withdrawing an album cascades to the albums and media inside it. A hidden
+    parent must not leave a visible child.
+
 **Visibility**
 
-7. The effective visibility is the **narrower** of the media's and its album's.
-8. `STAFF` is the default on both album and media. Nothing becomes visible by omission.
-9. A `PUBLIC` album is checked again on every publish, not once at creation.
+11. The effective visibility is the **narrower** of the media's and its album's.
+12. `STAFF` is the default on both album and media. Nothing becomes visible by omission.
+13. A `PUBLIC` album is checked again on every publish, not once at creation.
 
 **Publishing**
 
-10. `publishedByStaffDocsId` is never the same as `createdByStaffDocsId`.
-11. A withdrawal carries a reason.
-12. `coverMediaDocsId` must belong to that album and be `PUBLISHED`.
-13. `mediaCount` counts only `PUBLISHED` media and must be rebuildable from the media rows.
+14. `publishedByStaffDocsId` is never the same as `createdByStaffDocsId`.
+15. A withdrawal carries a reason.
+16. `coverMediaDocsId` must belong to that album or one below it, and be `PUBLISHED`.

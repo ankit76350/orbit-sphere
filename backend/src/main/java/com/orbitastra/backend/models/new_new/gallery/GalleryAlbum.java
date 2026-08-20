@@ -60,13 +60,6 @@ import lombok.experimental.SuperBuilder;
  * rather than copying the file is what makes that automatic.
  *
  * <p>
- * {@code mediaCount} is a running total kept so a list of albums loads without
- * counting
- * every photograph. It counts only PUBLISHED media, because a parent looking at
- * "Sports Day
- * (48)" and finding twelve pictures has been told something untrue.
- *
- * <p>
  * Publishing is not the uploader's decision. Photographs of children should not
  * go up
  * because one person had a camera, so an album waits at PENDING_APPROVAL for
@@ -86,6 +79,7 @@ import lombok.experimental.SuperBuilder;
                 @CompoundIndex(name = "school_album_visible_idx", def = "{'schoolId': 1, 'status': 1, 'visibility': 1, 'eventDate': -1}"),
                 @CompoundIndex(name = "school_year_album_idx", def = "{'schoolId': 1, 'academicYear': 1, 'eventDate': -1}"),
                 @CompoundIndex(name = "school_album_event_type_idx", def = "{'schoolId': 1, 'eventType': 1, 'eventDate': -1}"),
+                @CompoundIndex(name = "school_album_tree_idx", def = "{'schoolId': 1, 'parentAlbumDocsId': 1, 'status': 1, 'eventDate': -1}"),
                 @CompoundIndex(name = "school_album_featured_idx", def = "{'schoolId': 1, 'featured': 1, 'eventDate': -1}")
 })
 @Data
@@ -95,83 +89,84 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class GalleryAlbum extends SchoolBase {
 
-        // What parents see as the album name. Example: "Sports Day 2026"
-        @NotBlank
-        private String title;
+    // What parents see as the album name. Example: "Sports Day 2026"
+    @NotBlank
+    private String title;
 
-        // A sentence or two about the occasion.
-        // Example: "Inter-house athletics at the district ground, 14 December."
-        private String description;
+    // Links to another GalleryAlbum.id when this album sits inside a bigger one. It is
+    // another row in this same collection, never this row itself. Null for a top-level
+    // album.
+    //
+    // So "Sports Day 2026" can hold "Track events" and "Field events", and photographs can
+    // hang off any of the three. A school with a hundred pictures from one day needs a way
+    // to break them up, and a flat list of a hundred albums is not it.
+    // Example: "67c11123dc3f7d0022334455"
+    private String parentAlbumDocsId;
 
-        // What sort of occasion it was, for the filter parents actually use.
-        // Example: GalleryEventType.SPORTS_DAY
-        @NotNull
-        private GalleryEventType eventType;
+    // A sentence or two about the occasion.
+    // Example: "Inter-house athletics at the district ground, 14 December."
+    private String description;
 
-        // The day it happened, which is not the day the photographs were uploaded.
-        // Albums are ordered by this. Example: 2026-12-14
-        @NotNull
-        private LocalDate eventDate;
+    // What sort of occasion it was, for the filter parents actually use.
+    // Example: GalleryEventType.SPORTS_DAY
+    @NotNull
+    private GalleryEventType eventType;
 
-        // Links to AcademicYear.name, so a family can look back at a whole year.
-        // Example: "2026-2027"
-        @Indexed
-        @NotBlank
-        private String academicYear;
+    // The day it happened, which is not the day the photographs were uploaded.
+    // Albums are ordered by this. Example: 2026-12-14
+    @NotNull
+    private LocalDate eventDate;
 
-        // Who may see it, and therefore what consent is needed.
-        // Example: GalleryVisibility.PARENTS
-        @NotNull
-        @Builder.Default
-        private GalleryVisibility visibility = GalleryVisibility.STAFF;
+    // Links to AcademicYear.name, so a family can look back at a whole year.
+    // Example: "2026-2027"
+    @Indexed
+    @NotBlank
+    private String academicYear;
 
-        // Example: GalleryStatus.PUBLISHED
-        @NotNull
-        @Builder.Default
-        private GalleryStatus status = GalleryStatus.DRAFT;
+    // Who may see it, and therefore what consent is needed.
+    // Example: GalleryVisibility.PARENTS
+    @NotNull
+    @Builder.Default
+    private GalleryVisibility visibility = GalleryVisibility.STAFF;
 
-        // Links to GalleryMedia.id inside this album, used as the cover. Pointing at
-        // the row
-        // rather than copying the file means a withdrawn photograph cannot go on being
-        // the
-        // cover. Example: "67c11122dc3f7d0011223344"
-        private String coverMediaDocsId;
+    // Example: GalleryStatus.PUBLISHED
+    @NotNull
+    @Builder.Default
+    private GalleryStatus status = GalleryStatus.DRAFT;
 
-        // How many PUBLISHED photographs are in it. A running total, so a list of
-        // albums does
-        // not count everything. Never includes drafts: "Sports Day (48)" that opens to
-        // twelve
-        // has told the parent something untrue. Example: 48
-        @NotNull
-        @Builder.Default
-        private Integer mediaCount = 0;
+    // Links to GalleryMedia.id inside this album, used as the cover. Pointing at
+    // the row
+    // rather than copying the file means a withdrawn photograph cannot go on being
+    // the
+    // cover. Example: "67c11122dc3f7d0011223344"
+    private String coverMediaDocsId;
 
-        // Whether it sits at the top of the app for a while. Example: false
-        @NotNull
-        @Builder.Default
-        private Boolean featured = false;
+    // Whether it sits at the top of the app for a while. Example: false
+    @NotNull
+    @Builder.Default
+    private Boolean featured = false;
 
-        // Links to SchoolClass.id when the album is about one class rather than the
-        // school,
-        // such as a class trip. Null for a whole-school occasion.
-        // Example: "67ab3322dc3f7d0044556677"
-        private String classDocsId;
+    // Links to SchoolClass.id when the album is about one class rather than the
+    // school,
+    // such as a class trip. Null for a whole-school occasion.
+    // Example: "67ab3322dc3f7d0044556677"
+    private String classDocsId;
 
-        // Links to Staff.id for whoever put the album together.
-        // Example: "67aa15d9dc3f7d0044444444"
-        @NotBlank
-        private String createdByStaffDocsId;
+    // Links to Staff.id for whoever put the album together.
+    // Example: "67aa15d9dc3f7d0044444444"
+    @NotBlank
+    private String createdByStaffDocsId;
 
-        // Links to Staff.id for whoever approved it going up. Never the uploader:
-        // photographs
-        // of children should not be published because one person had a camera.
-        // Example: "67aa15d9dc3f7d0055555555"
-        private String publishedByStaffDocsId;
+    // Links to Staff.id for whoever approved it going up. Never the uploader:
+    // photographs
+    // of children should not be published because one person had a camera.
+    // Example: "67aa15d9dc3f7d0055555555"
+    private String publishedByStaffDocsId;
 
-        // Example: 2026-12-16T06:30:00Z
-        private Instant publishedAt;
+    // Example: 2026-12-16T06:30:00Z
+    private Instant publishedAt;
 
-        // Why it was taken down. Required when the status is WITHDRAWN.
-        // Example: "A family withdrew photograph consent; album pulled pending review."
-        private String withdrawalReason;
+    // Why it was taken down. Required when the status is WITHDRAWN.
+    // Example: "A family withdrew photograph consent; album pulled pending review."
+    private String withdrawalReason;
 }
