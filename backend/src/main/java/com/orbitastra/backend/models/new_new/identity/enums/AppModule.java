@@ -111,6 +111,13 @@ public enum AppModule {
     /** Reports and data exports. */
     REPORTS,
 
+    /**
+     * The audit trail. Reading it is its own permission and a narrow one: somebody who can
+     * see who did what can see a great deal about everybody, and the people who most need
+     * watching are often the ones with the widest access.
+     */
+    AUDIT,
+
     /** User accounts, roles and who is allowed to do what. */
     USER_ACCESS,
 
