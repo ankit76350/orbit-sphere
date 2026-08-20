@@ -102,7 +102,7 @@ public class ComplianceSubmission extends SchoolBase {
     // When the authority accepted or refused it. Example: 2026-10-08T06:30:00Z
     private Instant decidedAt;
 
-    // Links to DocumentRecord.id for the authority's receipt. The only thing that proves
+    //! Links to DocumentRecord.id for the authority's receipt. The only thing that proves
     // the school filed on time, and exactly what nobody can find two years later.
     // Example: "67bf1126dc3f7d0055667788"
     private String acknowledgementDocumentDocsId;
