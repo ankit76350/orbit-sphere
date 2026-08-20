@@ -107,7 +107,7 @@ public class SupportPlan extends AcademicStudentSchoolBase {
     @Builder.Default
     private List<SupportAccommodation> accommodations = new ArrayList<>();
 
-    // What the school is aiming for, each with a baseline so a review can settle whether it
+    // what the school is trying to achieve, each with a baseline so a review can settle whether it
     // worked.
     @Valid
     @Builder.Default
