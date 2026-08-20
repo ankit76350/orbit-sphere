@@ -19,9 +19,9 @@ import org.springframework.dao.DuplicateKeyException;
 
 import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.core.AcademicYear;
-import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.old.academics.SchoolClass;
+import com.orbitastra.backend.models.old.core.AcademicYear;
+import com.orbitastra.backend.models.old.core.School;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.embedded.GuardianLink;

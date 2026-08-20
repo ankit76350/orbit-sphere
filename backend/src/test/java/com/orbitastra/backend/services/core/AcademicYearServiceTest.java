@@ -17,7 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 

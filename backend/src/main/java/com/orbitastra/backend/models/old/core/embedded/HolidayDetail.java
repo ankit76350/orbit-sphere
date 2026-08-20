@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.core.embedded;
+package com.orbitastra.backend.models.old.core.embedded;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.core.enums.HolidayType;
+import com.orbitastra.backend.models.old.core.enums.HolidayType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.core.enums;
+package com.orbitastra.backend.models.old.core.enums;
 
 public enum HolidayType {
     WEEKLY_OFF,

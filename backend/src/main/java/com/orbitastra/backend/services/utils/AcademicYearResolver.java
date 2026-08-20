@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 
 import lombok.RequiredArgsConstructor;

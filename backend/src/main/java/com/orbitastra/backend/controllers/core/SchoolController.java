@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.core.CreateSchoolRequest;
 import com.orbitastra.backend.dto.core.UpdateSchoolRequest;
-import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.old.core.School;
 import com.orbitastra.backend.services.core.SchoolService;
 
 import jakarta.validation.Valid;

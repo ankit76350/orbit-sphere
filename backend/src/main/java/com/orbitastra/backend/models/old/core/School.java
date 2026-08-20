@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.core;
+package com.orbitastra.backend.models.old.core;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -6,8 +6,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.core.enums.SubscriptionTier;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.old.core.enums.SubscriptionTier;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

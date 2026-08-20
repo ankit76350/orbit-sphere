@@ -1,6 +1,6 @@
 package com.orbitastra.backend.dto.core;
 
-import com.orbitastra.backend.models.core.enums.SubscriptionTier;
+import com.orbitastra.backend.models.old.core.enums.SubscriptionTier;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;

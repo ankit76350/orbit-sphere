@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.old.core.School;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 
 import lombok.RequiredArgsConstructor;

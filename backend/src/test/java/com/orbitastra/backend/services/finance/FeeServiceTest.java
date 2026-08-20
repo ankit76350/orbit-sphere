@@ -17,10 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.finance.FeeInvoice;
 import com.orbitastra.backend.models.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.finance.enums.FeeType;
+import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;

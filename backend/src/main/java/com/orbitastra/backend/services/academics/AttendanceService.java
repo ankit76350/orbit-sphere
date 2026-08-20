@@ -8,8 +8,8 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.old.academics.Attendance;
+import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
