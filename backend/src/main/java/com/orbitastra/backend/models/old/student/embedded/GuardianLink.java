@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.student.embedded;
+package com.orbitastra.backend.models.old.student.embedded;
 
-import com.orbitastra.backend.models.student.Guardian;
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.Guardian;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

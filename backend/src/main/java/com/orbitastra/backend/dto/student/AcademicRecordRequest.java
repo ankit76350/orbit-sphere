@@ -1,8 +1,8 @@
 package com.orbitastra.backend.dto.student;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 import lombok.Data;
 

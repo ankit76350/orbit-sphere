@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.orbitastra.backend.models.student.enums.Gender;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.enums.Gender;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

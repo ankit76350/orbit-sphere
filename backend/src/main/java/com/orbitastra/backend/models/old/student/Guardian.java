@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.student;
+package com.orbitastra.backend.models.old.student;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.student.embedded.GuardianLink;
+import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

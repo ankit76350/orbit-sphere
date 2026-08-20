@@ -3,7 +3,7 @@ package com.orbitastra.backend.services.utils;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.old.student.Student;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 
 import lombok.RequiredArgsConstructor;

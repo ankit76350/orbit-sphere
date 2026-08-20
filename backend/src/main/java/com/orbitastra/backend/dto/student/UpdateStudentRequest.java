@@ -3,8 +3,8 @@ package com.orbitastra.backend.dto.student;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.models.student.enums.Gender;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.enums.Gender;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 import jakarta.validation.Valid;
 import lombok.Data;

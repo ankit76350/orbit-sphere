@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.student.enums;
+package com.orbitastra.backend.models.old.student.enums;
 
 public enum StudentStatus {
     ACTIVE,

@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
-import com.orbitastra.backend.models.student.enums.Gender;
+import com.orbitastra.backend.models.old.student.enums.Gender;
 
 import jakarta.validation.Valid;
 import lombok.Data;

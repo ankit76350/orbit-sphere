@@ -22,7 +22,7 @@ import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 import com.orbitastra.backend.services.crm.AdmissionService;
 
 @ExtendWith(MockitoExtension.class)

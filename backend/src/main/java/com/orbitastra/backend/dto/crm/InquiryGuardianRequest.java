@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

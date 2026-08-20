@@ -3,8 +3,8 @@ package com.orbitastra.backend.dto.student;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.orbitastra.backend.models.student.embedded.GuardianLink;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

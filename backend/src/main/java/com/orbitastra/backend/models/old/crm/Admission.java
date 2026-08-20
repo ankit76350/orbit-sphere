@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
-import com.orbitastra.backend.models.student.enums.Gender;
+import com.orbitastra.backend.models.old.student.enums.Gender;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

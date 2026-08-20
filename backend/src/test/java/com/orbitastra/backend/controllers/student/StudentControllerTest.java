@@ -20,7 +20,7 @@ import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.CreateStudentRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
 import com.orbitastra.backend.services.student.StudentService;
 import tools.jackson.databind.ObjectMapper;
 

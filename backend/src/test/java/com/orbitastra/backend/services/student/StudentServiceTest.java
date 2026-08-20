@@ -22,10 +22,11 @@ import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.academics.SchoolClass;
 import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.old.core.School;
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
-import com.orbitastra.backend.models.student.embedded.GuardianLink;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 import com.orbitastra.backend.repositories.student.GuardianRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
@@ -37,7 +38,6 @@ import com.orbitastra.backend.dto.student.StudentGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
 
 @ExtendWith(MockitoExtension.class)
 public class StudentServiceTest {

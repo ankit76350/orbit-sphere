@@ -1,7 +1,7 @@
 package com.orbitastra.backend.dto.student;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;

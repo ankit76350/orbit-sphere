@@ -13,7 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.old.student.Student;
 import com.orbitastra.backend.repositories.student.StudentRepository;
 import com.orbitastra.backend.services.utils.StudentValidator;
 

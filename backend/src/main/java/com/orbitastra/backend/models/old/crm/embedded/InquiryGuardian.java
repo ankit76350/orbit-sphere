@@ -1,7 +1,7 @@
 package com.orbitastra.backend.models.old.crm.embedded;
 
 import com.orbitastra.backend.models.old.crm.Inquiry;
-import com.orbitastra.backend.models.student.enums.GuardianRelation;
+import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
  * A prospective guardian captured on an {@link Inquiry}. This is raw lead data —
  * no Guardian document exists yet. When the inquiry is converted to a student
  * (via the admission), each of these becomes a real
- * {@link com.orbitastra.backend.models.student.Guardian} and is linked to the
+ * {@link com.orbitastra.backend.models.old.student.Guardian} and is linked to the
  * student. Carried through the funnel as-is until then.
  */
 @Data

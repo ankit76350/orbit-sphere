@@ -17,7 +17,7 @@ import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.finance.StudentWallet;
 import com.orbitastra.backend.models.old.finance.WalletTransaction;
 import com.orbitastra.backend.models.old.finance.enums.TransactionType;
-import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.old.student.Student;
 import com.orbitastra.backend.repositories.finance.StudentWalletRepository;
 import com.orbitastra.backend.repositories.finance.WalletTransactionRepository;
 import com.orbitastra.backend.repositories.student.StudentRepository;

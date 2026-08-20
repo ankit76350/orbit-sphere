@@ -6,7 +6,7 @@ import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSetter;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

@@ -21,7 +21,7 @@ import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.old.finance.FeeInvoice;
 import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.old.finance.enums.FeeType;
-import com.orbitastra.backend.models.student.Student;
+import com.orbitastra.backend.models.old.student.Student;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;

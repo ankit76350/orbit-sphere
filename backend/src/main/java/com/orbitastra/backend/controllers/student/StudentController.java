@@ -13,8 +13,8 @@ import com.orbitastra.backend.dto.student.GuardianLinkRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.dto.student.UpdateStudentRequest;
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
 import com.orbitastra.backend.services.student.StudentService;
 
 import jakarta.validation.Valid;

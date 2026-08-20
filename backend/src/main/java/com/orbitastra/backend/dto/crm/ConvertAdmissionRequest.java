@@ -7,10 +7,10 @@ import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.orbitastra.backend.dto.student.AcademicRecordRequest;
 import com.orbitastra.backend.dto.student.StudentGuardianRequest;
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.StudentAcademicRecord;
-import com.orbitastra.backend.models.student.enums.Gender;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
+import com.orbitastra.backend.models.old.student.enums.Gender;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 import jakarta.validation.Valid;
 import lombok.Data;

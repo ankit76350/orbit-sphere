@@ -6,8 +6,8 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.student.Student;
-import com.orbitastra.backend.models.student.enums.StudentStatus;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.enums.StudentStatus;
 
 @Repository
 public interface StudentRepository extends MongoRepository<Student, String> {

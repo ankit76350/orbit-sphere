@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.student.CreateGuardianRequest;
 import com.orbitastra.backend.dto.student.UpdateGuardianRequest;
-import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.old.student.Guardian;
 import com.orbitastra.backend.services.student.GuardianService;
 
 import jakarta.validation.Valid;
