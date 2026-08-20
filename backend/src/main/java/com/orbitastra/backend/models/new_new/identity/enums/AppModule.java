@@ -145,6 +145,14 @@ public enum AppModule {
      */
     FEEDBACK,
 
+    /**
+     * Reports people send straight to the head, and the channels they arrive on. Split from
+     * FEEDBACK because they are not the same secret: a head of department may reasonably read
+     * teaching-feedback summaries, and must not be able to open a child's report about a
+     * colleague. The narrowest permission in the platform.
+     */
+    FEEDBACK_REPORTS,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 

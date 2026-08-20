@@ -17,12 +17,51 @@ protection is in the write path and the query path rather than in the fields. No
 package is safe until the rules at the bottom are actually enforced. Do not ship a feedback
 form that says "anonymous" before then.
 
+## Two halves, and they are different acts
+
+This package holds **two systems** that share one anonymity design and nothing else.
+
+```
+THE SCHOOL ASKS                        THE PERSON DECIDES
+FeedbackTopic                          FeedbackReportChannel
+  -> FeedbackCampaign                    -> FeedbackReport
+       -> FeedbackSubmission                  -> FeedbackReportMessage[]
+            -> FeedbackAggregate
+```
+
+| | Campaign side | Report side |
+|---|---|---|
+| Who starts it | The school opens a drive | **Anybody, any hour, unprompted** |
+| What is asked | Fixed questions, ratings | **A subject line and their own words** |
+| About what | One type, declared on the topic | **Anything at all** |
+| How many | One per person per campaign | As many as somebody needs to send |
+| Goes to | A coordinator, then aggregated | **Straight to the principal** |
+| Produces | Comparable numbers | **An answer** |
+| Ends when | The drive is published | The thing is dealt with |
+
+They are not variations of each other. A student rating "explains clearly: 4 out of 5" and a
+student saying "the railing on the stairs is coming off the wall" have almost nothing in
+common except that the school must not be able to work out who said it.
+
+Trying to serve both from one model means either forcing a free-form report through a
+question-and-rating structure, or loosening the campaign model until its numbers stop being
+comparable. So there are two.
+
 ## What these models answer
+
+**Campaign side**
 
 1. What kinds of feedback does the school collect, from whom, about whom?
 2. What did the school promise the person who gave it?
 3. What did they actually say?
 4. What does the person it is about get to see — and when?
+
+**Report side**
+
+5. Can anybody tell the head anything, at any time, without giving their name?
+6. Did somebody read it, and by when did they promise to?
+7. Can the school ask a follow-up question of a person it cannot identify?
+8. What was actually done about it?
 
 ## Read this first: anonymity is not a field
 
@@ -124,17 +163,99 @@ FeedbackAggregate                the numbers, and the ONLY thing a subject ever 
 | [`ConductEvent`](../conduct/ConductEvent.java) | conduct — the dated incident behind a case |
 | [`SupportNeed`](../support/SupportNeed.java) | support — the module that also deliberately excluded safeguarding |
 
+## The report side
+
+```text
+FeedbackReportChannel            one row per category the school accepts
+   |   who receives it / backup recipient / which promises / acknowledgement clock
+   |
+   v
+FeedbackReport                   one thing somebody chose to tell the head
+   |   subject + description in their own words
+   |   incidentDate / incidentLocation, both optional
+   |   aboutSubjectType + aboutSubjectDocsId, both optional -- "anything"
+   |   accessCodeHash  <-- how an anonymous reporter ever comes back
+   |
+   +--> FeedbackReportMessage[]    the two-way conversation, anonymity intact
+          visibleToReporter separates a question from an internal note
+```
+
+### `accessCodeHash` is what makes anonymous reporting worth having
+
+A truly anonymous reporter has **no login to come back to.** Without a code they can never
+learn whether anything happened — so the channel is a black hole, and a black hole gets used
+once.
+
+The reporter is shown a code at submission, printed once and never recoverable. They return
+with it to read the status, answer a question, or add something they forgot. Only the hash is
+stored, so somebody reading the database cannot use the codes to impersonate reporters. It is
+indexed without `schoolId`, the same as `AuthSession.refreshTokenHash`, because a code is
+looked up before the school is necessarily known.
+
+### The conversation matters more than it looks
+
+Half of what arrives in a channel like this **cannot be acted on as written.** *"A teacher was
+shouting at a child in the corridor"* needs somebody to ask which corridor, which day, roughly
+what time. Without a way to ask, the school guesses or files it, and the reporter learns that
+speaking up achieves nothing.
+
+`FeedbackReportMessage.visibleToReporter` keeps a question meant for them apart from a note
+the recipient wrote to a colleague. Both are text on the same report, and one field is all
+that stops an internal opinion reaching the person it is about.
+
+### A report about the principal must not go to the principal
+
+`FeedbackReportChannel.backupRecipientStaffDocsId` looks like belt-and-braces and is not.
+
+A channel that promises to hear anything **will** eventually be used to report the person who
+runs the school. If that report lands in their inbox, the reporter is worse off than if the
+channel had never existed. So the backup is `@NotBlank` — there has to be somewhere for it to
+go — and `routedToStaffDocsId` is resolved at submission and **stored**, never read live
+through the channel. Reading it live is exactly how the report reaches the person it is about.
+
+### `ACKNOWLEDGED` is a state, and leaving it out kills the channel
+
+**A person who reports something and hears nothing concludes the channel does not work, and
+never uses it again** — and tells others not to bother. One school year of silence is enough
+to make a speak-up channel worthless, and no policy repairs it afterwards.
+
+So acknowledgement is a state with a clock on it, separate from anything being decided. *"We
+have read this and somebody is looking at it"* is a different message from *"here is what we
+did"*, it arrives days earlier, and it is the one that keeps the channel alive.
+`acknowledgementDays` on the channel makes an unanswered report a measurable failure with a
+date on it rather than a matter of opinion.
+
+### One question instead of a severity scale
+
+`requiresImmediateAttention` asks **is somebody in danger now?** — not "rate the severity from
+one to four". A frightened reporter cannot calibrate a scale, and a scale they guess at is
+worse than no field. This one does exactly one thing: it jumps the queue.
+
+### `aboutSubjectType` IS stored here, and that is not a contradiction
+
+It was dropped from `FeedbackSubmission` and kept here. The test is the same one either way:
+**does anything else on the row already know?**
+
+- A submission always has its topic, and the topic declares the type. → drop it.
+- A report is about whatever the reporter chose, and no configuration knows what. → store it.
+
+This is the `FeeInvoice.sourceType` case. Both fields are also **optional**, because "anything"
+includes things with no record in the system — a broken railing, a rumour, a policy somebody
+thinks is unfair.
+
 ## The collections
 
 | Collection | Purpose |
 |---|---|
-| `feedback_topics` | One kind of feedback, and all the rules for it. Set up once. |
+| `feedback_topics` | One kind of solicited feedback, and all the rules for it. |
 | `feedback_campaigns` | One drive to collect it, open between two dates. Optional. |
-| `feedback_submissions` | One piece of feedback somebody gave. |
+| `feedback_submissions` | One answer to a drive. |
 | `feedback_aggregates` | The numbers for one subject in one campaign. What a subject reads. |
+| `feedback_report_channels` | Where reports of one category go, and who may read them. |
+| `feedback_reports` | One thing somebody chose to tell the head, in their own words. |
 
-`FeedbackQuestion`, `FeedbackAnswer`, `FeedbackQuestionAggregate` and `FeedbackRatingBucket`
-are embedded and have no collections of their own.
+`FeedbackQuestion`, `FeedbackAnswer`, `FeedbackQuestionAggregate`, `FeedbackRatingBucket` and
+`FeedbackReportMessage` are embedded and have no collections of their own.
 
 ## Five decisions worth explaining
 
@@ -274,15 +395,23 @@ safeguarding was deliberately left out.
 
 | If it… | It belongs to |
 |---|---|
-| …is evaluative, often solicited, often counted | **here** |
-| …expects an answer and a resolution | `frontoffice` — `Complaint` is still sketched there |
-| …is about a child's behaviour | [`conduct`](../conduct/README.md) |
-| …alleges harm to anybody | out of the system; escalate to a person |
+| …was asked for by the school and gets counted | `FeedbackSubmission` |
+| …somebody chose to send, in their own words | `FeedbackReport` |
+| …is about a child's behaviour, with due process | [`conduct`](../conduct/README.md) |
+| …alleges harm to anybody | out of the system; `ESCALATED` to a person |
 
-The overlap with `frontoffice` is real and unresolved. A parent saying *"the bus driver was
-rude"* is both feedback and a complaint. This module can hold it — `allowsUnsolicited`,
-`ESCALATED`, `outcomeNote` are all there — but when `frontoffice` is designed, the two need one
-boundary drawn deliberately rather than two half-systems that both nearly work.
+`FeedbackReport` now covers what the sketched `frontoffice/Complaint` was for, and covers it
+better, because the anonymity and routing work. **When `frontoffice` is designed, its
+`Complaint` should not be built** — a parent saying "the bus driver was rude" is a
+`TRANSPORT_CONCERN` report, and two systems that both nearly handle it is worse than one that
+does. What `frontoffice` should keep is the walk-in and telephone log: who came to the desk,
+who rang, what about. That is a different record from a report to the head.
+
+`FeedbackTopic.allowsUnsolicited` is now the odd one out. It let a campaign-style submission
+arrive with no campaign, which was a half-answer to the question `FeedbackReport` answers
+properly. It is left in place because a structured form somebody fills in whenever they like —
+a standing lesson-observation sheet, say — is a real use, but it is **not** the way to build a
+report channel.
 
 ## Deliberately left out
 
@@ -290,10 +419,9 @@ boundary drawn deliberately rather than two half-systems that both nearly work.
   one attached to a person's record is worse than none.
 - **Public visibility.** `FeedbackVisibility` stops at the subject and their manager. A school
   publishing teacher ratings is a decision with consequences no field should make easy.
-- **Reply threads.** Asking a follow-up question is possible for `CONFIDENTIAL` and
-  `IDENTIFIED` feedback and impossible for `ANONYMOUS`, which makes a general threading model
-  half-useless. When `frontoffice` settles the complaint boundary, the conversation belongs on
-  whichever side owns resolution.
+- **Reply threads on campaign submissions.** A rating drive with thirty replies per teacher is
+  not a conversation, it is a second inbox nobody reads. The report side has
+  `FeedbackReportMessage` because a report expects an answer; a submission does not.
 - **An unmask log.** Revealing a confidential submitter is written to
   [`AuditEvent`](../audit/AuditEvent.java). A second record here could disagree with it, and
   two records of who unmasked somebody is worse than one.
@@ -352,6 +480,28 @@ boundary drawn deliberately rather than two half-systems that both nearly work.
     `escalatedToStaffDocsId` and `escalationNote`.
 19. `WITHDRAWN` is unreachable for `ANONYMOUS`.
 20. Unsolicited submissions are refused unless `allowsUnsolicited` is true.
+
+**Report channels and reports**
+
+21a. `recipientStaffDocsId` and `backupRecipientStaffDocsId` are two different people, and both
+    must exist.
+21b. A report whose `aboutSubjectDocsId` is the channel's recipient is routed to the backup,
+    with `routingNote` saying so. This is checked at submission, not at read time.
+21c. `routedToStaffDocsId` is stored at submission and never re-derived from the channel.
+21d. The access code is generated with a cryptographic random source, shown **exactly once**,
+    and only its hash is stored. There is no "resend my code" path — there is nobody to
+    resend it to.
+21e. A `visibleToReporter = false` message is never returned on any reporter-facing path,
+    including a full-report export.
+21f. `acknowledgementDueBy` is set from the channel at submission. Reports past it with status
+    `SUBMITTED` are the overdue queue, and somebody is answerable for it.
+21g. `requiresImmediateAttention` or an `urgentByDefault` channel flags the report at the
+    moment it arrives, ahead of the queue.
+21h. `ACTIONED` and `DISMISSED` require `outcomeNote`; `ESCALATED` requires
+    `escalatedToStaffDocsId` and `escalationNote`.
+21i. There is no unique constraint on the reporter for this collection — somebody may need to
+    report several things. Abuse is rate-limited in the service, never by an index that would
+    block a legitimate second report.
 
 **Aggregates**
 

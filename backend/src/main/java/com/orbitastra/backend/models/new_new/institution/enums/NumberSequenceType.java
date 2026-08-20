@@ -130,6 +130,9 @@ public enum NumberSequenceType {
      */
     FEEDBACK_SUBMISSION,
 
+    /** One report sent straight to the head, at a time nobody asked for it. */
+    FEEDBACK_REPORT,
+
     /** School-configured type not represented above. */
     CUSTOM
 }
