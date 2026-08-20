@@ -1,5 +1,27 @@
 # procurement — buying things, and paying for them
 
+## Status: models only
+
+The **database models in this package were designed on 2026-08-20** and are finished. What
+is here is the collections, the fields, the indexes and the rules the services will have to
+enforce.
+
+**No API has been designed for any of it yet, and that is on purpose.** Endpoints,
+request and response shapes, permissions on each route and validation at the edge all come
+**at the very end**, after every module's models are done. Nothing in this package should be
+taken as a decision about how it will be called.
+
+The reason is that an API written next to a model that is still moving gets rewritten every
+time the model changes, and the model is the thing every other module reads. Designing the
+models first and the endpoints last means each is settled once.
+
+So the "the service checks that..." notes in the javadoc and the numbered rules at the bottom
+of this file are **a specification waiting for an implementation**, not a description of code
+that exists. They are written down now because the reasoning is fresh; the code that honours
+them is a later job.
+
+## What these models answer
+
 These models answer five questions:
 
 1. Who do we buy from, and are we still willing to?
