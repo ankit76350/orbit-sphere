@@ -111,6 +111,14 @@ public enum AppModule {
      */
     GALLERY,
 
+    /**
+     * Extra help with learning: identified needs, the plan, the accommodations, and whether
+     * the sessions actually happened. Held apart from STUDENTS because a child's learning
+     * difficulty is theirs, not something every screen should announce. Safeguarding is not
+     * in this module and needs narrower access than a role can give.
+     */
+    SUPPORT,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 

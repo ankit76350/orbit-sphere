@@ -106,6 +106,9 @@ public enum NumberSequenceType {
     /** One member of staff's payslip for one month. */
     PAYSLIP,
 
+    /** One student's plan for extra help with learning. */
+    SUPPORT_PLAN,
+
     /** School-configured type not represented above. */
     CUSTOM
 }
