@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.finance;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.finance.enums.FeeType;
+import com.orbitastra.backend.models.old.finance.enums.FeeType;
 
 import jakarta.validation.constraints.DecimalMin;
 import lombok.Data;

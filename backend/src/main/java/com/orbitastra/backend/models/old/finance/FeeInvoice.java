@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.finance;
+package com.orbitastra.backend.models.old.finance;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -9,9 +9,9 @@ import java.time.LocalDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.finance.enums.FeeStatus;
-import com.orbitastra.backend.models.finance.enums.FeeType;
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
+import com.orbitastra.backend.models.old.finance.enums.FeeType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

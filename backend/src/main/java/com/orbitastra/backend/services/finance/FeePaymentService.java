@@ -8,10 +8,10 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.models.finance.FeeInvoice;
-import com.orbitastra.backend.models.finance.FeePayment;
-import com.orbitastra.backend.models.finance.enums.FeeStatus;
-import com.orbitastra.backend.models.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.old.finance.FeeInvoice;
+import com.orbitastra.backend.models.old.finance.FeePayment;
+import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
+import com.orbitastra.backend.models.old.finance.enums.PaymentMode;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.services.utils.GenerateUniqueId;
 
@@ -55,7 +55,7 @@ public class FeePaymentService {
         // Wallet mode debits the student's wallet, which records its own WalletTransaction.
         String walletTxnReferenceNo = null;
         if (mode == PaymentMode.WALLET) {
-            com.orbitastra.backend.models.finance.WalletTransaction txn = studentWalletService.debitWallet(
+            com.orbitastra.backend.models.old.finance.WalletTransaction txn = studentWalletService.debitWallet(
                     fee.getStudentDocsId(),
                     amount,
                     "Fee payment for invoice " + fee.getId() + " (" + fee.getType() + ")");

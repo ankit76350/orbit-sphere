@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.models.finance.StudentWallet;
-import com.orbitastra.backend.models.finance.WalletTransaction;
+import com.orbitastra.backend.models.old.finance.StudentWallet;
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
 import com.orbitastra.backend.services.finance.StudentWalletService;
 import com.orbitastra.backend.services.finance.WalletTransactionService;
 

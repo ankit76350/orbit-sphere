@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.finance.CreateFeeRequest;
 import com.orbitastra.backend.dto.finance.UpdateFeeRequest;
-import com.orbitastra.backend.models.finance.FeeInvoice;
+import com.orbitastra.backend.models.old.finance.FeeInvoice;
 import com.orbitastra.backend.services.finance.FeeService;
 
 import jakarta.validation.Valid;

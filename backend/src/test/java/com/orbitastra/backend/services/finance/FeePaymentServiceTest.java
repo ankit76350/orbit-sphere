@@ -16,11 +16,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.models.finance.FeeInvoice;
-import com.orbitastra.backend.models.finance.FeePayment;
-import com.orbitastra.backend.models.finance.enums.FeeStatus;
-import com.orbitastra.backend.models.finance.enums.FeeType;
-import com.orbitastra.backend.models.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.old.finance.FeeInvoice;
+import com.orbitastra.backend.models.old.finance.FeePayment;
+import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
+import com.orbitastra.backend.models.old.finance.enums.FeeType;
+import com.orbitastra.backend.models.old.finance.enums.PaymentMode;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -178,8 +178,8 @@ public class FeePaymentServiceTest {
         when(feePaymentRepository.findByFeeDocsId("fee-123"))
                 .thenReturn(List.of(FeePayment.builder().amount(new BigDecimal("300.00")).build()));
         
-        com.orbitastra.backend.models.finance.WalletTransaction txn = 
-                com.orbitastra.backend.models.finance.WalletTransaction.builder()
+        com.orbitastra.backend.models.old.finance.WalletTransaction txn = 
+                com.orbitastra.backend.models.old.finance.WalletTransaction.builder()
                         .referenceNo("WTR/2026/07/2501")
                         .build();
         when(studentWalletService.debitWallet(anyString(), any(BigDecimal.class), anyString())).thenReturn(txn);

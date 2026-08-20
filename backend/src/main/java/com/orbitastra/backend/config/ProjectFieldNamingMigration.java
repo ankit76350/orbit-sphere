@@ -15,9 +15,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.models.old.finance.FeePayment;
+import com.orbitastra.backend.models.old.finance.StudentWallet;
+
 import java.time.LocalDateTime;
-import com.orbitastra.backend.models.finance.StudentWallet;
-import com.orbitastra.backend.models.finance.FeePayment;
 
 import lombok.RequiredArgsConstructor;
 
@@ -203,7 +204,7 @@ public class ProjectFieldNamingMigration {
                         Criteria.where("invoiceNo").is(null),
                         Criteria.where("invoiceNo").is("")
                 )),
-                com.orbitastra.backend.models.finance.FeeInvoice.class,
+                com.orbitastra.backend.models.old.finance.FeeInvoice.class,
                 "fee_invoices");
         if (invoices.isEmpty()) {
             return;

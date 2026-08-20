@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.finance.enums;
+package com.orbitastra.backend.models.old.finance.enums;
 
 public enum FeeType {
     TUITION,

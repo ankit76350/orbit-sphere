@@ -7,9 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.finance.StudentWallet;
-import com.orbitastra.backend.models.finance.WalletTransaction;
-import com.orbitastra.backend.models.finance.enums.TransactionType;
+import com.orbitastra.backend.models.old.finance.StudentWallet;
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
+import com.orbitastra.backend.models.old.finance.enums.TransactionType;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.repositories.finance.StudentWalletRepository;
 import com.orbitastra.backend.repositories.finance.WalletTransactionRepository;

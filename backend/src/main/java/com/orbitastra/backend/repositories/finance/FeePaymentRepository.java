@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.finance.FeePayment;
+import com.orbitastra.backend.models.old.finance.FeePayment;
 
 @Repository
 public interface FeePaymentRepository extends MongoRepository<FeePayment, String> {

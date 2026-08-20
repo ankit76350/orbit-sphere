@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.finance.PaymentRequest;
-import com.orbitastra.backend.models.finance.FeeInvoice;
-import com.orbitastra.backend.models.finance.FeePayment;
+import com.orbitastra.backend.models.old.finance.FeeInvoice;
+import com.orbitastra.backend.models.old.finance.FeePayment;
 import com.orbitastra.backend.services.finance.FeePaymentService;
 
 import jakarta.validation.Valid;

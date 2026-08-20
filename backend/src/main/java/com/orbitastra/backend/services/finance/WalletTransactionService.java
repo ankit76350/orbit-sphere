@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.orbitastra.backend.models.finance.WalletTransaction;
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
 import com.orbitastra.backend.repositories.finance.WalletTransactionRepository;
 
 import lombok.RequiredArgsConstructor;

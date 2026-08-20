@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.finance;
+package com.orbitastra.backend.models.old.finance;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;

@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.finance;
 
 import java.math.BigDecimal;
 
-import com.orbitastra.backend.models.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.old.finance.enums.PaymentMode;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;

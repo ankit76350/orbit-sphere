@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.finance.WalletTransaction;
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
 
 @Repository
 public interface WalletTransactionRepository extends MongoRepository<WalletTransaction, String> {

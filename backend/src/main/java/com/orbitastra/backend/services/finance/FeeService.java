@@ -7,8 +7,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.finance.FeeInvoice;
-import com.orbitastra.backend.models.finance.enums.FeeStatus;
+import com.orbitastra.backend.models.old.finance.FeeInvoice;
+import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
 import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
 import com.orbitastra.backend.repositories.finance.FeeRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;
