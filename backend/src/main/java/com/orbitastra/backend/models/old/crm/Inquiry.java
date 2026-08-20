@@ -1,14 +1,14 @@
-package com.orbitastra.backend.models.crm;
+package com.orbitastra.backend.models.old.crm;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
-import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

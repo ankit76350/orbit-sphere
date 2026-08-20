@@ -1,6 +1,6 @@
 package com.orbitastra.backend.dto.crm;
 
-import com.orbitastra.backend.models.crm.Admission;
+import com.orbitastra.backend.models.old.crm.Admission;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

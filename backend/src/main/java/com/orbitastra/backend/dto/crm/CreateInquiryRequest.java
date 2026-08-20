@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.crm;
 
 import java.util.List;
 
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

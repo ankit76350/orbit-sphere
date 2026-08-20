@@ -6,10 +6,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.Inquiry;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
 
 /**
  * Centralises admission snapshot creation and request-over-inquiry merge rules.

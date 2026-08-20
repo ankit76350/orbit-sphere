@@ -21,10 +21,10 @@ import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.exceptions.ConflictException;
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.Inquiry;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.repositories.crm.InquiryRepository;

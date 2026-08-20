@@ -20,8 +20,8 @@ import com.orbitastra.backend.dto.crm.AddAdmissionDocumentRequest;
 import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.student.enums.GuardianRelation;
 import com.orbitastra.backend.services.crm.AdmissionService;
 

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.crm.enums;
+package com.orbitastra.backend.models.old.crm.enums;
 
 /**
  * Lifecycle of a formal admission (application) — the accept/reject/enroll

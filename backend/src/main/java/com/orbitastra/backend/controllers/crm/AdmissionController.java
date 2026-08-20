@@ -20,9 +20,9 @@ import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
 import com.orbitastra.backend.dto.crm.CreateAdmissionRequest;
 import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.crm.UpdateAdmissionRequest;
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.dto.student.StudentResponse;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.services.crm.AdmissionService;
 
 import jakarta.validation.Valid;

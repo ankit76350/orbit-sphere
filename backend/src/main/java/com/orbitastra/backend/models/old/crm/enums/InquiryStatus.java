@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.crm.enums;
+package com.orbitastra.backend.models.old.crm.enums;
 
 /**
  * Stage of a lead in the admissions funnel — the "where in the pipeline" marker,

@@ -3,8 +3,8 @@ package com.orbitastra.backend.dto.crm;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.student.enums.Gender;
 
 import jakarta.validation.Valid;

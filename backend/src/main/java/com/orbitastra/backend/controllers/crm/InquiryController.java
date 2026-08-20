@@ -21,9 +21,9 @@ import com.orbitastra.backend.dto.crm.CreateInquiryRequest;
 import com.orbitastra.backend.dto.crm.FollowUpRequest;
 import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
 import com.orbitastra.backend.dto.crm.UpdateInquiryRequest;
-import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.old.crm.Inquiry;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 import com.orbitastra.backend.services.crm.InquiryService;
 
 import jakarta.validation.Valid;

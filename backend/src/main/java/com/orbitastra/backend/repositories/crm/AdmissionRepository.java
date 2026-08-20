@@ -6,8 +6,8 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.crm.Admission;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
 
 @Repository
 public interface AdmissionRepository extends MongoRepository<Admission, String> {

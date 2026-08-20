@@ -5,8 +5,8 @@ import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.crm.Inquiry;
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.old.crm.Inquiry;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 
 @Repository
 public interface InquiryRepository extends MongoRepository<Inquiry, String> {

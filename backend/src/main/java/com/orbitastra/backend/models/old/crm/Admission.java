@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.crm;
+package com.orbitastra.backend.models.old.crm;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -9,9 +9,9 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
 import com.orbitastra.backend.models.student.enums.Gender;
 
 import lombok.AllArgsConstructor;

@@ -1,9 +1,9 @@
-package com.orbitastra.backend.models.crm.embedded;
+package com.orbitastra.backend.models.old.crm.embedded;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.orbitastra.backend.models.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
