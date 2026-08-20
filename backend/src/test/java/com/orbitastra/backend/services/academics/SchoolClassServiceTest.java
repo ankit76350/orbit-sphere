@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.models.old.academics.SchoolClass;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;

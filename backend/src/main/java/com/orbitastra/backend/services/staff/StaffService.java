@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;
 

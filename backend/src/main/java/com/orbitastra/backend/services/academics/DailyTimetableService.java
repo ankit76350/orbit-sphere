@@ -29,7 +29,7 @@ import com.orbitastra.backend.models.old.academics.enums.SlotType;
 import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.old.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.old.core.enums.HolidayType;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.repositories.academics.DailyTimetableRepository;
 import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;

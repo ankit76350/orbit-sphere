@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.staff.CreateStaffRequest;
 import com.orbitastra.backend.dto.staff.UpdateStaffRequest;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.services.staff.StaffService;
 
 import jakarta.validation.Valid;

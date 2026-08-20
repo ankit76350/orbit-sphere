@@ -14,7 +14,7 @@ import com.orbitastra.backend.models.old.academics.Homework;
 import com.orbitastra.backend.models.old.academics.SchoolClass;
 import com.orbitastra.backend.models.old.academics.enums.AssignmentScope;
 import com.orbitastra.backend.models.old.academics.enums.HomeworkStatus;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.student.enums.StudentStatus;

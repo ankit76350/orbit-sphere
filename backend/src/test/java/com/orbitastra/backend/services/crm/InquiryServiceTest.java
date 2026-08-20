@@ -25,7 +25,7 @@ import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.Inquiry;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
-import com.orbitastra.backend.models.staff.Staff;
+import com.orbitastra.backend.models.old.staff.Staff;
 import com.orbitastra.backend.repositories.crm.AdmissionRepository;
 import com.orbitastra.backend.repositories.crm.InquiryRepository;
 import com.orbitastra.backend.repositories.staff.StaffRepository;

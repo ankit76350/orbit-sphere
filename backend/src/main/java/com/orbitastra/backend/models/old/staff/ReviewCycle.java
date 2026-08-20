@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.old.staff;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;

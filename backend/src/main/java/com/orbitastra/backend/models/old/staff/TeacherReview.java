@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.staff;
+package com.orbitastra.backend.models.old.staff;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -11,23 +11,27 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "teacher_performance_reviews")
+@Document(collection = "teacher_reviews")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TeacherPerformanceReview extends SchoolBase {
+public class TeacherReview extends SchoolBase {
 
     private String teacherDocsId; // References Staff.id
 
-    private String reviewerDocsId; // References Staff.id
+    private String studentDocsId; // References Student.id
 
-    private String reviewerRole;
+    private String parentDocsId; // References Guardian.id
+
+    private String reviewCycleDocsId; // References ReviewCycle.id
 
     private Double rating;
 
-    private String comments;
+    private String reviewText;
 
-    private String reviewCycleDocsId; // References ReviewCycle.id
+    private Boolean anonymous;
+
+    private String created_at;
 }

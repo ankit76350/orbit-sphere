@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.staff;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.staff.enums.Role;
+import com.orbitastra.backend.models.old.staff.enums.Role;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;

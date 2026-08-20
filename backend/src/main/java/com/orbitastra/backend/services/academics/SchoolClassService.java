@@ -44,7 +44,7 @@ public class SchoolClassService {
             throw new IllegalArgumentException("Class schoolId is required before assigning a subject teacher.");
         }
 
-        com.orbitastra.backend.models.staff.Staff teacher = staffRepository.findById(normalizedTeacherDocsId)
+        com.orbitastra.backend.models.old.staff.Staff teacher = staffRepository.findById(normalizedTeacherDocsId)
                 .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + normalizedTeacherDocsId));
         if (!Objects.equals(teacher.getSchoolId(), schoolId)) {
             throw new IllegalArgumentException("Teacher with ID " + normalizedTeacherDocsId
