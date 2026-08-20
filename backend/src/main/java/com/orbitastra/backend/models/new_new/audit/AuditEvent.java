@@ -1,6 +1,5 @@
 package com.orbitastra.backend.models.new_new.audit;
 
-package com.orbitastra.backend.models.new_new.audit;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -78,6 +77,16 @@ import lombok.experimental.SuperBuilder;
                 name = "school_audit_event_type_idx",
                 def = "{'schoolId': 1, 'eventType': 1, 'occurredAt': -1}"),
         @CompoundIndex(
+                name = "school_audit_action_idx",
+                def = "{'schoolId': 1, 'action': 1, 'occurredAt': -1}"),
+        @CompoundIndex(
+                name = "school_audit_denied_idx",
+                def = "{'schoolId': 1, 'outcome': 1, 'occurredAt': -1}"),
+        @CompoundIndex(
+                name = "school_audit_session_idx",
+                def = "{'schoolId': 1, 'authSessionDocsId': 1, 'occurredAt': -1}",
+                partialFilter = "{'authSessionDocsId': {'$type': 'string'}}"),
+        @CompoundIndex(
                 name = "school_audit_correlation_idx",
                 def = "{'schoolId': 1, 'correlationId': 1}",
                 partialFilter = "{'correlationId': {'$type': 'string'}}")
@@ -88,6 +97,7 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AuditEvent extends SchoolBase {
+    //! this will record the every interaction action with the all the api
 
     // Business time the audited action happened, in UTC. Ordered by every index
     // on this collection. Example: 2026-08-22T11:05:00Z
@@ -144,6 +154,18 @@ public class AuditEvent extends SchoolBase {
     // Example: "req-7f3a9c21"
     private String correlationId;
 
+    // Links to AuthSession.id the action came through, so a run of events can be tied
+    // to one device rather than only to one person. Without it, "somebody signed in from
+    // an unfamiliar phone and then changed twelve marks" is two unconnected facts.
+    // Null for a SYSTEM actor. Example: "67b11228dc3f7d0011223344"
+    private String authSessionDocsId;
+
+    // The module the action belongs to, so an audit screen can be filtered the same way
+    // permissions are granted. Copied as text rather than the enum, because a module
+    // renamed or removed later must not make old entries unreadable.
+    // Example: "EXAMINATIONS"
+    private String moduleCode;
+
     // Caller address as observed by the server. Example: "203.0.113.42"
     private String ipAddress;
 
@@ -155,4 +177,18 @@ public class AuditEvent extends SchoolBase {
     // sensitive operations and for DENIED outcomes.
     // Example: "Correction requested by the exam controller."
     private String reason;
+
+    // Set when the entry must be kept longer than the ordinary retention period, such as
+    // anything touching money, consent or a child's identity. Archival reads this rather
+    // than deciding for itself from the event type, because the rule about what must be
+    // kept is a policy decision and should be recorded on the row it applies to.
+    // Example: false
+    @NotNull
+    @Builder.Default
+    private Boolean retainLongTerm = false;
+
+    // What went wrong, on a FAILURE. Never a stack trace and never anything the caller
+    // sent: an audit row is read by people who are not entitled to see the payload.
+    // Example: "Fee head no longer active."
+    private String failureReason;
 }
