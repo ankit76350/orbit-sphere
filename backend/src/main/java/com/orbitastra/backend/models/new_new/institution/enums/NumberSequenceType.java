@@ -103,6 +103,9 @@ public enum NumberSequenceType {
     /** Code for a new inventory item, so a store need not invent hundreds by hand. */
     INVENTORY_ITEM,
 
+    /** One member of staff's payslip for one month. */
+    PAYSLIP,
+
     /** School-configured type not represented above. */
     CUSTOM
 }

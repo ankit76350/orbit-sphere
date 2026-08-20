@@ -32,6 +32,8 @@ PayrollRun               one month, whole school
 |---|---|---|
 | [Staff](../people/staff/Staff.java) | `people/staff` | the person being paid, and who approved |
 | [StaffLeaveRequest](../people/leave/StaffLeaveRequest.java) | `people/leave` | unpaid leave days that reduce a month's pay |
+| [StaffBankAccount](../people/staff/StaffBankAccount.java) | `people/staff` | where a salary is actually sent |
+| [PaymentMode](../common/enums/PaymentMode.java) | `common/enums` | bank transfer, cheque or cash |
 | [BankAccount](../finance/banking/BankAccount.java) | `finance/banking` | the account salaries are paid from |
 | [DocumentRecord](../documents/DocumentRecord.java) | `documents` | the printed payslip, and appointment letters |
 | [AppModule](../identity/enums/AppModule.java) | `identity/enums` | the `PAYROLL` permission |
@@ -143,6 +145,34 @@ A bank account that will not verify, an unsettled advance, somebody who left mid
 Without a per-payslip status, holding one person back would mean holding the whole month's
 payroll for two hundred people.
 
+## Where the money actually goes
+
+Payroll can work out what 214 people are owed and pay none of them without somewhere to send
+it. The school's own accounts are in `finance/banking`; the other end of the transfer is
+[StaffBankAccount](../people/staff/StaffBankAccount.java) in `people/staff`.
+
+It is a collection, not a field on `Staff`, because people change banks. A new account is a
+new row and the old one closes, so August's payslip can still say which account it went to
+after somebody switches in November.
+
+The account number gets the same three-field treatment as `BankAccount` and `Visitor` —
+encrypted value, lookup hash, masked display. And `accountHolderName` is kept separately from
+the staff member's own name, because a joint account or a spelling variance is the usual
+reason a transfer bounces.
+
+`verifiedAt` is what a school should insist on before the first payment. **A salary paid into
+a mistyped account does not come back.**
+
+### Not every salary is a bank transfer
+
+`Payslip.paymentMode` exists because support staff at many schools are still paid in **cash**.
+A system that assumed a transfer would have nowhere to record that — which means no record of
+the payment at all.
+
+`PaymentMode` moved from `finance/enums` to `common/enums` when payroll became its third
+consumer. A family paying fees and a school paying a salary reach for the same short list,
+and neither direction owns it.
+
 ## Everything is snapshotted onto the payslip
 
 Component names, types and rates are **copied onto `PayslipLine`**, not read back through
@@ -154,6 +184,15 @@ and `IssuedDocument` for its template.
 
 `ratePercent` is kept on the line so a member of staff asking *"why is my house rent
 allowance this figure"* sees the working, not just the answer.
+
+The bank details are snapshotted too — `paidToAccountMasked` and `paidToBankName`. Somebody
+who changes banks in November must not make August's payslip claim the new account.
+
+**But `SalaryStructure` deliberately does *not* snapshot the component name**, and the
+difference is the point. A structure is a *live agreement* about what somebody is paid now, so
+it should show the component's current name; freezing it there would manufacture staleness
+rather than prevent it. A payslip is a statement about a month already past, so it snapshots.
+Same field, opposite answers, because the two records mean different things.
 
 ## Ad-hoc lines, and where unpaid leave shows up
 
@@ -234,11 +273,12 @@ A staff member may always read their own payslips.
 
 **Payslips**
 
-17. Lines must add up to `grossAmount`, `deductionAmount` and `employerContributionAmount`,
+17. A salary is never paid to an unverified or inactive `StaffBankAccount`.
+18. Lines must add up to `grossAmount`, `deductionAmount` and `employerContributionAmount`,
     and `netAmount` equals gross minus deductions.
-18. Component names, types and rates are copied onto the lines at computation time and never
+19. Component names, types and rates are copied onto the lines at computation time and never
     read back through the structure.
-19. Every `adHoc` line carries a `reason`.
-20. A payslip is never edited once its run is `APPROVED`.
-21. Unpaid leave days come from the staff leave records, and the reduction appears as a
+20. Every `adHoc` line carries a `reason`.
+21. A payslip is never edited once its run is `APPROVED`.
+22. Unpaid leave days come from the staff leave records, and the reduction appears as a
     visible ad-hoc deduction line rather than a silently smaller figure.

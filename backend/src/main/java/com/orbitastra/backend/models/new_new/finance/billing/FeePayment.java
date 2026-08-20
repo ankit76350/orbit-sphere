@@ -14,7 +14,7 @@ import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
 import com.orbitastra.backend.models.new_new.finance.enums.FeePaymentStatus;
 import com.orbitastra.backend.models.new_new.finance.enums.GatewayProvider;
 import com.orbitastra.backend.models.new_new.finance.enums.PayerType;
-import com.orbitastra.backend.models.new_new.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.new_new.common.enums.PaymentMode;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

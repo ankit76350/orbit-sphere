@@ -1,11 +1,15 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.new_new.common.enums;
 
 /**
- * How money physically reached the school.
+ * How money changed hands.
  *
- * <p>This is the instrument used, not the state of the payment. A gateway
- * provider such as Razorpay is stored separately on the payment, because the
- * same provider can carry UPI, card and net-banking payments.
+ * <p>Used both ways round. A family paying fees and a school paying a salary reach for the
+ * same short list, which is why this sits in common rather than under finance: neither
+ * direction owns the idea.
+ *
+ * <p>CASH matters more than it looks. Support staff at many schools are still paid in cash,
+ * and a system that assumed every payment was a bank transfer would have nowhere to record
+ * it, which means no record of the payment at all.
  */
 public enum PaymentMode {
     /** Notes and coins collected at the counter. */

@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.new_new.common.enums.PaymentMode;
 import com.orbitastra.backend.models.new_new.finance.enums.RefundReason;
 import com.orbitastra.backend.models.new_new.finance.enums.RefundStatus;
 

@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.new_new.common.enums.PaymentMode;
 import com.orbitastra.backend.models.new_new.payroll.embedded.PayslipLine;
 import com.orbitastra.backend.models.new_new.payroll.enums.PayslipStatus;
 
@@ -155,12 +156,32 @@ public class Payslip extends SchoolBase {
     @Builder.Default
     private PayslipStatus status = PayslipStatus.DRAFT;
 
+    // How the money was handed over. Not every school pays every member of staff by
+    // transfer: support staff are often paid in cash, and a system that assumed a transfer
+    // would have nowhere to record that, which means no record of the payment at all.
+    // Example: PaymentMode.BANK_TRANSFER
+    private PaymentMode paymentMode;
+
     // When the money went out for this person. Example: 2026-08-28T04:00:00Z
     private Instant paidAt;
 
-    // The bank's reference for the transfer, so a query can be traced.
+    // The bank's own reference for the transfer, not the school's. Its one job is that a
+    // staff member says they were never paid and somebody can quote this to the bank.
     // Example: "NEFT/SAL/202608/00214"
     private String paymentReference;
+
+    // Links to StaffBankAccount.id the salary was sent to.
+    // Example: "67be1123dc3f7d0022334455"
+    private String staffBankAccountDocsId;
+
+    // The masked account number as it stood when this month was paid, copied in. A staff
+    // member who changes banks in November must not make August's payslip claim the new
+    // account. Example: "XXXXXX4821"
+    private String paidToAccountMasked;
+
+    // The bank and IFSC used, copied in for the same reason.
+    // Example: "State Bank of India"
+    private String paidToBankName;
 
     // Links to DocumentRecord.id for the printed payslip. A reprint hands out this file
     // rather than working the figures out again. Example: "67bd1127dc3f7d0066778899"

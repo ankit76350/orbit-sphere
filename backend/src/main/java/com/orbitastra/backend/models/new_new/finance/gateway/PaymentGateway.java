@@ -14,7 +14,7 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.finance.enums.GatewayConnectionStatus;
 import com.orbitastra.backend.models.new_new.finance.enums.GatewayProvider;
-import com.orbitastra.backend.models.new_new.finance.enums.PaymentMode;
+import com.orbitastra.backend.models.new_new.common.enums.PaymentMode;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

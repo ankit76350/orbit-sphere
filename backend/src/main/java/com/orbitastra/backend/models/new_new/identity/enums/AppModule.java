@@ -92,6 +92,12 @@ public enum AppModule {
      */
     INVENTORY,
 
+    /**
+     * Salary structures, monthly payroll and payslips. Held well apart from STAFF: a head
+     * of department needs a colleague's timetable and must never see their pay.
+     */
+    PAYROLL,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
