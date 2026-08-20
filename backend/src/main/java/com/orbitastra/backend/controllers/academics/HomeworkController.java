@@ -13,7 +13,7 @@ import com.orbitastra.backend.dto.academics.GradeHomeworkRequest;
 import com.orbitastra.backend.dto.academics.StudentAssignmentRequest;
 import com.orbitastra.backend.dto.academics.SubmitHomeworkRequest;
 import com.orbitastra.backend.dto.academics.UpdateHomeworkRequest;
-import com.orbitastra.backend.models.academics.Homework;
+import com.orbitastra.backend.models.old.academics.Homework;
 import com.orbitastra.backend.services.academics.HomeworkService;
 
 import jakarta.validation.Valid;

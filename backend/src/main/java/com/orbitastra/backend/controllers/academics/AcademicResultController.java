@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.academics.CreateAcademicResultRequest;
 import com.orbitastra.backend.dto.academics.UpdateAcademicResultRequest;
-import com.orbitastra.backend.models.academics.AcademicResult;
+import com.orbitastra.backend.models.old.academics.AcademicResult;
 import com.orbitastra.backend.services.academics.AcademicResultService;
 
 import jakarta.validation.Valid;

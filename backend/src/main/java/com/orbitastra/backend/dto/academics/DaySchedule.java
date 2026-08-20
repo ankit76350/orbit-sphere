@@ -4,7 +4,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.models.academics.DailyTimetable.TimetableEntry;
+import com.orbitastra.backend.models.old.academics.DailyTimetable.TimetableEntry;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

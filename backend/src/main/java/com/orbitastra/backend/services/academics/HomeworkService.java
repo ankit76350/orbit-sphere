@@ -10,10 +10,10 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.academics.Homework;
-import com.orbitastra.backend.models.academics.SchoolClass;
-import com.orbitastra.backend.models.academics.enums.AssignmentScope;
-import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
+import com.orbitastra.backend.models.old.academics.Homework;
+import com.orbitastra.backend.models.old.academics.SchoolClass;
+import com.orbitastra.backend.models.old.academics.enums.AssignmentScope;
+import com.orbitastra.backend.models.old.academics.enums.HomeworkStatus;
 import com.orbitastra.backend.models.staff.Staff;
 import com.orbitastra.backend.models.student.Student;
 import com.orbitastra.backend.models.student.StudentAcademicRecord;

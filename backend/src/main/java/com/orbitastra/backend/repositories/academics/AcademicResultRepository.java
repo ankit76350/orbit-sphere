@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.academics.AcademicResult;
+import com.orbitastra.backend.models.old.academics.AcademicResult;
 
 @Repository
 public interface AcademicResultRepository extends MongoRepository<AcademicResult, String> {

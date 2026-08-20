@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.academics;
 
 import java.time.LocalTime;
 
-import com.orbitastra.backend.models.academics.enums.SlotType;
+import com.orbitastra.backend.models.old.academics.enums.SlotType;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;

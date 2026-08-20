@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.academics;
+package com.orbitastra.backend.models.old.academics;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
 import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.old.academics.enums.AttendanceStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

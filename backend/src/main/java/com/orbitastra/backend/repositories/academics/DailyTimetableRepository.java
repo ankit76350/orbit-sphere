@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.academics.DailyTimetable;
+import com.orbitastra.backend.models.old.academics.DailyTimetable;
 
 @Repository
 public interface DailyTimetableRepository extends MongoRepository<DailyTimetable, String> {

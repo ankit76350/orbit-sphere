@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.models.academics.DisciplineLog;
+import com.orbitastra.backend.models.old.academics.DisciplineLog;
 import com.orbitastra.backend.repositories.academics.DisciplineLogRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.services.utils.AcademicYearResolver;

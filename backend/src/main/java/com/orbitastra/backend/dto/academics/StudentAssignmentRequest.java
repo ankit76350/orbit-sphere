@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.academics;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.orbitastra.backend.models.academics.Homework;
+import com.orbitastra.backend.models.old.academics.Homework;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

@@ -1,7 +1,8 @@
 package com.orbitastra.backend.dto.academics;
 
 import java.time.LocalDate;
-import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
+
+import com.orbitastra.backend.models.old.academics.enums.AttendanceStatus;
 
 import lombok.Data;
 

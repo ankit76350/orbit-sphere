@@ -3,7 +3,7 @@ package com.orbitastra.backend.dto.academics;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.models.academics.enums.AssignmentScope;
+import com.orbitastra.backend.models.old.academics.enums.AssignmentScope;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;

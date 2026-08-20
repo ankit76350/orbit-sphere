@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.academics.enums;
+package com.orbitastra.backend.models.old.academics.enums;
 
 public enum AssignmentScope {
     CLASS,

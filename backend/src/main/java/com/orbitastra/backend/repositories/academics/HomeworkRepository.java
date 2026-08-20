@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.academics.Homework;
+import com.orbitastra.backend.models.old.academics.Homework;
 
 @Repository
 public interface HomeworkRepository extends MongoRepository<Homework, String> {

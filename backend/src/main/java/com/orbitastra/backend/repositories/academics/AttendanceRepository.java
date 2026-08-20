@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.academics.Attendance;
+import com.orbitastra.backend.models.old.academics.Attendance;
 
 @Repository
 public interface AttendanceRepository extends MongoRepository<Attendance, String> {

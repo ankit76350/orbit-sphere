@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.academics;
 
 import java.util.List;
 
-import com.orbitastra.backend.models.academics.AcademicResult;
+import com.orbitastra.backend.models.old.academics.AcademicResult;
 
 import lombok.Data;
 

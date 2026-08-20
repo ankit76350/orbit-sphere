@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.academics;
+package com.orbitastra.backend.models.old.academics;
 
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
@@ -11,9 +11,9 @@ import java.util.List;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.academics.enums.AssignmentScope;
-import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.old.academics.enums.AssignmentScope;
+import com.orbitastra.backend.models.old.academics.enums.HomeworkStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

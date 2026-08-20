@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.orbitastra.backend.dto.academics.CreateSchoolClassRequest;
 import com.orbitastra.backend.dto.academics.AddClassSubjectRequest;
 import com.orbitastra.backend.dto.academics.UpdateSchoolClassRequest;
-import com.orbitastra.backend.models.academics.SchoolClass;
+import com.orbitastra.backend.models.old.academics.SchoolClass;
 import com.orbitastra.backend.services.academics.SchoolClassService;
 
 import jakarta.validation.Valid;

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.academics.CreateMedicalRecordRequest;
 import com.orbitastra.backend.dto.academics.UpdateMedicalRecordRequest;
-import com.orbitastra.backend.models.academics.MedicalRecord;
+import com.orbitastra.backend.models.old.academics.MedicalRecord;
 import com.orbitastra.backend.services.academics.MedicalRecordService;
 
 import jakarta.validation.Valid;

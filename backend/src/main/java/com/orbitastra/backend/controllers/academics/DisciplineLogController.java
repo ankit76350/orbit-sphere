@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.academics.CreateDisciplineLogRequest;
 import com.orbitastra.backend.dto.academics.UpdateDisciplineLogRequest;
-import com.orbitastra.backend.models.academics.DisciplineLog;
+import com.orbitastra.backend.models.old.academics.DisciplineLog;
 import com.orbitastra.backend.services.academics.DisciplineLogService;
 
 import jakarta.validation.Valid;

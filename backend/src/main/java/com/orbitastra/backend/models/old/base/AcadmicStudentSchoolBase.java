@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.base;
+package com.orbitastra.backend.models.old.base;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

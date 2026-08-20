@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.orbitastra.backend.dto.academics.CreateAttendanceRequest;
 import com.orbitastra.backend.dto.academics.UpdateAttendanceRequest;
-import com.orbitastra.backend.models.academics.Attendance;
+import com.orbitastra.backend.models.old.academics.Attendance;
 import com.orbitastra.backend.services.academics.AttendanceService;
 
 import jakarta.validation.Valid;

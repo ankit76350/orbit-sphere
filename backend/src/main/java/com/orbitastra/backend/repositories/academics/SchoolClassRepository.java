@@ -6,7 +6,7 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import com.orbitastra.backend.models.academics.SchoolClass;
+import com.orbitastra.backend.models.old.academics.SchoolClass;
 
 @Repository
 public interface SchoolClassRepository extends MongoRepository<SchoolClass, String> {

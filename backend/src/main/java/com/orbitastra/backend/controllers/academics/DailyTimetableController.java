@@ -13,7 +13,7 @@ import com.orbitastra.backend.dto.academics.DaySchedule;
 import com.orbitastra.backend.dto.academics.TimetableCreateRequest;
 import com.orbitastra.backend.dto.academics.TimetableCreationResult;
 import com.orbitastra.backend.dto.academics.TimetablePeriod;
-import com.orbitastra.backend.models.academics.DailyTimetable;
+import com.orbitastra.backend.models.old.academics.DailyTimetable;
 import com.orbitastra.backend.services.academics.DailyTimetableService;
 
 import jakarta.validation.Valid;

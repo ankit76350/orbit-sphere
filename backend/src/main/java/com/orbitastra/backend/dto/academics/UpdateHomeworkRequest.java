@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.academics;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.academics.enums.AssignmentScope;
+import com.orbitastra.backend.models.old.academics.enums.AssignmentScope;
 
 import jakarta.validation.constraints.Min;
 import lombok.Data;
