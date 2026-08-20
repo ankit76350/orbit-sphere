@@ -105,6 +105,12 @@ public enum AppModule {
      */
     COMPLIANCE,
 
+    /**
+     * Event albums and photographs. Publishing is separate from uploading on purpose:
+     * pictures of children should not go up because one person had a camera.
+     */
+    GALLERY,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 
