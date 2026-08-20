@@ -167,12 +167,17 @@ But it is the fourth of its kind:
 | `health` | `MedicationAdministration.guardianConsentDocumentDocsId` |
 | `conduct` | `StudentRecognition.publicationConsentDocumentDocsId` |
 
-Four consent fields across three packages, each with its own date and its own boolean.
-`undone/a_working/compliance` has an unbuilt `DpdpConsent` model, and consent management
-is a real deferred module. When it is designed, these four should fold into it rather
-than a fifth being added.
+Four consent fields across three packages, each with its own date and its own boolean — and
+now a fifth home for consent that actually exists: [`DpdpConsent`](../compliance/DpdpConsent.java)
+was built with the `compliance` package on 2026-08-19.
 
-Not worth doing now. Worth writing down so it is not a surprise later.
+**So this is no longer a note for later; it is a live inconsistency.** Whether a guardian
+agreed to something is recorded one way in `compliance` and four other ways here, in `health`
+and in `conduct`. The four fields above should fold into `DpdpConsent`, with these packages
+keeping a link to it rather than their own boolean and date.
+
+That was not done when `compliance` was designed, and it should have been. It is written down
+here so the next person does not add a sixth.
 
 ## Deliberately left out
 

@@ -13,7 +13,11 @@ Six of them extend `AcademicStudentSchoolBase` and additionally carry
 
 ## Where these models came from
 
-| Source | Contribution |
+These sketches were consumed and then **deleted** as each part was rebuilt, so the paths below
+no longer exist. The table is kept because it says where the design came from, not where to
+look.
+
+| Source (removed) | Contribution |
 |---|---|
 | `undone/a_new/billing` | invoice, payment, allocation, refund, settlement, wallet |
 | `undone/a_new/accounting` | bank account (the rest was removed 2026-08-12) |

@@ -65,8 +65,8 @@ maker-checker javadoc in `finance` has been promising.
 
 ## Three decisions worth knowing
 
-**Role is a collection, not an enum.** The old `undone/user/Role` was a fixed
-list — SUPER_ADMIN, PRINCIPAL, ACCOUNTANT and so on. Schools do not agree on
+**Role is a collection, not an enum.** The old sketch, since deleted, made it a
+fixed list — SUPER_ADMIN, PRINCIPAL, ACCOUNTANT and so on. Schools do not agree on
 their own job titles. One has a Vice Principal, another has a Headmistress and a
 Fee Desk Clerk, a third wants a Warden who sees hostel students only. A fixed
 list forces all of them into the same few names. `systemManaged` protects the
