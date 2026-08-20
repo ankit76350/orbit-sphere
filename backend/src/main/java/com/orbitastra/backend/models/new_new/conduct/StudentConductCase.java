@@ -51,7 +51,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>The service checks that the student is a RESPONSIBLE or PRESENT participant of the
  * named event, that a case above MINOR has a guardian informed before it closes, that a
- * SEVERE case is assigned to a senior member of staff, and that closing carries an
+ * SEVERE assessed case is assigned to a senior member of staff, and that closing carries an
  * outcome.
  */
 @Document(collection = "student_conduct_cases")
@@ -69,7 +69,7 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'academicYear': 1, 'studentDocsId': 1, 'openedAt': -1}"),
         @CompoundIndex(
                 name = "school_conduct_case_queue_idx",
-                def = "{'schoolId': 1, 'status': 1, 'severity': 1, 'openedAt': -1}"),
+                def = "{'schoolId': 1, 'status': 1, 'assessedSeverity': 1, 'openedAt': -1}"),
         @CompoundIndex(
                 name = "school_conduct_safeguarding_idx",
                 def = "{'schoolId': 1, 'escalatedToSafeguarding': 1, 'openedAt': -1}")
@@ -91,11 +91,13 @@ public class StudentConductCase extends AcademicStudentSchoolBase {
     @NotBlank
     private String conductEventDocsId;
 
-    // How serious it is for this child, which can differ from the event's reported
-    // severity and from other children in the same event.
+    // How serious it turned out to be for this child, once somebody had looked into it.
+    // Named to pair with the event's reportedSeverity: that one is a first impression, this
+    // one is the finding. It can differ from the event's and from other children in the
+    // same event.
     // Example: ConductSeverity.SERIOUS
     @NotNull
-    private ConductSeverity severity;
+    private ConductSeverity assessedSeverity;
 
     // Example: ConductCaseStatus.CLOSED
     @NotNull

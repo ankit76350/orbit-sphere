@@ -108,10 +108,15 @@ is how it gets got wrong.
 
 **An exam accommodation that does not reach the invigilator on the morning did not happen.**
 
-So `SupportPlan.hasExaminationAccommodation` exists as a flag on the plan — whoever prepares a
-datesheet can find every child needing arrangements in one query, instead of opening every plan
-and hoping. The examination service is expected to read it. Without that link the rest of this
-package is paperwork.
+So `school_support_plan_exam_idx` indexes straight into the accommodations —
+`accommodations.appliesInExamination` — and whoever prepares a datesheet finds every child
+needing arrangements in one query instead of opening every plan and hoping. The examination
+service is expected to read it. Without that link the rest of this package is paperwork.
+
+An earlier version kept a `hasExaminationAccommodation` boolean on the plan for this. It was
+dropped on 2026-08-19: MongoDB indexes into embedded arrays perfectly well, so the flag bought
+nothing and could disagree with the list beside it — and the way it would fail is **a child not
+getting their extra time.**
 
 ## `SupportGoal.baseline` is the field everybody forgets
 
@@ -235,8 +240,8 @@ the system currently expresses. That is the prerequisite, not a detail.
    adjustment that applies nowhere is not an adjustment.
 9. An `EXTRA_TIME` accommodation carries `extraTimePercent`.
 10. Every goal carries a `baseline`. Without it no review can settle whether it was met.
-11. `hasExaminationAccommodation` must agree with the accommodations, and the examination service
-    reads it when a datesheet is built.
+11. The examination service reads `accommodations.appliesInExamination` when a datesheet is
+    built. No separate flag summarises it; the accommodations are the only record.
 12. A plan past `nextReviewOn` appears on the coordinator's list.
 13. `DISCONTINUED` carries a reason. The reason is the point.
 

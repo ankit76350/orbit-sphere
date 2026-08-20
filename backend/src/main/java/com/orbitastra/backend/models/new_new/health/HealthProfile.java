@@ -104,9 +104,11 @@ public class HealthProfile extends SchoolBase {
     // Example: "Star Health, policy P/2024/889213"
     private String insuranceReference;
 
-    // Longer notes from the nurse, encrypted before saving.
-    // Example: "enc:v1:7a6b5c4d3e2f1908"
-    private String encryptedNotes;
+    // Longer standing notes from the nurse. Plain text, for the same reason as on a clinic
+    // visit: the alerts beside it carry the real medical detail and are deliberately
+    // unencrypted, so encrypting this alone would be inconsistent rather than safer.
+    // Example: "Mother prefers to be called before any medicine is given, even paracetamol."
+    private String nurseNotes;
 
     // Links to DocumentRecord.id for a doctor's letter or a care plan the family
     // has given. Example: "67b71122dc3f7d0011223344"

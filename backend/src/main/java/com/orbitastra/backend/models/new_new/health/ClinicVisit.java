@@ -56,10 +56,9 @@ import lombok.experimental.SuperBuilder;
  * touch attendance. The child was present in the morning. How a half day is
  * recorded belongs to the attendance models.
  *
- * <p>{@code encryptedNotes} holds what the nurse actually wrote. It is encrypted
- * because it is the most private text the school stores, and it is free text
- * because a school nurse is not going to code symptoms against a medical
- * dictionary. The reference sketch had coded symptom and diagnosis lists; a school
+ * <p>{@code observations} holds what the nurse actually saw, between the complaint the child
+ * arrived with and the treatment given. It is free text because a school nurse is not going to
+ * code symptoms against a medical dictionary. The reference sketch had coded symptom and diagnosis lists; a school
  * clinic will never fill them in, and a field nobody fills in is worse than no
  * field.
  *
@@ -112,9 +111,12 @@ public class ClinicVisit extends AcademicStudentSchoolBase {
     @NotBlank
     private String reportedComplaint;
 
-    // What the nurse saw and measured, encrypted before saving. The most private
-    // text the school keeps. Example: "enc:v1:3f2e1d0c9b8a7654"
-    private String encryptedNotes;
+    // What the nurse actually saw, between the complaint and the treatment. Held as plain
+    // text like the fields either side of it: encrypting one of four clinical text fields
+    // while the rest sit in the open protects nothing and only stops the nurse searching it.
+    // What protects all four is the HEALTH module.
+    // Example: "Looked pale, no fever, said she had eaten no breakfast."
+    private String observations;
 
     // Temperature in degrees Celsius, when it was taken. Example: 38.2
     private Double temperatureCelsius;

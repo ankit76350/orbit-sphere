@@ -36,10 +36,15 @@ import lombok.experimental.SuperBuilder;
  * module is worth building. Everything else here is context around it.
  *
  * <p>**Exam accommodations have to reach the exam.** An entry saying twenty-five percent extra
- * time is worth nothing if the invigilator does not know on the morning. So the accommodations
- * carry {@code appliesInExamination}, and the examination service is expected to read them when
- * a datesheet is built rather than somebody remembering to mention it. That link is the single
- * most useful thing in the package, and the easiest to leave unbuilt.
+ * time is worth nothing if the invigilator does not know on the morning. So each accommodation
+ * carries {@code appliesInExamination}, and the examination service is expected to read them
+ * when a datesheet is built rather than somebody remembering to mention it. That link is the
+ * single most useful thing in the package, and the easiest to leave unbuilt.
+ *
+ * <p>The index does that in one query by reaching into the accommodations themselves. An earlier
+ * version kept a {@code hasExaminationAccommodation} flag on the plan instead; it was dropped
+ * because it could disagree with the list beside it, and the way it would fail is a child not
+ * getting their extra time.
  *
  * <p>{@code nextReviewOn} is not administrative tidiness. A plan nobody looks at again is a plan
  * nobody follows, and an accommodation that helped in April may be holding a child back by
@@ -81,7 +86,7 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'status': 1, 'nextReviewOn': 1}"),
         @CompoundIndex(
                 name = "school_support_plan_exam_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'status': 1, 'hasExaminationAccommodation': 1}")
+                def = "{'schoolId': 1, 'academicYear': 1, 'status': 1, 'accommodations.appliesInExamination': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -112,13 +117,6 @@ public class SupportPlan extends AcademicStudentSchoolBase {
     @Valid
     @Builder.Default
     private List<SupportGoal> goals = new ArrayList<>();
-
-    // True when any accommodation applies in exams. Kept so whoever builds a datesheet can
-    // find the children needing arrangements in one query, rather than opening every plan.
-    // Example: true
-    @NotNull
-    @Builder.Default
-    private Boolean hasExaminationAccommodation = false;
 
     // Example: SupportPlanStatus.ACTIVE
     @NotNull

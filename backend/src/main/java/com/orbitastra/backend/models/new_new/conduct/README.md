@@ -89,7 +89,9 @@ it belongs elsewhere.
 about each child.
 
 That split is what lets the same fight be `SERIOUS` for the boy who threw the punch and
-`MODERATE` for the one who joined in at the end. One incident, two different and both
+`MODERATE` for the one who joined in at the end. The event carries `reportedSeverity` — what it
+looked like to whoever walked in — and each case carries `assessedSeverity`, what it turned out
+to be once somebody had looked into it. Two names, so neither reads as a copy of the other. One incident, two different and both
 defensible outcomes, because they are separate records.
 
 It also means the event stays true even if every case arising from it is later
