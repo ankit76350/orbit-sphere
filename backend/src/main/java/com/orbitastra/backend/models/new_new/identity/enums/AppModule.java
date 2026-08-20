@@ -98,6 +98,13 @@ public enum AppModule {
      */
     PAYROLL,
 
+    /**
+     * Government identity numbers, parental consents, and what the school owes to boards
+     * and authorities. Separate from STUDENTS because a class teacher has no business
+     * reading a child's Aadhaar.
+     */
+    COMPLIANCE,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 

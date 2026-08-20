@@ -15,5 +15,15 @@ public enum GovernmentIdentityType {
     TAX_ID,
     DRIVING_LICENCE,
     VOTER_ID,
+
+    /**
+     * Automated Permanent Academic Account Registry number. A lifelong academic id for a
+     * student, generated from their Aadhaar under the 2020 education policy.
+     */
+    APAAR,
+
+    /** Permanent Education Number, issued by a state to a student. */
+    PEN,
+
     OTHER
 }
