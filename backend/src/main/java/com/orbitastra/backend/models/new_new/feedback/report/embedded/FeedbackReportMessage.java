@@ -1,10 +1,10 @@
-package com.orbitastra.backend.models.new_new.feedback.embedded;
+package com.orbitastra.backend.models.new_new.feedback.report.embedded;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.orbitastra.backend.models.new_new.feedback.enums.ReportMessageAuthorSide;
+import com.orbitastra.backend.models.new_new.feedback.report.enums.ReportMessageAuthorSide;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

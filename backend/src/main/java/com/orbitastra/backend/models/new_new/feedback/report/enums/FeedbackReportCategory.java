@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.enums;
+package com.orbitastra.backend.models.new_new.feedback.report.enums;
 
 /**
  * What a report sent straight to the head is about.

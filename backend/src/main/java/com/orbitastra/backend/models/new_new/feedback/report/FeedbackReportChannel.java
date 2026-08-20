@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback;
+package com.orbitastra.backend.models.new_new.feedback.report;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackAnonymityMode;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackReportCategory;
+import com.orbitastra.backend.models.new_new.feedback.report.enums.FeedbackReportCategory;
 import com.orbitastra.backend.models.new_new.identity.enums.PersonType;
 
 import jakarta.validation.constraints.Min;

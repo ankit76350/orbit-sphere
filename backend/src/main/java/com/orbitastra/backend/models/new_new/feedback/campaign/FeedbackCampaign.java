@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback;
+package com.orbitastra.backend.models.new_new.feedback.campaign;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackAnonymityMode;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackCampaignStatus;
+import com.orbitastra.backend.models.new_new.feedback.campaign.enums.FeedbackCampaignStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.enums;
+package com.orbitastra.backend.models.new_new.feedback.campaign.enums;
 
 /**
  * Where a feedback drive has got to.

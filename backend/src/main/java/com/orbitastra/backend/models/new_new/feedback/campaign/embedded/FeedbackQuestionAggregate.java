@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.embedded;
+package com.orbitastra.backend.models.new_new.feedback.campaign.embedded;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackQuestionType;
+import com.orbitastra.backend.models.new_new.feedback.campaign.enums.FeedbackQuestionType;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

@@ -1,4 +1,4 @@
-# feedback — what people say about staff, students and the school
+# feedback — what people tell the school
 
 ## Status: models only
 
@@ -7,29 +7,25 @@ has been designed for any of it, and that is deliberate: endpoints, request and 
 shapes, per-route permissions and edge validation all come **at the very end**, after every
 module's models are done.
 
-The "the service checks that..." notes in the javadoc and the numbered rules at the bottom of
-this file are a **specification waiting for an implementation**, not a description of code
+The "the service checks that..." notes in the javadoc and the numbered rules in each
+sub-README are a **specification waiting for an implementation**, not a description of code
 that exists.
 
-**This matters more here than anywhere else in the system.** The models below can describe
-anonymity correctly and still be built into something that leaks it, because most of the
-protection is in the write path and the query path rather than in the fields. Nothing in this
-package is safe until the rules at the bottom are actually enforced. Do not ship a feedback
-form that says "anonymous" before then.
+**This matters more here than anywhere else in the system.** The models can describe anonymity
+correctly and still be built into something that leaks it, because most of the protection is in
+the write path and the query path rather than in the fields. **Do not ship a form that says
+"anonymous" until the rules below are actually enforced.**
 
 ## Two halves, and they are different acts
 
-This package holds **two systems** that share one anonymity design and nothing else.
-
 ```
-THE SCHOOL ASKS                        THE PERSON DECIDES
-FeedbackTopic                          FeedbackReportChannel
-  -> FeedbackCampaign                    -> FeedbackReport
-       -> FeedbackSubmission                  -> FeedbackReportMessage[]
-            -> FeedbackAggregate
+feedback/
+  enums/                    the two things both halves share
+  campaign/    THE SCHOOL ASKS      ->  see campaign/README.md
+  report/      THE PERSON DECIDES   ->  see report/README.md
 ```
 
-| | Campaign side | Report side |
+| | [`campaign`](campaign/README.md) | [`report`](report/README.md) |
 |---|---|---|
 | Who starts it | The school opens a drive | **Anybody, any hour, unprompted** |
 | What is asked | Fixed questions, ratings | **A subject line and their own words** |
@@ -39,34 +35,36 @@ FeedbackTopic                          FeedbackReportChannel
 | Produces | Comparable numbers | **An answer** |
 | Ends when | The drive is published | The thing is dealt with |
 
-They are not variations of each other. A student rating "explains clearly: 4 out of 5" and a
-student saying "the railing on the stairs is coming off the wall" have almost nothing in
-common except that the school must not be able to work out who said it.
+A student rating *"explains clearly: 4 out of 5"* and a student saying *"the railing on the
+stairs is coming off the wall"* have almost nothing in common — except that the school must not
+be able to work out who said it.
 
-Trying to serve both from one model means either forcing a free-form report through a
+Serving both from one model means either forcing a free-form report through a
 question-and-rating structure, or loosening the campaign model until its numbers stop being
-comparable. So there are two.
+comparable. So there are two, in two folders, sharing only what genuinely is shared.
 
-## What these models answer
+## What lives at this level, and why
 
-**Campaign side**
+Only two enums, both used by both halves:
 
-1. What kinds of feedback does the school collect, from whom, about whom?
-2. What did the school promise the person who gave it?
-3. What did they actually say?
-4. What does the person it is about get to see — and when?
+| Type | Used by |
+|---|---|
+| [`FeedbackAnonymityMode`](enums/FeedbackAnonymityMode.java) | every model in both folders |
+| [`FeedbackSubjectType`](enums/FeedbackSubjectType.java) | `FeedbackTopic.subjectType`, `FeedbackReport.aboutSubjectType` |
 
-**Report side**
+They sit here rather than being copied into each folder because **the anonymity promise must
+mean exactly the same thing on both sides.** Two enums with the same values in two packages is
+how one of them quietly gains a fourth value, or how a service starts treating `ANONYMOUS` on
+a report as something weaker than `ANONYMOUS` on a submission.
 
-5. Can anybody tell the head anything, at any time, without giving their name?
-6. Did somebody read it, and by when did they promise to?
-7. Can the school ask a follow-up question of a person it cannot identify?
-8. What was actually done about it?
+Everything else is specific to one half and lives in that half's `enums/` or `embedded/`.
 
 ## Read this first: anonymity is not a field
 
+This applies to **both folders, without exception.** It is the reason they are one package.
+
 The earlier sketch had `Boolean anonymous` on a survey definition. That single field is the
-whole problem in miniature, and it is worth being precise about why.
+whole problem in miniature.
 
 ### There are two different promises, and a boolean holds neither
 
@@ -74,7 +72,7 @@ whole problem in miniature, and it is worth being precise about why.
 |---|---|---|
 | Submitter stored? | **No** | Yes, encrypted |
 | Can the head find out? | Never | Yes, one narrow role, audited |
-| Can a follow-up question be asked? | No | Yes |
+| Can a follow-up question be asked? | Only via the report access code | Yes |
 | Can it be withdrawn? | No — nobody can prove it was theirs | Yes |
 | Good for | "Does this teacher shout?" | A complaint needing resolution |
 
@@ -83,431 +81,84 @@ in plain sight and hide the column on the screen — and then somebody exports t
 and a child's name sits beside what they said about their teacher.
 
 **A person told "anonymous" and later identified has been lied to,** and no amount of good
-intention at the time repairs it. So
-[`FeedbackAnonymityMode`](enums/FeedbackAnonymityMode.java) has three named values a service
-must choose between, and the choice has to be shown to the submitter in words before they
-type anything.
+intention at the time repairs it. So [`FeedbackAnonymityMode`](enums/FeedbackAnonymityMode.java)
+has three named values a service must choose between, and the choice has to be shown to the
+person in words before they type anything.
 
 ### Three ways this codebase will destroy anonymity by accident
 
-All three are live risks in *this* repository, not general cautions.
+All three are live risks in *this* repository, not general cautions. All three apply to both
+folders.
 
 **1. The base class records the author.** Every document extends
 [`AuditedDocument`](../base/AuditedDocument.java), which has `createdByDocsId`. Saving an
-anonymous submission through the ordinary auditing path writes the submitter's id into it —
-silently, by a mechanism nobody looked at, in a field nothing on screen displays. For
-`ANONYMOUS` submissions `createdByDocsId` and `updatedByDocsId` **must** be written as the
-fixed sentinel `"ANONYMOUS"`, never left to the interceptor.
+anonymous row through the ordinary auditing path writes the submitter's id into it — silently,
+by a mechanism nobody looked at, in a field nothing on screen displays. For `ANONYMOUS` rows
+`createdByDocsId` and `updatedByDocsId` **must** be written as the fixed sentinel
+`"ANONYMOUS"`, never left to the interceptor.
 
-This is the single most important rule in the package, and it is the one most likely to be
-missed, because everything looks correct on screen while being wrong in the database.
+This is the single most important rule in the package, and the one most likely to be missed,
+because everything looks correct on screen while being wrong in the database.
 
 **2. The audit trail records the write.** An [`AuditEvent`](../audit/AuditEvent.java) saying
-*"user 4471 created feedback_submission 8812 at 10:03"* deanonymises the submission
-completely, whatever this document contains. Anonymous writes must be audited **without an
-actor and without the document id**. The school may know a submission happened, or who was
-logged in — never both together.
-
-**3. The duplicate check can be brute-forced.** `submitterFingerprint` is a hash so nobody can
-read it back. But a school has five hundred students: hashing every id against one campaign
-takes a laptop a fraction of a second. **The fingerprint is only anonymous if the hash
-includes a secret the database does not contain** — a key in application config or a key
-store, never in a collection, never in a backup that travels with the data. Without that, the
-field is a name in a thin disguise.
-
-## Relationship overview
-
-```text
-FeedbackTopic                    the standing config: the rules for one kind of feedback
-   |   who may submit / about what / which promises / who may read / threshold
-   +--> FeedbackQuestion[]         asked here, not on the campaign, so terms compare
-   |
-   v
-FeedbackCampaign                 one drive, open between two dates. OPTIONAL.
-   |   targets classes, not students, so a November joiner is included
-   |   CLOSED and PUBLISHED are two decisions
-   |
-   v
-FeedbackSubmission               one piece of feedback
-   +--> FeedbackAnswer[]           question wording copied in at submission time
-   |    anonymityMode decides which identity fields may be filled AT ALL
-   |    subjectDocsId only -- the TYPE is read through the topic, never copied
-   |
-   v
-FeedbackAggregate                the numbers, and the ONLY thing a subject ever reads
-   +--> FeedbackQuestionAggregate[]
-          +--> FeedbackRatingBucket[]   distribution, which says more than the mean
-        no comments stored here, ever
-        suppressed until responseCount passes the topic's threshold
-```
-
-## Models named above from other packages
-
-| Model | Package |
-|---|---|
-| [`AuditedDocument`](../base/AuditedDocument.java) | base — **the `createdByDocsId` hazard** |
-| [`AuditEvent`](../audit/AuditEvent.java) | audit — the second hazard, and where unmasking is recorded |
-| [`PersonType`](../identity/enums/PersonType.java) | identity — reused as the submitter type, not re-invented |
-| [`UserAccount`](../identity/UserAccount.java) | identity — the submitter, for `IDENTIFIED` only |
-| [`Staff`](../people/staff/Staff.java) | people — a subject, and every reviewer and coordinator |
-| [`Student`](../student/Student.java) | student — a subject, when the school allows it |
-| [`Department`](../people/organization/Department.java) | people — a subject |
-| [`SchoolClass`](../academics/structure/SchoolClass.java) | academics — the campaign audience and the submitter's class |
-| [`AcademicTerm`](../academics/structure/AcademicTerm.java) | academics — which term a drive belongs to |
-| [`AcademicYear`](../core/AcademicYear.java) | core — `academicYear` is its `name` |
-| [`DailyTimetable`](../academics/timetable/DailyTimetable.java) | academics — resolves which teachers a student rates |
-| [`DocumentRecord`](../documents/DocumentRecord.java) | documents — attachments |
-| [`NumberSequence`](../institution/NumberSequence.java) | institution — `referenceNo` |
-| [`StudentRecognition`](../conduct/StudentRecognition.java) | conduct — where praise for a child already lives |
-| [`StudentConductCase`](../conduct/StudentConductCase.java) | conduct — where a complaint about a child already lives |
-| [`ConductEvent`](../conduct/ConductEvent.java) | conduct — the dated incident behind a case |
-| [`SupportNeed`](../support/SupportNeed.java) | support — the module that also deliberately excluded safeguarding |
-
-## The report side
-
-```text
-FeedbackReportChannel            one row per category the school accepts
-   |   who receives it / backup recipient / which promises / acknowledgement clock
-   |
-   v
-FeedbackReport                   one thing somebody chose to tell the head
-   |   subject + description in their own words
-   |   incidentDate / incidentLocation, both optional
-   |   aboutSubjectType + aboutSubjectDocsId, both optional -- "anything"
-   |   accessCodeHash  <-- how an anonymous reporter ever comes back
-   |
-   +--> FeedbackReportMessage[]    the two-way conversation, anonymity intact
-          visibleToReporter separates a question from an internal note
-```
-
-### `accessCodeHash` is what makes anonymous reporting worth having
-
-A truly anonymous reporter has **no login to come back to.** Without a code they can never
-learn whether anything happened — so the channel is a black hole, and a black hole gets used
-once.
-
-The reporter is shown a code at submission, printed once and never recoverable. They return
-with it to read the status, answer a question, or add something they forgot. Only the hash is
-stored, so somebody reading the database cannot use the codes to impersonate reporters. It is
-indexed without `schoolId`, the same as `AuthSession.refreshTokenHash`, because a code is
-looked up before the school is necessarily known.
-
-### The conversation matters more than it looks
-
-Half of what arrives in a channel like this **cannot be acted on as written.** *"A teacher was
-shouting at a child in the corridor"* needs somebody to ask which corridor, which day, roughly
-what time. Without a way to ask, the school guesses or files it, and the reporter learns that
-speaking up achieves nothing.
-
-`FeedbackReportMessage.visibleToReporter` keeps a question meant for them apart from a note
-the recipient wrote to a colleague. Both are text on the same report, and one field is all
-that stops an internal opinion reaching the person it is about.
-
-### A report about the principal must not go to the principal
-
-`FeedbackReportChannel.backupRecipientStaffDocsId` looks like belt-and-braces and is not.
-
-A channel that promises to hear anything **will** eventually be used to report the person who
-runs the school. If that report lands in their inbox, the reporter is worse off than if the
-channel had never existed. So the backup is `@NotBlank` — there has to be somewhere for it to
-go — and `routedToStaffDocsId` is resolved at submission and **stored**, never read live
-through the channel. Reading it live is exactly how the report reaches the person it is about.
-
-### `ACKNOWLEDGED` is a state, and leaving it out kills the channel
-
-**A person who reports something and hears nothing concludes the channel does not work, and
-never uses it again** — and tells others not to bother. One school year of silence is enough
-to make a speak-up channel worthless, and no policy repairs it afterwards.
-
-So acknowledgement is a state with a clock on it, separate from anything being decided. *"We
-have read this and somebody is looking at it"* is a different message from *"here is what we
-did"*, it arrives days earlier, and it is the one that keeps the channel alive.
-`acknowledgementDays` on the channel makes an unanswered report a measurable failure with a
-date on it rather than a matter of opinion.
-
-### One question instead of a severity scale
-
-`requiresImmediateAttention` asks **is somebody in danger now?** — not "rate the severity from
-one to four". A frightened reporter cannot calibrate a scale, and a scale they guess at is
-worse than no field. This one does exactly one thing: it jumps the queue.
-
-### `aboutSubjectType` IS stored here, and that is not a contradiction
-
-It was dropped from `FeedbackSubmission` and kept here. The test is the same one either way:
-**does anything else on the row already know?**
-
-- A submission always has its topic, and the topic declares the type. → drop it.
-- A report is about whatever the reporter chose, and no configuration knows what. → store it.
-
-This is the `FeeInvoice.sourceType` case. Both fields are also **optional**, because "anything"
-includes things with no record in the system — a broken railing, a rumour, a policy somebody
-thinks is unfair.
-
-## The collections
-
-| Collection | Purpose |
-|---|---|
-| `feedback_topics` | One kind of solicited feedback, and all the rules for it. |
-| `feedback_campaigns` | One drive to collect it, open between two dates. Optional. |
-| `feedback_submissions` | One answer to a drive. |
-| `feedback_aggregates` | The numbers for one subject in one campaign. What a subject reads. |
-| `feedback_report_channels` | Where reports of one category go, and who may read them. |
-| `feedback_reports` | One thing somebody chose to tell the head, in their own words. |
-
-`FeedbackQuestion`, `FeedbackAnswer`, `FeedbackQuestionAggregate`, `FeedbackRatingBucket` and
-`FeedbackReportMessage` are embedded and have no collections of their own.
-
-## Five decisions worth explaining
-
-### 1. `minimumResponsesToReveal` is what makes anonymity hold
-
-An average built from three responses in a class of five is **not anonymous arithmetic.** The
-teacher can work out who said what, and if two of the three were kind, they know exactly who
-the third was.
-
-So nothing reaches the subject until the topic's threshold is met. Five is a reasonable floor.
-A small school may have classes that never produce a releasable result, and that is the honest
-outcome rather than a problem to configure away.
-
-**The threshold applies to every breakdown, not only the total.** Thirty responses overall
-with three from Class VI-A means the per-class view must be suppressed even though the total
-passes. `submitterType` and `submitterClassDocsId` are kept because feedback cannot be read
-without them — "students say one thing, parents another" is the finding — but they are
-**quasi-identifiers**, and a breakdown by a quasi-identifier is a new, smaller cohort with its
-own threshold.
-
-### 2. Aggregate vs full comments: the teacher will go looking
-
-A teacher seeing *"your average was 4.2 from thirty-one responses"* learns something useful and
-cannot go hunting. **A teacher reading thirty-one individual anonymous comments will try to
-work out who wrote the unkind one** — and in a class they teach every day, they will often be
-right.
-
-That is not a hypothetical. It is the ordinary human response to being criticised anonymously
-by people you can name. So `SUBJECT_AGGREGATE` is the safe default for anything students or
-parents say about staff, and `SUBJECT_FULL` is a deliberate decision for feedback that was
-never anonymous to begin with.
-
-### 3. `FeedbackAggregate` is a collection, and it contradicts my own rule
-
-Everywhere else in this system I have argued that a report is a report and a derivable total
-should be derived. This one is materialised anyway, and **the reason is not performance.**
-
-If a teacher's screen computed the average on the fly, that request path would have to open
-thirty anonymous submissions belonging to children they teach. The only thing then standing
-between the teacher and the raw comments is that the code currently chooses not to return
-them. One bug, one debug endpoint, one hurried CSV export, and it is gone.
-
-Materialising the numbers means the teacher's request touches a document **that never
-contained a name in the first place.** It is a privacy boundary that happens to look like a
-cache — and it must still be rebuildable from the submissions, which stay the real record.
-
-No comments are stored in it, ever. Text answers contribute only a count.
-
-### 4. There is no ranking, and that is a design decision
-
-No percentile, no rank, no "above school average" flag on
-[`FeedbackAggregate`](FeedbackAggregate.java).
-
-A school that ranks its teachers on student ratings has built a league table, and the field
-that made it possible was always an innocent-looking one. Student ratings measure warmth and
-clarity reasonably well and measure how much a child learned rather badly; a hard marker
-teaching a difficult syllabus will sit at the bottom of that table for years.
-
-Whether to make the comparison is a decision for a head reading a report, not a number this
-model hands them by default.
-
-### 5. `subjectType` is recorded once, on the topic
-
-A submission says *which* member of staff it is about, and nothing more.
-[`FeedbackTopic.subjectType`](FeedbackTopic.java) says whether that id is a member of staff, a
-student or a department, and neither the submission nor the aggregate keeps a copy.
-
-A copy would be a second field able to disagree with the first, with nothing to say which was
-right — the same reason [`StockMovement`](../inventory/StockMovement.java) derives direction
-from `movementType` instead of storing it separately.
-
-This is a **different case** from `FeeInvoice.sourceType`, where the type is stored beside the
-id and should be: nothing else on that row knows what the source is. A feedback submission
-always has its topic, and the topic already said.
-
-The cost is that a topic's `subjectType` becomes **immutable once submissions exist** —
-flipping one from `STAFF` to `STUDENT` would silently rewrite what every submission under it
-was ever about. It should have been immutable regardless.
-
-### 6. Questions live on the topic, not the campaign
-
-So every term asks the same thing and this December can be compared with last December.
-Questions on the campaign would let somebody reword them each time, and then the two numbers
-are not measuring the same thing while still looking comparable.
-
-`questionCode` must never be renamed once submissions exist — the same rule as `headCode` and
-`stopCode`. Rewording `questionText` **is** allowed, because
-[`FeedbackAnswer`](embedded/FeedbackAnswer.java) keeps its own copy of the wording it was
-given, the same way [`FeedbackAggregate`](FeedbackAggregate.java) does.
-
-## Feedback about students: built, with a warning
-
-You asked for feedback about students, so `FeedbackSubjectType.STUDENT` exists. Two things
-about it are worth saying plainly rather than burying.
-
-**Feedback about a child is not the same act as feedback about a member of staff.** A teacher
-being criticised is an adult with a contract, a union, a probation process and thirty years of
-adult life. A child being criticised anonymously by people they cannot see has no way to
-answer and no process to appeal to.
-
-So `FeedbackTopic.allowsAnonymousAboutStudents` **defaults to false.** A school can turn it on
-— peer feedback on group work is real and useful — but it should have to do so deliberately.
-
-**Most of what a school wants here already exists.** Before adding a topic about students,
-check whether the thing being recorded is really:
-
-| What it is | Where it already lives |
-|---|---|
-| A child did something wrong | [`ConductEvent`](../conduct/ConductEvent.java) → [`StudentConductCase`](../conduct/StudentConductCase.java) |
-| A child did something excellent | [`StudentRecognition`](../conduct/StudentRecognition.java) |
-| A child is struggling with learning | [`SupportNeed`](../support/SupportNeed.java) |
-
-Those have due process, a named author and a right of reply. **This module must not become a
-second, weaker discipline log** where a child accumulates anonymous criticism that no case was
-ever opened for and nobody had to justify.
-
-## What must leave this module
-
-Some of what arrives here is not feedback. It is an allegation that somebody was hurt.
-
-`FeedbackSubmissionStatus.ESCALATED` records that it **went somewhere else** and who took it,
-and that is all this package does with it. There is no investigation, no case file, no
-findings.
-
-That is on purpose, and the reason is structural rather than squeamish: **an anonymous
-accusation is the wrong foundation for a disciplinary process.** A member of staff facing
-dismissal is entitled to know what is alleged and to answer it, and a system that collects
-allegations under a promise of permanent anonymity has collected evidence that can never be
-used fairly. Building the process here would produce exactly that.
-
-Staff misconduct has no home in this system yet. It needs one, it needs to be designed as a
-disciplinary process with an accused who can respond, and **it must not be reached by adding
-fields to this module.** This is the same boundary [`support`](../support/README.md) drew when
-safeguarding was deliberately left out.
+*"user 4471 created feedback_submission 8812 at 10:03"* deanonymises the row completely,
+whatever the document itself contains. Anonymous writes must be audited **without an actor and
+without the document id**. The school may know a submission happened, or who was logged in —
+never both together.
+
+**3. Hashes of small populations can be brute-forced.** `submitterFingerprint` on a submission
+and `accessCodeHash` on a report are both hashes so nobody can read them back. But a school has
+five hundred students: hashing every id against one campaign takes a laptop a fraction of a
+second. **A fingerprint is only anonymous if the hash includes a secret the database does not
+contain** — a key in application config or a key store, never in a collection, never in a
+backup that travels with the data. An access code avoids this only by being long and randomly
+generated rather than derived from anything.
+
+### Rules that apply to both folders
+
+1. `ANONYMOUS` rows write `createdByDocsId` and `updatedByDocsId` as `"ANONYMOUS"`. The
+   auditing interceptor is never allowed to fill them.
+2. `ANONYMOUS` writes are audited without an actor **and** without the document id.
+3. `submitterUserAccountDocsId` is non-null **only** for `IDENTIFIED`;
+   `encryptedSubmitterReference` **only** for `CONFIDENTIAL`. A row carrying more identity than
+   its mode allows is rejected, not silently trimmed.
+4. Revealing a confidential submitter requires its own permission and writes an `AuditEvent`
+   every time, **including failed attempts**.
+5. A timestamp to the second identifies whoever was logged in at that minute. Staff screens show
+   the date.
+6. The mode offered must be one the topic or channel allows, and the words shown to the person
+   must match what the mode actually does.
 
 ## Where this stops and other modules start
 
 | If it… | It belongs to |
 |---|---|
-| …was asked for by the school and gets counted | `FeedbackSubmission` |
-| …somebody chose to send, in their own words | `FeedbackReport` |
+| …was asked for by the school and gets counted | [`campaign`](campaign/README.md) |
+| …somebody chose to send, in their own words | [`report`](report/README.md) |
 | …is about a child's behaviour, with due process | [`conduct`](../conduct/README.md) |
-| …alleges harm to anybody | out of the system; `ESCALATED` to a person |
+| …is a child's difficulty with learning | [`support`](../support/README.md) |
+| …alleges harm to anybody | out of the system; escalated to a person |
 
-`FeedbackReport` now covers what the sketched `frontoffice/Complaint` was for, and covers it
-better, because the anonymity and routing work. **When `frontoffice` is designed, its
-`Complaint` should not be built** — a parent saying "the bus driver was rude" is a
-`TRANSPORT_CONCERN` report, and two systems that both nearly handle it is worse than one that
-does. What `frontoffice` should keep is the walk-in and telephone log: who came to the desk,
-who rang, what about. That is a different record from a report to the head.
+**Neither folder investigates anybody.** An allegation that a child was struck needs a process
+with an accused who can answer, and that is deliberately not built here — the same boundary
+[`support`](../support/README.md) drew when safeguarding was left out. Both halves have an
+`ESCALATED` state whose only job is to record that something was handed to a person and who
+took it.
 
-`FeedbackTopic.allowsUnsolicited` is now the odd one out. It let a campaign-style submission
-arrive with no campaign, which was a half-answer to the question `FeedbackReport` answers
-properly. It is left in place because a structured form somebody fills in whenever they like —
-a standing lesson-observation sheet, say — is a real use, but it is **not** the way to build a
-report channel.
+## Two permissions
 
-## Deliberately left out
+`AppModule` gained **`FEEDBACK`** for the campaign side and **`FEEDBACK_REPORTS`** for the
+report side.
 
-- **Sentiment analysis.** Deriving a mood from a comment is a model, not a field, and a wrong
-  one attached to a person's record is worse than none.
-- **Public visibility.** `FeedbackVisibility` stops at the subject and their manager. A school
-  publishing teacher ratings is a decision with consequences no field should make easy.
-- **Reply threads on campaign submissions.** A rating drive with thirty replies per teacher is
-  not a conversation, it is a second inbox nobody reads. The report side has
-  `FeedbackReportMessage` because a report expects an answer; a submission does not.
-- **An unmask log.** Revealing a confidential submitter is written to
-  [`AuditEvent`](../audit/AuditEvent.java). A second record here could disagree with it, and
-  two records of who unmasked somebody is worse than one.
-- **Notifications.** "Your feedback was acted on", "the drive closes on Friday" — none of it is
-  here, and nothing records whether a message went out. `notification` is designed **last** by
-  the decision of 2026-08-14.
-- **Surveys that are not feedback.** The sketched `SurveyDefinition` and `SurveyResponse`
-  covered any questionnaire at all, including ones about nobody. That is a generic form
-  builder. These four models are about feedback on a **subject**, which is what makes the
-  anonymity and visibility rules meaningful.
+They are separate because they are not the same secret. A head of department may reasonably
+read teaching-feedback summaries for their own team. They must never be able to open a child's
+report about a colleague. `FEEDBACK_REPORTS` is the narrowest permission in the platform.
 
-## Rules the services must enforce
+## Notifications are not here
 
-**Anonymity — every one of these is load-bearing**
+"Your report was acknowledged", "the drive closes on Friday", "a report needs your attention
+today" — none of it is in either folder, and nothing records whether a message went out.
 
-1. `ANONYMOUS` submissions write `createdByDocsId` and `updatedByDocsId` as `"ANONYMOUS"`.
-   The auditing interceptor is never allowed to fill them.
-2. `ANONYMOUS` writes are audited without an actor **and** without the document id.
-3. `submitterFingerprint` is salted with a secret held outside the database, and is set only
-   when the topic disallows repeat submission.
-4. `submitterUserAccountDocsId` is non-null **only** for `IDENTIFIED`;
-   `encryptedSubmitterReference` **only** for `CONFIDENTIAL`. A submission carrying more
-   identity than its mode allows is rejected, not silently trimmed.
-5. A submission's mode must be one of `FeedbackTopic.allowedAnonymityModes`, and the campaign's
-   mode must be too.
-6. Revealing a confidential submitter requires its own permission and writes an `AuditEvent`
-   every time, including failed attempts.
-7. No query path returns a submitter reference to a caller holding only the subject's
-   permission — and no aggregate endpoint reads submissions at all.
-8. A reviewer's screen shows `submittedAt` as a date. A timestamp to the second identifies
-   whoever was logged in at that minute.
-
-**Topics and campaigns**
-
-9. `defaultAnonymityMode` is one of `allowedAnonymityModes`; both lists are non-empty.
-10. `questionCode` is unique inside a topic and never renamed once submissions exist.
-11. `ratingScaleMax` is not changed once submissions exist — it makes old averages
-    incomparable.
-11a. `subjectType` is never edited once any submission points at the topic. It is the only
-    record of what the feedback is about.
-12. Submissions are accepted only while a campaign is `OPEN`, only from `targetClassDocsIds`,
-    and only from `allowedSubmitterTypes`.
-13. Closing builds every aggregate. Publishing releases only the unsuppressed ones. A
-    `CANCELLED` campaign releases nothing, ever.
-14. `receivedResponseCount` is rebuildable from the submissions.
-
-**Submissions**
-
-15. An anonymous submission about a `STUDENT` subject is refused unless
-    `allowsAnonymousAboutStudents` is true on the topic.
-16. Ratings fall within `1..ratingScaleMax`; required questions are answered; answers reference
-    question codes that exist on the topic.
-17. `subjectDocsId` is null when the topic's `subjectType` is `SCHOOL`, and non-null for every
-    other subject type. The type itself is never copied onto a submission or an aggregate.
-18. `ACTIONED` and `DISMISSED` both require `outcomeNote`. `ESCALATED` requires
-    `escalatedToStaffDocsId` and `escalationNote`.
-19. `WITHDRAWN` is unreachable for `ANONYMOUS`.
-20. Unsolicited submissions are refused unless `allowsUnsolicited` is true.
-
-**Report channels and reports**
-
-21a. `recipientStaffDocsId` and `backupRecipientStaffDocsId` are two different people, and both
-    must exist.
-21b. A report whose `aboutSubjectDocsId` is the channel's recipient is routed to the backup,
-    with `routingNote` saying so. This is checked at submission, not at read time.
-21c. `routedToStaffDocsId` is stored at submission and never re-derived from the channel.
-21d. The access code is generated with a cryptographic random source, shown **exactly once**,
-    and only its hash is stored. There is no "resend my code" path — there is nobody to
-    resend it to.
-21e. A `visibleToReporter = false` message is never returned on any reporter-facing path,
-    including a full-report export.
-21f. `acknowledgementDueBy` is set from the channel at submission. Reports past it with status
-    `SUBMITTED` are the overdue queue, and somebody is answerable for it.
-21g. `requiresImmediateAttention` or an `urgentByDefault` channel flags the report at the
-    moment it arrives, ahead of the queue.
-21h. `ACTIONED` and `DISMISSED` require `outcomeNote`; `ESCALATED` requires
-    `escalatedToStaffDocsId` and `escalationNote`.
-21i. There is no unique constraint on the reporter for this collection — somebody may need to
-    report several things. Abuse is rate-limited in the service, never by an index that would
-    block a legitimate second report.
-
-**Aggregates**
-
-21. Rebuilt from submissions, never incremented in place.
-22. `responseCount` below the topic's minimum forces `suppressed` with a reason.
-23. The threshold is applied to **every** breakdown — by submitter type, by class — not only to
-    the total.
-24. No comment text is ever written into an aggregate.
-25. Nothing is released while its campaign is not `PUBLISHED`.
+That belongs to `notification`, which by decision on 2026-08-14 is designed **last**. Do not add
+a `notifiedAt` field to get around it. This is a real gap on the report side in particular: an
+acknowledgement clock nobody is told about is only half a promise.

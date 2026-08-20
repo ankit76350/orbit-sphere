@@ -1,4 +1,5 @@
-package com.orbitastra.backend.models.new_new.feedback.enums;
+package com.orbitastra.backend.models.new_new.feedback.campaign.enums;
+
 
 /**
  * Who is allowed to read the feedback once it has been given.

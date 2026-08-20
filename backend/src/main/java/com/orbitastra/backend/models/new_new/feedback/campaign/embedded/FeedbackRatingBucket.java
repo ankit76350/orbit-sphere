@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.embedded;
+package com.orbitastra.backend.models.new_new.feedback.campaign.embedded;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;

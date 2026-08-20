@@ -1,4 +1,5 @@
-package com.orbitastra.backend.models.new_new.feedback.enums;
+package com.orbitastra.backend.models.new_new.feedback.campaign.enums;
+
 
 /**
  * How one question on a feedback form is answered.
