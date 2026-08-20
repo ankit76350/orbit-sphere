@@ -143,12 +143,16 @@ public class StockMovement extends SchoolBase {
     // something expected to return. Example: "67bc1129dc3f7d0088990011"
     private String stockIssueDocsId;
 
-    // Who it came from, on a RECEIPT. Plain text until a procurement module exists.
+    // Who it came from, on a RECEIPT, in plain words. Kept for a receipt entered
+    // straight into the store with no paperwork behind it, which is a real thing a small
+    // school does. The proper record is a GoodsReceipt, whose line holds this row's id;
+    // when one exists, prefer it and read the vendor through it.
     // Example: "Shree Traders, Dadar"
     private String supplierName;
 
-    // The supplier's bill or challan number, so a receipt can be matched to paperwork.
-    // Example: "ST/2026/4471"
+    // The supplier's delivery note or bill number, so a bare receipt can still be
+    // matched to paperwork. Also a GoodsReceipt field, and that one wins where both
+    // exist. Example: "ST/2026/4471"
     private String supplierReference;
 
     // Links to Staff.id for whoever moved the stock.

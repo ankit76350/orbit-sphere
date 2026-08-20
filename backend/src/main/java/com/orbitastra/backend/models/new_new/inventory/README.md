@@ -208,21 +208,26 @@ cooked for a meal is a `CONSUMPTION` movement, and spoilage is `WASTAGE`.
 
 ## Deliberately left out
 
-- **Procurement.** Vendors, purchase orders, quotations, goods-receipt notes, supplier
-  invoices — `undone/a_new/procurement` has seven models for it. A `RECEIPT` movement
-  records what arrived, with `supplierName` and `supplierReference` as plain text, which is
-  enough to run a store. Buying properly is its own module.
+- **Procurement** — **built on 2026-08-20**, in [`procurement`](../procurement/README.md).
+  A `RECEIPT` movement still accepts `supplierName` and `supplierReference` as plain text,
+  which is enough to run a store on its own, but the proper record now exists: a
+  [`GoodsReceipt`](../procurement/GoodsReceipt.java) line writes the `RECEIPT` row and keeps
+  its id, so stock no longer arrives from nowhere. `SourcingEvent` and `VendorBid` from the
+  sketch were **not** built — a school compares three quotes, it does not run a sealed-bid
+  tender, so the quotes live on the request instead.
 - **Individually tracked assets.** Thirty microscopes are a quantity of thirty here, not
   thirty asset tags with service histories and depreciation. `undone/a_new/facilities` has
   `AssetRegisterItem` and `MaintenanceWorkOrder` for that, and it is a genuinely different
-  problem: an asset is about one object's life, not about how many there are.
+  problem: an asset is about one object's life, not about how many there are. Deferred again
+  when `procurement` was built on 2026-08-20, which makes three times.
 - **Recipes and meal costing.** `MealRecipe` ties dishes to ingredient quantities. Worth
   having one day; it needs the kitchen to maintain a recipe database first.
 - **Stock valuation reports.** Every batch carries its `unitRate` and every receipt its
   own, so FIFO valuation is computable. The report is a report, not a model.
 - **Posting purchases to accounts.** Stock bought is money out, and the bookkeeping models
-  were deleted on 2026-08-12. When they come back, a `RECEIPT` is where the posting hooks
-  in.
+  were deleted on 2026-08-12. When they come back, the posting hooks into an accepted
+  [`GoodsReceipt`](../procurement/GoodsReceipt.java) rather than into a `RECEIPT` movement —
+  the receipt knows the price and the vendor, and a movement on its own does not.
 - **Telling somebody stock is low.** `reorderLevel` makes the condition detectable.
   Sending the message is `notification`, designed last. Do not add a `alertSentAt` field.
 

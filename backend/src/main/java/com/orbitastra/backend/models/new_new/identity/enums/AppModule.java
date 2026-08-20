@@ -10,6 +10,11 @@ package com.orbitastra.backend.models.new_new.identity.enums;
  * <p>Fees are split into four rather than one, and that is on purpose. A school
  * usually wants the fee desk to raise bills and take money, but only the head to
  * allow a discount. One FINANCE module could not tell those two apart.
+ *
+ * <p>Buying is split in two for the same reason, and it is the more important of the two
+ * splits. A store keeper raises requests and signs for deliveries; releasing money to a
+ * vendor is somebody else's job. One PROCUREMENT module would let the person who orders the
+ * goods also pay for them, which is the arrangement every audit is looking for.
  */
 public enum AppModule {
     /** Inquiries, applications, offers and admission reviews. */
@@ -91,6 +96,19 @@ public enum AppModule {
      * sports kit, lab apparatus, cleaning supplies and maintenance materials.
      */
     INVENTORY,
+
+    /**
+     * Vendors, requests to buy, purchase orders and goods received. Everything up to the
+     * point where the school owes somebody money.
+     */
+    PROCUREMENT,
+
+    /**
+     * Supplier bills and the payments that settle them. Split from PROCUREMENT for the same
+     * reason the fee modules are split: a store keeper should be able to raise a request and
+     * sign for a delivery, and must not be able to release money to the vendor who made it.
+     */
+    PROCUREMENT_PAYMENTS,
 
     /**
      * Salary structures, monthly payroll and payslips. Held well apart from STAFF: a head

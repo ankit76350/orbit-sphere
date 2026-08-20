@@ -132,7 +132,8 @@ public class InventoryItem extends SchoolBase {
     private BigDecimal reorderQuantity;
 
     // The most recent price paid per unit, kept as a starting figure for whoever raises
-    // the next purchase. Not used to value stock on hand. Example: 62.50
+    // the next purchase. Filled in from an accepted GoodsReceipt line. Not used to value
+    // stock on hand. Example: 62.50
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal lastPurchaseRate;
 
@@ -148,8 +149,9 @@ public class InventoryItem extends SchoolBase {
     // name to a thing on a shelf. Example: "67bc1123dc3f7d0022334455"
     private String imageDocumentDocsId;
 
-    // Who the school usually buys this from, as plain text. Proper vendor records
-    // belong to a procurement module that is not built.
+    // Who the school usually buys this from, as plain text. Proper vendor records now
+    // exist as Vendor, so this is only a hint for whoever raises the next purchase, and
+    // a Vendor should be named on the order itself.
     // Example: "Shree Traders, Dadar"
     private String usualSupplierName;
 

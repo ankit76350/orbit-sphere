@@ -49,9 +49,6 @@ public enum NumberSequenceType {
     /** Financial aid or scholarship award number. */
     AID_AWARD,
 
-    /** Accounting journal entry number. */
-    JOURNAL_ENTRY,
-
     /** UPI AutoPay mandate number. */
     UPI_MANDATE,
 
@@ -102,6 +99,24 @@ public enum NumberSequenceType {
 
     /** Code for a new inventory item, so a store need not invent hundreds by hand. */
     INVENTORY_ITEM,
+
+    /** Short code for a business the school buys from. */
+    VENDOR,
+
+    /** A department's request to buy something, raised before any money is committed. */
+    PROCUREMENT_REQUEST,
+
+    /** An order placed with a vendor. Quoted by the vendor on their bill. */
+    PURCHASE_ORDER,
+
+    /** One delivery, as received and checked at the store. */
+    GOODS_RECEIPT,
+
+    /** The school's own number for a bill a vendor has sent. */
+    SUPPLIER_INVOICE,
+
+    /** One payment made to a vendor. */
+    VENDOR_PAYMENT,
 
     /** One member of staff's payslip for one month. */
     PAYSLIP,
