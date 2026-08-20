@@ -181,9 +181,12 @@ looking for it would look in academics.
 What belongs here is the **obligation** to produce one — a `ComplianceRequirement` of type
 `DATA_SUBMISSION` — not the document itself.
 
-It is not built yet either way. HPC is a real model: five learning domains, four levels, and
-per-domain observations with self, peer and parent feedback. It deserves its own pass in
-`academics`, and it is the largest single thing still missing from the academic side.
+**It is now built, in academics.** See
+[HolisticProgressCard](../academics/examination/HolisticProgressCard.java), designed on
+2026-08-19 as a sibling of `ReportCard` rather than a replacement for it — most schools will
+produce both for years.
+
+What belongs here remains the obligation to produce one, not the document.
 
 ## Deliberately left out
 

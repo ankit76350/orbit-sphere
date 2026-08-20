@@ -3,6 +3,114 @@
 These rules are mandatory when the examination repositories and services are
 implemented. Every query and reference check must include `schoolId`.
 
+## How the models fit together
+
+```text
+AcademicTerm  ../structure/AcademicTerm.java
+     |
+     v
+Exam                         "Half Yearly Examination, Term 1"
+  |    one per exam event, per school
+  |
+  +--> ExamSchedule[]        one per subject per section — the datesheet
+  |        maximumMarks, date, time, room
+  |
+  +--> ExamAttendance[]      one per student per paper — who sat it
+  |        answer copy issued, reported, submitted
+  |
+  +--> StudentMark[]         one per student per subject — what they scored
+           |                   obtainedMarks, participationStatus
+           |
+           v
+      ReportCard             the term's marks, snapshotted
+        +--> ReportCardSubjectResult[]
+                +--> ReportCardComponentResult[]
+
+      HolisticProgressCard   the same term, in words rather than marks
+        +--> DomainAssessment[]
+```
+
+`ReportCard` and `HolisticProgressCard` are **siblings**. A child has one of each per term —
+see the section at the end of this file.
+
+### Models in this package
+
+| Model | Grain — one row per… |
+|---|---|
+| [Exam](Exam.java) | exam event, per school |
+| [ExamSchedule](ExamSchedule.java) | subject, per section, within an exam |
+| [ExamAttendance](ExamAttendance.java) | student, per paper |
+| [StudentMark](StudentMark.java) | student, per subject, per exam |
+| [ReportCard](ReportCard.java) | student, per term |
+| [HolisticProgressCard](HolisticProgressCard.java) | student, per term |
+| [ReportCardSubjectResult](embedded/ReportCardSubjectResult.java) | embedded in a report card |
+| [ReportCardComponentResult](embedded/ReportCardComponentResult.java) | embedded in a subject result |
+| [DomainAssessment](embedded/DomainAssessment.java) | embedded in a progress card |
+
+### Models from other packages
+
+| Model | Lives in | Used for |
+|---|---|---|
+| [AcademicTerm](../structure/AcademicTerm.java) | `academics/structure` | the term an exam and a card belong to |
+| [SchoolClass](../structure/SchoolClass.java) | `academics/structure` | the class sitting a paper; `ClassSubject` gives the subject codes |
+| [GradingScheme](../grading/GradingScheme.java) | `academics/grading` | turning marks into a grade band |
+| [Student](../../student/Student.java) | `student` | who sat the paper and whose card it is |
+| [StudentAcademicRecord](../../student/StudentAcademicRecord.java) | `student` | the child's placement for the year |
+| [Guardian](../../student/Guardian.java) | `student` | who wrote the parent feedback on a progress card |
+| [Staff](../../people/staff/Staff.java) | `people/staff` | invigilator, evaluator, who published |
+| [DocumentRecord](../../documents/DocumentRecord.java) | `documents` | the printed card, and evidence on a domain |
+| [AcademicYear](../../core/AcademicYear.java) | `core` | working days, and the year every row is scoped to |
+| [AppModule](../../identity/enums/AppModule.java) | `identity/enums` | the `EXAMINATIONS` permission |
+
+## When each one comes into play
+
+```text
+BEFORE THE EXAM
+
+  weeks ahead   Exam created                      "Half Yearly, Term 1"
+                                                  status DRAFT
+  ~2 weeks      ExamSchedule rows added           one per subject per section
+                                                  this is the datesheet parents see
+                Exam published                    status SCHEDULED
+
+ON THE DAY, PER PAPER
+
+  before        ExamAttendance rows created        one per expected student,
+                                                  ahead of time, so an absent
+                                                  child leaves a row not a gap
+  in the hall   attendance marked                 present / absent / unfair means
+                                                  answer copy number recorded
+
+AFTER THE PAPER
+
+  marking       StudentMark rows filled           one per student per subject
+                                                  blind evaluation: copy number,
+                                                  not the child's name
+  checking      attendance and marks reconciled   a child marked absent cannot
+                                                  have marks; see section 5
+  lock          marks locked                      no further edits without a
+                                                  recorded correction
+
+END OF TERM
+
+  compile       ReportCard generated              marks snapshotted from
+                                                  StudentMark, grades from the
+                                                  GradingScheme in force
+  write         HolisticProgressCard written       by the class teacher, with the
+                                                  child's, classmates' and
+                                                  family's contributions
+  publish       both published                    families can now see them;
+                                                  neither is edited afterwards
+```
+
+Two orderings matter and are enforced rather than assumed:
+
+- **Attendance before marks.** The rows exist before the paper is marked, so a child who did
+  not sit it is visible rather than absent from the data. Section 5 covers what must agree.
+- **Lock before publish.** A report card is a snapshot; snapshotting marks that can still
+  change produces a card that disagrees with the source a week later. Section 8 covers the
+  order.
+
 ## 1. Collections and their grain
 
 ```text
@@ -156,3 +264,40 @@ ClassSubject.gradingSchemeDocsId  ->  Exam.gradingSchemeDocsId  ->  none
 ```
 
 No third override exists on `ExamSchedule`; do not add one.
+
+
+## HolisticProgressCard — `holistic_progress_cards`
+
+The 2020 education policy's replacement for a card that says 62 percent: a rounded picture of
+a child over one term, in words rather than marks, across several domains of development.
+
+**It is a sibling of `ReportCard`, not a replacement for it.** Most schools will produce both
+for years — marks because a board and the next school ask for them, and this because it is
+required and because it says things a mark cannot. A child has one of each per term.
+
+Making one a variant of the other would force a marks-shaped model onto something with no
+marks in it.
+
+| | `ReportCard` | `HolisticProgressCard` |
+|---|---|---|
+| Says | marks, percentage, grade, rank | levels and observations per domain |
+| Written by | the school | the teacher, the **child**, their **classmates** and their **family** |
+| Comparable between children | yes, that is the point | no, deliberately |
+| Can record a failure | yes | no — a level describes where somebody is on the way |
+
+Three things worth knowing:
+
+- **`DomainAssessment.observation` is the card.** `level` is almost a footnote beside it.
+  "RIVER in Language and Literacy" tells a parent nothing they can act on; the observation
+  does. A card of bare levels is a report card with nicer words, and the service treats one as
+  unfinished.
+- **`nepStage` is stored, not derived.** A class is renamed and reorganised over the years;
+  the stage a child was in does not change after the fact. A card for a five-year-old and one
+  for a fifteen-year-old are different documents, and years later only this field says which
+  was being read.
+- **`peerFeedback` is summarised, never quoted.** A card handed to a family must not become a
+  place where one child's words about another are repeated back.
+
+Versioning, snapshotting and publication work exactly as they do for `ReportCard`: a published
+card is never edited, a correction is `cardVersion + 1` with the old one revoked, and class,
+section and roll number are copied in so a reprint shows the class the child was actually in.
