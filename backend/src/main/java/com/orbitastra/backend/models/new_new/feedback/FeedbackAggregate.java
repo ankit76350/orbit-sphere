@@ -14,7 +14,6 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.feedback.embedded.FeedbackQuestionAggregate;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackSubjectType;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -72,11 +71,12 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
         @CompoundIndex(
                 name = "school_feedback_aggregate_uniq",
-                def = "{'schoolId': 1, 'feedbackCampaignDocsId': 1, 'subjectType': 1, 'subjectDocsId': 1}",
+                def = "{'schoolId': 1, 'feedbackCampaignDocsId': 1, 'subjectDocsId': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_feedback_aggregate_subject_idx",
-                def = "{'schoolId': 1, 'subjectType': 1, 'subjectDocsId': 1, 'academicYear': 1}"),
+                def = "{'schoolId': 1, 'subjectDocsId': 1, 'academicYear': 1}",
+                partialFilter = "{'subjectDocsId': {'$type': 'string'}}"),
         @CompoundIndex(
                 name = "school_feedback_aggregate_release_idx",
                 def = "{'schoolId': 1, 'feedbackCampaignDocsId': 1, 'suppressed': 1, 'releasedAt': 1}")
@@ -98,16 +98,13 @@ public class FeedbackAggregate extends SchoolBase {
     @NotBlank
     private String academicYear;
 
-    // What these numbers are about. Example: FeedbackSubjectType.STAFF
-    @NotNull
-    private FeedbackSubjectType subjectType;
-
-    // Links to the record named by subjectType. Null for a school-level aggregate.
-    // Example: "67aa15d9dc3f7d0066666666"
+    // Links to the record the campaign's topic names. Null for a school-level aggregate.
+    // No subjectType beside it, for the same reason as on the submission: the topic
+    // already says so. Example: "67aa15d9dc3f7d0066666666"
     private String subjectDocsId;
 
-    // The subject's name copied in, so a released result reads on its own.
-    // Example: "Mrs A. Sharma"
+    // The subject's name copied in, so a released result reads on its own even after the
+    // staff record is archived. Example: "Mrs A. Sharma"
     private String subjectNameSnapshot;
 
     // How many submissions went into these numbers. The figure the threshold is checked

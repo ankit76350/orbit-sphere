@@ -11,7 +11,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import com.orbitastra.backend.models.new_new.base.SchoolBase;
 import com.orbitastra.backend.models.new_new.feedback.embedded.FeedbackAnswer;
 import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackAnonymityMode;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackSubjectType;
 import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackSubmissionStatus;
 import com.orbitastra.backend.models.new_new.identity.enums.PersonType;
 
@@ -80,6 +79,13 @@ import lombok.experimental.SuperBuilder;
  * breakdown must be suppressed even though the overall count passes the threshold. The
  * threshold applies to every group it is broken down by, not just to the total.
  *
+ * <p>{@code subjectDocsId} carries no type beside it. The topic already declares what this
+ * kind of feedback is about, so a copy here would be a second field able to disagree with the
+ * first — the mistake StockMovement avoids by deriving direction from movementType. It is a
+ * different case from FeeInvoice.sourceType, where nothing else on the row knows the type; a
+ * submission always has its topic. The trade is that a topic's subjectType becomes immutable
+ * once submissions exist, which it should have been anyway.
+ *
  * <p>{@code feedbackCampaignDocsId} is null for unsolicited feedback. A parent ringing about
  * the bus driver is not answering a survey, and inventing a campaign for every complaint would
  * be nonsense.
@@ -114,7 +120,8 @@ import lombok.experimental.SuperBuilder;
                 partialFilter = "{'submitterFingerprint': {'$type': 'string'}}"),
         @CompoundIndex(
                 name = "school_feedback_subject_idx",
-                def = "{'schoolId': 1, 'subjectType': 1, 'subjectDocsId': 1, 'submittedAt': -1}"),
+                def = "{'schoolId': 1, 'subjectDocsId': 1, 'submittedAt': -1}",
+                partialFilter = "{'subjectDocsId': {'$type': 'string'}}"),
         @CompoundIndex(
                 name = "school_feedback_campaign_idx",
                 def = "{'schoolId': 1, 'feedbackCampaignDocsId': 1, 'subjectDocsId': 1}"),
@@ -147,16 +154,18 @@ public class FeedbackSubmission extends SchoolBase {
     // Example: "67be1123dc3f7d0022334455"
     private String feedbackCampaignDocsId;
 
-    // What this is about. Example: FeedbackSubjectType.STAFF
-    @NotNull
-    private FeedbackSubjectType subjectType;
-
-    // Links to the record named by subjectType. Null for SCHOOL, which is about the
-    // place rather than anybody in it. Example: "67aa15d9dc3f7d0066666666"
+    // Links to the record the topic's subjectType names. Null when the topic is about
+    // SCHOOL, which is the place rather than anybody in it.
+    //
+    // There is no subjectType field beside this. The topic already says what this kind of
+    // feedback is about, and a second copy here could disagree with it — the same reason
+    // StockMovement has no direction field beside its movementType.
+    // Example: "67aa15d9dc3f7d0066666666"
     private String subjectDocsId;
 
-    // The subject's name copied in at submission time, so a submission still reads after
-    // a member of staff leaves. Example: "Mrs A. Sharma"
+    // The subject's name copied in at submission time. This one IS a snapshot rather
+    // than a duplicate: a member of staff who leaves is archived, and without it an old
+    // submission reads as being about nobody. Example: "Mrs A. Sharma"
     private String subjectNameSnapshot;
 
     // What the school promised the person who wrote this. Decides which of the fields

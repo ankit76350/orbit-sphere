@@ -63,11 +63,17 @@ import lombok.experimental.SuperBuilder;
  * <p>{@code questions} sit here rather than on the campaign so that every term asks the same
  * thing and December can be compared with December. See FeedbackQuestion.
  *
+ * <p>{@code subjectType} is recorded here and nowhere else. Neither FeedbackSubmission nor
+ * FeedbackAggregate keeps a copy, because a second copy is a field that can disagree with this
+ * one and nothing would say which was right. The cost is that this field must never change
+ * once submissions exist.
+ *
  * <p>The service checks that a submission's anonymity mode is one of the allowed ones, that
  * question codes are unique inside the topic and never renamed once submissions exist, that
  * a RATING question's answers fall inside the scale, and that
  * {@code allowsAnonymousAboutStudents} is respected before any anonymous submission about a
- * STUDENT subject is accepted.
+ * STUDENT subject is accepted, and that {@code subjectType} is never edited once any
+ * submission points at this topic.
  */
 @Document(collection = "feedback_topics")
 @CompoundIndexes({
@@ -103,7 +109,12 @@ public class FeedbackTopic extends SchoolBase {
     // Example: "Students rating the teachers who take their own classes, each term."
     private String description;
 
-    // What this kind of feedback is about. Example: FeedbackSubjectType.STAFF
+    // What this kind of feedback is about. The only place this is recorded: submissions
+    // and aggregates read it through here rather than keeping copies that could disagree.
+    //
+    // That makes it immutable once submissions exist. Changing a topic from STAFF to
+    // STUDENT would silently rewrite what every submission under it was ever about.
+    // Example: FeedbackSubjectType.STAFF
     @NotNull
     private FeedbackSubjectType subjectType;
 

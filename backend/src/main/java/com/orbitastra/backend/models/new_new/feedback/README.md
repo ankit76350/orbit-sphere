@@ -92,6 +92,7 @@ FeedbackCampaign                 one drive, open between two dates. OPTIONAL.
 FeedbackSubmission               one piece of feedback
    +--> FeedbackAnswer[]           question wording copied in at submission time
    |    anonymityMode decides which identity fields may be filled AT ALL
+   |    subjectDocsId only -- the TYPE is read through the topic, never copied
    |
    v
 FeedbackAggregate                the numbers, and the ONLY thing a subject ever reads
@@ -195,7 +196,25 @@ teaching a difficult syllabus will sit at the bottom of that table for years.
 Whether to make the comparison is a decision for a head reading a report, not a number this
 model hands them by default.
 
-### 5. Questions live on the topic, not the campaign
+### 5. `subjectType` is recorded once, on the topic
+
+A submission says *which* member of staff it is about, and nothing more.
+[`FeedbackTopic.subjectType`](FeedbackTopic.java) says whether that id is a member of staff, a
+student or a department, and neither the submission nor the aggregate keeps a copy.
+
+A copy would be a second field able to disagree with the first, with nothing to say which was
+right — the same reason [`StockMovement`](../inventory/StockMovement.java) derives direction
+from `movementType` instead of storing it separately.
+
+This is a **different case** from `FeeInvoice.sourceType`, where the type is stored beside the
+id and should be: nothing else on that row knows what the source is. A feedback submission
+always has its topic, and the topic already said.
+
+The cost is that a topic's `subjectType` becomes **immutable once submissions exist** —
+flipping one from `STAFF` to `STUDENT` would silently rewrite what every submission under it
+was ever about. It should have been immutable regardless.
+
+### 6. Questions live on the topic, not the campaign
 
 So every term asks the same thing and this December can be compared with last December.
 Questions on the campaign would let somebody reword them each time, and then the two numbers
@@ -313,6 +332,8 @@ boundary drawn deliberately rather than two half-systems that both nearly work.
 10. `questionCode` is unique inside a topic and never renamed once submissions exist.
 11. `ratingScaleMax` is not changed once submissions exist — it makes old averages
     incomparable.
+11a. `subjectType` is never edited once any submission points at the topic. It is the only
+    record of what the feedback is about.
 12. Submissions are accepted only while a campaign is `OPEN`, only from `targetClassDocsIds`,
     and only from `allowedSubmitterTypes`.
 13. Closing builds every aggregate. Publishing releases only the unsuppressed ones. A
@@ -325,7 +346,8 @@ boundary drawn deliberately rather than two half-systems that both nearly work.
     `allowsAnonymousAboutStudents` is true on the topic.
 16. Ratings fall within `1..ratingScaleMax`; required questions are answered; answers reference
     question codes that exist on the topic.
-17. `subjectDocsId` is null for `SCHOOL` and non-null for every other subject type.
+17. `subjectDocsId` is null when the topic's `subjectType` is `SCHOOL`, and non-null for every
+    other subject type. The type itself is never copied onto a submission or an aggregate.
 18. `ACTIONED` and `DISMISSED` both require `outcomeNote`. `ESCALATED` requires
     `escalatedToStaffDocsId` and `escalationNote`.
 19. `WITHDRAWN` is unreachable for `ANONYMOUS`.
