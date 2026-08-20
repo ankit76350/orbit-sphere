@@ -137,6 +137,14 @@ public enum AppModule {
      */
     SUPPORT,
 
+    /**
+     * Feedback topics, drives and what came in. Reading raw submissions is a narrower
+     * thing than reading the summaries, and revealing who wrote a confidential one is
+     * narrower still: those are separate PermissionAction levels on this module, not
+     * separate modules.
+     */
+    FEEDBACK,
+
     /** Messages sent to families and staff. */
     NOTIFICATIONS,
 

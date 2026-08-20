@@ -124,6 +124,12 @@ public enum NumberSequenceType {
     /** One student's plan for extra help with learning. */
     SUPPORT_PLAN,
 
+    /**
+     * One piece of feedback. Numbered even when anonymous, so somebody can be told their
+     * feedback was acted on without anybody knowing whose it was.
+     */
+    FEEDBACK_SUBMISSION,
+
     /** School-configured type not represented above. */
     CUSTOM
 }
