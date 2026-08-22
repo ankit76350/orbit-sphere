@@ -55,7 +55,7 @@ public class PaymentAttempt extends SchoolBase {
     @NotBlank
     private String subscriptionInvoiceDocsId;
 
-    // Links to SubscriptionPayment.id when one exists. Example: "67ab19f4dc3f7d0077889900"
+    // Links to SubscriptionPayment.id once the attempt has succeeded. Null while it has not. Example: "67ab19f4dc3f7d0077889900"
     private String subscriptionPaymentDocsId;
 
     // Example: 2
