@@ -194,6 +194,16 @@ that.
 Staff misconduct has no home in this system yet. It needs one, designed as a process with an
 accused who can respond, and **it must not be reached by adding fields to this folder.**
 
+## A report can become a maintenance job without unmasking anybody
+
+[`MaintenanceWorkOrder.sourceReportDocsId`](../../facilities/MaintenanceWorkOrder.java) links to
+a `FeedbackReport`, **not to a person.** A child who reports a broken stair railing anonymously
+gets the railing fixed, and the job carries the report id rather than a reporter.
+
+That is the link that makes this channel worth having rather than merely principled: a report
+that produces a work order is a report that changed something, and the reporter can see it
+happened using their access code.
+
 ## A recommendation for `frontoffice`
 
 `FeedbackReport` covers what the sketched `frontoffice/Complaint` was for, and covers it better,

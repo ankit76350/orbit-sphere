@@ -172,7 +172,14 @@ stated period and next year is a new agreement.
 
 ## Deliberately left out
 
-- **Room and mess inspection rounds.** Real, and closer to facilities than to residence.
+- **Room and mess inspection rounds.** **Built on 2026-08-21**, in
+  [`facilities`](../facilities/README.md), and deliberately not here — this was always closer to
+  facilities than to residence. `HostelRoom` is a valid `MaintenanceTargetType`, so a
+  [`FacilityInspection`](../facilities/FacilityInspection.java) can be raised against a room
+  without `hostel` changing at all, and a broken fan becomes a
+  [`MaintenanceWorkOrder`](../facilities/MaintenanceWorkOrder.java). `HostelRoom` was **not**
+  replaced by `FacilityResource`: bed capacity, room type and air conditioning are residence
+  concerns that a generic space register has no business holding.
 - **Visitor rules for boarders' parents.** `gate` already models visitors; a parent
   visiting a boarder is a `VisitorPass`, not a hostel record.
 - **Bed-linen, laundry and tuck-shop accounts.** Each is a small ledger of its own and

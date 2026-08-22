@@ -111,6 +111,13 @@ public enum AppModule {
     PROCUREMENT_PAYMENTS,
 
     /**
+     * Buildings and rooms, the asset register, maintenance jobs, safety inspections and
+     * booking a hall. Held apart from INVENTORY because a store keeper counting sacks of rice
+     * and an estate manager chasing a fire certificate are different jobs.
+     */
+    FACILITIES,
+
+    /**
      * Salary structures, monthly payroll and payslips. Held well apart from STAFF: a head
      * of department needs a colleague's timetable and must never see their pay.
      */

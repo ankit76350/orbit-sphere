@@ -100,6 +100,18 @@ public enum NumberSequenceType {
     /** Code for a new inventory item, so a store need not invent hundreds by hand. */
     INVENTORY_ITEM,
 
+    /** The number physically stuck on one tracked object. Never reused, even after disposal. */
+    ASSET_TAG,
+
+    /** One job of maintenance work. */
+    MAINTENANCE_WORK_ORDER,
+
+    /** One safety or condition inspection, quoted on the certificate it produces. */
+    FACILITY_INSPECTION,
+
+    /** One request to use a hall, lab or ground. */
+    RESOURCE_BOOKING,
+
     /** Short code for a business the school buys from. */
     VENDOR,
 

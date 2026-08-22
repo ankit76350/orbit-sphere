@@ -166,10 +166,16 @@ see `notification/README.md`.
 ## Deliberately left out
 
 - **Live vehicle position** — see above.
-- **Fuel, odometer and servicing.** The sketch had `VehicleHealth` with fuel
-  level, engine temperature and battery voltage. That is fleet maintenance, a
-  different job from carrying children safely, and it belongs with a facilities or
-  maintenance module.
+- **Fuel, odometer and telemetry.** The sketch had `VehicleHealth` with fuel level, engine
+  temperature and battery voltage. Still deferred — that is fleet telemetry, a time-series
+  problem like live position above.
+  **Servicing, however, now has a home.** [`facilities`](../facilities/README.md) was built on
+  2026-08-21, and a vehicle is a valid `MaintenanceTargetType`: the quarterly service is a
+  [`MaintenancePlan`](../facilities/MaintenancePlan.java), the job is a
+  [`MaintenanceWorkOrder`](../facilities/MaintenanceWorkOrder.java), and the fitness check is a
+  [`FacilityInspection`](../facilities/FacilityInspection.java) whose
+  `certificateValidUntil` is read on the day — the same rule this package already follows for
+  insurance and permits.
 - **Route optimisation.** Working out the best order of stops is an algorithm, not
   a model. `sequenceNo` holds whatever order a human decided.
 - **Trip numbers from `NumberSequence`.** A trip is already identified by route,
