@@ -15,9 +15,9 @@ Student
   |        encrypted / hashed / masked — never plaintext
   |        apaarStatus + digiLockerLinked (APAAR rows only)
   |            |
-  |            +-- requires --> DpdpConsent (APAAR_GENERATION)
+  |            +-- requires --> GuardianConsent (APAAR_GENERATION)
   |
-  +--> DpdpConsent[]                    one row per purpose, independently withdrawable
+  +--> GuardianConsent[]                one row per purpose, independently withdrawable
            +--> Guardian                 ../student/Guardian.java
            +--> DocumentRecord           ../documents/DocumentRecord.java
 
@@ -48,7 +48,7 @@ Named as precedent:
 | Collection | Purpose |
 |---|---|
 | `student_government_identities` | One government number for one student. |
-| `dpdp_consents` | One family's answer to one question about their child's data. |
+| `guardian_consents` | One family's answer to one question about their child. **The only place consent is recorded.** |
 | `compliance_requirements` | One standing obligation to an authority. |
 | `compliance_submissions` | One round of meeting it. |
 
@@ -152,21 +152,12 @@ wrong person.
 itself — so the list of things the school is late on is a plain query and the day something
 became late is on the record.
 
-## Where the scattered consents should end up
+## The scattered consents were consolidated here
 
-Four packages ask a version of the same question in four different shapes:
-
-| Package | Field |
-|---|---|
-| `hostel` | `HostelAllocation.guardianConsentDocumentDocsId` |
-| `health` | `HealthProfile.routineMedicineConsent` |
-| `health` | `MedicationAdministration.guardianConsentDocumentDocsId` |
-| `conduct` | `StudentRecognition.publicationConsent` |
-
-`ConsentPurpose` already has `ROUTINE_MEDICATION`, `PHOTOGRAPH_AND_MEDIA` and `HEALTH_DATA`
-values for three of them. **They are left alone for now** — moving them is a separate change
-across three packages — but this model is the destination, and a fifth should not be added
-elsewhere.
+Five packages each asked a version of the same question in their own shape. **On 2026-08-20
+they were all repointed at [`GuardianConsent`](GuardianConsent.java)**, which is now the only
+place a school records that a guardian agreed to something. See the section at the end of this
+file for what was removed and why.
 
 ## Holistic Progress Card is deliberately not here
 
@@ -243,3 +234,45 @@ What belongs here remains the obligation to produce one, not the document.
 18. A nightly job moves overdue submissions to `OVERDUE`. No screen decides it for itself.
 19. Accepting a recurring submission creates the next one, so nobody has to remember in eleven
     months.
+
+## `DpdpConsent` became `GuardianConsent` on 2026-08-20
+
+Two changes in one, and the rename is the smaller half.
+
+**The rename.** The Act is about processing personal data, which is where this model started.
+But permission to give a child paracetamol, or to have them board in the hostel, is not a
+data-protection question — and filing it in a collection called `dpdp_consents` is the category
+error a data-protection audit trips over. The mechanism is genuinely identical, so the model is
+shared; the name no longer claims the purposes are the same kind of thing.
+[`ConsentPurpose`](enums/ConsentPurpose.java) lists which five purposes are the DPDP ones, and a
+data-protection register is a query for exactly that set.
+
+**The consolidation.** There were **seven** places recording that a guardian agreed to
+something:
+
+| Where | What it was |
+|---|---|
+| `compliance` | this model — the only one with a status, an expiry, a channel and a withdrawal |
+| [`hostel`](../hostel/HostelAllocation.java) | `guardianConsentDocumentDocsId` → a scanned form |
+| [`health`](../health/HealthProfile.java) | `routineMedicineConsent` **boolean** + a document link + a date |
+| [`health`](../health/MedicationAdministration.java) | `guardianConsentDocumentDocsId` + `usedStandingConsent` **boolean** |
+| [`conduct`](../conduct/StudentRecognition.java) | `publicationConsent` **boolean** + a document link |
+| [`support`](../support/SupportPlan.java) | `guardianConsentDocumentDocsId` → a scanned form |
+
+All five now hold a `*ConsentDocsId` pointing here, and **the three booleans and the duplicate
+date are gone.**
+
+The booleans were the dangerous part. A boolean can still say `true` the day after a family
+withdrew, and there is no date on it to notice. On the health side that means giving a child
+medicine their family had said no to. `usedStandingConsent` was worse than redundant — a null
+`guardianConsentDocsId` already means the standing consent was used, so it was a second fact
+able to contradict the pointer beside it.
+
+`ConsentScope` was added to make one model serve both shapes of question. A standing consent is
+one per student per purpose, which the unique index enforces; a record-specific one is found
+through the record that points at it, and a child may have many. Without the distinction, either
+a family could consent to medical treatment once in their child's whole school career, or the
+index had to go and nothing could say which photograph consent was current.
+
+The link is **one-directional** — records point at consents, never back. A pointer home from
+here would be a second fact able to disagree with the first.

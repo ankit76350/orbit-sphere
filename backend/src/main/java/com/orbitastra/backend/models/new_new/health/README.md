@@ -30,7 +30,7 @@ Student
   |
   +--> HealthProfile          one per child, for as long as they are here
   |      +--> HealthAlert[]     allergies, conditions — each with WHAT TO DO
-  |      +--> routineMedicineConsent
+  |      +--> routineMedicineConsentDocsId --> GuardianConsent
   |
   +--> ImmunizationRecord[]   vaccinations, not year-scoped
   |
@@ -127,13 +127,19 @@ it could be. Every one of those is a field.
 
 **Nothing may be given without a consent behind it.** Either:
 
-- the profile carries a standing `routineMedicineConsent` for ordinary things like
-  paracetamol, and the dose sets `usedStandingConsent = true`; or
-- the dose points at a specific `guardianConsentDocumentDocsId`.
+- the profile's `routineMedicineConsentDocsId` points at a standing `ROUTINE_MEDICATION`
+  consent covering ordinary things like paracetamol, and the dose leaves
+  `guardianConsentDocsId` null; or
+- the dose points at its own `guardianConsentDocsId` — a `RECORD_SPECIFIC`
+  `MEDICAL_TREATMENT` consent naming that medicine and those dates.
 
-A dose with neither leaves the school with no defence at all. When
-`routineMedicineConsent` is false the answer is **no**, whatever a parent says on the
-phone.
+A dose with neither leaves the school with no defence at all. And the consent has to be
+`GRANTED` and unexpired **at the moment of the dose**, not merely present: a family that
+withdrew last week has said no, whatever the pointer still says.
+
+Which of the two applied is not a stored flag. A null `guardianConsentDocsId` means the
+standing consent was used — a boolean saying so beside it could contradict the pointer next
+to it, and an earlier `usedStandingConsent` field did exactly that until it was removed.
 
 ### A dose not given is still written down
 
@@ -229,9 +235,10 @@ unwell is not being away.
 
 **Medication**
 
-7. No dose is recorded as `GIVEN` without either `usedStandingConsent = true` against
-   a profile whose `routineMedicineConsent` is true, or a
-   `guardianConsentDocumentDocsId`.
+7. No dose is recorded as `GIVEN` without a `GRANTED`, unexpired
+   [`GuardianConsent`](../compliance/GuardianConsent.java) behind it — either the profile's
+   `routineMedicineConsentDocsId`, or the dose's own `guardianConsentDocsId`. The consent's
+   status is checked at the moment of the dose, never assumed from the pointer's presence.
 8. The medicine is checked against the child's `ALLERGY` alerts before it is
    recorded, and a match is refused rather than warned about.
 9. A status other than `GIVEN` must carry a `notGivenReason`.

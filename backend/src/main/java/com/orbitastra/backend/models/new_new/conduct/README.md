@@ -149,10 +149,16 @@ stayed out of `health`.
 leaderboard is this column added up over a term; no separate collection is needed to
 hold a number that can be derived.
 
-`publicationConsent` matters more than it looks. Putting a child's name and photograph
+`publicationConsentDocsId` matters more than it looks. Putting a child's name and photograph
 on a noticeboard, a newsletter or a social media post needs the family's agreement, and
 some families withhold it for reasons the school does not need to know. Recording it
 means somebody can check **before** publishing rather than apologising afterwards.
+
+It points at [`GuardianConsent`](../compliance/GuardianConsent.java) rather than being a
+boolean, and that is the whole difference: a boolean cannot be withdrawn. It said `true` on
+the day it was set and would still say `true` a year later, after the family had asked the
+school to stop. The consent record has a status and a withdrawal date, so publishing checks
+whether the family still agrees rather than whether they once did.
 
 Certificates are not printed here. `issuedDocumentDocsId` points at `documents`, which
 already numbers and verifies them.
@@ -231,6 +237,8 @@ already numbers and verifies them.
 
 **Recognitions**
 
-17. Nothing is published outside the school without `publicationConsent = true`.
+17. Nothing is published outside the school without a `GRANTED`, unexpired
+    `PHOTOGRAPH_AND_MEDIA` [`GuardianConsent`](../compliance/GuardianConsent.java) behind
+    `publicationConsentDocsId`, checked at the moment of publishing.
 18. `housePoints`, when set, is positive.
 19. `awardedOn` falls inside the academic year.

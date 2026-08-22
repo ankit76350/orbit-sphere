@@ -51,7 +51,7 @@ import lombok.experimental.SuperBuilder;
  * December. The review is the point at which somebody asks whether it is still right, and a plan
  * past its review date should be on somebody's list.
  *
- * <p>{@code guardianConsentDocumentDocsId} matters because a plan is something done to a child
+ * <p>{@code guardianConsentDocsId} matters because a plan is something done to a child
  * and their family should have agreed to it. Some families decline: they do not want their child
  * treated differently, or they disagree with the assessment, and that is their decision. A plan
  * running without their knowledge is how a school loses a family's trust for good.
@@ -150,10 +150,12 @@ public class SupportPlan extends AcademicStudentSchoolBase {
     // Example: 2026-06-28T09:00:00Z
     private Instant approvedAt;
 
-    // Links to DocumentRecord.id for the family's signed agreement. Some families decline,
-    // and that is their decision; a plan running without their knowledge is how a school
-    // loses their trust. Example: "67c21123dc3f7d0022334455"
-    private String guardianConsentDocumentDocsId;
+    // Links to GuardianConsent.id for the family's agreement to this plan.
+    // RECORD_SPECIFIC, purpose LEARNING_SUPPORT, because consent is to this plan and not
+    // to being supported in general. Some families decline, and that is their decision; a
+    // plan running without their knowledge is how a school loses their trust.
+    // Example: "67bf1124dc3f7d0033445566"
+    private String guardianConsentDocsId;
 
     // The child's own view of what helps. Older children usually know and are rarely asked.
     // Example: "Says she can follow better if she can record the lesson and listen again."

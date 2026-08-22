@@ -13,7 +13,6 @@ import com.orbitastra.backend.models.new_new.conduct.enums.RecognitionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -40,14 +39,15 @@ import lombok.experimental.SuperBuilder;
  * documents package already numbers and verifies certificates, so nothing about
  * printing lives here.
  *
- * <p>{@code publicationConsent} matters more than it looks. Putting a child's name and
+ * <p>{@code publicationConsentDocsId} matters more than it looks. Putting a child's name and
  * photograph on a noticeboard, a newsletter or a social media post needs the family's
  * agreement, and some families withhold it for reasons the school does not need to
  * know. Recording it means somebody can check before publishing rather than
  * afterwards.
  *
  * <p>The service checks that a recognition with points carries a positive number, that
- * publishing anything requires {@code publicationConsent} to be true, and that the
+ * publishing anything requires a GRANTED, unexpired consent behind
+ * {@code publicationConsentDocsId}, and that the
  * award date falls inside the academic year.
  */
 @Document(collection = "student_recognitions")
@@ -114,15 +114,15 @@ public class StudentRecognition extends AcademicStudentSchoolBase {
     // Example: "67b51122dc3f7d0011223344"
     private String issuedDocumentDocsId;
 
-    // Whether the family agreed to the child's name and photograph being used
-    // outside the school. Nothing is published without this. Example: true
-    @NotNull
-    @Builder.Default
-    private Boolean publicationConsent = false;
-
-    // Links to DocumentRecord.id for the signed consent, where one was given.
-    // Example: "67b81125dc3f7d0044556677"
-    private String publicationConsentDocumentDocsId;
+    // Links to GuardianConsent.id for the family agreeing this may be published.
+    // Purpose PHOTOGRAPH_AND_MEDIA — usually the child's STANDING consent, or a
+    // RECORD_SPECIFIC one where the school asked about this award in particular.
+    //
+    // There is no boolean beside this any more. GalleryMedia already did it this way,
+    // checking the consent and recording that the check happened; a boolean here could
+    // still say true after the family withdrew, and the photograph would go out.
+    // Example: "67bf1124dc3f7d0033445566"
+    private String publicationConsentDocsId;
 
     // Anything worth knowing.
     // Example: "Read out in assembly; mother came to watch."

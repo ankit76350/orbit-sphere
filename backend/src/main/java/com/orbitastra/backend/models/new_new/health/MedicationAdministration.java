@@ -14,7 +14,6 @@ import com.orbitastra.backend.models.new_new.health.enums.MedicationStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -29,7 +28,7 @@ import lombok.experimental.SuperBuilder;
  * one of those is a field here, and none of them is optional in practice.
  *
  * <p>Nothing may be given without a consent behind it. Either the profile carries a
- * standing {@code routineMedicineConsent} for ordinary things like paracetamol, or
+ * standing ROUTINE_MEDICATION consent on the profile for ordinary things like paracetamol, or
  * this record points at a specific consent from a guardian. A dose with no consent
  * on file leaves the school with no defence at all.
  *
@@ -52,6 +51,10 @@ import lombok.experimental.SuperBuilder;
  * <p>Rows are never edited once saved. A mistake is corrected by adding a row that
  * explains it, the same rule the gate log follows, because a medicine record that
  * can be tidied up afterwards is worth nothing when it is needed.
+ *
+ * <p>Which consent was relied on is not a separate field. A null
+ * {@code guardianConsentDocsId} means the standing consent on the profile was used, and a
+ * boolean saying so beside it could disagree with the pointer next to it.
  *
  * <p>The service checks that a consent exists before any dose is recorded as GIVEN,
  * that the medicine does not appear in the child's ALLERGY alerts, that a status
@@ -120,16 +123,11 @@ public class MedicationAdministration extends AcademicStudentSchoolBase {
     // Example: "67aa15d9dc3f7d0055555555"
     private String authorisedByStaffDocsId;
 
-    // Links to DocumentRecord.id for the guardian's written consent for this
-    // medicine, when it is not covered by the standing consent on the profile.
-    // Example: "67b71125dc3f7d0044556677"
-    private String guardianConsentDocumentDocsId;
-
-    // Whether the standing routineMedicineConsent on the profile was relied on
-    // instead of a specific consent. Example: false
-    @NotNull
-    @Builder.Default
-    private Boolean usedStandingConsent = false;
+    // Links to GuardianConsent.id for permission to give this particular medicine, when
+    // it is not covered by the standing ROUTINE_MEDICATION consent on the profile.
+    // RECORD_SPECIFIC, purpose MEDICAL_TREATMENT, with the medicine and the dates written
+    // into the consent's purposeDescription. Example: "67bf1124dc3f7d0033445566"
+    private String guardianConsentDocsId;
 
     // Why it was not given. Required whenever the status is not GIVEN.
     // Example: "Child said she had already taken it at home."

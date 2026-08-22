@@ -65,7 +65,7 @@ import lombok.experimental.SuperBuilder;
  * roll call they most need to be on.
  *
  * <p>
- * {@code guardianConsentDocumentDocsId} is the family agreeing their child
+ * {@code guardianConsentDocsId} is the family agreeing their child
  * lives at
  * school. A boarding school without that on file is exposed in a way no other
  * module is.
@@ -163,9 +163,11 @@ public class HostelAllocation extends AcademicStudentSchoolBase {
     // Why it was suspended or ended. Example: "Family moved to Pune."
     private String statusReason;
 
-    // Links to DocumentRecord.id for the family's signed agreement that their child
-    // boards here. Example: "67ba1125dc3f7d0044556677"
-    private String guardianConsentDocumentDocsId;
+    // Links to GuardianConsent.id for the family agreeing their child boards here.
+    // RECORD_SPECIFIC, purpose HOSTEL_RESIDENCE, because an agreement to board is for a
+    // stated period and a new year is a new agreement. The signed form itself hangs off
+    // the consent, not off this row. Example: "67bf1124dc3f7d0033445566"
+    private String guardianConsentDocsId;
 
     // Links to the staff identity that approved the allocation.
     // Example: "67aa15d9dc3f7d0055555555"

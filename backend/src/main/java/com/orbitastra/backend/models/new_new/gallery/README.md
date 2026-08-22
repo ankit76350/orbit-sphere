@@ -32,7 +32,7 @@ GalleryAlbum                     one occasion — "Sports Day 2026"
                         |                  who is identifiable in it
                         v
                   checked against
-                  ../compliance/DpdpConsent.java
+                  ../compliance/GuardianConsent.java
                   purpose = PHOTOGRAPH_AND_MEDIA
 ```
 
@@ -42,7 +42,7 @@ GalleryAlbum                     one occasion — "Sports Day 2026"
 |---|---|---|
 | [DocumentRecord](../documents/DocumentRecord.java) | `documents` | the actual file and its thumbnail |
 | [Student](../student/Student.java) | `student` | who is identifiable in a picture |
-| [DpdpConsent](../compliance/DpdpConsent.java) | `compliance` | whether their family agreed to it |
+| [GuardianConsent](../compliance/GuardianConsent.java) | `compliance` | whether their family agreed to it |
 | [ConsentPurpose](../compliance/enums/ConsentPurpose.java) | `compliance/enums` | `PHOTOGRAPH_AND_MEDIA` |
 | [SchoolClass](../academics/structure/SchoolClass.java) | `academics/structure` | a class trip album |
 | [Staff](../people/staff/Staff.java) | `people/staff` | who uploaded, who approved |
@@ -50,8 +50,10 @@ GalleryAlbum                     one occasion — "Sports Day 2026"
 | [AppModule](../identity/enums/AppModule.java) | `identity/enums` | the `GALLERY` permission |
 
 Named as precedent:
-[StudentRecognition](../conduct/StudentRecognition.java) — which already carries a
-`publicationConsent` flag for the same reason.
+[StudentRecognition](../conduct/StudentRecognition.java) — which checks the same
+`PHOTOGRAPH_AND_MEDIA` consent for the same reason. Gallery did it correctly first: it always
+read the consent record and stamped `consentVerifiedAt`, while `StudentRecognition` carried a
+boolean until 2026-08-20.
 
 ## The collections
 
@@ -126,7 +128,7 @@ The list names the children who can be **identified** in a picture. Without it, 
 publishing an album has no way to know whose families agreed — and *"we asked everybody at
 admission"* is not an answer when one family says they refused.
 
-So publishing checks each tagged child's `PHOTOGRAPH_AND_MEDIA` consent in `DpdpConsent`, and
+So publishing checks each tagged child's `PHOTOGRAPH_AND_MEDIA` consent in `GuardianConsent`, and
 `consentVerifiedAt` records **that the check happened**, not that somebody meant to do it. A
 picture with an unconsented child in it is cropped, kept at `STAFF` visibility, or left out.
 

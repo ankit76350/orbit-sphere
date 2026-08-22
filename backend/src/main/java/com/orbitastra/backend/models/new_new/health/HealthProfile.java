@@ -39,7 +39,7 @@ import lombok.experimental.SuperBuilder;
  * counts. An alert at HIGH or LIFE_THREATENING severity appears wherever the child
  * is named, not only here, so a teacher taking a class on a trip cannot miss it.
  *
- * <p>{@code routineMedicineConsent} is the standing permission for the school to
+ * <p>{@code routineMedicineConsentDocsId} points at the standing permission for the school to
  * give ordinary things like paracetamol. Without it the answer is no, whatever a
  * parent says on the phone, and every dose given has to point at a consent. A
  * school that gives a child medicine with nothing on file has no defence.
@@ -114,19 +114,14 @@ public class HealthProfile extends SchoolBase {
     // has given. Example: "67b71122dc3f7d0011223344"
     private String carePlanDocumentDocsId;
 
-    // Whether the school may give ordinary medicines such as paracetamol without
-    // ringing first. When false the answer is no, whatever is said on the phone.
-    // Example: true
-    @NotNull
-    @Builder.Default
-    private Boolean routineMedicineConsent = false;
-
-    // Links to DocumentRecord.id for the signed consent form.
-    // Example: "67b71123dc3f7d0022334455"
-    private String routineMedicineConsentDocumentDocsId;
-
-    // When the consent was given. Example: 2026-04-05T06:30:00Z
-    private Instant routineMedicineConsentAt;
+    // Links to GuardianConsent.id for the standing permission to give ordinary
+    // over-the-counter medicine. STANDING, purpose ROUTINE_MEDICATION.
+    //
+    // There is no boolean beside this any more. One used to sit here, and a boolean
+    // saying true the day after a family withdrew their consent means giving a child
+    // medicine their family said no to. The consent's own status is the answer.
+    // Example: "67bf1124dc3f7d0033445566"
+    private String routineMedicineConsentDocsId;
 
     // Links to the staff identity that last checked this record against what the
     // family gave. Example: "67aa15d9dc3f7d0044444444"

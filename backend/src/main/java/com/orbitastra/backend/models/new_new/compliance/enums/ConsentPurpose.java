@@ -35,6 +35,22 @@ public enum ConsentPurpose {
     /** Giving ordinary medicine such as paracetamol without ringing first. */
     ROUTINE_MEDICATION,
 
+    /**
+     * Giving one particular medicine or treatment, named on the consent. Not the standing
+     * permission above: this is a course of antibiotics, or a single dose of something the
+     * standing consent does not cover. Almost always RECORD_SPECIFIC.
+     */
+    MEDICAL_TREATMENT,
+
+    /** The child living in the school hostel for a stated period. */
+    HOSTEL_RESIDENCE,
+
+    /**
+     * Running a plan of extra learning support for the child. Some families decline, and a
+     * plan running without their knowledge is how a school loses their trust.
+     */
+    LEARNING_SUPPORT,
+
     /** Anything the purposes above do not cover; the notes say what. */
     OTHER
 }

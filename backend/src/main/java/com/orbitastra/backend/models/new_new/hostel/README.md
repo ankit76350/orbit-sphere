@@ -152,32 +152,23 @@ gate's cannot disagree about when the child actually left.
 reachable on the number the school usually rings — and the one time that matters is the
 one time nobody thought to ask.
 
-## Consent forms are scattered, and that is a known problem
+## Consent is recorded in one place
 
-`guardianConsentDocumentDocsId` here is the family agreeing their child boards at the
-school. It stays because it duplicates nothing — there is no generic attachment
-mechanism, so each model holds its own document ids.
+`guardianConsentDocsId` here is the family agreeing their child boards at the school, and it
+points at [`GuardianConsent`](../compliance/GuardianConsent.java).
 
-But it is the fourth of its kind:
+This was **fixed on 2026-08-20.** It used to be one of seven places recording that a guardian
+agreed to something — this field, a boolean and a date on `HealthProfile`, a field and a second
+boolean on `MedicationAdministration`, a field and a boolean on `StudentRecognition`, a field on
+`SupportPlan`, and the real model in `compliance`.
 
-| Package | Field |
-|---|---|
-| `hostel` | `HostelAllocation.guardianConsentDocumentDocsId` |
-| `health` | `HealthProfile.routineMedicineConsentDocumentDocsId` |
-| `health` | `MedicationAdministration.guardianConsentDocumentDocsId` |
-| `conduct` | `StudentRecognition.publicationConsentDocumentDocsId` |
+`guardianConsentDocsId` now points at [`GuardianConsent`](../compliance/GuardianConsent.java),
+which is the only place consent is recorded. The scanned agreement hangs off the consent rather
+than off this row, and a withdrawal is visible here the moment it happens — which it was not
+when this was a link to a document that could not be withdrawn.
 
-Four consent fields across three packages, each with its own date and its own boolean — and
-now a fifth home for consent that actually exists: [`DpdpConsent`](../compliance/DpdpConsent.java)
-was built with the `compliance` package on 2026-08-19.
-
-**So this is no longer a note for later; it is a live inconsistency.** Whether a guardian
-agreed to something is recorded one way in `compliance` and four other ways here, in `health`
-and in `conduct`. The four fields above should fold into `DpdpConsent`, with these packages
-keeping a link to it rather than their own boolean and date.
-
-That was not done when `compliance` was designed, and it should have been. It is written down
-here so the next person does not add a sixth.
+It is `RECORD_SPECIFIC` with purpose `HOSTEL_RESIDENCE`, because agreeing to board is for a
+stated period and next year is a new agreement.
 
 ## Deliberately left out
 

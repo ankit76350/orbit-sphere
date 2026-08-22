@@ -47,7 +47,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>
  * So publishing checks each tagged child's PHOTOGRAPH_AND_MEDIA consent in
- * DpdpConsent, and
+ * GuardianConsent, and
  * {@code consentVerifiedAt} records that the check happened rather than that
  * somebody meant to
  * do it. A picture with an unconsented child in it is not published; it is

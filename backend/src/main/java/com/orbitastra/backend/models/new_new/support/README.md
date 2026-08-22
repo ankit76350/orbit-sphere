@@ -27,7 +27,7 @@ Student
    |       |        ../academics/examination/ExamSchedule.java
    |       |
    |       +--> SupportGoal[]            aim + baseline + what happened
-   |       +--> guardianConsentDocumentDocsId
+   |       +--> guardianConsentDocsId --> GuardianConsent
    |          |
    |          v
    +--> SupportSession[]           did the help actually happen?
@@ -145,7 +145,9 @@ do by accident.
 
 ## The family has to agree
 
-`guardianConsentDocumentDocsId`. A plan is something done *to* a child, and some families
+`guardianConsentDocsId` points at a `RECORD_SPECIFIC` `LEARNING_SUPPORT`
+[`GuardianConsent`](../compliance/GuardianConsent.java) — consent to *this plan*, not to being
+supported in general. A plan is something done *to* a child, and some families
 decline — they do not want their child treated differently, or they disagree with the assessment.
 That is their decision.
 

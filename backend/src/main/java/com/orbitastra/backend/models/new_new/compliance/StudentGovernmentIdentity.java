@@ -116,7 +116,7 @@ public class StudentGovernmentIdentity extends SchoolBase {
     @Builder.Default
     private Boolean digiLockerLinked = false;
 
-    // Links to DpdpConsent.id for the APAAR_GENERATION consent this row relies on.
+    // Links to GuardianConsent.id for the APAAR_GENERATION consent this row relies on.
     // Required on an APAAR row: the number comes from the child's Aadhaar.
     // Example: "67bf1122dc3f7d0011223344"
     private String apaarConsentDocsId;
