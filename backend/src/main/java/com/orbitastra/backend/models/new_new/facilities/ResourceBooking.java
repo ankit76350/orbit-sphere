@@ -24,9 +24,18 @@ import lombok.experimental.SuperBuilder;
  * Somebody asking to use a space for a stretch of time.
  *
  * <p>The assembly hall for a rehearsal, the computer lab for a Saturday workshop, the ground
- * for a match. This is what {@code FacilityResource.bookable} exists to gate: a classroom
- * belongs to the timetable and must never appear here, or somebody will book the room a lesson
- * is happening in.
+ * for a match. {@code FacilityResource.bookable} gates which spaces can be asked for at all —
+ * an ordinary classroom belongs to its section and should never appear here.
+ *
+ * <p>**But bookable and timetabled are not opposites, and that is the trap.** The hall is
+ * booked for a rehearsal and also has games timetabled in it on Tuesday afternoons. The
+ * computer room takes bookings at the weekend and has computing lessons all week. So checking
+ * only for other bookings is not enough: a booking must also be refused where
+ * DailyTimetable.entries or ExamSchedule already put something in that room at that time.
+ *
+ * <p>Three sources of clash, then, and they are maintained by three different people at three
+ * different times of year — which is exactly why nobody notices until two groups arrive at one
+ * door.
  *
  * <p>**Only APPROVED bookings hold the space.** A REQUESTED one blocks nobody, which is
  * deliberate: if requests reserved the room, one person filling in a form for a "maybe" in
@@ -53,7 +62,7 @@ import lombok.experimental.SuperBuilder;
  * club that hires the field on Sundays is nobody the school buys from.
  *
  * <p>The service checks that the resource is {@code bookable} and IN_USE, that no APPROVED
- * booking overlaps, that {@code startsAt} is before {@code endsAt}, that expected attendance
+ * booking overlaps, that no timetable entry or exam schedule holds the room in that window, that {@code startsAt} is before {@code endsAt}, that expected attendance
  * does not exceed capacity, that a rejection carries a reason, and that a booking is refused
  * on a space with an open CRITICAL inspection finding.
  */

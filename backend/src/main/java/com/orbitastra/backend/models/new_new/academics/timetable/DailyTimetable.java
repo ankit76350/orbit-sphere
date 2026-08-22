@@ -50,7 +50,11 @@ import lombok.experimental.SuperBuilder;
                 unique = true),
         @CompoundIndex(
                 name = "school_year_timetable_date_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'date': 1}")
+                def = "{'schoolId': 1, 'academicYear': 1, 'date': 1}"),
+        @CompoundIndex(
+                name = "school_timetable_room_idx",
+                def = "{'schoolId': 1, 'date': 1, 'entries.facilityResourceDocsId': 1}",
+                partialFilter = "{'entries.facilityResourceDocsId': {'$type': 'string'}}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)

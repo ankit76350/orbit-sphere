@@ -48,9 +48,10 @@ import lombok.experimental.SuperBuilder;
  * MaintenanceTargetType. The same is true of a classroom used by the timetable: nothing in
  * `academics` points here yet, and it does not have to.
  *
- * <p>{@code bookable} is what separates a hall anybody may ask for from a classroom that
- * belongs to the timetable. Without it, ResourceBooking would offer somebody the chemistry lab
- * during a lesson.
+ * <p>{@code bookable} separates a hall anybody may ask for from an ordinary classroom, which
+ * belongs to its section. It is not the same as "free": a bookable hall may also have games
+ * timetabled in it, so a booking is checked against the timetable and the datesheet as well as
+ * against other bookings. See ResourceBooking.
  *
  * <p>{@code accessible} is one boolean rather than a list of features, and it is deliberately
  * blunt: can a child in a wheelchair get in and use this. A school that wants to record ramps
@@ -114,8 +115,12 @@ public class FacilityResource extends SchoolBase {
     // as a corridor. Example: 36
     private Integer capacity;
 
-    // Whether somebody may ask to use this for an event. False for a classroom that
-    // belongs to the timetable; true for the assembly hall. Example: false
+    // Whether somebody may ask to use this for an event. False for an ordinary classroom,
+    // which belongs to its section; true for the assembly hall.
+    //
+    // True does not mean free: the hall also has games timetabled in it on Tuesdays. A
+    // booking has to be checked against DailyTimetable.entries and ExamSchedule as well as
+    // against other bookings. Example: false
     @NotNull
     @Builder.Default
     private Boolean bookable = false;

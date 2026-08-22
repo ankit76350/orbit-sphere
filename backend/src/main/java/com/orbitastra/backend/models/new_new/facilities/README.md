@@ -210,9 +210,13 @@ report that produces a work order is a report that changed something.
   bus's fuel efficiency is a fleet-telemetry question, not a maintenance job. What **has** landed
   is servicing — a vehicle is now a valid `MaintenanceTargetType`, so the quarterly service and
   the fitness inspection have a home.
-- **Room allocation for the timetable.** Nothing in `academics` points here, and
-  `TimetableEntry` still has no room. Giving lessons rooms is a timetabling change, and it should
-  be made in `academics` when somebody wants it, not smuggled in from this side.
+- ~~**Room allocation for the timetable.**~~ **Done on 2026-08-21**, from the `academics` side
+  where it belonged. [`TimetableEntry`](../academics/timetable/embedded/TimetableEntry.java)
+  gained an optional `facilityResourceDocsId`, and
+  [`ExamSchedule`](../academics/examination/ExamSchedule.java) had a `roomResourceDocsId` whose
+  comment said it pointed at "a future facility/resource document" — that future was this
+  package, so it was renamed and pointed here properly. See **Bookings are not the only claim on
+  a room** below.
 - **Cleaning schedules and housekeeping rosters.** A daily task list for cleaning staff is a
   rota, closer to staff duty allocation than to maintenance.
 - **Contractor management.** A vendor with a maintenance contract is a
@@ -224,6 +228,35 @@ report that produces a work order is a report that changed something.
   none of it is here, and nothing records whether a message went out. `notification` is designed
   **last** by the decision of 2026-08-14. The certificate-expiry warning is the one that will
   matter most; until then the indexed date makes it a query somebody has to run.
+
+## Bookings are not the only claim on a room
+
+`bookable` and `timetabled` are **not opposites**, and assuming they are is the mistake this
+section exists to prevent.
+
+The assembly hall takes bookings for rehearsals *and* has games timetabled in it on Tuesday
+afternoons. The computer room takes weekend bookings *and* has computing lessons all week. So
+three different things can claim the same space:
+
+| Claim | Lives in | Maintained by |
+|---|---|---|
+| A booking | `resource_bookings` | whoever asks, approved by the office |
+| A lesson | [`DailyTimetable.entries`](../academics/timetable/DailyTimetable.java) | whoever builds the timetable, once a year |
+| A paper | [`ExamSchedule`](../academics/examination/ExamSchedule.java) | whoever builds the datesheet, once a term |
+
+**Three sources, three people, three times of year** — which is exactly why nobody notices
+until two groups arrive at one door. Approving a booking has to check all three, and the
+timetable has to check itself: two sections sent to one lab in the same period is the ordinary
+version of this failure.
+
+The indexes are there for it. `school_timetable_room_idx` reaches into
+`entries.facilityResourceDocsId`, and `school_exam_schedule_room_idx` covers the datesheet.
+
+Room allocation stays **optional** throughout. In most Indian schools a section has one
+classroom all day and the timetable moves teachers, not children — so a null room is the normal
+case, and the field earns its place on the periods that break the pattern: the physics
+practical, games in the hall, computing in the computer room. Those are precisely the periods
+where a clash happens.
 
 ## Rules the services must enforce
 
@@ -275,6 +308,8 @@ report that produces a work order is a report that changed something.
 24. The resource must be `bookable` and `IN_USE`.
 25. No `APPROVED` booking may overlap another for the same resource. Checked in code at
     approval — overlap is a range comparison and no unique index can express it.
+25a. **Nor may it overlap a lesson or a paper.** `DailyTimetable.entries` and `ExamSchedule`
+    are checked for the same room and window. A bookable hall is not a free hall.
 26. `REQUESTED` bookings hold nothing, so two may overlap; the clash is caught at approval.
 27. `startsAt` is before `endsAt`; `expectedAttendance` does not exceed the resource's
     `capacity`.

@@ -34,6 +34,15 @@ import lombok.experimental.SuperBuilder;
  * each section carry its own date, room, and invigilators, which is normal when
  * a hall cannot seat the whole grade.
  *
+ * <p>{@code facilityResourceDocsId} is the hall, and it is the field two different clashes
+ * hang off. Two papers cannot be in one hall at one time, and a hall cannot be used for a
+ * paper while a lesson is timetabled in it — the exam service has to check both, because the
+ * timetable and the datesheet are built by different people at different times of year.
+ *
+ * <p>The number of students sitting must also fit the hall's {@code capacity}. Seating
+ * forty-five children in a room that holds thirty-six is the sort of thing that only becomes
+ * visible on the morning of the paper.
+ *
  * <p>This document is the register header for {@link ExamAttendance}, in the same
  * way {@code AttendanceSession} is the header for
  * {@code StudentAttendanceRecord}. Reaching {@code COMPLETED} closes attendance
@@ -50,7 +59,11 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'examDocsId': 1, 'examDate': 1, 'status': 1}"),
         @CompoundIndex(
                 name = "school_invigilator_exam_date_idx",
-                def = "{'schoolId': 1, 'invigilatorDocsIds': 1, 'examDate': 1, 'startTime': 1}")
+                def = "{'schoolId': 1, 'invigilatorDocsIds': 1, 'examDate': 1, 'startTime': 1}"),
+        @CompoundIndex(
+                name = "school_exam_schedule_room_idx",
+                def = "{'schoolId': 1, 'facilityResourceDocsId': 1, 'examDate': 1, 'startTime': 1}",
+                partialFilter = "{'facilityResourceDocsId': {'$type': 'string'}}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -109,9 +122,15 @@ public class ExamSchedule extends SchoolBase {
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal passingMarks;
 
-    // Optionally links to a future facility/resource document.
-    // Example: "67aa15d9dc3f7d0066666666"
-    private String roomResourceDocsId;
+    // Links to FacilityResource.id for the hall or room this paper is written in. Renamed
+    // from roomResourceDocsId on 2026-08-21: the comment used to say it pointed at "a
+    // future facility/resource document", and that future arrived when `facilities` was
+    // built. The name now says which collection, like every other link in the system.
+    //
+    // Null while a datesheet is still a draft and nobody has allocated halls. A published
+    // datesheet with no room on it is a datesheet that will be argued about on the morning.
+    // Example: "67c31122dc3f7d0011223344"
+    private String facilityResourceDocsId;
 
     // Links to invigilator Staff.id values.
     // Example: ["67aa15d9dc3f7d0077777777"]
