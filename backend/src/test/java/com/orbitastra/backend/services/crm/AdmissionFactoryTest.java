@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 
+import com.orbitastra.backend.old.services.crm.AdmissionFactory;
+
 class AdmissionFactoryTest {
 
     @Test

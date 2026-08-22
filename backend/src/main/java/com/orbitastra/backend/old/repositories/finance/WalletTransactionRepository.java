@@ -1,0 +1,17 @@
+package com.orbitastra.backend.old.repositories.finance;
+
+import java.util.List;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
+
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
+
+@Repository
+public interface WalletTransactionRepository extends MongoRepository<WalletTransaction, String> {
+    List<WalletTransaction> findByStudentDocsId(String studentDocsId);
+    List<WalletTransaction> findBySchoolIdAndStudentDocsId(String schoolId, String studentDocsId);
+    List<WalletTransaction> findByStudentDocsIdOrderByTransactionDateDesc(String studentDocsId);
+    boolean existsByReferenceNo(String referenceNo);
+    java.util.Optional<WalletTransaction> findByReferenceNo(String referenceNo);
+}

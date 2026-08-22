@@ -20,15 +20,16 @@ import org.mockito.Mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.exceptions.ConflictException;
 import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.Inquiry;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryFollowUp;
 import com.orbitastra.backend.models.old.crm.enums.InquiryStatus;
 import com.orbitastra.backend.models.old.staff.Staff;
-import com.orbitastra.backend.repositories.crm.AdmissionRepository;
-import com.orbitastra.backend.repositories.crm.InquiryRepository;
-import com.orbitastra.backend.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.exceptions.ConflictException;
+import com.orbitastra.backend.old.repositories.crm.AdmissionRepository;
+import com.orbitastra.backend.old.repositories.crm.InquiryRepository;
+import com.orbitastra.backend.old.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.services.crm.InquiryService;
 
 @ExtendWith(MockitoExtension.class)
 class InquiryServiceTest {

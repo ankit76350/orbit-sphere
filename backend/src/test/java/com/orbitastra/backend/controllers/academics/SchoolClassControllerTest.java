@@ -15,9 +15,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.orbitastra.backend.dto.academics.AddClassSubjectRequest;
 import com.orbitastra.backend.models.old.academics.SchoolClass;
-import com.orbitastra.backend.services.academics.SchoolClassService;
+import com.orbitastra.backend.old.controllers.academics.SchoolClassController;
+import com.orbitastra.backend.old.dto.academics.AddClassSubjectRequest;
+import com.orbitastra.backend.old.services.academics.SchoolClassService;
 
 @ExtendWith(MockitoExtension.class)
 public class SchoolClassControllerTest {

@@ -10,6 +10,8 @@ import java.util.List;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 
+import com.orbitastra.backend.old.config.ProjectFieldNamingMigration;
+
 class StudentFieldMigrationTest {
 
     @Test

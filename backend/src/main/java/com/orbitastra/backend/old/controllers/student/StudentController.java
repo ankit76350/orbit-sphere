@@ -1,0 +1,157 @@
+package com.orbitastra.backend.old.controllers.student;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
+import com.orbitastra.backend.old.dto.student.AcademicRecordRequest;
+import com.orbitastra.backend.old.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.old.dto.student.GuardianLinkRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.dto.student.UpdateAcademicRecordRequest;
+import com.orbitastra.backend.old.dto.student.UpdateStudentRequest;
+import com.orbitastra.backend.old.services.student.StudentService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/students")
+@RequiredArgsConstructor
+public class StudentController {
+
+    private final StudentService studentService;
+
+    /** Normal student creation API — creates a student directly from a request payload. */
+    @PostMapping
+    public ResponseEntity<StudentResponse> createStudent(@Valid @RequestBody CreateStudentRequest request) {
+        StudentResponse created = studentService.createStudent(request);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    // ----- DTO -> model mapping helpers -----
+
+    private static StudentAcademicRecord toAcademicRecord(AcademicRecordRequest r) {
+        return r == null ? null : r.toModel();
+    }
+
+    @GetMapping
+    public ResponseEntity<List<StudentResponse>> getAllStudents() {
+        return ResponseEntity.ok(studentService.getAllStudents());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<StudentResponse> getStudentById(@PathVariable String id) {
+        return ResponseEntity.ok(studentService.getStudentById(id));
+    }
+
+    @GetMapping("/admission/{admissionNo}")
+    public ResponseEntity<StudentResponse> getStudentByAdmissionNo(@PathVariable String admissionNo) {
+        return ResponseEntity.ok(studentService.getStudentByAdmissionNo(admissionNo));
+    }
+
+    @GetMapping(value = "/admission", params = "admissionNo")
+    public ResponseEntity<StudentResponse> getStudentByAdmissionNoQuery(
+            @RequestParam String admissionNo) {
+        return ResponseEntity.ok(studentService.getStudentByAdmissionNo(admissionNo));
+    }
+
+    @GetMapping("/school/{schoolId}")
+    public ResponseEntity<List<StudentResponse>> getStudentsBySchool(@PathVariable String schoolId) {
+        return ResponseEntity.ok(studentService.getStudentsBySchool(schoolId));
+    }
+
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<StudentResponse>> getStudentsBySchoolAndAcademicYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(studentService.getStudentsBySchoolAndAcademicYear(schoolId, academicYear));
+    }
+
+    @GetMapping("/class/{classDocsId}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByClass(@PathVariable String classDocsId) {
+        return ResponseEntity.ok(studentService.getStudentsByClass(classDocsId));
+    }
+
+    @GetMapping("/guardian/{guardianDocsId}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByGuardian(@PathVariable String guardianDocsId) {
+        return ResponseEntity.ok(studentService.getStudentsByGuardian(guardianDocsId));
+    }
+
+    @PostMapping("/{id}/guardians")
+    public ResponseEntity<StudentResponse> addGuardianLink(@PathVariable String id, @Valid @RequestBody GuardianLinkRequest request) {
+        return ResponseEntity.ok(studentService.addGuardianLink(id, request.toModel()));
+    }
+
+    @DeleteMapping("/{id}/guardians/{guardianDocsId}")
+    public ResponseEntity<StudentResponse> removeGuardianLink(@PathVariable String id, @PathVariable String guardianDocsId) {
+        return ResponseEntity.ok(studentService.removeGuardianLink(id, guardianDocsId));
+    }
+
+    @GetMapping("/hostel/{hostelRoomNo}")
+    public ResponseEntity<List<StudentResponse>> getStudentsByHostelRoom(@PathVariable String hostelRoomNo) {
+        return ResponseEntity.ok(studentService.getStudentsByHostelRoom(hostelRoomNo));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<StudentResponse> updateStudent(@PathVariable String id, @Valid @RequestBody UpdateStudentRequest request) {
+        Student studentDetails = Student.builder()
+                .admissionNo(request.getAdmissionNo())
+                .name(request.getName())
+                .dob(request.getDob())
+                .gender(request.getGender())
+                .bloodGroup(request.getBloodGroup())
+                .photoUrl(request.getPhotoUrl())
+                .walletDocsId(request.getWalletDocsId())
+                .medicalRecordDocsId(request.getMedicalRecordDocsId())
+                .documents(request.getDocuments())
+                .medicalRemark(request.getMedicalRemark())
+                .status(request.getStatus())
+                .admissionDate(request.getAdmissionDate())
+                .build();
+        StudentResponse updated = studentService.updateStudent(
+                id, studentDetails, toAcademicRecord(request.getCurrentAcademicRecord()));
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteStudent(@PathVariable String id) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(Map.of(
+                        "message",
+                        "Student deletion is not allowed. Student and academic records must be retained."));
+    }
+
+    @GetMapping("/{id}/academic-history")
+    public ResponseEntity<List<StudentAcademicRecord>> getStudentAcademicHistory(@PathVariable String id) {
+        List<StudentAcademicRecord> history = studentService.getAcademicHistory(id);
+        return ResponseEntity.ok(history);
+    }
+
+    @PostMapping("/{id}/academic-records")
+    public ResponseEntity<StudentAcademicRecord> assignAcademicRecord(
+            @PathVariable String id,
+            @Valid @RequestBody AcademicRecordRequest request) {
+        StudentAcademicRecord created = studentService.createAcademicRecord(id, toAcademicRecord(request));
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    @PatchMapping("/{studentDocsId}/academic-records/{academicRecordDocsId}")
+    public ResponseEntity<StudentAcademicRecord> updateAcademicRecord(
+            @PathVariable String studentDocsId,
+            @PathVariable String academicRecordDocsId,
+            @Valid @RequestBody UpdateAcademicRecordRequest request) {
+        return ResponseEntity.ok(studentService.updateAcademicRecord(
+                studentDocsId, academicRecordDocsId, request));
+    }
+
+    @GetMapping("/{id}/siblings")
+    public ResponseEntity<List<StudentResponse>> getStudentSiblings(@PathVariable String id) {
+        return ResponseEntity.ok(studentService.getSiblings(id));
+    }
+}

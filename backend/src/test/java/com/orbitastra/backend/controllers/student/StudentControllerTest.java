@@ -16,12 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.orbitastra.backend.dto.student.AcademicRecordRequest;
-import com.orbitastra.backend.dto.student.CreateStudentRequest;
-import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
 import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
-import com.orbitastra.backend.services.student.StudentService;
+import com.orbitastra.backend.old.controllers.student.StudentController;
+import com.orbitastra.backend.old.dto.student.AcademicRecordRequest;
+import com.orbitastra.backend.old.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.dto.student.UpdateAcademicRecordRequest;
+import com.orbitastra.backend.old.services.student.StudentService;
+
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;

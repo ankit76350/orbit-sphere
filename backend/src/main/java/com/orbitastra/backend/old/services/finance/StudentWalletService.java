@@ -1,0 +1,130 @@
+package com.orbitastra.backend.old.services.finance;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.orbitastra.backend.models.old.finance.StudentWallet;
+import com.orbitastra.backend.models.old.finance.WalletTransaction;
+import com.orbitastra.backend.models.old.finance.enums.TransactionType;
+import com.orbitastra.backend.models.old.student.Student;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.finance.StudentWalletRepository;
+import com.orbitastra.backend.old.repositories.finance.WalletTransactionRepository;
+import com.orbitastra.backend.old.repositories.student.StudentRepository;
+import com.orbitastra.backend.old.services.utils.GenerateUniqueId;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class StudentWalletService {
+
+    private final StudentWalletRepository studentWalletRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
+    private final StudentRepository studentRepository;
+
+    public StudentWallet getWalletByStudentDocsId(String studentDocsId) {
+        return studentWalletRepository.findByStudentDocsId(studentDocsId)
+                .orElseGet(() -> {
+                    Student student = studentRepository.findById(studentDocsId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
+                    throw new ResourceNotFoundException("Wallet not found for student " + student.getName() + ", want to open a wallet account?");
+                });
+    }
+
+    @Transactional
+    public StudentWallet openWallet(String studentDocsId) {
+        Student student = studentRepository.findById(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentDocsId));
+        if (studentWalletRepository.findByStudentDocsId(studentDocsId).isPresent()) {
+            throw new IllegalArgumentException("Wallet already exists for student with id: " + studentDocsId);
+        }
+        StudentWallet wallet = StudentWallet.builder()
+                .studentDocsId(studentDocsId)
+                .schoolId(student.getSchoolId())
+                .walletNo(GenerateUniqueId.generate("WLT", studentWalletRepository::existsByWalletNo))
+                .balance(new BigDecimal("0.0"))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        StudentWallet savedWallet = studentWalletRepository.save(wallet);
+        student.setWalletDocsId(savedWallet.getId());
+        studentRepository.save(student);
+        return savedWallet;
+    }
+
+    @Transactional
+    public WalletTransaction creditWallet(String studentDocsId, BigDecimal amount, String remarks) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Credit amount must be greater than zero.");
+        }
+        StudentWallet wallet = studentWalletRepository.findByStudentDocsId(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found for student with id: " + studentDocsId));
+        BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
+        BigDecimal newBalance = oldBalance.add(amount);
+        wallet.setBalance(newBalance);
+        wallet.setUpdatedAt(LocalDateTime.now());
+        studentWalletRepository.save(wallet);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .schoolId(wallet.getSchoolId())
+                .studentDocsId(studentDocsId)
+                .type(TransactionType.CREDIT)
+                .amount(amount)
+                .balanceAfter(newBalance)
+                .referenceNo(GenerateUniqueId.generate("WTR", walletTransactionRepository::existsByReferenceNo))
+                .remarks(remarks)
+                .transactionDate(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        return walletTransactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public WalletTransaction debitWallet(String studentDocsId, BigDecimal amount, String remarks) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Debit amount must be greater than zero.");
+        }
+        StudentWallet wallet = studentWalletRepository.findByStudentDocsId(studentDocsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found for student with id: " + studentDocsId));
+        BigDecimal oldBalance = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
+        if (oldBalance.compareTo(amount) < 0) {
+            throw new IllegalArgumentException("Insufficient wallet balance.");
+        }
+        BigDecimal newBalance = oldBalance.subtract(amount);
+        wallet.setBalance(newBalance);
+        wallet.setUpdatedAt(LocalDateTime.now());
+        studentWalletRepository.save(wallet);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .schoolId(wallet.getSchoolId())
+                .studentDocsId(studentDocsId)
+                .type(TransactionType.DEBIT)
+                .amount(amount)
+                .balanceAfter(newBalance)
+                .referenceNo(GenerateUniqueId.generate("WTR", walletTransactionRepository::existsByReferenceNo))
+                .remarks(remarks)
+                .transactionDate(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        return walletTransactionRepository.save(transaction);
+    }
+
+    public StudentWallet getWalletByWalletNo(String walletNo) {
+        String cleanWalletNo = walletNo != null && walletNo.startsWith("/") ? walletNo.substring(1) : walletNo;
+        return studentWalletRepository.findByWalletNo(cleanWalletNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Student wallet not found with walletNo: " + cleanWalletNo));
+    }
+
+    public WalletTransaction getWalletTransactionByReferenceNo(String referenceNo) {
+        String cleanReferenceNo = referenceNo != null && referenceNo.startsWith("/") ? referenceNo.substring(1) : referenceNo;
+        return walletTransactionRepository.findByReferenceNo(cleanReferenceNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet transaction not found with referenceNo: " + cleanReferenceNo));
+    }
+
+}

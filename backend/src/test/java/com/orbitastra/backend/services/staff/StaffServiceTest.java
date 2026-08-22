@@ -16,8 +16,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.models.old.staff.Staff;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.repositories.core.SchoolRepository;
+import com.orbitastra.backend.old.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.services.staff.StaffService;
 
 @ExtendWith(MockitoExtension.class)
 class StaffServiceTest {

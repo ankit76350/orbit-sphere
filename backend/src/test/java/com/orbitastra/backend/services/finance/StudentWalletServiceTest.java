@@ -13,14 +13,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.finance.StudentWallet;
 import com.orbitastra.backend.models.old.finance.WalletTransaction;
 import com.orbitastra.backend.models.old.finance.enums.TransactionType;
 import com.orbitastra.backend.models.old.student.Student;
-import com.orbitastra.backend.repositories.finance.StudentWalletRepository;
-import com.orbitastra.backend.repositories.finance.WalletTransactionRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.finance.StudentWalletRepository;
+import com.orbitastra.backend.old.repositories.finance.WalletTransactionRepository;
+import com.orbitastra.backend.old.repositories.student.StudentRepository;
+import com.orbitastra.backend.old.services.finance.StudentWalletService;
 
 @ExtendWith(MockitoExtension.class)
 public class StudentWalletServiceTest {

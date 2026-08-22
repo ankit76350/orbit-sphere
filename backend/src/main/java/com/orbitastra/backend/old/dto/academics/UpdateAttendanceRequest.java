@@ -1,0 +1,29 @@
+package com.orbitastra.backend.old.dto.academics;
+
+import java.time.LocalDate;
+
+import com.orbitastra.backend.models.old.academics.enums.AttendanceStatus;
+
+import lombok.Data;
+
+/**
+ * Partial-update payload for an attendance record (PATCH). All fields optional;
+ * only non-null fields are applied. {@code academicYear} is accepted only so the
+ * service can reject an attempt to change it.
+ */
+@Data
+public class UpdateAttendanceRequest {
+
+    private String schoolId;
+
+    private String academicYear;
+
+    private String studentDocsId;
+
+    private LocalDate date;
+
+    private AttendanceStatus status;
+
+    private String presentByDocsId;
+
+}

@@ -1,0 +1,115 @@
+package com.orbitastra.backend.old.controllers.crm;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.orbitastra.backend.models.old.crm.Admission;
+import com.orbitastra.backend.models.old.crm.enums.AdmissionStatus;
+import com.orbitastra.backend.old.dto.crm.AddAdmissionDocumentRequest;
+import com.orbitastra.backend.old.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.old.dto.crm.CreateAdmissionRequest;
+import com.orbitastra.backend.old.dto.crm.InquiryGuardianRequest;
+import com.orbitastra.backend.old.dto.crm.UpdateAdmissionRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.services.crm.AdmissionService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admissions")
+@RequiredArgsConstructor
+public class AdmissionController {
+
+    private final AdmissionService admissionService;
+
+    @PostMapping
+    public ResponseEntity<Admission> createAdmission(@Valid @RequestBody CreateAdmissionRequest request) {
+        return new ResponseEntity<>(admissionService.createAdmission(request.toModel()), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Admission> getAdmissionById(@PathVariable String id) {
+        return ResponseEntity.ok(admissionService.getAdmissionById(id));
+    }
+
+    @GetMapping("/number/{admissionNo}")
+    public ResponseEntity<Admission> getAdmissionByAdmissionNo(@PathVariable String admissionNo) {
+        return ResponseEntity.ok(admissionService.getAdmissionByAdmissionNo(admissionNo));
+    }
+
+    @GetMapping(value = "/number", params = "admissionNo")
+    public ResponseEntity<Admission> getAdmissionByAdmissionNoQuery(
+            @RequestParam String admissionNo) {
+        return ResponseEntity.ok(admissionService.getAdmissionByAdmissionNo(admissionNo));
+    }
+
+    @GetMapping("/school/{schoolId}")
+    public ResponseEntity<List<Admission>> getAdmissionsBySchool(@PathVariable String schoolId) {
+        return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
+    }
+
+    @GetMapping("/school/{schoolId}/academic-year/{academicYear}")
+    public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndYear(
+            @PathVariable String schoolId,
+            @PathVariable String academicYear) {
+        return ResponseEntity.ok(admissionService.getAdmissionsBySchool(schoolId));
+    }
+
+    @GetMapping("/school/{schoolId}/status/{status}")
+    public ResponseEntity<List<Admission>> getAdmissionsBySchoolAndStatus(
+            @PathVariable String schoolId,
+            @PathVariable AdmissionStatus status) {
+        return ResponseEntity.ok(admissionService.getAdmissionsBySchoolAndStatus(schoolId, status));
+    }
+
+    @GetMapping("/inquiry/{inquiryDocsId}")
+    public ResponseEntity<List<Admission>> getAdmissionsByInquiry(@PathVariable String inquiryDocsId) {
+        return ResponseEntity.ok(admissionService.getAdmissionsByInquiry(inquiryDocsId));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<Admission> updateAdmission(@PathVariable String id, @Valid @RequestBody UpdateAdmissionRequest request) {
+        return ResponseEntity.ok(admissionService.updateAdmission(id, request.toModel()));
+    }
+
+    @PostMapping("/{admissionDocsId}/guardians")
+    public ResponseEntity<Admission> addGuardian(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody InquiryGuardianRequest request) {
+        return ResponseEntity.ok(admissionService.addGuardian(admissionDocsId, request.toModel()));
+    }
+
+    @PostMapping("/{admissionDocsId}/documents")
+    public ResponseEntity<Admission> addDocument(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody AddAdmissionDocumentRequest request) {
+        return ResponseEntity.ok(admissionService.addDocument(admissionDocsId, request.getDocument()));
+    }
+
+    @PostMapping("/{admissionDocsId}/student")
+    public ResponseEntity<StudentResponse> createStudentFromAdmission(
+            @PathVariable String admissionDocsId,
+            @Valid @RequestBody(required = false) ConvertAdmissionRequest request) {
+        StudentResponse created = admissionService.convertToStudent(admissionDocsId, request);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteAdmission(@PathVariable String id) {
+        admissionService.deleteAdmission(id);
+        return ResponseEntity.ok(Map.of("message", "Admission deleted successfully."));
+    }
+}

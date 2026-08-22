@@ -16,10 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.models.old.academics.SchoolClass;
 import com.orbitastra.backend.models.old.staff.Staff;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
-import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.old.repositories.core.SchoolRepository;
+import com.orbitastra.backend.old.repositories.staff.StaffRepository;
+import com.orbitastra.backend.old.services.academics.SchoolClassService;
 
 @ExtendWith(MockitoExtension.class)
 public class SchoolClassServiceTest {

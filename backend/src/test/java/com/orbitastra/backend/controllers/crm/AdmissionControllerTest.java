@@ -16,14 +16,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.orbitastra.backend.dto.crm.AddAdmissionDocumentRequest;
-import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
-import com.orbitastra.backend.dto.crm.InquiryGuardianRequest;
-import com.orbitastra.backend.dto.student.StudentResponse;
 import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
 import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
-import com.orbitastra.backend.services.crm.AdmissionService;
+import com.orbitastra.backend.old.controllers.crm.AdmissionController;
+import com.orbitastra.backend.old.dto.crm.AddAdmissionDocumentRequest;
+import com.orbitastra.backend.old.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.old.dto.crm.InquiryGuardianRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.services.crm.AdmissionService;
 
 @ExtendWith(MockitoExtension.class)
 class AdmissionControllerTest {

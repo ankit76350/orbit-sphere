@@ -16,16 +16,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.old.finance.FeeInvoice;
 import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.old.finance.enums.FeeType;
 import com.orbitastra.backend.models.old.student.Student;
-import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
-import com.orbitastra.backend.repositories.finance.FeeRepository;
-import com.orbitastra.backend.services.utils.AcademicYearResolver;
-import com.orbitastra.backend.services.utils.StudentValidator;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.finance.FeePaymentRepository;
+import com.orbitastra.backend.old.repositories.finance.FeeRepository;
+import com.orbitastra.backend.old.services.finance.FeeService;
+import com.orbitastra.backend.old.services.utils.AcademicYearResolver;
+import com.orbitastra.backend.old.services.utils.StudentValidator;
 
 @ExtendWith(MockitoExtension.class)
 public class FeeServiceTest {

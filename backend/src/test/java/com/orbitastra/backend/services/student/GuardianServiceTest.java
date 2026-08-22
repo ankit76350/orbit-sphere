@@ -19,12 +19,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.student.Guardian;
 import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
-import com.orbitastra.backend.repositories.student.GuardianRepository;
-import com.orbitastra.backend.services.student.GuardianService.GuardianDraft;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.student.GuardianRepository;
+import com.orbitastra.backend.old.services.student.GuardianService;
+import com.orbitastra.backend.old.services.student.GuardianService.GuardianDraft;
 
 @ExtendWith(MockitoExtension.class)
 class GuardianServiceTest {

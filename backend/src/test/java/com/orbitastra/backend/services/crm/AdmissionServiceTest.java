@@ -27,12 +27,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
-import com.orbitastra.backend.dto.crm.ConvertAdmissionRequest;
-import com.orbitastra.backend.dto.student.AcademicRecordRequest;
-import com.orbitastra.backend.dto.student.StudentGuardianRequest;
-import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.exceptions.ConflictException;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.crm.Admission;
 import com.orbitastra.backend.models.old.crm.Inquiry;
 import com.orbitastra.backend.models.old.crm.embedded.InquiryGuardian;
@@ -42,9 +36,17 @@ import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.old.student.enums.Gender;
 import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
-import com.orbitastra.backend.repositories.crm.AdmissionRepository;
-import com.orbitastra.backend.services.student.GuardianService;
-import com.orbitastra.backend.services.student.StudentService;
+import com.orbitastra.backend.old.dto.crm.ConvertAdmissionRequest;
+import com.orbitastra.backend.old.dto.student.AcademicRecordRequest;
+import com.orbitastra.backend.old.dto.student.StudentGuardianRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.exceptions.ConflictException;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.crm.AdmissionRepository;
+import com.orbitastra.backend.old.services.crm.AdmissionService;
+import com.orbitastra.backend.old.services.crm.InquiryService;
+import com.orbitastra.backend.old.services.student.GuardianService;
+import com.orbitastra.backend.old.services.student.StudentService;
 
 @ExtendWith(MockitoExtension.class)
 class AdmissionServiceTest {

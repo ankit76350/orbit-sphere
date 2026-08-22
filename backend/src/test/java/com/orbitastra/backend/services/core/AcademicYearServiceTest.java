@@ -18,8 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbitastra.backend.models.old.core.AcademicYear;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.old.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.old.repositories.core.SchoolRepository;
+import com.orbitastra.backend.old.services.core.AcademicYearService;
 
 @ExtendWith(MockitoExtension.class)
 class AcademicYearServiceTest {

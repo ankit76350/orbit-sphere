@@ -20,6 +20,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import com.mongodb.client.result.UpdateResult;
+import com.orbitastra.backend.old.config.ProjectFieldNamingMigration;
 
 @ExtendWith(MockitoExtension.class)
 class InquiryFieldMigrationTest {

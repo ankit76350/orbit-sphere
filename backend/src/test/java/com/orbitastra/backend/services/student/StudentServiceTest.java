@@ -17,8 +17,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
-import com.orbitastra.backend.exceptions.ConflictException;
-import com.orbitastra.backend.exceptions.ResourceNotFoundException;
 import com.orbitastra.backend.models.old.academics.SchoolClass;
 import com.orbitastra.backend.models.old.core.AcademicYear;
 import com.orbitastra.backend.models.old.core.School;
@@ -27,17 +25,21 @@ import com.orbitastra.backend.models.old.student.StudentAcademicRecord;
 import com.orbitastra.backend.models.old.student.embedded.GuardianLink;
 import com.orbitastra.backend.models.old.student.enums.GuardianRelation;
 import com.orbitastra.backend.models.old.student.enums.StudentStatus;
-import com.orbitastra.backend.repositories.student.GuardianRepository;
-import com.orbitastra.backend.repositories.student.StudentRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.student.StudentAcademicRecordRepository;
-import com.orbitastra.backend.repositories.academics.SchoolClassRepository;
-import com.orbitastra.backend.dto.student.CreateStudentRequest;
-import com.orbitastra.backend.dto.student.AcademicRecordRequest;
-import com.orbitastra.backend.dto.student.StudentGuardianRequest;
-import com.orbitastra.backend.dto.student.StudentResponse;
-import com.orbitastra.backend.dto.student.UpdateAcademicRecordRequest;
-import com.orbitastra.backend.services.utils.AcademicYearResolver;
+import com.orbitastra.backend.old.dto.student.AcademicRecordRequest;
+import com.orbitastra.backend.old.dto.student.CreateStudentRequest;
+import com.orbitastra.backend.old.dto.student.StudentGuardianRequest;
+import com.orbitastra.backend.old.dto.student.StudentResponse;
+import com.orbitastra.backend.old.dto.student.UpdateAcademicRecordRequest;
+import com.orbitastra.backend.old.exceptions.ConflictException;
+import com.orbitastra.backend.old.exceptions.ResourceNotFoundException;
+import com.orbitastra.backend.old.repositories.academics.SchoolClassRepository;
+import com.orbitastra.backend.old.repositories.core.SchoolRepository;
+import com.orbitastra.backend.old.repositories.student.GuardianRepository;
+import com.orbitastra.backend.old.repositories.student.StudentAcademicRecordRepository;
+import com.orbitastra.backend.old.repositories.student.StudentRepository;
+import com.orbitastra.backend.old.services.student.GuardianService;
+import com.orbitastra.backend.old.services.student.StudentService;
+import com.orbitastra.backend.old.services.utils.AcademicYearResolver;
 
 @ExtendWith(MockitoExtension.class)
 public class StudentServiceTest {

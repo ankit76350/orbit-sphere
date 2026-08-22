@@ -21,7 +21,10 @@ import com.orbitastra.backend.models.old.finance.FeePayment;
 import com.orbitastra.backend.models.old.finance.enums.FeeStatus;
 import com.orbitastra.backend.models.old.finance.enums.FeeType;
 import com.orbitastra.backend.models.old.finance.enums.PaymentMode;
-import com.orbitastra.backend.repositories.finance.FeePaymentRepository;
+import com.orbitastra.backend.old.repositories.finance.FeePaymentRepository;
+import com.orbitastra.backend.old.services.finance.FeePaymentService;
+import com.orbitastra.backend.old.services.finance.FeeService;
+import com.orbitastra.backend.old.services.finance.StudentWalletService;
 
 @ExtendWith(MockitoExtension.class)
 public class FeePaymentServiceTest {
@@ -255,7 +258,7 @@ public class FeePaymentServiceTest {
     void getPaymentByReceiptNo_PaymentNotFound_ThrowsException() {
         when(feePaymentRepository.findByReceiptNo("RPN/2026/07/2501")).thenReturn(java.util.Optional.empty());
 
-        assertThrows(com.orbitastra.backend.exceptions.ResourceNotFoundException.class, () -> {
+        assertThrows(com.orbitastra.backend.old.exceptions.ResourceNotFoundException.class, () -> {
             feePaymentService.getPaymentByReceiptNo("RPN/2026/07/2501");
         });
     }
