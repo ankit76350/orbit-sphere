@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.examination;
+package com.orbitastra.backend.models.academics.examination;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,8 +12,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.academics.enums.ExamScheduleStatus;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.academics.enums.ExamScheduleStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

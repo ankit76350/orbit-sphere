@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.billing.embedded;
+package com.orbitastra.backend.models.finance.billing.embedded;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.finance.enums.FeeCategory;
+import com.orbitastra.backend.models.finance.enums.FeeCategory;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

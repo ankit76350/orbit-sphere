@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.base.enums;
+package com.orbitastra.backend.models.base.enums;
 
 /**
  * Recoverable lifecycle state shared by school-owned documents.

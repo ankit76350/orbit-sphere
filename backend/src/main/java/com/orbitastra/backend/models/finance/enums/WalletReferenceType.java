@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.finance.enums;
 
 /**
  * Which record caused a StoredValueLedgerEntry to be written.

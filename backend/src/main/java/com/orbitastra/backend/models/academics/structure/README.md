@@ -173,7 +173,7 @@ Stored inside `SchoolClass.sections`. It has no collection, no id, and no
 `sectionNo` is a stable business key stored as a plain string by six other
 collections. The shared rules for it — uniqueness inside the owning class,
 immutability once referenced, and deactivation instead of deletion — are in
-`new_new/README.md` and apply here.
+`models/README.md` and apply here.
 
 ## ClassSubject — embedded
 

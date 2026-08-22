@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate.enums;
+package com.orbitastra.backend.models.gate.enums;
 
 /**
  * Who or what went through the gate.

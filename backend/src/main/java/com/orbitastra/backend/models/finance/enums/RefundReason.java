@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.finance.enums;
 
 /**
  * Why money is being sent back to the payer.

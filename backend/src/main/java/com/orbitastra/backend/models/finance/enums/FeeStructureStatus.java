@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.finance.enums;
 
 /**
  * Publication state of one version of a FeeStructure.

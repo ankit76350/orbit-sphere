@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.wallet;
+package com.orbitastra.backend.models.finance.wallet;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,10 +9,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.finance.enums.WalletAccountStatus;
-import com.orbitastra.backend.models.new_new.finance.enums.WalletAccountType;
-import com.orbitastra.backend.models.new_new.finance.enums.WalletOwnerType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.finance.enums.WalletAccountStatus;
+import com.orbitastra.backend.models.finance.enums.WalletAccountType;
+import com.orbitastra.backend.models.finance.enums.WalletOwnerType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

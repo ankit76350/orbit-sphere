@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.inventory;
+package com.orbitastra.backend.models.inventory;
 
 import java.math.BigDecimal;
 
@@ -8,9 +8,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.inventory.enums.InventoryItemType;
-import com.orbitastra.backend.models.new_new.inventory.enums.UnitOfMeasure;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.inventory.enums.InventoryItemType;
+import com.orbitastra.backend.models.inventory.enums.UnitOfMeasure;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.leave;
+package com.orbitastra.backend.models.people.leave;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,8 +12,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.people.leave.enums.LeaveRequestStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.people.leave.enums.LeaveRequestStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.leave.enums;
+package com.orbitastra.backend.models.people.leave.enums;
 
 /**
  * Workflow lifecycle of a StaffLeaveRequest.

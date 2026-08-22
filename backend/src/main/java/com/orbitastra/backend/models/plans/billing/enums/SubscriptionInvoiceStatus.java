@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.billing.enums;
+package com.orbitastra.backend.models.plans.billing.enums;
 
 /**
  * Financial lifecycle of a SubscriptionInvoice.

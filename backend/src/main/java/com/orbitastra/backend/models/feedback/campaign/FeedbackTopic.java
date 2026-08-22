@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.campaign;
+package com.orbitastra.backend.models.feedback.campaign;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,12 +7,12 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.feedback.campaign.embedded.FeedbackQuestion;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackAnonymityMode;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackSubjectType;
-import com.orbitastra.backend.models.new_new.feedback.campaign.enums.FeedbackVisibility;
-import com.orbitastra.backend.models.new_new.identity.enums.PersonType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.feedback.campaign.embedded.FeedbackQuestion;
+import com.orbitastra.backend.models.feedback.enums.FeedbackAnonymityMode;
+import com.orbitastra.backend.models.feedback.enums.FeedbackSubjectType;
+import com.orbitastra.backend.models.feedback.campaign.enums.FeedbackVisibility;
+import com.orbitastra.backend.models.identity.enums.PersonType;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.support.enums;
+package com.orbitastra.backend.models.support.enums;
 
 /**
  * Whether one session of extra help actually happened.

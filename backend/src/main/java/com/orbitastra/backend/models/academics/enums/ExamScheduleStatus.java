@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** Lifecycle of one scheduled examination paper or component. */
 public enum ExamScheduleStatus {

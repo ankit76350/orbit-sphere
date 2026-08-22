@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.people.reviews.embedded;
+package com.orbitastra.backend.models.people.reviews.embedded;
 
-import com.orbitastra.backend.models.new_new.people.reviews.enums.ReviewerType;
+import com.orbitastra.backend.models.people.reviews.enums.ReviewerType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

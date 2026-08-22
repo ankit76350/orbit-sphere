@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.common.enums;
+package com.orbitastra.backend.models.common.enums;
 
 /**
  * What kind of government or tax document somebody showed.

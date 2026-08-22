@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** Student group receiving a homework assignment. */
 public enum HomeworkScope {

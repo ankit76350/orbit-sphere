@@ -1,10 +1,10 @@
-package com.orbitastra.backend.models.new_new.feedback.campaign.embedded;
+package com.orbitastra.backend.models.feedback.campaign.embedded;
 
 import java.util.ArrayList;
 import java.util.List;
 
 
-import com.orbitastra.backend.models.new_new.feedback.campaign.enums.FeedbackQuestionType;
+import com.orbitastra.backend.models.feedback.campaign.enums.FeedbackQuestionType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

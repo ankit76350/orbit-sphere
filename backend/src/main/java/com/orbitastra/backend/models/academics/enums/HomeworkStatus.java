@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** Publication lifecycle of a homework assignment. */
 public enum HomeworkStatus {

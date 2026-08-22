@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport;
+package com.orbitastra.backend.models.transport;
 
 import java.time.LocalDate;
 
@@ -6,10 +6,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.transport.enums.FuelType;
-import com.orbitastra.backend.models.new_new.transport.enums.VehicleStatus;
-import com.orbitastra.backend.models.new_new.transport.enums.VehicleType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.transport.enums.FuelType;
+import com.orbitastra.backend.models.transport.enums.VehicleStatus;
+import com.orbitastra.backend.models.transport.enums.VehicleType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

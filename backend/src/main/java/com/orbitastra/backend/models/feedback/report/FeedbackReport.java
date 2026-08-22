@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.report;
+package com.orbitastra.backend.models.feedback.report;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -10,13 +10,13 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackAnonymityMode;
-import com.orbitastra.backend.models.new_new.feedback.enums.FeedbackSubjectType;
-import com.orbitastra.backend.models.new_new.feedback.report.embedded.FeedbackReportMessage;
-import com.orbitastra.backend.models.new_new.feedback.report.enums.FeedbackReportCategory;
-import com.orbitastra.backend.models.new_new.feedback.report.enums.FeedbackReportStatus;
-import com.orbitastra.backend.models.new_new.identity.enums.PersonType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.feedback.enums.FeedbackAnonymityMode;
+import com.orbitastra.backend.models.feedback.enums.FeedbackSubjectType;
+import com.orbitastra.backend.models.feedback.report.embedded.FeedbackReportMessage;
+import com.orbitastra.backend.models.feedback.report.enums.FeedbackReportCategory;
+import com.orbitastra.backend.models.feedback.report.enums.FeedbackReportStatus;
+import com.orbitastra.backend.models.identity.enums.PersonType;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

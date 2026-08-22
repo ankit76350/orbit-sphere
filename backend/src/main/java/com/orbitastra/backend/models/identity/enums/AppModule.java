@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.identity.enums;
+package com.orbitastra.backend.models.identity.enums;
 
 /**
  * One part of the application that permissions can be given for.

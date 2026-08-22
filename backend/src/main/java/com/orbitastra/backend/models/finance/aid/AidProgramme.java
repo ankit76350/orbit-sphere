@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.aid;
+package com.orbitastra.backend.models.finance.aid;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,8 +11,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.finance.enums.AidType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.finance.enums.AidType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

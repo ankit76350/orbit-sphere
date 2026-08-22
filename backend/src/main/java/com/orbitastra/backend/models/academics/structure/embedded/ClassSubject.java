@@ -1,9 +1,9 @@
-package com.orbitastra.backend.models.new_new.academics.structure.embedded;
+package com.orbitastra.backend.models.academics.structure.embedded;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.orbitastra.backend.models.new_new.academics.enums.SubjectType;
+import com.orbitastra.backend.models.academics.enums.SubjectType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

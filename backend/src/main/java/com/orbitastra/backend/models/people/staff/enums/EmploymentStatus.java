@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.staff.enums;
+package com.orbitastra.backend.models.people.staff.enums;
 
 /**
  * Business lifecycle of one EmploymentRecord.

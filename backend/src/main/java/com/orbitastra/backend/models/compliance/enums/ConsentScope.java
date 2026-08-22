@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.compliance.enums;
+package com.orbitastra.backend.models.compliance.enums;
 
 /**
  * Whether a consent stands for everything of its kind, or was given for one occasion.

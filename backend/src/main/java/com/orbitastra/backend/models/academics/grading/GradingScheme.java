@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.grading;
+package com.orbitastra.backend.models.academics.grading;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -10,9 +10,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.academics.enums.GradingScaleType;
-import com.orbitastra.backend.models.new_new.academics.grading.embedded.GradeBand;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.academics.enums.GradingScaleType;
+import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

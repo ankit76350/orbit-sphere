@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.finance.enums;
 
 /**
  * Whether a school's payment gateway is ready to take money.

@@ -14,7 +14,7 @@ student/
     └── AcademicRecordStatus.java
 ```
 
-Gender and GuardianRelation are shared from `new_new/common/enums` instead of
+Gender and GuardianRelation are shared from `common/enums` instead of
 being duplicated inside the student package.
 
 ## Relationship

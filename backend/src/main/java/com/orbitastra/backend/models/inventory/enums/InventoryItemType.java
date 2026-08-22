@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.inventory.enums;
+package com.orbitastra.backend.models.inventory.enums;
 
 /**
  * How an item behaves, which decides almost everything else about it.

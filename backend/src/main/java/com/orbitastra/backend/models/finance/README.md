@@ -13,20 +13,19 @@ Six of them extend `AcademicStudentSchoolBase` and additionally carry
 
 ## Where these models came from
 
-These sketches were consumed and then **deleted** as each part was rebuilt, so the paths below
-no longer exist. The table is kept because it says where the design came from, not where to
-look.
+This package was built from a set of design sketches that were **all deleted on 2026-08-21**,
+along with the whole `models/undone` tree and the legacy `models/old` package. Nothing below is
+a path you can open; the table records what fed which part of the design.
 
-| Source (removed) | Contribution |
+| Source (deleted) | Contribution |
 |---|---|
-| `undone/a_new/billing` | invoice, payment, allocation, refund, settlement, wallet |
-| `undone/a_new/accounting` | bank account (the rest was removed 2026-08-12) |
-| `undone/a_new/aid` | scholarship programme, application, award |
-| `undone/a_working/feeengine` | fee heads, structures, concessions, gateway, mandate, dunning |
-| `models/finance` (legacy) | the four collections this package supersedes |
+| `a_new/billing` | invoice, payment, allocation, refund, settlement, wallet |
+| `a_new/accounting` | bank account (the rest was dropped on 2026-08-12) |
+| `a_new/aid` | scholarship programme, application, award |
+| `a_working/feeengine` | fee heads, structures, concessions, gateway, mandate, dunning |
+| legacy `models/finance` | the four collections this package superseded |
 
-`undone/a_new` was a design sketch and does not compile; its base classes were
-deleted in commit `4f31d20`. Nothing was copied from it directly. `tenantId`
+The sketches never compiled and nothing was copied from them directly. `tenantId`
 became the inherited `schoolId`, `campusDocsId` and `legalEntityDocsId` were
 dropped because this platform has no campus or legal-entity boundary, every
 `String` status became a typed enum, and every globally unique business number
@@ -67,7 +66,7 @@ BankAccount  (which bank the money sat in)
 
 The legacy package is still wired to live repositories, services and
 controllers, so it stays in place until a migration runs. `fee_invoices` and
-`fee_payments` are reused as collection names, following how `new_new` already
+`fee_payments` are reused as collection names, following how the rest of `models` already
 supersedes `students` and `guardians`.
 
 | Legacy | Replaced by | Why |

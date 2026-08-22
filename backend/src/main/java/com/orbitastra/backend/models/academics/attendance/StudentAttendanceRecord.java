@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.attendance;
+package com.orbitastra.backend.models.academics.attendance;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -8,9 +8,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.academics.enums.AttendanceSource;
-import com.orbitastra.backend.models.new_new.academics.enums.AttendanceStatus;
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.academics.enums.AttendanceSource;
+import com.orbitastra.backend.models.academics.enums.AttendanceStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;

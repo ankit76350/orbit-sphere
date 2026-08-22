@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.enums;
+package com.orbitastra.backend.models.finance.enums;
 
 /**
  * Shared maker-checker state for finance records that one user raises and a

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement.enums;
+package com.orbitastra.backend.models.procurement.enums;
 
 /**
  * Where a vendor's bill has got to on its way to being paid.

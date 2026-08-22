@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** How achievement is represented by a grading scheme. */
 public enum GradingScaleType {

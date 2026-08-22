@@ -1,6 +1,6 @@
 # Shared naming conventions
 
-This file holds conventions that cross package boundaries in the `new_new`
+This file holds conventions that cross package boundaries in the `models`
 collection design. Package-specific mapping is documented in each package's own
 README.
 

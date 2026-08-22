@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate;
+package com.orbitastra.backend.models.gate;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,11 +7,11 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.gate.enums.MovementDirection;
-import com.orbitastra.backend.models.new_new.gate.enums.MovementExceptionType;
-import com.orbitastra.backend.models.new_new.gate.enums.MovementSubjectType;
-import com.orbitastra.backend.models.new_new.common.enums.IdentificationMethod;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.gate.enums.MovementDirection;
+import com.orbitastra.backend.models.gate.enums.MovementExceptionType;
+import com.orbitastra.backend.models.gate.enums.MovementSubjectType;
+import com.orbitastra.backend.models.common.enums.IdentificationMethod;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

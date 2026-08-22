@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.billing;
+package com.orbitastra.backend.models.finance.billing;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,10 +12,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.finance.billing.embedded.FeeInvoiceLine;
-import com.orbitastra.backend.models.new_new.finance.enums.ChargeSourceType;
-import com.orbitastra.backend.models.new_new.finance.enums.FeeInvoiceStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.finance.billing.embedded.FeeInvoiceLine;
+import com.orbitastra.backend.models.finance.enums.ChargeSourceType;
+import com.orbitastra.backend.models.finance.enums.FeeInvoiceStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

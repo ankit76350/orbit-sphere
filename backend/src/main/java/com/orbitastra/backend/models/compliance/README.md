@@ -181,9 +181,10 @@ What belongs here remains the obligation to produce one, not the document.
 
 ## Deliberately left out
 
-- **The enterprise privacy surface.** `undone/a_new/privacy` has ten models: processing
-  activity registers, data protection impact assessments, data disclosure logs, legal holds,
-  breach incidents, retention rules. Real obligations for a large data processor; a school
+- **The enterprise privacy surface.** Ten deleted sketches covered it: `ProcessingActivity`,
+  `DataProtectionAssessment`, `DataDisclosure`, `DataProcessor`, `LegalHold`, `PrivacyIncident`,
+  `PrivacyNotice`, `PrivacyRequest`, `RetentionRule` and `ConsentRecord` — processing registers,
+  impact assessments, disclosure logs, legal holds, breach incidents and retention rules. Real obligations for a large data processor; a school
   needs the consent record and little else. Design them when a school is actually asked for a
   processing register.
 - **Data subject access requests.** A parent asking for everything the school holds on their

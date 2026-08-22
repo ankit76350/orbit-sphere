@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.mess;
+package com.orbitastra.backend.models.mess;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,9 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.IdentificationMethod;
-import com.orbitastra.backend.models.new_new.mess.enums.MealAttendanceStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.common.enums.IdentificationMethod;
+import com.orbitastra.backend.models.mess.enums.MealAttendanceStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

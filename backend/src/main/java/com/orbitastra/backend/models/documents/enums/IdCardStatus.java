@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.documents.enums;
+package com.orbitastra.backend.models.documents.enums;
 
 /**
  * Whether an ID card may still be used.

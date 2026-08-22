@@ -208,8 +208,11 @@ the system currently expresses. That is the prerequisite, not a detail.
 
 - **Safeguarding cases and confidential case notes.** See above. The prerequisite is
   named-person access control.
-- **Counselling and wellbeing case work.** Same reason. `WellbeingCase` and
-  `ConfidentialCaseNote` remain in `undone/a_new/support` as the sketch for it.
+- **Counselling and wellbeing case work.** Same reason. Sketches called `WellbeingCase` and
+  `ConfidentialCaseNote` existed and were deleted with the rest of `models/undone` on
+  2026-08-21. They held little the description above does not: a case with a counsellor, a
+  confidentiality level, and notes readable by named people rather than by a role. **The
+  prerequisite is still named-person access control, not a model.**
 - **Billing for external specialists.** A visiting therapist invoices the school or the family.
   That is a finance question, and `SupportProviderType.EXTERNAL_SPECIALIST` records only that
   they came.

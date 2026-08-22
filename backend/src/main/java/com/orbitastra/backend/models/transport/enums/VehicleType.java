@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.enums;
+package com.orbitastra.backend.models.transport.enums;
 
 /** What kind of vehicle the school runs. */
 public enum VehicleType {

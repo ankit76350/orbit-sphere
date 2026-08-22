@@ -107,7 +107,7 @@ and not enough to produce it ourselves. `BankAccount` does the same thing with
 account numbers.
 
 `AuthSession.refreshTokenHash` is unique **without** `schoolId`, unlike almost
-every other index in `new_new`. A token has to be unique everywhere, not just
+every other index in `models`. A token has to be unique everywhere, not just
 inside one school.
 
 ## Not tied to an academic year
@@ -148,8 +148,8 @@ check for today.
 
 ## What this replaces
 
-`models/undone/user` — `User`, `Role`, `RolePermission`, `RolePermissionMapping`,
-`AccessLevel`, `AppModule`.
+An earlier design, deleted on 2026-08-21: `User`, `Role`, `RolePermission`,
+`RolePermissionMapping`, `AccessLevel`, `AppModule`.
 
 | Old | New | Why |
 |---|---|---|

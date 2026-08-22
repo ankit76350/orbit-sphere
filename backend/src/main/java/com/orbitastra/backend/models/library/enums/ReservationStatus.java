@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.library.enums;
+package com.orbitastra.backend.models.library.enums;
 
 /**
  * How far a request for a book that is out has got.

@@ -1,7 +1,7 @@
-package com.orbitastra.backend.models.new_new.health.embedded;
+package com.orbitastra.backend.models.health.embedded;
 
-import com.orbitastra.backend.models.new_new.health.enums.AlertSeverity;
-import com.orbitastra.backend.models.new_new.health.enums.HealthAlertType;
+import com.orbitastra.backend.models.health.enums.AlertSeverity;
+import com.orbitastra.backend.models.health.enums.HealthAlertType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.health.enums;
+package com.orbitastra.backend.models.health.enums;
 
 /** What kind of thing the school has to know about a child. */
 public enum HealthAlertType {

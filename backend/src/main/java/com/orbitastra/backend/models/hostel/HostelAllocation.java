@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.hostel;
+package com.orbitastra.backend.models.hostel;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.hostel.enums.HostelAllocationStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.hostel.enums.HostelAllocationStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

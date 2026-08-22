@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.identity.enums;
+package com.orbitastra.backend.models.identity.enums;
 
 /**
  * Whether a login can be used right now.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate.enums;
+package com.orbitastra.backend.models.gate.enums;
 
 /** Which way somebody went through the gate. */
 public enum MovementDirection {

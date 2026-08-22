@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.library.enums;
+package com.orbitastra.backend.models.library.enums;
 
 /**
  * What state a physical copy is in.

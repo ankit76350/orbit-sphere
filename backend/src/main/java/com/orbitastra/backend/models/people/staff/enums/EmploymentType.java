@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.staff.enums;
+package com.orbitastra.backend.models.people.staff.enums;
 
 /**
  * Contractual work arrangement configured for a Position.

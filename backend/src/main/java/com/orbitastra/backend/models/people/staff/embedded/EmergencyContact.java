@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.staff.embedded;
+package com.orbitastra.backend.models.people.staff.embedded;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

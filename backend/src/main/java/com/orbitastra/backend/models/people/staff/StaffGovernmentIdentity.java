@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.staff;
+package com.orbitastra.backend.models.people.staff;
 
 import java.time.Instant;
 
@@ -6,9 +6,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.GovernmentIdentityType;
-import com.orbitastra.backend.models.new_new.common.enums.IdentityVerificationStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.GovernmentIdentityType;
+import com.orbitastra.backend.models.common.enums.IdentityVerificationStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

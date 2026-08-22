@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.audit.embedded;
+package com.orbitastra.backend.models.audit.embedded;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

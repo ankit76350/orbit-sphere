@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.library;
+package com.orbitastra.backend.models.library;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -10,9 +10,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.library.enums.BookCondition;
-import com.orbitastra.backend.models.new_new.library.enums.BookCopyStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.library.enums.BookCondition;
+import com.orbitastra.backend.models.library.enums.BookCopyStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

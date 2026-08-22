@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.compliance;
+package com.orbitastra.backend.models.compliance;
 
 import java.time.Instant;
 
@@ -6,11 +6,11 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.compliance.enums.ConsentChannel;
-import com.orbitastra.backend.models.new_new.compliance.enums.ConsentPurpose;
-import com.orbitastra.backend.models.new_new.compliance.enums.ConsentScope;
-import com.orbitastra.backend.models.new_new.compliance.enums.ConsentStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.compliance.enums.ConsentChannel;
+import com.orbitastra.backend.models.compliance.enums.ConsentPurpose;
+import com.orbitastra.backend.models.compliance.enums.ConsentScope;
+import com.orbitastra.backend.models.compliance.enums.ConsentStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

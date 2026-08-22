@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate.enums;
+package com.orbitastra.backend.models.gate.enums;
 
 /**
  * What was wrong about a movement that was recorded anyway.

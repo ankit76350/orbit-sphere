@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.config;
+package com.orbitastra.backend.models.finance.config;
 
 import java.math.BigDecimal;
 
@@ -8,9 +8,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.finance.enums.FeeCategory;
-import com.orbitastra.backend.models.new_new.finance.enums.FeeFrequency;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.finance.enums.FeeCategory;
+import com.orbitastra.backend.models.finance.enums.FeeFrequency;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

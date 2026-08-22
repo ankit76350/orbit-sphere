@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement.embedded;
+package com.orbitastra.backend.models.procurement.embedded;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

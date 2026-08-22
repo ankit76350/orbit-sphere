@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans;
+package com.orbitastra.backend.models.plans;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,10 +11,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.AuditedDocument;
-import com.orbitastra.backend.models.new_new.plans.embedded.PlanFeature;
-import com.orbitastra.backend.models.new_new.plans.enums.BillingCycle;
-import com.orbitastra.backend.models.new_new.plans.enums.PlanStatus;
+import com.orbitastra.backend.models.base.AuditedDocument;
+import com.orbitastra.backend.models.plans.embedded.PlanFeature;
+import com.orbitastra.backend.models.plans.enums.BillingCycle;
+import com.orbitastra.backend.models.plans.enums.PlanStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

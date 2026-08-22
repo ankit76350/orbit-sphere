@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.inventory.enums;
+package com.orbitastra.backend.models.inventory.enums;
 
 /**
  * Whether something lent out has come back.

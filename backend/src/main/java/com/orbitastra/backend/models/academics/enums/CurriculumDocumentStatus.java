@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** Publishing lifecycle of one uploaded curriculum document. */
 public enum CurriculumDocumentStatus {

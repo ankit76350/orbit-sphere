@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.hostel.enums;
+package com.orbitastra.backend.models.hostel.enums;
 
 /**
  * Whether one bed can be given to a child.

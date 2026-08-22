@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate.enums;
+package com.orbitastra.backend.models.gate.enums;
 
 /**
  * How far one visit has got.

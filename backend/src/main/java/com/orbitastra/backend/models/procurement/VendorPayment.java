@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement;
+package com.orbitastra.backend.models.procurement;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,10 +12,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.PaymentMode;
-import com.orbitastra.backend.models.new_new.procurement.embedded.VendorPaymentAllocation;
-import com.orbitastra.backend.models.new_new.procurement.enums.VendorPaymentStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.PaymentMode;
+import com.orbitastra.backend.models.procurement.embedded.VendorPaymentAllocation;
+import com.orbitastra.backend.models.procurement.enums.VendorPaymentStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

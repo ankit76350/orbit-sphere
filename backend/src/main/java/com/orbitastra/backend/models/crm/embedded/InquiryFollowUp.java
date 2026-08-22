@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.new_new.crm.embedded;
+package com.orbitastra.backend.models.crm.embedded;
 
 import java.time.Instant;
 
-import com.orbitastra.backend.models.new_new.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

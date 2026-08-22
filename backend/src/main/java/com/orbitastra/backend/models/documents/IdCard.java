@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.documents;
+package com.orbitastra.backend.models.documents;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,9 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.documents.enums.DocumentHolderType;
-import com.orbitastra.backend.models.new_new.documents.enums.IdCardStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.documents.enums.DocumentHolderType;
+import com.orbitastra.backend.models.documents.enums.IdCardStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

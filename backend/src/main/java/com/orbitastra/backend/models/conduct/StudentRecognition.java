@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct;
+package com.orbitastra.backend.models.conduct;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,8 +7,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.conduct.enums.RecognitionType;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.conduct.enums.RecognitionType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

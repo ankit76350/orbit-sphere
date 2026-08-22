@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /**
  * Which stage of schooling a child is in, under the 2020 education policy's five plus three

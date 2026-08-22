@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.institution;
+package com.orbitastra.backend.models.institution;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -8,9 +8,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.institution.enums.AffiliationStatus;
-import com.orbitastra.backend.models.new_new.institution.enums.EducationBoard;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.institution.enums.AffiliationStatus;
+import com.orbitastra.backend.models.institution.enums.EducationBoard;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.institution.enums;
+package com.orbitastra.backend.models.institution.enums;
 
 /**
  * Boundary at which a NumberSequence may start again from its configured first

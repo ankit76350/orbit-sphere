@@ -1,10 +1,10 @@
-package com.orbitastra.backend.models.new_new.base;
+package com.orbitastra.backend.models.base;
 
 import java.time.Instant;
 
 import org.springframework.data.mongodb.core.index.Indexed;
 
-import com.orbitastra.backend.models.new_new.base.enums.RecordState;
+import com.orbitastra.backend.models.base.enums.RecordState;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

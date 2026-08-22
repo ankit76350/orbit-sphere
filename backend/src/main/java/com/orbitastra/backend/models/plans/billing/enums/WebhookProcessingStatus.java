@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.billing.enums;
+package com.orbitastra.backend.models.plans.billing.enums;
 
 /**
  * Internal processing lifecycle of a BillingWebhookEvent.

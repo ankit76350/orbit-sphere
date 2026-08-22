@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.support;
+package com.orbitastra.backend.models.support;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -9,10 +9,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.support.embedded.SupportAccommodation;
-import com.orbitastra.backend.models.new_new.support.embedded.SupportGoal;
-import com.orbitastra.backend.models.new_new.support.enums.SupportPlanStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.support.embedded.SupportAccommodation;
+import com.orbitastra.backend.models.support.embedded.SupportGoal;
+import com.orbitastra.backend.models.support.enums.SupportPlanStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

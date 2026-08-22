@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.library.enums;
+package com.orbitastra.backend.models.library.enums;
 
 /**
  * Whether one physical copy can be lent right now.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.embedded;
+package com.orbitastra.backend.models.transport.embedded;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.support;
+package com.orbitastra.backend.models.support;
 
 import java.time.LocalDate;
 
@@ -7,9 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.support.enums.SupportNeedCategory;
-import com.orbitastra.backend.models.new_new.support.enums.SupportNeedStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.support.enums.SupportNeedCategory;
+import com.orbitastra.backend.models.support.enums.SupportNeedStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

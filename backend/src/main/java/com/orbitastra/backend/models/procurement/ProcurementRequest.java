@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement;
+package com.orbitastra.backend.models.procurement;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,11 +12,11 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.procurement.embedded.ProcurementQuote;
-import com.orbitastra.backend.models.new_new.procurement.embedded.ProcurementRequestLine;
-import com.orbitastra.backend.models.new_new.procurement.enums.ProcurementRequestStatus;
-import com.orbitastra.backend.models.new_new.procurement.enums.ProcurementUrgency;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.procurement.embedded.ProcurementQuote;
+import com.orbitastra.backend.models.procurement.embedded.ProcurementRequestLine;
+import com.orbitastra.backend.models.procurement.enums.ProcurementRequestStatus;
+import com.orbitastra.backend.models.procurement.enums.ProcurementUrgency;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

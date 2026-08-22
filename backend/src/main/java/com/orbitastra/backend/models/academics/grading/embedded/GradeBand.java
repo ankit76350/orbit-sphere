@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.grading.embedded;
+package com.orbitastra.backend.models.academics.grading.embedded;
 
 import java.math.BigDecimal;
 

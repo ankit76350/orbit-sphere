@@ -76,11 +76,11 @@ When live tracking is built, it should be its own decision: a MongoDB time-serie
 collection with a `TTL` index, or a purpose-built store, fed straight from the
 devices and read by the parent app without going near these models.
 
-The surviving sketches are `undone/a_working/transport/VehicleLocation` and
-`VehicleLocationHistory`, kept as the reference for whenever live tracking is built. An
-earlier `a_new/transport/TransportTelemetryPoint` already assumed a time-series collection
-and has since been removed; that instinct was right, it just does not belong in the same
-design pass.
+Three sketches existed for this and all were deleted with `models/undone` on 2026-08-21:
+`VehicleLocation` and `VehicleLocationHistory` (a current position plus an append-only trail),
+and an earlier `TransportTelemetryPoint` that already assumed a time-series collection. That
+last instinct was the right one — it just does not belong in the same design pass as the seven
+collections above.
 
 ### 2. Allocation drives billing
 

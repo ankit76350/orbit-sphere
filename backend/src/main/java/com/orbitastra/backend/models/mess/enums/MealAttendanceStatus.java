@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.mess.enums;
+package com.orbitastra.backend.models.mess.enums;
 
 /**
  * Whether one person ate one meal.

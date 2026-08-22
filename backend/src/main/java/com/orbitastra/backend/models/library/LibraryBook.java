@@ -1,10 +1,10 @@
-package com.orbitastra.backend.models.new_new.library;
+package com.orbitastra.backend.models.library;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.enums;
+package com.orbitastra.backend.models.academics.enums;
 
 /** Editing and publication lifecycle of a student's mark. */
 public enum MarkEntryStatus {

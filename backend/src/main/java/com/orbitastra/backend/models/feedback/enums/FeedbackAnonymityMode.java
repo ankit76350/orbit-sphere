@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.enums;
+package com.orbitastra.backend.models.feedback.enums;
 
 /**
  * What the school promised the person who gave the feedback.

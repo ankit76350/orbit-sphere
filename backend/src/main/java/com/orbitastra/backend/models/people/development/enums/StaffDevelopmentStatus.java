@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.development.enums;
+package com.orbitastra.backend.models.people.development.enums;
 
 /**
  * Lifecycle state of a staff professional-development activity.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.staff;
+package com.orbitastra.backend.models.people.staff;
 
 import java.time.LocalDate;
 
@@ -6,10 +6,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.Gender;
-import com.orbitastra.backend.models.new_new.people.staff.embedded.EmergencyContact;
-import com.orbitastra.backend.models.new_new.people.staff.embedded.StaffAddress;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.people.staff.embedded.EmergencyContact;
+import com.orbitastra.backend.models.people.staff.embedded.StaffAddress;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.new_new.identity.embedded;
+package com.orbitastra.backend.models.identity.embedded;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import com.orbitastra.backend.models.new_new.identity.enums.AppModule;
-import com.orbitastra.backend.models.new_new.identity.enums.DataScope;
-import com.orbitastra.backend.models.new_new.identity.enums.PermissionAction;
+import com.orbitastra.backend.models.identity.enums.AppModule;
+import com.orbitastra.backend.models.identity.enums.DataScope;
+import com.orbitastra.backend.models.identity.enums.PermissionAction;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.identity;
+package com.orbitastra.backend.models.identity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,8 +7,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.identity.embedded.RolePermission;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.identity.embedded.RolePermission;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

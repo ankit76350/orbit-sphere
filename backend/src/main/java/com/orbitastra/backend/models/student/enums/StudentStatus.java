@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.student.enums;
+package com.orbitastra.backend.models.student.enums;
 
 /**
  * Overall lifecycle state of a Student profile.

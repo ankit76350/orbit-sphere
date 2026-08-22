@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.facilities;
+package com.orbitastra.backend.models.facilities;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,9 +11,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.facilities.enums.AssetCustodianType;
-import com.orbitastra.backend.models.new_new.facilities.enums.AssetStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.facilities.enums.AssetCustodianType;
+import com.orbitastra.backend.models.facilities.enums.AssetStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

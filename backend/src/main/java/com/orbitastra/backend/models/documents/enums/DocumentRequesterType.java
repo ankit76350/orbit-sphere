@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.documents.enums;
+package com.orbitastra.backend.models.documents.enums;
 
 /**
  * Who asked for a document.

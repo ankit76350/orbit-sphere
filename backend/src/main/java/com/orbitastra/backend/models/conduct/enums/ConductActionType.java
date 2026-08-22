@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct.enums;
+package com.orbitastra.backend.models.conduct.enums;
 
 /**
  * What the school decided to do about a case.

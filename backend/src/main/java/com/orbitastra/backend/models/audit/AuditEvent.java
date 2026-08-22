@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.audit;
+package com.orbitastra.backend.models.audit;
 
 
 import java.time.Instant;
@@ -9,11 +9,11 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.audit.embedded.AuditFieldChange;
-import com.orbitastra.backend.models.new_new.audit.enums.AuditActorType;
-import com.orbitastra.backend.models.new_new.audit.enums.AuditEventType;
-import com.orbitastra.backend.models.new_new.audit.enums.AuditOutcome;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.audit.embedded.AuditFieldChange;
+import com.orbitastra.backend.models.audit.enums.AuditActorType;
+import com.orbitastra.backend.models.audit.enums.AuditEventType;
+import com.orbitastra.backend.models.audit.enums.AuditOutcome;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

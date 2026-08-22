@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.support.embedded;
+package com.orbitastra.backend.models.support.embedded;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;

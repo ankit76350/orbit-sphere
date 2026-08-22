@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.audit.enums;
+package com.orbitastra.backend.models.audit.enums;
 
 /**
  * The broad kind of thing that happened.

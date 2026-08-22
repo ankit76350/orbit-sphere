@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate.enums;
+package com.orbitastra.backend.models.gate.enums;
 
 /**
  * How far a request to take a child out early has got.

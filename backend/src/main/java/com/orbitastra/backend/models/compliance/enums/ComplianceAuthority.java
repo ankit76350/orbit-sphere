@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.compliance.enums;
+package com.orbitastra.backend.models.compliance.enums;
 
 /** Who the school has to answer to. */
 public enum ComplianceAuthority {

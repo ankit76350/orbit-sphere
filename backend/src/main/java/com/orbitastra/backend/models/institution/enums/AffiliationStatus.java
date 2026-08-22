@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.institution.enums;
+package com.orbitastra.backend.models.institution.enums;
 
 /**
  * Lifecycle of one AffiliationProgramme.

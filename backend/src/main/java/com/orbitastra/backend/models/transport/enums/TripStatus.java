@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.enums;
+package com.orbitastra.backend.models.transport.enums;
 
 /** How far one run of a route has got. */
 public enum TripStatus {

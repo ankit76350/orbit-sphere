@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.new_new.facilities.embedded;
+package com.orbitastra.backend.models.facilities.embedded;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.new_new.facilities.enums.FindingSeverity;
+import com.orbitastra.backend.models.facilities.enums.FindingSeverity;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

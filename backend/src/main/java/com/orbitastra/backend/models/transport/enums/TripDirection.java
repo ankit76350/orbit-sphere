@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.enums;
+package com.orbitastra.backend.models.transport.enums;
 
 /**
  * Which way a run of a route goes.

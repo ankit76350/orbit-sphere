@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.crm.enums;
+package com.orbitastra.backend.models.crm.enums;
 
 /**
  * Explicit response submitted by the applicant to an AdmissionOffer. A pending

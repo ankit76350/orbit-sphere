@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gallery.enums;
+package com.orbitastra.backend.models.gallery.enums;
 
 /**
  * What the album is of.

@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.new_new.gate;
+package com.orbitastra.backend.models.gate;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.gate.enums.GateType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.gate.enums.GateType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

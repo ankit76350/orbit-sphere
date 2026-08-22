@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.plans.embedded;
+package com.orbitastra.backend.models.plans.embedded;
 
-import com.orbitastra.backend.models.new_new.plans.enums.OveragePolicy;
+import com.orbitastra.backend.models.plans.enums.OveragePolicy;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

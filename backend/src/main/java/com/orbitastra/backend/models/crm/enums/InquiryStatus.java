@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.crm.enums;
+package com.orbitastra.backend.models.crm.enums;
 
 /**
  * Current position of an Inquiry in the pre-application CRM pipeline.

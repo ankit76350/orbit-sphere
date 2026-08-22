@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.base;
+package com.orbitastra.backend.models.base;
 
 import org.springframework.data.mongodb.core.index.Indexed;
 

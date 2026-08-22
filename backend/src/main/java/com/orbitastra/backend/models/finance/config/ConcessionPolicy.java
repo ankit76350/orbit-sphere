@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.config;
+package com.orbitastra.backend.models.finance.config;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -10,8 +10,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.finance.enums.ConcessionType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.finance.enums.ConcessionType;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

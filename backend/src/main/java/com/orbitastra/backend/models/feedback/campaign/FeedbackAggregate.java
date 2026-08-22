@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.campaign;
+package com.orbitastra.backend.models.feedback.campaign;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -12,8 +12,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.feedback.campaign.embedded.FeedbackQuestionAggregate;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.feedback.campaign.embedded.FeedbackQuestionAggregate;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

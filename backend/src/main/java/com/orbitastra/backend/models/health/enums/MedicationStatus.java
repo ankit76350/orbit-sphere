@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.health.enums;
+package com.orbitastra.backend.models.health.enums;
 
 /**
  * Whether a dose was actually given.

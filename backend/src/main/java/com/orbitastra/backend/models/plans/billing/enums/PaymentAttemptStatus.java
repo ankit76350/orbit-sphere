@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.billing.enums;
+package com.orbitastra.backend.models.plans.billing.enums;
 
 /**
  * Provider-processing state of one PaymentAttempt.

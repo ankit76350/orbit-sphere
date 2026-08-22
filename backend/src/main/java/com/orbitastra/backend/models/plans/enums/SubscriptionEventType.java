@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.enums;
+package com.orbitastra.backend.models.plans.enums;
 
 /**
  * Immutable event classification stored in SubscriptionHistory.

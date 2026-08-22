@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.enums;
+package com.orbitastra.backend.models.plans.enums;
 
 /**
  * Behavior when a PlanFeature usage limit is reached.

@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.new_new.core.embedded;
+package com.orbitastra.backend.models.core.embedded;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.new_new.core.enums.HolidayType;
+import com.orbitastra.backend.models.core.enums.HolidayType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

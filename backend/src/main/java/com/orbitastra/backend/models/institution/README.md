@@ -120,14 +120,14 @@ database migrations.
 
 ## Deliberately left out
 
-- **School-defined custom fields.** `undone/a_new/institution/CustomFieldDefinition` lets a
-  school add its own field to any entity, with its own type, validation, encryption flag and
-  confidentiality level. It is a real requirement for a platform sold to many schools, and it
-  is genuinely hard: a field defined at runtime cannot be validated by Jakarta annotations,
-  cannot be indexed without somebody deciding to, and turns every DTO into a map. Kept as a
-  sketch, deferred deliberately, and worth designing on its own rather than as a corner of
-  another module.
-- **A generic academic structure tree.** `a_new/institution/AcademicStructureNode` modelled
+- **School-defined custom fields.** A deleted sketch called `CustomFieldDefinition` let a
+  school add its own field to any entity, carrying `entityType`, `fieldKey`, `label`,
+  `fieldType`, `required`, `encrypted`, `searchable`, `confidentiality`, `validationExpression`
+  and `allowedValues`. It is a real requirement for a platform sold to many schools, and it is
+  genuinely hard: a field defined at runtime cannot be validated by Jakarta annotations, cannot
+  be indexed without somebody deciding to, and turns every DTO into a map. **Deferred
+  deliberately, and worth designing on its own** rather than as a corner of another module.
+- **A generic academic structure tree.** A sketch called `AcademicStructureNode` modelled
   every academic grouping as one self-referencing collection with a `NodeType` and a
   `Map<String, String>` of attributes. It was **deleted on 2026-08-20**, not deferred: the
   concrete models won. `SchoolClass` with embedded sections, `AcademicTerm` and

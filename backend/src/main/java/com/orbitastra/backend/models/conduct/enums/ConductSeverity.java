@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct.enums;
+package com.orbitastra.backend.models.conduct.enums;
 
 /**
  * How serious a case is.

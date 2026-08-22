@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.plans.enums;
+package com.orbitastra.backend.models.plans.enums;
 
 /**
  * Publication lifecycle of one PlanDefinition version.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.core.enums;
+package com.orbitastra.backend.models.core.enums;
 
 /**
  * Delivery channel supported by communication and notification features.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.structure;
+package com.orbitastra.backend.models.academics.structure;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,9 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.academics.structure.embedded.ClassSection;
-import com.orbitastra.backend.models.new_new.academics.structure.embedded.ClassSubject;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

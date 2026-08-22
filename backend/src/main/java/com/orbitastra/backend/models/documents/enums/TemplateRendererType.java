@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.documents.enums;
+package com.orbitastra.backend.models.documents.enums;
 
 /**
  * How a template is turned into a finished document.

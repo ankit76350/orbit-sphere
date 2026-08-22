@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.examination;
+package com.orbitastra.backend.models.academics.examination;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,10 +8,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.academics.enums.NepStage;
-import com.orbitastra.backend.models.new_new.academics.enums.ReportCardStatus;
-import com.orbitastra.backend.models.new_new.academics.examination.embedded.DomainAssessment;
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.academics.enums.NepStage;
+import com.orbitastra.backend.models.academics.enums.ReportCardStatus;
+import com.orbitastra.backend.models.academics.examination.embedded.DomainAssessment;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

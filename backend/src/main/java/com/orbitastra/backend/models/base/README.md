@@ -1,6 +1,6 @@
 # Base collection model mapping
 
-This package defines persistence metadata inherited by the `new_new` MongoDB
+This package defines persistence metadata inherited by every MongoDB
 collection models. These classes are abstract and do not create collections by
 themselves.
 

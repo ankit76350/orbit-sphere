@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.enums;
+package com.orbitastra.backend.models.transport.enums;
 
 /**
  * Whether a student is using the bus right now.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.curriculum;
+package com.orbitastra.backend.models.academics.curriculum;
 
 import java.time.Instant;
 
@@ -6,8 +6,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.academics.enums.CurriculumDocumentStatus;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.academics.enums.CurriculumDocumentStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

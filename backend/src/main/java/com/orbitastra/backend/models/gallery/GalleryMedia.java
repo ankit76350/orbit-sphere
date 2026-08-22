@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gallery;
+package com.orbitastra.backend.models.gallery;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,10 +8,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.gallery.enums.GalleryMediaType;
-import com.orbitastra.backend.models.new_new.gallery.enums.GalleryStatus;
-import com.orbitastra.backend.models.new_new.gallery.enums.GalleryVisibility;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.gallery.enums.GalleryMediaType;
+import com.orbitastra.backend.models.gallery.enums.GalleryStatus;
+import com.orbitastra.backend.models.gallery.enums.GalleryVisibility;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

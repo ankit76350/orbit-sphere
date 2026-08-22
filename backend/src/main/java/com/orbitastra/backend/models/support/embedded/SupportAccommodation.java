@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.support.embedded;
+package com.orbitastra.backend.models.support.embedded;
 
-import com.orbitastra.backend.models.new_new.support.enums.AccommodationType;
+import com.orbitastra.backend.models.support.enums.AccommodationType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

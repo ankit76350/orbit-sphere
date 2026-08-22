@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct;
+package com.orbitastra.backend.models.conduct;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -10,10 +10,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.conduct.embedded.EventParticipant;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductEventType;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductSeverity;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.conduct.embedded.EventParticipant;
+import com.orbitastra.backend.models.conduct.enums.ConductEventType;
+import com.orbitastra.backend.models.conduct.enums.ConductSeverity;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

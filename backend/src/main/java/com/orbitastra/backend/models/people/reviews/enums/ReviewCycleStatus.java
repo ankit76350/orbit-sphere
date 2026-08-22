@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.reviews.enums;
+package com.orbitastra.backend.models.people.reviews.enums;
 
 /**
  * Lifecycle state of a staff review cycle.

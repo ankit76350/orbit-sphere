@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.payroll;
+package com.orbitastra.backend.models.payroll;
 
 import java.math.BigDecimal;
 
@@ -8,9 +8,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.payroll.enums.ComponentCalculation;
-import com.orbitastra.backend.models.new_new.payroll.enums.SalaryComponentType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.payroll.enums.ComponentCalculation;
+import com.orbitastra.backend.models.payroll.enums.SalaryComponentType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

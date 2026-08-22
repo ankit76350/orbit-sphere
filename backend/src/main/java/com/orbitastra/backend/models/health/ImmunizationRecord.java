@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.health;
+package com.orbitastra.backend.models.health;
 
 import java.time.LocalDate;
 
@@ -7,8 +7,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.health.enums.ImmunizationVerificationStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.health.enums.ImmunizationVerificationStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.homework;
+package com.orbitastra.backend.models.academics.homework;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,9 +11,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.academics.enums.HomeworkScope;
-import com.orbitastra.backend.models.new_new.academics.enums.HomeworkStatus;
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
+import com.orbitastra.backend.models.academics.enums.HomeworkScope;
+import com.orbitastra.backend.models.academics.enums.HomeworkStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

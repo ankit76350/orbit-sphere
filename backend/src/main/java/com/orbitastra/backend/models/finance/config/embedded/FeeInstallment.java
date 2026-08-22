@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.config.embedded;
+package com.orbitastra.backend.models.finance.config.embedded;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

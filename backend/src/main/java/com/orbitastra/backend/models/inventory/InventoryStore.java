@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.new_new.inventory;
+package com.orbitastra.backend.models.inventory;
 
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.inventory.enums.StoreType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.inventory.enums.StoreType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

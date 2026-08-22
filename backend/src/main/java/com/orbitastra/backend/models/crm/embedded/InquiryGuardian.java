@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.crm.embedded;
+package com.orbitastra.backend.models.crm.embedded;
 
-import com.orbitastra.backend.models.new_new.common.enums.GuardianRelation;
+import com.orbitastra.backend.models.common.enums.GuardianRelation;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

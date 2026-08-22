@@ -1,8 +1,8 @@
-package com.orbitastra.backend.models.new_new.student.embedded;
+package com.orbitastra.backend.models.student.embedded;
 
-import com.orbitastra.backend.models.new_new.common.enums.GuardianRelation;
-import com.orbitastra.backend.models.new_new.student.Guardian;
-import com.orbitastra.backend.models.new_new.student.Student;
+import com.orbitastra.backend.models.common.enums.GuardianRelation;
+import com.orbitastra.backend.models.student.Guardian;
+import com.orbitastra.backend.models.student.Student;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

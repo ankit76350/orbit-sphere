@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct;
+package com.orbitastra.backend.models.conduct;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,9 +9,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductActionStatus;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductActionType;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.conduct.enums.ConductActionStatus;
+import com.orbitastra.backend.models.conduct.enums.ConductActionType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

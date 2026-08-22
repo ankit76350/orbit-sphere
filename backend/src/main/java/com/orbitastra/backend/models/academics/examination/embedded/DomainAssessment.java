@@ -1,10 +1,10 @@
-package com.orbitastra.backend.models.new_new.academics.examination.embedded;
+package com.orbitastra.backend.models.academics.examination.embedded;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.orbitastra.backend.models.new_new.academics.enums.HpcLevel;
-import com.orbitastra.backend.models.new_new.academics.enums.LearningDomain;
+import com.orbitastra.backend.models.academics.enums.HpcLevel;
+import com.orbitastra.backend.models.academics.enums.LearningDomain;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

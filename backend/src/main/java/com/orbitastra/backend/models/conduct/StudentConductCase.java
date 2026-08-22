@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.conduct;
+package com.orbitastra.backend.models.conduct;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,10 +8,10 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.common.embedded.GuardianInformed;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductCaseStatus;
-import com.orbitastra.backend.models.new_new.conduct.enums.ConductSeverity;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.common.embedded.GuardianInformed;
+import com.orbitastra.backend.models.conduct.enums.ConductCaseStatus;
+import com.orbitastra.backend.models.conduct.enums.ConductSeverity;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

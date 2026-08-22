@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.enums;
+package com.orbitastra.backend.models.transport.enums;
 
 /** Whether a driver may be put on a route today. */
 public enum TransportDriverStatus {

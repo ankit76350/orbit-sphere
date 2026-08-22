@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.health.enums;
+package com.orbitastra.backend.models.health.enums;
 
 /** How a medicine was given. */
 public enum MedicationRoute {

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport.embedded;
+package com.orbitastra.backend.models.transport.embedded;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;

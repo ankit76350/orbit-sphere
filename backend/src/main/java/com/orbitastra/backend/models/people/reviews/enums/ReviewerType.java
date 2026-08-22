@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.people.reviews.enums;
+package com.orbitastra.backend.models.people.reviews.enums;
 
 /**
  * Relationship of a reviewer to the staff member being reviewed.

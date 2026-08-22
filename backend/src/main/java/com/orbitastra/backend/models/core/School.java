@@ -1,12 +1,12 @@
-package com.orbitastra.backend.models.new_new.core;
+package com.orbitastra.backend.models.core;
 
 import java.time.Instant;
 
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.AuditedDocument;
-import com.orbitastra.backend.models.new_new.core.enums.SchoolStatus;
+import com.orbitastra.backend.models.base.AuditedDocument;
+import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

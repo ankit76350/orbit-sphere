@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.library.enums;
+package com.orbitastra.backend.models.library.enums;
 
 /**
  * How an issued book is going, or how it came back.

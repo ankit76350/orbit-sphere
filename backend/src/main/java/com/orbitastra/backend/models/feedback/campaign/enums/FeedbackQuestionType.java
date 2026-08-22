@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.feedback.campaign.enums;
+package com.orbitastra.backend.models.feedback.campaign.enums;
 
 
 /**

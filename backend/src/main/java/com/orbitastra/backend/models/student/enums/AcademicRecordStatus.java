@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.student.enums;
+package com.orbitastra.backend.models.student.enums;
 
 /**
  * State of one academic-year StudentAcademicRecord.

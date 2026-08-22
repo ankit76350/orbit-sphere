@@ -1,6 +1,6 @@
-package com.orbitastra.backend.models.new_new.conduct.embedded;
+package com.orbitastra.backend.models.conduct.embedded;
 
-import com.orbitastra.backend.models.new_new.conduct.enums.ParticipantRole;
+import com.orbitastra.backend.models.conduct.enums.ParticipantRole;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

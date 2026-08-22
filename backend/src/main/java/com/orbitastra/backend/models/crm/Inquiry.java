@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.crm;
+package com.orbitastra.backend.models.crm;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -9,11 +9,11 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.Gender;
-import com.orbitastra.backend.models.new_new.crm.embedded.InquiryFollowUp;
-import com.orbitastra.backend.models.new_new.crm.embedded.InquiryGuardian;
-import com.orbitastra.backend.models.new_new.crm.enums.InquiryStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.crm.embedded.InquiryFollowUp;
+import com.orbitastra.backend.models.crm.embedded.InquiryGuardian;
+import com.orbitastra.backend.models.crm.enums.InquiryStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

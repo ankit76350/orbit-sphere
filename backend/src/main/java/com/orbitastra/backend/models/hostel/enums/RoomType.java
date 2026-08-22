@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.hostel.enums;
+package com.orbitastra.backend.models.hostel.enums;
 
 /** How many the room is built for. */
 public enum RoomType {

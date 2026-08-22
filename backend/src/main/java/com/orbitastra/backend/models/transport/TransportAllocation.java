@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.transport;
+package com.orbitastra.backend.models.transport;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
-import com.orbitastra.backend.models.new_new.transport.enums.TransportAllocationStatus;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.transport.enums.TransportAllocationStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

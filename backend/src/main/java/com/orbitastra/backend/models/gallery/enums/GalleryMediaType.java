@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gallery.enums;
+package com.orbitastra.backend.models.gallery.enums;
 
 /** What kind of file it is. */
 public enum GalleryMediaType {

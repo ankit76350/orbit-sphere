@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.institution.enums;
+package com.orbitastra.backend.models.institution.enums;
 
 /**
  * Standard board family used by an AffiliationProgramme. Board-specific names

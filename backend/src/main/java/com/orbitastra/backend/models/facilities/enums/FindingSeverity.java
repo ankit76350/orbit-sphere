@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.facilities.enums;
+package com.orbitastra.backend.models.facilities.enums;
 
 /**
  * How bad one thing found on an inspection is.

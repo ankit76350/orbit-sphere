@@ -1,11 +1,11 @@
-package com.orbitastra.backend.models.new_new.academics.timetable.embedded;
+package com.orbitastra.backend.models.academics.timetable.embedded;
 
 import java.time.LocalTime;
 
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.academics.enums.TimetableSlotType;
+import com.orbitastra.backend.models.academics.enums.TimetableSlotType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.inventory.enums;
+package com.orbitastra.backend.models.inventory.enums;
 
 /**
  * Why the quantity of something changed.

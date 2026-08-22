@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement.enums;
+package com.orbitastra.backend.models.procurement.enums;
 
 /**
  * What the school decided about a delivery.

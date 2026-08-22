@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.common.enums;
+package com.orbitastra.backend.models.common.enums;
 
 /**
  * Gender value shared by student, admission, and people profiles.

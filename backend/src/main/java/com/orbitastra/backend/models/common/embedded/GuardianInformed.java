@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.common.embedded;
+package com.orbitastra.backend.models.common.embedded;
 
 import java.time.Instant;
 

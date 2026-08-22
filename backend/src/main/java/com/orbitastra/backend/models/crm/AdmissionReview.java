@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.crm;
+package com.orbitastra.backend.models.crm;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,9 +9,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.crm.enums.AdmissionRecommendation;
-import com.orbitastra.backend.models.new_new.crm.enums.AdmissionReviewStatus;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.crm.enums.AdmissionRecommendation;
+import com.orbitastra.backend.models.crm.enums.AdmissionReviewStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

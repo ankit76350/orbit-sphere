@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.finance.billing.embedded;
+package com.orbitastra.backend.models.finance.billing.embedded;
 
 import java.math.BigDecimal;
 

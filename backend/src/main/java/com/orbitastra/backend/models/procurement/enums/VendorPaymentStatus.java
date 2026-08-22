@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.procurement.enums;
+package com.orbitastra.backend.models.procurement.enums;
 
 /**
  * Whether money actually reached the vendor.

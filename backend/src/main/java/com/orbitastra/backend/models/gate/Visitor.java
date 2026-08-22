@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.gate;
+package com.orbitastra.backend.models.gate;
 
 import java.time.Instant;
 
@@ -6,9 +6,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.common.enums.GovernmentIdentityType;
-import com.orbitastra.backend.models.new_new.gate.enums.VisitorType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.GovernmentIdentityType;
+import com.orbitastra.backend.models.gate.enums.VisitorType;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

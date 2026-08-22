@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.payroll.enums;
+package com.orbitastra.backend.models.payroll.enums;
 
 /**
  * How far one month's payroll has got.

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.identity.enums;
+package com.orbitastra.backend.models.identity.enums;
 
 /**
  * How many records a permission reaches.

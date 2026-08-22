@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.facilities;
+package com.orbitastra.backend.models.facilities;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -9,11 +9,11 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.orbitastra.backend.models.new_new.base.SchoolBase;
-import com.orbitastra.backend.models.new_new.facilities.embedded.InspectionFinding;
-import com.orbitastra.backend.models.new_new.facilities.enums.InspectionOutcome;
-import com.orbitastra.backend.models.new_new.facilities.enums.InspectionType;
-import com.orbitastra.backend.models.new_new.facilities.enums.MaintenanceTargetType;
+import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.facilities.embedded.InspectionFinding;
+import com.orbitastra.backend.models.facilities.enums.InspectionOutcome;
+import com.orbitastra.backend.models.facilities.enums.InspectionType;
+import com.orbitastra.backend.models.facilities.enums.MaintenanceTargetType;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

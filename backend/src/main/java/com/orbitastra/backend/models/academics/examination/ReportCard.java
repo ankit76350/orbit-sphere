@@ -1,4 +1,4 @@
-package com.orbitastra.backend.models.new_new.academics.examination;
+package com.orbitastra.backend.models.academics.examination;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,10 +11,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
-import com.orbitastra.backend.models.new_new.academics.enums.ReportCardStatus;
-import com.orbitastra.backend.models.new_new.academics.enums.ResultStatus;
-import com.orbitastra.backend.models.new_new.academics.examination.embedded.ReportCardSubjectResult;
-import com.orbitastra.backend.models.new_new.base.AcademicStudentSchoolBase;
+import com.orbitastra.backend.models.academics.enums.ReportCardStatus;
+import com.orbitastra.backend.models.academics.enums.ResultStatus;
+import com.orbitastra.backend.models.academics.examination.embedded.ReportCardSubjectResult;
+import com.orbitastra.backend.models.base.AcademicStudentSchoolBase;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
