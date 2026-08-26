@@ -39,7 +39,7 @@ public record SchoolCreateRequest(
 
         @NotBlank @Size(max = 150) String accountHolderName,
 
-        /** Normalised and vetted by SubdomainPolicy; the shape check here is a first pass. */
+        /** Normalised and vetted by CoreValidator; the shape check here is a first pass. */
         @NotBlank @Size(max = 63) String subdomain,
 
         @Size(max = 30) String phoneNumber,

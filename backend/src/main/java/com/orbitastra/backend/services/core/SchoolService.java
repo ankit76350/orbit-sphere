@@ -9,9 +9,8 @@ import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.services.core.helper.CoreValidator;
 import com.orbitastra.backend.services.core.helper.TextHelper;
-import com.orbitastra.backend.services.core.helper.TimeZoneHelper;
-import com.orbitastra.backend.services.core.helper.SubdomainPolicy;
 
 import lombok.RequiredArgsConstructor;
 
@@ -61,14 +60,13 @@ import lombok.RequiredArgsConstructor;
 public class SchoolService {
 
     private final SchoolRepository schools;
-    private final SubdomainPolicy subdomainPolicy;
-    private final TimeZoneHelper timeZoneHelper;
+    private final CoreValidator coreValidator;
 
     @Transactional
     public SchoolCreateResponse createNewSchool(SchoolCreateRequest request) {
         //! validating subdomain
-        String subdomain = subdomainPolicy.validateSubdomain(request.subdomain());
-        String timeZone = timeZoneHelper.validateAndNormalize(request.defaultTimeZone());
+        String subdomain = coreValidator.validateSubdomain(request.subdomain());
+        String timeZone = coreValidator.validateTimeZone(request.defaultTimeZone());
         String countryCode = TextHelper.uppercaseOrNull(request.countryCode());
 
         // Checked before writing so the caller gets a clear message. The unique index is still

@@ -12,11 +12,14 @@ import java.util.Locale;
  * an empty optional field collide, while two with null do not when the index is partial. One
  * representation for "not provided" avoids both problems.
  *
- * <p>Static rather than a Spring bean, unlike {@link SubdomainPolicy} and
- * {@link TimeZoneHelper}. Those two hold policy worth being able to swap or mock — a reserved
- * word list, the IANA zone set. These are pure string functions with nothing to decide, and
+ * <p>Static rather than a Spring bean, unlike {@link CoreValidator}. That one holds policy
+ * worth being able to swap or mock — a reserved word list, the IANA zone set — and it rejects
+ * things. These are pure string functions with nothing to decide and nothing to refuse, and
  * making them a bean would add a constructor parameter to every service that ever formats a
  * field, which is all of them.
+ *
+ * <p>Which is also why normalising lives here and not in CoreValidator: trimming decides
+ * nothing, and a validator folder that also holds formatters stops meaning anything.
  *
  * <p>{@code Locale.ROOT} on the lowercase is deliberate and not decoration. The default-locale
  * {@code toLowerCase()} lowercases a capital I to a dotless ı under a Turkish locale, so an
