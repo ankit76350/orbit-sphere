@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
 
-import com.orbitastra.backend.common.SystemActors;
+import com.orbitastra.backend.common.audit.SystemActors;
 
 /**
  * Supplies the value Spring Data writes into {@code createdByDocsId} and

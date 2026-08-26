@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common;
+package com.orbitastra.backend.common.error;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,8 +13,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.orbitastra.backend.common.exception.ConflictException;
-import com.orbitastra.backend.common.exception.NotFoundException;
 
 /**
  * Turns exceptions into the single ApiError shape.

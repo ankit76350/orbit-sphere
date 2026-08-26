@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.orbitastra.backend.common.exception.ConflictException;
+import com.orbitastra.backend.common.error.ConflictException;
 
 /**
  * Every validation rule the core module owns, in one place.

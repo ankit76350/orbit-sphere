@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common;
+package com.orbitastra.backend.common.error;
 
 import java.time.Instant;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common;
+package com.orbitastra.backend.common.audit;
 
 /**
  * Reserved values written into {@code createdByDocsId} when a document has no ordinary user

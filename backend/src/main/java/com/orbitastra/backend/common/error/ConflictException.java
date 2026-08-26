@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common.exception;
+package com.orbitastra.backend.common.error;
 
 /**
  * The request was well formed, but the current state of things does not allow it.
