@@ -4,7 +4,7 @@ package com.orbitastra.backend.services.core;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.common.error.ConflictException;
+import com.orbitastra.backend.common.error.exception.ConflictException;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.models.core.School;

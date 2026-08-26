@@ -6,7 +6,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.orbitastra.backend.common.error.ConflictException;
+import com.orbitastra.backend.common.error.exception.BadRequestException;
+import com.orbitastra.backend.common.error.exception.ConflictException;
 
 /**
  * Every validation rule the core module owns, in one place.
@@ -73,7 +74,7 @@ public class CoreValidator {
      */
     public String validateSubdomain(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new ConflictException("SUBDOMAIN_REQUIRED", "A subdomain is required.");
+            throw new BadRequestException("SUBDOMAIN_REQUIRED", "A subdomain is required.");
         }
         String normalized = raw.trim().toLowerCase().replaceAll("[\\s_]+", "-");
 
@@ -89,10 +90,6 @@ public class CoreValidator {
         return normalized;
     }
 
-    /** Whether an already-normalised label is one the platform keeps for itself. */
-    public boolean isReservedSubdomain(String normalized) {
-        return RESERVED_SUBDOMAINS.contains(normalized);
-    }
 
     //! time zone ---------------------------------------------------------------- 
 

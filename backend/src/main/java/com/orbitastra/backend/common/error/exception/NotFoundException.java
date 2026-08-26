@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common.error;
+package com.orbitastra.backend.common.error.exception;
 
 /**
  * The thing named in the path does not exist.
