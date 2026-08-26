@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.core.ProvisionSchoolRequest;
-import com.orbitastra.backend.dto.core.ProvisionSchoolResponse;
-import com.orbitastra.backend.services.core.SchoolProvisioningService;
+import com.orbitastra.backend.dto.core.SchoolCreateRequest;
+import com.orbitastra.backend.dto.core.SchoolCreateResponse;
+import com.orbitastra.backend.services.core.SchoolService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,16 +42,16 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/platform/schools")
-public class PlatformSchoolController {
+public class SchoolController {
 
-    private final SchoolProvisioningService provisioningService;
+    private final SchoolService provisioningService;
 
     //
     @PostMapping
-    public ResponseEntity<ProvisionSchoolResponse> provision(
-            @Valid @RequestBody ProvisionSchoolRequest request) {
+    public ResponseEntity<SchoolCreateResponse> provision(
+            @Valid @RequestBody SchoolCreateRequest request) {
 
-        ProvisionSchoolResponse response = provisioningService.createNewSchool(request);
+        SchoolCreateResponse response = provisioningService.createNewSchool(request);
         return ResponseEntity
                 .created(URI.create("/platform/schools/" + response.schoolId()))
                 .body(response);

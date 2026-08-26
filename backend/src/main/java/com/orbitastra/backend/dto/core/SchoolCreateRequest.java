@@ -33,7 +33,7 @@ import jakarta.validation.constraints.Size;
  * record is created here** — see SchoolProvisioningService for why that turned out to be the
  * right call.
  */
-public record ProvisionSchoolRequest(
+public record SchoolCreateRequest(
 
         @NotBlank @Size(max = 200) String schoolName,
 
