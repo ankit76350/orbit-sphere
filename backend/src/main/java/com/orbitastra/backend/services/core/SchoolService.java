@@ -225,17 +225,11 @@ public class SchoolService {
 
 
     //! endpoint 3 — activate the school ----------------------------------------------
-
-    /**
-     * Takes a school live: TRIAL or PROVISIONING to ACTIVE.
-     *
-     * <p>Refuses anything else. Activating an already ACTIVE school is a 409, not a quiet
-     * success — the caller believes they changed something and they did not.
-     *
-     * <p>{@code activatedAt} is stamped once and never rewritten, so a school suspended in June
-     * and brought back in July keeps its original go-live date. Reactivation is endpoint #5, and
-     * it is a different thing from this.
-     */
+        /**
+         * Activates a school from TRIAL or PROVISIONING.
+         *
+         * <p>Rejects other statuses and records the activation date.
+         */
     @Transactional
     public SchoolActivateResponse activateSchool(String schoolId) {
         //! step 1 - find the school, or 404
@@ -278,33 +272,26 @@ public class SchoolService {
 
         //! step 5 - go live, stamping activatedAt only the first time
         boolean firstActivation = school.getActivatedAt() == null;
-        school.setStatus(SchoolStatus.ACTIVE);
+        school.setStatus(SchoolStatus.ACTIVE);  //? ← changed, status
         if (firstActivation) {
-            school.setActivatedAt(Instant.now());
+            school.setActivatedAt(Instant.now()); //? ← changed, first time only
         }
         
+        //TODO: save (status or activatedAt)
         School savedSchool = schools.save(school);
 
-        return SchoolActivateResponse.fromActivateResponse(
+        return SchoolActivateResponse.fromSchool(
                 savedSchool, firstActivation, subscriptionStatus, subscriptionNote);
     }
 
-    /**
-     * Decides whether a subscription blocks activation.
-     *
-     * <p><b>A missing subscription is currently allowed, and that is a deliberate compromise.</b>
-     * The plan in {@code controllers/core/README.md} says activation requires an active
-     * SchoolSubscription — but nothing in this system creates one yet. Enforcing it strictly
-     * would mean every activation returns 409 and endpoint #3 could never be used.
-     *
-     * <p>So the rule is enforced where it can be: a subscription that exists and is CANCELLED or
-     * EXPIRED blocks activation. A school with no subscription row goes live, and the response
-     * says so in {@code subscriptionNote} rather than staying quiet about it.
-     *
-     * <p>Reporting it on every call is the point. A silently skipped check becomes permanent
-     * because nobody sees it; one that announces itself in the response gets fixed when the
-     * subscription endpoints are built. <b>Tighten this to a hard requirement then.</b>
-     */
+        /**
+         * Checks if the subscription allows activation.
+         *
+         * <p>A missing subscription is allowed for now because the system does not create
+         * subscriptions yet. CANCELLED or EXPIRED subscriptions block activation.
+         *
+         * <p>The response shows the subscription status so this can be made required later.
+         */
     private String subscriptionCheck(Optional<SchoolSubscription> subscription) {
         if (subscription.isEmpty()) {
             return "No subscription exists for this school. Activation was allowed anyway "

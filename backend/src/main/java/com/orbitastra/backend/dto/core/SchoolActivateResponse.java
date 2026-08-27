@@ -27,7 +27,7 @@ public record SchoolActivateResponse(
         String subscriptionNote,
         String nextStep) {
 
-    public static SchoolActivateResponse fromActivateResponse(
+    public static SchoolActivateResponse fromSchool(
             School school,
             boolean firstActivation,
             String subscriptionStatus,

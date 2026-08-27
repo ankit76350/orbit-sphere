@@ -1,6 +1,6 @@
 # postman — request collection for the Orbit Sphere API
 
-`orbit-sphere.postman_collection.json` — **Import → File** in Postman.
+`Orbit Sphere — API.postman_collection.json` — **Import → File** in Postman.
 
 ## The convention: one request per endpoint
 
@@ -114,7 +114,7 @@ collection and the code stay findable from each other.
 
 ## Coverage
 
-**1 of 28 planned write endpoints.** The other 27 are specified in
+**3 of 28 planned write endpoints.** The other 27 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
