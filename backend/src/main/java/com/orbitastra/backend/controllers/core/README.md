@@ -1,6 +1,6 @@
 # controllers/core — write API plan
 
-**Nothing is built yet.** This is the complete inventory of every `POST`, `PUT` and `PATCH` the
+**One endpoint is built — #1.** This is the complete inventory of every `POST`, `PUT` and `PATCH` the
 `core` module needs, sequenced so it can be built and reviewed one step at a time.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
@@ -26,8 +26,8 @@ inventory because they exist and you should see them, but they are not counted i
 
 | # | Method | Path | Phase |
 |---|---|---|---|
-| 1 | `POST` | `/platform/schools` | 1 |
-| 2 | `POST` | `/platform/schools/{id}/retry-provisioning` | 1 |
+| 1 | `POST` | `/platform/schools` | 1 — **built** |
+| 2 | `POST` | `/platform/schools/{id}/complete-provisioning` | 1 |
 | 3 | `POST` | `/platform/schools/{id}/activate` | 2 |
 | 4 | `POST` | `/platform/schools/{id}/suspend` | 2 |
 | 5 | `POST` | `/platform/schools/{id}/reactivate` | 2 |
@@ -88,16 +88,21 @@ timetable, transport and fees all read. Phase 6 groups everything needing elevat
 Phase 7 is last because it is rarely used and the most destructive — build it when the rest is
 proven.
 
-## Phase 0 — build these before endpoint #1
+## Phase 0 — the plumbing every endpoint assumes
 
-Three pieces of plumbing that every one of the 28 assumes. Getting them wrong is expensive to
-undo.
+Three pieces. Getting them wrong is expensive to undo. **0.1 and most of 0.3 were built with
+endpoint #1; 0.2 and idempotency are still open.**
 
-**0.1 — The audit actor sentinel.**
+**0.1 — The audit actor sentinel. BUILT.**
 [`AuditedDocument.createdByDocsId`](../../models/base/AuditedDocument.java) is filled
 automatically by `@EnableMongoAuditing`. **Endpoint #1 has no account to attribute anything
-to** — the first `UserAccount` is created by that same request. The auditing setup needs a
-deliberate concept of *a write with no ordinary actor*, with a reserved platform sentinel.
+to** — no `UserAccount` exists for that school at all when it runs. So `AuditingConfig` supplies
+an `AuditorAware` returning the `SystemActors.PLATFORM` sentinel, and provisioned rows carry
+`createdByDocsId: "SYSTEM_PLATFORM"`.
+
+Note it currently returns that sentinel for **every** write in the system, because there is no
+authentication to ask. When sessions exist it must return the real `UserAccount` id, and keep
+the sentinel only for genuine platform writes.
 
 Build this properly, because the same mechanism is needed by
 [`feedback`](../../models/feedback/README.md), where anonymous submissions **must** write the
@@ -105,12 +110,14 @@ sentinel `"ANONYMOUS"` instead of a real user id. Get it right once here and ano
 later; assume there is always a user and you will retrofit it in a way that silently
 deanonymises children.
 
-**0.2 — Tenant resolution.** Every school-surface endpoint uses `current`, resolved from the
-session and subdomain. One place, not per-controller.
+**0.2 — Tenant resolution. NOT BUILT.** Every school-surface endpoint uses `current`, resolved
+from the session and subdomain. One place, not per-controller. Nothing needs it yet because
+endpoint #1 is on the platform surface, but #6 onwards cannot be built without it.
 
-**0.3 — Error contract and idempotency.** Decide the error body shape once, and decide that
-`409` means "well-formed request, wrong state" while `400` means "malformed". The transitions
-lean on that distinction heavily.
+**0.3 — Error contract. BUILT.** `ApiError` is the single response shape, `ApiException` carries
+the status through one `@ExceptionHandler`, and `409` means "well-formed request, wrong state"
+against `400` for "malformed". The transitions lean on that distinction heavily.
+**Idempotency is the part still missing** — see #1.
 
 ---
 
@@ -140,21 +147,36 @@ system should follow that rule.
 
 # Part 1 — School
 
-## 1. `POST /platform/schools`
+## 1. `POST /platform/schools` — BUILT
 
-Provisions a whole minimum tenant in **one transaction**. A school that exists but cannot be
-logged into is worse than one that does not exist.
+Creates the `School` row at `PROVISIONING` or `TRIAL`. **That is all it does.**
 
-1. the `School` row, at `PROVISIONING` or `TRIAL`
-2. all `NumberSequence` rows — every type, or nothing else can ever be created
-3. the default `Role` set
-4. the first `Staff` record for the account holder
-5. the first `UserAccount`, linked to that staff and those roles
-6. the first `AcademicYear`, if supplied
+An earlier version of this plan had it seed a `NumberSequence` for every type and a starting set
+of `Role`s in the same transaction, and create the first `Staff` and `UserAccount` too. All of
+that was removed on 2026-08-21. Two separate reasons, and both are worth keeping written down:
 
-If step 5 fails, steps 1–4 roll back. The ordering is forced, not chosen:
-`UserAccount.personDocsId` points at a `Staff`, and `Staff` needs `schoolId`, which needs the
-`School`.
+**The staff and account could not work.** `Staff` requires `dateOfBirth` and `gender`, both
+non-null. A platform operator provisioning a school for a client does not know the principal's
+birthday, and inventing one puts a false date into a record payroll and government reporting
+will later treat as fact. The contract signatory and the school's first administrator are also
+not necessarily the same person — a trustee may sign while an IT contractor does the setup. So
+`School.accountHolderName` stays a plain name, and creating the first administrator is its own
+endpoint that asks for what `Staff` actually requires.
+
+**The seeding was removed by decision**, to be settled separately.
+
+### What that leaves undone, and how it fails
+
+A school at `PROVISIONING` currently has no number sequences and no roles. Neither absence
+shows up here; both show up later, to somebody trying to use the school:
+
+| Missing | Fails when |
+|---|---|
+| `NumberSequence` rows | the first student admission asks for a number and finds no counter to increment |
+| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |
+
+That is exactly what `PROVISIONING` as a starting status is for — *exists, not usable yet*. But
+something must fill both in before #3 `activate` can be allowed to succeed. See #2.
 
 **Accepts:** `schoolName`, `accountHolderName`, `subdomain`, `defaultLocale`,
 `defaultTimeZone`, `countryCode`, and the account holder's contact details.
@@ -167,18 +189,38 @@ If step 5 fails, steps 1–4 roll back. The ordering is forced, not chosen:
 | `encryptionKeyReference` | a KMS pointer the platform derives; a caller who sets it can aim a new tenant at another tenant's key |
 | `activatedAt`, `suspendedAt` | stamped by their transitions, never supplied |
 
-**Idempotency:** requires an `Idempotency-Key` header. A retry after a timeout must return the
-first result, not provision a second tenant. The unique index on `subdomain` catches an exact
-duplicate; a retry differing by one character sails through, and you find out months later.
+**Idempotency — NOT BUILT.** It should require an `Idempotency-Key` header so a retry after a
+timeout returns the first result rather than provisioning a second tenant. Today it does not:
+the unique index on `subdomain` catches an exact repeat, but a retry differing by one character
+sails through and you find out months later. Needed before this faces a real network.
 
-## 2. `POST /platform/schools/{id}/retry-provisioning`
+**Also not built:** any authentication. An unauthenticated endpoint that provisions tenants is
+the most useful thing an attacker could be handed.
 
-Because #1 is atomic but its *side effects* may not be — a KMS key, a DNS record, a storage
-bucket. This re-runs the incomplete steps for a school stuck at `PROVISIONING`. Must be
-idempotent per step: re-running it on a school that already has its number sequences must not
-create a second set.
+## 2. `POST /platform/schools/{id}/complete-provisioning`
 
-Without this, a half-provisioned tenant is fixed by hand in the database.
+**Renamed from `retry-provisioning` on 2026-08-27, because its job changed.**
+
+It was a recovery endpoint: #1 was atomic in the database, but its *side effects* were not — a
+KMS key, a DNS record, a storage bucket cannot be rolled back by a transaction, so a school
+could end up with its DNS record made and its key missing. `retry-provisioning` re-ran whatever
+had failed.
+
+Now that #1 writes a single row, there is nothing to fail halfway and nothing to retry. What
+there *is*, is a tenant that is deliberately incomplete — no number sequences, no roles. So this
+endpoint stops meaning *recover from a failure* and starts meaning **finish the setup**:
+
+1. seed a `NumberSequence` for every type, at `scopeKey` `GLOBAL`
+2. seed the starting `Role` set — enough to attach a first administrator to
+
+**Idempotent per step.** Running it twice must not produce a second set of 47 sequences. Check
+what exists and fill the gaps, rather than assuming an empty tenant.
+
+Whether this stays a separate endpoint or folds into whatever creates the first administrator is
+still open. It has to happen somewhere before #3 `activate` can be allowed to succeed, and #3
+should refuse a school that has no roles rather than activating one nobody can log into.
+
+If #1 ever goes back to seeding inline, delete this endpoint rather than leaving it as a no-op.
 
 ## 3–5, 13–17. Lifecycle transitions
 
@@ -193,7 +235,7 @@ is just not in a state where it makes sense.
 
 | # | Endpoint | Requires | Side effects |
 |---|---|---|---|
-| 3 | `activate` | an active `SchoolSubscription` | stamps `activatedAt` on first activation only |
+| 3 | `activate` | an active `SchoolSubscription`, **and #2 already run** | stamps `activatedAt` on first activation only |
 | 4 | `suspend` | a reason | blocks every live `AuthSession`, stops scheduled jobs, stamps `suspendedAt` |
 | 5 | `reactivate` | — | restores access; does **not** clear `suspendedAt` (it is "most recent") |
 | 13 | `offboard` | a reason | starts data export |
