@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.orbitastra.backend.common.error.exception.ApiException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,9 +14,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.orbitastra.backend.common.error.exception.BadRequestException;
-import com.orbitastra.backend.common.error.exception.ConflictException;
-import com.orbitastra.backend.common.error.exception.NotFoundException;
 
 /**
  * Converts exceptions into the standard ApiError format.
@@ -51,22 +49,13 @@ public class GlobalExceptionHandler {
         }
 
 
-        @ExceptionHandler(BadRequestException.class)
-        public ResponseEntity<ApiError> onBadRequest(BadRequestException exception) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
-        }
-
-        @ExceptionHandler(ConflictException.class)
-        public ResponseEntity<ApiError> onConflict(ConflictException exception) {
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
-        }
-
-
-        @ExceptionHandler(NotFoundException.class)
-        public ResponseEntity<ApiError> onNotFound(NotFoundException exception) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        //! who trigger this method: anything that throws ApiException
+        //! when the ApiException class object created then @ExceptionHandler will call this method(onApiException) 
+        //? one handler for 400 / 409 / 404 — the status rides on the exception itself,
+        //? set by whichever ApiException factory raised it (badRequest / conflict / notFound)
+        @ExceptionHandler(ApiException.class)
+        public ResponseEntity<ApiError> onApiException(ApiException exception) {
+                return ResponseEntity.status(exception.getStatus())
                                 .body(ApiError.createError(exception.getCode(), exception.getMessage()));
         }
 

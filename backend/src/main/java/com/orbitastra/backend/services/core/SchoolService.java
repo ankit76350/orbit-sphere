@@ -4,7 +4,7 @@ package com.orbitastra.backend.services.core;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.common.error.exception.ConflictException;
+import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.models.core.School;
@@ -73,7 +73,7 @@ public class SchoolService {
         // the real guard: two simultaneous requests both pass this, and the loser surfaces as a
         // DuplicateKeyException, which GlobalExceptionHandler turns into the same 409.
         if (schools.existsBySubdomain(subdomain)) {
-            throw new ConflictException("SUBDOMAIN_TAKEN",
+            throw ApiException.conflict("SUBDOMAIN_TAKEN",
                     "The subdomain '" + subdomain + "' is already in use.");
         }
 

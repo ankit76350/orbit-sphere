@@ -6,8 +6,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.orbitastra.backend.common.error.exception.BadRequestException;
-import com.orbitastra.backend.common.error.exception.ConflictException;
+import com.orbitastra.backend.common.error.exception.ApiException;
+
 
 /**
  * Every validation rule the core module owns, in one place.
@@ -20,7 +20,7 @@ import com.orbitastra.backend.common.error.exception.ConflictException;
  * returns the value in the form it should be stored in. Normalising as it validates is
  * deliberate: a caller that has to remember to trim after checking will forget.
  *
- * <p><b>These all throw ConflictException, which is a 409, and that is not an oversight.</b>
+ * <p><b>These mostly throw ApiException.conflict, which is a 409, and that is not an oversight.</b>
  * `"Asia/Pune"` is a well-formed string and a reasonable guess. `api` is a perfectly valid
  * subdomain the platform simply will not hand over. Answering 400 would tell the caller their
  * request was malformed and send them hunting for a syntax error that is not there — the
@@ -66,17 +66,17 @@ public class CoreValidator {
      */
     public String validateSubdomain(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new BadRequestException("SUBDOMAIN_REQUIRED", "A subdomain is required.");
+            throw ApiException.badRequest("SUBDOMAIN_REQUIRED", "A subdomain is required.");
         }
         String normalized = raw.trim().toLowerCase().replaceAll("[\\s_]+", "-");
 
         if (!SUBDOMAIN_SHAPE.matcher(normalized).matches()) {
-            throw new ConflictException("SUBDOMAIN_INVALID",
+            throw ApiException.conflict("SUBDOMAIN_INVALID",
                     "A subdomain must be 1 to 63 characters of lowercase letters, digits and "
                             + "inner hyphens. Received: " + normalized);
         }
         if (RESERVED_SUBDOMAINS.contains(normalized)) {
-            throw new ConflictException("SUBDOMAIN_RESERVED",
+            throw ApiException.conflict("SUBDOMAIN_RESERVED",
                     "The subdomain '" + normalized + "' is reserved by the platform.");
         }
         return normalized;
@@ -94,11 +94,11 @@ public class CoreValidator {
      */
     public String validateTimeZone(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new ConflictException("TIME_ZONE_REQUIRED", "A time zone is required.");
+            throw ApiException.badRequest("TIME_ZONE_REQUIRED", "A time zone is required.");
         }
         String candidate = raw.trim();
         if (!ZoneId.getAvailableZoneIds().contains(candidate)) {
-            throw new ConflictException("TIME_ZONE_INVALID",
+            throw ApiException.conflict("TIME_ZONE_INVALID",
                     "'" + candidate + "' is not a known IANA time zone id.");
         }
         return candidate;
