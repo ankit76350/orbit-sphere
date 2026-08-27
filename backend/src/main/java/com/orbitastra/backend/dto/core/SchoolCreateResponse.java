@@ -27,7 +27,7 @@ public record SchoolCreateResponse(
         Instant createdAt,
         String nextStep) {
 
-    public static SchoolCreateResponse of(School school) {
+    public static SchoolCreateResponse fromSchool(School school) {
         return new SchoolCreateResponse(
                 school.getId(),
                 school.getSchoolName(),

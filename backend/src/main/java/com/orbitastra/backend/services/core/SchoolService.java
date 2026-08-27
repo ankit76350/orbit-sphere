@@ -97,6 +97,6 @@ public class SchoolService {
         //! step 2 - save it with the new school 
         School savedSchool = schools.save(school);
 
-        return SchoolCreateResponse.of(savedSchool);
+        return SchoolCreateResponse.fromSchool(savedSchool);
     }
 }
