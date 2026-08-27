@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
+import com.orbitastra.backend.dto.core.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.services.core.SchoolService;
@@ -69,5 +70,18 @@ public class SchoolController {
             @PathVariable String id) {
 
         return ResponseEntity.ok(provisioningService.completeProvisioning(id));
+    }
+
+    /**
+     * Endpoint #3 — Takes the school live.
+     *
+     * <p>PROVISIONING or TRIAL to ACTIVE. Refuses anything else.
+     *
+     * <p>Requires complete-provisioning to have run: a school with no SCHOOL_ADMIN role or
+     * missing number sequences fails on first use, so it is refused rather than activated.
+     */
+    @PostMapping("/{id}/activate")
+    public ResponseEntity<SchoolActivateResponse> activate(@PathVariable String id) {
+        return ResponseEntity.ok(provisioningService.activateSchool(id));
     }
 }

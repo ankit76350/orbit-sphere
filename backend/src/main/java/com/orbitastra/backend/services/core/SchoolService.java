@@ -1,9 +1,11 @@
 package com.orbitastra.backend.services.core;
 
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
+import com.orbitastra.backend.dto.core.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.models.core.School;
@@ -20,9 +23,12 @@ import com.orbitastra.backend.models.identity.Role;
 import com.orbitastra.backend.models.institution.NumberSequence;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
+import com.orbitastra.backend.models.plans.SchoolSubscription;
+import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.identity.RoleRepository;
 import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
+import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
 import com.orbitastra.backend.services.core.helper.DefaultRoles;
 import com.orbitastra.backend.services.core.helper.TextHelper;
@@ -77,6 +83,7 @@ public class SchoolService {
     private final SchoolRepository schools;
     private final NumberSequenceRepository numberSequences;
     private final RoleRepository roles;
+    private final SchoolSubscriptionRepository subscriptions;
     private final CoreValidator coreValidator;
 
     @Transactional
@@ -141,11 +148,11 @@ public class SchoolService {
                     "A school at status " + school.getStatus() + " cannot be provisioned.");
         }
 
-        //! step 3 - save the missing number sequences
+        //!TODO: step 3 - save the missing number sequences
         int sequencesCreated = seedMissingNumberSequences(schoolId);
         int sequencesPresent = NumberSequenceType.values().length - sequencesCreated;
 
-        //! step 4 - save the missing roles
+        //!TODO: step 4 - save the missing roles
         List<Role> wanted = DefaultRoles.forSchool(schoolId);
         int rolesCreated = seedMissingRoles(schoolId, wanted);
         int rolesPresent = wanted.size() - rolesCreated;
@@ -158,14 +165,14 @@ public class SchoolService {
                 .sorted()
                 .collect(Collectors.toList());
 
-        return CompleteProvisioningResponse.fromSchool(
+        return CompleteProvisioningResponse.fromProvisioning(
                 school, sequencesCreated, sequencesPresent, rolesCreated, rolesPresent, roleKeys);
     }
 
         /**
-         * Creates missing number sequences for all types.
+         ** Creates missing number sequences for all types.
          *
-         * <p>Uses GLOBAL scope and skips existing sequences.
+         ** <p>Uses GLOBAL scope and skips existing sequences.
          */
     private int seedMissingNumberSequences(String schoolId) {
         //! step 1 - read what the school already has
@@ -195,9 +202,9 @@ public class SchoolService {
     }
 
         /**
-         * Adds missing default roles.
+         ** Adds missing default roles.
          *
-         * <p>Matches roles by roleKey and keeps existing roles unchanged.
+         ** <p>Matches roles by roleKey and keeps existing roles unchanged.
          */
     private int seedMissingRoles(String schoolId, List<Role> wanted) {
         //! step 1 - read the role keys the school already has
@@ -213,5 +220,102 @@ public class SchoolService {
         //! step 3 - save them, and return how many were saved
         // An existing role is never touched, only skipped.
         return missing.isEmpty() ? 0 : roles.saveAll(missing).size();
+    }
+
+
+
+    //! endpoint 3 — activate the school ----------------------------------------------
+
+    /**
+     * Takes a school live: TRIAL or PROVISIONING to ACTIVE.
+     *
+     * <p>Refuses anything else. Activating an already ACTIVE school is a 409, not a quiet
+     * success — the caller believes they changed something and they did not.
+     *
+     * <p>{@code activatedAt} is stamped once and never rewritten, so a school suspended in June
+     * and brought back in July keeps its original go-live date. Reactivation is endpoint #5, and
+     * it is a different thing from this.
+     */
+    @Transactional
+    public SchoolActivateResponse activateSchool(String schoolId) {
+        //! step 1 - find the school, or 404
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        //! step 2 - only TRIAL and PROVISIONING may go live
+        if (school.getStatus() != SchoolStatus.PROVISIONING
+                && school.getStatus() != SchoolStatus.TRIAL) {
+            throw ApiException.conflict("SCHOOL_NOT_ACTIVATABLE",
+                    "A school at status " + school.getStatus() + " cannot be activated. Only "
+                            + "PROVISIONING and TRIAL can. A suspended school is reactivated, "
+                            + "not activated.");
+        }
+
+        //! step 3 - refuse a school nobody could log into
+        // Without a SCHOOL_ADMIN role the first administrator account has nothing to hold, and
+        // without the number sequences the first admission has no number to take. Activating
+        // either way produces a live school that fails on first use.
+        if (!roles.existsBySchoolIdAndRoleKey(schoolId, "SCHOOL_ADMIN")) {
+            throw ApiException.conflict("SETUP_INCOMPLETE",
+                    "This school has no SCHOOL_ADMIN role. Run complete-provisioning first.");
+        }
+        long sequenceCount = numberSequences.countBySchoolId(schoolId);
+        if (sequenceCount < NumberSequenceType.values().length) {
+            throw ApiException.conflict("SETUP_INCOMPLETE",
+                    "This school has " + sequenceCount + " of "
+                            + NumberSequenceType.values().length + " number sequences. Run "
+                            + "complete-provisioning first.");
+        }
+
+        //! step 4 - check the subscription, where there is one to check
+        Optional<SchoolSubscription> subscription =
+                subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId);
+        String subscriptionStatus = subscription
+                .map(s -> s.getStatus().name())
+                .orElse("NONE");
+        String subscriptionNote = subscriptionCheck(subscription);
+
+        //! step 5 - go live, stamping activatedAt only the first time
+        boolean firstActivation = school.getActivatedAt() == null;
+        school.setStatus(SchoolStatus.ACTIVE);
+        if (firstActivation) {
+            school.setActivatedAt(Instant.now());
+        }
+        
+        School savedSchool = schools.save(school);
+
+        return SchoolActivateResponse.fromActivateResponse(
+                savedSchool, firstActivation, subscriptionStatus, subscriptionNote);
+    }
+
+    /**
+     * Decides whether a subscription blocks activation.
+     *
+     * <p><b>A missing subscription is currently allowed, and that is a deliberate compromise.</b>
+     * The plan in {@code controllers/core/README.md} says activation requires an active
+     * SchoolSubscription — but nothing in this system creates one yet. Enforcing it strictly
+     * would mean every activation returns 409 and endpoint #3 could never be used.
+     *
+     * <p>So the rule is enforced where it can be: a subscription that exists and is CANCELLED or
+     * EXPIRED blocks activation. A school with no subscription row goes live, and the response
+     * says so in {@code subscriptionNote} rather than staying quiet about it.
+     *
+     * <p>Reporting it on every call is the point. A silently skipped check becomes permanent
+     * because nobody sees it; one that announces itself in the response gets fixed when the
+     * subscription endpoints are built. <b>Tighten this to a hard requirement then.</b>
+     */
+    private String subscriptionCheck(Optional<SchoolSubscription> subscription) {
+        if (subscription.isEmpty()) {
+            return "No subscription exists for this school. Activation was allowed anyway "
+                    + "because nothing creates subscriptions yet — this check must become a "
+                    + "hard requirement once it does.";
+        }
+        SubscriptionStatus status = subscription.get().getStatus();
+        if (status == SubscriptionStatus.CANCELLED || status == SubscriptionStatus.EXPIRED) {
+            throw ApiException.conflict("SUBSCRIPTION_NOT_ACTIVE",
+                    "The school's subscription is " + status + ". It cannot be activated.");
+        }
+        return "Subscription is " + status + ".";
     }
 }

@@ -1,0 +1,159 @@
+{
+  "info": {
+    "_postman_id": "cd80fbe0-4955-4295-b988-b3cc71c57651",
+    "name": "Orbit Sphere — API",
+    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 2 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "47336508",
+    "_collection_link": "https://go.postman.co/collection/47336508-cd80fbe0-4955-4295-b988-b3cc71c57651?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Core / School",
+      "item": [
+        {
+          "name": "Create School",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Asserts the ACTIVE body above (case 01). Swap the body for another case",
+                  "// and these assertions change meaning — read the expected status in the comment.",
+                  "",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test('returns a schoolId', () => pm.expect(body.schoolId).to.be.a('string').and.not.empty);",
+                  "pm.test('starts at PROVISIONING or TRIAL', () =>",
+                  "  pm.expect(body.status).to.be.oneOf(['PROVISIONING', 'TRIAL']));",
+                  "pm.test('Location header points at the new school', () =>",
+                  "  pm.expect(pm.response.headers.get('Location')).to.eql('/platform/schools/' + body.schoolId));",
+                  "pm.test('subdomain came back normalised', () =>",
+                  "  pm.expect(body.subdomain).to.eql(body.subdomain.toLowerCase().trim()));",
+                  "",
+                  "// case 05 needs these",
+                  "pm.collectionVariables.set('schoolId', body.schoolId);",
+                  "pm.collectionVariables.set('createdSubdomain', body.subdomain);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Rohan Shinde\",\n  \"subdomain\": \"orbit-astra-{{$timestamp}}\",\n  \"phoneNumber\": \"+919876543210\",\n  \"emailAddress\": \"admin@orbit-school.edu\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\",\n  \"trial\": false\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools\n//  Swap the body above for any block below, then Send.\n//  Postman strips these // comments before sending.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FULL PAYLOAD                                          -> 201 Created\n//     The body above. Every field the endpoint accepts.\n//     OUT: { schoolId, schoolName, subdomain, status:\"PROVISIONING\",\n//            createdAt, nextStep }\n//     Header: Location: /platform/schools/{schoolId}\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  MINIMUM PAYLOAD — only the 6 required fields          -> 201 Created\n//     Everything omitted is stored as null, not \"\".\n// {\n//   \"schoolName\": \"Minimum Fields School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"minimum-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TRIAL TENANT                                          -> 201 Created\n//     OUT: status is \"TRIAL\" instead of \"PROVISIONING\".\n//     Those are the only two legal starting states; a caller cannot ask\n//     for ACTIVE, because that would skip the subscription check.\n// {\n//   \"schoolName\": \"Trial School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"trial-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\",\n//   \"trial\": true\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SUBDOMAIN IS NORMALISED BEFORE STORING                -> 201 Created\n//     IN : \"  Norm_Check 123  \"\n//     OUT: \"norm-check-123\"   (trimmed, lowercased, [space _] -> -)\n//     The subdomain in the RESPONSE is the one to use afterwards.\n// {\n//   \"schoolName\": \"Normalisation Check\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"  Norm_Check {{$timestamp}}  \",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  DUPLICATE SUBDOMAIN                                   -> 409 Conflict\n//     Run case 01 first: it saves {{createdSubdomain}}.\n//     OUT: { \"code\": \"SUBDOMAIN_TAKEN\", \"message\": \"...already in use.\" }\n//     409 not 400 — the request is well formed, the name is simply taken.\n// {\n//   \"schoolName\": \"Duplicate Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"{{createdSubdomain}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  RESERVED SUBDOMAIN                                    -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_RESERVED\" }\n//     Also reserved: www admin login auth app cdn mail api status support\n//     docs blog test staging dev billing webhooks ... (~40)\n//     A school owning \"login\" would receive credentials meant for the platform.\n// {\n//   \"schoolName\": \"Reserved Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"api\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  MALFORMED SUBDOMAIN                                   -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_INVALID\" }\n//     Leading/trailing hyphens are not a valid DNS label.\n//     Also rejected: \"\" , 64+ chars, anything outside [a-z0-9-]\n// {\n//   \"schoolName\": \"Bad Shape\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"-bad-\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN TIME ZONE                                     -> 409 Conflict\n//     IN : \"Asia/Pune\"  — looks reasonable, does not exist\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA zone set. No regex can do this, and\n//     the zone decides which calendar DATE an attendance record falls on.\n// {\n//   \"schoolName\": \"Bad Zone\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"bad-zone-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 09  MISSING AND INVALID FIELDS                        -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//             \"fieldErrors\": { \"schoolName\":        [\"must not be blank\"],\n//                              \"accountHolderName\": [\"must not be blank\"],\n//                              \"countryCode\":       [\"must be a two-letter...\"],\n//                              \"emailAddress\":      [\"must be a well-formed...\"] } }\n//     Caught by Jakarta annotations before the controller is entered,\n//     which is why the errors are per-field.\n// {\n//   \"schoolName\": \"\",\n//   \"subdomain\": \"validation-{{$timestamp}}\",\n//   \"emailAddress\": \"not-an-email\",\n//   \"countryCode\": \"ZZZ\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 10  MALFORMED JSON                                    -> 400 Bad Request\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }  and NO stack trace in the body.\n//     Send exactly this, comments removed:      {\"schoolName\": }\n// ---------------------------------------------------------------------------\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/platform/schools",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "schools"
+              ]
+            },
+            "description": "**POST** `/platform/schools` — provision a new tenant.\n\nCreates the `School` row at `PROVISIONING` (or `TRIAL`). It does **not** create a user, so the\nschool cannot be logged into yet — that is what `nextStep` in the response says.\n\n### Required — 6 fields\n\n| Field | Rule |\n|---|---|\n| `schoolName` | not blank, max 200 |\n| `accountHolderName` | not blank, max 150 |\n| `subdomain` | not blank, max 63, normalised, globally unique, not reserved |\n| `defaultLocale` | IETF tag — `en-IN`, `hi-IN` |\n| `defaultTimeZone` | real IANA id — `Asia/Kolkata` |\n| `countryCode` | exactly 2 letters — `IN` |\n\n### Optional\n\n`phoneNumber` (30) · `emailAddress` (valid, 254) · `addressLine` (200) · `city` (100) ·\n`stateOrProvince` (100) · `postalCode` (20) · `trial` (bool)\n\n### Refused if sent\n\n`status`, `encryptionKeyReference`, `activatedAt`, `suspendedAt` — the DTO has no such fields,\nso they are ignored rather than honoured. Each would hand the caller something the document\ndefends.\n\n### Test cases — all 10 are in the request body as comments\n\n| # | Case | Result |\n|---|---|---|\n| 01 | Full payload | 201 |\n| 02 | Minimum payload | 201 |\n| 03 | Trial tenant | 201, `status: TRIAL` |\n| 04 | Subdomain normalisation | 201, `Norm_Check 12` → `norm-check-12` |\n| 05 | Duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |\n| 06 | Reserved subdomain | 409 `SUBDOMAIN_RESERVED` |\n| 07 | Malformed subdomain | 409 `SUBDOMAIN_INVALID` |\n| 08 | Unknown time zone | 409 `TIME_ZONE_INVALID` |\n| 09 | Missing/invalid fields | 400 `VALIDATION_FAILED` + `fieldErrors` |\n| 10 | Malformed JSON | 400 `MALFORMED_REQUEST` |\n"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Provisioning",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Asserts case 01/02 — a school that exists and is provisionable.",
+                  "// Cases 04 and 05 expect 404 and 409, so these will fail for those on purpose.",
+                  "",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('every number sequence type is present', () => {",
+                  "  const total = body.numberSequencesCreated + body.numberSequencesAlreadyPresent;",
+                  "  pm.expect(total).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('SCHOOL_ADMIN exists', () => pm.expect(body.roleKeys).to.include('SCHOOL_ADMIN'));",
+                  "pm.test('ready to activate', () => pm.expect(body.readyToActivate).to.be.true);",
+                  "",
+                  "// Idempotency: nothing should have been created the second time round.",
+                  "// Set to true by hand before re-sending to assert case 02 strictly.",
+                  "const expectNoWrites = false;",
+                  "if (expectNoWrites) {",
+                  "  pm.test('created nothing', () => {",
+                  "    pm.expect(body.numberSequencesCreated).to.eql(0);",
+                  "    pm.expect(body.rolesCreated).to.eql(0);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/complete-provisioning\n//\n//  This endpoint takes NO BODY. It is a POST because it performs an action,\n//  not because it sends data. The {id} comes from the URL.\n//\n//  So the cases below are about which {{schoolId}} you point it at, and what\n//  state that school is in. Set the variable, then Send.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here even if your Postman does not strip comments.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FIRST CALL on a freshly created school              -> 200 OK\n//     Run \"Create School\" first — it saves {{schoolId}}.\n//     OUT: numberSequencesCreated: 47,  numberSequencesAlreadyPresent: 0\n//          rolesCreated: 3,             rolesAlreadyPresent: 0\n//          roleKeys: [\"GUARDIAN\",\"SCHOOL_ADMIN\",\"TEACHER\"]\n//          readyToActivate: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  SEND IT AGAIN — idempotency                         -> 200 OK\n//     Same {{schoolId}}, no changes needed. Nothing is written.\n//     OUT: numberSequencesCreated: 0,  numberSequencesAlreadyPresent: 47\n//          rolesCreated: 0,            rolesAlreadyPresent: 3\n//          readyToActivate: true\n//\n//     Still 200, not 201. A call that created nothing because everything was\n//     already there is a success — 201 Created would be a lie.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  PARTIAL REPAIR — the case this endpoint exists for  -> 200 OK\n//     Delete some rows in MongoDB first, then send again:\n//\n//       db.number_sequences.deleteMany({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//       db.roles.deleteOne({schoolId: \"<id>\", roleKey: \"TEACHER\"})\n//\n//     OUT: numberSequencesCreated: 1,  numberSequencesAlreadyPresent: 46\n//          rolesCreated: 1,            rolesAlreadyPresent: 2\n//\n//     It fills only the gaps. An existing role is skipped, never overwritten —\n//     so a school that edited SCHOOL_ADMIN's permissions keeps them.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  UNKNOWN SCHOOL ID                                   -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\",\n//            \"message\": \"No school found with id '...'.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SHUT-DOWN TENANT                                    -> 409 Conflict\n//     Set the school to an end-of-life status first:\n//\n//       db.schools.updateOne({_id: ObjectId(\"<id>\")}, {$set: {status: \"CLOSED\"}})\n//\n//     OUT: { \"code\": \"SCHOOL_NOT_PROVISIONABLE\",\n//            \"message\": \"A school at status CLOSED cannot be provisioned.\" }\n//\n//     Refused for OFFBOARDING, CLOSED, DELETION_PENDING and DELETED. Seeding\n//     one would quietly bring rows back to a school somebody deliberately shut\n//     down. Every other status is allowed, including ACTIVE — so a school found\n//     to be missing a role after go-live is fixed here, not by hand in the\n//     database.\n// ---------------------------------------------------------------------------\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/complete-provisioning",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "schools",
+                "{{schoolId}}",
+                "complete-provisioning"
+              ]
+            },
+            "description": "**POST** `/platform/schools/{id}/complete-provisioning` — finishes a tenant's setup.\n\nCreating a school leaves it with **no number sequences and no roles**. Neither absence is\nvisible at creation; both show up later, to whoever tries to use the school:\n\n| Missing | Fails when |\n|---|---|\n| `NumberSequence` rows | the first student admission asks for a number and finds no counter |\n| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |\n\nThis closes both gaps, and must run before the school can be activated.\n\n### Request\n\nNo body. `{{schoolId}}` in the path — saved automatically by **Create School**.\n\n### Idempotent\n\nReads what exists and inserts only the gaps. Safe to send repeatedly; safe to send when you\ndo not know what state the school is in. That is the point of it.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Fresh school | `200` | — 47 sequences, 3 roles created |\n| Sent again | `200` | — 0 created, everything already present |\n| Partial repair | `200` | — only the gaps created |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n| Offboarding / closed / deleted | `409` | `SCHOOL_NOT_PROVISIONABLE` |\n\n`readyToActivate` answers the operator's real question: every sequence type has a row and\n`SCHOOL_ADMIN` exists.\n\n### The five test cases are in the request body as comments\n"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tenant provisioning. Platform surface — no school session exists yet, because provisioning is what creates the school these requests are about."
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3456",
+      "description": "server.port, set in application.properties."
+    },
+    {
+      "key": "schoolId",
+      "value": "",
+      "description": "Saved by a successful create."
+    },
+    {
+      "key": "createdSubdomain",
+      "value": "",
+      "description": "Saved by a create; used by case 05."
+    }
+  ]
+}

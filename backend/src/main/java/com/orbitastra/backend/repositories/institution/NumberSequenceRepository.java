@@ -11,4 +11,7 @@ public interface NumberSequenceRepository extends MongoRepository<NumberSequence
     List<NumberSequence> findBySchoolId(String schoolId);
 
     boolean existsBySchoolId(String schoolId);
+
+    /** For the activation readiness check — counting in the database beats loading 47 rows. */
+    long countBySchoolId(String schoolId);
 }
