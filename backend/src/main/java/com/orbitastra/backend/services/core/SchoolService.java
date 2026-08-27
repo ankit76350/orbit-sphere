@@ -285,12 +285,12 @@ public class SchoolService {
     }
 
         /**
-         * Checks if the subscription allows activation.
+         ** Checks if the subscription allows activation.
          *
-         * <p>A missing subscription is allowed for now because the system does not create
-         * subscriptions yet. CANCELLED or EXPIRED subscriptions block activation.
+         ** <p>A missing subscription is allowed for now because the system does not create
+         ** subscriptions yet. CANCELLED or EXPIRED subscriptions block activation.
          *
-         * <p>The response shows the subscription status so this can be made required later.
+         ** <p>The response shows the subscription status so this can be made required later.
          */
     private String subscriptionCheck(Optional<SchoolSubscription> subscription) {
         if (subscription.isEmpty()) {
