@@ -20,11 +20,14 @@ public record ApiError(
         Map<String, List<String>> fieldErrors,
         Instant timestamp) {
 
-    public static ApiError of(String code, String message) {
+    // Here, we have two methods for creating errors to throw in the API response.  
+    public static ApiError createError(String code, String message) {
         return new ApiError(code, message, null, Instant.now());
     }
 
-    public static ApiError validation(String message, Map<String, List<String>> fieldErrors) {
+    public static ApiError createValidationError(
+            String message,
+            Map<String, List<String>> fieldErrors) {
         return new ApiError("VALIDATION_FAILED", message, fieldErrors, Instant.now());
     }
 }

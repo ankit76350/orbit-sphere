@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0b1t5phe-c0re-4a11-9e00-5c4001c0113c",
     "name": "Orbit Sphere \u2014 API",
-    "description": "Write API for the Orbit Sphere school platform.\n\n**Built so far: 1 of 28 planned write endpoints.** The plan for the rest is in\n`backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nRun the folder top to bottom: request 01 saves `schoolId` and `createdSubdomain`, which request 05 needs.\n\nEvery request carries tests, so **Run collection** is a regression suite, not just a list of calls.",
+    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 1 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -11,25 +11,30 @@
       "description": "Tenant provisioning. Platform surface \u2014 no school session exists yet, because provisioning is what creates the school these requests are about.",
       "item": [
         {
-          "name": "01 Create school \u2014 full payload",
+          "name": "Create School",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Asserts the ACTIVE body above (case 01). Swap the body for another case",
+                  "// and these assertions change meaning \u2014 read the expected status in the comment.",
+                  "",
                   "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
                   "const body = pm.response.json();",
                   "pm.test('returns a schoolId', () => pm.expect(body.schoolId).to.be.a('string').and.not.empty);",
-                  "pm.test('starts at PROVISIONING', () => pm.expect(body.status).to.eql('PROVISIONING'));",
+                  "pm.test('starts at PROVISIONING or TRIAL', () =>",
+                  "  pm.expect(body.status).to.be.oneOf(['PROVISIONING', 'TRIAL']));",
                   "pm.test('Location header points at the new school', () =>",
                   "  pm.expect(pm.response.headers.get('Location')).to.eql('/platform/schools/' + body.schoolId));",
-                  "pm.test('subdomain was normalised to lowercase', () =>",
-                  "  pm.expect(body.subdomain).to.eql(body.subdomain.toLowerCase()));",
+                  "pm.test('subdomain came back normalised', () =>",
+                  "  pm.expect(body.subdomain).to.eql(body.subdomain.toLowerCase().trim()));",
                   "",
+                  "// case 05 needs these",
                   "pm.collectionVariables.set('schoolId', body.schoolId);",
-                  "pm.collectionVariables.set('createdSubdomain', body.subdomain);",
-                  "console.log('created ' + body.subdomain + ' -> ' + body.schoolId);"
+                  "pm.collectionVariables.set('createdSubdomain', body.subdomain);"
                 ]
               }
             }
@@ -44,7 +49,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Rohan Shinde\",\n  \"subdomain\": \"orbit-astra-{{$timestamp}}\",\n  \"phoneNumber\": \"+919876543210\",\n  \"emailAddress\": \"admin@orbit-school.edu\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\",\n  \"trial\": false\n}",
+              "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Rohan Shinde\",\n  \"subdomain\": \"orbit-astra-{{$timestamp}}\",\n  \"phoneNumber\": \"+919876543210\",\n  \"emailAddress\": \"admin@orbit-school.edu\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\",\n  \"trial\": false\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools\n//  Swap the body above for any block below, then Send.\n//  Postman strips these // comments before sending.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FULL PAYLOAD                                          -> 201 Created\n//     The body above. Every field the endpoint accepts.\n//     OUT: { schoolId, schoolName, subdomain, status:\"PROVISIONING\",\n//            createdAt, nextStep }\n//     Header: Location: /platform/schools/{schoolId}\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  MINIMUM PAYLOAD \u2014 only the 6 required fields          -> 201 Created\n//     Everything omitted is stored as null, not \"\".\n// {\n//   \"schoolName\": \"Minimum Fields School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"minimum-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TRIAL TENANT                                          -> 201 Created\n//     OUT: status is \"TRIAL\" instead of \"PROVISIONING\".\n//     Those are the only two legal starting states; a caller cannot ask\n//     for ACTIVE, because that would skip the subscription check.\n// {\n//   \"schoolName\": \"Trial School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"trial-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\",\n//   \"trial\": true\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SUBDOMAIN IS NORMALISED BEFORE STORING                -> 201 Created\n//     IN : \"  Norm_Check 123  \"\n//     OUT: \"norm-check-123\"   (trimmed, lowercased, [space _] -> -)\n//     The subdomain in the RESPONSE is the one to use afterwards.\n// {\n//   \"schoolName\": \"Normalisation Check\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"  Norm_Check {{$timestamp}}  \",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  DUPLICATE SUBDOMAIN                                   -> 409 Conflict\n//     Run case 01 first: it saves {{createdSubdomain}}.\n//     OUT: { \"code\": \"SUBDOMAIN_TAKEN\", \"message\": \"...already in use.\" }\n//     409 not 400 \u2014 the request is well formed, the name is simply taken.\n// {\n//   \"schoolName\": \"Duplicate Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"{{createdSubdomain}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  RESERVED SUBDOMAIN                                    -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_RESERVED\" }\n//     Also reserved: www admin login auth app cdn mail api status support\n//     docs blog test staging dev billing webhooks ... (~40)\n//     A school owning \"login\" would receive credentials meant for the platform.\n// {\n//   \"schoolName\": \"Reserved Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"api\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  MALFORMED SUBDOMAIN                                   -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_INVALID\" }\n//     Leading/trailing hyphens are not a valid DNS label.\n//     Also rejected: \"\" , 64+ chars, anything outside [a-z0-9-]\n// {\n//   \"schoolName\": \"Bad Shape\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"-bad-\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN TIME ZONE                                     -> 409 Conflict\n//     IN : \"Asia/Pune\"  \u2014 looks reasonable, does not exist\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA zone set. No regex can do this, and\n//     the zone decides which calendar DATE an attendance record falls on.\n// {\n//   \"schoolName\": \"Bad Zone\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"bad-zone-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 09  MISSING AND INVALID FIELDS                        -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//             \"fieldErrors\": { \"schoolName\":        [\"must not be blank\"],\n//                              \"accountHolderName\": [\"must not be blank\"],\n//                              \"countryCode\":       [\"must be a two-letter...\"],\n//                              \"emailAddress\":      [\"must be a well-formed...\"] } }\n//     Caught by Jakarta annotations before the controller is entered,\n//     which is why the errors are per-field.\n// {\n//   \"schoolName\": \"\",\n//   \"subdomain\": \"validation-{{$timestamp}}\",\n//   \"emailAddress\": \"not-an-email\",\n//   \"countryCode\": \"ZZZ\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 10  MALFORMED JSON                                    -> 400 Bad Request\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }  and NO stack trace in the body.\n//     Send exactly this, comments removed:      {\"schoolName\": }\n// ---------------------------------------------------------------------------\n",
               "options": {
                 "raw": {
                   "language": "json"
@@ -61,413 +66,7 @@
                 "schools"
               ]
             },
-            "description": "Every field the request accepts. Saves schoolId and subdomain as collection variables so later requests can reuse them.\n\nsubdomain uses {{$timestamp}} because it is GLOBALLY unique, not per-school \u2014 a fixed value only works once and then returns 409 forever."
-          }
-        },
-        {
-          "name": "02 Create school \u2014 minimum payload",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "pm.test('optional fields left out is fine', () => pm.expect(pm.response.json().schoolId).to.be.a('string'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Minimum Fields School\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"minimum-{{$timestamp}}\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Only the six required fields. Everything else is optional and stored as null."
-          }
-        },
-        {
-          "name": "03 Create school \u2014 trial tenant",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "pm.test('status is TRIAL', () => pm.expect(pm.response.json().status).to.eql('TRIAL'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Trial School\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"trial-{{$timestamp}}\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"trial\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "trial:true starts the tenant at TRIAL instead of PROVISIONING. Both are legal starting states; ACTIVE is not, and the request cannot ask for it."
-          }
-        },
-        {
-          "name": "04 Subdomain is normalised before it is stored",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "const s = pm.response.json().subdomain;",
-                  "pm.test('trimmed, lowercased, hyphenated', () => pm.expect(s).to.match(/^norm-check-\\d+$/));",
-                  "pm.test('no spaces or underscores survive', () => pm.expect(s).to.not.match(/[\\s_]/));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Normalisation Check\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"  Norm_Check {{$timestamp}}  \",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Sends '  Orbit_Astra School {{$timestamp}}  '. Whitespace is trimmed, case lowered, spaces and underscores become hyphens.\n\nThe subdomain in the RESPONSE is the one to use afterwards \u2014 not the one you sent."
-          }
-        },
-        {
-          "name": "05 Duplicate subdomain \u2192 409",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('code is SUBDOMAIN_TAKEN', () => pm.expect(pm.response.json().code).to.eql('SUBDOMAIN_TAKEN'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Duplicate Attempt\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"{{createdSubdomain}}\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Reuses the subdomain saved by request 01. Run 01 first.\n\n409 and not 400: the request is perfectly well formed. Somebody else simply has that name."
-          }
-        },
-        {
-          "name": "06 Reserved subdomain \u2192 409",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('code is SUBDOMAIN_RESERVED', () => pm.expect(pm.response.json().code).to.eql('SUBDOMAIN_RESERVED'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Reserved Attempt\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"api\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "'api' is on the platform's reserved list. So are www, admin, login, auth, cdn, mail and about thirty more.\n\nThis is not a naming preference: a school owning 'login' would receive credentials meant for the platform."
-          }
-        },
-        {
-          "name": "07 Malformed subdomain \u2192 409",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('code is SUBDOMAIN_INVALID', () => pm.expect(pm.response.json().code).to.eql('SUBDOMAIN_INVALID'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Bad Shape\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"-bad-\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Leading and trailing hyphens are not a valid DNS label."
-          }
-        },
-        {
-          "name": "08 Unknown time zone \u2192 409",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('code is TIME_ZONE_INVALID', () => pm.expect(pm.response.json().code).to.eql('TIME_ZONE_INVALID'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Bad Zone\",\n  \"accountHolderName\": \"Ankit Kumar\",\n  \"subdomain\": \"bad-zone-{{$timestamp}}\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Pune\",\n  \"countryCode\": \"IN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "'Asia/Pune' looks reasonable and does not exist. Checked against the JVM's IANA zone set, which no regex or annotation can do.\n\nThis matters more than it looks: defaultTimeZone decides which calendar date an attendance record falls on, so a wrong value is wrong everywhere at once."
-          }
-        },
-        {
-          "name": "09 Missing and invalid fields \u2192 400",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
-                  "const body = pm.response.json();",
-                  "pm.test('code is VALIDATION_FAILED', () => pm.expect(body.code).to.eql('VALIDATION_FAILED'));",
-                  "pm.test('errors are keyed by field', () => {",
-                  "  pm.expect(body.fieldErrors).to.have.property('schoolName');",
-                  "  pm.expect(body.fieldErrors).to.have.property('accountHolderName');",
-                  "  pm.expect(body.fieldErrors).to.have.property('countryCode');",
-                  "  pm.expect(body.fieldErrors).to.have.property('emailAddress');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"\",\n  \"subdomain\": \"validation-{{$timestamp}}\",\n  \"countryCode\": \"ZZZ\",\n  \"emailAddress\": \"not-an-email\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Blank name, no account holder, a three-letter country code.\n\n400 with per-field messages, because these are caught by Jakarta annotations on the request record before the controller method is entered."
-          }
-        },
-        {
-          "name": "10 Malformed JSON \u2192 400",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
-                  "pm.test('code is MALFORMED_REQUEST', () => pm.expect(pm.response.json().code).to.eql('MALFORMED_REQUEST'));",
-                  "pm.test('no stack trace leaks', () => pm.expect(pm.response.text()).to.not.include('org.springframework'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"schoolName\": }",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "Deliberately broken body.\n\nAsserts the response carries no stack trace \u2014 devtools enables those by default, and they hand over package names and framework versions to anyone who can send a bad request."
+            "description": "**POST** `/platform/schools` \u2014 provision a new tenant.\n\nCreates the `School` row at `PROVISIONING` (or `TRIAL`). It does **not** create a user, so the\nschool cannot be logged into yet \u2014 that is what `nextStep` in the response says.\n\n### Required \u2014 6 fields\n\n| Field | Rule |\n|---|---|\n| `schoolName` | not blank, max 200 |\n| `accountHolderName` | not blank, max 150 |\n| `subdomain` | not blank, max 63, normalised, globally unique, not reserved |\n| `defaultLocale` | IETF tag \u2014 `en-IN`, `hi-IN` |\n| `defaultTimeZone` | real IANA id \u2014 `Asia/Kolkata` |\n| `countryCode` | exactly 2 letters \u2014 `IN` |\n\n### Optional\n\n`phoneNumber` (30) \u00b7 `emailAddress` (valid, 254) \u00b7 `addressLine` (200) \u00b7 `city` (100) \u00b7\n`stateOrProvince` (100) \u00b7 `postalCode` (20) \u00b7 `trial` (bool)\n\n### Refused if sent\n\n`status`, `encryptionKeyReference`, `activatedAt`, `suspendedAt` \u2014 the DTO has no such fields,\nso they are ignored rather than honoured. Each would hand the caller something the document\ndefends.\n\n### Test cases \u2014 all 10 are in the request body as comments\n\n| # | Case | Result |\n|---|---|---|\n| 01 | Full payload | 201 |\n| 02 | Minimum payload | 201 |\n| 03 | Trial tenant | 201, `status: TRIAL` |\n| 04 | Subdomain normalisation | 201, `Norm_Check 12` \u2192 `norm-check-12` |\n| 05 | Duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |\n| 06 | Reserved subdomain | 409 `SUBDOMAIN_RESERVED` |\n| 07 | Malformed subdomain | 409 `SUBDOMAIN_INVALID` |\n| 08 | Unknown time zone | 409 `TIME_ZONE_INVALID` |\n| 09 | Missing/invalid fields | 400 `VALIDATION_FAILED` + `fieldErrors` |\n| 10 | Malformed JSON | 400 `MALFORMED_REQUEST` |\n"
           }
         }
       ]
@@ -477,17 +76,17 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:3456",
-      "description": "server.port is 3456, set in application.properties."
+      "description": "server.port, set in application.properties."
     },
     {
       "key": "schoolId",
       "value": "",
-      "description": "Set by request 01."
+      "description": "Saved by a successful create."
     },
     {
       "key": "createdSubdomain",
       "value": "",
-      "description": "Set by request 01, used by 05."
+      "description": "Saved by a create; used by case 05."
     }
   ]
 }

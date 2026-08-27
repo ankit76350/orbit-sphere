@@ -1,69 +1,130 @@
 # postman — request collection for the Orbit Sphere API
 
-`orbit-sphere.postman_collection.json` — import it into Postman with **Import → File**.
+`orbit-sphere.postman_collection.json` — **Import → File** in Postman.
+
+## The convention: one request per endpoint
+
+Not one request per test case. **One request per API endpoint**, with every test case for that
+endpoint living inside the request body as a numbered, commented-out block.
+
+To run a case: swap the active body for the block you want, and Send. Postman strips `//`
+comments from a raw JSON body before sending, so the comments cost nothing.
+
+> If your Postman version does not strip them, the request fails with `MALFORMED_REQUEST`.
+> Delete the comment block for that one send.
+
+## How to write a new request
+
+### 1. Name it after the endpoint, not the case
+
+`Create School`, `Activate School`, `Create Academic Year`. The method and path live in the
+request; the name should read as the operation.
+
+### 2. Active body = the ordinary happy path
+
+Valid JSON, no comments above it, so the request works the moment somebody hits Send without
+reading anything.
+
+### 3. Below it, the test-case block
+
+```
+// ===========================================================================
+//  TEST CASES  —  POST /platform/schools
+//  Swap the body above for any block below, then Send.
+//  Postman strips these // comments before sending.
+// ===========================================================================
+//
+// ---------------------------------------------------------------------------
+// 02  MINIMUM PAYLOAD — only the 6 required fields          -> 201 Created
+//     Everything omitted is stored as null, not "".
+// {
+//   "schoolName": "Minimum Fields School",
+//   ...
+// }
+// ---------------------------------------------------------------------------
+```
+
+Every case carries:
+
+| Part | Why |
+|---|---|
+| **Two-digit number** | so it can be referred to — "case 07 fails" |
+| **SHORT NAME IN CAPS** | scannable down the left edge |
+| **`-> STATUS`** | the expected result, on the same line |
+| **`IN:` / `OUT:`** where useful | the input that triggers it, the shape that comes back |
+| **A one-line why** | especially for a 409, which people mistake for a bug |
+| **The payload, commented** | ready to paste over the active body |
+
+Case `01` is the active body, so its block documents rather than repeats it.
+
+### 4. Order the cases: success first, then failures
+
+`01` full · `02` minimum · `03` variants · then normalisation · then every error, grouped by
+the field they concern.
+
+### 5. Repeat the contract in the request description
+
+The **Description** field is markdown and renders in Postman's docs pane. Put the required and
+optional field tables there, plus the fields the endpoint **refuses** if sent. The body block is
+for running; the description is for understanding.
+
+### 6. Write tests for the active body
+
+The tests assert case `01`. Say so in a comment at the top of the test script, because they will
+be wrong for whichever case somebody swaps in — that is expected, not a bug.
+
+Save anything later cases need:
+
+```js
+pm.collectionVariables.set('schoolId', body.schoolId);
+pm.collectionVariables.set('createdSubdomain', body.subdomain);
+```
+
+### 7. Make unique values unique per run
+
+`subdomain` is **globally unique**, so a fixed value works once and returns `409` forever after.
+Use `{{$timestamp}}`:
+
+```json
+"subdomain": "orbit-astra-{{$timestamp}}"
+```
+
+Fixed values are right where the case is *meant* to fail every time — `api`, `-bad-`.
 
 ## Running it
-
-Start the backend first:
 
 ```bash
 cd backend && ./mvnw spring-boot:run     # ~15s, port 3456
 ```
 
-Then **Run collection** in Postman. Every request carries tests, so a run is a regression
-suite rather than a list of calls — 10 requests, 26 assertions.
-
-Run the folder **top to bottom**. Request 01 saves `schoolId` and `createdSubdomain` as
-collection variables, and request 05 needs `createdSubdomain` to test the duplicate case.
-
-## Why subdomains use `{{$timestamp}}`
-
-`subdomain` is **globally unique**, not per-school. A fixed value works exactly once and returns
-`409 SUBDOMAIN_TAKEN` on every run after that, so the create requests build one per run.
-
-Requests 06 and 07 use fixed values on purpose — `api` and `-bad-` are meant to be rejected
-every time.
+Then Send, or **Run collection** for the active bodies.
 
 ## Variables
 
 | Variable | Set by | Used by |
 |---|---|---|
-| `baseUrl` | you | everything |
-| `schoolId` | request 01 | future endpoints taking `{id}` |
-| `createdSubdomain` | request 01 | request 05 |
+| `baseUrl` | you — defaults to `http://localhost:3456` | everything |
+| `schoolId` | a successful create | endpoints taking `{id}` |
+| `createdSubdomain` | a successful create | case 05, duplicate |
 
-`baseUrl` defaults to `http://localhost:3456`, which is `server.port` in
-`application.properties`.
+## Folders mirror `controllers/`
 
-## What is covered
+`Core / School` today. Next is `Core / Academic Year`. One folder per model package, so the
+collection and the code stay findable from each other.
+
+## Coverage
 
 **1 of 28 planned write endpoints.** The other 27 are specified in
-`backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built, so
-they are not in here — a collection full of 404s is worse than a short one.
+`backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
+a collection full of 404s is worse than a short honest one.
 
-| # | Request | Expects |
-|---|---|---|
-| 01–03 | create: full, minimum, trial | 201 |
-| 04 | subdomain normalisation | 201, `Norm_Check 123` → `norm-check-123` |
-| 05 | duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |
-| 06 | reserved subdomain | 409 `SUBDOMAIN_RESERVED` |
-| 07 | malformed subdomain | 409 `SUBDOMAIN_INVALID` |
-| 08 | unknown time zone | 409 `TIME_ZONE_INVALID` |
-| 09 | missing/invalid fields | 400 + per-field `fieldErrors` |
-| 10 | malformed JSON | 400, and **asserts no stack trace leaks** |
+## A note on all those 409s
 
-## Note on the 409s
+Five of the ten cases expect `409`, not `400`, and that is deliberate across this whole API.
 
-Five requests expect 409 rather than 400, and that is deliberate throughout this API. A 400
-means *this is not a well-formed request*. A 409 means *the request is fine and the answer is
-still no* — the subdomain is spelled correctly and taken, the time zone is a reasonable guess
-that does not exist.
+- **400** — *this is not a well-formed request*: nothing sent, a date that is not a date.
+- **409** — *the request is fine and the answer is still no*: the subdomain is spelled correctly
+  and taken; the time zone is a reasonable guess that does not exist.
 
-Told 400 for a taken subdomain, a caller goes hunting their JSON for a mistake that is not
+Told `400` for a taken subdomain, a caller goes hunting their JSON for a mistake that is not
 there.
-
-## Adding to it as endpoints get built
-
-Keep one folder per model package, mirroring `controllers/`. The next folder is
-**Core / Academic Year**. Give every request tests — the collection is only worth keeping if
-running it proves something.

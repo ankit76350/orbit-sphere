@@ -18,32 +18,25 @@ import com.orbitastra.backend.common.error.exception.ConflictException;
 import com.orbitastra.backend.common.error.exception.NotFoundException;
 
 /**
- * Turns exceptions into the single ApiError shape.
+ * Converts exceptions into the standard ApiError format.
  *
- * <p>
- * The DuplicateKeyException handler is doing real work rather than tidying up.
- * Several
- * uniqueness rules in this system are enforced only by a MongoDB unique index —
- * the globally
- * unique {@code subdomain} among them — and a race between two requests gets
- * past any
- * application-level check. When that happens the database raises a duplicate
- * key error, and
- * without this handler the caller sees a 500 for something that is genuinely a
- * 409.
+ * <p>Handles duplicate key errors and returns 409 instead of 500.
  */
-@RestControllerAdvice // ! ← "check this class for handlers, on every controller" what this anonation
-                      // does?
+@RestControllerAdvice // ! ← "check this class for handlers, on every controller" what this anonation does?
 public class GlobalExceptionHandler {
 
+        //? this will run due to DTO -> for all the misiing filed (For those are mark as @NotBlank, @Size(max = 30) anonation)
+        // Step 2: ResponseEntity<ApiError>: throw the response
+        // Error will throw in this data type ApiError
+        //! who trigger this method: 1. @Valid
         @ExceptionHandler(MethodArgumentNotValidException.class)
         public ResponseEntity<ApiError> onValidation(MethodArgumentNotValidException exception) {
                 Map<String, List<String>> fields = new LinkedHashMap<>();
                 exception.getBindingResult().getFieldErrors().forEach(error -> fields
                                 .computeIfAbsent(error.getField(), key -> new ArrayList<>())
                                 .add(error.getDefaultMessage()));
-                return ResponseEntity.badRequest()
-                                .body(ApiError.validation("One or more fields are invalid.", fields));
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createValidationError("One or more fields are invalid.", fields));
         }
 
         /**
@@ -52,7 +45,7 @@ public class GlobalExceptionHandler {
          */
         @ExceptionHandler(HttpMessageNotReadableException.class)
         public ResponseEntity<ApiError> onUnreadable(HttpMessageNotReadableException exception) {
-                return ResponseEntity.badRequest().body(ApiError.of("MALFORMED_REQUEST",
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.createError("MALFORMED_REQUEST",
                                 "The request body could not be read. Check that it is valid JSON and that every "
                                                 + "field has the expected type."));
         }
@@ -61,20 +54,20 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(BadRequestException.class)
         public ResponseEntity<ApiError> onBadRequest(BadRequestException exception) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                .body(ApiError.of(exception.getCode(), exception.getMessage()));
+                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
         }
 
         @ExceptionHandler(ConflictException.class)
         public ResponseEntity<ApiError> onConflict(ConflictException exception) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(ApiError.of(exception.getCode(), exception.getMessage()));
+                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
         }
 
 
         @ExceptionHandler(NotFoundException.class)
         public ResponseEntity<ApiError> onNotFound(NotFoundException exception) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                .body(ApiError.of(exception.getCode(), exception.getMessage()));
+                                .body(ApiError.createError(exception.getCode(), exception.getMessage()));
         }
 
         @ExceptionHandler(DuplicateKeyException.class)
@@ -83,7 +76,7 @@ public class GlobalExceptionHandler {
                 // caught it
                 // lost a race, which is normal under concurrency and not a server fault.
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(ApiError.of("DUPLICATE_KEY",
+                                .body(ApiError.createError("DUPLICATE_KEY",
                                                 "That value is already in use. Another request may have just taken it."));
         }
 }

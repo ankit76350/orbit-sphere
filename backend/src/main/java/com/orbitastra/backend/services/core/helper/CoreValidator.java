@@ -45,12 +45,9 @@ public class CoreValidator {
             Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$");
 
     /**
-     * Labels a school may not take.
+     * Subdomain names that schools cannot use.
      *
-     * <p>This list is the reason the subdomain check exists at all. **A school that claims
-     * {@code api} or {@code login} receives traffic and credentials meant for the platform** —
-     * a parent typing their password into what they believe is the login page would be sending
-     * it to whoever owns that tenant. Not a naming preference.
+     * <p>These names are reserved for platform services like API and login.
      */
     private static final Set<String> RESERVED_SUBDOMAINS = Set.of(
             "www", "api", "admin", "administrator", "app", "apps", "platform", "status",
@@ -61,16 +58,11 @@ public class CoreValidator {
             "internal", "system", "root", "billing", "payments", "webhook", "webhooks");
 
     /**
-     * Normalises and vets a tenant subdomain.
+     * Validates and normalizes a school subdomain.
      *
-     * <p>{@code School.subdomain} is the globally unique label that resolves a request to a
-     * tenant, so it is the one string in this system where two spellings of the same thing is a
-     * security problem rather than an annoyance. Normalising on the way in means
-     * {@code "Orbit-Astra "} and {@code "orbit-astra"} cannot become two schools.
+     * <p>Converts the subdomain to a standard format and checks if it is valid or reserved.
      *
-     * @return the normalised label, ready to store
-     * @throws ConflictException codes {@code SUBDOMAIN_REQUIRED}, {@code SUBDOMAIN_INVALID},
-     *                           {@code SUBDOMAIN_RESERVED}
+     * @return the normalized subdomain
      */
     public String validateSubdomain(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -94,20 +86,11 @@ public class CoreValidator {
     //! time zone ---------------------------------------------------------------- 
 
     /**
-     * Checks that a time zone is one the JVM actually knows.
+     * Validates the school time zone.
      *
-     * <p>Rejected on the way in rather than stored, because a bad zone is not discovered until
-     * something tries to work out which calendar date a timestamp falls on — and by then
-     * attendance has been taken. {@code School.defaultTimeZone} is read by attendance,
-     * timetables, holidays, transport trips and fee due dates, so a wrong value there is wrong
-     * in every one of them at once.
+     * <p>Checks that the time zone is valid and supported by the JVM.
      *
-     * <p>A Jakarta annotation cannot do this job. Nothing in the validation API knows the IANA
-     * list, and a regex over it would be wrong within a year — zones are added and renamed.
-     * Asking the JVM is the only check that stays correct.
-     *
-     * @return the trimmed zone id
-     * @throws ConflictException codes {@code TIME_ZONE_REQUIRED}, {@code TIME_ZONE_INVALID}
+     * @return the trimmed time zone
      */
     public String validateTimeZone(String raw) {
         if (raw == null || raw.isBlank()) {
