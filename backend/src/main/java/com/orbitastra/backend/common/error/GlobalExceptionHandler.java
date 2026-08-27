@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
 
 
         //! who trigger this method: anything that throws ApiException
-        //! when the ApiException class object created then @ExceptionHandler will call this method(onApiException) 
+        //! when the ApiException class/object created and thrown then @ExceptionHandler will call this method(onApiException) 
         //? one handler for 400 / 409 / 404 — the status rides on the exception itself,
         //? set by whichever ApiException factory raised it (badRequest / conflict / notFound)
         @ExceptionHandler(ApiException.class)
