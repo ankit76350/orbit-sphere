@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0b1t5phe-c0re-4a11-9e00-5c4001c0113c",
     "name": "Orbit Sphere \u2014 API",
-    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 1 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 2 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -67,6 +67,69 @@
               ]
             },
             "description": "**POST** `/platform/schools` \u2014 provision a new tenant.\n\nCreates the `School` row at `PROVISIONING` (or `TRIAL`). It does **not** create a user, so the\nschool cannot be logged into yet \u2014 that is what `nextStep` in the response says.\n\n### Required \u2014 6 fields\n\n| Field | Rule |\n|---|---|\n| `schoolName` | not blank, max 200 |\n| `accountHolderName` | not blank, max 150 |\n| `subdomain` | not blank, max 63, normalised, globally unique, not reserved |\n| `defaultLocale` | IETF tag \u2014 `en-IN`, `hi-IN` |\n| `defaultTimeZone` | real IANA id \u2014 `Asia/Kolkata` |\n| `countryCode` | exactly 2 letters \u2014 `IN` |\n\n### Optional\n\n`phoneNumber` (30) \u00b7 `emailAddress` (valid, 254) \u00b7 `addressLine` (200) \u00b7 `city` (100) \u00b7\n`stateOrProvince` (100) \u00b7 `postalCode` (20) \u00b7 `trial` (bool)\n\n### Refused if sent\n\n`status`, `encryptionKeyReference`, `activatedAt`, `suspendedAt` \u2014 the DTO has no such fields,\nso they are ignored rather than honoured. Each would hand the caller something the document\ndefends.\n\n### Test cases \u2014 all 10 are in the request body as comments\n\n| # | Case | Result |\n|---|---|---|\n| 01 | Full payload | 201 |\n| 02 | Minimum payload | 201 |\n| 03 | Trial tenant | 201, `status: TRIAL` |\n| 04 | Subdomain normalisation | 201, `Norm_Check 12` \u2192 `norm-check-12` |\n| 05 | Duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |\n| 06 | Reserved subdomain | 409 `SUBDOMAIN_RESERVED` |\n| 07 | Malformed subdomain | 409 `SUBDOMAIN_INVALID` |\n| 08 | Unknown time zone | 409 `TIME_ZONE_INVALID` |\n| 09 | Missing/invalid fields | 400 `VALIDATION_FAILED` + `fieldErrors` |\n| 10 | Malformed JSON | 400 `MALFORMED_REQUEST` |\n"
+          }
+        },
+        {
+          "name": "Complete Provisioning",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Asserts case 01/02 \u2014 a school that exists and is provisionable.",
+                  "// Cases 04 and 05 expect 404 and 409, so these will fail for those on purpose.",
+                  "",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('every number sequence type is present', () => {",
+                  "  const total = body.numberSequencesCreated + body.numberSequencesAlreadyPresent;",
+                  "  pm.expect(total).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('SCHOOL_ADMIN exists', () => pm.expect(body.roleKeys).to.include('SCHOOL_ADMIN'));",
+                  "pm.test('ready to activate', () => pm.expect(body.readyToActivate).to.be.true);",
+                  "",
+                  "// Idempotency: nothing should have been created the second time round.",
+                  "// Set to true by hand before re-sending to assert case 02 strictly.",
+                  "const expectNoWrites = false;",
+                  "if (expectNoWrites) {",
+                  "  pm.test('created nothing', () => {",
+                  "    pm.expect(body.numberSequencesCreated).to.eql(0);",
+                  "    pm.expect(body.rolesCreated).to.eql(0);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/complete-provisioning\n//\n//  This endpoint takes NO BODY. It is a POST because it performs an action,\n//  not because it sends data. The {id} comes from the URL.\n//\n//  So the cases below are about which {{schoolId}} you point it at, and what\n//  state that school is in. Set the variable, then Send.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here even if your Postman does not strip comments.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FIRST CALL on a freshly created school              -> 200 OK\n//     Run \"Create School\" first \u2014 it saves {{schoolId}}.\n//     OUT: numberSequencesCreated: 47,  numberSequencesAlreadyPresent: 0\n//          rolesCreated: 3,             rolesAlreadyPresent: 0\n//          roleKeys: [\"GUARDIAN\",\"SCHOOL_ADMIN\",\"TEACHER\"]\n//          readyToActivate: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  SEND IT AGAIN \u2014 idempotency                         -> 200 OK\n//     Same {{schoolId}}, no changes needed. Nothing is written.\n//     OUT: numberSequencesCreated: 0,  numberSequencesAlreadyPresent: 47\n//          rolesCreated: 0,            rolesAlreadyPresent: 3\n//          readyToActivate: true\n//\n//     Still 200, not 201. A call that created nothing because everything was\n//     already there is a success \u2014 201 Created would be a lie.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  PARTIAL REPAIR \u2014 the case this endpoint exists for  -> 200 OK\n//     Delete some rows in MongoDB first, then send again:\n//\n//       db.number_sequences.deleteMany({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//       db.roles.deleteOne({schoolId: \"<id>\", roleKey: \"TEACHER\"})\n//\n//     OUT: numberSequencesCreated: 1,  numberSequencesAlreadyPresent: 46\n//          rolesCreated: 1,            rolesAlreadyPresent: 2\n//\n//     It fills only the gaps. An existing role is skipped, never overwritten \u2014\n//     so a school that edited SCHOOL_ADMIN's permissions keeps them.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  UNKNOWN SCHOOL ID                                   -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\",\n//            \"message\": \"No school found with id '...'.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SHUT-DOWN TENANT                                    -> 409 Conflict\n//     Set the school to an end-of-life status first:\n//\n//       db.schools.updateOne({_id: ObjectId(\"<id>\")}, {$set: {status: \"CLOSED\"}})\n//\n//     OUT: { \"code\": \"SCHOOL_NOT_PROVISIONABLE\",\n//            \"message\": \"A school at status CLOSED cannot be provisioned.\" }\n//\n//     Refused for OFFBOARDING, CLOSED, DELETION_PENDING and DELETED. Seeding\n//     one would quietly bring rows back to a school somebody deliberately shut\n//     down. Every other status is allowed, including ACTIVE \u2014 so a school found\n//     to be missing a role after go-live is fixed here, not by hand in the\n//     database.\n// ---------------------------------------------------------------------------\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/complete-provisioning",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "schools",
+                "{{schoolId}}",
+                "complete-provisioning"
+              ]
+            },
+            "description": "**POST** `/platform/schools/{id}/complete-provisioning` \u2014 finishes a tenant's setup.\n\nCreating a school leaves it with **no number sequences and no roles**. Neither absence is\nvisible at creation; both show up later, to whoever tries to use the school:\n\n| Missing | Fails when |\n|---|---|\n| `NumberSequence` rows | the first student admission asks for a number and finds no counter |\n| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |\n\nThis closes both gaps, and must run before the school can be activated.\n\n### Request\n\nNo body. `{{schoolId}}` in the path \u2014 saved automatically by **Create School**.\n\n### Idempotent\n\nReads what exists and inserts only the gaps. Safe to send repeatedly; safe to send when you\ndo not know what state the school is in. That is the point of it.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Fresh school | `200` | \u2014 47 sequences, 3 roles created |\n| Sent again | `200` | \u2014 0 created, everything already present |\n| Partial repair | `200` | \u2014 only the gaps created |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n| Offboarding / closed / deleted | `409` | `SCHOOL_NOT_PROVISIONABLE` |\n\n`readyToActivate` answers the operator's real question: every sequence type has a row and\n`SCHOOL_ADMIN` exists.\n\n### The five test cases are in the request body as comments\n"
           }
         }
       ]

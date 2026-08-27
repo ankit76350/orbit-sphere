@@ -3,11 +3,13 @@ package com.orbitastra.backend.controllers.core;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.services.core.SchoolService;
@@ -46,7 +48,7 @@ public class SchoolController {
 
     private final SchoolService provisioningService;
 
-    //
+    // Ceate New school
     @PostMapping
     public ResponseEntity<SchoolCreateResponse> provision(
             @Valid @RequestBody SchoolCreateRequest request) {
@@ -55,5 +57,17 @@ public class SchoolController {
         return ResponseEntity
                 .created(URI.create("/platform/schools/" + response.schoolId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #2 — Completes school setup.
+     *
+     * <p>Creates missing sequences and roles.
+     */
+    @PostMapping("/{id}/complete-provisioning")
+    public ResponseEntity<CompleteProvisioningResponse> completeProvisioning(
+            @PathVariable String id) {
+
+        return ResponseEntity.ok(provisioningService.completeProvisioning(id));
     }
 }

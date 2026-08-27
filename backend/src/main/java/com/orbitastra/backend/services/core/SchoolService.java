@@ -1,15 +1,30 @@
 package com.orbitastra.backend.services.core;
 
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.models.core.School;
+import com.orbitastra.backend.models.core.enums.SchoolStatus;
+import com.orbitastra.backend.models.identity.Role;
+import com.orbitastra.backend.models.institution.NumberSequence;
+import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
+import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.identity.RoleRepository;
+import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
+import com.orbitastra.backend.services.core.helper.DefaultRoles;
 import com.orbitastra.backend.services.core.helper.TextHelper;
 
 import lombok.RequiredArgsConstructor;
@@ -60,6 +75,8 @@ import lombok.RequiredArgsConstructor;
 public class SchoolService {
 
     private final SchoolRepository schools;
+    private final NumberSequenceRepository numberSequences;
+    private final RoleRepository roles;
     private final CoreValidator coreValidator;
 
     @Transactional
@@ -94,9 +111,107 @@ public class SchoolService {
                 .status(request.initialStatus())
                 .build();
 
-        //! step 2 - save it with the new school 
+        //! step 2 - save it with the new school
         School savedSchool = schools.save(school);
 
         return SchoolCreateResponse.fromSchool(savedSchool);
+    }
+
+    //! endpoint 2 — finish the setup -------------------------------------------------
+
+        /**
+         * Completes tenant setup with missing sequences and roles.
+         *
+         * <p>Idempotent: creates only missing data.
+         *
+         * <p>Works for all statuses except end-of-life statuses.
+         */
+    @Transactional
+    public CompleteProvisioningResponse completeProvisioning(String schoolId) {
+        // step 1 - find the school, or 404
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        // step 2 - refuse a shut-down tenant
+        // Seeding one would quietly bring rows back to a school somebody deliberately closed.
+        if (EnumSet.of(SchoolStatus.OFFBOARDING, SchoolStatus.CLOSED,
+                SchoolStatus.DELETION_PENDING, SchoolStatus.DELETED).contains(school.getStatus())) {
+            throw ApiException.conflict("SCHOOL_NOT_PROVISIONABLE",
+                    "A school at status " + school.getStatus() + " cannot be provisioned.");
+        }
+
+        //! step 3 - save the missing number sequences
+        int sequencesCreated = seedMissingNumberSequences(schoolId);
+        int sequencesPresent = NumberSequenceType.values().length - sequencesCreated;
+
+        //! step 4 - save the missing roles
+        List<Role> wanted = DefaultRoles.forSchool(schoolId);
+        int rolesCreated = seedMissingRoles(schoolId, wanted);
+        int rolesPresent = wanted.size() - rolesCreated;
+
+        // step 5 - read back what the school ended up with
+        // Read from the database, not from `wanted`: a school may hold roles nobody here
+        // created, and readyToActivate is about what exists rather than what we just added.
+        List<String> roleKeys = roles.findBySchoolId(schoolId).stream()
+                .map(Role::getRoleKey)
+                .sorted()
+                .collect(Collectors.toList());
+
+        return CompleteProvisioningResponse.fromSchool(
+                school, sequencesCreated, sequencesPresent, rolesCreated, rolesPresent, roleKeys);
+    }
+
+        /**
+         * Creates missing number sequences for all types.
+         *
+         * <p>Uses GLOBAL scope and skips existing sequences.
+         */
+    private int seedMissingNumberSequences(String schoolId) {
+        //! step 1 - read what the school already has
+        Set<NumberSequenceType> existing = numberSequences.findBySchoolId(schoolId).stream()
+                .map(NumberSequence::getSequenceType)
+                .collect(Collectors.toSet());
+
+        //! step 2 - build a document for every type that is missing
+        List<NumberSequence> missing = new ArrayList<>();
+        for (NumberSequenceType type : NumberSequenceType.values()) {
+            if (existing.contains(type)) {
+                continue;
+            }
+            missing.add(NumberSequence.builder()
+                    .schoolId(schoolId)
+                    .sequenceType(type)
+                    .scopeKey("GLOBAL")
+                    .nextValue(1L)
+                    .paddingWidth(6)
+                    .resetPolicy(SequenceResetPolicy.NEVER)
+                    .build());
+        }
+
+        //! step 3 - save them, and return how many were saved
+        // Nothing missing means no write at all, which is what makes a repeat call free.
+        return missing.isEmpty() ? 0 : numberSequences.saveAll(missing).size();
+    }
+
+        /**
+         * Adds missing default roles.
+         *
+         * <p>Matches roles by roleKey and keeps existing roles unchanged.
+         */
+    private int seedMissingRoles(String schoolId, List<Role> wanted) {
+        //! step 1 - read the role keys the school already has
+        Set<String> existingKeys = roles.findBySchoolId(schoolId).stream()
+                .map(Role::getRoleKey)
+                .collect(Collectors.toSet());
+
+        //! step 2 - keep only the defaults that are not there yet
+        List<Role> missing = wanted.stream()
+                .filter(role -> !existingKeys.contains(role.getRoleKey()))
+                .collect(Collectors.toList());
+
+        //! step 3 - save them, and return how many were saved
+        // An existing role is never touched, only skipped.
+        return missing.isEmpty() ? 0 : roles.saveAll(missing).size();
     }
 }
