@@ -47,20 +47,8 @@ public class GlobalExceptionHandler {
         }
 
         /**
-         * The body could not be parsed at all — malformed JSON, a string where a number
-         * belongs, an
-         * absent field mapped onto a primitive.
-         *
-         * <p>
-         * Without this handler Spring's default error page answers instead, and with
-         * devtools on
-         * that body carries a **full stack trace**: package names, framework versions,
-         * the request
-         * path and the failing field. That is free reconnaissance, and it reaches
-         * anyone who can
-         * send a bad request. The message here says what was wrong and nothing about
-         * the inside of
-         * the application.
+         * Handles invalid request data, such as malformed JSON or wrong field types.
+         * Returns a simple error instead of exposing internal application details.
          */
         @ExceptionHandler(HttpMessageNotReadableException.class)
         public ResponseEntity<ApiError> onUnreadable(HttpMessageNotReadableException exception) {
