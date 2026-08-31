@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "cd80fbe0-4955-4295-b988-b3cc71c57651",
     "name": "Orbit Sphere \u2014 API",
-    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 3 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 5 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "47336508",
     "_collection_link": "https://go.postman.co/collection/47336508-cd80fbe0-4955-4295-b988-b3cc71c57651?source=collection_link"
@@ -189,6 +189,119 @@
               ]
             },
             "description": "**POST** `/platform/schools/{id}/activate` \u2014 takes the school live.\n\n`PROVISIONING` or `TRIAL` \u2192 `ACTIVE`. Anything else is a `409`.\n\n### Request\n\nNo body. `{{schoolId}}` in the path \u2014 saved by **Create School**.\n\n### Order matters\n\n**Run Complete Provisioning first.** Activation refuses a school that has no `SCHOOL_ADMIN`\nrole or is missing any number sequence, because either one produces a live school that fails\non first use.\n\n### Not idempotent\n\nUnlike **Complete Provisioning**, sending this twice is a `409`. `activatedAt` is stamped once\nand never rewritten, so a school suspended and brought back keeps its original go-live date \u2014\n`firstActivation` tells you which happened. Bringing a suspended school back is endpoint #5\n`reactivate`.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Provisioned school, or TRIAL | `200` | \u2014 `ACTIVE`, `activatedAt` set |\n| No SCHOOL_ADMIN role | `409` | `SETUP_INCOMPLETE` |\n| Missing number sequences | `409` | `SETUP_INCOMPLETE` (with the count) |\n| Already ACTIVE, or SUSPENDED | `409` | `SCHOOL_NOT_ACTIVATABLE` |\n| Subscription CANCELLED / EXPIRED | `409` | `SUBSCRIPTION_NOT_ACTIVE` |\n| No subscription at all | `200` | \u2014 allowed, and `subscriptionNote` says why |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The eight test cases are in the request body as comments\n"
+          }
+        },
+        {
+          "name": "Suspend School",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Asserts case 01 \u2014 suspending a school that is currently ACTIVE.",
+                  "",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test('status is SUSPENDED', () => pm.expect(body.status).to.eql('SUSPENDED'));",
+                  "pm.test('suspendedAt was stamped', () => pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
+                  "pm.test('the reason was stored', () => pm.expect(body.statusReason).to.not.be.empty);",
+                  "",
+                  "// activatedAt must survive a suspension \u2014 it is the go-live date, not a status flag.",
+                  "pm.test('activatedAt is untouched', () => pm.expect(body.activatedAt).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/suspend\n//  Swap the body above for any block below, then Send.\n//  {{schoolId}} must be an ACTIVE school \u2014 run Activate School first.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  SUSPEND AN ACTIVE SCHOOL                            -> 200 OK\n//     The body above.\n//     OUT: status: \"SUSPENDED\"\n//          suspendedAt: <now>\n//          statusReason: \"Non-payment. Third invoice unpaid past 60 days.\"\n//          activatedAt: <unchanged \u2014 still the original go-live date>\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  NO REASON                                       -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//            \"fieldErrors\": { \"reason\": [\"must not be blank\"] } }\n// {\n// }\n//\n//     The reason is REQUIRED, unlike on reactivate. Suspension stops a whole\n//     school, and one with no reason written down gets switched back on by the\n//     next person who is asked about it.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  BLANK REASON \u2014 same as missing                  -> 400 Bad Request\n// {\n//   \"reason\": \"   \"\n// }\n//     @NotBlank, not @NotNull. Whitespace does not count as an answer.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL NOT ACTIVE YET                            -> 409 Conflict\n//     Point {{schoolId}} at a school you have NOT activated.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status PROVISIONING cannot be suspended.\n//                        Only ACTIVE can.\" }\n//\n//     Suspending a school that was never usable makes no sense.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SUSPEND TWICE                                    -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status SUSPENDED cannot be suspended...\" }\n//\n//     Not idempotent on purpose: the caller believes they changed something.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOT DONE YET \u2014 worth knowing before you rely on this\n//  Suspension does NOT revoke live sessions or stop scheduled jobs. Neither\n//  service exists. A suspended school's users stay logged in until their\n//  tokens expire, so this is a flag rather than a lock.\n// ---------------------------------------------------------------------------\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/suspend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "schools",
+                "{{schoolId}}",
+                "suspend"
+              ]
+            },
+            "description": "**POST** `/platform/schools/{id}/suspend` \u2014 blocks a school.\n\n`ACTIVE` \u2192 `SUSPENDED`. Anything else is a `409`.\n\n### Request\n\n```json\n{ \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\" }\n```\n\n`reason` is **required**, max 500 chars. Stored on `School.statusReason` and kept after\nreactivation, so \"this was suspended in August for non-payment\" survives being brought back.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Active school, reason given | `200` | \u2014 `SUSPENDED`, `suspendedAt` + `statusReason` set |\n| Missing or blank reason | `400` | `VALIDATION_FAILED` |\n| Not ACTIVE | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Already suspended | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### Known gap\n\nDoes **not** revoke live sessions or stop scheduled jobs \u2014 neither service exists yet. A\nsuspended school's users stay logged in until their tokens expire.\n\n### The six test cases are in the request body as comments\n"
+          }
+        },
+        {
+          "name": "Reactivate School",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Asserts cases 01 and 02 \u2014 bringing a SUSPENDED school back.",
+                  "",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test('status is ACTIVE', () => pm.expect(body.status).to.eql('ACTIVE'));",
+                  "",
+                  "// The three things reactivation must NOT reset. Each is history, not state.",
+                  "pm.test('activatedAt is not re-stamped', () =>",
+                  "  pm.expect(body.activatedAt).to.be.a('string').and.not.empty);",
+                  "pm.test('suspendedAt is kept as the last suspension', () =>",
+                  "  pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
+                  "pm.test('a reason is still on record', () =>",
+                  "  pm.expect(body.statusReason).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Outstanding invoices cleared on 31 August.\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/reactivate\n//  {{schoolId}} must be a SUSPENDED school.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  REACTIVATE WITH A NOTE                              -> 200 OK\n//     The body above. The note REPLACES the stored statusReason.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: \"Outstanding invoices cleared on 31 August.\"\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  REACTIVATE WITH NO BODY AT ALL                      -> 200 OK\n//     Delete the whole body. The endpoint accepts an absent body.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: <the suspension reason, KEPT>\n//          suspendedAt:  <KEPT \u2014 the most recent suspension>\n//          activatedAt:  <unchanged \u2014 the original go-live date>\n//\n//     The note is OPTIONAL here, unlike the reason on suspend. Letting a school\n//     back in usually means the problem was settled; forcing a sentence there\n//     produces \"resolved\" typed a hundred times, which looks like a record and\n//     is not.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  WHAT IS DELIBERATELY *NOT* RESET                    -> 200 OK\n//     Run case 02 and read the response carefully:\n//\n//       activatedAt  NOT re-stamped  \u2014 a school suspended in June and brought\n//                                      back in July keeps its April go-live date\n//       suspendedAt  NOT cleared     \u2014 it is the MOST RECENT suspension, and\n//                                      keeping it is how you see this school has\n//                                      been suspended before\n//       statusReason NOT cleared     \u2014 unless a note is sent\n//\n//     All three are history, not current state.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL IS ALREADY ACTIVE                         -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\",\n//            \"message\": \"A school at status ACTIVE cannot be reactivated. Only\n//                        SUSPENDED can. A school that has never gone live is\n//                        activated, not reactivated.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SCHOOL NEVER WENT LIVE                           -> 409 Conflict\n//     Point {{schoolId}} at a PROVISIONING school.\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\" }\n//\n//     Use  Activate School  for a school that has never been live. Reactivate is\n//     only for bringing a suspended one back.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOTE \u2014 activate vs reactivate\n//  Reactivate does NOT re-run the setup and subscription checks that guard\n//  Activate School. A suspended school was already live once, so it passed\n//  them. Re-running them would mean a school suspended for non-payment could\n//  never be let back in as a goodwill gesture, which is what this is for.\n// ---------------------------------------------------------------------------\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "platform",
+                "schools",
+                "{{schoolId}}",
+                "reactivate"
+              ]
+            },
+            "description": "**POST** `/platform/schools/{id}/reactivate` \u2014 brings a suspended school back.\n\n`SUSPENDED` \u2192 `ACTIVE`. Anything else is a `409`.\n\n### Request \u2014 optional\n\n```json\n{ \"note\": \"Outstanding invoices cleared on 31 August.\" }\n```\n\nThe body may be **omitted entirely**. When given, `note` replaces `School.statusReason`; when\nomitted, the suspension reason stays.\n\n### What it deliberately does not reset\n\n| Field | Why |\n|---|---|\n| `activatedAt` | the original go-live date, not a status flag |\n| `suspendedAt` | the *most recent* suspension \u2014 how you see it has happened before |\n| `statusReason` | kept unless a note replaces it |\n\n### Not the same as activate\n\nReactivate skips the setup and subscription checks. A suspended school was already live once,\nso it passed them \u2014 re-running them would mean a school suspended for non-payment could never\nbe let back in as a goodwill gesture.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Suspended school | `200` | \u2014 `ACTIVE` |\n| Already active | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Never went live | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The six test cases are in the request body as comments\n"
           }
         }
       ],
