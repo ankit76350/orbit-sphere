@@ -1,7 +1,12 @@
 # controllers/core — write API plan
 
-**One endpoint is built — #1.** This is the complete inventory of every `POST`, `PUT` and `PATCH` the
-`core` module needs, sequenced so it can be built and reviewed one step at a time.
+**Nine of 28 endpoints are built — #1 to #9, all of Phases 1 to 3.** This is the complete
+inventory of every `POST`, `PUT` and `PATCH` the `core` module needs, sequenced so it can be
+built and reviewed one step at a time.
+
+Built: [`SchoolPlatformController`](SchoolPlatformController.java) (#1–5) and
+[`SchoolProfileController`](SchoolProfileController.java) (#6–9). Every one is exercised by
+`postman/Orbit Sphere — API.postman_collection.json`.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
 
@@ -27,14 +32,14 @@ inventory because they exist and you should see them, but they are not counted i
 | # | Method | Path | Phase |
 |---|---|---|---|
 | 1 | `POST` | `/platform/schools` | 1 — **built** |
-| 2 | `POST` | `/platform/schools/{id}/complete-provisioning` | 1 |
-| 3 | `POST` | `/platform/schools/{id}/activate` | 2 |
-| 4 | `POST` | `/platform/schools/{id}/suspend` | 2 |
-| 5 | `POST` | `/platform/schools/{id}/reactivate` | 2 |
-| 6 | `PATCH` | `/schools/current/profile` | 3 |
-| 7 | `PUT` | `/schools/current/address` | 3 |
-| 8 | `PATCH` | `/schools/current/localization` | 3 |
-| 9 | `PUT` | `/schools/current/logo` | 3 |
+| 2 | `POST` | `/platform/schools/{id}/complete-provisioning` | 1 — **built** |
+| 3 | `POST` | `/platform/schools/{id}/activate` | 2 — **built** |
+| 4 | `POST` | `/platform/schools/{id}/suspend` | 2 — **built** |
+| 5 | `POST` | `/platform/schools/{id}/reactivate` | 2 — **built** |
+| 6 | `PATCH` | `/schools/current/profile` | 3 — **built** |
+| 7 | `PUT` | `/schools/current/address` | 3 — **built** |
+| 8 | `PATCH` | `/schools/current/localization` | 3 — **built** |
+| 9 | `PUT` | `/schools/current/logo` | 3 — **built** |
 | 10 | `PATCH` | `/platform/schools/{id}/subdomain` | 6 |
 | 11 | `PATCH` | `/platform/schools/{id}/account-holder` | 6 |
 | 12 | `PATCH` | `/platform/schools/{id}/encryption-key` | 6 |
@@ -90,8 +95,8 @@ proven.
 
 ## Phase 0 — the plumbing every endpoint assumes
 
-Three pieces. Getting them wrong is expensive to undo. **0.1 and most of 0.3 were built with
-endpoint #1; 0.2 and idempotency are still open.**
+Three pieces. Getting them wrong is expensive to undo. **All three are now built. Idempotency,
+which sits inside 0.3, is not.**
 
 **0.1 — The audit actor sentinel. BUILT.**
 [`AuditedDocument.createdByDocsId`](../../models/base/AuditedDocument.java) is filled
@@ -110,13 +115,22 @@ sentinel `"ANONYMOUS"` instead of a real user id. Get it right once here and ano
 later; assume there is always a user and you will retrofit it in a way that silently
 deanonymises children.
 
-**0.2 — Tenant resolution. NOT BUILT.** Every school-surface endpoint uses `current`, resolved
-from the session and subdomain. One place, not per-controller. Nothing needs it yet because
-endpoint #1 is on the platform surface, but #6 onwards cannot be built without it.
+**0.2 — Tenant resolution. BUILT, as a stand-in.**
+[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) is the single place
+every `/schools/current` endpoint learns which school is asking. It reads an
+`X-School-Subdomain` header today and will read the session tomorrow; because it is one class,
+that swap touches nothing else.
 
-**0.3 — Error contract. BUILT.** `ApiError` is the single response shape, `ApiException` carries
-the status through one `@ExceptionHandler`, and `409` means "well-formed request, wrong state"
-against `400` for "malformed". The transitions lean on that distinction heavily.
+**It is not safe yet, and the danger is worth stating plainly: any caller can set that header
+to any school's subdomain, so anybody can edit any school.** Fine on a developer machine,
+unacceptable anywhere reachable. The request reaches it through Spring's request-scoped proxy
+and a thread-local, which is why the services take no request parameter — and why this cannot
+be called from a background thread.
+
+**0.3 — Error contract. BUILT.** `ApiError` is the single response shape. One `ApiException`
+carries its own status through a single `@ExceptionHandler`, replacing the three near-identical
+exception classes that were there first. `409` means "well-formed request, wrong state" against
+`400` for "malformed", and every transition below leans on that distinction.
 **Idempotency is the part still missing** — see #1.
 
 ---
@@ -197,7 +211,7 @@ sails through and you find out months later. Needed before this faces a real net
 **Also not built:** any authentication. An unauthenticated endpoint that provisions tenants is
 the most useful thing an attacker could be handed.
 
-## 2. `POST /platform/schools/{id}/complete-provisioning`
+## 2. `POST /platform/schools/{id}/complete-provisioning` — BUILT
 
 **Renamed from `retry-provisioning` on 2026-08-27, because its job changed.**
 
@@ -222,7 +236,7 @@ should refuse a school that has no roles rather than activating one nobody can l
 
 If #1 ever goes back to seeding inline, delete this endpoint rather than leaving it as a no-op.
 
-## 3–5, 13–17. Lifecycle transitions
+## 3–5, 13–17. Lifecycle transitions — 3, 4 and 5 BUILT
 
 ```text
 TRIAL / PROVISIONING -> ACTIVE
@@ -235,9 +249,9 @@ is just not in a state where it makes sense.
 
 | # | Endpoint | Requires | Side effects |
 |---|---|---|---|
-| 3 | `activate` | an active `SchoolSubscription`, **and #2 already run** | stamps `activatedAt` on first activation only |
-| 4 | `suspend` | a reason | blocks every live `AuthSession`, stops scheduled jobs, stamps `suspendedAt` |
-| 5 | `reactivate` | — | restores access; does **not** clear `suspendedAt` (it is "most recent") |
+| 3 | `activate` | #2 already run — checked. Subscription — **partially**, see below | stamps `activatedAt` on first activation only |
+| 4 | `suspend` | a reason, stored on `School.statusReason` | stamps `suspendedAt`. **Does not yet revoke sessions or stop jobs** |
+| 5 | `reactivate` | — | restores access; does **not** clear `suspendedAt` or `statusReason`, does **not** re-stamp `activatedAt` |
 | 13 | `offboard` | a reason | starts data export |
 | 14 | `close` | export complete | tenant no longer reachable |
 | 15 | `request-deletion` | explicit confirmation | starts the retention clock |
@@ -258,6 +272,44 @@ needs: a suspension needs a reason, an activation does not.
 `models/core/README.md` says payment status "must not be stored in SchoolStatus". So #3 checks
 [`SchoolSubscription`](../../models/plans/SchoolSubscription.java) at the moment of activation.
 
+### What #3 to #5 actually enforce, where it differs from this plan
+
+**The subscription check on #3 is deliberately soft, and says so in its own response.** This
+plan requires an active subscription to activate. Nothing in the system creates a subscription
+— there is no endpoint, no service, no repository until one was added for this check — so
+enforcing it strictly would mean **every activation returns 409 and #3 could never be used.**
+
+So it enforces what it can: a subscription that exists and is `CANCELLED` or `EXPIRED` blocks
+activation; `ACTIVE`, `TRIAL`, `PAST_DUE` and `SUSPENDED` all pass. A school with **no**
+subscription row activates, and the response carries:
+
+```json
+"subscriptionStatus": "NONE",
+"subscriptionNote": "No subscription exists for this school. Activation was allowed anyway
+                     because nothing creates subscriptions yet — this check must become a
+                     hard requirement once it does."
+```
+
+Announcing it on every call is the point. A silently skipped check becomes permanent because
+nobody sees it. **Tighten this the day the subscription endpoints exist.**
+
+**#4 required a model change.** `School` had nowhere to store why a school was suspended, so
+requiring a reason would have meant validating a string and discarding it. `statusReason` was
+added to `School` on 2026-08-27, matching the sixteen other models that already carried one —
+`Vendor`, `FacilityResource`, `UserAccount` and the rest. School was the only one without it.
+
+**#4 does not lock anything yet.** It sets a status and a date. Live `AuthSession` rows are not
+revoked and scheduled jobs are not stopped, because neither service exists. **A suspended
+school's users stay logged in until their tokens expire — suspension is currently a flag, not a
+lock.** Wire both in when sessions are built.
+
+**#5 keeps the history on purpose.** `suspendedAt` is not cleared and `activatedAt` is not
+re-stamped, so a school suspended in June and brought back in July still reads as having gone
+live in April, with a suspension on record. It also skips #3's setup and subscription checks: a
+suspended school was already live once, so it passed them, and re-running them would mean a
+school suspended for non-payment could never be let back in as a goodwill gesture — which is
+what reactivation is for.
+
 ### `cancel-deletion` is a proposal, not in the model's README
 
 `DELETION_PENDING` is defined as "requested but not yet executed", so the window exists on
@@ -265,7 +317,7 @@ purpose — and a window with no way back means one mis-click destroys a school.
 prefer the strictly documented one-way path, but then say out loud that deletion is
 irreversible from the moment it is requested.
 
-## 6–9. School self-service edits
+## 6–9. School self-service edits — ALL BUILT
 
 | # | Method | Path | Fields |
 |---|---|---|---|
@@ -273,6 +325,60 @@ irreversible from the moment it is requested.
 | 7 | `PUT` | `/schools/current/address` | `addressLine`, `city`, `stateOrProvince`, `postalCode` |
 | 8 | `PATCH` | `/schools/current/localization` | `defaultLocale`, `defaultTimeZone` |
 | 9 | `PUT` | `/schools/current/logo` | replaces `logoUrl` |
+
+All four resolve the tenant through
+[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) and refuse a school
+that is not `ACTIVE`, `TRIAL` or `PROVISIONING` — a closed or suspended tenant should not be
+quietly edited by its own admin while the suspension is being argued about.
+
+### The PATCH convention these needed, which this plan had not settled
+
+A Java record cannot tell *"the caller omitted this field"* from *"the caller sent null"* —
+Jackson gives you null for both. Without a rule, an optional field could **never be cleared**:
+every PATCH that omitted a phone number would look identical to one asking to remove it, and the
+safe reading — leave it alone — would win forever.
+
+So, on #6 and #8:
+
+```
+field omitted, or null   -> leave it exactly as it is
+field is ""              -> clear it (null in the database)
+field has a value        -> replace it
+```
+
+`schoolName` and `defaultLocale` are exceptions: both are `@NotBlank` on the model, so `""`
+there is a `400` rather than a deletion. And a PATCH whose body asks for nothing is a `400`
+`NOTHING_TO_UPDATE`, not a silent `200` — an empty body is almost always a client bug.
+
+**#7 is the opposite, and that is what PUT means.** An omitted field is *cleared*, not kept:
+`PUT {"city": "Mumbai"}` wipes `addressLine`, `stateOrProvince` and `postalCode`. Worth knowing
+before writing a client against it.
+
+### #8 has two guards, not one
+
+The plan said to warn, confirm, and refuse a time-zone change once an academic year is running.
+Both are implemented, and both are needed:
+
+1. `confirmTimeZoneChange: true` must be sent, or `409 TIME_ZONE_CHANGE_NOT_CONFIRMED`.
+2. If an academic year covers today, the change is refused outright —
+   `409 ACADEMIC_YEAR_IN_PROGRESS`.
+
+The flag alone would be theatre; people tick boxes. The second is what actually protects the
+attendance register. `AcademicYearRepository` was added for it, and asks the dates rather than a
+`current` flag — because [`AcademicYear`](../../models/core/AcademicYear.java) deliberately has
+no such flag.
+
+The locale stays editable while a year runs. Only the zone is dangerous.
+
+### #9 takes a URL, and validates more than the plan asked
+
+`https` only, and the host must be on an allow-list held in the service. A school-supplied URL
+is loaded on pages parents open, so an arbitrary one is somebody else's server deciding what
+parents see, and a tracker there is invisible to us. `logoUrl: ""` removes the logo, which is
+why there is no separate `DELETE`.
+
+A file upload would still be better, for the reason the plan gives. There is no storage service
+yet.
 
 ### Where `PUT` is right, and where it is not
 
