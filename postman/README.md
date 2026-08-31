@@ -115,16 +115,22 @@ folder per controller, so the collection and the code stay findable from each ot
 
 ## Coverage
 
-**22 of 27 planned write endpoints.** The other 5 are specified in
+**20 of 27 planned write endpoints** — 22 requests, because two of them were not in the plan.
+The other 7 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
+
+**None of the seven is "next".** Six are deferred by decision — #12 until something is actually
+encrypted, #13 to #17 (offboarding and deletion) until they are wanted — and #28 was always
+optional. One consequence to know while testing: **a school you create cannot be closed or
+deleted.** `SUSPENDED` is as far as it goes, so test schools accumulate.
 
 The plan is 27 rather than 28 because #11 `account-holder` was dropped on 2026-08-31 and folded
 into #6 — it is a plain label that nothing links to an account, so its own platform endpoint was
 ceremony.
 
-The count is 22 rather than 20 because two of the calendar endpoints were not in the original
-plan: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
+The request count is 22 rather than 20 because two of the calendar endpoints were not in the
+original plan: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
 undo for endpoints that create in bulk, and an API that can generate 52 rows in one call and
 cannot remove them is not finished.
 

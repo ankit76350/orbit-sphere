@@ -4,6 +4,10 @@
 pair with the calendar endpoints. Phases 1 to 5 are complete; Phase 6 has the four gates and the
 subdomain change.
 
+**Nothing here is "next".** Of the seven not built, six are deferred by decision — #12 until
+something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
+optional. The write API for `core` is done for now; the next module starts elsewhere.
+
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
 referenced from the Postman collection, the service banners and half the javadoc in this package. This is the complete inventory of every `POST`,
@@ -54,11 +58,11 @@ inventory because they exist and you should see them, but they are not counted i
 | 10 | `PATCH` | `/platform/schools/{id}/subdomain` | 6 — **built** |
 | ~~11~~ | ~~`PATCH`~~ | ~~`/platform/schools/{id}/account-holder`~~ | **dropped — folded into #6** |
 | 12 | `POST` | `/platform/schools/{id}/rotate-encryption-key` | deferred — nothing is encrypted yet |
-| 13 | `POST` | `/platform/schools/{id}/offboard` | 7 |
-| 14 | `POST` | `/platform/schools/{id}/close` | 7 |
-| 15 | `POST` | `/platform/schools/{id}/request-deletion` | 7 |
-| 16 | `POST` | `/platform/schools/{id}/cancel-deletion` | 7 |
-| 17 | `POST` | `/platform/schools/{id}/confirm-deletion` | 7 |
+| 13 | `POST` | `/platform/schools/{id}/offboard` | 7 — deferred |
+| 14 | `POST` | `/platform/schools/{id}/close` | 7 — deferred |
+| 15 | `POST` | `/platform/schools/{id}/request-deletion` | 7 — deferred |
+| 16 | `POST` | `/platform/schools/{id}/cancel-deletion` | 7 — deferred |
+| 17 | `POST` | `/platform/schools/{id}/confirm-deletion` | 7 — deferred |
 
 ## Academic year — 11
 
@@ -95,7 +99,7 @@ Sequenced by dependency first, then by risk. **Phase 0 is not optional and not s
 | **4** | Academic year exists | 18, 19 | built |
 | **5** | The holiday calendar | 20–23 + 2 `DELETE` | built |
 | **6** | Gates and sensitive edits | 10, 24–27 **built**; 12 deferred | part |
-| **7** | Offboarding and deletion | 13–17 | |
+| **7** | Offboarding and deletion | 13–17 | deferred |
 | **8** | Convenience | 28 | |
 
 **Why this order:** nothing exists until phase 1. Phase 2 makes a tenant usable. Phase 3 is the
@@ -247,7 +251,7 @@ should refuse a school that has no roles rather than activating one nobody can l
 
 If #1 ever goes back to seeding inline, delete this endpoint rather than leaving it as a no-op.
 
-## 3–5, 13–17. Lifecycle transitions — 3, 4 and 5 BUILT
+## 3–5, 13–17. Lifecycle transitions — 3, 4, 5 BUILT · 13–17 DEFERRED
 
 ```text
 TRIAL / PROVISIONING -> ACTIVE
@@ -263,11 +267,40 @@ is just not in a state where it makes sense.
 | 3 | `activate` | #2 already run — checked. Subscription — **partially**, see below | stamps `activatedAt` on first activation only |
 | 4 | `suspend` | a reason, stored on `School.statusReason` | stamps `suspendedAt`. **Does not yet revoke sessions or stop jobs** |
 | 5 | `reactivate` | — | restores access; does **not** clear `suspendedAt` or `statusReason`, does **not** re-stamp `activatedAt` |
-| 13 | `offboard` | a reason | starts data export |
-| 14 | `close` | export complete | tenant no longer reachable |
-| 15 | `request-deletion` | explicit confirmation | starts the retention clock |
-| 16 | `cancel-deletion` | — | back to `CLOSED` |
-| 17 | `confirm-deletion` | second confirmation | irreversible |
+| ~~13~~ | `offboard` | a reason | starts data export — **deferred** |
+| ~~14~~ | `close` | export complete | tenant no longer reachable — **deferred** |
+| ~~15~~ | `request-deletion` | explicit confirmation | starts the retention clock — **deferred** |
+| ~~16~~ | `cancel-deletion` | — | back to `CLOSED` — **deferred** |
+| ~~17~~ | `confirm-deletion` | second confirmation | irreversible — **deferred** |
+
+### 13 to 17 are deferred, and here is what that leaves true
+
+Deferred on 2026-08-31, by decision — not blocked on anything. The design above stands and is
+what to build from when offboarding is wanted.
+
+**Half the lifecycle has no way to be entered.** Of the eight `SchoolStatus` values, four are now
+unreachable through the API:
+
+| Status | Reached by |
+|---|---|
+| `PROVISIONING` | #1 — every school starts here |
+| `TRIAL` | #1 with `trial: true` |
+| `ACTIVE` | #3, #5 |
+| `SUSPENDED` | #4 |
+| `OFFBOARDING` | nothing |
+| `CLOSED` | nothing |
+| `DELETION_PENDING` | nothing |
+| `DELETED` | nothing |
+
+**So a school cannot currently be got rid of.** There is no close, no delete, and no export.
+`SUSPENDED` is as far as a tenant can be pushed, and #10 already refuses to edit a school at
+`DELETED` or `DELETION_PENDING` — a guard against states nothing can currently produce, which is
+correct and will stop looking odd the day these are built.
+
+**The consequence to remember is the export, not the delete.** #13 starts a data export, and a
+school leaving is entitled to its own records. Until #13 exists, an offboarding school has no
+supported way to take its data with it — that is the gap worth flagging to whoever asks for
+these, not the missing status transition.
 
 ### Why transitions are `POST`, not `PATCH /status`
 
@@ -803,7 +836,7 @@ layer. Assigned:
 | IETF language tag, IANA zone id | 1, 8 |
 | ISO 3166-1 alpha-2 country | 1 only |
 | `https` and allow-listed host for logo | 9 |
-| allowed `SchoolStatus` transitions | 3, 4, 5, 13–17 |
+| allowed `SchoolStatus` transitions | 3, 4, 5 (13–17 deferred) |
 | an active `SchoolSubscription` exists | 3 |
 | academic-year date ordering **and overlap** | 18, 19 |
 | one reason of each type per date, dates inside the year | 20, 21, 22, 23 |
@@ -821,7 +854,8 @@ not be the last.
 ## Deliberately not here
 
 - **`DELETE` on a School.** A tenant is never removed with `DELETE`; it walks the lifecycle to
-  `DELETED`. The only `DELETE`s in this package are on holidays.
+  `DELETED` — through #13 to #17, which are deferred, so **today there is no way to remove one at
+  all.** The only `DELETE`s in this package are on holidays.
 - **Subscription and plan changes.** `SchoolSubscription` is its own resource with its own
   controller. `School`'s javadoc says plan data is deliberately not embedded.
 - **Terms.** [`AcademicTerm`](../../models/academics/structure/AcademicTerm.java) lives in
