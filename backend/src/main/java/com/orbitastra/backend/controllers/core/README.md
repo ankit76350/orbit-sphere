@@ -81,17 +81,17 @@ All paths below are under `/schools/current/academic-years`.
 
 Sequenced by dependency first, then by risk. **Phase 0 is not optional and not skippable.**
 
-| Phase | What | Endpoints |
-|---|---|---|
-| **0** | Foundations — no endpoints | — |
-| **1** | Create a tenant | 1, 2 |
-| **2** | Tenant lifecycle | 3, 4, 5 |
-| **3** | School self-service edits | 6, 7, 8, 9 |
-| **4** | Academic year exists | 18, 19 |
-| **5** | The holiday calendar | 20–23 + 2 DELETE |
-| **6** | Gates and sensitive edits | 24, 25, 26, 27, 10, 11, 12 |
-| **7** | Offboarding and deletion | 13–17 |
-| **8** | Convenience | 28 |
+| Phase | What | Endpoints | |
+|---|---|---|---|
+| **0** | Foundations — no endpoints | — | built |
+| **1** | Create a tenant | 1, 2 | built |
+| **2** | Tenant lifecycle | 3, 4, 5 | built |
+| **3** | School self-service edits | 6, 7, 8, 9 | built |
+| **4** | Academic year exists | 18, 19 | built |
+| **5** | The holiday calendar | 20–23 + 2 `DELETE` | built |
+| **6** | Gates and sensitive edits | 24, 25, 26, 27, 10, 11, 12 | next |
+| **7** | Offboarding and deletion | 13–17 | |
+| **8** | Convenience | 28 | |
 
 **Why this order:** nothing exists until phase 1. Phase 2 makes a tenant usable. Phase 3 is the
 first thing a real school touches. Phases 4–5 give the school a calendar, which attendance,
@@ -520,8 +520,10 @@ an attendance record, an invoice or a trip now sits outside the year that owns i
 is rejected by the DTO shape itself rather than quietly dropped.
 
 **What it does check:** the new range is still plausible, still does not overlap another year,
-and still contains **every holiday already on the year**. Shrinking past one is a `409`
-`HOLIDAYS_OUTSIDE_NEW_RANGE` naming the first offender.
+and still contains **every closed day already on the year**. Shrinking past one is a `409`
+`HOLIDAYS_OUTSIDE_NEW_RANGE`, naming the first stranded date and every reason on it — since the
+restructure a date can be closed for more than one, and naming a single holiday would have
+under-reported what the shrink was about to strand.
 
 **What it does not check, and should.** Only holidays. Attendance records, invoices and trips
 reference a year by *name string*, in collections that have no repository yet — so a shrink can
@@ -529,7 +531,7 @@ still orphan those, silently, and nothing anywhere will complain. When those rep
 this must refuse to move a boundary past the earliest or latest row referencing the year. It is
 recorded in the method's javadoc and in the response's `nextStep`.
 
-## 20–23. The holiday calendar — built
+## 20–23. The holiday calendar — ALL BUILT
 
 `holidays` is an embedded `List<`[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java)`>`,
 a sub-resource keyed by **date**. Each entry holds the date and a list of
@@ -673,6 +675,14 @@ layer. Assigned:
 | one reason of each type per date, dates inside the year | 20, 21, 22, 23 |
 | authorization for lock/unlock and enrollment | 24–27 |
 | text lengths on every free-text field | all |
+
+**Query parameters are validated globally, not per endpoint.** A missing required parameter and
+a misspelled enum value are the same two mistakes on every endpoint that takes one, so
+[`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java) answers both in our
+error shape — `MISSING_PARAMETER` and `INVALID_PARAMETER`, the latter listing the accepted
+values. Left to Spring they arrive as its own error page, which in dev carries a full stack
+trace. #22 and the two calendar `DELETE`s are the first endpoints here to take one; they will
+not be the last.
 
 ## Deliberately not here
 

@@ -92,11 +92,7 @@ public class AcademicYearController {
     //! the holiday calendar — #20 to #23 ----------------------------------------------
 
     /**
-     * Endpoint #20 — replaces the whole calendar.
-     *
-     * <p>A PUT, and the legitimate bulk case: a school publishes next year's calendar in one go
-     * from a spreadsheet. Everything already there is discarded, generated weekly offs included.
-     * Use #21 to add a single entry in-year.
+     * Replaces the complete holiday calendar for an academic year.
      */
     @PutMapping("/{name}/holidays")
     public ResponseEntity<HolidayCalendarResponse> replaceCalendar(
@@ -107,11 +103,8 @@ public class AcademicYearController {
     }
 
     /**
-     * Endpoint #21 — adds one reason to one day.
-     *
-     * <p>A date that is already closed is not a conflict — the reason joins what is already
-     * there, which is how a Sunday becomes a weekly off that is also Holi. Only the same type
-     * twice on one day is refused.
+     * Adds a holiday to the academic year's calendar.
+     * Allows multiple holiday reasons on the same date.
      */
     @PostMapping("/{name}/holidays")
     public ResponseEntity<HolidayCalendarResponse> addHoliday(
@@ -122,13 +115,8 @@ public class AcademicYearController {
     }
 
     /**
-     * Endpoint #22 — edits one reason on one day.
-     *
-     * <p>The date is the key and is not editable. Moving a holiday is a DELETE then a POST,
-     * which leaves both dates visible rather than one silent edit.
-     *
-     * <p>{@code type} picks which reason to edit. Optional when the day has one, required when
-     * it has several — the API asks rather than editing the wrong one silently.
+     * Updates a holiday reason for a specific date.
+     * The date itself cannot be changed.
      */
     @PatchMapping("/{name}/holidays/{date}")
     public ResponseEntity<HolidayCalendarResponse> updateHoliday(
@@ -141,13 +129,8 @@ public class AcademicYearController {
     }
 
     /**
-     * Removes one reason from a day, or the whole day.
-     *
-     * <p>With {@code type}, only that reason goes and the day survives if others remain; without
-     * it, the day and everything on it goes. A date with nothing on it is a 404.
-     *
-     * <p>{@code type} is optional here, unlike on the bulk delete below. The blast radius is one
-     * date either way, so requiring it would be ceremony rather than a guard.
+     * Removes a holiday reason from a specific date.
+     * Without a type, removes all holidays for that date.
      */
     @DeleteMapping("/{name}/holidays/{date}")
     public ResponseEntity<HolidayCalendarResponse> removeHoliday(
@@ -159,15 +142,8 @@ public class AcademicYearController {
     }
 
     /**
-     * Endpoint #23 — generates one weekday's non-working days across the year.
-     *
-     * <p>Required by the model, not a convenience. Nothing in this system infers a closure from
-     * the day of the week — schools here may run on Sunday with the off day on any other weekday
-     * — so every non-working day is a dated entry and a year needs roughly 52 of them.
-     *
-     * <p>A date that already carries a festival still gets its weekly off — the day ends up with
-     * both reasons. Only dates that already have a WEEKLY_OFF are skipped, and they are listed.
-     * Safe to run twice.
+     * Generates weekly off days for the academic year.
+     * Skips dates that already have a weekly off.
      */
     @PostMapping("/{name}/holidays/generate-weekly-off")
     public ResponseEntity<WeeklyOffGenerateResponse> generateWeeklyOff(
@@ -178,11 +154,7 @@ public class AcademicYearController {
     }
 
     /**
-     * Removes every holiday of one type — the companion to #23, because the first thing anybody
-     * does with the generator is pick the wrong weekday.
-     *
-     * <p>{@code type} is <b>required</b>. A bulk delete that cleared the whole calendar when a
-     * query parameter was forgotten would be the most destructive accident in this package.
+     * Removes all holidays of the specified type from the academic year.
      */
     @DeleteMapping("/{name}/holidays")
     public ResponseEntity<HolidayCalendarResponse> removeHolidaysByType(
