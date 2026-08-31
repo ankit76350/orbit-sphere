@@ -186,4 +186,26 @@ public class AcademicYearController {
     public ResponseEntity<AcademicYearResponse> disableEnrollment(@PathVariable String name) {
         return ResponseEntity.ok(academicYearService.disableEnrollment(name));
     }
+
+    /**
+     * Endpoint #26 — locks results against further change. What happens when marks are published.
+     *
+     * <p>Idempotent, and takes no body.
+     */
+    @PostMapping("/{name}/results/lock")
+    public ResponseEntity<AcademicYearResponse> lockResults(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.lockResults(name));
+    }
+
+    /**
+     * Endpoint #27 — unlocks results so they can be corrected.
+     *
+     * <p>Idempotent, and takes no body. <b>Nothing is recorded about who unlocked, or why</b> —
+     * see the service, and the note in this package's README about what this needs before
+     * results are real.
+     */
+    @PostMapping("/{name}/results/unlock")
+    public ResponseEntity<AcademicYearResponse> unlockResults(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.unlockResults(name));
+    }
 }

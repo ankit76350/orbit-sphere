@@ -115,11 +115,11 @@ folder per controller, so the collection and the code stay findable from each ot
 
 ## Coverage
 
-**19 of 28 planned write endpoints.** The other 9 are specified in
+**21 of 28 planned write endpoints.** The other 7 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
-The count is 19 rather than 17 because two of the calendar endpoints were not in the original
+The count is 21 rather than 19 because two of the calendar endpoints were not in the original
 plan of 28: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
 undo for endpoints that create in bulk, and an API that can generate 52 rows in one call and
 cannot remove them is not finished.
@@ -138,6 +138,7 @@ assume specific dates exist:
 | Remove Holiday | `2026-11-08` exists and holds a `WEEKLY_OFF` |
 | Generate Weekly Off | nothing |
 | Remove Holidays By Type | Generate Weekly Off has run |
+| Unlock Results | Lock Results has run — otherwise it is an idempotent no-op |
 
 Run **Replace Holiday Calendar** first to put the calendar in the state the rest expect.
 
@@ -167,15 +168,16 @@ stores an **array of reasons per date**, and the requests are shaped around that
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
 
-## A note on the enrollment gates (#24–25)
+## A note on the four gates (#24–27)
 
-They take **no body**, and both are **idempotent** — send one twice and the second is a `200`
-saying nothing changed. Enrollment is a switch: neither direction is destructive, and #25 does
-not touch students already enrolled.
+They take **no body** — anything sent is ignored — and **all four are idempotent**: send one
+twice and the second is a `200` saying nothing changed. Each pair is independent, so locking
+results does not touch enrollment. #25 does not touch students already enrolled.
 
-Both announce a gap in every response's `nextStep` rather than hide it: **no authorization is
-enforced**, because the permission model does not exist yet.
+All four announce the same gap in every response's `nextStep` rather than hide it: **no
+authorization is enforced**, because the permission model does not exist yet.
 
-**#26 and #27 (results lock / unlock) are not built**, so they are not in this collection. They
-need an audit trail and there is no authentication to name an actor in one yet. The reasoning is
-in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.
+**#27 records nothing about who unlocked, or why.** It is built simple on purpose — with no
+authentication an audit row could not name an actor anyway — and what it must gain before results
+are real is written down in
+`backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.

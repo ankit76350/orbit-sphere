@@ -547,6 +547,7 @@ public class AcademicYearService {
 
         //! step 3 - open it and save
         year.setEnrollmentEnabled(true);
+        //TODO: save
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -575,10 +576,66 @@ public class AcademicYearService {
 
         //! step 3 - close it and save
         year.setEnrollmentEnabled(false);
+        //TODO: save
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
                 "Enrollment disabled for '" + savedYear.getName()
                         + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 26 — freeze the year's results ----------------------------------------
+    /**
+     * #26 — locks results against further change. What happens when marks are published.
+     *
+     * <p>Idempotent, like the enrollment gates.
+     */
+    @Transactional
+    public AcademicYearResponse lockResults(String name) {
+        //! step 1 - find the year
+        AcademicYear year = yearUtils.loadYear(name);
+
+        //! step 2 - nothing to do if it is already locked
+        if (Boolean.TRUE.equals(year.getResultsLocked())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+                    "Results were already locked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 3 - lock it and save
+        year.setResultsLocked(true);
+
+        //TODO: save
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+                "Results locked for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 27 — reopen the year's results ----------------------------------------
+        /**
+         * Unlocks results for an academic year so marks can be corrected.
+         * Safe to call when results are already unlocked.
+        */
+    @Transactional
+    public AcademicYearResponse unlockResults(String name) {
+        //! step 1 - find the year
+        AcademicYear year = yearUtils.loadYear(name);
+
+        //! step 2 - nothing to do if it is already unlocked
+        if (Boolean.FALSE.equals(year.getResultsLocked())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+                    "Results were already unlocked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 3 - unlock it and save
+        year.setResultsLocked(false);
+        //TODO: save
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+                "Results unlocked for '" + savedYear.getName() + "'. Lock them again as soon as "
+                        + "the corrections are in. " + NO_AUTHORIZATION_YET);
     }
 }

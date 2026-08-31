@@ -1110,6 +1110,119 @@
        }
       }
      ]
+    },
+    {
+     "name": "Lock Results",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/results/lock",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "results",
+        "lock"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/results/lock` — locks results against further\nchange.\n\nRoutine — it is what happens when marks are published. Idempotent, takes no body, and is\nindependent of the enrollment gates.\n\n**No authorization is enforced yet**, and every response says so in `nextStep`.\n\n### The five test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/results/lock\n//  Needs X-School-Subdomain. Run Create School and Create Academic Year first.\n// ===========================================================================\n//\n//  ROUTINE. This is what happens when marks are published: results stop being\n//  editable. No body needed; anything sent is ignored.\n//\n//  NO AUTHORIZATION IS ENFORCED YET, like the other three gates. Every\n//  response says so in nextStep rather than letting it be discovered later.\n//\n// ---------------------------------------------------------------------------\n// 01  LOCK THE RESULTS                                     -> 200 OK\n//     OUT: resultsLocked: true\n//          \"Results locked for '2026-2027'.\"\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT. \"Results were already locked for '2026-2027'.\"\n// ---------------------------------------------------------------------------\n//\n// 03  IT DOES NOT TOUCH ENROLLMENT                         -> 200 OK\n//     Run \"Enable Enrollment\" after locking: enrollmentEnabled flips,\n//     resultsLocked stays true. The two gates are independent.\n// ---------------------------------------------------------------------------\n//\n// 04  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change {{academicYearName}} to 1999-2000.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// 05  NO TENANT HEADER                               -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('results are locked', () => pm.expect(b.resultsLocked).to.be.true);",
+         "pm.test('the missing-authorization gap is announced', () =>",
+         "  pm.expect(b.nextStep).to.include('No authorization'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Unlock Results",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/results/unlock",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "results",
+        "unlock"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/results/unlock` — unlocks results so they can\nbe corrected.\n\nIdempotent, takes no body.\n\n### It records nothing about who unlocked, or why\n\nUnlocking lets somebody change a mark a parent has already seen, and this endpoint leaves no\ntrace of it having happened. That is a deliberate simplification for now: there is no\nauthentication, so an audit row could not name who acted anyway.\n\n**Before results are real this needs a required reason and an audit row on every call, refusals\nincluded.** The design is kept in `controllers/core/README.md`.\n\n### The four test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/results/unlock\n// ===========================================================================\n//\n//  UNLOCKING LETS SOMEBODY CHANGE A MARK A PARENT HAS ALREADY SEEN, and right\n//  now THIS ENDPOINT RECORDS NOTHING ABOUT IT. No reason is asked for, and no\n//  trace is left that it happened.\n//\n//  That is deliberate for now, not an oversight. There is no authentication,\n//  so an audit row could not name who acted anyway, and a trail whose every\n//  entry says \"unknown\" is close to worthless.\n//\n//  BEFORE RESULTS ARE REAL, this needs a required reason and an audit row on\n//  every call, refusals included. The full design — including the trap, that a\n//  refusal recorded inside the transaction that refuses it is never written —\n//  is kept in controllers/core/README.md.\n//\n// ---------------------------------------------------------------------------\n// 01  UNLOCK THE RESULTS                                   -> 200 OK\n//     Run \"Lock Results\" first.\n//     OUT: resultsLocked: false\n//          \"Lock them again as soon as the corrections are in.\"\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT, like all four gates.\n//     \"Results were already unlocked for '2026-2027'.\"\n// ---------------------------------------------------------------------------\n//\n// 03  LOCK, UNLOCK, LOCK                                   -> 200 OK each\n//     The gate flips freely in both directions.\n// ---------------------------------------------------------------------------\n//\n// 04  UNKNOWN YEAR NAME                                -> 404 Not Found\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts case 01. Run Lock Results immediately before this.",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('results are unlocked', () => pm.expect(b.resultsLocked).to.be.false);",
+         "pm.test('the caller is told to lock them again', () =>",
+         "  pm.expect(b.nextStep).to.include('Lock them again'));"
+        ]
+       }
+      }
+     ]
     }
    ]
   }
