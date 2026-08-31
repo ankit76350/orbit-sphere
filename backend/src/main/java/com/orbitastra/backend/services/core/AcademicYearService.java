@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
+import com.orbitastra.backend.dto.core.academicyear.DayStatusResponse;
 import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
@@ -104,6 +105,19 @@ public class AcademicYearService {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
         return HolidayCalendarResponse.fromAcademicYear(year);
+    }
+
+    //? G9 — is the school closed or open on one date ---------------------------------------------
+    
+    public DayStatusResponse getDayStatus(String name, LocalDate date) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        coreValidator.validateHolidayWithinYear(
+                "date", date, year.getStartDate(), year.getEndDate());
+
+        return yearUtils.findDay(year, date)
+                .map(day -> DayStatusResponse.closed(year.getName(), day))
+                .orElseGet(() -> DayStatusResponse.open(year.getName(), date));
     }
 
     //? endpoint 18 — create a year ----------------------------------------------------

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
+import com.orbitastra.backend.dto.core.academicyear.DayStatusResponse;
 import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
@@ -84,6 +85,17 @@ public class AcademicYearController {
     @GetMapping("/{name}/holidays")
     public ResponseEntity<HolidayCalendarResponse> getHolidays(@PathVariable String name) {
         return ResponseEntity.ok(academicYearService.getHolidayCalendar(name));
+    }
+
+    //Ask whether the school is closed on one date, and why.
+    //A working day answers 200 with closed:false. It is NOT a 404, and it is never worked out
+    //from the day of the week - only a dated entry on the calendar closes a day.
+    @GetMapping("/{name}/holidays/{date}")
+    public ResponseEntity<DayStatusResponse> getDay(
+            @PathVariable String name,
+            @PathVariable LocalDate date) {
+
+        return ResponseEntity.ok(academicYearService.getDayStatus(name, date));
     }
 
     /**
