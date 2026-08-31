@@ -173,4 +173,23 @@ public class CoreValidator {
             }
         }
     }
+
+    //! holidays ------------------------------------------------------------------------
+
+    /**
+     * A holiday must fall inside the year that owns it.
+     *
+     * <p>The calendar is embedded in the AcademicYear document, so an entry outside the year's
+     * range is unreachable by every query that asks "what are the non-working days between these
+     * dates" — it is stored, invisible, and will surprise somebody a term later.
+     */
+    public void validateHolidayWithinYear(String label, LocalDate date,
+            LocalDate yearStart, LocalDate yearEnd) {
+
+        if (date.isBefore(yearStart) || date.isAfter(yearEnd)) {
+            throw ApiException.badRequest("HOLIDAY_OUTSIDE_YEAR",
+                    "'" + label + "' on " + date + " is outside " + yearStart + " to "
+                            + yearEnd + ".");
+        }
+    }
 }
