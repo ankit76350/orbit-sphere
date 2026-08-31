@@ -82,7 +82,7 @@ public class CoreValidator {
         if (raw == null || raw.isBlank()) {
             throw ApiException.badRequest("SUBDOMAIN_REQUIRED", "A subdomain is required.");
         }
-        String normalized = raw.trim().toLowerCase().replaceAll("[\\s_]+", "-");
+        String normalized = normalizeSubdomain(raw);
 
         if (!SUBDOMAIN_SHAPE.matcher(normalized).matches()) {
             throw ApiException.conflict("SUBDOMAIN_INVALID",
@@ -94,6 +94,22 @@ public class CoreValidator {
                     "The subdomain '" + normalized + "' is reserved by the platform.");
         }
         return normalized;
+    }
+
+    /**
+     * Tidies a subdomain into the form it would be stored in, without checking anything.
+     *
+     * <p>Lowercases it, trims the ends, and turns runs of spaces and underscores into single
+     * hyphens. So "St Marys" becomes "st-marys".
+     *
+     * <p>This is split out so G3 can show the caller what their name would turn into even when
+     * the name is then refused. It is only the tidying step — every rule still lives in
+     * {@link #validateSubdomain}, which calls this first. Do not copy the rules here.
+     *
+     * @return the tidied subdomain, or null when nothing was sent
+     */
+    public String normalizeSubdomain(String raw) {
+        return raw == null ? null : raw.trim().toLowerCase().replaceAll("[\\s_]+", "-");
     }
 
 

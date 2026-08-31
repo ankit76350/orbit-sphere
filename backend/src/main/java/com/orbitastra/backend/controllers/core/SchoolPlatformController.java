@@ -24,11 +24,13 @@ import com.orbitastra.backend.dto.core.platform.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolCreateResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolDetailResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolReactivateRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSuspendRequest;
+import com.orbitastra.backend.dto.core.platform.SubdomainAvailabilityResponse;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
 
 import jakarta.validation.Valid;
@@ -182,5 +184,19 @@ public class SchoolPlatformController {
                 status, search, countryCode, city, createdFrom, createdTo, page, size, sort);
 
         return ResponseEntity.ok(provisioningService.listSchools(request));
+    }
+
+    //Get the school details using _id
+    @GetMapping("/{id}")
+    public ResponseEntity<SchoolDetailResponse> getOne(@PathVariable String id) {
+        return ResponseEntity.ok(provisioningService.getSchool(id));
+    }
+
+    // check if subdomain is abaivble or not
+    @GetMapping("/subdomain-available")
+    public ResponseEntity<SubdomainAvailabilityResponse> subdomainAvailable(
+            @RequestParam String value) {
+
+        return ResponseEntity.ok(provisioningService.checkSubdomainAvailability(value));
     }
 }
