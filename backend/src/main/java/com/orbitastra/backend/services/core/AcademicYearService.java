@@ -211,6 +211,7 @@ public class AcademicYearService {
         //! step 3 - swap the whole list and save
         int before = sizeOf(year);
         year.setHolidays(replacement);
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -218,6 +219,7 @@ public class AcademicYearService {
                         + " in.");
     }
 
+    //! endpoints 21 adds one holiday. ------------------------------------------
     /**
      * #21 — adds one holiday.
      *
@@ -241,12 +243,14 @@ public class AcademicYearService {
 
         //! step 3 - append and save
         ensureList(year).add(request.toDetail());
+         //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
                 "Added '" + request.name() + "' on " + request.date() + ".");
     }
 
+   //! endpoints 22 — edits the holiday on one date. ------------------------------------------
     /**
      * #22 — edits the holiday on one date.
      *
@@ -288,12 +292,14 @@ public class AcademicYearService {
         }
 
         //! step 5 - save
+         //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
                 "Updated the holiday on " + date + ".");
     }
 
+     //! endpoints DELETE — Removes the holiday on one date. ------------------------------------------
     /** Removes the holiday on one date. A date with nothing on it is a 404, not a silent 200. */
     @Transactional
     public HolidayCalendarResponse removeHoliday(String name, LocalDate date) {
@@ -307,12 +313,14 @@ public class AcademicYearService {
 
         //! step 3 - remove and save
         ensureList(year).remove(holiday);
+         //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
                 "Removed '" + holiday.getName() + "' on " + date + ".");
     }
 
+      //! endpoints  — Removes the holiday on one date. ------------------------------------------
     /**
      * #23 — generates one weekday's non-working days across the year.
      *
@@ -370,6 +378,7 @@ public class AcademicYearService {
         }
 
         //! step 4 - save
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return new WeeklyOffGenerateResponse(
@@ -382,6 +391,7 @@ public class AcademicYearService {
                                 + skipped.size() + " that already had a holiday.");
     }
 
+     //! endpoints DELETE — Removes every holiday of one type. ------------------------------------------
     /**
      * Removes every holiday of one type. The companion to #23.
      *
@@ -404,6 +414,7 @@ public class AcademicYearService {
         int removed = before - holidays.size();
 
         //! step 3 - save
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -412,7 +423,7 @@ public class AcademicYearService {
                         : "Removed " + removed + " " + type + " entries.");
     }
 
-    // ---------------------------------------------------------------------------------
+    //* ---------------------------------------------------------------------------------
 
     /** The caller's year, by name, or a 404. */
     private AcademicYear loadYear(String name) {
