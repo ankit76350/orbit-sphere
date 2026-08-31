@@ -1,12 +1,17 @@
 # controllers/core — write API plan
 
-**Nine of 28 endpoints are built — #1 to #9, all of Phases 1 to 3.** This is the complete
-inventory of every `POST`, `PUT` and `PATCH` the `core` module needs, sequenced so it can be
-built and reviewed one step at a time.
+**Eleven of 28 endpoints are built — #1 to #9 and #18 to #19; Phases 1 to 4.** This is the
+complete inventory of every `POST`, `PUT` and `PATCH` the `core` module needs, sequenced so it
+can be built and reviewed one step at a time.
 
-Built: [`SchoolPlatformController`](SchoolPlatformController.java) (#1–5) and
-[`SchoolProfileController`](SchoolProfileController.java) (#6–9). Every one is exercised by
-`postman/Orbit Sphere — API.postman_collection.json`.
+| Controller | Endpoints |
+|---|---|
+| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5 |
+| [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
+| [`AcademicYearController`](AcademicYearController.java) | #18–19 |
+
+All eleven are exercised by `postman/Orbit Sphere — API.postman_collection.json`, which runs
+green end to end.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
 
@@ -55,8 +60,8 @@ All paths below are under `/schools/current/academic-years`.
 
 | # | Method | Path | Phase |
 |---|---|---|---|
-| 18 | `POST` | `/` | 4 |
-| 19 | `PATCH` | `/{name}/dates` | 4 |
+| 18 | `POST` | `/` | 4 — **built** |
+| 19 | `PATCH` | `/{name}/dates` | 4 — **built** |
 | 20 | `PUT` | `/{name}/holidays` | 5 |
 | 21 | `POST` | `/{name}/holidays` | 5 |
 | 22 | `PATCH` | `/{name}/holidays/{date}` | 5 |
@@ -478,20 +483,43 @@ authoritative.
 This is also why the overlap check in #18 matters so much. Two overlapping years mean a date
 belongs to both, and every "which year is this?" lookup gets two answers.
 
-## 18. `POST /schools/current/academic-years`
+## 18. `POST /schools/current/academic-years` — BUILT
 
 **Validates:** `name` unique within the school; `startDate` before `endDate`; **no overlap with
-any existing year**; the range is plausible — roughly a year, not three days or five.
+any existing year**; the range is plausible — 30 to 800 days, outside which it is a typo rather
+than a calendar; every supplied holiday inside the range; no two holidays on one date.
 
 Holidays may be supplied here or added afterwards.
 
-## 19. `PATCH /{name}/dates`
+**The overlap test is written as "unless one ends before the other starts"**, not as four date
+comparisons. The four-way version is where off-by-one bugs live, and adjacency must stay legal:
+a year ending 03-31 and the next starting 04-01 do not overlap.
+
+**No shape is enforced on `name`.** A school may use `2026-2027`, `2026-27` or `AY2026-27`.
+Imposing one would be this platform deciding something that is not its business; it only has to
+be unique and never change.
+
+**`current` is computed in the response, never stored.** That is the same rule as the model —
+two sources for "which year is it" is two that can disagree — and it is why the overlap check
+matters: two years covering one day would make the flag true for both.
+
+## 19. `PATCH /{name}/dates` — BUILT
 
 Riskier than it looks. Moving a boundary after the year has started orphans data at both ends:
 an attendance record, an invoice or a trip now sits outside the year that owns it.
 
-**Must refuse to move a boundary past existing data.** Shrinking is the dangerous direction;
-extending is usually harmless. Re-check overlap against other years on every change.
+**`name` is absent from the request**, not optional and not ignored. A request that includes one
+is rejected by the DTO shape itself rather than quietly dropped.
+
+**What it does check:** the new range is still plausible, still does not overlap another year,
+and still contains **every holiday already on the year**. Shrinking past one is a `409`
+`HOLIDAYS_OUTSIDE_NEW_RANGE` naming the first offender.
+
+**What it does not check, and should.** Only holidays. Attendance records, invoices and trips
+reference a year by *name string*, in collections that have no repository yet — so a shrink can
+still orphan those, silently, and nothing anywhere will complain. When those repositories exist,
+this must refuse to move a boundary past the earliest or latest row referencing the year. It is
+recorded in the method's javadoc and in the response's `nextStep`.
 
 ## 20–23. The holiday calendar
 

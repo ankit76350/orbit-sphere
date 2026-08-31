@@ -1,6 +1,8 @@
 package com.orbitastra.backend.repositories.core;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
@@ -17,4 +19,15 @@ public interface AcademicYearRepository extends MongoRepository<AcademicYear, St
      */
     boolean existsBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
             String schoolId, LocalDate onOrBefore, LocalDate onOrAfter);
+
+    /**
+     * Looked up by name, not by id, because that is how the whole system refers to a year:
+     * every other collection stores {@code academicYear} as this string.
+     */
+    Optional<AcademicYear> findBySchoolIdAndName(String schoolId, String name);
+
+    boolean existsBySchoolIdAndName(String schoolId, String name);
+
+    /** All of a school's years. Small — a handful of rows — and needed for the overlap check. */
+    List<AcademicYear> findBySchoolId(String schoolId);
 }
