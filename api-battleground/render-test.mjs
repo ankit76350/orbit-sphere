@@ -118,6 +118,21 @@ const schoolList = withBody({
   page: 0, size: 20, totalElements: 63, totalPages: 4, hasNext: true, hasPrevious: false,
 }, 'Load schools');
 
+/** What a dead backend behind the dev proxy actually looks like: 500, text/plain, no body. */
+const backendDown = {
+  ...entry, id: 'down', ok: false, action: 'Suspend the school',
+  result: {
+    ...entry.result, ok: false, status: 500, statusText: 'Internal Server Error',
+    headers: { 'content-type': 'text/plain' }, bodyText: '', bodyJson: null, sizeBytes: 0,
+    error: {
+      kind: 'backend-unreachable',
+      title: 'The backend is not running',
+      message: 'The dev server could not reach it, so the request never got as far as the application. Nothing was read and nothing was changed.',
+      hint: 'Start it with:  cd backend && ./mvnw spring-boot:run  — it listens on port 3456 and takes about a minute.',
+    },
+  },
+};
+
 const wrap = (node) => React.createElement(ApiProvider, null, node);
 
 const screens = [
@@ -146,6 +161,9 @@ const screens = [
     ['Replaced the calendar', 'Closed day count', 'Weekly Off', 'Diwali', 'Independence Day', 'Weekly off · 1']],
   ['Summary — the school list', wrap(React.createElement(ApiDetailsModal, { entry: schoolList, onClose() {} })),
     ['Total elements', '63', 'Orbit Astra', 'Live', 'Has next']],
+  ['Backend down — says so, not "500"',
+    wrap(React.createElement(ApiDetailsModal, { entry: backendDown, onClose() {} })),
+    ['The backend is not running', './mvnw spring-boot:run', 'never got as far as the application']],
   ['Activity list', wrap(React.createElement(ActivityModal, { open: true, onClose() {}, log: [entry, failedEntry], onInspect() {}, onClear() {} })),
     ['Activity', 'Take the school live', 'Suspend the school']],
 ];

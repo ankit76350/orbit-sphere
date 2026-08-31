@@ -191,6 +191,19 @@ export async function sendRequest(prepared, options = {}) {
     headers[key] = value;
   });
 
+  const contentType = response.headers.get('content-type') || '';
+
+  /*
+   * A dev server whose backend is not running answers 500, text/plain, with nothing in the
+   * body — it never reached Spring at all. Reported as an ordinary 500 that reads "the backend
+   * threw, check the server log", which sends people looking through logs that do not exist.
+   * A real 500 from Spring always carries an ApiError body, so an empty one is this case.
+   */
+  const unreachable =
+    response.status >= 500 &&
+    responseText.trim() === '' &&
+    !contentType.includes('json');
+
   let bodyJson = null;
   let jsonParseError = null;
   if (responseText.trim() !== '') {
@@ -212,6 +225,18 @@ export async function sendRequest(prepared, options = {}) {
     bodyText: responseText,
     bodyJson,
     jsonParseError,
+    // Set only for the case above. The status is kept as it came, so the details panel can
+    // still show what was really on the wire.
+    error: unreachable
+      ? {
+          kind: 'backend-unreachable',
+          title: 'The backend is not running',
+          message:
+            'The dev server could not reach it, so the request never got as far as the ' +
+            'application. Nothing was read and nothing was changed.',
+          hint: 'Start it with:  cd backend && ./mvnw spring-boot:run  — it listens on port 3456 and takes about a minute.',
+        }
+      : null,
     // The real number of bytes, not the character count, so a response with accented text is
     // not reported as smaller than it is.
     sizeBytes: new Blob([responseText]).size,
@@ -219,6 +244,5 @@ export async function sendRequest(prepared, options = {}) {
     startedAtIso,
     finishedAtIso,
     timeoutMs,
-    error: null,
   };
 }

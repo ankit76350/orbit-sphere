@@ -143,6 +143,13 @@ the same kind of holiday twice on one day, and shrinking a year past a closed da
 
 - The details pop-up opens for POST, PUT, PATCH and DELETE. GET stays quiet.
 - Requests give up after 30 seconds.
+- **If the backend is not running, it says so.** A dev server whose proxy target is dead answers
+  `500 text/plain` with an empty body, which would otherwise read as "the backend threw, check
+  the server log" and send you looking through logs that do not exist. The client spots the
+  empty body and names the real cause instead.
+- The dev server uses `strictPort`, so a second `npm run dev` fails rather than quietly starting
+  another copy on 1301 — two servers means two tabs both loading, which looks in the log like
+  the app asking for the same thing over and over.
 - Staging and Production have no address set. Choosing one shows a banner and sends nothing,
   rather than failing as a name-lookup error that reads like a bug.
 - Nothing is sent with cookies, so the app behaves like a plain client.

@@ -10,7 +10,7 @@ import { useState } from 'react';
 import {
   ArrowLeft, CheckCircle2, PauseCircle, PlayCircle, Wrench, Globe, Settings, CalendarDays, Info,
 } from 'lucide-react';
-import { useApi } from '../api/ApiProvider.jsx';
+import { useApi } from '../api/apiContext.js';
 import {
   Button, Card, StatusBadge, Detail, Modal, Field, TextInput, TextArea,
 } from '../components/ui.jsx';

@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, School as SchoolIcon, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
-import { useApi, useApiState } from '../api/ApiProvider.jsx';
+import { useApi, useApiState } from '../api/apiContext.js';
 import {
   Button,
   SearchInput,
@@ -164,7 +164,7 @@ export default function SchoolsPage({ onOpenSchool }) {
         {problem ? (
           <EmptyState
             icon={AlertTriangle}
-            title="The list could not be loaded"
+            title={problem.error ? problem.error.title : 'The list could not be loaded'}
             description={
               problem.error
                 ? `${problem.error.message} ${problem.error.hint ?? ''}`

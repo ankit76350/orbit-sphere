@@ -11,7 +11,8 @@
 
 import { useState } from 'react';
 import { GraduationCap, Activity as ActivityIcon, Server, AlertTriangle } from 'lucide-react';
-import ApiProvider, { useApi, useApiState } from './api/ApiProvider.jsx';
+import ApiProvider from './api/ApiProvider.jsx';
+import { useApi, useApiState } from './api/apiContext.js';
 import SchoolsPage from './pages/SchoolsPage.jsx';
 import SchoolDetail from './pages/SchoolDetail.jsx';
 import ApiDetailsModal from './components/ApiDetailsModal.jsx';

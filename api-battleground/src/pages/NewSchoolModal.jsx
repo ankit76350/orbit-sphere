@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useApi } from '../api/ApiProvider.jsx';
+import { useApi } from '../api/apiContext.js';
 import { Modal, Button, Field, TextInput, SelectInput, Badge } from '../components/ui.jsx';
 
 const TIME_ZONES = [

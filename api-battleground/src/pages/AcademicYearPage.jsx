@@ -11,7 +11,7 @@ import { useState } from 'react';
 import {
   CalendarDays, Plus, Trash2, Pencil, Repeat, Upload, Info,
 } from 'lucide-react';
-import { useApi } from '../api/ApiProvider.jsx';
+import { useApi } from '../api/apiContext.js';
 import {
   Card, Button, Field, TextInput, SelectInput, TextArea, Modal, Badge, Toggle, EmptyState, Detail,
 } from '../components/ui.jsx';

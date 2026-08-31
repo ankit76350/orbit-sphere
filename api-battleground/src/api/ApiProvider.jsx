@@ -12,39 +12,15 @@
  * The paths and methods are not repeated here — they come from config/endpoints.js, which is
  * generated from the Postman collection.
  *
- * WHY THERE ARE TWO CONTEXTS. useApi() gives back only the things you DO — call, inspect,
- * dismiss — and that object keeps the same identity for the life of the app. useApiState()
- * gives back what changes: the activity log, the chosen environment, the open pop-up.
- *
- * They are split because mixing them is a trap with teeth. When one object carried both, a
- * screen that loaded itself in a useEffect depending on it re-ran after every call — and each
- * run made another call, because calling appends to the log, which changed the object. The
- * schools list did exactly that and hammered the backend until the tab was closed. Split like
- * this, a screen can depend on the whole of useApi() and nothing happens twice.
+ * The contexts and the hooks that read them are in apiContext.js — see the note there for why
+ * there are two of them, and why this file must export nothing but its component.
  */
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { sendRequest } from '../lib/httpClient.js';
 import { store } from '../lib/store.js';
 import { buildCall } from './buildCall.js';
-
-/** What you can do. Stable — safe in any dependency array. */
-const ApiActions = createContext(null);
-
-/** What changes. Only for screens that display it. */
-const ApiState = createContext(null);
-
-export function useApi() {
-  const value = useContext(ApiActions);
-  if (!value) throw new Error('useApi must be used inside ApiProvider');
-  return value;
-}
-
-export function useApiState() {
-  const value = useContext(ApiState);
-  if (!value) throw new Error('useApiState must be used inside ApiProvider');
-  return value;
-}
+import { ApiActionsContext, ApiStateContext } from './apiContext.js';
 
 /**
  * The stand-in result for an environment with no address. Shaped exactly like a real one, so
@@ -149,8 +125,8 @@ export default function ApiProvider({ children }) {
   );
 
   return (
-    <ApiActions.Provider value={actions}>
-      <ApiState.Provider value={state}>{children}</ApiState.Provider>
-    </ApiActions.Provider>
+    <ApiActionsContext.Provider value={actions}>
+      <ApiStateContext.Provider value={state}>{children}</ApiStateContext.Provider>
+    </ApiActionsContext.Provider>
   );
 }

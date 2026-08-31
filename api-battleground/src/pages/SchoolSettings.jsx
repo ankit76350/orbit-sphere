@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { Image as ImageIcon, AlertTriangle } from 'lucide-react';
-import { useApi } from '../api/ApiProvider.jsx';
+import { useApi } from '../api/apiContext.js';
 import { Card, Button, Field, TextInput, SelectInput, Modal } from '../components/ui.jsx';
 
 const TIME_ZONES = [
