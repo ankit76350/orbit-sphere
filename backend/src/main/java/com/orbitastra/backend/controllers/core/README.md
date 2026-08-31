@@ -8,11 +8,11 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Ten `GET` endpoints are inventoried below and **six are
-built** — G1 and G2, which finishes the platform surface, and G4 to G7. A school can read its own
-profile, every year it has, which year today falls in, and any year by name. What is left is the
-calendar: **G8, and G9 — the one the rest of the system is waiting for** — plus G10 and the
-optional G11.
+**The reads are the open work.** Ten `GET` endpoints are inventoried below and **seven are
+built** — G1 and G2, which finishes the platform surface, and G4 to G8. A school can read its own
+profile, every year it has, which year today falls in, any year by name, and a year's whole
+calendar. What is left is asking about a *date*: **G9 — the one the rest of the system is waiting
+for** — plus G10 and the optional G11.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -127,7 +127,7 @@ to, because they never name one at all.
 | G5 | `GET /schools/current/academic-years` | every year, newest first — **built** |
 | G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` — **built** |
 | G7 | `GET /schools/current/academic-years/{name}` | one year — **built** |
-| G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar |
+| G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar — **built** |
 | G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
 | G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
 | G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
@@ -322,6 +322,42 @@ going to see the spaces: `Current`, `CURRENT` and `" current "` are all refused.
 **Add to that list if another fixed word is ever put under `/academic-years/`.** Today it holds
 exactly one entry.
 
+## G8 — `GET /schools/current/academic-years/{name}/holidays` — BUILT
+
+The whole calendar, in the same
+[`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) that #20 to
+#23 and the two `DELETE`s already return. That record was written to be "what does the calendar
+look like now", which is exactly what a read wants, so G8 adds no shape of its own.
+
+Days come back sorted by date, with both counts and the per-type breakdown the record already
+works out. A year created by #18 has an empty calendar, so `200` with `holidays: []` and
+`closedDayCount: 0` is the normal first answer, not an edge case.
+
+**`changeSummary` drops out**, the same way `nextStep` does on G5 to G7 — annotated
+`@JsonInclude(NON_NULL)` and passed `null` by the read factory. Nothing just happened, so there
+is nothing to summarise. Every calendar write still sets it.
+
+### The two counts are the point of this endpoint
+
+Verified on a real year: 52 generated Sundays, Independence Day, and Diwali landing on one of
+those Sundays gives **`closedDayCount: 53`, `eventCount: 54`**, and
+`countsByType: {WEEKLY_OFF: 52, PUBLIC_HOLIDAY: 1, FESTIVAL: 1}`.
+
+That is the whole reason
+[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) keys on `date` with an array of
+reasons. A caller computing attendance wants 53. A caller asking "how many festivals" wants 1,
+not 0 — the festival did not stop being one by falling on a Sunday. Returning a single number
+would silently be wrong for one of them.
+
+### No filtering, on purpose
+
+No `?type=`, no date range. A full year is about sixty closed days, so there is nothing worth
+paging or narrowing, and every parameter added to a read is one more thing that has to keep
+agreeing with the writes. The questions worth asking about dates are **G9** (is the school closed
+on this day, and why) and **G10** (how many working days in this range) — both answer properly
+rather than handing the caller a list to filter, and G9 in particular must not be reimplemented
+by clients scanning this response.
+
 ## Reads resolve the tenant with `require`, not `requireUsable`
 
 Both school-surface reads call
@@ -420,7 +456,7 @@ inventing parallel records that drift:
 | G2 | [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java) — **built**, the platform variant carrying the lifecycle fields |
 | G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
 | G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — all three **built**; a read factory passes no `nextStep` |
-| G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
+| G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) — **built**; a read factory passes no `changeSummary` |
 | G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
 
 One needs something new: G10, a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.

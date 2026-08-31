@@ -91,11 +91,19 @@ public class AcademicYearService {
     }
 
     //? G7 — read one year by name -------------------------------------------------------
-    
+
     public AcademicYearResponse getAcademicYear(String name) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
         return AcademicYearResponse.fromAcademicYear(year);
+    }
+
+    //? G8 — read a year's whole calendar -------------------------------------------------
+    // using acadmic year name reading whole calender...
+    public HolidayCalendarResponse getHolidayCalendar(String name) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        return HolidayCalendarResponse.fromAcademicYear(year);
     }
 
     //? endpoint 18 — create a year ----------------------------------------------------

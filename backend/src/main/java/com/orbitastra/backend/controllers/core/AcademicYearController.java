@@ -80,6 +80,12 @@ public class AcademicYearController {
         return ResponseEntity.ok(academicYearService.getAcademicYear(name));
     }
 
+    //Get the year's whole holiday calendar, sorted by date. Empty list if it has none.
+    @GetMapping("/{name}/holidays")
+    public ResponseEntity<HolidayCalendarResponse> getHolidays(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.getHolidayCalendar(name));
+    }
+
     /**
      * Endpoint #18 — creates an academic year.
      *

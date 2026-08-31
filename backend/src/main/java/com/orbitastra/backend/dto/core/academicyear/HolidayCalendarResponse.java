@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.embedded.HolidayEvent;
@@ -39,7 +40,26 @@ public record HolidayCalendarResponse(
         int eventCount,
         Map<HolidayType, Integer> countsByType,
         List<HolidayView> holidays,
+
+        /**
+         * What the call just did to the calendar. A <b>write</b> field.
+         *
+         * <p>Left out of the JSON when it is null, which is what G8 passes. A read changed
+         * nothing, so it has nothing to summarise. Every calendar write sets it, so none of
+         * #20 to #23 or the two DELETEs change.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         String changeSummary) {
+
+    /**
+     * The same calendar, for a read. Used by G8.
+     *
+     * <p>No {@code changeSummary}: nothing just happened. The field drops out of the JSON rather
+     * than coming back null.
+     */
+    public static HolidayCalendarResponse fromAcademicYear(AcademicYear year) {
+        return fromAcademicYear(year, null);
+    }
 
     public static HolidayCalendarResponse fromAcademicYear(AcademicYear year, String changeSummary) {
         List<HolidayDetail> stored = year.getHolidays() == null ? List.of() : year.getHolidays();
