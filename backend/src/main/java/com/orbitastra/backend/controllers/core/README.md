@@ -63,12 +63,12 @@ All paths below are under `/schools/current/academic-years`.
 |---|---|---|---|
 | 18 | `POST` | `/` | 4 — **built** |
 | 19 | `PATCH` | `/{name}/dates` | 4 — **built** |
-| 20 | `PUT` | `/{name}/holidays` | 5 |
-| 21 | `POST` | `/{name}/holidays` | 5 |
-| 22 | `PATCH` | `/{name}/holidays/{date}?type=` | 5 |
-| — | `DELETE` | `/{name}/holidays/{date}?type=` | 5 |
-| 23 | `POST` | `/{name}/holidays/generate-weekly-off` | 5 |
-| — | `DELETE` | `/{name}/holidays?type=` | 5 |
+| 20 | `PUT` | `/{name}/holidays` | 5 — **built** |
+| 21 | `POST` | `/{name}/holidays` | 5 — **built** |
+| 22 | `PATCH` | `/{name}/holidays/{date}?type=` | 5 — **built** |
+| — | `DELETE` | `/{name}/holidays/{date}?type=` | 5 — **built** |
+| 23 | `POST` | `/{name}/holidays/generate-weekly-off` | 5 — **built** |
+| — | `DELETE` | `/{name}/holidays?type=` | 5 — **built** |
 | 24 | `POST` | `/{name}/enrollment/enable` | 6 |
 | 25 | `POST` | `/{name}/enrollment/disable` | 6 |
 | 26 | `POST` | `/{name}/results/lock` | 6 |
