@@ -29,7 +29,7 @@ public record CompleteProvisioningResponse(
         boolean readyToActivate,
         String nextStep) {
 
-    public static CompleteProvisioningResponse fromProvisioning(
+    public static CompleteProvisioningResponse fromSchool(
             School school,
             int sequencesCreated,
             int sequencesAlreadyPresent,

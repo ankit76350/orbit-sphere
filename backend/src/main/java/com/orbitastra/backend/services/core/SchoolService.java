@@ -165,7 +165,7 @@ public class SchoolService {
                 .sorted()
                 .collect(Collectors.toList());
 
-        return CompleteProvisioningResponse.fromProvisioning(
+        return CompleteProvisioningResponse.fromSchool(
                 school, sequencesCreated, sequencesPresent, rolesCreated, rolesPresent, roleKeys);
     }
 
