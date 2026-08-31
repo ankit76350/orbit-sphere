@@ -222,10 +222,40 @@ public class CoreValidator {
     public void validateHolidayWithinYear(String label, LocalDate date,
             LocalDate yearStart, LocalDate yearEnd) {
 
-        if (date.isBefore(yearStart) || date.isAfter(yearEnd)) {
+        if (!isWithinYear(date, yearStart, yearEnd)) {
             throw ApiException.badRequest("HOLIDAY_OUTSIDE_YEAR",
                     "'" + label + "' on " + date + " is outside " + yearStart + " to "
                             + yearEnd + ".");
         }
+    }
+
+    /**
+     * The same rule as above, for a caller asking <i>about</i> a date rather than placing a
+     * holiday on one. Used by G9.
+     *
+     * <p>Its own message and code because the two questions are not the same. The writes are
+     * told "this holiday will not fit"; G9 is told "that day is not part of this year". Reusing
+     * the holiday wording would tell a caller asking whether the school is open that something
+     * called 'date' does not fit, which is nonsense.
+     *
+     * <p><b>Both go through {@link #isWithinYear}</b>, so the messages can differ but the answer
+     * cannot. If a year's bounds ever stop being inclusive, one edit changes both.
+     */
+    public void validateDateWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
+        if (!isWithinYear(date, yearStart, yearEnd)) {
+            throw ApiException.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR",
+                    date + " is outside " + yearStart + " to " + yearEnd + ", which is what "
+                            + "this academic year covers.");
+        }
+    }
+
+    /**
+     * Is this date part of the year? <b>Both ends are inclusive</b> — the first and last day of
+     * a year are days of that year.
+     *
+     * <p>The one place this comparison is written. Every caller that needs it delegates here.
+     */
+    private boolean isWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
+        return !date.isBefore(yearStart) && !date.isAfter(yearEnd);
     }
 }

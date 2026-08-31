@@ -112,8 +112,7 @@ public class AcademicYearService {
     public DayStatusResponse getDayStatus(String name, LocalDate date) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
-        coreValidator.validateHolidayWithinYear(
-                "date", date, year.getStartDate(), year.getEndDate());
+        coreValidator.validateDateWithinYear(date, year.getStartDate(), year.getEndDate());
 
         return yearUtils.findDay(year, date)
                 .map(day -> DayStatusResponse.closed(year.getName(), day))

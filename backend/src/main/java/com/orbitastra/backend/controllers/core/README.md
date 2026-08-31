@@ -8,11 +8,10 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Ten `GET` endpoints are inventoried below and **seven are
-built** — G1 and G2, which finishes the platform surface, and G4 to G8. A school can read its own
-profile, every year it has, which year today falls in, any year by name, and a year's whole
-calendar. What is left is asking about a *date*: **G9 — the one the rest of the system is waiting
-for** — plus G10 and the optional G11.
+**The reads are mostly done.** Ten `GET` endpoints are inventoried below and **eight are
+built** — G1 and G2 on the platform surface, G4 to G9 on the school surface. **G9 is in**, so
+attendance, timetables, transport and fee due dates can finally ask whether a date is a working
+day. What is left is G10, the same question in bulk, and the optional G11 export.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -128,7 +127,7 @@ to, because they never name one at all.
 | G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` — **built** |
 | G7 | `GET /schools/current/academic-years/{name}` | one year — **built** |
 | G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar — **built** |
-| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
+| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** — **built** |
 | G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
 | G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
 
@@ -374,7 +373,17 @@ their school stopped working.
 Keep the split as the reads are built out: `require` for `GET`, `requireUsable` for anything
 that writes.
 
-## G9 is the one the rest of the system is waiting for
+## G9 — `GET /…/academic-years/{name}/holidays/{date}` — BUILT
+
+**This is the one the rest of the system was waiting for.** Attendance, timetables, transport and
+fee due dates all ask the same question — is this date a working day — and until now none of them
+could. Every one of them should call this rather than reading the calendar and deciding for
+itself, because the moment two places decide what a working day is, they disagree.
+
+Returns [`DayStatusResponse`](../../dto/core/academicyear/DayStatusResponse.java): the
+`HolidayView` shape plus a `closed` flag, as planned. `events` is named to match
+`HolidayView.events` rather than something like "reasons" — two names for one structure is a
+thing every client then has to know.
 
 Attendance, timetables, transport and fee due dates all ask the same question — **is this date a
 working day** — and none of them can ask it today.
@@ -385,15 +394,59 @@ times in the calendar and this endpoint would have had to scan and not stop at t
 Now it is one lookup returning one entry, and a Sunday that is also Diwali answers with both
 reasons rather than whichever was written first.
 
-**It should answer for a working day too**, with `closed: false`, rather than `404`. "The school
-is open" is a real answer to the question asked; a `404` makes every caller treat "not found" and
-"open" as the same thing, which is exactly the bug this endpoint exists to prevent.
+### An open day is a `200`, not a `404`
+
+A working day answers `200` with `closed: false` and an empty `events` list. "The school is open"
+is a real answer to the question asked; a `404` would make every caller treat "not found" and
+"open" as the same thing, which is exactly the bug this endpoint exists to prevent. The only
+`404` here is a year that does not exist.
+
+### A date outside the year is a `400`, not "open"
+
+Asking about `2030-01-01` in `2026-2027` is a question about a date that year does not cover.
+Answering `closed: false` would state something untrue in a form the caller would believe, so it
+is `400 DATE_OUTSIDE_ACADEMIC_YEAR`.
+
+That check and the one the calendar writes use both go through one private `isWithinYear` in
+[`CoreValidator`](../../services/core/helper/CoreValidator.java). **The wording differs, the
+answer cannot.** The writes are told "this holiday will not fit"; G9 is told "that day is not
+part of this year" — reusing the holiday wording would have told a caller asking whether the
+school is open that something called 'date' does not fit. If a year's bounds ever stop being
+inclusive, one edit moves both.
+
+### It never looks at the day of the week — tested
+
+**Schools here may run on Sunday and take the weekly off on another day.** The only thing that
+makes a day non-working is a dated entry on the calendar, which is why #23 exists to generate the
+weekly ones. There is no `dayOfWeek` test in the service and there must never be one.
+
+This was checked against a year with the weekly off generated on **Wednesday**:
+
+| date | | answer |
+|---|---|---|
+| 2026-11-08 | Sunday | `closed: false` — the school is open |
+| 2026-11-11 | Wednesday | `closed: true` — Weekly Off **and** Diwali |
+| 2026-11-12 | Thursday | `closed: false` |
+
+An implementation that assumed Sunday would have got the first row exactly backwards.
+
+`dayOfWeek` is on the response so a person can sanity-check the answer. **It is information,
+never input.** `dayOfWeek == SUNDAY` anywhere in a caller is the bug.
+
+### One lookup, both reasons
+
+A Sunday that is also Diwali comes back with both entries rather than whichever was written
+first. That is what
+[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) keying on `date` with an array
+of reasons buys — before that restructure on 2026-08-31 this endpoint would have had to scan and
+remember not to stop at the first match.
+
+It also tracks the writes correctly: deleting one reason from a two-reason day leaves
+`closed: true` with one left; deleting the second flips the same date to `closed: false`.
 
 **G10 is the same question asked in bulk** — attendance percentages and fee proration need a
-count, not 200 individual lookups. Both derive entirely from
-`AcademicYear.holidays`. **Neither may infer a non-working day from the weekday**: schools here
-may run on Sunday with the weekly off on any other day, which is why every closure is a dated
-entry and why #23 exists to generate them.
+count, not 200 individual lookups. It derives from `AcademicYear.holidays` exactly as this does,
+and the weekday rule above binds it just as hard.
 
 ## G2 — `GET /platform/schools/{id}` — BUILT
 
@@ -457,7 +510,7 @@ inventing parallel records that drift:
 | G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
 | G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — all three **built**; a read factory passes no `nextStep` |
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) — **built**; a read factory passes no `changeSummary` |
-| G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
+| G9 | [`DayStatusResponse`](../../dto/core/academicyear/DayStatusResponse.java) — **built**; `HolidayView` plus a `closed` flag |
 
 One needs something new: G10, a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.
 
