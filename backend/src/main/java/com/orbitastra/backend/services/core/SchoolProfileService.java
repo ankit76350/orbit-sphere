@@ -63,7 +63,8 @@ public class SchoolProfileService {
         // A PATCH with an empty body is almost always a client bug. Answering 200 hides it.
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send at least one of schoolName, phoneNumber or emailAddress.");
+                    "Send at least one of schoolName, accountHolderName, phoneNumber or "
+                            + "emailAddress.");
         }
 
         //! step 3 - apply only what was sent
@@ -74,6 +75,15 @@ public class SchoolProfileService {
                         "A school name cannot be removed. Send a new one, or omit the field.");
             }
             school.setSchoolName(name);
+        }
+        if (request.accountHolderName() != null) {
+            String holder = request.accountHolderName().trim();
+            if (holder.isEmpty()) {
+                throw ApiException.badRequest("ACCOUNT_HOLDER_NAME_REQUIRED",
+                        "An account holder name cannot be removed. Send a new one, or omit the "
+                                + "field.");
+            }
+            school.setAccountHolderName(holder);
         }
         if (request.phoneNumber() != null) {
             school.setPhoneNumber(TextHelper.blankToNull(request.phoneNumber()));

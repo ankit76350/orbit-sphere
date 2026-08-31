@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.core;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,8 @@ import com.orbitastra.backend.dto.core.platform.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolCreateResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolReactivateRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolSubdomainRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSuspendRequest;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
 
@@ -101,5 +104,26 @@ public class SchoolPlatformController {
 
         String note = request == null ? null : request.note();
         return ResponseEntity.ok(provisioningService.reactivateSchool(id, note));
+    }
+
+    /**
+     * Endpoint #10 — changes the subdomain a school answers to.
+     *
+     * <p>A {@code PATCH} of one field, but not a profile edit: this is the key that resolves
+     * every request to the tenant. It is on the platform surface for that reason, and #6 has no
+     * field for it.
+     *
+     * <p>The body must confirm the <b>current</b> subdomain. Getting the school wrong here takes
+     * a tenant off the air, and an id in a URL is easy to paste wrong.
+     *
+     * <p>The old label stays reserved to this school afterwards, so nobody can claim it and
+     * collect logins meant for them.
+     */
+    @PatchMapping("/{id}/subdomain")
+    public ResponseEntity<SchoolSubdomainResponse> changeSubdomain(
+            @PathVariable String id,
+            @Valid @RequestBody SchoolSubdomainRequest request) {
+
+        return ResponseEntity.ok(provisioningService.changeSubdomain(id, request));
     }
 }

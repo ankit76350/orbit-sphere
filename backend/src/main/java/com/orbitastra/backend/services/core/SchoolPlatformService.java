@@ -18,6 +18,8 @@ import com.orbitastra.backend.dto.core.platform.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolCreateResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolSubdomainRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
@@ -376,5 +378,93 @@ public class SchoolPlatformService {
         return SchoolStatusResponse.fromSchool(savedSchool,
                 "The school is live again. suspendedAt and the reason are kept on purpose, as "
                         + "the record of the last suspension.");
+    }
+
+    //! endpoint 10 — change the subdomain ---------------------------------------------
+    /**
+     * #10 — changes the tenant label a school answers to.
+     *
+     * <p><b>Platform surface only.</b> This is not a profile edit; it is the key that resolves
+     * every request to this tenant. Endpoint #6 deliberately has no field for it.
+     *
+     * <p>The old label is <b>kept in reserve</b> rather than released. A freed subdomain is not
+     * neutral: links, bookmarks and saved logins keep pointing at it, so a school that claimed
+     * somebody's discarded label would receive their users and their passwords. Holding it costs
+     * one string.
+     *
+     * <p>A school may take back its own old label. It is the only party that was ever behind it,
+     * so there is nobody to confuse.
+     *
+     * <p><b>What this does not do.</b> Nothing invalidates a routing cache, rewrites a stored
+     * link, or tells anybody at the school that their address changed — none of that exists yet.
+     * Until it does, the response says plainly that every old link is now dead, because a caller
+     * who does not know that will find out from the school.
+     */
+    @Transactional
+    public SchoolSubdomainResponse changeSubdomain(String schoolId, SchoolSubdomainRequest request) {
+        //! step 1 - find the school, or 404
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        //! step 2 - a school on its way out does not get a new address
+        if (school.getStatus() == SchoolStatus.DELETED
+                || school.getStatus() == SchoolStatus.DELETION_PENDING) {
+            throw ApiException.conflict("SCHOOL_NOT_EDITABLE",
+                    "A school at status " + school.getStatus() + " cannot change its subdomain.");
+        }
+
+        //! step 3 - the caller must name the current subdomain correctly. This is the whole
+        //! guard against doing it to the wrong tenant, so it runs before anything is touched.
+        String confirmed = TextHelper.lowercaseOrNull(request.currentSubdomain());
+        if (!school.getSubdomain().equals(confirmed)) {
+            throw ApiException.conflict("SUBDOMAIN_CONFIRMATION_MISMATCH",
+                    "This school answers to '" + school.getSubdomain() + "', not '" + confirmed
+                            + "'. Send the current subdomain to confirm which school you mean.");
+        }
+
+        //! step 4 - shape, reserved words, normalization
+        String newSubdomain = coreValidator.validateSubdomain(request.newSubdomain());
+
+        String oldSubdomain = school.getSubdomain();
+        if (newSubdomain.equals(oldSubdomain)) {
+            throw ApiException.conflict("SUBDOMAIN_UNCHANGED",
+                    "'" + newSubdomain + "' is already this school's subdomain.");
+        }
+
+        //! step 5 - nobody else may be using it, now or before
+        if (schools.existsBySubdomain(newSubdomain)) {
+            throw ApiException.conflict("SUBDOMAIN_TAKEN",
+                    "The subdomain '" + newSubdomain + "' is already in use.");
+        }
+        schools.findByPreviousSubdomainsContaining(newSubdomain).ifPresent(holder -> {
+            // The school's own old label is fine — it is taking back an address it never
+            // shared. Anybody else's is refused, because that address still leads people to
+            // them.
+            if (!holder.getId().equals(school.getId())) {
+                throw ApiException.conflict("SUBDOMAIN_RESERVED",
+                        "The subdomain '" + newSubdomain + "' was previously used by another "
+                                + "school and stays reserved to them.");
+            }
+        });
+
+        //! step 6 - move, holding the old label so nobody can take it
+        List<String> held = school.getPreviousSubdomains() == null
+                ? new ArrayList<>()
+                : school.getPreviousSubdomains();
+        held.remove(newSubdomain);
+        if (!held.contains(oldSubdomain)) {
+            held.add(oldSubdomain);
+        }
+        school.setPreviousSubdomains(held);
+        school.setSubdomain(newSubdomain);
+
+        //TODO: - save
+        School savedSchool = schools.save(school);
+
+        return SchoolSubdomainResponse.fromSchool(savedSchool, oldSubdomain,
+                "Every link, bookmark and saved login using '" + oldSubdomain + "' is now dead — "
+                        + "nothing redirects, and the school has NOT been told. '" + oldSubdomain
+                        + "' stays reserved to this school so nobody else can claim it.");
     }
 }

@@ -19,9 +19,9 @@ import jakarta.validation.constraints.Size;
  * omitted a phone number would look identical to one asking to remove it, and the safe reading —
  * leave it alone — would win forever.
  *
- * <p>{@code schoolName} cannot be cleared. It is {@code @NotBlank} on the model, and a school
- * with no name is not a state worth supporting, so {@code ""} there is a 400 rather than a
- * deletion.
+ * <p>{@code schoolName} and {@code accountHolderName} cannot be cleared. Both are
+ * {@code @NotBlank} on the model, and a school with no name — or no named account holder — is
+ * not a state worth supporting, so {@code ""} there is a 400 rather than a deletion.
  *
  * <p>Nothing here can change the tenant's identity or lifecycle. Subdomain, status and the
  * encryption key are all on the platform surface, and the fields simply do not exist on this
@@ -32,6 +32,21 @@ public record SchoolProfileUpdateRequest(
         /** Example: "Orbit Astra International School". Cannot be cleared. */
         @Size(max = 200) String schoolName,
 
+        /**
+         * Who the school names as the holder of this account. Example: "Rohan Shinde".
+         * Cannot be cleared.
+         *
+         * <p>Moved here on 2026-08-31 from its own platform endpoint (#11 in the plan), which
+         * was dropped. It is a plain label — nothing links it to a UserAccount, nothing checks it
+         * and nothing is granted by it — so a separate platform-only endpoint for one
+         * unreferenced string was ceremony. It edits like {@code schoolName}, so it lives beside
+         * it.
+         *
+         * <p>If it ever becomes contractual — who signed, who gets billed — the fix is to link it
+         * to a real account rather than to move it back out of here.
+         */
+        @Size(max = 200) String accountHolderName,
+
         /** Example: "+919876543210". Send "" to remove it. */
         @Size(max = 30) String phoneNumber,
 
@@ -40,7 +55,8 @@ public record SchoolProfileUpdateRequest(
 
     /** True when the caller asked for nothing at all — answered with a 400, not a silent 200. */
     public boolean isEmpty() {
-        return schoolName == null && phoneNumber == null && emailAddress == null;
+        return schoolName == null && accountHolderName == null && phoneNumber == null
+                && emailAddress == null;
     }
 
     /**
