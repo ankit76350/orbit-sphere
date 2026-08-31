@@ -8,10 +8,11 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are mostly done.** Ten `GET` endpoints are inventoried below and **eight are
-built** — G1 and G2 on the platform surface, G4 to G9 on the school surface. **G9 is in**, so
-attendance, timetables, transport and fee due dates can finally ask whether a date is a working
-day. What is left is G10, the same question in bulk, and the optional G11 export.
+**The reads are done.** Ten `GET` endpoints are inventoried below and **nine are built** — G1
+and G2 on the platform surface, G4 to G10 on the school surface. Attendance, timetables,
+transport and fee due dates can now ask both forms of the question they were blocked on: G9 for
+one date, G10 for a count over a range. **The only one left is G11**, the calendar export, which
+was always marked optional.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -128,7 +129,7 @@ to, because they never name one at all.
 | G7 | `GET /schools/current/academic-years/{name}` | one year — **built** |
 | G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar — **built** |
 | G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** — **built** |
-| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
+| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | which days in a range are working days, and how many — **built** |
 | G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
 
 ## G1 — `GET /platform/schools` — BUILT
@@ -357,6 +358,106 @@ on this day, and why) and **G10** (how many working days in this range) — both
 rather than handing the caller a list to filter, and G9 in particular must not be reimplemented
 by clients scanning this response.
 
+## G10 — `GET /…/academic-years/{name}/working-days?from=&to=` — BUILT
+
+G9 asked about one date; this is the same question in bulk. Attendance percentages and fee
+proration need the answer for a whole range, not two hundred separate calls — and they need the
+*same* answer as each other, which is the real reason it is one endpoint rather than a loop in
+four services.
+
+Returns [`WorkingDaysResponse`](../../dto/core/academicyear/WorkingDaysResponse.java).
+
+### It returns the days, not just the count
+
+`workingDays` is every open date in the range, each with its `dayOfWeek`:
+
+```json
+{
+  "academicYearName": "2026-2027",
+  "from": "2026-11-02", "to": "2026-11-08",
+  "totalDayCount": 7, "workingDayCount": 6, "closedDayCount": 1,
+  "workingDays": [
+    { "date": "2026-11-02", "dayOfWeek": "MONDAY" },
+    { "date": "2026-11-03", "dayOfWeek": "TUESDAY" },
+    ...
+  ]
+}
+```
+
+A timetable being laid out, a fee schedule spread over teaching days, an attendance register
+opened for a term — all of them need to know *which* days. A bare count would send every one of
+them back to G8 to work the same thing out again, which is how two parts of a system end up
+disagreeing about what a working day is. `dayOfWeek` is on each row so a person can check the
+list without doing calendar arithmetic.
+
+A whole year is about 310 rows of a date and a weekday. Small enough not to need paging, which is
+why G1 is still the only list here that has any.
+
+**`workingDayCount` is the length of that list**, not a separate subtraction, so the number and
+the list cannot drift apart. The counts follow the `<thing>Count` naming
+`HolidayCalendarResponse` already uses.
+
+### Leaving the range off means the whole year
+
+`from` and `to` both default to the year's own dates, so a bare
+`GET /academic-years/2026-2027/working-days` answers "how many working days does this year have"
+— the denominator of every attendance percentage. Same defaulting as #23 on this resource, so the
+two behave alike. `from` alone runs to the end of the year; `to` alone runs from the start.
+
+The range is echoed back on the response either way. A count with no range beside it is a number
+somebody will later divide by the wrong thing.
+
+### It counts days, not reasons
+
+On a year with 52 generated Sundays, Independence Day, and Diwali landing on one of those
+Sundays, G8 reports `closedDayCount: 53` and `eventCount: 54`. **G10 reports
+`closedDayCount: 53`** — the Diwali Sunday is one closed day, not two — and 312 working days out
+of 365.
+
+Getting that wrong would quietly understate attendance on exactly the weeks a school has
+festivals. It is also why there is **no per-type breakdown here**: with several reasons on one
+day the per-type numbers cannot add up to the day count, and this endpoint exists to be divided
+by. Ask G8 if you need the reasons.
+
+`workingDays + closedDays == totalDays` always, and both ends of the range count, so a
+single-day range is one day rather than zero.
+
+### Checked against G9, date for date
+
+The bulk answer has to equal the individual answers or one of them is lying. Ranges were resolved
+both ways — via G10, and by calling G9 once per date — and **the lists matched exactly, not just
+the totals**:
+
+| range | | G10 | matches G9 per-day |
+|---|---|---|---|
+| Nov 2026 | 30 days | 25 working, 5 closed | same 25 dates |
+| Apr 2026 | 30 days | 26 working, 4 closed | same 26 dates |
+| 2026-11-08 | the Diwali Sunday | 0 working, 1 closed | same |
+| whole year | 365 days | 312 working, 53 closed | list length == `workingDayCount` |
+
+Every row's `dayOfWeek` was checked against the date, and no Sunday appeared in the working list
+for a school that closes Sundays.
+
+**Keep that cross-check if either is ever changed.** Two endpoints answering one question is the
+arrangement that drifts.
+
+### How it is worked out
+
+The closed dates go into a set, then the range is walked once, keeping every day the set does not
+contain. Walking is unavoidable now that the dates themselves come back, and at 365 iterations
+for the longest possible range it costs nothing.
+
+### A date outside the year is a `400`
+
+Both ends go through the same `validateDateWithinYear` G9 uses, so `?from=2020-01-01` is
+`DATE_OUTSIDE_ACADEMIC_YEAR` rather than a count padded with days the year never covered.
+`from` after `to` is `INVALID_DATE_RANGE`, the same code #23 gives.
+
+### And nothing here looks at the weekday
+
+Same rule as G9, and it matters more here: the result is a single number nobody can eyeball. A
+school that works Sundays gets the right count because every closure is a dated entry.
+
 ## Reads resolve the tenant with `require`, not `requireUsable`
 
 Both school-surface reads call
@@ -512,7 +613,7 @@ inventing parallel records that drift:
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) — **built**; a read factory passes no `changeSummary` |
 | G9 | [`DayStatusResponse`](../../dto/core/academicyear/DayStatusResponse.java) — **built**; `HolidayView` plus a `closed` flag |
 
-One needs something new: G10, a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.
+G10 needed something new and got it: [`WorkingDaysResponse`](../../dto/core/academicyear/WorkingDaysResponse.java) — **built** — a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.
 
 `nextStep` and `changeSummary` are **write** fields — they say what just happened. A read should
 not carry them.

@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,6 +27,7 @@ import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.dto.core.academicyear.WorkingDaysResponse;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
@@ -96,6 +99,18 @@ public class AcademicYearController {
             @PathVariable LocalDate date) {
 
         return ResponseEntity.ok(academicYearService.getDayStatus(name, date));
+    }
+
+    //Count the working days between two dates. Both ends count.
+    //Leave from and to off to get the whole year, which is what an attendance percentage
+    //divides by. Like G9, a day is only non-working because the calendar says so.
+    @GetMapping("/{name}/working-days")
+    public ResponseEntity<WorkingDaysResponse> workingDays(
+            @PathVariable String name,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
+
+        return ResponseEntity.ok(academicYearService.countWorkingDays(name, from, to));
     }
 
     /**

@@ -2,11 +2,14 @@ package com.orbitastra.backend.services.core;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.dto.core.academicyear.WorkingDaysResponse;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
@@ -117,6 +121,44 @@ public class AcademicYearService {
         return yearUtils.findDay(year, date)
                 .map(day -> DayStatusResponse.closed(year.getName(), day))
                 .orElseGet(() -> DayStatusResponse.open(year.getName(), date));
+    }
+
+    //? G10 — count working days in a range ------------------------------------------------
+    public WorkingDaysResponse countWorkingDays(String name, LocalDate from, LocalDate to) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        // No range given means the whole year, which is the question usually being asked.
+        LocalDate start = from == null ? year.getStartDate() : from;
+        LocalDate end = to == null ? year.getEndDate() : to;
+
+        if (start.isAfter(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "from (" + start + ") must not be after to (" + end + ").");
+        }
+        coreValidator.validateDateWithinYear(start, year.getStartDate(), year.getEndDate());
+        coreValidator.validateDateWithinYear(end, year.getStartDate(), year.getEndDate());
+
+        // Both ends count, so a single-day range is one day and not zero.
+        int totalDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
+
+        // The dates the calendar closes. A set, because a day with two reasons is still one
+        // closed day, and because the walk below asks about every date in the range.
+        List<HolidayDetail> holidays =
+                year.getHolidays() == null ? List.of() : year.getHolidays();
+        Set<LocalDate> closedDates = holidays.stream()
+                .map(HolidayDetail::getDate)
+                .collect(Collectors.toSet());
+
+        // Keep every day the calendar does not close. The weekday is never looked at - a school
+        // may work Sundays and take its weekly off on another day.
+        List<WorkingDaysResponse.WorkingDay> workingDays = new ArrayList<>();
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            if (!closedDates.contains(day)) {
+                workingDays.add(WorkingDaysResponse.WorkingDay.on(day));
+            }
+        }
+
+        return WorkingDaysResponse.of(year.getName(), start, end, totalDays, workingDays);
     }
 
     //? endpoint 18 — create a year ----------------------------------------------------
