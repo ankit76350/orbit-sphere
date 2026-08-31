@@ -115,11 +115,11 @@ folder per controller, so the collection and the code stay findable from each ot
 
 ## Coverage
 
-**17 of 28 planned write endpoints.** The other 11 are specified in
+**21 of 28 planned write endpoints.** The other 7 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
-The count is 17 rather than 15 because two of the calendar endpoints were not in the original
+The count is 21 rather than 19 because two of the calendar endpoints were not in the original
 plan of 28: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
 undo for endpoints that create in bulk, and an API that can generate 52 rows in one call and
 cannot remove them is not finished.
@@ -138,8 +138,10 @@ assume specific dates exist:
 | Remove Holiday | `2026-11-08` exists and holds a `WEEKLY_OFF` |
 | Generate Weekly Off | nothing |
 | Remove Holidays By Type | Generate Weekly Off has run |
+| Unlock Results | **Lock Results has run** — otherwise it is a `409` by design |
 
-Run **Replace Holiday Calendar** first to put the calendar in the state the rest expect.
+Run **Replace Holiday Calendar** first to put the calendar in the state the rest expect, and
+**Lock Results** immediately before **Unlock Results**.
 
 ## A note on all those 409s
 
@@ -166,3 +168,25 @@ stores an **array of reasons per date**, and the requests are shaped around that
 - **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
+
+## A note on the four gates (#24–27)
+
+They take **no body** except #27, and they announce two gaps in every response rather than hide
+them:
+
+- **No authorization is enforced.** Anybody who can reach `results/unlock` can run it. Every
+  response says so in `nextStep`.
+- **The audit actor is `ANONYMOUS`.** There is no authentication, so nothing knows who acted, and
+  a guess would be worse than the gap.
+
+#24, #25 and #26 are idempotent — send them twice and the second is a `200` saying nothing
+changed. **#27 is not**: unlocking a year that is not locked is a `409`, because a no-op recorded
+as a successful unlock would put a false row in the audit trail.
+
+**#27 writes an audit row whether it succeeds or is refused**, and the two `400`s (no reason, or
+a reason under ten characters) write nothing at all — those never reach the service. There is no
+read endpoint for the trail yet, so check it from mongosh:
+
+```
+db.audit_events.find({ action: /RESULTS_/ }).sort({ occurredAt: 1 })
+```

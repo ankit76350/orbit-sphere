@@ -22,6 +22,7 @@ import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
+import com.orbitastra.backend.dto.core.academicyear.ResultsUnlockRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;
@@ -30,7 +31,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's academic years. Endpoints #18 and #19 of the plan in this package's README.
+ * The school's academic years. Endpoints #18 to #27 of the plan in this package's README, plus
+ * the two calendar {@code DELETE}s.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL.
  * There is no platform surface for academic years: a year belongs to one school's calendar and
@@ -162,5 +164,27 @@ public class AcademicYearController {
             @RequestParam HolidayType type) {
 
         return ResponseEntity.ok(academicYearService.removeHolidaysByType(name, type));
+    }
+
+    //! the gates — #24 to #27 ---------------------------------------------------------
+
+    /**
+     * Endpoint #24 — opens the year to new enrollments.
+     *
+     * <p>Idempotent: a year already open comes back {@code 200} saying so.
+     */
+    @PostMapping("/{name}/enrollment/enable")
+    public ResponseEntity<AcademicYearResponse> enableEnrollment(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.enableEnrollment(name));
+    }
+
+    /**
+     * Endpoint #25 — closes the year to new enrollments.
+     *
+     * <p>A gate on new writes only. Students already enrolled are untouched.
+     */
+    @PostMapping("/{name}/enrollment/disable")
+    public ResponseEntity<AcademicYearResponse> disableEnrollment(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.disableEnrollment(name));
     }
 }

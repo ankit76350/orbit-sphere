@@ -53,7 +53,7 @@ public class CoreValidator {
      */
     private final AcademicYearRepository academicYears;
 
-    //! subdomain ---------------------------------------------------------------- 
+    //! subdomain — used by endpoints 1 and 10 -----------------------------------------
     /** Lowercase letters, digits and single inner hyphens. No leading or trailing hyphen. */
     private static final Pattern SUBDOMAIN_SHAPE =
             Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$");
@@ -97,7 +97,7 @@ public class CoreValidator {
     }
 
 
-    //! time zone ---------------------------------------------------------------- 
+    //! time zone — used by endpoints 1 and 8 ------------------------------------------
 
     /**
      * Validates the school time zone.
@@ -118,7 +118,7 @@ public class CoreValidator {
         return candidate;
     }
 
-    //! academic year dates ------------------------------------------------------------
+    //! academic year dates — used by endpoints 18 and 19 ------------------------------
 
     /** A year is a year. Outside this range it is a typo, not a calendar. */
     private static final long MIN_YEAR_DAYS = 30;
@@ -174,7 +174,7 @@ public class CoreValidator {
         }
     }
 
-    //! holidays ------------------------------------------------------------------------
+    //! holidays — used by endpoints 20 to 23 ------------------------------------------
 
     /**
      * A holiday must fall inside the year that owns it.

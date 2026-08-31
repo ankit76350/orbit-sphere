@@ -998,6 +998,229 @@
        }
       }
      ]
+    },
+    {
+     "name": "Enable Enrollment",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/enrollment/enable",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "enrollment",
+        "enable"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/enrollment/enable` — opens the year to new\nenrollments.\n\nA gate on what **other modules** may do: with this on, admissions may assign students to this\nyear. Idempotent — a year already open comes back `200` saying so.\n\n**No authorization is enforced yet.** Every response says so in `nextStep`.\n\n### The five test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/enrollment/enable\n//  Needs X-School-Subdomain. Run Create School and Create Academic Year first.\n// ===========================================================================\n//\n//  NO AUTHORIZATION IS ENFORCED ON ANY OF THESE YET. Anybody who can reach\n//  them can run them. The permission model does not exist, so there is nothing\n//  to check against — every response says so in nextStep rather than letting it\n//  be discovered later. The audit rows ARE written now, because a trail that\n//  starts the day permissions arrive says nothing about the months before it.\n//\n//  THESE ARE POST, NOT PATCH. Both fields are booleans, so\n//  PATCH {\"resultsLocked\": false} would work mechanically — which is the\n//  problem. It would make the most sensitive operation in this package look\n//  identical to the least, and leave nowhere to put a reason.\n//\n//  NO BODY IS NEEDED. #24, #25 and #26 take none; anything sent is ignored.\n//  Only #27 takes one, because only #27 requires a reason.\n//\n// ---------------------------------------------------------------------------\n// 01  OPEN THE YEAR TO ENROLLMENTS                         -> 200 OK\n//     No body needed.\n//     OUT: enrollmentEnabled: true\n//          nextStep: \"Enrollment enabled for '2026-2027'. No authorization...\"\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT, deliberately. The caller asked for a state and that state\n//     holds. A 409 here would only teach callers to GET first and then race.\n//     OUT: \"Enrollment was already enabled for '2026-2027'.\"\n// ---------------------------------------------------------------------------\n//\n// 03  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change {{academicYearName}} to 1999-2000.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// 04  NO TENANT HEADER                               -> 400 Bad Request\n//     Disable the X-School-Subdomain header.\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n//\n// 05  A SUSPENDED SCHOOL                                -> 409 Conflict\n//     Suspend the school first.\n//     OUT: { \"code\": \"SCHOOL_NOT_EDITABLE\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('enrollment is open', () => pm.expect(b.enrollmentEnabled).to.be.true);",
+         "pm.test('the missing-authorization gap is announced', () =>",
+         "  pm.expect(b.nextStep).to.include('No authorization'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Disable Enrollment",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/enrollment/disable",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "enrollment",
+        "disable"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/enrollment/disable` — closes the year to new\nenrollments.\n\n**Does not touch students already enrolled.** This is a gate on new writes, not a withdrawal —\nanything already in the year stays exactly as it is.\n\nIdempotent, and flips freely in both directions: it is a switch, not a lifecycle.\n\n### The four test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/enrollment/disable\n// ===========================================================================\n//\n//  A GATE ON NEW WRITES, NOT A WITHDRAWAL. Students already enrolled in this\n//  year are completely unaffected. Nothing is removed and nothing is moved.\n//\n// ---------------------------------------------------------------------------\n// 01  CLOSE THE YEAR TO NEW ENROLLMENTS                    -> 200 OK\n//     OUT: enrollmentEnabled: false\n//          \"Students already enrolled are unaffected.\"\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT. \"Enrollment was already disabled for '2026-2027'.\"\n// ---------------------------------------------------------------------------\n//\n// 03  ENABLE, THEN DISABLE, THEN ENABLE                    -> 200 OK each\n//     The gate flips freely. It is a switch, not a lifecycle: neither\n//     direction is destructive and neither needs a reason.\n//     CONTRAST WITH #27, where the unlock direction is not like this at all.\n// ---------------------------------------------------------------------------\n//\n// 04  UNKNOWN YEAR NAME                                -> 404 Not Found\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('enrollment is closed', () => pm.expect(b.enrollmentEnabled).to.be.false);",
+         "pm.test('results are not touched by an enrollment gate', () =>",
+         "  pm.expect(b).to.have.property('resultsLocked'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Lock Results",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/results/lock",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "results",
+        "lock"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/results/lock` — locks results against further\nchange.\n\nRoutine — it is what happens when marks are published — and idempotent.\n\n### Audited, though it is the safe direction\n\nA lock on its own is uninteresting; a lock and an unlock **together** are what say how long\nresults were open and who opened them. Recording only the unlock would leave all of that\nunanswerable, so both are written and both are marked `retainLongTerm`.\n\n### The three test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/results/lock\n// ===========================================================================\n//\n//  ROUTINE. This is what happens when marks are published: results stop being\n//  editable. Idempotent, like the enrollment gates.\n//\n//  IT IS AUDITED ANYWAY, even though it is the safe direction. A lock on its\n//  own is uninteresting; a LOCK AND AN UNLOCK TOGETHER are what say how long\n//  the results were open and who opened them. Recording only the unlock would\n//  leave every one of those questions unanswerable. Both rows are written with\n//  retainLongTerm: true.\n//\n//  A row lands in audit_events with:\n//    action: \"RESULTS_LOCK\", outcome: \"SUCCESS\"\n//    changes: [{ fieldName: \"resultsLocked\", oldValue: \"false\",\n//                newValue: \"true\" }]\n//    actorType: \"ANONYMOUS\"   <- there is no authentication yet, and a guess\n//                                would be worse than the gap: an audit trail\n//                                naming the wrong person is evidence against\n//                                the wrong person.\n//\n// ---------------------------------------------------------------------------\n// 01  LOCK THE RESULTS                                     -> 200 OK\n//     OUT: resultsLocked: true\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT. \"Results were already locked for '2026-2027'.\"\n//     NOTE: no second audit row — nothing changed, so nothing is recorded.\n// ---------------------------------------------------------------------------\n//\n// 03  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     NOT audited. Only #27 records its failures; a failed LOCK leaves the\n//     results locked, which is the safe state.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('results are locked', () => pm.expect(b.resultsLocked).to.be.true);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Unlock Results",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/results/unlock",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "results",
+        "unlock"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/results/unlock` — the most sensitive operation\nin this package.\n\nUnlocking means somebody can change a mark a parent has already seen. Three things follow:\n\n### A reason is required\n\n10 to 500 characters, written to the audit row. It is the only part of that row a person can read\nsix months later and understand.\n\n### Every call is audited, refusals included\n\nThe refusal row is written in **its own transaction**, because the `409` rolls the request back\nand a refusal recorded inside that transaction would be rolled back with it — losing exactly the\nevents somebody would come looking for.\n\n### Unlocking an unlocked year is a `409`\n\nThe other three gates are idempotent because a no-op there is harmless. Here a no-op logged as a\nsuccessful unlock would put a false row in the trail, and the trail is the entire point.\n\n### The six test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"reason\": \"Class 9B mathematics re-evaluation ordered by the exam controller.\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/results/unlock\n//  THE MOST SENSITIVE ENDPOINT IN THIS PACKAGE.\n// ===========================================================================\n//\n//  UNLOCKING MEANS SOMEBODY CAN CHANGE A MARK A PARENT HAS ALREADY SEEN. That\n//  is why it differs from the other three gates in three ways:\n//\n//   1. A REASON IS REQUIRED, 10 to 500 characters. It is written to the audit\n//      row, and it is the only part of that row a person can read six months\n//      later and actually understand. The minimum length will not stop someone\n//      typing ten characters of nothing, and is not meant to — it is there so\n//      the default path is a real sentence.\n//\n//   2. EVERY CALL IS AUDITED, REFUSALS INCLUDED. \"Somebody tried to unlock a\n//      locked year eleven times\" is a thing an audit trail exists to be able to\n//      say, and it can only say it if the failures are written too.\n//\n//      The refusal row is written in ITS OWN TRANSACTION. The 409 rolls the\n//      request back, and a refusal recorded inside that transaction would be\n//      rolled back with it — losing exactly the events somebody would come\n//      looking for.\n//\n//   3. UNLOCKING AN UNLOCKED YEAR IS A 409, not a quiet success. The other\n//      three gates are idempotent because a no-op there is harmless. Here a\n//      no-op logged as a successful unlock would put a row in the trail\n//      claiming results were opened when they never were.\n//\n// ---------------------------------------------------------------------------\n// 01  UNLOCK A LOCKED YEAR                                 -> 200 OK\n//     The body above. Run \"Lock Results\" first.\n//     OUT: resultsLocked: false\n//          \"Lock them again as soon as the corrections are in.\"\n//     AUDIT: action RESULTS_UNLOCK, outcome SUCCESS, the reason stored, and\n//            changes: resultsLocked true -> false.\n// ---------------------------------------------------------------------------\n//\n// 02  UNLOCK AGAIN                                     -> 409 Conflict\n//     OUT: { \"code\": \"RESULTS_NOT_LOCKED\",\n//            \"message\": \"Results for '2026-2027' are not locked, so there is\n//                        nothing to unlock.\" }\n//     AUDIT: a row IS written — outcome FAILURE, failureReason\n//            \"RESULTS_NOT_LOCKED\", with the reason the caller gave.\n// ---------------------------------------------------------------------------\n//\n// 03  NO REASON                                      -> 400 Bad Request\n// {\n// }\n//     OUT: fieldErrors: { \"reason\": \"must not be blank\" }\n//     NOT AUDITED, deliberately. The request never reaches the service, so\n//     nothing was unlocked or even attempted — it is a client bug, and filling\n//     the trail with them would bury the attempts that matter.\n// ---------------------------------------------------------------------------\n//\n// 04  A REASON THAT IS NOT A REASON                  -> 400 Bad Request\n// {\n//   \"reason\": \"fix\"\n// }\n//     OUT: fieldErrors: { \"reason\": \"size must be between 10 and 500\" }\n//     Also not audited.\n// ---------------------------------------------------------------------------\n//\n// 05  UNKNOWN YEAR NAME                                -> 404 Not Found\n// {\n//   \"reason\": \"Unlocking a year that does not exist at all.\"\n// }\n//     Change {{academicYearName}} to 1999-2000.\n//     AUDIT: a row IS written — FAILURE, failureReason\n//            \"ACADEMIC_YEAR_NOT_FOUND\", targetLabel \"1999-2000\". Somebody\n//            fishing for years they cannot see should leave a trace.\n// ---------------------------------------------------------------------------\n//\n// 06  READING THE TRAIL BACK\n//     There is no read endpoint yet — reads are a separate pass. From mongosh:\n//       db.audit_events.find({ action: /RESULTS_/ }).sort({ occurredAt: 1 })\n//     One query on `action` returns every attempt, successful or not, because\n//     the action names the OPERATION and the outcome field carries the result.\n//     Splitting them into two actions would mean a search for unlocks quietly\n//     missing the failures.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts case 01. Run Lock Results immediately before this.",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('results are unlocked', () => pm.expect(b.resultsLocked).to.be.false);",
+         "pm.test('the caller is told to lock them again', () =>",
+         "  pm.expect(b.nextStep).to.include('Lock them again'));"
+        ]
+       }
+      }
+     ]
     }
    ]
   }

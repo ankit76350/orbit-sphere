@@ -178,7 +178,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //?? endpoint 9 — the logo ----------------------------------------------------------
+    //! endpoint 9 — the logo ----------------------------------------------------------
 
     /**
     * Replaces or removes the school's logo.

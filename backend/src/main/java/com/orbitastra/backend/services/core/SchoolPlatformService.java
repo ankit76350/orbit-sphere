@@ -87,6 +87,8 @@ public class SchoolPlatformService {
     private final SchoolSubscriptionRepository subscriptions;
     private final CoreValidator coreValidator;
 
+    //! endpoint 1 — create the tenant -------------------------------------------------
+
     @Transactional
     public SchoolCreateResponse createNewSchool(SchoolCreateRequest request) {
         //! validating subdomain
@@ -125,7 +127,7 @@ public class SchoolPlatformService {
         return SchoolCreateResponse.fromSchool(savedSchool);
     }
 
-    //! endpoint 2 — finish the setup -------------------------------------------------
+    //! endpoint 2 — finish the setup --------------------------------------------------
 
         /**
          * Completes tenant setup with missing sequences and roles.
@@ -225,7 +227,7 @@ public class SchoolPlatformService {
 
 
 
-    //! endpoint 3 — activate the school ----------------------------------------------
+    //! endpoint 3 — activate the school -----------------------------------------------
         /**
          * Activates a school from TRIAL or PROVISIONING.
          *
@@ -307,7 +309,7 @@ public class SchoolPlatformService {
         return "Subscription is " + status + ".";
     }
 
-    //! endpoint 4 — suspend ----------------------------------------------------------
+    //! endpoint 4 — suspend -----------------------------------------------------------
 
     // Suspends an ACTIVE school by changing its status to SUSPENDED and storing the reason and time.
     @Transactional
@@ -341,7 +343,7 @@ public class SchoolPlatformService {
                         + "comment. Use reactivate to restore access.");
     }
 
-    //! endpoint 5 — reactivate -------------------------------------------------------
+    //! endpoint 5 — reactivate --------------------------------------------------------
 
    /**
      * Reactivates a suspended school by changing its status from SUSPENDED to ACTIVE.

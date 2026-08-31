@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.audit.AuditTrail;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
@@ -21,7 +22,12 @@ import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
+import com.orbitastra.backend.dto.core.academicyear.ResultsUnlockRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.models.audit.AuditEvent;
+import com.orbitastra.backend.models.audit.embedded.AuditFieldChange;
+import com.orbitastra.backend.models.audit.enums.AuditEventType;
+import com.orbitastra.backend.models.audit.enums.AuditOutcome;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
@@ -34,7 +40,7 @@ import com.orbitastra.backend.services.core.helper.TextHelper;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's academic years. Endpoints #18 and #19.
+ * The school's academic years. Endpoints #18 to #27, plus the two calendar {@code DELETE}s.
  *
  * <p>On the school surface, so the tenant comes from CurrentSchoolResolver and never from the
  * URL. A year is addressed by <b>name</b> rather than id — {@code /academic-years/2026-2027} —
@@ -51,11 +57,21 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AcademicYearService {
 
+    private static final String TARGET_COLLECTION = "academic_years";
+    private static final String MODULE_CODE = "CORE";
+
+    /** Repeated on every gate response until permissions exist. Deliberately hard to miss. */
+    private static final String NO_AUTHORIZATION_YET =
+            "No authorization is enforced on this endpoint yet: any caller who can reach it can "
+                    + "run it. Audit rows are being written, so the history will be there when "
+                    + "permissions arrive.";
+
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
     private final CoreValidator coreValidator;
+    private final AuditTrail auditTrail;
 
-    //! endpoint 18 — create a year -----------------------------------------------------
+    //! endpoint 18 — create a year ----------------------------------------------------
 
     /**
      * Creates an academic year with an empty calendar.
@@ -111,7 +127,7 @@ public class AcademicYearService {
                         + "dates by hand, because every non-working day is a dated entry.");
     }
 
-    //! endpoint 19 — move the boundaries -----------------------------------------------
+    //! endpoint 19 — move the boundaries ----------------------------------------------
 
     /**
      * Moves a year's start or end date.
@@ -179,7 +195,7 @@ public class AcademicYearService {
                         + "name and are not checked against the new range yet.");
     }
 
-    //! endpoints 20 the adding holiday calendar ------------------------------------------
+    //! endpoint 20 — replace the whole calendar ---------------------------------------
 
     /**
      * #20 — replaces the whole calendar.
@@ -233,7 +249,7 @@ public class AcademicYearService {
                         + " in (" + incoming.size() + " reasons).");
     }
 
-    //! endpoints 21 adds one holiday. ------------------------------------------
+    //! endpoint 21 — add one reason to a day ------------------------------------------
     /**
      * #21 — adds one reason to one day.
      *
@@ -283,7 +299,7 @@ public class AcademicYearService {
                                 : "."));
     }
 
-   //! endpoints 22 — edits one reason on one date. ------------------------------------------
+    //! endpoint 22 — edit one reason on a day -----------------------------------------
     /**
      * #22 — edits one reason on one day.
      *
@@ -344,7 +360,7 @@ public class AcademicYearService {
                 "Updated '" + event.getName() + "' on " + date + ".");
     }
 
-     //! endpoints DELETE — Removes a reason, or the whole day. ---------------------------
+    //! endpoint DELETE — remove a reason, or the whole day ----------------------------
     /**
      * Removes one reason from a day, or the whole day.
      *
@@ -393,7 +409,7 @@ public class AcademicYearService {
         return HolidayCalendarResponse.fromAcademicYear(savedYear, summary);
     }
 
-      //! endpoints 23 — generates one weekday across the year. ---------------------------
+    //! endpoint 23 — generate a weekday's offs across the year ------------------------
     /**
      * #23 — generates one weekday's non-working days across the year.
      *
@@ -477,7 +493,7 @@ public class AcademicYearService {
                                 + skipped.size() + " that already had one.");
     }
 
-     //! endpoints DELETE — Removes every holiday of one type. ------------------------------------------
+    //! endpoint DELETE — remove every reason of one type ------------------------------
     /**
      * Removes every reason of one type across the calendar. The companion to #23.
      *
@@ -518,15 +534,79 @@ public class AcademicYearService {
                                 + (removed - daysClosed) + " stayed closed for other reasons.");
     }
 
+    //! endpoint 24 — open the year to enrollments -------------------------------------
+    /**
+     * #24 — opens the year to new enrollments.
+     *
+     * <p>Idempotent. A year already open comes back {@code 200} saying so, because the caller
+     * asked for a state and that state holds — refusing a retry would only invite the caller to
+     * check first and race.
+     */
+    @Transactional
+    public AcademicYearResponse enableEnrollment(String name) {
+        //! step 1 - find the year
+        AcademicYear year = loadYear(name);
+
+        //! step 2 - nothing to do if it is already open
+        if (Boolean.TRUE.equals(year.getEnrollmentEnabled())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+                    "Enrollment was already enabled for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 3 - open it and save
+        year.setEnrollmentEnabled(true);
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+                "Enrollment enabled for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 25 — close the year to enrollments ------------------------------------
+    /**
+     * #25 — closes the year to new enrollments.
+     *
+     * <p>Does not touch students already enrolled. This is a gate on new writes, not a
+     * withdrawal: anything already in the year stays exactly as it is.
+     */
+    @Transactional
+    public AcademicYearResponse disableEnrollment(String name) {
+        //! step 1 - find the year
+        AcademicYear year = loadYear(name);
+
+        //! step 2 - nothing to do if it is already closed
+        if (Boolean.FALSE.equals(year.getEnrollmentEnabled())) {
+            return AcademicYearResponse.fromAcademicYear(year,
+                    "Enrollment was already disabled for '" + year.getName()
+                            + "'. Students already enrolled are unaffected. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 3 - close it and save
+        year.setEnrollmentEnabled(false);
+        AcademicYear savedYear = academicYears.save(year);
+
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+                "Enrollment disabled for '" + savedYear.getName()
+                        + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET);
+    }
+
+
+
     //* ---------------------------------------------------------------------------------
 
-    /** The caller's year, by name, or a 404. */
-    private AcademicYear loadYear(String name) {
+
+        /**
+         * Loads an academic year for the current school, or throws 404 if not found.
+         */
+        private AcademicYear loadYear(String name) {
         School school = currentSchool.requireUsable();
+
         return academicYears.findBySchoolIdAndName(school.getId(), name.trim())
-                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                .orElseThrow(() -> ApiException.notFound(
+                        "ACADEMIC_YEAR_NOT_FOUND",
                         "No academic year called '" + name + "' in this school."));
-    }
+        }
 
     /**
      * The holiday list, created if the document has none.
@@ -594,4 +674,6 @@ public class AcademicYearService {
                 .map(e -> e.getName() + " (" + e.getType() + ")")
                 .collect(Collectors.joining(", "));
     }
+
+   
 }
