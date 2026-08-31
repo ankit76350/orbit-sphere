@@ -16,7 +16,7 @@ import com.orbitastra.backend.dto.core.SchoolCreateResponse;
 import com.orbitastra.backend.dto.core.SchoolReactivateRequest;
 import com.orbitastra.backend.dto.core.SchoolStatusResponse;
 import com.orbitastra.backend.dto.core.SchoolSuspendRequest;
-import com.orbitastra.backend.services.core.SchoolService;
+import com.orbitastra.backend.services.core.SchoolPlatformService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -48,9 +48,9 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/platform/schools")
-public class SchoolController {
+public class SchoolPlatformController {
 
-    private final SchoolService provisioningService;
+    private final SchoolPlatformService provisioningService;
 
     // Ceate New school
     @PostMapping
