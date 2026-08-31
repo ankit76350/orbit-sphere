@@ -100,4 +100,14 @@ public class School extends AuditedDocument {
 
     // Most recent suspension time. Example: 2026-08-15T11:00:00Z
     private Instant suspendedAt;
+
+    // Why the school is in its current status. Required when suspending, because a tenant
+    // nobody may use with no reason written down gets switched back on by the next person
+    // who is asked about it.
+    //
+    // Kept after reactivation rather than cleared, so "this school was suspended in August
+    // for non-payment" survives being brought back. Added on 2026-08-27 with the suspend
+    // endpoint; sixteen other models already carried a statusReason and School was the one
+    // that did not. Example: "Non-payment. Third invoice unpaid past 60 days."
+    private String statusReason;
 }

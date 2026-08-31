@@ -17,6 +17,7 @@ import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
+import com.orbitastra.backend.dto.core.SchoolStatusResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
@@ -304,5 +305,74 @@ public class SchoolService {
                     "The school's subscription is " + status + ". It cannot be activated.");
         }
         return "Subscription is " + status + ".";
+    }
+
+    //! endpoint 4 — suspend ----------------------------------------------------------
+
+    // Suspends an ACTIVE school by changing its status to SUSPENDED and storing the reason and time.
+    @Transactional
+    public SchoolStatusResponse suspendSchool(String schoolId, String reason) {
+        //! step 1 - find the school, or 404
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        //! step 2 - only a live school can be suspended
+        if (school.getStatus() != SchoolStatus.ACTIVE) {
+            throw ApiException.conflict("SCHOOL_NOT_SUSPENDABLE",
+                    "A school at status " + school.getStatus() + " cannot be suspended. Only "
+                            + "ACTIVE can.");
+        }
+
+        //! step 3 - block it, recording when and why
+        school.setStatus(SchoolStatus.SUSPENDED);
+        school.setSuspendedAt(Instant.now());
+        school.setStatusReason(reason.trim());
+
+        //TODO: - save
+        School savedSchool = schools.save(school);
+
+        // NOT DONE HERE, and it matters: nothing kills the school's live AuthSessions or stops
+        // its scheduled jobs. Those services do not exist yet, so a suspended school's users
+        // stay logged in until their tokens expire. Suspension is currently a flag, not a lock.
+        // Wire both in when sessions are built.
+        return SchoolStatusResponse.fromSchool(savedSchool,
+                "The school is blocked. Existing sessions are NOT yet revoked — see the service "
+                        + "comment. Use reactivate to restore access.");
+    }
+
+    //! endpoint 5 — reactivate -------------------------------------------------------
+
+   /**
+     * Reactivates a suspended school by changing its status from SUSPENDED to ACTIVE.
+     * Keeps the original activation and suspension history, and updates the status reason only when a new note is provided.
+    */
+    @Transactional
+    public SchoolStatusResponse reactivateSchool(String schoolId, String note) {
+        //! step 1 - find the school, or 404
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        //! step 2 - only a suspended school can be reactivated
+        if (school.getStatus() != SchoolStatus.SUSPENDED) {
+            throw ApiException.conflict("SCHOOL_NOT_REACTIVATABLE",
+                    "A school at status " + school.getStatus() + " cannot be reactivated. Only "
+                            + "SUSPENDED can. A school that has never gone live is activated, "
+                            + "not reactivated.");
+        }
+
+        //! step 3 - restore access, keeping the suspension history
+        school.setStatus(SchoolStatus.ACTIVE);
+        if (note != null && !note.isBlank()) {
+            school.setStatusReason(note.trim());
+        }
+
+        // TODO: - save
+        School savedSchool = schools.save(school);
+
+        return SchoolStatusResponse.fromSchool(savedSchool,
+                "The school is live again. suspendedAt and the reason are kept on purpose, as "
+                        + "the record of the last suspension.");
     }
 }

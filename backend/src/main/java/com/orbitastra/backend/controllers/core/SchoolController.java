@@ -13,6 +13,9 @@ import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.SchoolActivateResponse;
 import com.orbitastra.backend.dto.core.SchoolCreateRequest;
 import com.orbitastra.backend.dto.core.SchoolCreateResponse;
+import com.orbitastra.backend.dto.core.SchoolReactivateRequest;
+import com.orbitastra.backend.dto.core.SchoolStatusResponse;
+import com.orbitastra.backend.dto.core.SchoolSuspendRequest;
 import com.orbitastra.backend.services.core.SchoolService;
 
 import jakarta.validation.Valid;
@@ -60,11 +63,7 @@ public class SchoolController {
                 .body(response);
     }
 
-    /**
-     * Endpoint #2 — Completes school setup.
-     *
-     * <p>Creates missing sequences and roles.
-     */
+    // Completes school setup by creating missing sequences and roles.
     @PostMapping("/{id}/complete-provisioning")
     public ResponseEntity<CompleteProvisioningResponse> completeProvisioning(
             @PathVariable String id) {
@@ -83,5 +82,24 @@ public class SchoolController {
     @PostMapping("/{id}/activate")
     public ResponseEntity<SchoolActivateResponse> activate(@PathVariable String id) {
         return ResponseEntity.ok(provisioningService.activateSchool(id));
+    }
+
+    // Suspends the school and stores the suspension reason.
+    @PostMapping("/{id}/suspend")
+    public ResponseEntity<SchoolStatusResponse> suspend(
+            @PathVariable String id,
+            @Valid @RequestBody SchoolSuspendRequest request) {
+
+        return ResponseEntity.ok(provisioningService.suspendSchool(id, request.reason()));
+    }
+
+    // Reactivates a suspended school and moves it back to ACTIVE status.
+    @PostMapping("/{id}/reactivate")
+    public ResponseEntity<SchoolStatusResponse> reactivate(
+            @PathVariable String id,
+            @RequestBody(required = false) SchoolReactivateRequest request) {
+
+        String note = request == null ? null : request.note();
+        return ResponseEntity.ok(provisioningService.reactivateSchool(id, note));
     }
 }
