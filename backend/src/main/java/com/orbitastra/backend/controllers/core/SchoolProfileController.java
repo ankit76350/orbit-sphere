@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.core.SchoolAddressRequest;
-import com.orbitastra.backend.dto.core.SchoolLocalizationRequest;
-import com.orbitastra.backend.dto.core.SchoolLogoRequest;
-import com.orbitastra.backend.dto.core.SchoolProfileResponse;
-import com.orbitastra.backend.dto.core.SchoolProfileUpdateRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolAddressRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolLocalizationRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolLogoRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolProfileResponse;
+import com.orbitastra.backend.dto.core.profile.SchoolProfileUpdateRequest;
 import com.orbitastra.backend.services.core.SchoolProfileService;
 
 import jakarta.validation.Valid;

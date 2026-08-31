@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.core;
+package com.orbitastra.backend.dto.core.platform;
 
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 

@@ -9,13 +9,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
-import com.orbitastra.backend.dto.core.SchoolActivateResponse;
-import com.orbitastra.backend.dto.core.SchoolCreateRequest;
-import com.orbitastra.backend.dto.core.SchoolCreateResponse;
-import com.orbitastra.backend.dto.core.SchoolReactivateRequest;
-import com.orbitastra.backend.dto.core.SchoolStatusResponse;
-import com.orbitastra.backend.dto.core.SchoolSuspendRequest;
+import com.orbitastra.backend.dto.core.platform.CompleteProvisioningResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolActivateResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolCreateRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolCreateResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolReactivateRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolSuspendRequest;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
 
 import jakarta.validation.Valid;

@@ -8,11 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.core.SchoolAddressRequest;
-import com.orbitastra.backend.dto.core.SchoolLocalizationRequest;
-import com.orbitastra.backend.dto.core.SchoolLogoRequest;
-import com.orbitastra.backend.dto.core.SchoolProfileResponse;
-import com.orbitastra.backend.dto.core.SchoolProfileUpdateRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolAddressRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolLocalizationRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolLogoRequest;
+import com.orbitastra.backend.dto.core.profile.SchoolProfileResponse;
+import com.orbitastra.backend.dto.core.profile.SchoolProfileUpdateRequest;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * The school editing its own details. Endpoints #6 to #9.
  *
- * <p>Kept apart from SchoolService, which is the platform surface. The split is the same one the
+ * <p>Kept apart from SchoolPlatformService, which is the platform surface. The split is the same one the
  * controllers make: creating, activating and suspending a tenant are things done <i>to</i> a
  * school from outside it; changing an address is something a school does to itself. Nothing here
  * can reach a lifecycle status, the subdomain or the encryption key — not by permission, but

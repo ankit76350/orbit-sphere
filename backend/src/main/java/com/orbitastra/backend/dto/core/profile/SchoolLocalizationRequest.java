@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.core;
+package com.orbitastra.backend.dto.core.profile;
 
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;

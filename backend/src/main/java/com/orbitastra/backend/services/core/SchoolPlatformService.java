@@ -13,11 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.core.CompleteProvisioningResponse;
-import com.orbitastra.backend.dto.core.SchoolActivateResponse;
-import com.orbitastra.backend.dto.core.SchoolCreateRequest;
-import com.orbitastra.backend.dto.core.SchoolCreateResponse;
-import com.orbitastra.backend.dto.core.SchoolStatusResponse;
+import com.orbitastra.backend.dto.core.platform.CompleteProvisioningResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolActivateResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolCreateRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolCreateResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
@@ -79,7 +79,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-public class SchoolService {
+public class SchoolPlatformService {
 
     private final SchoolRepository schools;
     private final NumberSequenceRepository numberSequences;
