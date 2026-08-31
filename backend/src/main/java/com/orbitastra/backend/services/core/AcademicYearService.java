@@ -62,6 +62,17 @@ public class AcademicYearService {
     private final CoreValidator coreValidator;
     private final AcademicYearServiceUtils yearUtils;
 
+    //? G5 — list the school's years ----------------------------------------------------
+
+    // let all acadmic year for the year
+    public List<AcademicYearResponse> listAcademicYears() {
+        School school = currentSchool.require();
+
+        return academicYears.findBySchoolIdOrderByStartDateDesc(school.getId()).stream()
+                .map(AcademicYearResponse::fromAcademicYear)
+                .toList();
+    }
+
     //? endpoint 18 — create a year ----------------------------------------------------
 
     /**

@@ -30,4 +30,17 @@ public interface AcademicYearRepository extends MongoRepository<AcademicYear, St
 
     /** All of a school's years. Small — a handful of rows — and needed for the overlap check. */
     List<AcademicYear> findBySchoolId(String schoolId);
+
+    /**
+     * All of a school's years, newest first. Used by G5.
+     *
+     * <p>Sorted on startDate rather than createdAt, because "newest" means the year furthest
+     * along the calendar, not the row that happened to be typed in last. A school setting up
+     * enters 2024-2025 after 2025-2026 often enough that the two orders disagree.
+     *
+     * <p>Sorted in the database rather than in Java. The list is small enough that it would not
+     * matter today, but a sort written in the service is a sort the next list endpoint has to
+     * remember to copy.
+     */
+    List<AcademicYear> findBySchoolIdOrderByStartDateDesc(String schoolId);
 }

@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.core.academicyear;
 
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbitastra.backend.models.core.AcademicYear;
 
 /**
@@ -28,7 +29,27 @@ public record AcademicYearResponse(
         int holidayCount,
         Boolean enrollmentEnabled,
         Boolean resultsLocked,
+
+        /**
+         * What to do next. A <b>write</b> field — it says what just happened.
+         *
+         * <p>Left out of the JSON when it is null, which is what the reads pass. A read did not
+         * change anything, so it has nothing to say about what happens next, and a
+         * {@code "nextStep": null} sitting on every row of a list is noise a client then has to
+         * decide whether to trust. Every write sets it, so nothing about #18 to #27 changes.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         String nextStep) {
+
+    /**
+     * The same year, for a read. Used by G5.
+     *
+     * <p>No {@code nextStep}: nothing just happened, so there is nothing to say about what to do
+     * next. The field drops out of the JSON rather than coming back null.
+     */
+    public static AcademicYearResponse fromAcademicYear(AcademicYear year) {
+        return fromAcademicYear(year, null);
+    }
 
     public static AcademicYearResponse fromAcademicYear(AcademicYear year, String nextStep) {
         LocalDate today = LocalDate.now();

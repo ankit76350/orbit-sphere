@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,6 +60,12 @@ import lombok.RequiredArgsConstructor;
 public class AcademicYearController {
 
     private final AcademicYearService academicYearService;
+
+    //Get every academic year this school has, newest first. Empty list if it has none.
+    @GetMapping
+    public ResponseEntity<List<AcademicYearResponse>> list() {
+        return ResponseEntity.ok(academicYearService.listAcademicYears());
+    }
 
     /**
      * Endpoint #18 — creates an academic year.

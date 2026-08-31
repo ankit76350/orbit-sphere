@@ -8,10 +8,11 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Ten `GET` endpoints are inventoried below and **two are
-built** — G1 and G2, which finishes the platform surface. Nothing on the school surface can be
-read yet: no school profile, no list of academic years, and no way to ask whether a given date
-is a working day.
+**The reads are the open work.** Ten `GET` endpoints are inventoried below and **four are
+built** — G1 and G2, which finishes the platform surface, and now G4 and G5. A school can read
+its own profile and the list of years it has. It still cannot read one year, its calendar, or
+ask whether a given date is a working day — G6 to G9 are the open ones, and G9 is the one the
+rest of the system is waiting for.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -22,8 +23,8 @@ a time.
 | Controller | Endpoints |
 |---|---|
 | [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5, #10, G1–G2 |
-| [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
-| [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE` |
+| [`SchoolProfileController`](SchoolProfileController.java) | #6–9, G4 |
+| [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE`, G5 |
 
 All twenty-two requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
 which runs green end to end.
@@ -122,8 +123,8 @@ to, because they never name one at all.
 
 | # | Path | Returns |
 |---|---|---|
-| G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 |
-| G5 | `GET /schools/current/academic-years` | every year, newest first |
+| G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 — **built** |
+| G5 | `GET /schools/current/academic-years` | every year, newest first — **built** |
 | G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` |
 | G7 | `GET /schools/current/academic-years/{name}` | one year |
 | G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar |
@@ -194,6 +195,56 @@ sort orders and `paged` flags into the JSON, where they become a contract nobody
 see the enum inside a `List<SchoolStatus>`. A repeatable enum parameter binds to a list, so the
 required type is `List` and the "Accepted values" half of the message was silently disappearing
 for exactly the parameters most likely to be misspelled.
+
+## G4 — `GET /schools/current` — BUILT
+
+The read behind #6 to #9. It returns
+[`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — the identical
+record those four writes return — so a settings screen loads the form and saves it with one
+shape rather than two that drift apart.
+
+`status` is on it, because a school being told it is `SUSPENDED` is how its own screens explain
+why editing stopped working. `statusReason`, `activatedAt` and `suspendedAt` are not: those are
+the operator's, and they live on G2.
+
+## G5 — `GET /schools/current/academic-years` — BUILT
+
+Every year the school has, newest first, as a plain array.
+
+**Sorted on `startDate`, not `createdAt`.** "Newest" means the year furthest along the calendar,
+not the row that happened to be typed last — a school setting up enters 2025-2026 after
+2026-2027 often enough that the two orders disagree. Sorted in the database
+([`findBySchoolIdOrderByStartDateDesc`](../../repositories/core/AcademicYearRepository.java)),
+because a sort written in the service is a sort the next list endpoint has to remember to copy.
+
+**No page envelope.** A school has a handful of years, so `PageResponse` would be six fields of
+ceremony around four rows. G1 stays the only list here that grows without limit.
+
+**No `nextStep`.** That is a write field, and the record is shared with #18 to #27, so it is
+annotated `@JsonInclude(NON_NULL)` and simply drops out of the JSON on a read rather than coming
+back as `null` on every row. Every write still sets it, so nothing about #18 to #27 changes.
+
+**Every year comes back, whatever its `recordState`.** Nothing writes that field yet, and
+`CoreValidator`'s overlap check does not filter on it either. Hiding rows here would make this
+the only place that did, and the two would then disagree about which years exist — a year
+invisible in the list that still blocks the dates. When soft delete is real, both change
+together.
+
+## Reads resolve the tenant with `require`, not `requireUsable`
+
+Both school-surface reads call
+[`CurrentSchoolResolver.require`](../../common/current/CurrentSchoolResolver.java). The writes
+call `requireUsable`, which additionally refuses anything not `ACTIVE`, `TRIAL` or
+`PROVISIONING`.
+
+A suspended school can still read its own profile and its own calendar. Being blocked from
+editing is not the same as being blocked from looking, and `requireUsable` would answer a plain
+`GET` with `409 SCHOOL_NOT_EDITABLE` — which is not true of a read, and is not an answer to the
+question that was asked. It is also the wrong thing to show somebody trying to find out *why*
+their school stopped working.
+
+Keep the split as the reads are built out: `require` for `GET`, `requireUsable` for anything
+that writes.
 
 ## G9 is the one the rest of the system is waiting for
 
@@ -275,8 +326,8 @@ inventing parallel records that drift:
 | Read | Response |
 |---|---|
 | G2 | [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java) — **built**, the platform variant carrying the lifecycle fields |
-| G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) |
-| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) |
+| G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
+| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — G5 **built**; a read factory passes no `nextStep` |
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
 | G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
 

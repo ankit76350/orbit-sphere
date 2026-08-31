@@ -47,6 +47,33 @@ public class SchoolProfileService {
     private final CurrentSchoolResolver currentSchool;
     private final CoreValidator coreValidator;
 
+    //? G4 — read the school's own profile ---------------------------------------------
+
+    /**
+     * G4 — the school reading its own details. The read behind #6 to #9.
+     *
+     * <p>Returns exactly what those four writes return, so a screen loads the form and saves it
+     * with one shape rather than two that can drift apart.
+     *
+     * <p><b>This uses require, not requireUsable.</b> A suspended or closed school can still
+     * read its own details — being blocked from editing is not the same as being blocked from
+     * looking. requireUsable would answer a plain GET with SCHOOL_NOT_EDITABLE, which is not
+     * true of a read and not an answer to the question that was asked.
+     *
+     * <p>{@code status} is on here, because a school being told it is SUSPENDED is the reason
+     * its own screens can explain why editing stopped working. {@code statusReason},
+     * {@code activatedAt} and {@code suspendedAt} are not, and stay on G2 where the operator
+     * reads them — statusReason in particular is written for the operator ("Non-payment. Third
+     * invoice unpaid past 60 days.") and is not a message to show the school.
+     *
+     * <p>This only reads, so there is no need for @Transactional.
+     */
+    public SchoolProfileResponse getProfile() {
+        School school = currentSchool.require();
+
+        return SchoolProfileResponse.fromSchool(school);
+    }
+
     //? endpoint 6 — the school's own details ------------------------------------------
 
     // Gets the current school.

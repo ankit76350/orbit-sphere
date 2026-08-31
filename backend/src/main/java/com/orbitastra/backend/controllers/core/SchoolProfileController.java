@@ -1,6 +1,7 @@
 package com.orbitastra.backend.controllers.core;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,6 +46,12 @@ import lombok.RequiredArgsConstructor;
 public class SchoolProfileController {
 
     private final SchoolProfileService schoolProfileService;
+
+    //Get the school's own profile. The read behind #6 to #9.
+    @GetMapping
+    public ResponseEntity<SchoolProfileResponse> getProfile() {
+        return ResponseEntity.ok(schoolProfileService.getProfile());
+    }
 
     /**
      * Endpoint #6 — the school's own name and contact details.
