@@ -97,6 +97,42 @@ public class CoreValidator {
     }
 
 
+    //! academic year name — used by endpoint 18 ---------------------------------------
+
+    /**
+     * Year names the URL cannot point at.
+     *
+     * <p>Only one so far. {@code /academic-years/current} is G6 — the year today falls in — and
+     * Spring matches that fixed word before it tries {@code /{name}}. So a year actually called
+     * "current" can be created and listed and then never read, updated or given a holiday,
+     * because every request for it goes to a different endpoint.
+     *
+     * <p>Add to this list if another fixed word is ever put under
+     * {@code /academic-years/}.
+     */
+    private static final Set<String> RESERVED_ACADEMIC_YEAR_NAMES = Set.of("current");
+
+    /**
+     * Refuses a year name that a URL could never address.
+     *
+     * <p>Checked when the year is created, which is the only chance there is: there is no rename
+     * endpoint, so a name that gets in is stuck. The alternative was to let it in and accept one
+     * unreachable row, which looks fine in the list and fails only when somebody tries to open
+     * it.
+     *
+     * <p>Case-insensitive, because the path match is not: {@code /academic-years/Current} also
+     * reaches G6.
+     */
+    public void validateAcademicYearName(String name) {
+        if (name != null && RESERVED_ACADEMIC_YEAR_NAMES.contains(name.trim().toLowerCase())) {
+            throw ApiException.conflict("ACADEMIC_YEAR_NAME_RESERVED",
+                    "'" + name.trim() + "' cannot be used as a year name. That word already "
+                            + "names an endpoint, so a year called it could never be opened. "
+                            + "Try a name like '2026-2027'.");
+        }
+    }
+
+
     //! time zone — used by endpoints 1 and 8 ------------------------------------------
 
     /**

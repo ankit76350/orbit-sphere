@@ -74,6 +74,12 @@ public class AcademicYearController {
         return ResponseEntity.ok(academicYearService.getCurrentAcademicYear());
     }
 
+    //Get one year by name. 404 when this school has no year by that name.
+    @GetMapping("/{name}")
+    public ResponseEntity<AcademicYearResponse> getOne(@PathVariable String name) {
+        return ResponseEntity.ok(academicYearService.getAcademicYear(name));
+    }
+
     /**
      * Endpoint #18 — creates an academic year.
      *

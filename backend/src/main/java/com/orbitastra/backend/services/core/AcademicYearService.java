@@ -90,6 +90,14 @@ public class AcademicYearService {
                                 : "No academic year covers " + today + " in this school."));
     }
 
+    //? G7 — read one year by name -------------------------------------------------------
+    
+    public AcademicYearResponse getAcademicYear(String name) {
+        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+
+        return AcademicYearResponse.fromAcademicYear(year);
+    }
+
     //? endpoint 18 — create a year ----------------------------------------------------
 
     /**
@@ -109,7 +117,9 @@ public class AcademicYearService {
         School school = currentSchool.requireUsable();
         String name = request.name().trim();
 
-        //! step 2 - the name must be free, and it can never be changed later
+        //! step 2 - the name must be one a URL can point at, must be free, and can never
+        //! be changed later
+        coreValidator.validateAcademicYearName(name);
         if (academicYears.existsBySchoolIdAndName(school.getId(), name)) {
             throw ApiException.conflict("ACADEMIC_YEAR_NAME_TAKEN",
                     "This school already has a year called '" + name + "'.");
