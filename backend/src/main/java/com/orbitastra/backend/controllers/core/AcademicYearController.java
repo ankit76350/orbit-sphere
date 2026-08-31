@@ -22,7 +22,6 @@ import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
-import com.orbitastra.backend.dto.core.academicyear.ResultsUnlockRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;

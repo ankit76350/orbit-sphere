@@ -1,7 +1,7 @@
 # controllers/core — write API plan
 
-**Nineteen of 28 endpoints are built — #1 to #9 and #18 to #27; Phases 1 to 5 and the gates from
-Phase 6**, plus the two `DELETE`s that pair with the calendar endpoints. This is the complete inventory of every `POST`,
+**Seventeen of 28 endpoints are built — #1 to #9, #18 to #25; Phases 1 to 5 and the enrollment
+gates from Phase 6**, plus the two `DELETE`s that pair with the calendar endpoints. This is the complete inventory of every `POST`,
 `PUT` and `PATCH` the `core` module needs, sequenced so it can be built and reviewed one step at
 a time.
 
@@ -9,9 +9,9 @@ a time.
 |---|---|
 | [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5 |
 | [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
-| [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE` |
+| [`AcademicYearController`](AcademicYearController.java) | #18–25 + 2 `DELETE` |
 
-All twenty-one requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
+All nineteen requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
 which runs green end to end.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
@@ -71,8 +71,8 @@ All paths below are under `/schools/current/academic-years`.
 | — | `DELETE` | `/{name}/holidays?type=` | 5 — **built** |
 | 24 | `POST` | `/{name}/enrollment/enable` | 6 — **built** |
 | 25 | `POST` | `/{name}/enrollment/disable` | 6 — **built** |
-| 26 | `POST` | `/{name}/results/lock` | 6 — **built** |
-| 27 | `POST` | `/{name}/results/unlock` | 6 — **built** |
+| 26 | `POST` | `/{name}/results/lock` | 6 |
+| 27 | `POST` | `/{name}/results/unlock` | 6 |
 | 28 | `POST` | `/{name}/clone` | 8 — optional, see below |
 
 ---
@@ -89,7 +89,7 @@ Sequenced by dependency first, then by risk. **Phase 0 is not optional and not s
 | **3** | School self-service edits | 6, 7, 8, 9 | built |
 | **4** | Academic year exists | 18, 19 | built |
 | **5** | The holiday calendar | 20–23 + 2 `DELETE` | built |
-| **6** | Gates and sensitive edits | 24–27 **built**, 10, 11, 12 | part |
+| **6** | Gates and sensitive edits | 24, 25 **built**, 26, 27, 10, 11, 12 | part |
 | **7** | Offboarding and deletion | 13–17 | |
 | **8** | Convenience | 28 | |
 
@@ -620,92 +620,85 @@ with its own error page — a stack trace in dev, and nothing resembling the res
 anywhere else. A `MethodArgumentTypeMismatchException` handler went in beside it, so a misspelled
 `?type=WEEKLYOFF` comes back naming the accepted values.
 
-## 24–27. Gates — ALL BUILT
+## 24–27. Gates — #24 and #25 BUILT
 
 `enrollmentEnabled` and `resultsLocked` are booleans, so `PATCH` would work mechanically. They
 are `POST` actions because both are **gates with authorization attached**, and
 `models/core/README.md` names "authorization for result locking and enrollment controls" as an
 API responsibility — which a field assignment has nowhere to hold.
 
-They live in [`AcademicYearService`](../../services/core/AcademicYearService.java) with the rest
-of the year's endpoints; one resource, one service.
+The built two live in [`AcademicYearService`](../../services/core/AcademicYearService.java) with
+the rest of the year's endpoints; one resource, one service.
 
-| # | What it gates | Idempotent | Reason | Audited |
-|---|---|---|---|---|
-| 24 | admissions may write to this year | yes | — | no |
-| 25 | admissions may not | yes | — | no |
-| 26 | results are frozen | yes | — | **yes** |
-| 27 | results are editable again | **no — 409** | **required** | **yes, refusals too** |
+| # | What it gates | Status |
+|---|---|---|
+| 24 | admissions may write to this year | **built** |
+| 25 | admissions may not | **built** |
+| 26 | results are frozen | not built |
+| 27 | results are editable again | not built |
 
-### Enrollment is a switch; results are not
+### #24 and #25: enrollment is a switch
 
-#24 and #25 flip freely and neither direction is destructive: a year already open comes back
-`200` saying so. A `409` there would only teach callers to read first and then race.
+Both flip freely and neither direction is destructive, so both are **idempotent**: a year already
+open comes back `200` saying so. A `409` there would only teach callers to read first and then
+race.
 
-#25 **does not touch students already enrolled.** It is a gate on new writes, not a withdrawal.
+**#25 does not touch students already enrolled.** It is a gate on new writes, not a withdrawal.
 
-### #27 is the one to be careful with
+Neither is audited. They are routine configuration, and a trail of every enrollment window
+opening and closing would bury the events that matter.
 
-Locking results is routine; unlocking means somebody can change a mark a parent has already seen.
-It differs from the other three in three ways, each for its own reason:
+### #26 and #27 are deferred, and #27 is why
 
-**A reason is required**, 10 to 500 characters, and it goes on the audit row. It is the only part
-of that row a person can read six months later and understand — everything else says what
-happened, and this says why. The minimum length will not stop somebody typing ten characters of
-nothing; it is there so the default path is a real sentence.
+They were built once and taken back out, deliberately — the audit machinery they need is real
+work that does not belong to this module, and a half-audited unlock is worse than an unbuilt one.
+What that machinery has to do is recorded here so it is not rediscovered from scratch:
 
-**Every call is audited, refusals included** — and that needed a specific piece of care. A
+**A reason must be required on #27**, and stored. Locking results is routine; unlocking means
+somebody can change a mark a parent has already seen. The reason is the only part of an audit row
+a person can read six months later and understand.
+
+**Every call must be audited, refusals included** — and that is the part with a trap in it. A
 refusal ends in a thrown exception, which rolls the transaction back and would take the evidence
-with it. So [`AuditTrail`](../../common/audit/AuditTrail.java) has two methods: `record` joins the
-caller's transaction, so a change and its evidence commit together or not at all; and
-`recordOutsideTransaction` runs `REQUIRES_NEW`, so a refusal survives the rollback that refused
-it. Using the wrong one would silently lose exactly the events somebody will one day come looking
-for.
+with it. Recording a denial inside the transaction that denies it writes nothing at all. It needs
+two paths: one that joins the caller's transaction, so a change and its evidence commit together;
+and one running `REQUIRES_NEW`, so a refusal survives the rollback that caused it.
 
-**Unlocking a year that is not locked is a `409`**, not a quiet success. A no-op logged as a
-successful unlock would put a row in the trail claiming results were opened when they never were.
+**Unlocking a year that is not locked should be a `409`,** not a quiet success — unlike #24 and
+#25, where a no-op is harmless. A no-op logged as a successful unlock puts a row in the trail
+claiming results were opened when they never were.
 
-**What is deliberately not audited:** a request that fails validation — no reason, or a reason
-under ten characters. It never reaches the service, nothing was unlocked or even attempted, and
-filling the trail with client bugs would bury the attempts that matter.
+**#26 has to be audited too,** though locking is the safe direction. A lock on its own is
+uninteresting; a lock and an unlock **together** are what say how long results were open and who
+opened them.
 
-### `action` names the operation, not the outcome
+**`action` should name the operation, not the outcome** — `RESULTS_UNLOCK` whether it succeeded or
+was refused, with `outcome` carrying the result — so one query returns every attempt. Two actions
+would mean a search for unlocks quietly missing the failures.
 
-Both a successful and a refused unlock are written as `RESULTS_UNLOCK`, with `outcome` carrying
-the result. One query on the action returns every attempt. Two actions — `RESULTS_UNLOCK` and
-`RESULTS_UNLOCK_FAILED` — would mean a search for unlocks quietly missing the failures.
+### What blocks them, and it is not the code
 
-#26 is audited too, though it is the safe direction. A lock on its own is uninteresting; a lock
-and an unlock **together** are what say how long results were open and who opened them. Both
-carry `retainLongTerm: true`, because how long a year's marks were editable is a question about a
-child's academic record and is asked years later or not at all.
+**There is no authorization and no authentication.** The permission model does not exist, so
+there is nothing for these endpoints to check against; and with no session, an audit row cannot
+name who acted. A trail whose every row says `ANONYMOUS` records that something happened and
+nothing about who did it, which for the most sensitive operation in the package is close to
+worthless — and a guess would be worse, because a trail naming the wrong person is evidence
+against the wrong person.
 
-### Two gaps these endpoints announce rather than hide
+#24 and #25 ship without either because being wrong about them costs an enrollment window. Build
+#26 and #27 after sessions exist, not before.
 
-**There is no authorization.** Anybody who can reach these can unlock a year's results. The
-permission model does not exist, so there is nothing to check against — every response says so in
-`nextStep`, the same way #3 announces its subscription gap. The audit rows are written now
-regardless, because a trail that starts the day permissions arrive can say nothing about the
-months before it.
+**Note what #24 and #25 do say.** Both announce the missing authorization in their `nextStep`,
+the same way #3 announces its subscription gap, so the hole is visible in every response rather
+than only in this file.
 
-**The actor is `ANONYMOUS` on every row.** There is no authentication, so nothing knows who is
-acting, and a guess would be worse than the gap: an audit trail naming the wrong person is
-evidence against the wrong person. The address and user agent are recorded as the only real
-evidence available, and both are a lead rather than a proof. When sessions exist, one method in
-`AuditTrail` changes.
+### `audit_events` will need a writer, not a repository
 
-### `audit_events` has no repository, on purpose
-
-A `MongoRepository` cannot be insert-only — it arrives with `save`, `delete` and `deleteAll`, and
-`save` silently becomes an update when the id is set. `AuditEvent`'s own javadoc asks for an
-insert-only interface, so `AuditTrail` calls `MongoTemplate.insert` instead, which fails on a
-duplicate id rather than overwriting. History cannot be edited even by mistake.
-
-There is **no read endpoint** for the trail yet; reads are a separate pass. Until then:
-
-```
-db.audit_events.find({ action: /RESULTS_/ }).sort({ occurredAt: 1 })
-```
+When those endpoints return: a `MongoRepository` cannot be insert-only — it arrives with `save`,
+`delete` and `deleteAll`, and `save` silently becomes an update when the id is set.
+[`AuditEvent`](../../models/audit/AuditEvent.java)'s own javadoc asks for an insert-only
+interface, so the writer should call `MongoTemplate.insert`, which fails on a duplicate id rather
+than overwriting. History then cannot be edited even by mistake.
 
 ## 28. `POST /{name}/clone` — optional, build last or not at all
 
@@ -747,7 +740,7 @@ layer. Assigned:
 | an active `SchoolSubscription` exists | 3 |
 | academic-year date ordering **and overlap** | 18, 19 |
 | one reason of each type per date, dates inside the year | 20, 21, 22, 23 |
-| authorization for lock/unlock and enrollment | 24–27 — **not built, see below** |
+| authorization for lock/unlock and enrollment | 24–27 — **not built, see above** |
 | text lengths on every free-text field | all |
 
 **Query parameters are validated globally, not per endpoint.** A missing required parameter and

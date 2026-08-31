@@ -11,7 +11,6 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.orbitastra.backend.common.audit.AuditTrail;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
@@ -21,12 +20,7 @@ import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
-import com.orbitastra.backend.dto.core.academicyear.ResultsUnlockRequest;
 import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
-import com.orbitastra.backend.models.audit.AuditEvent;
-import com.orbitastra.backend.models.audit.embedded.AuditFieldChange;
-import com.orbitastra.backend.models.audit.enums.AuditEventType;
-import com.orbitastra.backend.models.audit.enums.AuditOutcome;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
@@ -57,9 +51,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AcademicYearService {
 
-    private static final String TARGET_COLLECTION = "academic_years";
-    private static final String MODULE_CODE = "CORE";
-
     /** Repeated on every gate response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
@@ -70,7 +61,6 @@ public class AcademicYearService {
     private final CurrentSchoolResolver currentSchool;
     private final CoreValidator coreValidator;
     private final AcademicYearServiceUtils yearUtils;
-    private final AuditTrail auditTrail;
 
     //! endpoint 18 — create a year ----------------------------------------------------
 
