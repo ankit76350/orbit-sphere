@@ -49,14 +49,13 @@ public class SchoolProfileService {
 
     //! endpoint 6 — the school's own details ------------------------------------------
 
-    /**
-     * Partial edit: name, phone, email.
-     *
-     * <p>null leaves a field alone, {@code ""} clears it, a value replaces it. See
-     * SchoolProfileUpdateRequest for why that convention is needed at all.
-     */
+    // Gets the current school.
+    // Rejects empty updates.
+    // Updates only provided fields.
+    // Saves the updated school.
     @Transactional
     public SchoolProfileResponse updateProfile(SchoolProfileUpdateRequest request) {
+        // get the current schhool details from the login user
         //! step 1 - who is asking, and may they edit
         School school = currentSchool.requireUsable();
 
@@ -88,16 +87,18 @@ public class SchoolProfileService {
             school.setEmailAddress(email);
         }
 
-        //! step 4 - save
-        return SchoolProfileResponse.fromSchool(schools.save(school));
+        
+         //TODO: - save
+        School savedSchool = schools.save(school);
+        // countryCode is untouched on purpose and is not on the request. See the DTO.
+        return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
     //! endpoint 7 — the postal address ------------------------------------------------
 
     /**
-     * Replaces the whole address. An omitted field is cleared, not kept — that is what a PUT
-     * means, and it is what stops a half-updated address existing.
-     */
+     * Replaces the school's complete postal address.
+    */
     @Transactional
     public SchoolProfileResponse replaceAddress(SchoolAddressRequest request) {
         //! step 1 - who is asking
@@ -109,25 +110,18 @@ public class SchoolProfileService {
         school.setStateOrProvince(TextHelper.blankToNull(request.stateOrProvince()));
         school.setPostalCode(TextHelper.blankToNull(request.postalCode()));
 
-        // //! step 3 - save
-        // // countryCode is untouched on purpose and is not on the request. See the DTO.
-        // return SchoolProfileResponse.fromSchool(schools.save(school));
-
         //TODO: - save
         School savedSchool = schools.save(school);
-        // countryCode is untouched on purpose and is not on the request. See the DTO.
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
     //! endpoint 8 — language and time zone --------------------------------------------
 
-    /**
-     * Partial edit of locale and time zone.
-     *
-     * <p>The time zone is guarded twice: an explicit confirmation flag, and a hard refusal while
-     * an academic year is running. See SchoolLocalizationRequest for what a silent change would
-     * do to the attendance register.
-     */
+    //? step 1 - get the current school
+    //? step 2 - reject empty updates
+    //? step 3 - update locale
+    //? step 4 - validate and update time zone
+    //? step 5 - save changes
     @Transactional
     public SchoolProfileResponse updateLocalization(SchoolLocalizationRequest request) {
         //! step 1 - who is asking
@@ -178,23 +172,17 @@ public class SchoolProfileService {
             }
         }
 
-        //! step 5 - save
-                //TODO: - save
+
+        //TODO: - save
         School savedSchool = schools.save(school);
-        // countryCode is untouched on purpose and is not on the request. See the DTO.
         return SchoolProfileResponse.fromSchool(savedSchool);
-        // return SchoolProfileResponse.fromSchool(schools.save(school));
     }
 
-    //! endpoint 9 — the logo ----------------------------------------------------------
+    //?? endpoint 9 — the logo ----------------------------------------------------------
 
     /**
-     * Replaces the logo, or removes it when the URL is blank.
-     *
-     * <p>Only https, and only from an allow-listed host. A school-supplied URL is loaded on pages
-     * parents open, so an arbitrary one is somebody else's server deciding what parents see —
-     * and a tracker there is invisible to us.
-     */
+    * Replaces or removes the school's logo.
+    */
     @Transactional
     public SchoolProfileResponse replaceLogo(SchoolLogoRequest request) {
         //! step 1 - who is asking
@@ -231,8 +219,6 @@ public class SchoolProfileService {
         
         //TODO: - save
         School savedSchool = schools.save(school);
-        // countryCode is untouched on purpose and is not on the request. See the DTO.
         return SchoolProfileResponse.fromSchool(savedSchool);
-        // return SchoolProfileResponse.fromSchool(schools.save(school));
     }
 }

@@ -41,8 +41,10 @@ public class CurrentSchoolResolver {
     public static final String TENANT_HEADER = "X-School-Subdomain";
 
     private final SchoolRepository schools;
-    private final HttpServletRequest request; //! ← injected ONCE, at startup this is helping to pass the request http here
+    private final HttpServletRequest request; //! ← injected ONCE, at startup this is helping to pass the request http here..
 
+
+    //TODO: latter we willl chnage them cokkies based.... currently they are header based....
     /**
      * Returns the caller's school using the subdomain and returns 400 or 404 for invalid requests.
      * Unknown subdomains return 404 to avoid revealing whether another school exists.
