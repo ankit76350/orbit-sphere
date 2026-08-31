@@ -116,8 +116,7 @@ public class SchoolPlatformController {
      * <p>The body must confirm the <b>current</b> subdomain. Getting the school wrong here takes
      * a tenant off the air, and an id in a URL is easy to paste wrong.
      *
-     * <p>The old label stays reserved to this school afterwards, so nobody can claim it and
-     * collect logins meant for them.
+     * <p>The old label is released immediately and any school may claim it.
      */
     @PatchMapping("/{id}/subdomain")
     public ResponseEntity<SchoolSubdomainResponse> changeSubdomain(

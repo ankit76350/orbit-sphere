@@ -17,9 +17,8 @@ import jakarta.validation.constraints.Size;
  *
  * <p><b>Why the school cannot do this itself.</b> The subdomain is not a detail — it is how
  * requests find the tenant at all. Changing it breaks every bookmark, saved link and stored
- * login, and the old label has to stay reserved afterwards. Endpoint #6 edits the school's
- * details; this is a platform operation with routing consequences, so the field is deliberately
- * absent from #6's request.
+ * login. Endpoint #6 edits the school's details; this is a platform operation with routing
+ * consequences, so the field is deliberately absent from #6's request.
  */
 public record SchoolSubdomainRequest(
 

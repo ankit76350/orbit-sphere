@@ -387,13 +387,8 @@ public class SchoolPlatformService {
      * <p><b>Platform surface only.</b> This is not a profile edit; it is the key that resolves
      * every request to this tenant. Endpoint #6 deliberately has no field for it.
      *
-     * <p>The old label is <b>kept in reserve</b> rather than released. A freed subdomain is not
-     * neutral: links, bookmarks and saved logins keep pointing at it, so a school that claimed
-     * somebody's discarded label would receive their users and their passwords. Holding it costs
-     * one string.
-     *
-     * <p>A school may take back its own old label. It is the only party that was ever behind it,
-     * so there is nobody to confuse.
+     * <p><b>The old label is released, not held.</b> The moment this returns, the previous
+     * subdomain is free and the next school to ask can have it. Nothing reserves it.
      *
      * <p><b>What this does not do.</b> Nothing invalidates a routing cache, rewrites a stored
      * link, or tells anybody at the school that their address changed — none of that exists yet.
@@ -432,31 +427,13 @@ public class SchoolPlatformService {
                     "'" + newSubdomain + "' is already this school's subdomain.");
         }
 
-        //! step 5 - nobody else may be using it, now or before
+        //! step 5 - nobody else may be using it
         if (schools.existsBySubdomain(newSubdomain)) {
             throw ApiException.conflict("SUBDOMAIN_TAKEN",
                     "The subdomain '" + newSubdomain + "' is already in use.");
         }
-        schools.findByPreviousSubdomainsContaining(newSubdomain).ifPresent(holder -> {
-            // The school's own old label is fine — it is taking back an address it never
-            // shared. Anybody else's is refused, because that address still leads people to
-            // them.
-            if (!holder.getId().equals(school.getId())) {
-                throw ApiException.conflict("SUBDOMAIN_RESERVED",
-                        "The subdomain '" + newSubdomain + "' was previously used by another "
-                                + "school and stays reserved to them.");
-            }
-        });
 
-        //! step 6 - move, holding the old label so nobody can take it
-        List<String> held = school.getPreviousSubdomains() == null
-                ? new ArrayList<>()
-                : school.getPreviousSubdomains();
-        held.remove(newSubdomain);
-        if (!held.contains(oldSubdomain)) {
-            held.add(oldSubdomain);
-        }
-        school.setPreviousSubdomains(held);
+        //! step 6 - move
         school.setSubdomain(newSubdomain);
 
         //TODO: - save
@@ -465,6 +442,6 @@ public class SchoolPlatformService {
         return SchoolSubdomainResponse.fromSchool(savedSchool, oldSubdomain,
                 "Every link, bookmark and saved login using '" + oldSubdomain + "' is now dead — "
                         + "nothing redirects, and the school has NOT been told. '" + oldSubdomain
-                        + "' stays reserved to this school so nobody else can claim it.");
+                        + "' is now free for any school to claim.");
     }
 }

@@ -1,7 +1,5 @@
 package com.orbitastra.backend.dto.core.platform;
 
-import java.util.List;
-
 import com.orbitastra.backend.models.core.School;
 
 /**
@@ -12,16 +10,15 @@ import com.orbitastra.backend.models.core.School;
  * only the new subdomain would read like a successful rename and say nothing about the links
  * that stopped working the moment it committed.
  *
- * <p>{@code previousSubdomains} is returned in full, not just the label released by this call.
- * They are all still held by this school, and seeing the list is the only way to know that
- * without reading the database.
+ * <p>{@code previousSubdomain} is echoed back rather than stored anywhere. It is what the
+ * caller needs in order to know which links just died, and it is gone from the system the moment
+ * this response is read — the label is free for anyone to claim.
  */
 public record SchoolSubdomainResponse(
         String schoolId,
         String schoolName,
         String previousSubdomain,
         String subdomain,
-        List<String> previousSubdomains,
         String nextStep) {
 
     public static SchoolSubdomainResponse fromSchool(School school, String previousSubdomain,
@@ -32,8 +29,6 @@ public record SchoolSubdomainResponse(
                 school.getSchoolName(),
                 previousSubdomain,
                 school.getSubdomain(),
-                school.getPreviousSubdomains() == null ? List.of()
-                        : List.copyOf(school.getPreviousSubdomains()),
                 nextStep);
     }
 }

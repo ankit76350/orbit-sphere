@@ -1,8 +1,6 @@
 package com.orbitastra.backend.models.core;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -56,19 +54,6 @@ public class School extends AuditedDocument {
     @NotBlank
     private String subdomain;
 
-    // Every subdomain this school has previously answered to, kept so nobody else can claim one.
-    //
-    // A released label is not free to take. Links, bookmarks and saved logins keep pointing at
-    // it, so if another school claimed it, the first school's users would land on a stranger's
-    // login page and type their password into it. Holding the old label here makes that
-    // impossible without any scheduled cleanup to forget.
-    //
-    // A school may reclaim its own old label — it is the only party that was ever behind it.
-    // Added 2026-08-31 with the subdomain-change endpoint (#10).
-    // Example: ["st-marys", "stmarys-pune"]
-    @Indexed
-    @Builder.Default
-    private List<String> previousSubdomains = new ArrayList<>();
 
     // Public logo/CDN URL. Example: "https://cdn.example.com/schools/orbit/logo.png"
     private String logoUrl;
