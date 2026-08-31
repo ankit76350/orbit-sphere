@@ -11,8 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 
 /**
@@ -46,6 +48,48 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.createError("MALFORMED_REQUEST",
                                 "The request body could not be read. Check that it is valid JSON and that every "
                                                 + "field has the expected type."));
+        }
+
+
+        /**
+         * A required query parameter was left out.
+         *
+         * <p>Without this, Spring answers with its own error page — which in dev carries a full
+         * stack trace, and in any environment does not look like the rest of our errors. The
+         * caller gets the same shape as everything else here, and the parameter's name.
+         *
+         * <p>The one place this matters most is the bulk holiday delete, where {@code type} is
+         * required precisely because forgetting it must not clear a whole calendar.
+         */
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ApiError> onMissingParameter(MissingServletRequestParameterException exception) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createError("MISSING_PARAMETER",
+                                                "The '" + exception.getParameterName()
+                                                                + "' query parameter is required."));
+        }
+
+        /**
+         * A path variable or query parameter could not be turned into the type it needs to be:
+         * a misspelled enum such as {@code ?type=WEEKLYOFF}, or a date like
+         * {@code /holidays/08-11-2026} that is not ISO.
+         *
+         * <p>Where the target is an enum the message lists what is accepted, because "expected
+         * type HolidayType" tells the caller nothing they can act on.
+         */
+        @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+        public ResponseEntity<ApiError> onTypeMismatch(MethodArgumentTypeMismatchException exception) {
+                Class<?> wanted = exception.getRequiredType();
+                String allowed = wanted != null && wanted.isEnum()
+                                ? " Accepted values: " + String.join(", ",
+                                                java.util.Arrays.stream(wanted.getEnumConstants())
+                                                                .map(Object::toString).toList()) + "."
+                                : "";
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createError("INVALID_PARAMETER",
+                                                "'" + exception.getValue() + "' is not a valid value for '"
+                                                                + exception.getName() + "'." + allowed));
         }
 
 

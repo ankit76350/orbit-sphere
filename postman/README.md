@@ -105,18 +105,41 @@ Then Send, or **Run collection** for the active bodies.
 |---|---|---|
 | `baseUrl` | you — defaults to `http://localhost:3456` | everything |
 | `schoolId` | a successful create | endpoints taking `{id}` |
-| `createdSubdomain` | a successful create | case 05, duplicate |
+| `createdSubdomain` | a successful create | case 05, duplicate; the `X-School-Subdomain` header on every school-surface request |
+| `academicYearName` | a successful Create Academic Year | every `/academic-years/{name}` URL, holidays included |
 
 ## Folders mirror `controllers/`
 
-`Core / School` today. Next is `Core / Academic Year`. One folder per model package, so the
-collection and the code stay findable from each other.
+`Core / School — platform`, `Core / School — profile` and `Core / Academic Year` today. One
+folder per controller, so the collection and the code stay findable from each other.
 
 ## Coverage
 
-**3 of 28 planned write endpoints.** The other 27 are specified in
+**17 of 28 planned write endpoints.** The other 11 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
+
+The count is 17 rather than 15 because two of the calendar endpoints were not in the original
+plan of 28: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
+undo for endpoints that create in bulk, and an API that can generate 52 rows in one call and
+cannot remove them is not finished.
+
+### Running the holiday requests in order
+
+`Core / Academic Year` is the one folder where order matters. Create School → Complete
+Provisioning → Activate → Create Academic Year, then the calendar requests. The holiday requests
+assume specific dates exist:
+
+| Request | Assumes |
+|---|---|
+| Replace Holiday Calendar | nothing — it is the reset |
+| Add Holiday | nothing |
+| Update Holiday | `2026-11-08` exists and holds a `FESTIVAL` |
+| Remove Holiday | `2026-11-08` exists and holds a `WEEKLY_OFF` |
+| Generate Weekly Off | nothing |
+| Remove Holidays By Type | Generate Weekly Off has run |
+
+Run **Replace Holiday Calendar** first to put the calendar in the state the rest expect.
 
 ## A note on all those 409s
 
@@ -128,3 +151,18 @@ Five of the ten cases expect `409`, not `400`, and that is deliberate across thi
 
 Told `400` for a taken subdomain, a caller goes hunting their JSON for a mistake that is not
 there.
+
+## A note on the holiday requests
+
+One date can be closed for more than one reason — a Sunday that is also Diwali — so the calendar
+stores an **array of reasons per date**, and the requests are shaped around that:
+
+- **Sending two rows with the same date is not an error.** `PUT` groups them into one closed day
+  with two reasons. Sending the same *type* twice for one date is the error.
+- **`POST` on an already-closed date is not a conflict.** The reason joins the day. Only the same
+  type twice is refused.
+- **`PATCH` and the single `DELETE` take `?type=`** to say which reason they mean. Optional when
+  the day has one, required when it has more.
+- **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
+  `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
+  `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.

@@ -3,10 +3,11 @@ package com.orbitastra.backend.services.core;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
@@ -162,9 +164,9 @@ public class AcademicYearService {
         if (!stranded.isEmpty()) {
             HolidayDetail first = stranded.get(0);
             throw ApiException.conflict("HOLIDAYS_OUTSIDE_NEW_RANGE",
-                    stranded.size() + " holiday(s) would fall outside the new dates, starting "
-                            + "with '" + first.getName() + "' on " + first.getDate()
-                            + ". Remove them first, or choose different dates.");
+                    stranded.size() + " closed day(s) would fall outside the new dates, starting "
+                            + "with " + first.getDate() + " (" + describe(first)
+                            + "). Remove them first, or choose different dates.");
         }
 
         //! step 7 - apply and save
@@ -188,6 +190,12 @@ public class AcademicYearService {
      *
      * <p>Everything already there is discarded, including generated weekly offs. That is what
      * replace means, and it is why #21 exists for adding one entry in-year.
+     *
+     * <p><b>The request is flat, storage is grouped.</b> The caller sends one row per reason,
+     * the way a spreadsheet holds it, and this groups them by date. So two rows sharing a date
+     * is not an error — that is a Sunday that is also Holi, and it becomes one closed day with
+     * two reasons. What is refused is the same <i>type</i> twice on one date, which is a
+     * duplicated row rather than a second reason.
      */
     @Transactional
     public HolidayCalendarResponse replaceCalendar(String name, List<HolidayRequest> requests) {
@@ -195,70 +203,99 @@ public class AcademicYearService {
         AcademicYear year = loadYear(name);
         List<HolidayRequest> incoming = requests == null ? List.of() : requests;
 
-        //! step 2 - every date inside the year, and no date twice
-        Set<LocalDate> seen = new HashSet<>();
-        List<HolidayDetail> replacement = new ArrayList<>();
-        for (HolidayRequest holiday : incoming) {
+        //! step 2 - group the flat rows by date, keeping the order they arrived in
+        // LinkedHashMap so the built calendar reads back in the order the school sent it.
+        Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
+        for (HolidayRequest row : incoming) {
             coreValidator.validateHolidayWithinYear(
-                    holiday.name(), holiday.date(), year.getStartDate(), year.getEndDate());
-            if (!seen.add(holiday.date())) {
-                throw ApiException.badRequest("DUPLICATE_HOLIDAY_DATE",
-                        "More than one holiday sent for " + holiday.date() + ".");
+                    row.name(), row.date(), year.getStartDate(), year.getEndDate());
+
+            HolidayDetail day = byDate.computeIfAbsent(row.date(),
+                    d -> HolidayDetail.builder().date(d).events(new ArrayList<>()).build());
+
+            if (hasType(day, row.type())) {
+                throw ApiException.badRequest("DUPLICATE_HOLIDAY_ENTRY",
+                        "Two " + row.type() + " entries sent for " + row.date()
+                                + ". A day can hold several reasons, but not the same one twice.");
             }
-            replacement.add(holiday.toDetail());
+            day.getEvents().add(row.toEvent());
         }
 
         //! step 3 - swap the whole list and save
-        int before = sizeOf(year);
+        int daysBefore = sizeOf(year);
+        List<HolidayDetail> replacement = new ArrayList<>(byDate.values());
         year.setHolidays(replacement);
         //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Replaced the calendar: " + before + " entries out, " + replacement.size()
-                        + " in.");
+                "Replaced the calendar: " + daysBefore + " closed days out, " + replacement.size()
+                        + " in (" + incoming.size() + " reasons).");
     }
 
     //! endpoints 21 adds one holiday. ------------------------------------------
     /**
-     * #21 — adds one holiday.
+     * #21 — adds one reason to one day.
      *
-     * <p>The in-year case: a bandh, an unexpected closure, a festival somebody missed. Refuses a
-     * date that already has an entry rather than overwriting it — two reasons for one closure is
-     * a question for a person, not something to resolve silently.
+     * <p>The in-year case: a bandh, an unexpected closure, a festival somebody missed.
+     *
+     * <p><b>A date that is already closed is not a conflict.</b> The reason is added to that day
+     * alongside what is already there, which is how a Sunday becomes a weekly off that is also
+     * Holi. The caller does not have to know whether the day exists yet.
+     *
+     * <p>What is refused is the same type twice on one day. A second WEEKLY_OFF on a Sunday that
+     * already has one is a repeated request or a mistake, never a second reason.
      */
     @Transactional
     public HolidayCalendarResponse addHoliday(String name, HolidayRequest request) {
         //! step 1 - find the year
         AcademicYear year = loadYear(name);
 
-        //! step 2 - inside the year, and not already taken
+        //! step 2 - inside the year, and this reason not already on that day
         coreValidator.validateHolidayWithinYear(
                 request.name(), request.date(), year.getStartDate(), year.getEndDate());
-        if (findByDate(year, request.date()).isPresent()) {
-            throw ApiException.conflict("HOLIDAY_DATE_TAKEN",
-                    "There is already a holiday on " + request.date()
+
+        Optional<HolidayDetail> existing = findDay(year, request.date());
+        if (existing.isPresent() && hasType(existing.get(), request.type())) {
+            throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
+                    "There is already a " + request.type() + " entry on " + request.date()
                             + ". Edit or remove it first.");
         }
 
-        //! step 3 - append and save
-        ensureList(year).add(request.toDetail());
-         //TODO: Save
+        //! step 3 - add to the day, creating the day if this is its first reason
+        HolidayDetail day = existing.orElseGet(() -> {
+            HolidayDetail created = HolidayDetail.builder()
+                    .date(request.date())
+                    .events(new ArrayList<>())
+                    .build();
+            ensureList(year).add(created);
+            return created;
+        });
+        day.getEvents().add(request.toEvent());
+
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Added '" + request.name() + "' on " + request.date() + ".");
+                "Added '" + request.name() + "' on " + request.date()
+                        + (existing.isPresent()
+                                ? " alongside " + (day.getEvents().size() - 1) + " existing."
+                                : "."));
     }
 
-   //! endpoints 22 — edits the holiday on one date. ------------------------------------------
+   //! endpoints 22 — edits one reason on one date. ------------------------------------------
     /**
-     * #22 — edits the holiday on one date.
+     * #22 — edits one reason on one day.
      *
      * <p>The date is the key and cannot be changed here. Moving a holiday is a delete followed
      * by an add, which leaves both dates visible instead of one silent edit.
+     *
+     * <p>{@code type} says which reason to edit. It may be omitted when the day has only one —
+     * the common case, and making it mandatory there would be ceremony — and is required when
+     * the day has several, because picking one for the caller would be wrong half the time.
      */
     @Transactional
-    public HolidayCalendarResponse updateHoliday(String name, LocalDate date,
+    public HolidayCalendarResponse updateHoliday(String name, LocalDate date, HolidayType type,
             HolidayUpdateRequest request) {
 
         //! step 1 - find the year
@@ -267,13 +304,14 @@ public class AcademicYearService {
         //! step 2 - refuse a request that asks for nothing
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send at least one of name, description or type.");
+                    "Send at least one of name, description or newType.");
         }
 
-        //! step 3 - find the entry on that date
-        HolidayDetail holiday = findByDate(year, date)
+        //! step 3 - find the day, then the one reason on it being edited
+        HolidayDetail day = findDay(year, date)
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
                         "No holiday on " + date + " in '" + year.getName() + "'."));
+        HolidayEvent event = resolveEvent(day, type);
 
         //! step 4 - apply only what was sent
         if (request.name() != null) {
@@ -282,45 +320,80 @@ public class AcademicYearService {
                 throw ApiException.badRequest("HOLIDAY_NAME_REQUIRED",
                         "A holiday name cannot be removed. Send a new one, or omit the field.");
             }
-            holiday.setName(newName);
+            event.setName(newName);
         }
         if (request.description() != null) {
-            holiday.setDescription(TextHelper.blankToNull(request.description()));
+            event.setDescription(TextHelper.blankToNull(request.description()));
         }
-        if (request.type() != null) {
-            holiday.setType(request.type());
+        if (request.newType() != null && request.newType() != event.getType()) {
+            // Retyping cannot collide with what the day already holds — one day, one reason of
+            // each type.
+            if (hasType(day, request.newType())) {
+                throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
+                        "There is already a " + request.newType() + " entry on " + date
+                                + ", so this one cannot become that.");
+            }
+            event.setType(request.newType());
         }
 
         //! step 5 - save
-         //TODO: Save
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Updated the holiday on " + date + ".");
+                "Updated '" + event.getName() + "' on " + date + ".");
     }
 
-     //! endpoints DELETE — Removes the holiday on one date. ------------------------------------------
-    /** Removes the holiday on one date. A date with nothing on it is a 404, not a silent 200. */
+     //! endpoints DELETE — Removes a reason, or the whole day. ---------------------------
+    /**
+     * Removes one reason from a day, or the whole day.
+     *
+     * <p>With {@code type}, only that reason goes: a Sunday that was also Holi is still a weekly
+     * off afterwards. <b>Removing the last reason removes the day</b>, because a closed day with
+     * nothing saying why reads as corruption to whoever finds it.
+     *
+     * <p>Without {@code type}, the whole day is removed with every reason on it. That is allowed
+     * — "the school is open that day after all" is a real correction — but the change summary
+     * names what went, so a caller who meant to drop one reason sees that they dropped two.
+     *
+     * <p>A date with nothing on it is a 404, not a silent 200.
+     */
     @Transactional
-    public HolidayCalendarResponse removeHoliday(String name, LocalDate date) {
+    public HolidayCalendarResponse removeHoliday(String name, LocalDate date, HolidayType type) {
         //! step 1 - find the year
         AcademicYear year = loadYear(name);
 
-        //! step 2 - it has to be there
-        HolidayDetail holiday = findByDate(year, date)
+        //! step 2 - the day has to be there
+        HolidayDetail day = findDay(year, date)
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
                         "No holiday on " + date + " in '" + year.getName() + "'."));
 
-        //! step 3 - remove and save
-        ensureList(year).remove(holiday);
-         //TODO: Save
+        //! step 3 - drop one reason, or the whole day
+        String summary;
+        if (type == null) {
+            summary = "Removed " + describe(day) + " on " + date + ".";
+            ensureList(year).remove(day);
+        } else {
+            HolidayEvent event = resolveEvent(day, type);
+            day.getEvents().remove(event);
+            if (day.getEvents().isEmpty()) {
+                // The last reason went, so the day is no longer a closed day.
+                ensureList(year).remove(day);
+                summary = "Removed '" + event.getName() + "' on " + date
+                        + ", which is now a working day.";
+            } else {
+                summary = "Removed '" + event.getName() + "' on " + date + ", which stays closed for "
+                        + describe(day) + ".";
+            }
+        }
+
+        //TODO: Save
         AcademicYear savedYear = academicYears.save(year);
 
-        return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Removed '" + holiday.getName() + "' on " + date + ".");
+        return HolidayCalendarResponse.fromAcademicYear(savedYear, summary);
     }
 
-      //! endpoints  — Removes the holiday on one date. ------------------------------------------
+      //! endpoints 23 — generates one weekday across the year. ---------------------------
     /**
      * #23 — generates one weekday's non-working days across the year.
      *
@@ -329,11 +402,14 @@ public class AcademicYearService {
      * weekday, so every non-working day is a dated entry and a year needs roughly 52 of them.
      * Without this, somebody types 52 dates or a developer hardcodes Sunday.
      *
-     * <p><b>Dates that already carry a holiday are skipped, not overwritten.</b> A Sunday that is
-     * also Diwali stays Diwali — the more specific reason is the more useful one. The skipped
-     * dates are returned so the school can see what took precedence.
+     * <p><b>A date that already has a festival still gets its weekly off.</b> The two reasons sit
+     * on the same day, which is the whole point of a day holding an array: the school was closed
+     * for Diwali <i>and</i> it was their weekly off, and a report that only knows one of those is
+     * wrong about the other. The old behaviour — skip anything already booked — quietly lost
+     * every weekly off that landed on a festival.
      *
-     * <p>Safe to run twice: the second run generates nothing and reports everything skipped.
+     * <p>Only an existing WEEKLY_OFF on that date is skipped, and the skipped dates are returned.
+     * That is also what makes running this twice safe: the second run generates nothing.
      */
     @Transactional
     public WeeklyOffGenerateResponse generateWeeklyOff(String name, GenerateWeeklyOffRequest request) {
@@ -352,12 +428,14 @@ public class AcademicYearService {
         coreValidator.validateHolidayWithinYear("toDate", to,
                 year.getStartDate(), year.getEndDate());
 
-        //! step 3 - walk the window, adding that weekday where nothing is booked
+        //! step 3 - walk the window, adding that weekday wherever no weekly off is on it yet
         DayOfWeek target = request.dayOfWeek();
         String label = request.nameOrDefault();
         List<HolidayDetail> holidays = ensureList(year);
-        Set<LocalDate> taken = new HashSet<>();
-        holidays.forEach(h -> taken.add(h.getDate()));
+
+        // The existing days by date, so each date in the window is one lookup rather than a scan.
+        Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
+        holidays.forEach(h -> byDate.put(h.getDate(), h));
 
         List<LocalDate> skipped = new ArrayList<>();
         int generated = 0;
@@ -365,14 +443,22 @@ public class AcademicYearService {
             if (day.getDayOfWeek() != target) {
                 continue;
             }
-            if (taken.contains(day)) {
+
+            HolidayDetail existing = byDate.get(day);
+            if (existing != null && hasType(existing, HolidayType.WEEKLY_OFF)) {
                 skipped.add(day);
                 continue;
             }
-            holidays.add(HolidayDetail.builder()
+
+            HolidayDetail entry = existing;
+            if (entry == null) {
+                entry = HolidayDetail.builder().date(day).events(new ArrayList<>()).build();
+                holidays.add(entry);
+                byDate.put(day, entry);
+            }
+            entry.getEvents().add(HolidayEvent.builder()
                     .name(label)
                     .type(HolidayType.WEEKLY_OFF)
-                    .date(day)
                     .build());
             generated++;
         }
@@ -383,21 +469,24 @@ public class AcademicYearService {
 
         return new WeeklyOffGenerateResponse(
                 savedYear.getName(), target, from, to, generated, skipped.size(), skipped,
-                sizeOf(savedYear),
+                sizeOf(savedYear), eventCount(savedYear),
                 generated == 0
                         ? "Nothing generated — every " + target + " in that window already had a "
-                                + "holiday."
+                                + "weekly off."
                         : "Generated " + generated + " " + target + " entries, skipped "
-                                + skipped.size() + " that already had a holiday.");
+                                + skipped.size() + " that already had one.");
     }
 
      //! endpoints DELETE — Removes every holiday of one type. ------------------------------------------
     /**
-     * Removes every holiday of one type. The companion to #23.
+     * Removes every reason of one type across the calendar. The companion to #23.
      *
      * <p>It exists because the first thing anybody does with the generator is pick the wrong
      * weekday, and undoing that one date at a time across 52 entries is not a thing a person
      * should have to do.
+     *
+     * <p>Strips the matching reason wherever it appears and then <b>drops the days left with
+     * none</b>. A Sunday that was also Holi survives as Holi; a plain Sunday goes entirely.
      *
      * <p>The type is required. A bulk delete that cleared the whole calendar when a query
      * parameter was forgotten would be the most destructive accident in this package.
@@ -407,11 +496,15 @@ public class AcademicYearService {
         //! step 1 - find the year
         AcademicYear year = loadYear(name);
 
-        //! step 2 - drop every entry of that type
+        //! step 2 - strip that reason everywhere, then drop the days it emptied
         List<HolidayDetail> holidays = ensureList(year);
-        int before = holidays.size();
-        holidays.removeIf(h -> h.getType() == type);
-        int removed = before - holidays.size();
+        int daysBefore = holidays.size();
+        int removed = 0;
+        for (HolidayDetail day : holidays) {
+            removed += day.getEvents().removeIf(e -> e.getType() == type) ? 1 : 0;
+        }
+        holidays.removeIf(day -> day.getEvents().isEmpty());
+        int daysClosed = daysBefore - holidays.size();
 
         //! step 3 - save
         //TODO: Save
@@ -420,7 +513,9 @@ public class AcademicYearService {
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
                 removed == 0
                         ? "Nothing to remove — no " + type + " entries were on this calendar."
-                        : "Removed " + removed + " " + type + " entries.");
+                        : "Removed " + removed + " " + type + " entries; " + daysClosed
+                                + " days became working days, "
+                                + (removed - daysClosed) + " stayed closed for other reasons.");
     }
 
     //* ---------------------------------------------------------------------------------
@@ -447,11 +542,56 @@ public class AcademicYearService {
         return year.getHolidays();
     }
 
+    /** How many days the school is closed. Not the same number as the reasons for it. */
     private int sizeOf(AcademicYear year) {
         return year.getHolidays() == null ? 0 : year.getHolidays().size();
     }
 
-    private Optional<HolidayDetail> findByDate(AcademicYear year, LocalDate date) {
+    /** How many reasons are recorded, which is larger whenever a day carries more than one. */
+    private int eventCount(AcademicYear year) {
+        return ensureList(year).stream().mapToInt(d -> d.getEvents().size()).sum();
+    }
+
+    /** The one entry for a date, if the school is closed that day. A date appears at most once. */
+    private Optional<HolidayDetail> findDay(AcademicYear year, LocalDate date) {
         return ensureList(year).stream().filter(h -> h.getDate().equals(date)).findFirst();
+    }
+
+    private boolean hasType(HolidayDetail day, HolidayType type) {
+        return day.getEvents().stream().anyMatch(e -> e.getType() == type);
+    }
+
+    /**
+     * Which reason on a day an edit or a delete is aimed at.
+     *
+     * <p>With no type given, this only works when the day has exactly one reason. Where it has
+     * more, it asks rather than guesses — silently editing the first of two would be wrong as
+     * often as it was right, and the caller would not see it happen.
+     */
+    private HolidayEvent resolveEvent(HolidayDetail day, HolidayType type) {
+        List<HolidayEvent> events = day.getEvents();
+
+        if (type == null) {
+            if (events.size() > 1) {
+                throw ApiException.badRequest("HOLIDAY_TYPE_REQUIRED",
+                        day.getDate() + " is closed for " + events.size() + " reasons ("
+                                + describe(day) + "). Add ?type= to say which one you mean.");
+            }
+            return events.get(0);
+        }
+
+        return events.stream()
+                .filter(e -> e.getType() == type)
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("HOLIDAY_ENTRY_NOT_FOUND",
+                        "No " + type + " entry on " + day.getDate() + ". That day is closed for "
+                                + describe(day) + "."));
+    }
+
+    /** A day's reasons in one readable phrase, for error and change messages. */
+    private String describe(HolidayDetail day) {
+        return day.getEvents().stream()
+                .map(e -> e.getName() + " (" + e.getType() + ")")
+                .collect(Collectors.joining(", "));
     }
 }

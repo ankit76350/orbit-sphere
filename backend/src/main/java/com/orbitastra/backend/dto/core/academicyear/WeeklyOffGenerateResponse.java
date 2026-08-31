@@ -24,8 +24,9 @@ public record WeeklyOffGenerateResponse(
         LocalDate fromDate,
         LocalDate toDate,
         int generated,
-        int skippedAlreadyHoliday,
+        int skippedAlreadyWeeklyOff,
         List<LocalDate> skippedDates,
-        int holidayCountAfter,
+        int closedDayCountAfter,
+        int eventCountAfter,
         String changeSummary) {
 }

@@ -1,671 +1,1027 @@
 {
-  "info": {
-    "_postman_id": "cd80fbe0-4955-4295-b988-b3cc71c57651",
-    "name": "Orbit Sphere \u2014 API",
-    "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block \u2014 swap the active body for the case you want and Send.\n\n**Built: 11 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "47336508",
-    "_collection_link": "https://go.postman.co/collection/47336508-cd80fbe0-4955-4295-b988-b3cc71c57651?source=collection_link"
-  },
-  "item": [
+ "info": {
+  "_postman_id": "cd80fbe0-4955-4295-b988-b3cc71c57651",
+  "name": "Orbit Sphere — API",
+  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 11 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+  "_exporter_id": "47336508",
+  "_collection_link": "https://go.postman.co/collection/47336508-cd80fbe0-4955-4295-b988-b3cc71c57651?source=collection_link"
+ },
+ "item": [
+  {
+   "name": "Core / School — platform",
+   "item": [
     {
-      "name": "Core / School \u2014 platform",
-      "item": [
-        {
-          "name": "Create School",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Asserts the ACTIVE body above (case 01). Swap the body for another case",
-                  "// and these assertions change meaning \u2014 read the expected status in the comment.",
-                  "",
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "",
-                  "const body = pm.response.json();",
-                  "pm.test('returns a schoolId', () => pm.expect(body.schoolId).to.be.a('string').and.not.empty);",
-                  "pm.test('starts at PROVISIONING or TRIAL', () =>",
-                  "  pm.expect(body.status).to.be.oneOf(['PROVISIONING', 'TRIAL']));",
-                  "pm.test('Location header points at the new school', () =>",
-                  "  pm.expect(pm.response.headers.get('Location')).to.eql('/platform/schools/' + body.schoolId));",
-                  "pm.test('subdomain came back normalised', () =>",
-                  "  pm.expect(body.subdomain).to.eql(body.subdomain.toLowerCase().trim()));",
-                  "",
-                  "// case 05 needs these",
-                  "pm.collectionVariables.set('schoolId', body.schoolId);",
-                  "pm.collectionVariables.set('createdSubdomain', body.subdomain);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Rohan Shinde\",\n  \"subdomain\": \"orbit-astra-{{$timestamp}}\",\n  \"phoneNumber\": \"+919876543210\",\n  \"emailAddress\": \"admin@orbit-school.edu\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\",\n  \"trial\": false\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools\n//  Swap the body above for any block below, then Send.\n//  Postman strips these // comments before sending.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FULL PAYLOAD                                          -> 201 Created\n//     The body above. Every field the endpoint accepts.\n//     OUT: { schoolId, schoolName, subdomain, status:\"PROVISIONING\",\n//            createdAt, nextStep }\n//     Header: Location: /platform/schools/{schoolId}\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  MINIMUM PAYLOAD \u2014 only the 6 required fields          -> 201 Created\n//     Everything omitted is stored as null, not \"\".\n// {\n//   \"schoolName\": \"Minimum Fields School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"minimum-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TRIAL TENANT                                          -> 201 Created\n//     OUT: status is \"TRIAL\" instead of \"PROVISIONING\".\n//     Those are the only two legal starting states; a caller cannot ask\n//     for ACTIVE, because that would skip the subscription check.\n// {\n//   \"schoolName\": \"Trial School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"trial-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\",\n//   \"trial\": true\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SUBDOMAIN IS NORMALISED BEFORE STORING                -> 201 Created\n//     IN : \"  Norm_Check 123  \"\n//     OUT: \"norm-check-123\"   (trimmed, lowercased, [space _] -> -)\n//     The subdomain in the RESPONSE is the one to use afterwards.\n// {\n//   \"schoolName\": \"Normalisation Check\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"  Norm_Check {{$timestamp}}  \",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  DUPLICATE SUBDOMAIN                                   -> 409 Conflict\n//     Run case 01 first: it saves {{createdSubdomain}}.\n//     OUT: { \"code\": \"SUBDOMAIN_TAKEN\", \"message\": \"...already in use.\" }\n//     409 not 400 \u2014 the request is well formed, the name is simply taken.\n// {\n//   \"schoolName\": \"Duplicate Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"{{createdSubdomain}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  RESERVED SUBDOMAIN                                    -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_RESERVED\" }\n//     Also reserved: www admin login auth app cdn mail api status support\n//     docs blog test staging dev billing webhooks ... (~40)\n//     A school owning \"login\" would receive credentials meant for the platform.\n// {\n//   \"schoolName\": \"Reserved Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"api\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  MALFORMED SUBDOMAIN                                   -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_INVALID\" }\n//     Leading/trailing hyphens are not a valid DNS label.\n//     Also rejected: \"\" , 64+ chars, anything outside [a-z0-9-]\n// {\n//   \"schoolName\": \"Bad Shape\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"-bad-\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN TIME ZONE                                     -> 409 Conflict\n//     IN : \"Asia/Pune\"  \u2014 looks reasonable, does not exist\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA zone set. No regex can do this, and\n//     the zone decides which calendar DATE an attendance record falls on.\n// {\n//   \"schoolName\": \"Bad Zone\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"bad-zone-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 09  MISSING AND INVALID FIELDS                        -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//             \"fieldErrors\": { \"schoolName\":        [\"must not be blank\"],\n//                              \"accountHolderName\": [\"must not be blank\"],\n//                              \"countryCode\":       [\"must be a two-letter...\"],\n//                              \"emailAddress\":      [\"must be a well-formed...\"] } }\n//     Caught by Jakarta annotations before the controller is entered,\n//     which is why the errors are per-field.\n// {\n//   \"schoolName\": \"\",\n//   \"subdomain\": \"validation-{{$timestamp}}\",\n//   \"emailAddress\": \"not-an-email\",\n//   \"countryCode\": \"ZZZ\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 10  MALFORMED JSON                                    -> 400 Bad Request\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }  and NO stack trace in the body.\n//     Send exactly this, comments removed:      {\"schoolName\": }\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools"
-              ]
-            },
-            "description": "**POST** `/platform/schools` \u2014 provision a new tenant.\n\nCreates the `School` row at `PROVISIONING` (or `TRIAL`). It does **not** create a user, so the\nschool cannot be logged into yet \u2014 that is what `nextStep` in the response says.\n\n### Required \u2014 6 fields\n\n| Field | Rule |\n|---|---|\n| `schoolName` | not blank, max 200 |\n| `accountHolderName` | not blank, max 150 |\n| `subdomain` | not blank, max 63, normalised, globally unique, not reserved |\n| `defaultLocale` | IETF tag \u2014 `en-IN`, `hi-IN` |\n| `defaultTimeZone` | real IANA id \u2014 `Asia/Kolkata` |\n| `countryCode` | exactly 2 letters \u2014 `IN` |\n\n### Optional\n\n`phoneNumber` (30) \u00b7 `emailAddress` (valid, 254) \u00b7 `addressLine` (200) \u00b7 `city` (100) \u00b7\n`stateOrProvince` (100) \u00b7 `postalCode` (20) \u00b7 `trial` (bool)\n\n### Refused if sent\n\n`status`, `encryptionKeyReference`, `activatedAt`, `suspendedAt` \u2014 the DTO has no such fields,\nso they are ignored rather than honoured. Each would hand the caller something the document\ndefends.\n\n### Test cases \u2014 all 10 are in the request body as comments\n\n| # | Case | Result |\n|---|---|---|\n| 01 | Full payload | 201 |\n| 02 | Minimum payload | 201 |\n| 03 | Trial tenant | 201, `status: TRIAL` |\n| 04 | Subdomain normalisation | 201, `Norm_Check 12` \u2192 `norm-check-12` |\n| 05 | Duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |\n| 06 | Reserved subdomain | 409 `SUBDOMAIN_RESERVED` |\n| 07 | Malformed subdomain | 409 `SUBDOMAIN_INVALID` |\n| 08 | Unknown time zone | 409 `TIME_ZONE_INVALID` |\n| 09 | Missing/invalid fields | 400 `VALIDATION_FAILED` + `fieldErrors` |\n| 10 | Malformed JSON | 400 `MALFORMED_REQUEST` |\n"
-          },
-          "response": []
-        },
-        {
-          "name": "Complete Provisioning",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Asserts case 01/02 \u2014 a school that exists and is provisionable.",
-                  "// Cases 04 and 05 expect 404 and 409, so these will fail for those on purpose.",
-                  "",
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const body = pm.response.json();",
-                  "",
-                  "pm.test('every number sequence type is present', () => {",
-                  "  const total = body.numberSequencesCreated + body.numberSequencesAlreadyPresent;",
-                  "  pm.expect(total).to.be.above(0);",
-                  "});",
-                  "",
-                  "pm.test('SCHOOL_ADMIN exists', () => pm.expect(body.roleKeys).to.include('SCHOOL_ADMIN'));",
-                  "pm.test('ready to activate', () => pm.expect(body.readyToActivate).to.be.true);",
-                  "",
-                  "// Idempotency: nothing should have been created the second time round.",
-                  "// Set to true by hand before re-sending to assert case 02 strictly.",
-                  "const expectNoWrites = false;",
-                  "if (expectNoWrites) {",
-                  "  pm.test('created nothing', () => {",
-                  "    pm.expect(body.numberSequencesCreated).to.eql(0);",
-                  "    pm.expect(body.rolesCreated).to.eql(0);",
-                  "  });",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/complete-provisioning\n//\n//  This endpoint takes NO BODY. It is a POST because it performs an action,\n//  not because it sends data. The {id} comes from the URL.\n//\n//  So the cases below are about which {{schoolId}} you point it at, and what\n//  state that school is in. Set the variable, then Send.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here even if your Postman does not strip comments.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FIRST CALL on a freshly created school              -> 200 OK\n//     Run \"Create School\" first \u2014 it saves {{schoolId}}.\n//     OUT: numberSequencesCreated: 47,  numberSequencesAlreadyPresent: 0\n//          rolesCreated: 3,             rolesAlreadyPresent: 0\n//          roleKeys: [\"GUARDIAN\",\"SCHOOL_ADMIN\",\"TEACHER\"]\n//          readyToActivate: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  SEND IT AGAIN \u2014 idempotency                         -> 200 OK\n//     Same {{schoolId}}, no changes needed. Nothing is written.\n//     OUT: numberSequencesCreated: 0,  numberSequencesAlreadyPresent: 47\n//          rolesCreated: 0,            rolesAlreadyPresent: 3\n//          readyToActivate: true\n//\n//     Still 200, not 201. A call that created nothing because everything was\n//     already there is a success \u2014 201 Created would be a lie.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  PARTIAL REPAIR \u2014 the case this endpoint exists for  -> 200 OK\n//     Delete some rows in MongoDB first, then send again:\n//\n//       db.number_sequences.deleteMany({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//       db.roles.deleteOne({schoolId: \"<id>\", roleKey: \"TEACHER\"})\n//\n//     OUT: numberSequencesCreated: 1,  numberSequencesAlreadyPresent: 46\n//          rolesCreated: 1,            rolesAlreadyPresent: 2\n//\n//     It fills only the gaps. An existing role is skipped, never overwritten \u2014\n//     so a school that edited SCHOOL_ADMIN's permissions keeps them.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  UNKNOWN SCHOOL ID                                   -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\",\n//            \"message\": \"No school found with id '...'.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SHUT-DOWN TENANT                                    -> 409 Conflict\n//     Set the school to an end-of-life status first:\n//\n//       db.schools.updateOne({_id: ObjectId(\"<id>\")}, {$set: {status: \"CLOSED\"}})\n//\n//     OUT: { \"code\": \"SCHOOL_NOT_PROVISIONABLE\",\n//            \"message\": \"A school at status CLOSED cannot be provisioned.\" }\n//\n//     Refused for OFFBOARDING, CLOSED, DELETION_PENDING and DELETED. Seeding\n//     one would quietly bring rows back to a school somebody deliberately shut\n//     down. Every other status is allowed, including ACTIVE \u2014 so a school found\n//     to be missing a role after go-live is fixed here, not by hand in the\n//     database.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/complete-provisioning",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools",
-                "{{schoolId}}",
-                "complete-provisioning"
-              ]
-            },
-            "description": "**POST** `/platform/schools/{id}/complete-provisioning` \u2014 finishes a tenant's setup.\n\nCreating a school leaves it with **no number sequences and no roles**. Neither absence is\nvisible at creation; both show up later, to whoever tries to use the school:\n\n| Missing | Fails when |\n|---|---|\n| `NumberSequence` rows | the first student admission asks for a number and finds no counter |\n| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |\n\nThis closes both gaps, and must run before the school can be activated.\n\n### Request\n\nNo body. `{{schoolId}}` in the path \u2014 saved automatically by **Create School**.\n\n### Idempotent\n\nReads what exists and inserts only the gaps. Safe to send repeatedly; safe to send when you\ndo not know what state the school is in. That is the point of it.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Fresh school | `200` | \u2014 47 sequences, 3 roles created |\n| Sent again | `200` | \u2014 0 created, everything already present |\n| Partial repair | `200` | \u2014 only the gaps created |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n| Offboarding / closed / deleted | `409` | `SCHOOL_NOT_PROVISIONABLE` |\n\n`readyToActivate` answers the operator's real question: every sequence type has a row and\n`SCHOOL_ADMIN` exists.\n\n### The five test cases are in the request body as comments\n"
-          },
-          "response": []
-        },
-        {
-          "name": "Activate School",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Asserts case 01 \u2014 a provisioned school going live for the first time.",
-                  "// Cases 02, 03, 04, 06 and 08 expect 409/404, so these fail for those on purpose.",
-                  "",
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const body = pm.response.json();",
-                  "",
-                  "pm.test('status is ACTIVE', () => pm.expect(body.status).to.eql('ACTIVE'));",
-                  "pm.test('activatedAt was stamped', () => pm.expect(body.activatedAt).to.be.a('string').and.not.empty);",
-                  "pm.test('firstActivation is true the first time', () => pm.expect(body.firstActivation).to.be.true);",
-                  "",
-                  "// The subscription gap is deliberate and reported. Fail loudly if it ever",
-                  "// goes quiet, because a skipped check that says nothing becomes permanent.",
-                  "pm.test('subscription state is reported', () => {",
-                  "  pm.expect(body.subscriptionStatus).to.be.a('string').and.not.empty;",
-                  "  pm.expect(body.subscriptionNote).to.be.a('string').and.not.empty;",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/activate\n//\n//  No body. The {id} comes from the URL, so the cases below are about which\n//  {{schoolId}} you point it at and what state that school is in.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  HAPPY PATH \u2014 setup done first                       -> 200 OK\n//     Run  Create School  ->  Complete Provisioning  ->  this.\n//     OUT: status: \"ACTIVE\"\n//          activatedAt: <now>\n//          firstActivation: true\n//          subscriptionStatus: \"NONE\"\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  TOO EARLY \u2014 no roles yet                        -> 409 Conflict\n//     Create a school and send this WITHOUT Complete Provisioning.\n//     OUT: { \"code\": \"SETUP_INCOMPLETE\",\n//            \"message\": \"This school has no SCHOOL_ADMIN role. Run\n//                        complete-provisioning first.\" }\n//\n//     Refused because a school with no SCHOOL_ADMIN role has nothing to attach\n//     a first administrator to. Activating it produces a live school nobody\n//     can log into.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TOO EARLY \u2014 a sequence is missing                -> 409 Conflict\n//     Complete provisioning, then remove one row:\n//\n//       db.number_sequences.deleteOne({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//\n//     OUT: { \"code\": \"SETUP_INCOMPLETE\",\n//            \"message\": \"This school has 46 of 47 number sequences. Run\n//                        complete-provisioning first.\" }\n//\n//     The count is in the message on purpose \u2014 \"incomplete\" without a number\n//     leaves you guessing what is missing.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SEND IT AGAIN \u2014 already live                     -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_ACTIVATABLE\",\n//            \"message\": \"A school at status ACTIVE cannot be activated. Only\n//                        PROVISIONING and TRIAL can. A suspended school is\n//                        reactivated, not activated.\" }\n//\n//     NOT idempotent, unlike Complete Provisioning. This one refuses, because\n//     the caller believes they changed something and they did not. Bringing a\n//     suspended school back is endpoint #5 reactivate \u2014 a different operation.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  TRIAL SCHOOL                                     -> 200 OK\n//     Create with \"trial\": true, complete provisioning, then send this.\n//     TRIAL and PROVISIONING are both allowed starting states.\n//     OUT: status: \"ACTIVE\", firstActivation: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  CANCELLED SUBSCRIPTION                           -> 409 Conflict\n//     Give the school a dead subscription first:\n//\n//       db.school_subscriptions.insertOne({\n//         schoolId: \"<id>\", subscriptionNo: \"SUB/T/1\",\n//         planDefinitionDocsId: \"x\", planVersion: 1,\n//         status: \"CANCELLED\", billingCycle: \"YEARLY\",\n//         autoRenew: false, current: true, recordState: \"ACTIVE\" })\n//\n//     OUT: { \"code\": \"SUBSCRIPTION_NOT_ACTIVE\",\n//            \"message\": \"The school's subscription is CANCELLED. It cannot be\n//                        activated.\" }\n//\n//     Blocked for CANCELLED and EXPIRED only. ACTIVE, TRIAL, PAST_DUE and\n//     SUSPENDED all pass \u2014 a school behind on payment is not a school that\n//     should be shut out mid-term.\n//\n//     billingCycle must be MONTHLY | QUARTERLY | HALF_YEARLY | YEARLY | CUSTOM.\n//     An invalid value written straight to MongoDB comes back as a 500, because\n//     nothing validates enums on read.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  NO SUBSCRIPTION AT ALL                           -> 200 OK\n//     The ordinary case today. Activation is ALLOWED and says so:\n//\n//     OUT: subscriptionStatus: \"NONE\"\n//          subscriptionNote: \"No subscription exists for this school.\n//                             Activation was allowed anyway because nothing\n//                             creates subscriptions yet \u2014 this check must\n//                             become a hard requirement once it does.\"\n//\n//     The plan says activation requires an active subscription. Nothing creates\n//     one yet, so enforcing it strictly would make this endpoint unusable. The\n//     response announces the gap rather than hiding it.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/activate",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools",
-                "{{schoolId}}",
-                "activate"
-              ]
-            },
-            "description": "**POST** `/platform/schools/{id}/activate` \u2014 takes the school live.\n\n`PROVISIONING` or `TRIAL` \u2192 `ACTIVE`. Anything else is a `409`.\n\n### Request\n\nNo body. `{{schoolId}}` in the path \u2014 saved by **Create School**.\n\n### Order matters\n\n**Run Complete Provisioning first.** Activation refuses a school that has no `SCHOOL_ADMIN`\nrole or is missing any number sequence, because either one produces a live school that fails\non first use.\n\n### Not idempotent\n\nUnlike **Complete Provisioning**, sending this twice is a `409`. `activatedAt` is stamped once\nand never rewritten, so a school suspended and brought back keeps its original go-live date \u2014\n`firstActivation` tells you which happened. Bringing a suspended school back is endpoint #5\n`reactivate`.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Provisioned school, or TRIAL | `200` | \u2014 `ACTIVE`, `activatedAt` set |\n| No SCHOOL_ADMIN role | `409` | `SETUP_INCOMPLETE` |\n| Missing number sequences | `409` | `SETUP_INCOMPLETE` (with the count) |\n| Already ACTIVE, or SUSPENDED | `409` | `SCHOOL_NOT_ACTIVATABLE` |\n| Subscription CANCELLED / EXPIRED | `409` | `SUBSCRIPTION_NOT_ACTIVE` |\n| No subscription at all | `200` | \u2014 allowed, and `subscriptionNote` says why |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The eight test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Suspend School",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Asserts case 01 \u2014 suspending a school that is currently ACTIVE.",
-                  "",
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const body = pm.response.json();",
-                  "pm.test('status is SUSPENDED', () => pm.expect(body.status).to.eql('SUSPENDED'));",
-                  "pm.test('suspendedAt was stamped', () => pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
-                  "pm.test('the reason was stored', () => pm.expect(body.statusReason).to.not.be.empty);",
-                  "",
-                  "// activatedAt must survive a suspension \u2014 it is the go-live date, not a status flag.",
-                  "pm.test('activatedAt is untouched', () => pm.expect(body.activatedAt).to.be.a('string').and.not.empty);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/suspend\n//  Swap the body above for any block below, then Send.\n//  {{schoolId}} must be an ACTIVE school \u2014 run Activate School first.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  SUSPEND AN ACTIVE SCHOOL                            -> 200 OK\n//     The body above.\n//     OUT: status: \"SUSPENDED\"\n//          suspendedAt: <now>\n//          statusReason: \"Non-payment. Third invoice unpaid past 60 days.\"\n//          activatedAt: <unchanged \u2014 still the original go-live date>\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  NO REASON                                       -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//            \"fieldErrors\": { \"reason\": [\"must not be blank\"] } }\n// {\n// }\n//\n//     The reason is REQUIRED, unlike on reactivate. Suspension stops a whole\n//     school, and one with no reason written down gets switched back on by the\n//     next person who is asked about it.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  BLANK REASON \u2014 same as missing                  -> 400 Bad Request\n// {\n//   \"reason\": \"   \"\n// }\n//     @NotBlank, not @NotNull. Whitespace does not count as an answer.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL NOT ACTIVE YET                            -> 409 Conflict\n//     Point {{schoolId}} at a school you have NOT activated.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status PROVISIONING cannot be suspended.\n//                        Only ACTIVE can.\" }\n//\n//     Suspending a school that was never usable makes no sense.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SUSPEND TWICE                                    -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status SUSPENDED cannot be suspended...\" }\n//\n//     Not idempotent on purpose: the caller believes they changed something.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOT DONE YET \u2014 worth knowing before you rely on this\n//  Suspension does NOT revoke live sessions or stop scheduled jobs. Neither\n//  service exists. A suspended school's users stay logged in until their\n//  tokens expire, so this is a flag rather than a lock.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/suspend",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools",
-                "{{schoolId}}",
-                "suspend"
-              ]
-            },
-            "description": "**POST** `/platform/schools/{id}/suspend` \u2014 blocks a school.\n\n`ACTIVE` \u2192 `SUSPENDED`. Anything else is a `409`.\n\n### Request\n\n```json\n{ \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\" }\n```\n\n`reason` is **required**, max 500 chars. Stored on `School.statusReason` and kept after\nreactivation, so \"this was suspended in August for non-payment\" survives being brought back.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Active school, reason given | `200` | \u2014 `SUSPENDED`, `suspendedAt` + `statusReason` set |\n| Missing or blank reason | `400` | `VALIDATION_FAILED` |\n| Not ACTIVE | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Already suspended | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### Known gap\n\nDoes **not** revoke live sessions or stop scheduled jobs \u2014 neither service exists yet. A\nsuspended school's users stay logged in until their tokens expire.\n\n### The six test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Reactivate School",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Asserts cases 01 and 02 \u2014 bringing a SUSPENDED school back.",
-                  "",
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const body = pm.response.json();",
-                  "pm.test('status is ACTIVE', () => pm.expect(body.status).to.eql('ACTIVE'));",
-                  "",
-                  "// The three things reactivation must NOT reset. Each is history, not state.",
-                  "pm.test('activatedAt is not re-stamped', () =>",
-                  "  pm.expect(body.activatedAt).to.be.a('string').and.not.empty);",
-                  "pm.test('suspendedAt is kept as the last suspension', () =>",
-                  "  pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
-                  "pm.test('a reason is still on record', () =>",
-                  "  pm.expect(body.statusReason).to.be.a('string').and.not.empty);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"note\": \"Outstanding invoices cleared on 31 August.\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /platform/schools/{id}/reactivate\n//  {{schoolId}} must be a SUSPENDED school.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  REACTIVATE WITH A NOTE                              -> 200 OK\n//     The body above. The note REPLACES the stored statusReason.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: \"Outstanding invoices cleared on 31 August.\"\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  REACTIVATE WITH NO BODY AT ALL                      -> 200 OK\n//     Delete the whole body. The endpoint accepts an absent body.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: <the suspension reason, KEPT>\n//          suspendedAt:  <KEPT \u2014 the most recent suspension>\n//          activatedAt:  <unchanged \u2014 the original go-live date>\n//\n//     The note is OPTIONAL here, unlike the reason on suspend. Letting a school\n//     back in usually means the problem was settled; forcing a sentence there\n//     produces \"resolved\" typed a hundred times, which looks like a record and\n//     is not.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  WHAT IS DELIBERATELY *NOT* RESET                    -> 200 OK\n//     Run case 02 and read the response carefully:\n//\n//       activatedAt  NOT re-stamped  \u2014 a school suspended in June and brought\n//                                      back in July keeps its April go-live date\n//       suspendedAt  NOT cleared     \u2014 it is the MOST RECENT suspension, and\n//                                      keeping it is how you see this school has\n//                                      been suspended before\n//       statusReason NOT cleared     \u2014 unless a note is sent\n//\n//     All three are history, not current state.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL IS ALREADY ACTIVE                         -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\",\n//            \"message\": \"A school at status ACTIVE cannot be reactivated. Only\n//                        SUSPENDED can. A school that has never gone live is\n//                        activated, not reactivated.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SCHOOL NEVER WENT LIVE                           -> 409 Conflict\n//     Point {{schoolId}} at a PROVISIONING school.\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\" }\n//\n//     Use  Activate School  for a school that has never been live. Reactivate is\n//     only for bringing a suspended one back.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOTE \u2014 activate vs reactivate\n//  Reactivate does NOT re-run the setup and subscription checks that guard\n//  Activate School. A suspended school was already live once, so it passed\n//  them. Re-running them would mean a school suspended for non-payment could\n//  never be let back in as a goodwill gesture, which is what this is for.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/reactivate",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "platform",
-                "schools",
-                "{{schoolId}}",
-                "reactivate"
-              ]
-            },
-            "description": "**POST** `/platform/schools/{id}/reactivate` \u2014 brings a suspended school back.\n\n`SUSPENDED` \u2192 `ACTIVE`. Anything else is a `409`.\n\n### Request \u2014 optional\n\n```json\n{ \"note\": \"Outstanding invoices cleared on 31 August.\" }\n```\n\nThe body may be **omitted entirely**. When given, `note` replaces `School.statusReason`; when\nomitted, the suspension reason stays.\n\n### What it deliberately does not reset\n\n| Field | Why |\n|---|---|\n| `activatedAt` | the original go-live date, not a status flag |\n| `suspendedAt` | the *most recent* suspension \u2014 how you see it has happened before |\n| `statusReason` | kept unless a note replaces it |\n\n### Not the same as activate\n\nReactivate skips the setup and subscription checks. A suspended school was already live once,\nso it passed them \u2014 re-running them would mean a school suspended for non-payment could never\nbe let back in as a goodwill gesture.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Suspended school | `200` | \u2014 `ACTIVE` |\n| Already active | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Never went live | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The six test cases are in the request body as comments\n"
-          }
-        }
+     "name": "Create School",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts the ACTIVE body above (case 01). Swap the body for another case",
+         "// and these assertions change meaning — read the expected status in the comment.",
+         "",
+         "pm.test('201 Created', () => pm.response.to.have.status(201));",
+         "",
+         "const body = pm.response.json();",
+         "pm.test('returns a schoolId', () => pm.expect(body.schoolId).to.be.a('string').and.not.empty);",
+         "pm.test('starts at PROVISIONING or TRIAL', () =>",
+         "  pm.expect(body.status).to.be.oneOf(['PROVISIONING', 'TRIAL']));",
+         "pm.test('Location header points at the new school', () =>",
+         "  pm.expect(pm.response.headers.get('Location')).to.eql('/platform/schools/' + body.schoolId));",
+         "pm.test('subdomain came back normalised', () =>",
+         "  pm.expect(body.subdomain).to.eql(body.subdomain.toLowerCase().trim()));",
+         "",
+         "// case 05 needs these",
+         "pm.collectionVariables.set('schoolId', body.schoolId);",
+         "pm.collectionVariables.set('createdSubdomain', body.subdomain);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
       ],
-      "description": "Tenant provisioning and lifecycle, at /platform/schools. Mirrors SchoolPlatformController. The caller is outside the tenant \u2014 provisioning is what creates the school these requests are about."
-    },
-    {
-      "name": "Core / School \u2014 profile",
-      "description": "The school editing itself, at /schools/current. Mirrors SchoolProfileController.\n\n**Every request needs the X-School-Subdomain header** \u2014 a stand-in for the session, saved by Create School. It is not safe: any caller can set it to any school's subdomain.",
-      "item": [
-        {
-          "name": "Update Profile",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const b = pm.response.json();",
-                  "pm.test('name applied and trimmed', () => pm.expect(b.schoolName).to.eql(b.schoolName.trim()));",
-                  "pm.test('subdomain is never editable here', () => pm.expect(b.subdomain).to.eql(pm.collectionVariables.get('createdSubdomain')));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"schoolName\": \"Orbit Astra International School\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  PATCH /schools/current/profile\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  HOW PATCH BEHAVES HERE \u2014 a record cannot tell \"omitted\" from \"null\", so:\n//     field omitted / null  -> leave it exactly as it is\n//     field is \"\"           -> clear it (null in the database)\n//     field has a value     -> replace it\n//\n// ---------------------------------------------------------------------------\n// 01  RENAME ONLY \u2014 phone and email untouched            -> 200 OK\n//     The body above. Whitespace is trimmed.\n// ---------------------------------------------------------------------------\n//\n// 02  CLEAR THE PHONE with \"\"                            -> 200 OK\n// {\n//   \"phoneNumber\": \"\"\n// }\n//     OUT: phoneNumber: null, emailAddress unchanged.\n// ---------------------------------------------------------------------------\n//\n// 03  SET PHONE AND EMAIL TOGETHER                       -> 200 OK\n// {\n//   \"phoneNumber\": \"+919876543210\",\n//   \"emailAddress\": \"Office@Orbit-School.EDU\"\n// }\n//     OUT: emailAddress is lowercased on the way in.\n// ---------------------------------------------------------------------------\n//\n// 04  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that asks for nothing is a client bug. 200 would hide it.\n// ---------------------------------------------------------------------------\n//\n// 05  TRY TO CLEAR THE NAME                          -> 400 Bad Request\n// {\n//   \"schoolName\": \"   \"\n// }\n//     OUT: { \"code\": \"SCHOOL_NAME_REQUIRED\" }\n//     schoolName is @NotBlank on the model, so \"\" is a 400, not a deletion.\n// ---------------------------------------------------------------------------\n//\n// 06  BAD EMAIL                                      -> 400 Bad Request\n// {\n//   \"emailAddress\": \"not-an-email\"\n// }\n//     OUT: { \"code\": \"EMAIL_INVALID\" }\n// ---------------------------------------------------------------------------\n//\n// 07  NO TENANT HEADER \u2014 delete X-School-Subdomain    -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n//\n// 08  UNKNOWN TENANT \u2014 set the header to \"nope\"         -> 404 Not Found\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "profile"
-              ]
-            },
-            "description": "**PATCH** `/schools/current/profile` \u2014 the school's own name and contact details.\n\nSchool surface: the tenant comes from `X-School-Subdomain`, never from the URL.\n\n### PATCH semantics\n\n| Sent | Effect |\n|---|---|\n| omitted / `null` | left alone |\n| `\"\"` | cleared |\n| a value | replaced |\n\n`schoolName` cannot be cleared \u2014 `\"\"` there is a `400`.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| One or more fields | `200` | \u2014 |\n| Empty body | `400` | `NOTHING_TO_UPDATE` |\n| Blank `schoolName` | `400` | `SCHOOL_NAME_REQUIRED` |\n| Bad email | `400` | `EMAIL_INVALID` |\n| No tenant header | `400` | `TENANT_NOT_RESOLVED` |\n| Unknown tenant | `404` | `SCHOOL_NOT_FOUND` |\n\n### The eight test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Replace Address",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const b = pm.response.json();",
-                  "pm.test('address applied', () => pm.expect(b.city).to.not.be.undefined);",
-                  "pm.test('countryCode is never changed here', () => pm.expect(b.countryCode).to.eql('IN'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  PUT /schools/current/address\n// ===========================================================================\n//\n//  A PUT, NOT A PATCH. An omitted field is CLEARED, not left alone. That is\n//  what replace means, and it is the opposite of Update Profile above.\n//\n//  An address is all-or-nothing: patching city without stateOrProvince gives\n//  you a real-looking address for a place that does not exist.\n//\n// ---------------------------------------------------------------------------\n// 01  FULL ADDRESS                                        -> 200 OK\n//     The body above.\n// ---------------------------------------------------------------------------\n//\n// 02  PARTIAL PUT \u2014 WATCH WHAT HAPPENS                    -> 200 OK\n// {\n//   \"city\": \"Mumbai\"\n// }\n//     OUT: city: \"Mumbai\"\n//          addressLine: null      <- CLEARED\n//          stateOrProvince: null  <- CLEARED\n//          postalCode: null       <- CLEARED\n//          countryCode: unchanged\n//\n//     Not a bug. Send the whole address every time.\n// ---------------------------------------------------------------------------\n//\n// 03  EMPTY BODY \u2014 removes the address entirely           -> 200 OK\n// {\n// }\n//     A legitimate thing to want, and the same rule as case 02.\n// ---------------------------------------------------------------------------\n//\n// 04  countryCode IS NOT ACCEPTED HERE\n// {\n//   \"city\": \"Dubai\",\n//   \"countryCode\": \"AE\"\n// }\n//     OUT: 200, and countryCode is UNCHANGED. The field is not on the DTO,\n//          so it is ignored rather than honoured.\n//\n//     Changing a school's country changes which tax rules and identity\n//     documents apply \u2014 GovernmentIdentityType holds AADHAAR and APAAR;\n//     FeeHead.taxRatePercent means GST. Schools do not move countries. A\n//     mistyped one is a platform correction while still PROVISIONING.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/address",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "address"
-              ]
-            },
-            "description": "**PUT** `/schools/current/address` \u2014 replaces the whole postal address.\n\n**An omitted field is cleared.** `PUT {\"city\":\"Mumbai\"}` wipes `addressLine`,\n`stateOrProvince` and `postalCode`. That is correct replace semantics and the opposite of\n`PATCH /profile` \u2014 worth knowing before writing a client.\n\n`countryCode` is **not** on this request and cannot be changed here.\n\n### The four test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Update Localization",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const b = pm.response.json();",
-                  "pm.test('locale applied', () => pm.expect(b.defaultLocale).to.not.be.empty);",
-                  "pm.test('a time zone is always set', () => pm.expect(b.defaultTimeZone).to.not.be.empty);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"defaultLocale\": \"en-IN\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  PATCH /schools/current/localization\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  LOCALE ONLY                                         -> 200 OK\n//     The body above. Safe at any time, including mid-year.\n// ---------------------------------------------------------------------------\n//\n// 02  TIME ZONE WITHOUT CONFIRMATION                  -> 409 Conflict\n// {\n//   \"defaultTimeZone\": \"Asia/Dubai\"\n// }\n//     OUT: { \"code\": \"TIME_ZONE_CHANGE_NOT_CONFIRMED\" }\n// ---------------------------------------------------------------------------\n//\n// 03  TIME ZONE WITH CONFIRMATION, no academic year       -> 200 OK\n// {\n//   \"defaultTimeZone\": \"Asia/Dubai\",\n//   \"confirmTimeZoneChange\": true\n// }\n//     Works only while the school has NO year covering today.\n// ---------------------------------------------------------------------------\n//\n// 04  TIME ZONE WHILE A YEAR IS RUNNING               -> 409 Conflict\n//     Create an academic year covering today first (see the Academic Year\n//     folder), then send case 03 again.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_IN_PROGRESS\" }\n//\n//     THIS IS THE GUARD THAT MATTERS. Every Instant is stored in UTC, so\n//     changing the zone rewrites nothing \u2014 it silently reinterprets which\n//     calendar DATE every existing attendance record, holiday and trip falls\n//     on. A school moving Asia/Kolkata to Asia/Dubai mid-year has a register\n//     that shifts under it, with no error anywhere.\n//\n//     The confirmation flag alone would be theatre; people tick boxes. This is\n//     what actually protects the data.\n// ---------------------------------------------------------------------------\n//\n// 05  UNKNOWN ZONE                                    -> 409 Conflict\n// {\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"confirmTimeZoneChange\": true\n// }\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA set. No regex can do this, and the list\n//     changes as zones are added and renamed.\n// ---------------------------------------------------------------------------\n//\n// 06  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/localization",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "localization"
-              ]
-            },
-            "description": "**PATCH** `/schools/current/localization` \u2014 language and time zone.\n\n### `defaultTimeZone` has two guards\n\n1. `confirmTimeZoneChange: true` must be sent, or `409`.\n2. If an academic year covers today, the change is **refused outright**.\n\nThe flag alone would be theatre. The year check is what protects the attendance register:\nevery `Instant` is UTC, so changing the zone rewrites nothing and silently reinterprets which\ncalendar date every existing record falls on.\n\nThe locale stays editable at all times \u2014 only the zone is dangerous.\n\n### The six test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Replace Logo",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "",
-                  "const b = pm.response.json();",
-                  "pm.test('logo is https when set', () => {",
-                  "  if (b.logoUrl) pm.expect(b.logoUrl).to.match(/^https:\\/\\//);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"logoUrl\": \"https://cdn.example.com/schools/orbit/logo.png\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  PUT /schools/current/logo\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  ALLOW-LISTED HOST                                   -> 200 OK\n//     The body above.\n//     Allowed: cdn.example.com, res.cloudinary.com, s3.amazonaws.com,\n//              storage.googleapis.com\n// ---------------------------------------------------------------------------\n//\n// 02  REMOVE THE LOGO                                     -> 200 OK\n// {\n//   \"logoUrl\": \"\"\n// }\n//     OUT: logoUrl: null. This is why there is no separate DELETE.\n// ---------------------------------------------------------------------------\n//\n// 03  ANY OTHER HOST                                 -> 400 Bad Request\n// {\n//   \"logoUrl\": \"https://evil.example.net/logo.png\"\n// }\n//     OUT: { \"code\": \"LOGO_HOST_NOT_ALLOWED\" }\n//\n//     A school-supplied URL is loaded on pages PARENTS open. An arbitrary host\n//     is somebody else's server deciding what parents see, and a tracker there\n//     is invisible to us.\n// ---------------------------------------------------------------------------\n//\n// 04  http INSTEAD OF https                          -> 400 Bad Request\n// {\n//   \"logoUrl\": \"http://cdn.example.com/logo.png\"\n// }\n//     OUT: { \"code\": \"LOGO_URL_NOT_HTTPS\" }\n// ---------------------------------------------------------------------------\n//\n//  NOTE \u2014 a file upload would be better than a URL, and the plan says so. A\n//  school-supplied URL can rot, or be changed to something unwanted after it\n//  was approved. There is no storage service yet.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/logo",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "logo"
-              ]
-            },
-            "description": "**PUT** `/schools/current/logo` \u2014 replaces the logo, or removes it.\n\n`https` only, and the host must be on the service's allow-list. `logoUrl: \"\"` removes it, which\nis why there is no separate `DELETE`.\n\nA file upload would be better \u2014 a school-supplied URL can rot or be changed after approval \u2014\nbut there is no storage service yet.\n\n### The four test cases are in the request body as comments\n"
-          }
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Rohan Shinde\",\n  \"subdomain\": \"orbit-astra-{{$timestamp}}\",\n  \"phoneNumber\": \"+919876543210\",\n  \"emailAddress\": \"admin@orbit-school.edu\",\n  \"defaultLocale\": \"en-IN\",\n  \"defaultTimeZone\": \"Asia/Kolkata\",\n  \"countryCode\": \"IN\",\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\",\n  \"trial\": false\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools\n//  Swap the body above for any block below, then Send.\n//  Postman strips these // comments before sending.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FULL PAYLOAD                                          -> 201 Created\n//     The body above. Every field the endpoint accepts.\n//     OUT: { schoolId, schoolName, subdomain, status:\"PROVISIONING\",\n//            createdAt, nextStep }\n//     Header: Location: /platform/schools/{schoolId}\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  MINIMUM PAYLOAD — only the 6 required fields          -> 201 Created\n//     Everything omitted is stored as null, not \"\".\n// {\n//   \"schoolName\": \"Minimum Fields School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"minimum-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TRIAL TENANT                                          -> 201 Created\n//     OUT: status is \"TRIAL\" instead of \"PROVISIONING\".\n//     Those are the only two legal starting states; a caller cannot ask\n//     for ACTIVE, because that would skip the subscription check.\n// {\n//   \"schoolName\": \"Trial School\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"trial-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\",\n//   \"trial\": true\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SUBDOMAIN IS NORMALISED BEFORE STORING                -> 201 Created\n//     IN : \"  Norm_Check 123  \"\n//     OUT: \"norm-check-123\"   (trimmed, lowercased, [space _] -> -)\n//     The subdomain in the RESPONSE is the one to use afterwards.\n// {\n//   \"schoolName\": \"Normalisation Check\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"  Norm_Check {{$timestamp}}  \",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  DUPLICATE SUBDOMAIN                                   -> 409 Conflict\n//     Run case 01 first: it saves {{createdSubdomain}}.\n//     OUT: { \"code\": \"SUBDOMAIN_TAKEN\", \"message\": \"...already in use.\" }\n//     409 not 400 — the request is well formed, the name is simply taken.\n// {\n//   \"schoolName\": \"Duplicate Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"{{createdSubdomain}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  RESERVED SUBDOMAIN                                    -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_RESERVED\" }\n//     Also reserved: www admin login auth app cdn mail api status support\n//     docs blog test staging dev billing webhooks ... (~40)\n//     A school owning \"login\" would receive credentials meant for the platform.\n// {\n//   \"schoolName\": \"Reserved Attempt\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"api\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  MALFORMED SUBDOMAIN                                   -> 409 Conflict\n//     OUT: { \"code\": \"SUBDOMAIN_INVALID\" }\n//     Leading/trailing hyphens are not a valid DNS label.\n//     Also rejected: \"\" , 64+ chars, anything outside [a-z0-9-]\n// {\n//   \"schoolName\": \"Bad Shape\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"-bad-\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN TIME ZONE                                     -> 409 Conflict\n//     IN : \"Asia/Pune\"  — looks reasonable, does not exist\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA zone set. No regex can do this, and\n//     the zone decides which calendar DATE an attendance record falls on.\n// {\n//   \"schoolName\": \"Bad Zone\",\n//   \"accountHolderName\": \"Ankit Kumar\",\n//   \"subdomain\": \"bad-zone-{{$timestamp}}\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"countryCode\": \"IN\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 09  MISSING AND INVALID FIELDS                        -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//             \"fieldErrors\": { \"schoolName\":        [\"must not be blank\"],\n//                              \"accountHolderName\": [\"must not be blank\"],\n//                              \"countryCode\":       [\"must be a two-letter...\"],\n//                              \"emailAddress\":      [\"must be a well-formed...\"] } }\n//     Caught by Jakarta annotations before the controller is entered,\n//     which is why the errors are per-field.\n// {\n//   \"schoolName\": \"\",\n//   \"subdomain\": \"validation-{{$timestamp}}\",\n//   \"emailAddress\": \"not-an-email\",\n//   \"countryCode\": \"ZZZ\",\n//   \"defaultLocale\": \"en-IN\",\n//   \"defaultTimeZone\": \"Asia/Kolkata\"\n// }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 10  MALFORMED JSON                                    -> 400 Bad Request\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }  and NO stack trace in the body.\n//     Send exactly this, comments removed:      {\"schoolName\": }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
         }
-      ]
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools"
+       ]
+      },
+      "description": "**POST** `/platform/schools` — provision a new tenant.\n\nCreates the `School` row at `PROVISIONING` (or `TRIAL`). It does **not** create a user, so the\nschool cannot be logged into yet — that is what `nextStep` in the response says.\n\n### Required — 6 fields\n\n| Field | Rule |\n|---|---|\n| `schoolName` | not blank, max 200 |\n| `accountHolderName` | not blank, max 150 |\n| `subdomain` | not blank, max 63, normalised, globally unique, not reserved |\n| `defaultLocale` | IETF tag — `en-IN`, `hi-IN` |\n| `defaultTimeZone` | real IANA id — `Asia/Kolkata` |\n| `countryCode` | exactly 2 letters — `IN` |\n\n### Optional\n\n`phoneNumber` (30) · `emailAddress` (valid, 254) · `addressLine` (200) · `city` (100) ·\n`stateOrProvince` (100) · `postalCode` (20) · `trial` (bool)\n\n### Refused if sent\n\n`status`, `encryptionKeyReference`, `activatedAt`, `suspendedAt` — the DTO has no such fields,\nso they are ignored rather than honoured. Each would hand the caller something the document\ndefends.\n\n### Test cases — all 10 are in the request body as comments\n\n| # | Case | Result |\n|---|---|---|\n| 01 | Full payload | 201 |\n| 02 | Minimum payload | 201 |\n| 03 | Trial tenant | 201, `status: TRIAL` |\n| 04 | Subdomain normalisation | 201, `Norm_Check 12` → `norm-check-12` |\n| 05 | Duplicate subdomain | 409 `SUBDOMAIN_TAKEN` |\n| 06 | Reserved subdomain | 409 `SUBDOMAIN_RESERVED` |\n| 07 | Malformed subdomain | 409 `SUBDOMAIN_INVALID` |\n| 08 | Unknown time zone | 409 `TIME_ZONE_INVALID` |\n| 09 | Missing/invalid fields | 400 `VALIDATION_FAILED` + `fieldErrors` |\n| 10 | Malformed JSON | 400 `MALFORMED_REQUEST` |\n"
+     },
+     "response": []
     },
     {
-      "name": "Core / Academic Year",
-      "description": "The school's academic years, at /schools/current/academic-years. Mirrors AcademicYearController.\n\nAddressed by NAME, not id \u2014 that is how the whole system refers to a year. There is no rename and no DELETE.",
-      "item": [
-        {
-          "name": "Create Academic Year",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "const b = pm.response.json();",
-                  "pm.test('name came back', () => pm.expect(b.name).to.not.be.empty);",
-                  "pm.test('duration looks like a year', () => pm.expect(b.durationDays).to.be.within(30, 800));",
-                  "pm.test('a new year starts with an empty calendar', () => pm.expect(b.holidayCount).to.eql(0));",
-                  "",
-                  "// current is DERIVED from the dates, never stored \u2014 AcademicYear has no such field.",
-                  "pm.test('current is present and boolean', () => pm.expect(b.current).to.be.a('boolean'));",
-                  "",
-                  "pm.collectionVariables.set('academicYearName', b.name);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"2026-2027\",\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2027-03-31\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  POST /schools/current/academic-years\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  THE NAME CAN NEVER BE CHANGED. There is no rename endpoint and there must\n//  never be one. Other collections do not reference a year by id \u2014 they store\n//  this string in their own academicYear field. FeeInvoice, TransportTrip,\n//  FeedbackCampaign, FacilityInspection and dozens more. \"2026-2027\" IS the\n//  join key, so a rename would orphan all of them silently and every row would\n//  still look valid.\n//\n//  HOLIDAYS ARE NOT ACCEPTED HERE. A year is always created with an empty\n//  calendar; the calendar has its own endpoints (#20 to #23). Sending a\n//  holidays array does nothing \u2014 the field is not on the request, so it is\n//  ignored rather than honoured.\n//\n// ---------------------------------------------------------------------------\n// 01  CREATE A YEAR                                       -> 201 Created\n//     The body above.\n//     OUT: durationDays: 365, current: true, holidayCount: 0\n//     Header: Location: /schools/current/academic-years/2026-2027\n// ---------------------------------------------------------------------------\n//\n// 02  DUPLICATE NAME                                  -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NAME_TAKEN\" }\n// ---------------------------------------------------------------------------\n//\n// 03  OVERLAPPING DATES                               -> 409 Conflict\n// {\n//   \"name\": \"2027-2028\",\n//   \"startDate\": \"2027-03-01\",\n//   \"endDate\": \"2028-02-28\"\n// }\n//     OUT: { \"code\": \"ACADEMIC_YEAR_OVERLAP\",\n//            \"message\": \"These dates overlap '2026-2027' (...)\" }\n//\n//     Two years covering one day would give every \"which year is this?\" lookup\n//     two answers \u2014 and AcademicYear deliberately has NO current flag, so the\n//     dates are the only thing that can answer it.\n// ---------------------------------------------------------------------------\n//\n// 04  ADJACENT, NOT OVERLAPPING                           -> 201 Created\n// {\n//   \"name\": \"2027-2028\",\n//   \"startDate\": \"2027-04-01\",\n//   \"endDate\": \"2028-03-31\"\n// }\n//     Ends 03-31, next starts 04-01. Allowed \u2014 the check is \"one ends before\n//     the other starts\", not four date comparisons.\n// ---------------------------------------------------------------------------\n//\n// 05  BACKWARDS DATES                                -> 400 Bad Request\n// {\n//   \"name\": \"bad-1\",\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2029-04-01\"\n// }\n//     OUT: { \"code\": \"INVALID_DATE_RANGE\" }\n// ---------------------------------------------------------------------------\n//\n// 06  A THREE-DAY \"YEAR\"                             -> 400 Bad Request\n// {\n//   \"name\": \"bad-2\",\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2030-04-03\"\n// }\n//     OUT: { \"code\": \"IMPLAUSIBLE_DATE_RANGE\" }\n//     Accepted range is 30 to 800 days. Outside that it is a typo, not a\n//     calendar.\n// ---------------------------------------------------------------------------\n//\n// 07  MISSING NAME OR DATES                          -> 400 Bad Request\n// {\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2031-03-31\"\n// }\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//            \"fieldErrors\": { \"name\": [\"must not be blank\"] } }\n// ---------------------------------------------------------------------------\n//\n// 08  A holidays ARRAY IS IGNORED                         -> 201 Created\n// {\n//   \"name\": \"2029-2030\",\n//   \"startDate\": \"2029-04-01\",\n//   \"endDate\": \"2030-03-31\",\n//   \"holidays\": [ { \"name\": \"Diwali\", \"type\": \"FESTIVAL\", \"date\": \"2029-11-08\" } ]\n// }\n//     OUT: holidayCount: 0. The field is not on the DTO, so it is dropped.\n//          Add holidays through their own endpoints instead.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/academic-years",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "academic-years"
-              ]
-            },
-            "description": "**POST** `/schools/current/academic-years` \u2014 creates an academic year.\n\n### The rule that outranks everything else\n\n**`name` can never be changed.** No rename endpoint exists and none may be added. Other\ncollections store the year's *name* as a string \u2014 `\"2026-2027\"` **is** the join key across\n`FeeInvoice`, `TransportTrip`, `FeedbackCampaign` and dozens more. A rename would not fail and\nwould not cascade; every row would still look valid and you would find out when a report came\nback empty.\n\nThat is also why the URL is keyed by name, not id.\n\n### Holidays are not accepted here\n\nA year is always created with an **empty calendar**. Holidays are their own resource with their\nown endpoints (#20\u2013#23). Sending a `holidays` array does nothing \u2014 the field is not on the\nrequest, so it is ignored.\n\n### Validated\n\n`name` unique per school \u00b7 `startDate` before `endDate` \u00b7 30\u2013800 days \u00b7 **no overlap with an\nexisting year**.\n\n### The eight test cases are in the request body as comments\n"
-          }
-        },
-        {
-          "name": "Update Academic Year Dates",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "const b = pm.response.json();",
-                  "pm.test('still a plausible year', () => pm.expect(b.durationDays).to.be.within(30, 800));",
-                  "pm.test('name is unchanged \u2014 it can never be edited', () =>",
-                  "  pm.expect(b.name).to.eql(pm.collectionVariables.get('academicYearName')));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-School-Subdomain",
-                "value": "{{createdSubdomain}}",
-                "description": "Stand-in for the session. Saved by Create School."
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"endDate\": \"2027-05-31\"\n}\n\n// ===========================================================================\n//  TEST CASES  \u2014  PATCH /schools/current/academic-years/{name}/dates\n//  The {name} in the URL is the year's name, e.g. 2026-2027.\n// ===========================================================================\n//\n//  NAME IS NOT ACCEPTED HERE \u2014 not optional, ABSENT from the request. A year's\n//  name is the string every other collection stores to point at it.\n//\n//  Send either date or both. An omitted date is left alone.\n//\n// ---------------------------------------------------------------------------\n// 01  EXTEND THE END DATE                                 -> 200 OK\n//     The body above. Extending is usually harmless.\n//     OUT: durationDays grows; holidayCount unchanged.\n// ---------------------------------------------------------------------------\n//\n// 02  MOVE THE START FORWARD                              -> 200 OK\n// {\n//   \"startDate\": \"2026-06-01\"\n// }\n//     Allowed while every existing holiday still falls inside the new range.\n// ---------------------------------------------------------------------------\n//\n// 03  MOVE BOTH AT ONCE                                   -> 200 OK\n// {\n//   \"startDate\": \"2026-04-01\",\n//   \"endDate\": \"2027-03-31\"\n// }\n// ---------------------------------------------------------------------------\n//\n// 04  SHRINK PAST AN EXISTING HOLIDAY                 -> 409 Conflict\n// {\n//   \"startDate\": \"2026-12-01\"\n// }\n//     OUT: { \"code\": \"HOLIDAYS_OUTSIDE_NEW_RANGE\",\n//            \"message\": \"1 holiday(s) would fall outside the new dates,\n//                        starting with 'Diwali' on 2026-11-08...\" }\n//\n//     SHRINKING IS THE DANGEROUS DIRECTION. Pulling a boundary inwards strands\n//     data outside the year that owns it.\n// ---------------------------------------------------------------------------\n//\n// 05  SHRINK OR GROW INTO ANOTHER YEAR                -> 409 Conflict\n// {\n//   \"endDate\": \"2027-06-30\"\n// }\n//     OUT: { \"code\": \"ACADEMIC_YEAR_OVERLAP\" }\n//     Only if a following year exists \u2014 run case 04 of Create first.\n// ---------------------------------------------------------------------------\n//\n// 06  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n// ---------------------------------------------------------------------------\n//\n// 07  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change the URL to .../1999-2000/dates\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n//  NOT CHECKED YET, AND IT SHOULD BE:\n//  Only HOLIDAYS are checked against the new range. Attendance records,\n//  invoices and trips reference a year by NAME STRING, in collections with no\n//  repository yet \u2014 so shrinking a year can still orphan those, silently.\n//  Wire that in when those repositories exist.\n// ---------------------------------------------------------------------------\n",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/dates",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schools",
-                "current",
-                "academic-years",
-                "{{academicYearName}}",
-                "dates"
-              ]
-            },
-            "description": "**PATCH** `/schools/current/academic-years/{name}/dates` \u2014 moves the boundaries.\n\nSend either date or both; an omitted one is left alone. **`name` is not accepted** \u2014 it is\nabsent from the request, not optional.\n\n### Extending is safe, shrinking is not\n\nPulling a boundary inwards can strand data outside the year that owns it. The service refuses a\nrange that would leave existing **holidays** outside.\n\n**Only holidays are checked.** Attendance, invoices and trips reference the year by name string,\nin collections with no repository yet \u2014 so a shrink can still orphan those silently.\n\n### The seven test cases are in the request body as comments\n"
-          }
+     "name": "Complete Provisioning",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts case 01/02 — a school that exists and is provisionable.",
+         "// Cases 04 and 05 expect 404 and 409, so these will fail for those on purpose.",
+         "",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const body = pm.response.json();",
+         "",
+         "pm.test('every number sequence type is present', () => {",
+         "  const total = body.numberSequencesCreated + body.numberSequencesAlreadyPresent;",
+         "  pm.expect(total).to.be.above(0);",
+         "});",
+         "",
+         "pm.test('SCHOOL_ADMIN exists', () => pm.expect(body.roleKeys).to.include('SCHOOL_ADMIN'));",
+         "pm.test('ready to activate', () => pm.expect(body.readyToActivate).to.be.true);",
+         "",
+         "// Idempotency: nothing should have been created the second time round.",
+         "// Set to true by hand before re-sending to assert case 02 strictly.",
+         "const expectNoWrites = false;",
+         "if (expectNoWrites) {",
+         "  pm.test('created nothing', () => {",
+         "    pm.expect(body.numberSequencesCreated).to.eql(0);",
+         "    pm.expect(body.rolesCreated).to.eql(0);",
+         "  });",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/complete-provisioning\n//\n//  This endpoint takes NO BODY. It is a POST because it performs an action,\n//  not because it sends data. The {id} comes from the URL.\n//\n//  So the cases below are about which {{schoolId}} you point it at, and what\n//  state that school is in. Set the variable, then Send.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here even if your Postman does not strip comments.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  FIRST CALL on a freshly created school              -> 200 OK\n//     Run \"Create School\" first — it saves {{schoolId}}.\n//     OUT: numberSequencesCreated: 47,  numberSequencesAlreadyPresent: 0\n//          rolesCreated: 3,             rolesAlreadyPresent: 0\n//          roleKeys: [\"GUARDIAN\",\"SCHOOL_ADMIN\",\"TEACHER\"]\n//          readyToActivate: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  SEND IT AGAIN — idempotency                         -> 200 OK\n//     Same {{schoolId}}, no changes needed. Nothing is written.\n//     OUT: numberSequencesCreated: 0,  numberSequencesAlreadyPresent: 47\n//          rolesCreated: 0,            rolesAlreadyPresent: 3\n//          readyToActivate: true\n//\n//     Still 200, not 201. A call that created nothing because everything was\n//     already there is a success — 201 Created would be a lie.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  PARTIAL REPAIR — the case this endpoint exists for  -> 200 OK\n//     Delete some rows in MongoDB first, then send again:\n//\n//       db.number_sequences.deleteMany({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//       db.roles.deleteOne({schoolId: \"<id>\", roleKey: \"TEACHER\"})\n//\n//     OUT: numberSequencesCreated: 1,  numberSequencesAlreadyPresent: 46\n//          rolesCreated: 1,            rolesAlreadyPresent: 2\n//\n//     It fills only the gaps. An existing role is skipped, never overwritten —\n//     so a school that edited SCHOOL_ADMIN's permissions keeps them.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  UNKNOWN SCHOOL ID                                   -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\",\n//            \"message\": \"No school found with id '...'.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SHUT-DOWN TENANT                                    -> 409 Conflict\n//     Set the school to an end-of-life status first:\n//\n//       db.schools.updateOne({_id: ObjectId(\"<id>\")}, {$set: {status: \"CLOSED\"}})\n//\n//     OUT: { \"code\": \"SCHOOL_NOT_PROVISIONABLE\",\n//            \"message\": \"A school at status CLOSED cannot be provisioned.\" }\n//\n//     Refused for OFFBOARDING, CLOSED, DELETION_PENDING and DELETED. Seeding\n//     one would quietly bring rows back to a school somebody deliberately shut\n//     down. Every other status is allowed, including ACTIVE — so a school found\n//     to be missing a role after go-live is fixed here, not by hand in the\n//     database.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
         }
-      ]
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/complete-provisioning",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools",
+        "{{schoolId}}",
+        "complete-provisioning"
+       ]
+      },
+      "description": "**POST** `/platform/schools/{id}/complete-provisioning` — finishes a tenant's setup.\n\nCreating a school leaves it with **no number sequences and no roles**. Neither absence is\nvisible at creation; both show up later, to whoever tries to use the school:\n\n| Missing | Fails when |\n|---|---|\n| `NumberSequence` rows | the first student admission asks for a number and finds no counter |\n| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |\n\nThis closes both gaps, and must run before the school can be activated.\n\n### Request\n\nNo body. `{{schoolId}}` in the path — saved automatically by **Create School**.\n\n### Idempotent\n\nReads what exists and inserts only the gaps. Safe to send repeatedly; safe to send when you\ndo not know what state the school is in. That is the point of it.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Fresh school | `200` | — 47 sequences, 3 roles created |\n| Sent again | `200` | — 0 created, everything already present |\n| Partial repair | `200` | — only the gaps created |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n| Offboarding / closed / deleted | `409` | `SCHOOL_NOT_PROVISIONABLE` |\n\n`readyToActivate` answers the operator's real question: every sequence type has a row and\n`SCHOOL_ADMIN` exists.\n\n### The five test cases are in the request body as comments\n"
+     },
+     "response": []
+    },
+    {
+     "name": "Activate School",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts case 01 — a provisioned school going live for the first time.",
+         "// Cases 02, 03, 04, 06 and 08 expect 409/404, so these fail for those on purpose.",
+         "",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const body = pm.response.json();",
+         "",
+         "pm.test('status is ACTIVE', () => pm.expect(body.status).to.eql('ACTIVE'));",
+         "pm.test('activatedAt was stamped', () => pm.expect(body.activatedAt).to.be.a('string').and.not.empty);",
+         "pm.test('firstActivation is true the first time', () => pm.expect(body.firstActivation).to.be.true);",
+         "",
+         "// The subscription gap is deliberate and reported. Fail loudly if it ever",
+         "// goes quiet, because a skipped check that says nothing becomes permanent.",
+         "pm.test('subscription state is reported', () => {",
+         "  pm.expect(body.subscriptionStatus).to.be.a('string').and.not.empty;",
+         "  pm.expect(body.subscriptionNote).to.be.a('string').and.not.empty;",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [],
+      "body": {
+       "mode": "raw",
+       "raw": "// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/activate\n//\n//  No body. The {id} comes from the URL, so the cases below are about which\n//  {{schoolId}} you point it at and what state that school is in.\n//\n//  Safe to send as-is: the controller has no @RequestBody, so Spring ignores\n//  whatever is here.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  HAPPY PATH — setup done first                       -> 200 OK\n//     Run  Create School  ->  Complete Provisioning  ->  this.\n//     OUT: status: \"ACTIVE\"\n//          activatedAt: <now>\n//          firstActivation: true\n//          subscriptionStatus: \"NONE\"\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  TOO EARLY — no roles yet                        -> 409 Conflict\n//     Create a school and send this WITHOUT Complete Provisioning.\n//     OUT: { \"code\": \"SETUP_INCOMPLETE\",\n//            \"message\": \"This school has no SCHOOL_ADMIN role. Run\n//                        complete-provisioning first.\" }\n//\n//     Refused because a school with no SCHOOL_ADMIN role has nothing to attach\n//     a first administrator to. Activating it produces a live school nobody\n//     can log into.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  TOO EARLY — a sequence is missing                -> 409 Conflict\n//     Complete provisioning, then remove one row:\n//\n//       db.number_sequences.deleteOne({schoolId: \"<id>\", sequenceType: \"FEE_INVOICE\"})\n//\n//     OUT: { \"code\": \"SETUP_INCOMPLETE\",\n//            \"message\": \"This school has 46 of 47 number sequences. Run\n//                        complete-provisioning first.\" }\n//\n//     The count is in the message on purpose — \"incomplete\" without a number\n//     leaves you guessing what is missing.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SEND IT AGAIN — already live                     -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_ACTIVATABLE\",\n//            \"message\": \"A school at status ACTIVE cannot be activated. Only\n//                        PROVISIONING and TRIAL can. A suspended school is\n//                        reactivated, not activated.\" }\n//\n//     NOT idempotent, unlike Complete Provisioning. This one refuses, because\n//     the caller believes they changed something and they did not. Bringing a\n//     suspended school back is endpoint #5 reactivate — a different operation.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  TRIAL SCHOOL                                     -> 200 OK\n//     Create with \"trial\": true, complete provisioning, then send this.\n//     TRIAL and PROVISIONING are both allowed starting states.\n//     OUT: status: \"ACTIVE\", firstActivation: true\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  CANCELLED SUBSCRIPTION                           -> 409 Conflict\n//     Give the school a dead subscription first:\n//\n//       db.school_subscriptions.insertOne({\n//         schoolId: \"<id>\", subscriptionNo: \"SUB/T/1\",\n//         planDefinitionDocsId: \"x\", planVersion: 1,\n//         status: \"CANCELLED\", billingCycle: \"YEARLY\",\n//         autoRenew: false, current: true, recordState: \"ACTIVE\" })\n//\n//     OUT: { \"code\": \"SUBSCRIPTION_NOT_ACTIVE\",\n//            \"message\": \"The school's subscription is CANCELLED. It cannot be\n//                        activated.\" }\n//\n//     Blocked for CANCELLED and EXPIRED only. ACTIVE, TRIAL, PAST_DUE and\n//     SUSPENDED all pass — a school behind on payment is not a school that\n//     should be shut out mid-term.\n//\n//     billingCycle must be MONTHLY | QUARTERLY | HALF_YEARLY | YEARLY | CUSTOM.\n//     An invalid value written straight to MongoDB comes back as a 500, because\n//     nothing validates enums on read.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 07  NO SUBSCRIPTION AT ALL                           -> 200 OK\n//     The ordinary case today. Activation is ALLOWED and says so:\n//\n//     OUT: subscriptionStatus: \"NONE\"\n//          subscriptionNote: \"No subscription exists for this school.\n//                             Activation was allowed anyway because nothing\n//                             creates subscriptions yet — this check must\n//                             become a hard requirement once it does.\"\n//\n//     The plan says activation requires an active subscription. Nothing creates\n//     one yet, so enforcing it strictly would make this endpoint unusable. The\n//     response announces the gap rather than hiding it.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 08  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/activate",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools",
+        "{{schoolId}}",
+        "activate"
+       ]
+      },
+      "description": "**POST** `/platform/schools/{id}/activate` — takes the school live.\n\n`PROVISIONING` or `TRIAL` → `ACTIVE`. Anything else is a `409`.\n\n### Request\n\nNo body. `{{schoolId}}` in the path — saved by **Create School**.\n\n### Order matters\n\n**Run Complete Provisioning first.** Activation refuses a school that has no `SCHOOL_ADMIN`\nrole or is missing any number sequence, because either one produces a live school that fails\non first use.\n\n### Not idempotent\n\nUnlike **Complete Provisioning**, sending this twice is a `409`. `activatedAt` is stamped once\nand never rewritten, so a school suspended and brought back keeps its original go-live date —\n`firstActivation` tells you which happened. Bringing a suspended school back is endpoint #5\n`reactivate`.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Provisioned school, or TRIAL | `200` | — `ACTIVE`, `activatedAt` set |\n| No SCHOOL_ADMIN role | `409` | `SETUP_INCOMPLETE` |\n| Missing number sequences | `409` | `SETUP_INCOMPLETE` (with the count) |\n| Already ACTIVE, or SUSPENDED | `409` | `SCHOOL_NOT_ACTIVATABLE` |\n| Subscription CANCELLED / EXPIRED | `409` | `SUBSCRIPTION_NOT_ACTIVE` |\n| No subscription at all | `200` | — allowed, and `subscriptionNote` says why |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The eight test cases are in the request body as comments\n"
+     }
+    },
+    {
+     "name": "Suspend School",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts case 01 — suspending a school that is currently ACTIVE.",
+         "",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const body = pm.response.json();",
+         "pm.test('status is SUSPENDED', () => pm.expect(body.status).to.eql('SUSPENDED'));",
+         "pm.test('suspendedAt was stamped', () => pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
+         "pm.test('the reason was stored', () => pm.expect(body.statusReason).to.not.be.empty);",
+         "",
+         "// activatedAt must survive a suspension — it is the go-live date, not a status flag.",
+         "pm.test('activatedAt is untouched', () => pm.expect(body.activatedAt).to.be.a('string').and.not.empty);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/suspend\n//  Swap the body above for any block below, then Send.\n//  {{schoolId}} must be an ACTIVE school — run Activate School first.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  SUSPEND AN ACTIVE SCHOOL                            -> 200 OK\n//     The body above.\n//     OUT: status: \"SUSPENDED\"\n//          suspendedAt: <now>\n//          statusReason: \"Non-payment. Third invoice unpaid past 60 days.\"\n//          activatedAt: <unchanged — still the original go-live date>\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  NO REASON                                       -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//            \"fieldErrors\": { \"reason\": [\"must not be blank\"] } }\n// {\n// }\n//\n//     The reason is REQUIRED, unlike on reactivate. Suspension stops a whole\n//     school, and one with no reason written down gets switched back on by the\n//     next person who is asked about it.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  BLANK REASON — same as missing                  -> 400 Bad Request\n// {\n//   \"reason\": \"   \"\n// }\n//     @NotBlank, not @NotNull. Whitespace does not count as an answer.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL NOT ACTIVE YET                            -> 409 Conflict\n//     Point {{schoolId}} at a school you have NOT activated.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status PROVISIONING cannot be suspended.\n//                        Only ACTIVE can.\" }\n//\n//     Suspending a school that was never usable makes no sense.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SUSPEND TWICE                                    -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUSPENDABLE\",\n//            \"message\": \"A school at status SUSPENDED cannot be suspended...\" }\n//\n//     Not idempotent on purpose: the caller believes they changed something.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOT DONE YET — worth knowing before you rely on this\n//  Suspension does NOT revoke live sessions or stop scheduled jobs. Neither\n//  service exists. A suspended school's users stay logged in until their\n//  tokens expire, so this is a flag rather than a lock.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/suspend",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools",
+        "{{schoolId}}",
+        "suspend"
+       ]
+      },
+      "description": "**POST** `/platform/schools/{id}/suspend` — blocks a school.\n\n`ACTIVE` → `SUSPENDED`. Anything else is a `409`.\n\n### Request\n\n```json\n{ \"reason\": \"Non-payment. Third invoice unpaid past 60 days.\" }\n```\n\n`reason` is **required**, max 500 chars. Stored on `School.statusReason` and kept after\nreactivation, so \"this was suspended in August for non-payment\" survives being brought back.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Active school, reason given | `200` | — `SUSPENDED`, `suspendedAt` + `statusReason` set |\n| Missing or blank reason | `400` | `VALIDATION_FAILED` |\n| Not ACTIVE | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Already suspended | `409` | `SCHOOL_NOT_SUSPENDABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### Known gap\n\nDoes **not** revoke live sessions or stop scheduled jobs — neither service exists yet. A\nsuspended school's users stay logged in until their tokens expire.\n\n### The six test cases are in the request body as comments\n"
+     }
+    },
+    {
+     "name": "Reactivate School",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Asserts cases 01 and 02 — bringing a SUSPENDED school back.",
+         "",
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const body = pm.response.json();",
+         "pm.test('status is ACTIVE', () => pm.expect(body.status).to.eql('ACTIVE'));",
+         "",
+         "// The three things reactivation must NOT reset. Each is history, not state.",
+         "pm.test('activatedAt is not re-stamped', () =>",
+         "  pm.expect(body.activatedAt).to.be.a('string').and.not.empty);",
+         "pm.test('suspendedAt is kept as the last suspension', () =>",
+         "  pm.expect(body.suspendedAt).to.be.a('string').and.not.empty);",
+         "pm.test('a reason is still on record', () =>",
+         "  pm.expect(body.statusReason).to.be.a('string').and.not.empty);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"note\": \"Outstanding invoices cleared on 31 August.\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/reactivate\n//  {{schoolId}} must be a SUSPENDED school.\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  REACTIVATE WITH A NOTE                              -> 200 OK\n//     The body above. The note REPLACES the stored statusReason.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: \"Outstanding invoices cleared on 31 August.\"\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 02  REACTIVATE WITH NO BODY AT ALL                      -> 200 OK\n//     Delete the whole body. The endpoint accepts an absent body.\n//     OUT: status: \"ACTIVE\"\n//          statusReason: <the suspension reason, KEPT>\n//          suspendedAt:  <KEPT — the most recent suspension>\n//          activatedAt:  <unchanged — the original go-live date>\n//\n//     The note is OPTIONAL here, unlike the reason on suspend. Letting a school\n//     back in usually means the problem was settled; forcing a sentence there\n//     produces \"resolved\" typed a hundred times, which looks like a record and\n//     is not.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 03  WHAT IS DELIBERATELY *NOT* RESET                    -> 200 OK\n//     Run case 02 and read the response carefully:\n//\n//       activatedAt  NOT re-stamped  — a school suspended in June and brought\n//                                      back in July keeps its April go-live date\n//       suspendedAt  NOT cleared     — it is the MOST RECENT suspension, and\n//                                      keeping it is how you see this school has\n//                                      been suspended before\n//       statusReason NOT cleared     — unless a note is sent\n//\n//     All three are history, not current state.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 04  SCHOOL IS ALREADY ACTIVE                         -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\",\n//            \"message\": \"A school at status ACTIVE cannot be reactivated. Only\n//                        SUSPENDED can. A school that has never gone live is\n//                        activated, not reactivated.\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 05  SCHOOL NEVER WENT LIVE                           -> 409 Conflict\n//     Point {{schoolId}} at a PROVISIONING school.\n//     OUT: { \"code\": \"SCHOOL_NOT_REACTIVATABLE\" }\n//\n//     Use  Activate School  for a school that has never been live. Reactivate is\n//     only for bringing a suspended one back.\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n// 06  UNKNOWN SCHOOL ID                              -> 404 Not Found\n//     Set {{schoolId}} to 6a90000000000000000000aa\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// ---------------------------------------------------------------------------\n//  NOTE — activate vs reactivate\n//  Reactivate does NOT re-run the setup and subscription checks that guard\n//  Activate School. A suspended school was already live once, so it passed\n//  them. Re-running them would mean a school suspended for non-payment could\n//  never be let back in as a goodwill gesture, which is what this is for.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/reactivate",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools",
+        "{{schoolId}}",
+        "reactivate"
+       ]
+      },
+      "description": "**POST** `/platform/schools/{id}/reactivate` — brings a suspended school back.\n\n`SUSPENDED` → `ACTIVE`. Anything else is a `409`.\n\n### Request — optional\n\n```json\n{ \"note\": \"Outstanding invoices cleared on 31 August.\" }\n```\n\nThe body may be **omitted entirely**. When given, `note` replaces `School.statusReason`; when\nomitted, the suspension reason stays.\n\n### What it deliberately does not reset\n\n| Field | Why |\n|---|---|\n| `activatedAt` | the original go-live date, not a status flag |\n| `suspendedAt` | the *most recent* suspension — how you see it has happened before |\n| `statusReason` | kept unless a note replaces it |\n\n### Not the same as activate\n\nReactivate skips the setup and subscription checks. A suspended school was already live once,\nso it passed them — re-running them would mean a school suspended for non-payment could never\nbe let back in as a goodwill gesture.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Suspended school | `200` | — `ACTIVE` |\n| Already active | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Never went live | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The six test cases are in the request body as comments\n"
+     }
     }
-  ],
-  "variable": [
+   ],
+   "description": "Tenant provisioning and lifecycle, at /platform/schools. Mirrors SchoolPlatformController. The caller is outside the tenant — provisioning is what creates the school these requests are about."
+  },
+  {
+   "name": "Core / School — profile",
+   "description": "The school editing itself, at /schools/current. Mirrors SchoolProfileController.\n\n**Every request needs the X-School-Subdomain header** — a stand-in for the session, saved by Create School. It is not safe: any caller can set it to any school's subdomain.",
+   "item": [
     {
-      "key": "baseUrl",
-      "value": "http://localhost:3456",
-      "description": "server.port, set in application.properties."
+     "name": "Update Profile",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const b = pm.response.json();",
+         "pm.test('name applied and trimmed', () => pm.expect(b.schoolName).to.eql(b.schoolName.trim()));",
+         "pm.test('subdomain is never editable here', () => pm.expect(b.subdomain).to.eql(pm.collectionVariables.get('createdSubdomain')));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"schoolName\": \"Orbit Astra International School\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /schools/current/profile\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  HOW PATCH BEHAVES HERE — a record cannot tell \"omitted\" from \"null\", so:\n//     field omitted / null  -> leave it exactly as it is\n//     field is \"\"           -> clear it (null in the database)\n//     field has a value     -> replace it\n//\n// ---------------------------------------------------------------------------\n// 01  RENAME ONLY — phone and email untouched            -> 200 OK\n//     The body above. Whitespace is trimmed.\n// ---------------------------------------------------------------------------\n//\n// 02  CLEAR THE PHONE with \"\"                            -> 200 OK\n// {\n//   \"phoneNumber\": \"\"\n// }\n//     OUT: phoneNumber: null, emailAddress unchanged.\n// ---------------------------------------------------------------------------\n//\n// 03  SET PHONE AND EMAIL TOGETHER                       -> 200 OK\n// {\n//   \"phoneNumber\": \"+919876543210\",\n//   \"emailAddress\": \"Office@Orbit-School.EDU\"\n// }\n//     OUT: emailAddress is lowercased on the way in.\n// ---------------------------------------------------------------------------\n//\n// 04  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that asks for nothing is a client bug. 200 would hide it.\n// ---------------------------------------------------------------------------\n//\n// 05  TRY TO CLEAR THE NAME                          -> 400 Bad Request\n// {\n//   \"schoolName\": \"   \"\n// }\n//     OUT: { \"code\": \"SCHOOL_NAME_REQUIRED\" }\n//     schoolName is @NotBlank on the model, so \"\" is a 400, not a deletion.\n// ---------------------------------------------------------------------------\n//\n// 06  BAD EMAIL                                      -> 400 Bad Request\n// {\n//   \"emailAddress\": \"not-an-email\"\n// }\n//     OUT: { \"code\": \"EMAIL_INVALID\" }\n// ---------------------------------------------------------------------------\n//\n// 07  NO TENANT HEADER — delete X-School-Subdomain    -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n//\n// 08  UNKNOWN TENANT — set the header to \"nope\"         -> 404 Not Found\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/profile",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "profile"
+       ]
+      },
+      "description": "**PATCH** `/schools/current/profile` — the school's own name and contact details.\n\nSchool surface: the tenant comes from `X-School-Subdomain`, never from the URL.\n\n### PATCH semantics\n\n| Sent | Effect |\n|---|---|\n| omitted / `null` | left alone |\n| `\"\"` | cleared |\n| a value | replaced |\n\n`schoolName` cannot be cleared — `\"\"` there is a `400`.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| One or more fields | `200` | — |\n| Empty body | `400` | `NOTHING_TO_UPDATE` |\n| Blank `schoolName` | `400` | `SCHOOL_NAME_REQUIRED` |\n| Bad email | `400` | `EMAIL_INVALID` |\n| No tenant header | `400` | `TENANT_NOT_RESOLVED` |\n| Unknown tenant | `404` | `SCHOOL_NOT_FOUND` |\n\n### The eight test cases are in the request body as comments\n"
+     }
     },
     {
-      "key": "schoolId",
-      "value": "",
-      "description": "Saved by a successful create."
+     "name": "Replace Address",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const b = pm.response.json();",
+         "pm.test('address applied', () => pm.expect(b.city).to.not.be.undefined);",
+         "pm.test('countryCode is never changed here', () => pm.expect(b.countryCode).to.eql('IN'));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"addressLine\": \"12, MG Road\",\n  \"city\": \"Pune\",\n  \"stateOrProvince\": \"Maharashtra\",\n  \"postalCode\": \"411001\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PUT /schools/current/address\n// ===========================================================================\n//\n//  A PUT, NOT A PATCH. An omitted field is CLEARED, not left alone. That is\n//  what replace means, and it is the opposite of Update Profile above.\n//\n//  An address is all-or-nothing: patching city without stateOrProvince gives\n//  you a real-looking address for a place that does not exist.\n//\n// ---------------------------------------------------------------------------\n// 01  FULL ADDRESS                                        -> 200 OK\n//     The body above.\n// ---------------------------------------------------------------------------\n//\n// 02  PARTIAL PUT — WATCH WHAT HAPPENS                    -> 200 OK\n// {\n//   \"city\": \"Mumbai\"\n// }\n//     OUT: city: \"Mumbai\"\n//          addressLine: null      <- CLEARED\n//          stateOrProvince: null  <- CLEARED\n//          postalCode: null       <- CLEARED\n//          countryCode: unchanged\n//\n//     Not a bug. Send the whole address every time.\n// ---------------------------------------------------------------------------\n//\n// 03  EMPTY BODY — removes the address entirely           -> 200 OK\n// {\n// }\n//     A legitimate thing to want, and the same rule as case 02.\n// ---------------------------------------------------------------------------\n//\n// 04  countryCode IS NOT ACCEPTED HERE\n// {\n//   \"city\": \"Dubai\",\n//   \"countryCode\": \"AE\"\n// }\n//     OUT: 200, and countryCode is UNCHANGED. The field is not on the DTO,\n//          so it is ignored rather than honoured.\n//\n//     Changing a school's country changes which tax rules and identity\n//     documents apply — GovernmentIdentityType holds AADHAAR and APAAR;\n//     FeeHead.taxRatePercent means GST. Schools do not move countries. A\n//     mistyped one is a platform correction while still PROVISIONING.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/address",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "address"
+       ]
+      },
+      "description": "**PUT** `/schools/current/address` — replaces the whole postal address.\n\n**An omitted field is cleared.** `PUT {\"city\":\"Mumbai\"}` wipes `addressLine`,\n`stateOrProvince` and `postalCode`. That is correct replace semantics and the opposite of\n`PATCH /profile` — worth knowing before writing a client.\n\n`countryCode` is **not** on this request and cannot be changed here.\n\n### The four test cases are in the request body as comments\n"
+     }
     },
     {
-      "key": "createdSubdomain",
-      "value": "",
-      "description": "Saved by a create; used by case 05."
+     "name": "Update Localization",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const b = pm.response.json();",
+         "pm.test('locale applied', () => pm.expect(b.defaultLocale).to.not.be.empty);",
+         "pm.test('a time zone is always set', () => pm.expect(b.defaultTimeZone).to.not.be.empty);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"defaultLocale\": \"en-IN\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /schools/current/localization\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  LOCALE ONLY                                         -> 200 OK\n//     The body above. Safe at any time, including mid-year.\n// ---------------------------------------------------------------------------\n//\n// 02  TIME ZONE WITHOUT CONFIRMATION                  -> 409 Conflict\n// {\n//   \"defaultTimeZone\": \"Asia/Dubai\"\n// }\n//     OUT: { \"code\": \"TIME_ZONE_CHANGE_NOT_CONFIRMED\" }\n// ---------------------------------------------------------------------------\n//\n// 03  TIME ZONE WITH CONFIRMATION, no academic year       -> 200 OK\n// {\n//   \"defaultTimeZone\": \"Asia/Dubai\",\n//   \"confirmTimeZoneChange\": true\n// }\n//     Works only while the school has NO year covering today.\n// ---------------------------------------------------------------------------\n//\n// 04  TIME ZONE WHILE A YEAR IS RUNNING               -> 409 Conflict\n//     Create an academic year covering today first (see the Academic Year\n//     folder), then send case 03 again.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_IN_PROGRESS\" }\n//\n//     THIS IS THE GUARD THAT MATTERS. Every Instant is stored in UTC, so\n//     changing the zone rewrites nothing — it silently reinterprets which\n//     calendar DATE every existing attendance record, holiday and trip falls\n//     on. A school moving Asia/Kolkata to Asia/Dubai mid-year has a register\n//     that shifts under it, with no error anywhere.\n//\n//     The confirmation flag alone would be theatre; people tick boxes. This is\n//     what actually protects the data.\n// ---------------------------------------------------------------------------\n//\n// 05  UNKNOWN ZONE                                    -> 409 Conflict\n// {\n//   \"defaultTimeZone\": \"Asia/Pune\",\n//   \"confirmTimeZoneChange\": true\n// }\n//     OUT: { \"code\": \"TIME_ZONE_INVALID\" }\n//     Checked against the JVM's IANA set. No regex can do this, and the list\n//     changes as zones are added and renamed.\n// ---------------------------------------------------------------------------\n//\n// 06  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/localization",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "localization"
+       ]
+      },
+      "description": "**PATCH** `/schools/current/localization` — language and time zone.\n\n### `defaultTimeZone` has two guards\n\n1. `confirmTimeZoneChange: true` must be sent, or `409`.\n2. If an academic year covers today, the change is **refused outright**.\n\nThe flag alone would be theatre. The year check is what protects the attendance register:\nevery `Instant` is UTC, so changing the zone rewrites nothing and silently reinterprets which\ncalendar date every existing record falls on.\n\nThe locale stays editable at all times — only the zone is dangerous.\n\n### The six test cases are in the request body as comments\n"
+     }
     },
     {
-      "key": "academicYearName",
-      "value": "",
-      "description": "Saved by Create Academic Year; used by the dates URL."
+     "name": "Replace Logo",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "",
+         "const b = pm.response.json();",
+         "pm.test('logo is https when set', () => {",
+         "  if (b.logoUrl) pm.expect(b.logoUrl).to.match(/^https:\\/\\//);",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"logoUrl\": \"https://cdn.example.com/schools/orbit/logo.png\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PUT /schools/current/logo\n// ===========================================================================\n//\n// ---------------------------------------------------------------------------\n// 01  ALLOW-LISTED HOST                                   -> 200 OK\n//     The body above.\n//     Allowed: cdn.example.com, res.cloudinary.com, s3.amazonaws.com,\n//              storage.googleapis.com\n// ---------------------------------------------------------------------------\n//\n// 02  REMOVE THE LOGO                                     -> 200 OK\n// {\n//   \"logoUrl\": \"\"\n// }\n//     OUT: logoUrl: null. This is why there is no separate DELETE.\n// ---------------------------------------------------------------------------\n//\n// 03  ANY OTHER HOST                                 -> 400 Bad Request\n// {\n//   \"logoUrl\": \"https://evil.example.net/logo.png\"\n// }\n//     OUT: { \"code\": \"LOGO_HOST_NOT_ALLOWED\" }\n//\n//     A school-supplied URL is loaded on pages PARENTS open. An arbitrary host\n//     is somebody else's server deciding what parents see, and a tracker there\n//     is invisible to us.\n// ---------------------------------------------------------------------------\n//\n// 04  http INSTEAD OF https                          -> 400 Bad Request\n// {\n//   \"logoUrl\": \"http://cdn.example.com/logo.png\"\n// }\n//     OUT: { \"code\": \"LOGO_URL_NOT_HTTPS\" }\n// ---------------------------------------------------------------------------\n//\n//  NOTE — a file upload would be better than a URL, and the plan says so. A\n//  school-supplied URL can rot, or be changed to something unwanted after it\n//  was approved. There is no storage service yet.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/logo",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "logo"
+       ]
+      },
+      "description": "**PUT** `/schools/current/logo` — replaces the logo, or removes it.\n\n`https` only, and the host must be on the service's allow-list. `logoUrl: \"\"` removes it, which\nis why there is no separate `DELETE`.\n\nA file upload would be better — a school-supplied URL can rot or be changed after approval —\nbut there is no storage service yet.\n\n### The four test cases are in the request body as comments\n"
+     }
     }
-  ]
+   ]
+  },
+  {
+   "name": "Core / Academic Year",
+   "description": "The school's academic years, at /schools/current/academic-years. Mirrors AcademicYearController.\n\nAddressed by NAME, not id — that is how the whole system refers to a year. There is no rename and no DELETE.",
+   "item": [
+    {
+     "name": "Create Academic Year",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', () => pm.response.to.have.status(201));",
+         "const b = pm.response.json();",
+         "pm.test('name came back', () => pm.expect(b.name).to.not.be.empty);",
+         "pm.test('duration looks like a year', () => pm.expect(b.durationDays).to.be.within(30, 800));",
+         "pm.test('a new year starts with an empty calendar', () => pm.expect(b.holidayCount).to.eql(0));",
+         "",
+         "// current is DERIVED from the dates, never stored — AcademicYear has no such field.",
+         "pm.test('current is present and boolean', () => pm.expect(b.current).to.be.a('boolean'));",
+         "",
+         "pm.collectionVariables.set('academicYearName', b.name);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"2026-2027\",\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2027-03-31\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  THE NAME CAN NEVER BE CHANGED. There is no rename endpoint and there must\n//  never be one. Other collections do not reference a year by id — they store\n//  this string in their own academicYear field. FeeInvoice, TransportTrip,\n//  FeedbackCampaign, FacilityInspection and dozens more. \"2026-2027\" IS the\n//  join key, so a rename would orphan all of them silently and every row would\n//  still look valid.\n//\n//  HOLIDAYS ARE NOT ACCEPTED HERE. A year is always created with an empty\n//  calendar; the calendar has its own endpoints (#20 to #23). Sending a\n//  holidays array does nothing — the field is not on the request, so it is\n//  ignored rather than honoured.\n//\n// ---------------------------------------------------------------------------\n// 01  CREATE A YEAR                                       -> 201 Created\n//     The body above.\n//     OUT: durationDays: 365, current: true, holidayCount: 0\n//     Header: Location: /schools/current/academic-years/2026-2027\n// ---------------------------------------------------------------------------\n//\n// 02  DUPLICATE NAME                                  -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NAME_TAKEN\" }\n// ---------------------------------------------------------------------------\n//\n// 03  OVERLAPPING DATES                               -> 409 Conflict\n// {\n//   \"name\": \"2027-2028\",\n//   \"startDate\": \"2027-03-01\",\n//   \"endDate\": \"2028-02-28\"\n// }\n//     OUT: { \"code\": \"ACADEMIC_YEAR_OVERLAP\",\n//            \"message\": \"These dates overlap '2026-2027' (...)\" }\n//\n//     Two years covering one day would give every \"which year is this?\" lookup\n//     two answers — and AcademicYear deliberately has NO current flag, so the\n//     dates are the only thing that can answer it.\n// ---------------------------------------------------------------------------\n//\n// 04  ADJACENT, NOT OVERLAPPING                           -> 201 Created\n// {\n//   \"name\": \"2027-2028\",\n//   \"startDate\": \"2027-04-01\",\n//   \"endDate\": \"2028-03-31\"\n// }\n//     Ends 03-31, next starts 04-01. Allowed — the check is \"one ends before\n//     the other starts\", not four date comparisons.\n// ---------------------------------------------------------------------------\n//\n// 05  BACKWARDS DATES                                -> 400 Bad Request\n// {\n//   \"name\": \"bad-1\",\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2029-04-01\"\n// }\n//     OUT: { \"code\": \"INVALID_DATE_RANGE\" }\n// ---------------------------------------------------------------------------\n//\n// 06  A THREE-DAY \"YEAR\"                             -> 400 Bad Request\n// {\n//   \"name\": \"bad-2\",\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2030-04-03\"\n// }\n//     OUT: { \"code\": \"IMPLAUSIBLE_DATE_RANGE\" }\n//     Accepted range is 30 to 800 days. Outside that it is a typo, not a\n//     calendar.\n// ---------------------------------------------------------------------------\n//\n// 07  MISSING NAME OR DATES                          -> 400 Bad Request\n// {\n//   \"startDate\": \"2030-04-01\",\n//   \"endDate\": \"2031-03-31\"\n// }\n//     OUT: { \"code\": \"VALIDATION_FAILED\",\n//            \"fieldErrors\": { \"name\": [\"must not be blank\"] } }\n// ---------------------------------------------------------------------------\n//\n// 08  A holidays ARRAY IS IGNORED                         -> 201 Created\n// {\n//   \"name\": \"2029-2030\",\n//   \"startDate\": \"2029-04-01\",\n//   \"endDate\": \"2030-03-31\",\n//   \"holidays\": [ { \"name\": \"Diwali\", \"type\": \"FESTIVAL\", \"date\": \"2029-11-08\" } ]\n// }\n//     OUT: holidayCount: 0. The field is not on the DTO, so it is dropped.\n//          Add holidays through their own endpoints instead.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years` — creates an academic year.\n\n### The rule that outranks everything else\n\n**`name` can never be changed.** No rename endpoint exists and none may be added. Other\ncollections store the year's *name* as a string — `\"2026-2027\"` **is** the join key across\n`FeeInvoice`, `TransportTrip`, `FeedbackCampaign` and dozens more. A rename would not fail and\nwould not cascade; every row would still look valid and you would find out when a report came\nback empty.\n\nThat is also why the URL is keyed by name, not id.\n\n### Holidays are not accepted here\n\nA year is always created with an **empty calendar**. Holidays are their own resource with their\nown endpoints (#20–#23). Sending a `holidays` array does nothing — the field is not on the\nrequest, so it is ignored.\n\n### Validated\n\n`name` unique per school · `startDate` before `endDate` · 30–800 days · **no overlap with an\nexisting year**.\n\n### The eight test cases are in the request body as comments\n"
+     }
+    },
+    {
+     "name": "Update Academic Year Dates",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('still a plausible year', () => pm.expect(b.durationDays).to.be.within(30, 800));",
+         "pm.test('name is unchanged — it can never be edited', () =>",
+         "  pm.expect(b.name).to.eql(pm.collectionVariables.get('academicYearName')));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"endDate\": \"2027-05-31\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /schools/current/academic-years/{name}/dates\n//  The {name} in the URL is the year's name, e.g. 2026-2027.\n// ===========================================================================\n//\n//  NAME IS NOT ACCEPTED HERE — not optional, ABSENT from the request. A year's\n//  name is the string every other collection stores to point at it.\n//\n//  Send either date or both. An omitted date is left alone.\n//\n// ---------------------------------------------------------------------------\n// 01  EXTEND THE END DATE                                 -> 200 OK\n//     The body above. Extending is usually harmless.\n//     OUT: durationDays grows; holidayCount unchanged.\n// ---------------------------------------------------------------------------\n//\n// 02  MOVE THE START FORWARD                              -> 200 OK\n// {\n//   \"startDate\": \"2026-06-01\"\n// }\n//     Allowed while every existing holiday still falls inside the new range.\n// ---------------------------------------------------------------------------\n//\n// 03  MOVE BOTH AT ONCE                                   -> 200 OK\n// {\n//   \"startDate\": \"2026-04-01\",\n//   \"endDate\": \"2027-03-31\"\n// }\n// ---------------------------------------------------------------------------\n//\n// 04  SHRINK PAST AN EXISTING HOLIDAY                 -> 409 Conflict\n// {\n//   \"startDate\": \"2026-12-01\"\n// }\n//     OUT: { \"code\": \"HOLIDAYS_OUTSIDE_NEW_RANGE\",\n//            \"message\": \"1 holiday(s) would fall outside the new dates,\n//                        starting with 'Diwali' on 2026-11-08...\" }\n//\n//     SHRINKING IS THE DANGEROUS DIRECTION. Pulling a boundary inwards strands\n//     data outside the year that owns it.\n// ---------------------------------------------------------------------------\n//\n// 05  SHRINK OR GROW INTO ANOTHER YEAR                -> 409 Conflict\n// {\n//   \"endDate\": \"2027-06-30\"\n// }\n//     OUT: { \"code\": \"ACADEMIC_YEAR_OVERLAP\" }\n//     Only if a following year exists — run case 04 of Create first.\n// ---------------------------------------------------------------------------\n//\n// 06  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n// ---------------------------------------------------------------------------\n//\n// 07  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change the URL to .../1999-2000/dates\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n//  NOT CHECKED YET, AND IT SHOULD BE:\n//  Only HOLIDAYS are checked against the new range. Attendance records,\n//  invoices and trips reference a year by NAME STRING, in collections with no\n//  repository yet — so shrinking a year can still orphan those, silently.\n//  Wire that in when those repositories exist.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/dates",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "dates"
+       ]
+      },
+      "description": "**PATCH** `/schools/current/academic-years/{name}/dates` — moves the boundaries.\n\nSend either date or both; an omitted one is left alone. **`name` is not accepted** — it is\nabsent from the request, not optional.\n\n### Extending is safe, shrinking is not\n\nPulling a boundary inwards can strand data outside the year that owns it. The service refuses a\nrange that would leave existing **holidays** outside.\n\n**Only holidays are checked.** Attendance, invoices and trips reference the year by name string,\nin collections with no repository yet — so a shrink can still orphan those silently.\n\n### The seven test cases are in the request body as comments\n"
+     }
+    },
+    {
+     "name": "Replace Holiday Calendar",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays"
+       ]
+      },
+      "description": "**PUT** `/schools/current/academic-years/{name}/holidays` — replaces the whole calendar.\n\nThe bulk-import case: a school publishes next year's calendar in one go, from a spreadsheet.\nSending the complete list makes a half-imported calendar impossible, which a sequence of\nindividual adds cannot promise.\n\n### Flat in, grouped out\n\nYou send **one row per reason**. The service groups rows by date, so two rows sharing a date\nbecome one closed day with two reasons — a Sunday that is also Diwali. Sending the same\n**type** twice for one date is refused; that is a duplicated row, not a second reason.\n\n### Everything already there is discarded\n\nGenerated weekly offs included. That is what replace means, and it is why #21 exists.\n\n### The seven test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "[\n  { \"name\": \"Weekly Off\",       \"type\": \"WEEKLY_OFF\",     \"date\": \"2026-11-08\" },\n  { \"name\": \"Diwali\",           \"type\": \"FESTIVAL\",       \"date\": \"2026-11-08\",\n    \"description\": \"Festival of lights\" },\n  { \"name\": \"Independence Day\", \"type\": \"PUBLIC_HOLIDAY\", \"date\": \"2026-08-15\" }\n]\n\n// ===========================================================================\n//  TEST CASES  —  PUT /schools/current/academic-years/{name}/holidays\n//  Needs X-School-Subdomain. Run Create School and Create Academic Year first.\n// ===========================================================================\n//\n//  THE REQUEST IS FLAT, STORAGE IS GROUPED. You send one row per REASON, the\n//  way a spreadsheet holds it. The service groups them by date, so the body\n//  above — three rows, two of them 2026-11-08 — becomes TWO closed days:\n//\n//    2026-11-08  ->  [ Weekly Off (WEEKLY_OFF), Diwali (FESTIVAL) ]\n//    2026-08-15  ->  [ Independence Day (PUBLIC_HOLIDAY) ]\n//\n//  So two rows sharing a date is NOT a duplicate. That is a Sunday that is\n//  also Holi, which is the whole reason a day holds an array of reasons.\n//  What IS refused is the same TYPE twice on one date — see case 03.\n//\n//  THIS REPLACES EVERYTHING, generated weekly offs included. It is the bulk\n//  import: a school publishes next year's calendar in one go. Use \"Add\n//  Holiday\" (#21) to add a single entry in-year.\n//\n//  TWO COUNTS COME BACK, and they are different numbers:\n//    closedDayCount  how many days the school is shut     (2 above)\n//    eventCount      how many reasons are recorded        (3 above)\n//  countsByType counts REASONS, so a festival on a Sunday still counts as a\n//  festival.\n//\n// ---------------------------------------------------------------------------\n// 01  REPLACE THE CALENDAR                                 -> 200 OK\n//     The body above.\n//     OUT: closedDayCount: 2, eventCount: 3\n//          countsByType: { WEEKLY_OFF: 1, PUBLIC_HOLIDAY: 1, FESTIVAL: 1 }\n//          changeSummary: \"Replaced the calendar: 0 closed days out, 2 in\n//                          (3 reasons).\"\n//     Days come back SORTED BY DATE with a derived dayOfWeek on each.\n// ---------------------------------------------------------------------------\n//\n// 02  CLEAR THE WHOLE CALENDAR                             -> 200 OK\n// []\n//     An empty array is the honest way to empty it. There is no DELETE for\n//     the whole calendar.\n// ---------------------------------------------------------------------------\n//\n// 03  SAME TYPE TWICE ON ONE DATE                     -> 400 Bad Request\n// [\n//   { \"name\": \"Weekly Off\",       \"type\": \"WEEKLY_OFF\", \"date\": \"2026-11-08\" },\n//   { \"name\": \"Weekly Off again\", \"type\": \"WEEKLY_OFF\", \"date\": \"2026-11-08\" }\n// ]\n//     OUT: { \"code\": \"DUPLICATE_HOLIDAY_ENTRY\",\n//            \"message\": \"Two WEEKLY_OFF entries sent for 2026-11-08. A day can\n//                        hold several reasons, but not the same one twice.\" }\n//\n//     A day genuinely closed for two reasons has two DIFFERENT types. The same\n//     one twice is a duplicated spreadsheet row.\n// ---------------------------------------------------------------------------\n//\n// 04  A DATE OUTSIDE THE YEAR                        -> 400 Bad Request\n// [\n//   { \"name\": \"New Year\", \"type\": \"PUBLIC_HOLIDAY\", \"date\": \"2028-01-01\" }\n// ]\n//     OUT: { \"code\": \"HOLIDAY_OUTSIDE_YEAR\" }\n//     A holiday belongs to the year that contains it; one outside would never\n//     be found by anything looking at that year.\n// ---------------------------------------------------------------------------\n//\n// 05  AN UNKNOWN TYPE                                 -> 400 Bad Request\n// [\n//   { \"name\": \"Sports Day\", \"type\": \"NATIONAL_HOLIDAY\", \"date\": \"2026-12-01\" }\n// ]\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }\n//     There is no NATIONAL_HOLIDAY. Accepted: WEEKLY_OFF, PUBLIC_HOLIDAY,\n//     FESTIVAL, RELIGIOUS, SCHOOL_EVENT, VACATION, EXAM_BREAK, OTHER.\n// ---------------------------------------------------------------------------\n//\n// 06  A MISSING NAME OR TYPE                         -> 400 Bad Request\n// [\n//   { \"type\": \"FESTIVAL\", \"date\": \"2026-12-01\" }\n// ]\n//     OUT: fieldErrors names the row's field. Every reason needs a name.\n// ---------------------------------------------------------------------------\n//\n// 07  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change {{academicYearName}} in the URL to 1999-2000.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('two rows on one date became one closed day', () =>",
+         "  pm.expect(b.closedDayCount).to.eql(2));",
+         "pm.test('all three reasons were kept', () => pm.expect(b.eventCount).to.eql(3));",
+         "pm.test('the shared date holds both reasons', () => {",
+         "  const day = b.holidays.find(h => h.date === '2026-11-08');",
+         "  pm.expect(day.events).to.have.lengthOf(2);",
+         "  pm.expect(day.dayOfWeek).to.eql('SUNDAY');",
+         "});",
+         "pm.test('days come back sorted by date', () => {",
+         "  const dates = b.holidays.map(h => h.date);",
+         "  pm.expect(dates).to.eql([...dates].sort());",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Add Holiday",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/holidays` — adds one reason to one day.\n\nThe in-year case: a bandh, an unexpected closure, a festival somebody missed.\n\n### An already-closed date is not a conflict\n\nThe reason is added **alongside** what is already there, and the day is created if this is its\nfirst reason. The caller never has to know which. A second `WEEKLY_OFF` on a Sunday that already\nhas one is refused — that is a repeat, not a second reason.\n\n### The seven test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Diwali\",\n  \"description\": \"School closed for the festival of lights\",\n  \"type\": \"FESTIVAL\",\n  \"date\": \"2026-11-08\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years/{name}/holidays\n// ===========================================================================\n//\n//  ADDS ONE REASON TO ONE DAY. The in-year case: a bandh, an unexpected\n//  closure, a festival somebody missed.\n//\n//  A DATE THAT IS ALREADY CLOSED IS NOT A CONFLICT. The reason joins what is\n//  already on that day. You do NOT have to know whether the day exists, fetch\n//  it, append and send it back — send one reason and the service merges it.\n//  That is how a Sunday becomes a weekly off that is ALSO Holi.\n//\n//  What is refused is the same TYPE twice on one day (case 03): a second\n//  WEEKLY_OFF on a Sunday that already has one is a repeat, never a reason.\n//\n// ---------------------------------------------------------------------------\n// 01  ADD TO AN EMPTY DATE                                 -> 200 OK\n//     The body above, on a date with nothing on it.\n//     OUT: changeSummary: \"Added 'Diwali' on 2026-11-08.\"\n//          closedDayCount and eventCount both go up by 1.\n// ---------------------------------------------------------------------------\n//\n// 02  ADD A SECOND REASON TO THE SAME DATE                 -> 200 OK\n// {\n//   \"name\": \"Weekly Off\",\n//   \"type\": \"WEEKLY_OFF\",\n//   \"date\": \"2026-11-08\"\n// }\n//     OUT: changeSummary: \"Added 'Weekly Off' on 2026-11-08 alongside 1\n//                          existing.\"\n//          closedDayCount UNCHANGED — still one closed day.\n//          eventCount goes up by 1 — now two reasons.\n//     THIS IS THE CASE THE WHOLE STRUCTURE EXISTS FOR.\n// ---------------------------------------------------------------------------\n//\n// 03  THE SAME TYPE TWICE ON ONE DAY                   -> 409 Conflict\n//     Send case 02 again.\n//     OUT: { \"code\": \"HOLIDAY_ENTRY_EXISTS\",\n//            \"message\": \"There is already a WEEKLY_OFF entry on 2026-11-08.\n//                        Edit or remove it first.\" }\n// ---------------------------------------------------------------------------\n//\n// 04  A DATE OUTSIDE THE YEAR                        -> 400 Bad Request\n// {\n//   \"name\": \"New Year\",\n//   \"type\": \"PUBLIC_HOLIDAY\",\n//   \"date\": \"2028-01-01\"\n// }\n//     OUT: { \"code\": \"HOLIDAY_OUTSIDE_YEAR\" }\n// ---------------------------------------------------------------------------\n//\n// 05  NO NAME                                        -> 400 Bad Request\n// {\n//   \"type\": \"FESTIVAL\",\n//   \"date\": \"2026-12-01\"\n// }\n//     OUT: fieldErrors: { \"name\": \"must not be blank\" }\n// ---------------------------------------------------------------------------\n//\n// 06  NO DATE                                        -> 400 Bad Request\n// {\n//   \"name\": \"Sports Day\",\n//   \"type\": \"SCHOOL_EVENT\"\n// }\n//     OUT: fieldErrors: { \"date\": \"must not be null\" }\n//     The date is on the REQUEST even though it is not on the stored reason —\n//     it is how the service knows which day to merge into.\n// ---------------------------------------------------------------------------\n//\n// 07  UNKNOWN YEAR NAME                                -> 404 Not Found\n//     Change {{academicYearName}} to 1999-2000.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('the date is present', () =>",
+         "  pm.expect(b.holidays.some(h => h.date === '2026-11-08')).to.be.true);",
+         "pm.test('every closed day has at least one reason', () =>",
+         "  b.holidays.forEach(h => pm.expect(h.events.length).to.be.above(0)));",
+         "pm.test('there are never fewer reasons than closed days', () =>",
+         "  pm.expect(b.eventCount).to.be.at.least(b.closedDayCount));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Update Holiday",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays/2026-11-08?type=FESTIVAL",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays",
+        "2026-11-08"
+       ],
+       "query": [
+        {
+         "key": "type",
+         "value": "FESTIVAL",
+         "description": "Which reason to edit. Omit when the day has only one; required when it has more."
+        }
+       ]
+      },
+      "description": "**PATCH** `/schools/current/academic-years/{name}/holidays/{date}?type=` — edits one reason.\n\n### `?type=` picks which reason\n\nA day can hold several. Omit the parameter when the day has one; it is **required** when the day\nhas more, and the error lists what is on that day. Guessing on the caller's behalf would edit the\nwrong entry half the time, silently.\n\n### The date is the key and cannot be changed\n\nMoving a holiday is a DELETE then a POST, which leaves both dates visible rather than one silent\nedit.\n\n### Retyping is `newType`\n\nThe selector is in the query string, the new value in the body. Two different things, two\ndifferent names.\n\n### The eleven test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Diwali (day 1)\",\n  \"description\": \"Lakshmi Puja\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /academic-years/{name}/holidays/{date}?type=...\n// ===========================================================================\n//\n//  ?type= SAYS WHICH REASON TO EDIT. A day can hold several, so the date alone\n//  no longer identifies one.\n//    - OMIT it when the day has exactly ONE reason (the common case).\n//    - REQUIRED when the day has more. The API asks rather than editing the\n//      first of two, which would be wrong as often as right and invisible.\n//\n//  THE DATE CANNOT BE CHANGED. It is the key in the URL. Moving a holiday is a\n//  DELETE then a POST, which leaves both dates visible in the log instead of\n//  one silent edit.\n//\n//  RETYPING IS \"newType\", NOT \"type\". The selector lives in the query string\n//  and the new value in the body; one field named `type` meaning \"which one\"\n//  in one place and \"make it this\" in the other is a bug waiting to happen.\n//\n//  Partial: null/omitted leaves a field alone, \"\" clears the description.\n//  name and the type cannot be cleared.\n//\n// ---------------------------------------------------------------------------\n// 01  EDIT THE ONLY REASON ON A DAY, NO ?type=              -> 200 OK\n//     The body above, on a date with one reason. Drop ?type= from the URL.\n//     OUT: changeSummary: \"Updated 'Diwali (day 1)' on 2026-11-08.\"\n// ---------------------------------------------------------------------------\n//\n// 02  NO ?type= ON A TWO-REASON DAY                   -> 400 Bad Request\n//     Same, on a date holding both a weekly off and a festival.\n//     OUT: { \"code\": \"HOLIDAY_TYPE_REQUIRED\",\n//            \"message\": \"2026-11-08 is closed for 2 reasons (Weekly Off\n//                        (WEEKLY_OFF), Diwali (FESTIVAL)). Add ?type= to say\n//                        which one you mean.\" }\n//     The message LISTS the reasons, so the next request is obvious.\n// ---------------------------------------------------------------------------\n//\n// 03  EDIT ONE REASON OF TWO                               -> 200 OK\n//     Keep ?type=FESTIVAL in the URL, body above.\n//     Only the festival changes; the weekly off on that day is untouched.\n// ---------------------------------------------------------------------------\n//\n// 04  CLEAR A DESCRIPTION                                  -> 200 OK\n// {\n//   \"description\": \"\"\n// }\n//     \"\" clears, null/omitted leaves alone. OUT: description: null\n// ---------------------------------------------------------------------------\n//\n// 05  RETYPE A REASON                                      -> 200 OK\n// {\n//   \"newType\": \"RELIGIOUS\"\n// }\n//     With ?type=FESTIVAL — the festival becomes a religious holiday.\n// ---------------------------------------------------------------------------\n//\n// 06  RETYPE INTO A TYPE THE DAY ALREADY HAS          -> 409 Conflict\n// {\n//   \"newType\": \"WEEKLY_OFF\"\n// }\n//     With ?type=FESTIVAL, on a day that already has a weekly off.\n//     OUT: { \"code\": \"HOLIDAY_ENTRY_EXISTS\",\n//            \"message\": \"There is already a WEEKLY_OFF entry on 2026-11-08, so\n//                        this one cannot become that.\" }\n//     One day cannot hold the same reason twice, whichever door it came in by.\n// ---------------------------------------------------------------------------\n//\n// 07  A TYPE THAT IS NOT ON THAT DAY                   -> 404 Not Found\n//     ?type=VACATION on a day closed for Diwali.\n//     OUT: { \"code\": \"HOLIDAY_ENTRY_NOT_FOUND\",\n//            \"message\": \"No VACATION entry on 2026-11-08. That day is closed\n//                        for Diwali (FESTIVAL).\" }\n// ---------------------------------------------------------------------------\n//\n// 08  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\",\n//            \"message\": \"Send at least one of name, description or newType.\" }\n// ---------------------------------------------------------------------------\n//\n// 09  BLANK NAME                                     -> 400 Bad Request\n// {\n//   \"name\": \"   \"\n// }\n//     OUT: { \"code\": \"HOLIDAY_NAME_REQUIRED\" }\n//     A name cannot be REMOVED. Send a new one, or omit the field.\n// ---------------------------------------------------------------------------\n//\n// 10  A DATE THAT IS NOT CLOSED                        -> 404 Not Found\n//     Change the date in the URL to 2026-07-04.\n//     OUT: { \"code\": \"HOLIDAY_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// 11  A MISSPELLED TYPE                              -> 400 Bad Request\n//     ?type=WEEKLYOFF\n//     OUT: { \"code\": \"INVALID_PARAMETER\",\n//            \"message\": \"...Accepted values: WEEKLY_OFF, PUBLIC_HOLIDAY, ...\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('editing one reason did not change how many there are', () =>",
+         "  pm.expect(b.eventCount).to.be.at.least(b.closedDayCount));",
+         "pm.test('the edited day still holds its other reasons', () => {",
+         "  const day = b.holidays.find(h => h.date === '2026-11-08');",
+         "  if (day) pm.expect(day.events.length).to.be.above(0);",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Remove Holiday",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays/2026-11-08?type=WEEKLY_OFF",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays",
+        "2026-11-08"
+       ],
+       "query": [
+        {
+         "key": "type",
+         "value": "WEEKLY_OFF",
+         "description": "Removes just this reason. Omit to remove the whole day with every reason on it."
+        }
+       ]
+      },
+      "description": "**DELETE** `/schools/current/academic-years/{name}/holidays/{date}?type=` — removes a reason,\nor the whole day.\n\n### With `?type=`, one reason goes\n\nA Sunday that was also Holi is still a weekly off afterwards. **Removing the last reason removes\nthe day** — a closed day with nothing saying why reads as corruption to whoever finds it.\n\n### Without `?type=`, the whole day goes\n\nEvery reason with it. That is a real correction — \"the school is open that day after all\" — and\nthe change summary names what went, so someone who meant to drop one reason can see they dropped\ntwo.\n\n`type` is optional here, unlike the bulk delete: the blast radius is one date either way.\n\n### The six test cases are in the description below\n\nPostman sends no body on a DELETE, so they live here rather than in a body block:\n\n```\n01  REMOVE ONE REASON OF TWO                              -> 200 OK\n    ?type=WEEKLY_OFF on a day that is also Holi.\n    OUT: \"Removed 'Weekly Off' on 2027-03-14, which stays closed for\n          Holi (FESTIVAL).\"\n    closedDayCount UNCHANGED. eventCount down by 1.\n\n02  REMOVE THE LAST REASON ON A DAY                       -> 200 OK\n    ?type=FESTIVAL on a day with only that.\n    OUT: \"Removed 'Holi' on 2027-03-14, which is now a working day.\"\n    The DAY DISAPPEARS. Both counts go down.\n\n03  NO ?type= ON A TWO-REASON DAY                         -> 200 OK\n    The whole day goes, both reasons with it.\n    OUT: \"Removed Weekly Off (WEEKLY_OFF), Diwali (FESTIVAL) on 2026-11-08.\"\n    NOT an error — but read the summary. It names what you actually removed.\n\n04  A TYPE THAT IS NOT ON THAT DAY                   -> 404 Not Found\n    ?type=WEEKLY_OFF on a day closed only for Janmashtami.\n    OUT: { \"code\": \"HOLIDAY_ENTRY_NOT_FOUND\",\n           \"message\": \"No WEEKLY_OFF entry on 2026-08-15. That day is closed\n                       for Janmashtami (FESTIVAL).\" }\n\n05  A DATE THAT IS NOT CLOSED                        -> 404 Not Found\n    OUT: { \"code\": \"HOLIDAY_NOT_FOUND\" }\n    A 404, not a silent 200. \"It was already gone\" and \"you deleted it\" are\n    different answers and the caller should be able to tell them apart.\n\n06  A MISSPELLED TYPE                              -> 400 Bad Request\n    ?type=WEEKLYOFF\n    OUT: { \"code\": \"INVALID_PARAMETER\" } with the accepted values listed.\n```\n"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('no closed day was left without a reason', () =>",
+         "  b.holidays.forEach(h => pm.expect(h.events.length).to.be.above(0)));",
+         "pm.test('the summary says what actually went', () =>",
+         "  pm.expect(b.changeSummary).to.include('Removed'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Generate Weekly Off",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays/generate-weekly-off",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays",
+        "generate-weekly-off"
+       ]
+      },
+      "description": "**POST** `/schools/current/academic-years/{name}/holidays/generate-weekly-off`\n\nRequired by the model rather than a convenience. **There is no \"weekly off day\" field anywhere in\nthis system** — schools here may run on Sunday with the off day on any other weekday — so every\nnon-working day is a dated entry and a year needs roughly 52 of them.\n\n### A Sunday that is already a festival still gets its weekly off\n\nThe day ends up holding **both** reasons. The school was closed for Diwali *and* it was their\nweekly off; a report that knows only one of those is wrong about the other. Only a date that\nalready carries a `WEEKLY_OFF` is skipped, and the skipped dates come back in `skippedDates`.\n\n### Safe to run twice\n\nThe second run generates nothing and reports everything skipped.\n\n### `dayOfWeek` is required\n\nThere is no default, and there must not be one — defaulting to Sunday is the assumption this\nwhole design refuses to make.\n\n### The nine test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"dayOfWeek\": \"SUNDAY\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /academic-years/{name}/holidays/generate-weekly-off\n// ===========================================================================\n//\n//  THIS IS REQUIRED BY THE MODEL, NOT A CONVENIENCE. There is no \"weekly off\n//  day\" field anywhere in this system: schools here may run on Sunday with the\n//  off day on any other weekday, so EVERY non-working day is a dated entry and\n//  a year needs roughly 52 of them. Without this, somebody types 52 dates or a\n//  developer hardcodes Sunday.\n//\n//  A DATE THAT ALREADY HAS A FESTIVAL STILL GETS ITS WEEKLY OFF. The two\n//  reasons sit on the same day. The school was closed for Diwali AND it was\n//  their weekly off, and a report that only knows one of those is wrong about\n//  the other.\n//\n//  ONLY AN EXISTING WEEKLY_OFF ON THAT DATE IS SKIPPED, and the skipped dates\n//  come back in skippedDates. That is also what makes running it twice safe.\n//\n// ---------------------------------------------------------------------------\n// 01  GENERATE EVERY SUNDAY IN THE YEAR                    -> 200 OK\n//     The body above. fromDate/toDate default to the whole year.\n//     OUT: generated: ~52, skippedAlreadyWeeklyOff: 0\n//          closedDayCountAfter and eventCountAfter both reported — they differ\n//          wherever a Sunday also carries a festival.\n// ---------------------------------------------------------------------------\n//\n// 02  RUN IT AGAIN                                         -> 200 OK\n//     OUT: generated: 0, skippedAlreadyWeeklyOff: ~52\n//          \"Nothing generated — every SUNDAY in that window already had a\n//           weekly off.\"\n//     IDEMPOTENT. Safe to re-run.\n// ---------------------------------------------------------------------------\n//\n// 03  A SUNDAY THAT IS ALREADY A FESTIVAL                  -> 200 OK\n//     Add Holi on a Sunday with \"Add Holiday\" first, then generate.\n//     THE DAY ENDS UP WITH BOTH. It is NOT skipped and NOT overwritten:\n//       2027-03-14 -> [ Holi (FESTIVAL), Weekly Off (WEEKLY_OFF) ]\n//     generated counts it; skippedDates does not list it.\n//     THIS IS THE CASE THE ARRAY-PER-DATE STRUCTURE EXISTS FOR.\n// ---------------------------------------------------------------------------\n//\n// 04  A CUSTOM NAME                                        -> 200 OK\n// {\n//   \"dayOfWeek\": \"FRIDAY\",\n//   \"name\": \"Jumu'ah\"\n// }\n//     Defaults to \"Weekly Off\" when name is omitted.\n// ---------------------------------------------------------------------------\n//\n// 05  A WINDOW INSIDE THE YEAR                             -> 200 OK\n// {\n//   \"dayOfWeek\": \"SATURDAY\",\n//   \"fromDate\": \"2026-04-01\",\n//   \"toDate\": \"2026-09-30\"\n// }\n//     For a school that closes alternate Saturdays only in one term.\n// ---------------------------------------------------------------------------\n//\n// 06  A WINDOW OUTSIDE THE YEAR                      -> 400 Bad Request\n// {\n//   \"dayOfWeek\": \"SUNDAY\",\n//   \"toDate\": \"2028-01-01\"\n// }\n//     OUT: { \"code\": \"HOLIDAY_OUTSIDE_YEAR\" }\n// ---------------------------------------------------------------------------\n//\n// 07  fromDate AFTER toDate                          -> 400 Bad Request\n// {\n//   \"dayOfWeek\": \"SUNDAY\",\n//   \"fromDate\": \"2026-12-01\",\n//   \"toDate\": \"2026-06-01\"\n// }\n//     OUT: { \"code\": \"INVALID_DATE_RANGE\" }\n// ---------------------------------------------------------------------------\n//\n// 08  NO dayOfWeek                                   -> 400 Bad Request\n// {\n// }\n//     OUT: fieldErrors: { \"dayOfWeek\": \"must not be null\" }\n//     THERE IS NO DEFAULT WEEKDAY and there must not be one. Defaulting to\n//     SUNDAY is exactly the assumption this whole design refuses to make.\n// ---------------------------------------------------------------------------\n//\n// 09  UNDOING A WRONG WEEKDAY\n//     Use \"Remove Holidays By Type\" with ?type=WEEKLY_OFF, then run again.\n//     Days that had another reason survive, stripped of the weekly off only.\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('generated plus skipped covers every matching weekday', () =>",
+         "  pm.expect(b.generated + b.skippedAlreadyWeeklyOff).to.be.above(0));",
+         "pm.test('reasons are never fewer than closed days', () =>",
+         "  pm.expect(b.eventCountAfter).to.be.at.least(b.closedDayCountAfter));",
+         "pm.test('skippedDates matches the skipped count', () =>",
+         "  pm.expect(b.skippedDates.length).to.eql(b.skippedAlreadyWeeklyOff));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Remove Holidays By Type",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       },
+       {
+        "key": "X-School-Subdomain",
+        "value": "{{createdSubdomain}}",
+        "description": "Stand-in for the session. Saved by Create School."
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays?type=WEEKLY_OFF",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "schools",
+        "current",
+        "academic-years",
+        "{{academicYearName}}",
+        "holidays"
+       ],
+       "query": [
+        {
+         "key": "type",
+         "value": "WEEKLY_OFF",
+         "description": "REQUIRED. Omitting it is a 400, never a whole-calendar wipe."
+        }
+       ]
+      },
+      "description": "**DELETE** `/schools/current/academic-years/{name}/holidays?type=` — removes every reason of\none type.\n\nThe companion to the generator, because the first thing anybody does with it is pick the wrong\nweekday, and undoing that one date at a time across 52 entries is not a thing a person should\nhave to do.\n\n### Days with other reasons survive\n\nThe matching reason is stripped wherever it appears, and only the days left with **none** are\ndropped. A Sunday that was also Holi survives as Holi; a plain Sunday goes entirely. The summary\nreports both numbers.\n\n### `type` is required\n\nA bulk delete that cleared the whole calendar when a query parameter was forgotten would be the\nmost destructive accident in this package. Omitting it is a `400`, never a no-op and never a\nwipe.\n\n### The five test cases are in the description below\n\nPostman sends no body on a DELETE, so they live here:\n\n```\n01  REMOVE EVERY WEEKLY OFF                                -> 200 OK\n    ?type=WEEKLY_OFF after generating Sundays.\n    OUT: \"Removed 52 WEEKLY_OFF entries; 50 days became working days,\n          2 stayed closed for other reasons.\"\n    The two survivors are the Sundays that were also festivals.\n\n02  RUN IT AGAIN                                           -> 200 OK\n    OUT: \"Nothing to remove — no WEEKLY_OFF entries were on this calendar.\"\n    A 200, not a 404. Nothing was asked for that could not be honoured.\n\n03  NO type PARAMETER                                -> 400 Bad Request\n    OUT: { \"code\": \"MISSING_PARAMETER\",\n           \"message\": \"The 'type' query parameter is required.\" }\n    THE GUARD THAT MATTERS MOST HERE.\n\n04  A MISSPELLED TYPE                              -> 400 Bad Request\n    ?type=WEEKLYOFF\n    OUT: { \"code\": \"INVALID_PARAMETER\",\n           \"message\": \"'WEEKLYOFF' is not a valid value for 'type'.\n                       Accepted values: WEEKLY_OFF, PUBLIC_HOLIDAY, ...\" }\n\n05  UNKNOWN YEAR NAME                                -> 404 Not Found\n    OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n```\n"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('no entry of that type survives', () =>",
+         "  pm.expect(b.countsByType.WEEKLY_OFF).to.be.undefined);",
+         "pm.test('days kept for other reasons still have them', () =>",
+         "  b.holidays.forEach(h => pm.expect(h.events.length).to.be.above(0)));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "variable": [
+  {
+   "key": "baseUrl",
+   "value": "http://localhost:3456",
+   "description": "server.port, set in application.properties."
+  },
+  {
+   "key": "schoolId",
+   "value": "",
+   "description": "Saved by a successful create."
+  },
+  {
+   "key": "createdSubdomain",
+   "value": "",
+   "description": "Saved by a create; used by case 05."
+  },
+  {
+   "key": "academicYearName",
+   "value": "",
+   "description": "Saved by Create Academic Year; used by the dates URL."
+  }
+ ]
 }

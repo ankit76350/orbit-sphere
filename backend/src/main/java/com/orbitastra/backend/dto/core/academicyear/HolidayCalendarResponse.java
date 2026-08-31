@@ -8,6 +8,7 @@ import java.util.Map;
 
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 
 /**
@@ -15,25 +16,27 @@ import com.orbitastra.backend.models.core.enums.HolidayType;
  *
  * <p>One record for all six rather than one per verb. Every calendar operation — replace, add,
  * edit, remove one, remove a type — leaves the caller wanting the same thing: what does the
- * calendar look like now. Returning only the changed entry would make a form re-fetch to redraw,
- * and six near-identical records would drift the first time somebody added a field to one.
+ * calendar look like now. {@code changeSummary} is what distinguishes them, so a `200` with an
+ * unchanged count is still legible.
  *
- * <p>{@code changeSummary} is what distinguishes them. It says what this particular call did —
- * "added Diwali on 2026-11-08", "removed 52 WEEKLY_OFF entries" — so a `200` with an unchanged
- * count is still legible.
+ * <p><b>Two counts, because a day and a reason are not the same thing.</b>
+ * {@code closedDayCount} is how many days the school is shut — the number attendance and fees
+ * care about. {@code eventCount} is how many reasons are recorded across them, and is larger
+ * whenever a weekly off falls on a festival. Reporting only one of them would make a Sunday that
+ * is also Holi look like either a lost entry or an extra closed day.
  *
- * <p>{@code countsByType} is here because the interesting question about a calendar is almost
- * never how many entries it has. It is whether the weekly offs were generated, and whether the
- * festival list has been entered yet. A single total cannot answer either.
+ * <p>{@code countsByType} counts <b>events</b>, not days, for the same reason: "how many
+ * festivals" should not be reduced by the ones that happened to land on a Sunday.
  *
- * <p>Holidays come back <b>sorted by date</b>. They are stored in whatever order they were added,
+ * <p>Days come back <b>sorted by date</b>. They are stored in whatever order they were added,
  * and an unsorted calendar is unreadable.
  */
 public record HolidayCalendarResponse(
         String academicYearName,
         LocalDate startDate,
         LocalDate endDate,
-        int holidayCount,
+        int closedDayCount,
+        int eventCount,
         Map<HolidayType, Integer> countsByType,
         List<HolidayView> holidays,
         String changeSummary) {
@@ -46,11 +49,16 @@ public record HolidayCalendarResponse(
                 .map(HolidayView::fromDetail)
                 .toList();
 
+        List<HolidayEvent> allEvents = stored.stream()
+                .flatMap(d -> d.getEvents() == null ? List.<HolidayEvent>of().stream()
+                        : d.getEvents().stream())
+                .toList();
+
         // LinkedHashMap so the enum's own order survives into the JSON, which makes two
         // responses comparable by eye.
         Map<HolidayType, Integer> counts = new LinkedHashMap<>();
         for (HolidayType type : HolidayType.values()) {
-            long n = stored.stream().filter(h -> h.getType() == type).count();
+            long n = allEvents.stream().filter(e -> e.getType() == type).count();
             if (n > 0) {
                 counts.put(type, (int) n);
             }
@@ -61,6 +69,7 @@ public record HolidayCalendarResponse(
                 year.getStartDate(),
                 year.getEndDate(),
                 stored.size(),
+                allEvents.size(),
                 counts,
                 sorted,
                 changeSummary);

@@ -1,17 +1,18 @@
 # controllers/core — write API plan
 
-**Eleven of 28 endpoints are built — #1 to #9 and #18 to #19; Phases 1 to 4.** This is the
-complete inventory of every `POST`, `PUT` and `PATCH` the `core` module needs, sequenced so it
-can be built and reviewed one step at a time.
+**Fifteen of 28 endpoints are built — #1 to #9 and #18 to #23; Phases 1 to 5**, plus the two
+`DELETE`s that pair with the calendar endpoints. This is the complete inventory of every `POST`,
+`PUT` and `PATCH` the `core` module needs, sequenced so it can be built and reviewed one step at
+a time.
 
 | Controller | Endpoints |
 |---|---|
 | [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5 |
 | [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
-| [`AcademicYearController`](AcademicYearController.java) | #18–19 |
+| [`AcademicYearController`](AcademicYearController.java) | #18–23 + 2 `DELETE` |
 
-All eleven are exercised by `postman/Orbit Sphere — API.postman_collection.json`, which runs
-green end to end.
+All seventeen requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
+which runs green end to end.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
 
@@ -64,10 +65,10 @@ All paths below are under `/schools/current/academic-years`.
 | 19 | `PATCH` | `/{name}/dates` | 4 — **built** |
 | 20 | `PUT` | `/{name}/holidays` | 5 |
 | 21 | `POST` | `/{name}/holidays` | 5 |
-| 22 | `PATCH` | `/{name}/holidays/{date}` | 5 |
-| — | `DELETE` | `/{name}/holidays/{date}` | 5 |
+| 22 | `PATCH` | `/{name}/holidays/{date}?type=` | 5 |
+| — | `DELETE` | `/{name}/holidays/{date}?type=` | 5 |
 | 23 | `POST` | `/{name}/holidays/generate-weekly-off` | 5 |
-| — | `DELETE` | `/{name}/holidays?type=WEEKLY_OFF` | 5 |
+| — | `DELETE` | `/{name}/holidays?type=` | 5 |
 | 24 | `POST` | `/{name}/enrollment/enable` | 6 |
 | 25 | `POST` | `/{name}/enrollment/disable` | 6 |
 | 26 | `POST` | `/{name}/results/lock` | 6 |
@@ -528,22 +529,54 @@ still orphan those, silently, and nothing anywhere will complain. When those rep
 this must refuse to move a boundary past the earliest or latest row referencing the year. It is
 recorded in the method's javadoc and in the response's `nextStep`.
 
-## 20–23. The holiday calendar
+## 20–23. The holiday calendar — built
 
-`holidays` is an embedded `List<HolidayDetail>` — a sub-resource keyed by `date`. Each entry
-has `name`, `description`, `type` and `date`.
+`holidays` is an embedded `List<`[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java)`>`,
+a sub-resource keyed by **date**. Each entry holds the date and a list of
+[`HolidayEvent`](../../models/core/embedded/HolidayEvent.java) — the reasons the school is shut
+that day.
 
 | # | Method | Use |
 |---|---|---|
 | 20 | `PUT` `/{name}/holidays` | replace the whole calendar — the bulk import case |
-| 21 | `POST` `/{name}/holidays` | add one — a bandh, an unexpected closure |
-| 22 | `PATCH` `/{name}/holidays/{date}` | edit one — renaming "Diwali" to "Diwali (day 2)" |
-| — | `DELETE` `/{name}/holidays/{date}` | remove one — a holiday moved by notification |
+| 21 | `POST` `/{name}/holidays` | add one reason — a bandh, an unexpected closure |
+| 22 | `PATCH` `/{name}/holidays/{date}?type=` | edit one reason on a day |
+| — | `DELETE` `/{name}/holidays/{date}?type=` | remove one reason, or the whole day |
 | 23 | `POST` `/{name}/holidays/generate-weekly-off` | generate a weekday's offs across the year |
-| — | `DELETE` `/{name}/holidays?type=WEEKLY_OFF` | clear generated offs before regenerating |
+| — | `DELETE` `/{name}/holidays?type=` | clear every entry of one type before regenerating |
 
-**Validate on all of them:** no duplicate dates, and every date inside the year's own
-`startDate`–`endDate`.
+### One date, several reasons
+
+`HolidayDetail` was restructured on 2026-08-31. It used to be a flat row — name, description,
+type, date — one per reason, so a date could appear several times and there was no single answer
+to *is the school open on the 8th*.
+
+Now the **date is the key** and the reasons hang off it. A Sunday that is also Holi is one closed
+day with two events, not two days sharing a date. Attendance, timetables, transport and fee due
+dates all ask that same question, and it is now one lookup returning one entry rather than a scan
+that must not stop at the first match.
+
+The API is shaped around that, and three consequences run through all six endpoints:
+
+**Requests are flat, storage is grouped.** A caller sends one row per reason, with its date —
+which is what a spreadsheet holds and what a person adding Holi knows. The service groups by
+date. So two rows sharing a date is *not* a duplicate; the same **type** twice on one date is.
+Without this, adding Holi to a Sunday would mean fetching the day, appending to its array and
+sending the whole thing back.
+
+**`?type=` says which reason.** #22 and the single `DELETE` can no longer be addressed by date
+alone. The parameter is optional when the day has one reason and required when it has more — and
+the error lists what is on that day, so the next request is obvious. Picking the first of two
+would be wrong as often as right, and invisible when it was.
+
+**Two counts come back.** `closedDayCount` is how many days the school is shut — what attendance
+and fees care about. `eventCount` is how many reasons are recorded. They differ wherever a day
+carries more than one, and reporting only one number would make a Sunday that is also Holi look
+like either a lost entry or an extra closed day. `countsByType` counts **reasons**, so "how many
+festivals" is not reduced by the ones that landed on a Sunday.
+
+**Validated on all of them:** every date inside the year's own `startDate`–`endDate`, and no two
+entries of the same type on one date.
 
 #20 is the legitimate bulk `PUT`: a school publishes next year's calendar in one go from a
 spreadsheet, and sending the complete list makes a half-imported calendar impossible.
@@ -552,18 +585,38 @@ spreadsheet, and sending the complete list makes a half-imported calendar imposs
 
 There is **no "weekly off day" field anywhere in this system**, deliberately. Schools in this
 market may run on Sunday with the weekly off on any other day, so every non-working day is a
-**dated** `HolidayDetail` with type `WEEKLY_OFF`.
+**dated** entry with type `WEEKLY_OFF`.
 
 That is the right model and it has a direct API consequence: a year needs roughly 52 dated
-`WEEKLY_OFF` rows, and nobody is typing those in.
+`WEEKLY_OFF` entries, and nobody is typing those in.
 
-So #23 takes a day of the week, optionally a date range, generates one entry per occurrence,
-and **skips dates that already have a holiday**. The paired bulk `DELETE` exists because the
-first thing anyone does is pick the wrong weekday.
+So #23 takes a day of the week, optionally a date range, and generates one entry per occurrence.
+**A date that already has a festival still gets its weekly off** — the day ends up with both
+reasons. The school was closed for Diwali *and* it was their weekly off, and a report knowing
+only one of those is wrong about the other. Only a date that already carries a `WEEKLY_OFF` is
+skipped, which is also what makes running it twice safe.
 
 Without #23, either somebody enters 52 dates by hand or a developer eventually hardcodes Sunday
 somewhere — the exact assumption the model was designed to prevent. **No service anywhere may
 infer a non-working day from the weekday.**
+
+### The two `DELETE`s are not extras
+
+They were listed uncounted in the original plan; both are now built, because an API that creates
+52 rows in one call and cannot remove them is not finished.
+
+The single `DELETE` removes one reason with `?type=`, or the whole day without it. **Removing the
+last reason removes the day** — a closed day with nothing saying why reads as corruption to
+whoever finds it.
+
+The bulk `DELETE` strips one type across the calendar and drops only the days left with nothing.
+A Sunday that was also Holi survives as Holi. Its `type` is **required**: a bulk delete that
+cleared the whole calendar when a query parameter was forgotten would be the most destructive
+accident in this package. That guard needed a `MissingServletRequestParameterException` handler
+in [`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java), or Spring answered
+with its own error page — a stack trace in dev, and nothing resembling the rest of our errors
+anywhere else. A `MethodArgumentTypeMismatchException` handler went in beside it, so a misspelled
+`?type=WEEKLYOFF` comes back naming the accepted values.
 
 ## 24–27. Gates
 
@@ -617,7 +670,7 @@ layer. Assigned:
 | allowed `SchoolStatus` transitions | 3, 4, 5, 13–17 |
 | an active `SchoolSubscription` exists | 3 |
 | academic-year date ordering **and overlap** | 18, 19 |
-| duplicate holiday dates, dates inside the year | 20, 21, 22, 23 |
+| one reason of each type per date, dates inside the year | 20, 21, 22, 23 |
 | authorization for lock/unlock and enrollment | 24–27 |
 | text lengths on every free-text field | all |
 

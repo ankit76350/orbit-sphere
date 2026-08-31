@@ -2,7 +2,7 @@ package com.orbitastra.backend.dto.core.academicyear;
 
 import java.time.LocalDate;
 
-import com.orbitastra.backend.models.core.embedded.HolidayDetail;
+import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 
 import jakarta.validation.constraints.NotBlank;
@@ -10,17 +10,22 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * One non-working day, as sent by a caller.
+ * One reason a day is closed, as sent by a caller.
  *
- * <p>A separate record from HolidayDetail rather than binding the embedded model directly.
- * The model is what is stored; this is what the API accepts, and keeping them apart means a
- * field added to the model does not silently become settable from outside.
+ * <p><b>Flat on the way in, nested on the way out.</b> Storage groups reasons under a date —
+ * see {@link com.orbitastra.backend.models.core.embedded.HolidayDetail} — but a caller adding
+ * Holi should not have to know whether that Sunday already exists in the calendar, fetch it,
+ * append to its array and send the whole thing back. They send one reason with its date, and the
+ * service merges it into the day.
  *
- * <p>Every non-working day is a <b>dated</b> entry, including a weekly off. There is no
- * "weekly off day" setting anywhere in this system, deliberately: schools in this market may
- * run on Sunday with the off day on any other weekday, so nothing may infer a closure from the
- * day of the week. That is why a year needs roughly 52 WEEKLY_OFF rows and why endpoint #23
- * exists to generate them.
+ * <p>So sending two of these with the same date is not a duplicate: it is a day with two
+ * reasons, which is exactly the case the storage shape exists for. What is refused is the same
+ * <i>type</i> twice on one day — a second WEEKLY_OFF on the same Sunday is a mistake, not a
+ * second reason.
+ *
+ * <p>Every non-working day is a <b>dated</b> entry, including a weekly off. There is no "weekly
+ * off day" setting anywhere in this system: schools here may run on Sunday with the off day on
+ * any other weekday, so nothing may infer a closure from the day of the week.
  */
 public record HolidayRequest(
 
@@ -36,12 +41,11 @@ public record HolidayRequest(
         /** Must fall inside the academic year. Example: 2026-11-08 */
         @NotNull LocalDate date) {
 
-    public HolidayDetail toDetail() {
-        return HolidayDetail.builder()
+    public HolidayEvent toEvent() {
+        return HolidayEvent.builder()
                 .name(name.trim())
                 .description(description == null || description.isBlank() ? null : description.trim())
                 .type(type)
-                .date(date)
                 .build();
     }
 }
