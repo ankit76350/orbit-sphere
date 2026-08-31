@@ -8,9 +8,9 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Eleven `GET` endpoints are inventoried below and none are built,
-so nothing can currently read a school, list its academic years, or ask whether a given date is a
-working day.
+**The reads are the open work.** Eleven `GET` endpoints are inventoried below and **one is
+built** — G1, the platform school list. Nothing can yet read a single school, list its academic
+years, or ask whether a given date is a working day.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -93,7 +93,7 @@ All paths below are under `/schools/current/academic-years`.
 
 # Complete read inventory — 11 GET endpoints
 
-**None are built.** This is the same exercise as the write plan: name every `GET` the `core`
+**One is built — G1.** This is the same exercise as the write plan: name every `GET` the `core`
 module needs before writing one, so they can be built and reviewed one at a time.
 
 Numbered `G1`–`G11` so the numbers never collide with the write plan's `#1`–`#28`.
@@ -104,7 +104,7 @@ The operator's console. Outside any tenant, so the school is named in the URL.
 
 | # | Path | Returns |
 |---|---|---|
-| G1 | `GET /platform/schools` | a page of schools; filter by `status`, search by name or subdomain |
+| G1 | `GET /platform/schools` | a page of schools; filter, search, sort — **built** |
 | G2 | `GET /platform/schools/{id}` | one school in full, including lifecycle timestamps and `statusReason` |
 | G3 | `GET /platform/schools/subdomain-available?value=` | whether a subdomain can be claimed |
 
@@ -124,6 +124,70 @@ to, because they never name one at all.
 | G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
 | G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
 | G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
+
+## G1 — `GET /platform/schools` — BUILT
+
+The operator's console. Every parameter is optional, so a bare call returns the newest twenty
+schools — what somebody opening the console usually wants.
+
+| Parameter | Behaviour |
+|---|---|
+| `status` | repeatable; `?status=ACTIVE&status=TRIAL` means either |
+| `search` | partial, case-insensitive, on **school name or subdomain** |
+| `countryCode`, `city` | exact, case-insensitive |
+| `createdFrom`, `createdTo` | ISO instants, inclusive |
+| `page`, `size` | zero-based; 20 by default, 100 maximum |
+| `sort` | `field,direction` — `name`, `schoolName`, `subdomain`, `status`, `createdAt`, `updatedAt` |
+
+Filters combine with AND. Only `status` is OR within itself, because "show me the live ones" is
+one question rather than two requests.
+
+### It runs in the database, not in Java
+
+Filtering, searching, sorting and paging are all on the query
+([`SchoolRepositoryImpl`](../../repositories/core/SchoolRepositoryImpl.java)), so one page of
+documents is read however many tenants exist. Two round trips: the page, and the count behind
+`totalElements`, built from the same criteria so the two cannot disagree.
+
+The filters are dynamic and each is optional, which is why this is a custom repository fragment
+rather than a derived query method — `findByStatusInAndCountryCodeAndCity...` would be one method
+per combination, and a request with no filters would match none of them.
+
+### Four decisions worth keeping
+
+**Bad paging is refused, not clamped.** `size=5000` is a `400`, not a silent 100 rows. A clamped
+page looks exactly like a complete result, which is how somebody comes to believe they have seen
+every school.
+
+**`sort` is an allow-list.** Sorting by whatever string arrives means an unindexed field and a
+collection scan per request — and the *order* of a field leaks it: sorting by
+`encryptionKeyReference` tells you which schools share a key without the value ever being
+returned.
+
+**Every sort ends with `id`.** Without a tiebreaker, rows with equal sort keys come back in
+whatever order the engine picked that time, so paging over a hundred `ACTIVE` schools can show
+one twice and miss another. It appears only in production, only past page one, and never in a
+small test.
+
+**The search term is escaped before it reaches the regex.** Unescaped, `?search=.*` returns every
+school, and a nested-quantifier pattern can hold a database thread on very little input.
+Escaping also gives the caller what they meant: somebody searching `st.` wants a full stop.
+
+### An empty result is `200` with `[]`
+
+`totalElements: 0`, not a `404`. "No school matches" is a successful answer to the question that
+was asked.
+
+### Two things it needed elsewhere
+
+`GET` responses use [`PageResponse`](../../common/web/PageResponse.java) — a generic envelope in
+`common`, not Spring's `Page` serialized directly. Serializing `Page` puts the whole `Pageable`,
+sort orders and `paged` flags into the JSON, where they become a contract nobody chose.
+
+[`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java) also had to learn to
+see the enum inside a `List<SchoolStatus>`. A repeatable enum parameter binds to a list, so the
+required type is `List` and the "Accepted values" half of the message was silently disappearing
+for exactly the parameters most likely to be misspelled.
 
 ## G9 is the one the rest of the system is waiting for
 
@@ -189,9 +253,9 @@ not carry them.
 
 ## Points to settle before building
 
-**Pagination on G1 only.** Every other list here is bounded by something real: a school has a
-handful of academic years, a year has about sixty closed days. G1 is the only one that grows
-without limit, so it is the only one that needs a page.
+**Pagination on G1 only** — done. Every other list here is bounded by something real: a school
+has a handful of academic years, a year has about sixty closed days. G1 is the only one that
+grows without limit, so it is the only one that needs a page.
 
 **A literal path segment beats a template in Spring**, so `G6 /academic-years/current` resolves
 ahead of `G7 /academic-years/{name}` without any ordering trick. It is still worth knowing, since

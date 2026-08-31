@@ -12,6 +12,15 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolSummaryResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.platform.CompleteProvisioningResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolActivateResponse;
@@ -82,6 +91,39 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class SchoolPlatformService {
+
+    /** Used when the caller does not say. Twenty rows is a screen without a scrollbar. */
+    private static final int DEFAULT_PAGE_SIZE = 20;
+
+    /** The most a caller may ask for at once, refused above rather than clamped. */
+    private static final int MAX_PAGE_SIZE = 100;
+
+    /** Newest first: an operator opening the console usually wants what just happened. */
+    private static final Sort DEFAULT_SORT =
+            Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.ASC, "id"));
+
+    /**
+     * What G1 may sort on, and what each name means on the document.
+     *
+     * <p>An allow-list rather than a pass-through, and keyed on the API-facing name so
+     * {@code sort=name} works without a caller knowing the field is {@code schoolName}.
+     */
+    private static final Map<String, String> SORTABLE_FIELDS = new LinkedHashMap<>(Map.of());
+
+    static {
+        // Keyed lowercase so sort=CreatedAt works, but the message below quotes the real
+        // spelling — an error that answers in lowercase teaches the caller the wrong name.
+        SORTABLE_FIELDS.put("name", "schoolName");
+        SORTABLE_FIELDS.put("schoolname", "schoolName");
+        SORTABLE_FIELDS.put("subdomain", "subdomain");
+        SORTABLE_FIELDS.put("status", "status");
+        SORTABLE_FIELDS.put("createdat", "createdAt");
+        SORTABLE_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same names as they should be typed, in a stable order, for the error message. */
+    private static final String SORTABLE_FIELD_NAMES =
+            "name, schoolName, subdomain, status, createdAt, updatedAt";
 
     private final SchoolRepository schools;
     private final NumberSequenceRepository numberSequences;
@@ -380,7 +422,7 @@ public class SchoolPlatformService {
                         + "the record of the last suspension.");
     }
 
-    //! endpoint 10 — change the subdomain ---------------------------------------------
+    //? endpoint 10 — change the subdomain ---------------------------------------------
     /**
      * #10 — changes the tenant label a school answers to.
      *
@@ -444,4 +486,78 @@ public class SchoolPlatformService {
                         + "nothing redirects, and the school has NOT been told. '" + oldSubdomain
                         + "' is now free for any school to claim.");
     }
+
+    //? endpoint G1 — list the schools -------------------------------------------------
+        /**
+         * Lists schools with search, filters, sorting, and pagination.
+         * Returns the latest schools by default.
+        */
+        public PageResponse<SchoolSummaryResponse> listSchools(SchoolSearchRequest request) {
+
+        // Step 1: Get page and size
+        int page = request.page() == null ? 0 : request.page();
+        int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
+
+        if (page < 0) {
+                throw ApiException.badRequest(
+                        "INVALID_PAGE",
+                        "page cannot be negative. Received: " + page);
+        }
+
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+                throw ApiException.badRequest(
+                        "INVALID_PAGE_SIZE",
+                        "size must be between 1 and " + MAX_PAGE_SIZE + ". Received: " + size);
+        }
+
+        // Step 2: Build sorting
+        Sort sort = DEFAULT_SORT;
+        String rawSort = request.sort();
+
+        if (rawSort != null && !rawSort.isBlank()) {
+
+                String[] parts = rawSort.split(",");
+                String requestedField = parts[0].trim();
+
+                String field = SORTABLE_FIELDS.get(requestedField.toLowerCase());
+
+                if (field == null) {
+                throw ApiException.badRequest(
+                        "INVALID_SORT_FIELD",
+                        "'" + requestedField + "' cannot be sorted on. Allowed: "
+                                + SORTABLE_FIELD_NAMES + ".");
+                }
+
+                Sort.Direction direction = Sort.Direction.ASC;
+
+                if (parts.length > 1 && !parts[1].isBlank()) {
+                String requestedDirection = parts[1].trim();
+
+                if (requestedDirection.equalsIgnoreCase("desc")) {
+                        direction = Sort.Direction.DESC;
+                } else if (!requestedDirection.equalsIgnoreCase("asc")) {
+                        throw ApiException.badRequest(
+                                "INVALID_SORT_DIRECTION",
+                                "'" + requestedDirection
+                                        + "' is not a direction. Use asc or desc.");
+                }
+                }
+
+                // Add id as a second sort so results stay consistent
+                sort = Sort.by(direction, field)
+                        .and(Sort.by(Sort.Direction.ASC, "id"));
+        }
+
+        // Step 3: Create pageable
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        // Step 4: Get schools from database
+        //TODO: Search query
+        Page<School> schoolPage = schools.search(request, pageable);
+
+        // Step 5: Convert schools to response objects
+        return PageResponse.from(
+                schoolPage,
+                SchoolSummaryResponse::fromSchool);
+        }
 }

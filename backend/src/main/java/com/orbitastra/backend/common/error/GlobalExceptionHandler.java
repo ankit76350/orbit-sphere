@@ -79,8 +79,8 @@ public class GlobalExceptionHandler {
          */
         @ExceptionHandler(MethodArgumentTypeMismatchException.class)
         public ResponseEntity<ApiError> onTypeMismatch(MethodArgumentTypeMismatchException exception) {
-                Class<?> wanted = exception.getRequiredType();
-                String allowed = wanted != null && wanted.isEnum()
+                Class<?> wanted = enumBehind(exception);
+                String allowed = wanted != null
                                 ? " Accepted values: " + String.join(", ",
                                                 java.util.Arrays.stream(wanted.getEnumConstants())
                                                                 .map(Object::toString).toList()) + "."
@@ -90,6 +90,30 @@ public class GlobalExceptionHandler {
                                 .body(ApiError.createError("INVALID_PARAMETER",
                                                 "'" + exception.getValue() + "' is not a valid value for '"
                                                                 + exception.getName() + "'." + allowed));
+        }
+
+
+        /**
+         * The enum a parameter wanted, whether it wanted one or a list of them.
+         *
+         * <p>A repeatable parameter such as {@code ?status=ACTIVE&status=TRIAL} binds to
+         * {@code List<SchoolStatus>}, so the required type is {@code List} and the enum is only
+         * visible as its element type. Without this, the most useful half of the message — the
+         * values that would have worked — silently disappears for exactly the parameters most
+         * likely to be misspelled.
+         *
+         * <p>Returns null when nothing enum-shaped is involved.
+         */
+        private Class<?> enumBehind(MethodArgumentTypeMismatchException exception) {
+                Class<?> required = exception.getRequiredType();
+                if (required != null && required.isEnum()) {
+                        return required;
+                }
+                if (exception.getParameter() == null) {
+                        return null;
+                }
+                Class<?> element = exception.getParameter().nested().getNestedParameterType();
+                return element != null && element.isEnum() ? element : null;
         }
 
 

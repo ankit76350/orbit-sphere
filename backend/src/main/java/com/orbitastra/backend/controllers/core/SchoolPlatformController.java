@@ -2,6 +2,16 @@ package com.orbitastra.backend.controllers.core;
 
 import java.net.URI;
 
+import java.time.Instant;
+import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
+import com.orbitastra.backend.dto.core.platform.SchoolSummaryResponse;
+import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -124,5 +134,53 @@ public class SchoolPlatformController {
             @Valid @RequestBody SchoolSubdomainRequest request) {
 
         return ResponseEntity.ok(provisioningService.changeSubdomain(id, request));
+    }
+
+    /**
+     * G1 API — gets a list of schools for the operator.
+     *
+     * All parameters are optional. If you call GET /platform/schools without
+     * any parameters, it returns the latest 20 schools.
+     *
+     * You can filter by status, search by school name, country, city,
+     * creation date, etc.
+     *
+     * Example:
+     * ?status=ACTIVE&status=TRIAL&search=orbit&page=0&size=20&sort=name,asc
+     *
+     * All filters work together using AND.
+     * However, status can have multiple values, meaning:
+     * status can be ACTIVE OR TRIAL.
+     *
+     * Filtering, searching, sorting, and pagination are done in the database.
+     *
+     * The API returns a PageResponse containing:
+     * - the schools
+     * - total number of records
+     * - current page
+     * - page size
+     * - information needed to get the next page
+     *
+     * This API only reads data, so there is no need for @Transactional.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<SchoolSummaryResponse>> list(
+            @RequestParam(required = false) List<SchoolStatus> status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String countryCode,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) Instant createdTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+
+        // Bound one at a time rather than through @ModelAttribute, so a misspelled status comes
+        // back through the type-mismatch handler naming the accepted values, instead of a bind
+        // error nothing in this package formats.
+        SchoolSearchRequest request = new SchoolSearchRequest(
+                status, search, countryCode, city, createdFrom, createdTo, page, size, sort);
+
+        return ResponseEntity.ok(provisioningService.listSchools(request));
     }
 }

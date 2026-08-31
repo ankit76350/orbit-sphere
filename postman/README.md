@@ -115,8 +115,8 @@ folder per controller, so the collection and the code stay findable from each ot
 
 ## Coverage
 
-**20 of 27 planned write endpoints** — 22 requests, because two of them were not in the plan.
-The other 7 are specified in
+**20 of 27 planned write endpoints, plus 1 of 11 reads** — 23 requests, because two of the
+writes were not in the original plan. The rest are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
@@ -177,6 +177,18 @@ stores an **array of reasons per date**, and the requests are shaped around that
 - **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
+
+## List Schools (G1) is the first read
+
+The only `GET` in the collection so far. Every parameter is optional — the saved request sends
+`page`, `size` and `sort`, with `status`, `search`, `countryCode`, `city` and the date range
+present but **disabled**, so you can tick one on rather than typing it.
+
+Its fifteen test cases are in the request **description**, not a body block: Postman sends no
+body on a `GET`.
+
+Worth knowing while testing: bad paging is **refused, not clamped** (`size=5000` is a `400`), and
+`sort` accepts only an allow-list of fields.
 
 ## Change Subdomain (#10) rewrites a variable
 
