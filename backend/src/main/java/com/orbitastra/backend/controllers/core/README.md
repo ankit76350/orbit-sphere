@@ -1,17 +1,22 @@
 # controllers/core — write API plan
 
-**Nineteen of 28 endpoints are built — #1 to #9, #18 to #27; Phases 1 to 5 and all four gates
-from Phase 6**, plus the two `DELETE`s that pair with the calendar endpoints. This is the complete inventory of every `POST`,
+**Twenty of 27 endpoints are built — #1 to #10 and #18 to #27**, plus the two `DELETE`s that
+pair with the calendar endpoints. Phases 1 to 5 are complete; Phase 6 has the four gates and the
+subdomain change.
+
+**27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
+is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
+referenced from the Postman collection, the service banners and half the javadoc in this package. This is the complete inventory of every `POST`,
 `PUT` and `PATCH` the `core` module needs, sequenced so it can be built and reviewed one step at
 a time.
 
 | Controller | Endpoints |
 |---|---|
-| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5 |
+| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5, #10 |
 | [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
 | [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE` |
 
-All twenty-one requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
+All twenty-two requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
 which runs green end to end.
 
 Mirrors [`models/core`](../../models/core), which holds exactly two collections:
@@ -29,11 +34,11 @@ inventory because they exist and you should see them, but they are not counted i
 
 ---
 
-# Complete inventory — 28 write endpoints
+# Complete inventory — 27 write endpoints
 
-**18 POST · 7 PATCH · 3 PUT** (+2 DELETE)
+**18 POST · 6 PATCH · 3 PUT** (+2 DELETE)
 
-## School — 17
+## School — 16
 
 | # | Method | Path | Phase |
 |---|---|---|---|
@@ -46,9 +51,9 @@ inventory because they exist and you should see them, but they are not counted i
 | 7 | `PUT` | `/schools/current/address` | 3 — **built** |
 | 8 | `PATCH` | `/schools/current/localization` | 3 — **built** |
 | 9 | `PUT` | `/schools/current/logo` | 3 — **built** |
-| 10 | `PATCH` | `/platform/schools/{id}/subdomain` | 6 |
-| 11 | `PATCH` | `/platform/schools/{id}/account-holder` | 6 |
-| 12 | `PATCH` | `/platform/schools/{id}/encryption-key` | 6 |
+| 10 | `PATCH` | `/platform/schools/{id}/subdomain` | 6 — **built** |
+| ~~11~~ | ~~`PATCH`~~ | ~~`/platform/schools/{id}/account-holder`~~ | **dropped — folded into #6** |
+| 12 | `POST` | `/platform/schools/{id}/rotate-encryption-key` | deferred — nothing is encrypted yet |
 | 13 | `POST` | `/platform/schools/{id}/offboard` | 7 |
 | 14 | `POST` | `/platform/schools/{id}/close` | 7 |
 | 15 | `POST` | `/platform/schools/{id}/request-deletion` | 7 |
@@ -89,7 +94,7 @@ Sequenced by dependency first, then by risk. **Phase 0 is not optional and not s
 | **3** | School self-service edits | 6, 7, 8, 9 | built |
 | **4** | Academic year exists | 18, 19 | built |
 | **5** | The holiday calendar | 20–23 + 2 `DELETE` | built |
-| **6** | Gates and sensitive edits | 24–27 **built**, 10, 11, 12 | part |
+| **6** | Gates and sensitive edits | 10, 24–27 **built**; 12 deferred | part |
 | **7** | Offboarding and deletion | 13–17 | |
 | **8** | Convenience | 28 | |
 
@@ -327,7 +332,7 @@ irreversible from the moment it is requested.
 
 | # | Method | Path | Fields |
 |---|---|---|---|
-| 6 | `PATCH` | `/schools/current/profile` | `schoolName`, `phoneNumber`, `emailAddress` |
+| 6 | `PATCH` | `/schools/current/profile` | `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress` |
 | 7 | `PUT` | `/schools/current/address` | `addressLine`, `city`, `stateOrProvince`, `postalCode` |
 | 8 | `PATCH` | `/schools/current/localization` | `defaultLocale`, `defaultTimeZone` |
 | 9 | `PUT` | `/schools/current/logo` | replaces `logoUrl` |
@@ -428,23 +433,96 @@ or accept a file, store it, return the URL. **Prefer the second** — a school-s
 rot, change to something unwanted, or point at a tracker on a page parents load. If you accept
 a URL, require `https` and an allow-listed host.
 
-## 10–12. Platform-only edits
+## 10. `PATCH /platform/schools/{id}/subdomain` — BUILT
 
-### #10 `subdomain` is its own endpoint for a reason
+The subdomain is the **globally unique key that resolves a request to a tenant** —
+[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) finds a school by it
+on every `/schools/current` call. That is why it is here and not in #6: changing it is not a
+detail edit, it is moving the school's address.
 
-It is the **globally unique key that resolves a request to a tenant.** Changing it breaks every
-bookmark and saved link, invalidates routing caches, and may need the old label held in reserve
-so another school cannot claim it and collect the first school's logins. None of that is true
-of a phone number. Burying it inside #6 alongside an email address means somebody does it by
-accident. Require explicit confirmation of the old value.
+The immediate need is duller than rebranding. `subdomain` was set once at #1 and nothing could
+ever change it, so **a typo at provisioning had no fix but a database edit.**
 
-**Reserved subdomains** — refuse at least: `www`, `api`, `admin`, `app`, `platform`, `status`,
+### The body confirms the current subdomain
+
+`currentSubdomain` must match what the school answers to today, or the request is `409`
+`SUBDOMAIN_CONFIRMATION_MISMATCH`. Nothing reads the value — it exists so that the one endpoint
+that can take a tenant off the air cannot be aimed at the wrong one by a mis-pasted id.
+
+It is the only endpoint in this package with a confirmation field, and that asymmetry is the
+point: every other platform endpoint changes one field of one school, and being wrong is
+recoverable.
+
+### What it refuses
+
+| Case | Code |
+|---|---|
+| id names no school | `404 SCHOOL_NOT_FOUND` |
+| school is `DELETED` or `DELETION_PENDING` | `409 SCHOOL_NOT_EDITABLE` |
+| confirmation does not match | `409 SUBDOMAIN_CONFIRMATION_MISMATCH` |
+| bad shape, or a reserved word | `409 SUBDOMAIN_INVALID` / `SUBDOMAIN_RESERVED` |
+| same as the current one | `409 SUBDOMAIN_UNCHANGED` |
+| already in use | `409 SUBDOMAIN_TAKEN` |
+
+Shape and reserved words come from
+[`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java), shared with
+#1 — so a label refused at provisioning is refused here, without a second list to keep in step.
+
+**Reserved subdomains** — the list refuses `www`, `api`, `admin`, `app`, `platform`, `status`,
 `mail`, `smtp`, `ftp`, `cdn`, `static`, `assets`, `login`, `auth`, `support`, `help`, `docs`,
-`blog`, `test`, `staging`, `dev`. A school that claims `api` or `login` receives traffic and
-credentials meant for the platform.
+`blog`, `test`, `staging`, `dev` and more. A school that claimed `api` or `login` would receive
+traffic and credentials meant for the platform.
 
-#12 `encryption-key` is platform-only for the same class of reason, and must not appear on the
-school surface at all.
+### What it does not do, and the response says so
+
+Nothing invalidates a routing cache, rewrites a stored link, or tells anyone at the school their
+address changed. **The old label is released immediately** — no reservation — so the next school
+to ask can have it, and every bookmark, saved link and stored login pointing at it is simply
+dead. The response's `nextStep` states all of that, because a caller who does not know it will
+find out from the school.
+
+## ~~11.~~ `account-holder` — dropped, folded into #6
+
+`accountHolderName` is a plain `String` on [`School`](../../models/core/School.java). Nothing
+links it to a `UserAccount`, nothing reads it, and nothing is granted by it — changing it grants
+no one anything and revokes nothing. That makes it the same class of edit as `schoolName`, which
+#6 already handles, and a platform-only endpoint for one unreferenced string was ceremony.
+
+It is now a field on #6, refusing `""` the same way `schoolName` does.
+
+**If it ever becomes contractual** — who signed, who gets billed — the fix is to link the field
+to a real account, not to move it back out to its own endpoint. At that point it belongs with
+[`SchoolSubscription`](../../models/plans/SchoolSubscription.java) rather than here.
+
+## 12. `encryption-key` — deferred, and it is not a `PATCH`
+
+`encryptionKeyReference` appears **nowhere in the code** — only on the model and in
+`models/core/README.md`. Nothing encrypts anything yet, so an endpoint to change the key would be
+ceremony around a field no code reads.
+
+It matters later, because the fields waiting on it are the most sensitive in the system:
+
+| Field | Model |
+|---|---|
+| `encryptedIdentityNumber` | `StudentGovernmentIdentity`, `StaffGovernmentIdentity` |
+| `encryptedAccountNumber` | `StaffBankAccount`, `VendorBankAccount` |
+| `encryptedCredentialNumber` | `StaffCredential` |
+| `encryptedSubmitterReference` | `FeedbackSubmission`, `FeedbackReport` |
+| `encryptedPayload` | `BillingWebhookEvent` |
+
+Aadhaar numbers, bank accounts, and the identity behind an anonymous complaint.
+
+**Which is why the planned shape was wrong.** A `PATCH` that swaps the reference and returns
+`200` makes every existing ciphertext unreadable — silently, with every document still looking
+perfectly valid, discovered whenever somebody next opens a student's identity record. Rotation is
+not a field update: it re-encrypts under the new key, or reads old and new through a migration
+window.
+
+So when it is built it is **`POST /platform/schools/{id}/rotate-encryption-key`** with a
+re-encryption step, not a `PATCH` of a string. Build it after something is actually encrypted,
+never before.
+
+Platform-only either way. It must not appear on the school surface at all.
 
 ---
 

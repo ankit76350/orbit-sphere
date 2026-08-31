@@ -303,6 +303,59 @@
       },
       "description": "**POST** `/platform/schools/{id}/reactivate` — brings a suspended school back.\n\n`SUSPENDED` → `ACTIVE`. Anything else is a `409`.\n\n### Request — optional\n\n```json\n{ \"note\": \"Outstanding invoices cleared on 31 August.\" }\n```\n\nThe body may be **omitted entirely**. When given, `note` replaces `School.statusReason`; when\nomitted, the suspension reason stays.\n\n### What it deliberately does not reset\n\n| Field | Why |\n|---|---|\n| `activatedAt` | the original go-live date, not a status flag |\n| `suspendedAt` | the *most recent* suspension — how you see it has happened before |\n| `statusReason` | kept unless a note replaces it |\n\n### Not the same as activate\n\nReactivate skips the setup and subscription checks. A suspended school was already live once,\nso it passed them — re-running them would mean a school suspended for non-payment could never\nbe let back in as a goodwill gesture.\n\n### Responses\n\n| Case | Status | Code |\n|---|---|---|\n| Suspended school | `200` | — `ACTIVE` |\n| Already active | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Never went live | `409` | `SCHOOL_NOT_REACTIVATABLE` |\n| Unknown id | `404` | `SCHOOL_NOT_FOUND` |\n\n### The six test cases are in the request body as comments\n"
      }
+    },
+    {
+     "name": "Change Subdomain",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subdomain",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "platform",
+        "schools",
+        "{{schoolId}}",
+        "subdomain"
+       ]
+      },
+      "description": "**PATCH** `/platform/schools/{id}/subdomain` — changes the label a school answers to.\n\nThe subdomain is the **globally unique key that resolves a request to a tenant**, so this is not\na profile edit — it moves the school's address. #6 deliberately has no field for it.\n\n### The body confirms the current subdomain\n\n`currentSubdomain` must match what the school answers to today. Nothing reads it; it exists so\nthe one endpoint that can take a tenant off the air cannot be aimed at the wrong one by a\nmis-pasted id.\n\n### The old label is released, not reserved\n\nNothing redirects and nobody is told. Every link using the old label is dead, and the next school\nto ask can claim it. The response says so in `nextStep`.\n\n### The nine test cases are in the request body as comments\n",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"currentSubdomain\": \"{{createdSubdomain}}\",\n  \"newSubdomain\": \"orbit-astra-renamed-{{$timestamp}}\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /platform/schools/{id}/subdomain\n//  Platform surface. Needs {{schoolId}} — run Create School first.\n// ===========================================================================\n//\n//  THE SUBDOMAIN IS THE KEY THAT RESOLVES A REQUEST TO A TENANT. This is not a\n//  profile edit; it moves the school's address. That is why it is here and not\n//  on #6, which has no field for it.\n//\n//  currentSubdomain MUST MATCH what the school answers to today. Nothing reads\n//  the value — it exists so the one endpoint that can take a tenant off the\n//  air cannot be aimed at the wrong one by a mis-pasted id. It is the only\n//  confirmation field in this package.\n//\n//  THE OLD LABEL IS RELEASED IMMEDIATELY. Nothing reserves it, nothing\n//  redirects, and the school is NOT told. Every bookmark, saved link and\n//  stored login pointing at the old label is dead the moment this returns, and\n//  the next school to ask can claim it.\n//\n//  AFTER RUNNING THIS, {{createdSubdomain}} IS STALE. The tests below update\n//  it, so the school-surface requests keep working. If you run this by hand,\n//  fix the variable or every /schools/current request starts 404ing.\n//\n// ---------------------------------------------------------------------------\n// 01  CHANGE THE SUBDOMAIN                                 -> 200 OK\n//     The body above.\n//     OUT: previousSubdomain: the old one, subdomain: the new one\n//          nextStep: \"Every link, bookmark and saved login using '...' is now\n//                     dead — nothing redirects, and the school has NOT been\n//                     told. '...' is now free for any school to claim.\"\n// ---------------------------------------------------------------------------\n//\n// 02  WRONG CONFIRMATION                              -> 409 Conflict\n// {\n//   \"currentSubdomain\": \"not-this-school\",\n//   \"newSubdomain\": \"anything-else\"\n// }\n//     OUT: { \"code\": \"SUBDOMAIN_CONFIRMATION_MISMATCH\",\n//            \"message\": \"This school answers to '...', not '...'.\" }\n//     THE GUARD THAT MATTERS MOST HERE.\n// ---------------------------------------------------------------------------\n//\n// 03  SAME AS THE CURRENT ONE                         -> 409 Conflict\n//     Set newSubdomain equal to currentSubdomain.\n//     OUT: { \"code\": \"SUBDOMAIN_UNCHANGED\" }\n// ---------------------------------------------------------------------------\n//\n// 04  A RESERVED WORD                                 -> 409 Conflict\n// {\n//   \"currentSubdomain\": \"{{createdSubdomain}}\",\n//   \"newSubdomain\": \"login\"\n// }\n//     OUT: { \"code\": \"SUBDOMAIN_RESERVED\" }\n//     A school on 'login' or 'api' would receive traffic and credentials meant\n//     for the platform. Same list #1 uses — one list, not two to keep in step.\n// ---------------------------------------------------------------------------\n//\n// 05  A BAD SHAPE                                     -> 409 Conflict\n// {\n//   \"currentSubdomain\": \"{{createdSubdomain}}\",\n//   \"newSubdomain\": \"-bad-\"\n// }\n//     OUT: { \"code\": \"SUBDOMAIN_INVALID\" }\n//     No leading or trailing hyphen; lowercase letters, digits, inner hyphens.\n// ---------------------------------------------------------------------------\n//\n// 06  ALREADY IN USE                                  -> 409 Conflict\n//     Create a second school, then send its subdomain here.\n//     OUT: { \"code\": \"SUBDOMAIN_TAKEN\" }\n// ---------------------------------------------------------------------------\n//\n// 07  NO CONFIRMATION FIELD                          -> 400 Bad Request\n// {\n//   \"newSubdomain\": \"orbit-astra-2\"\n// }\n//     OUT: fieldErrors: { \"currentSubdomain\": \"must not be blank\" }\n//     400, not 409 — the request is malformed, not refused.\n// ---------------------------------------------------------------------------\n//\n// 08  UNKNOWN SCHOOL ID                                -> 404 Not Found\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// 09  A SCHOOL BEING DELETED                          -> 409 Conflict\n//     Only reachable once #15 to #17 exist.\n//     OUT: { \"code\": \"SCHOOL_NOT_EDITABLE\" }\n// ---------------------------------------------------------------------------\n",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "const b = pm.response.json();",
+         "pm.test('the subdomain actually changed', () =>",
+         "  pm.expect(b.subdomain).to.not.eql(b.previousSubdomain));",
+         "pm.test('the caller is warned that old links are dead', () =>",
+         "  pm.expect(b.nextStep).to.include('dead'));",
+         "// The old label no longer resolves, so every /schools/current request would 404.",
+         "// Keep the collection usable by pointing the variable at the new one.",
+         "pm.collectionVariables.set('createdSubdomain', b.subdomain);"
+        ]
+       }
+      }
+     ]
     }
    ],
    "description": "Tenant provisioning and lifecycle, at /platform/schools. Mirrors SchoolPlatformController. The caller is outside the tenant — provisioning is what creates the school these requests are about."
@@ -320,10 +373,13 @@
         "type": "text/javascript",
         "exec": [
          "pm.test('200 OK', () => pm.response.to.have.status(200));",
-         "",
          "const b = pm.response.json();",
-         "pm.test('name applied and trimmed', () => pm.expect(b.schoolName).to.eql(b.schoolName.trim()));",
-         "pm.test('subdomain is never editable here', () => pm.expect(b.subdomain).to.eql(pm.collectionVariables.get('createdSubdomain')));"
+         "pm.test('the school name was replaced', () =>",
+         "  pm.expect(b.schoolName).to.eql('Orbit Astra International School'));",
+         "pm.test('the account holder was replaced', () =>",
+         "  pm.expect(b.accountHolderName).to.eql('Ankit Kumar'));",
+         "pm.test('the subdomain is untouched — it is not on this request', () =>",
+         "  pm.expect(b.subdomain).to.eql(pm.collectionVariables.get('createdSubdomain')));"
         ]
        }
       }
@@ -343,7 +399,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"schoolName\": \"Orbit Astra International School\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /schools/current/profile\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  HOW PATCH BEHAVES HERE — a record cannot tell \"omitted\" from \"null\", so:\n//     field omitted / null  -> leave it exactly as it is\n//     field is \"\"           -> clear it (null in the database)\n//     field has a value     -> replace it\n//\n// ---------------------------------------------------------------------------\n// 01  RENAME ONLY — phone and email untouched            -> 200 OK\n//     The body above. Whitespace is trimmed.\n// ---------------------------------------------------------------------------\n//\n// 02  CLEAR THE PHONE with \"\"                            -> 200 OK\n// {\n//   \"phoneNumber\": \"\"\n// }\n//     OUT: phoneNumber: null, emailAddress unchanged.\n// ---------------------------------------------------------------------------\n//\n// 03  SET PHONE AND EMAIL TOGETHER                       -> 200 OK\n// {\n//   \"phoneNumber\": \"+919876543210\",\n//   \"emailAddress\": \"Office@Orbit-School.EDU\"\n// }\n//     OUT: emailAddress is lowercased on the way in.\n// ---------------------------------------------------------------------------\n//\n// 04  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that asks for nothing is a client bug. 200 would hide it.\n// ---------------------------------------------------------------------------\n//\n// 05  TRY TO CLEAR THE NAME                          -> 400 Bad Request\n// {\n//   \"schoolName\": \"   \"\n// }\n//     OUT: { \"code\": \"SCHOOL_NAME_REQUIRED\" }\n//     schoolName is @NotBlank on the model, so \"\" is a 400, not a deletion.\n// ---------------------------------------------------------------------------\n//\n// 06  BAD EMAIL                                      -> 400 Bad Request\n// {\n//   \"emailAddress\": \"not-an-email\"\n// }\n//     OUT: { \"code\": \"EMAIL_INVALID\" }\n// ---------------------------------------------------------------------------\n//\n// 07  NO TENANT HEADER — delete X-School-Subdomain    -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n//\n// 08  UNKNOWN TENANT — set the header to \"nope\"         -> 404 Not Found\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+       "raw": "{\n  \"schoolName\": \"Orbit Astra International School\",\n  \"accountHolderName\": \"Ankit Kumar\"\n}\n\n//  accountHolderName MOVED HERE on 2026-08-31 from its own platform endpoint\n//  (#11), which was dropped. It is a plain label — nothing links it to a\n//  UserAccount and nothing is granted by it — so a platform-only endpoint for\n//  one unreferenced string was ceremony. Like schoolName it CANNOT BE CLEARED:\n//  \"\" is a 400, not a deletion.\n//\n// ===========================================================================\n//  TEST CASES  —  PATCH /schools/current/profile\n//  Needs the X-School-Subdomain header. Run Create School first.\n// ===========================================================================\n//\n//  HOW PATCH BEHAVES HERE — a record cannot tell \"omitted\" from \"null\", so:\n//     field omitted / null  -> leave it exactly as it is\n//     field is \"\"           -> clear it (null in the database)\n//     field has a value     -> replace it\n//\n// ---------------------------------------------------------------------------\n// 01  RENAME ONLY — phone and email untouched            -> 200 OK\n//     The body above. Whitespace is trimmed.\n// ---------------------------------------------------------------------------\n//\n// 02  CLEAR THE PHONE with \"\"                            -> 200 OK\n// {\n//   \"phoneNumber\": \"\"\n// }\n//     OUT: phoneNumber: null, emailAddress unchanged.\n// ---------------------------------------------------------------------------\n//\n// 03  SET PHONE AND EMAIL TOGETHER                       -> 200 OK\n// {\n//   \"phoneNumber\": \"+919876543210\",\n//   \"emailAddress\": \"Office@Orbit-School.EDU\"\n// }\n//     OUT: emailAddress is lowercased on the way in.\n// ---------------------------------------------------------------------------\n//\n// 04  EMPTY BODY                                     -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that asks for nothing is a client bug. 200 would hide it.\n// ---------------------------------------------------------------------------\n//\n// 05  TRY TO CLEAR THE NAME                          -> 400 Bad Request\n// {\n//   \"schoolName\": \"   \"\n// }\n//     OUT: { \"code\": \"SCHOOL_NAME_REQUIRED\" }\n//     schoolName is @NotBlank on the model, so \"\" is a 400, not a deletion.\n// ---------------------------------------------------------------------------\n//\n// 06  BAD EMAIL                                      -> 400 Bad Request\n// {\n//   \"emailAddress\": \"not-an-email\"\n// }\n//     OUT: { \"code\": \"EMAIL_INVALID\" }\n// ---------------------------------------------------------------------------\n//\n// 07  NO TENANT HEADER — delete X-School-Subdomain    -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// ---------------------------------------------------------------------------\n//\n// 08  UNKNOWN TENANT — set the header to \"nope\"         -> 404 Not Found\n//     OUT: { \"code\": \"SCHOOL_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n//\n// 09  CHANGE THE ACCOUNT HOLDER                            -> 200 OK\n// {\n//   \"accountHolderName\": \"Ankit Kumar\"\n// }\n//     OUT: accountHolderName replaced. Editable here since 2026-08-31; it used\n//     to be platform-only (#11), which was dropped.\n// ---------------------------------------------------------------------------\n//\n// 10  TRY TO CLEAR THE ACCOUNT HOLDER                -> 400 Bad Request\n// {\n//   \"accountHolderName\": \"   \"\n// }\n//     OUT: { \"code\": \"ACCOUNT_HOLDER_NAME_REQUIRED\" }\n//     @NotBlank on the model, same as schoolName. \"\" is a 400, not a deletion.\n// ---------------------------------------------------------------------------\n",
        "options": {
         "raw": {
          "language": "json"

@@ -105,7 +105,7 @@ Then Send, or **Run collection** for the active bodies.
 |---|---|---|
 | `baseUrl` | you — defaults to `http://localhost:3456` | everything |
 | `schoolId` | a successful create | endpoints taking `{id}` |
-| `createdSubdomain` | a successful create | case 05, duplicate; the `X-School-Subdomain` header on every school-surface request |
+| `createdSubdomain` | a successful create, **and Change Subdomain** | case 05, duplicate; the `X-School-Subdomain` header on every school-surface request |
 | `academicYearName` | a successful Create Academic Year | every `/academic-years/{name}` URL, holidays included |
 
 ## Folders mirror `controllers/`
@@ -115,12 +115,16 @@ folder per controller, so the collection and the code stay findable from each ot
 
 ## Coverage
 
-**21 of 28 planned write endpoints.** The other 7 are specified in
+**22 of 27 planned write endpoints.** The other 5 are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
-The count is 21 rather than 19 because two of the calendar endpoints were not in the original
-plan of 28: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
+The plan is 27 rather than 28 because #11 `account-holder` was dropped on 2026-08-31 and folded
+into #6 — it is a plain label that nothing links to an account, so its own platform endpoint was
+ceremony.
+
+The count is 22 rather than 20 because two of the calendar endpoints were not in the original
+plan: the single `DELETE /holidays/{date}` and the bulk `DELETE /holidays?type=`. Both are
 undo for endpoints that create in bulk, and an API that can generate 52 rows in one call and
 cannot remove them is not finished.
 
@@ -167,6 +171,16 @@ stores an **array of reasons per date**, and the requests are shaped around that
 - **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
+
+## Change Subdomain (#10) rewrites a variable
+
+It is the one request that invalidates another. The subdomain is the key every school-surface
+request resolves through, so the moment it changes, the old label 404s. Its test script updates
+`createdSubdomain` to the new value — **if you run it by hand and skip the script, every
+`/schools/current` request afterwards fails** until you fix the variable.
+
+Nothing reserves the old label, either: it is free for any school to claim the instant the
+change commits.
 
 ## A note on the four gates (#24–27)
 
