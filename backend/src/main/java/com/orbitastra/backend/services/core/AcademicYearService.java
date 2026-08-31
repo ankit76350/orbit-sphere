@@ -62,7 +62,7 @@ public class AcademicYearService {
     private final CoreValidator coreValidator;
     private final AcademicYearServiceUtils yearUtils;
 
-    //! endpoint 18 — create a year ----------------------------------------------------
+    //? endpoint 18 — create a year ----------------------------------------------------
 
     /**
      * Creates an academic year with an empty calendar.
@@ -118,7 +118,7 @@ public class AcademicYearService {
                         + "dates by hand, because every non-working day is a dated entry.");
     }
 
-    //! endpoint 19 — move the boundaries ----------------------------------------------
+    //? endpoint 19 — move the boundaries ----------------------------------------------
 
     /**
      * Moves a year's start or end date.
@@ -186,7 +186,7 @@ public class AcademicYearService {
                         + "name and are not checked against the new range yet.");
     }
 
-    //! endpoint 20 — replace the whole calendar ---------------------------------------
+    //? endpoint 20 — replace the whole calendar ---------------------------------------
 
     /**
      * #20 — replaces the whole calendar.
@@ -240,7 +240,7 @@ public class AcademicYearService {
                         + " in (" + incoming.size() + " reasons).");
     }
 
-    //! endpoint 21 — add one reason to a day ------------------------------------------
+    //? endpoint 21 — add one reason to a day ------------------------------------------
     /**
      * #21 — adds one reason to one day.
      *
@@ -290,7 +290,7 @@ public class AcademicYearService {
                                 : "."));
     }
 
-    //! endpoint 22 — edit one reason on a day -----------------------------------------
+    //? endpoint 22 — edit one reason on a day -----------------------------------------
     /**
      * #22 — edits one reason on one day.
      *
@@ -351,7 +351,7 @@ public class AcademicYearService {
                 "Updated '" + event.getName() + "' on " + date + ".");
     }
 
-    //! endpoint DELETE — remove a reason, or the whole day ----------------------------
+    //? endpoint DELETE — remove a reason, or the whole day ----------------------------
     /**
      * Removes one reason from a day, or the whole day.
      *
@@ -400,7 +400,7 @@ public class AcademicYearService {
         return HolidayCalendarResponse.fromAcademicYear(savedYear, summary);
     }
 
-    //! endpoint 23 — generate a weekday's offs across the year ------------------------
+    //? endpoint 23 — generate a weekday's offs across the year ------------------------
     /**
      * #23 — generates one weekday's non-working days across the year.
      *
@@ -484,7 +484,7 @@ public class AcademicYearService {
                                 + skipped.size() + " that already had one.");
     }
 
-    //! endpoint DELETE — remove every reason of one type ------------------------------
+    //? endpoint DELETE — remove every reason of one type ------------------------------
     /**
      * Removes every reason of one type across the calendar. The companion to #23.
      *
@@ -525,7 +525,7 @@ public class AcademicYearService {
                                 + (removed - daysClosed) + " stayed closed for other reasons.");
     }
 
-    //! endpoint 24 — open the year to enrollments -------------------------------------
+    //? endpoint 24 — open the year to enrollments -------------------------------------
     /**
      * #24 — opens the year to new enrollments.
      *
@@ -554,7 +554,7 @@ public class AcademicYearService {
                 "Enrollment enabled for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
     }
 
-    //! endpoint 25 — close the year to enrollments ------------------------------------
+    //? endpoint 25 — close the year to enrollments ------------------------------------
     /**
      * #25 — closes the year to new enrollments.
      *
@@ -584,7 +584,7 @@ public class AcademicYearService {
                         + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET);
     }
 
-    //! endpoint 26 — freeze the year's results ----------------------------------------
+    //? endpoint 26 — freeze the year's results ----------------------------------------
     /**
      * #26 — locks results against further change. What happens when marks are published.
      *
@@ -612,7 +612,7 @@ public class AcademicYearService {
                 "Results locked for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
     }
 
-    //! endpoint 27 — reopen the year's results ----------------------------------------
+    //? endpoint 27 — reopen the year's results ----------------------------------------
         /**
          * Unlocks results for an academic year so marks can be corrected.
          * Safe to call when results are already unlocked.
