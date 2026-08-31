@@ -67,6 +67,13 @@ public class AcademicYearController {
         return ResponseEntity.ok(academicYearService.listAcademicYears());
     }
 
+    //Get the year that today falls in. 404 when no year covers today.
+    //"current" is a fixed word, so Spring matches it ahead of the /{name} paths below.
+    @GetMapping("/current")
+    public ResponseEntity<AcademicYearResponse> current() {
+        return ResponseEntity.ok(academicYearService.getCurrentAcademicYear());
+    }
+
     /**
      * Endpoint #18 — creates an academic year.
      *

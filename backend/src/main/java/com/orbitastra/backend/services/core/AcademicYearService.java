@@ -73,6 +73,23 @@ public class AcademicYearService {
                 .toList();
     }
 
+    //? G6 — the year running today -----------------------------------------------------
+
+    // the current acadmic year running 
+    public AcademicYearResponse getCurrentAcademicYear() {
+        School school = currentSchool.require();
+        LocalDate today = LocalDate.now();
+
+        return academicYears
+                .findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
+                        school.getId(), today, today)
+                .map(AcademicYearResponse::fromAcademicYear)
+                .orElseThrow(() -> ApiException.notFound("NO_CURRENT_ACADEMIC_YEAR",
+                        academicYears.findBySchoolId(school.getId()).isEmpty()
+                                ? "This school has no academic years yet."
+                                : "No academic year covers " + today + " in this school."));
+    }
+
     //? endpoint 18 — create a year ----------------------------------------------------
 
     /**

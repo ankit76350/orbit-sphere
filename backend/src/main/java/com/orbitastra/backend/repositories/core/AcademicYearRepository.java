@@ -21,6 +21,21 @@ public interface AcademicYearRepository extends MongoRepository<AcademicYear, St
             String schoolId, LocalDate onOrBefore, LocalDate onOrAfter);
 
     /**
+     * The year covering a given date, for G6.
+     *
+     * <p>Same comparison as the exists check above, and it runs on the same
+     * {@code school_year_dates_idx} compound index.
+     *
+     * <p>{@code findFirst} rather than a plain {@code Optional} finder on purpose. Endpoint #18
+     * refuses a year overlapping an existing one, so only one row can match — but that rule is
+     * enforced in the application, not by an index. If two overlapping rows ever did exist, a
+     * plain finder would throw and turn a read into a 500. This returns the later-starting one
+     * and stays up.
+     */
+    Optional<AcademicYear> findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
+            String schoolId, LocalDate onOrBefore, LocalDate onOrAfter);
+
+    /**
      * Looked up by name, not by id, because that is how the whole system refers to a year:
      * every other collection stores {@code academicYear} as this string.
      */

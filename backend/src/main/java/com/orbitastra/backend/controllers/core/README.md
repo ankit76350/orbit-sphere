@@ -8,11 +8,11 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Ten `GET` endpoints are inventoried below and **four are
-built** — G1 and G2, which finishes the platform surface, and now G4 and G5. A school can read
-its own profile and the list of years it has. It still cannot read one year, its calendar, or
-ask whether a given date is a working day — G6 to G9 are the open ones, and G9 is the one the
-rest of the system is waiting for.
+**The reads are the open work.** Ten `GET` endpoints are inventoried below and **five are
+built** — G1 and G2, which finishes the platform surface, and G4 to G6. A school can read its own
+profile, the list of years it has, and which year today falls in. It still cannot read a year by
+name or look at a calendar — G7 to G9 are the open ones, and **G9 is the one the rest of the
+system is waiting for**.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -125,7 +125,7 @@ to, because they never name one at all.
 |---|---|---|
 | G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 — **built** |
 | G5 | `GET /schools/current/academic-years` | every year, newest first — **built** |
-| G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` |
+| G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` — **built** |
 | G7 | `GET /schools/current/academic-years/{name}` | one year |
 | G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar |
 | G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
@@ -230,6 +230,60 @@ the only place that did, and the two would then disagree about which years exist
 invisible in the list that still blocks the dates. When soft delete is real, both change
 together.
 
+## G6 — `GET /schools/current/academic-years/current` — BUILT
+
+The year today falls in, in the same
+[`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) G5 returns.
+
+**Worked out from the dates, never stored.** `AcademicYear` has no `current` field on purpose,
+and this is the endpoint that would otherwise have been the excuse to add one. Two sources for
+"which year is it" is two sources that can disagree, and somebody eventually forgets to move the
+flag. This asks the dates, which is the same comparison `AcademicYearResponse.current` already
+makes — so the year G6 returns is always the one G5 marks `current: true`.
+
+Only one year can match, and that is entirely because #18 refuses an overlapping year. The
+repository finder is `findFirst…` rather than a plain `Optional` one anyway: the no-overlap rule
+lives in the application, not in an index, so if two overlapping rows ever did exist a plain
+finder would throw and turn a read into a `500`.
+
+Both ends are inclusive. A year ending today is still the current year; a year that ended
+yesterday is not.
+
+### The `404` is a real answer, and it says which kind
+
+Schools have gaps — the summer between two years, and a school set up but not started. The two
+cases need different things done about them, so they read differently:
+
+| | |
+|---|---|
+| no years at all | `This school has no academic years yet.` |
+| years, none covering today | `No academic year covers 2026-08-31 in this school.` |
+
+Both are `404 NO_CURRENT_ACADEMIC_YEAR`. This is the one read here where `404` is right —
+contrast G9, where "the school is open that day" must be `200` with `closed: false`, because
+there the caller is asking a yes/no question and a `404` collapses "open" and "unknown" into one
+answer.
+
+### A year named `current` is unreachable by name — confirmed
+
+`current` is a literal path segment, so Spring matches it ahead of `/{name}` and G6 needs no
+ordering trick. The flip side is real and was tested: #18 happily creates a year called
+`current`, and `GET /academic-years/current` then answers with G6 rather than that year. Nothing
+breaks today because G7 does not exist yet. **When G7 is built, either reserve the name in #18 or
+accept that one string is unaddressable.**
+
+### Today comes from the server clock
+
+Same as `AcademicYearResponse.current`, the time-zone guard in `SchoolProfileService`, and
+everything else in this package. For a school in a different time zone from the server this is
+wrong for a few hours around midnight.
+
+It was left alone rather than fixed here on purpose. Using the school's `defaultTimeZone` in G6
+alone would mean picking a year against one date and then reporting `current` against another —
+G6 could return a year whose own `current` field said `false`. **The fix is one change
+everywhere or none**: thread the school's zone through `AcademicYearResponse` and every caller
+of `LocalDate.now()` in core, in one go.
+
 ## Reads resolve the tenant with `require`, not `requireUsable`
 
 Both school-surface reads call
@@ -327,7 +381,7 @@ inventing parallel records that drift:
 |---|---|
 | G2 | [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java) — **built**, the platform variant carrying the lifecycle fields |
 | G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
-| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — G5 **built**; a read factory passes no `nextStep` |
+| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — G5 and G6 **built**; a read factory passes no `nextStep` |
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
 | G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
 
@@ -343,8 +397,9 @@ has a handful of academic years, a year has about sixty closed days. G1 is the o
 grows without limit, so it is the only one that needs a page.
 
 **A literal path segment beats a template in Spring**, so `G6 /academic-years/current` resolves
-ahead of `G7 /academic-years/{name}` without any ordering trick. It is still worth knowing, since
-a year *could* be named `current` and then be unreachable by name.
+ahead of `G7 /academic-years/{name}` without any ordering trick — confirmed now that G6 is built.
+The other half of that is confirmed too: a year *can* be named `current`, and it will then be
+unreachable once G7 exists. See the G6 section above.
 
 **An empty list is `200` with `[]`, never `404`.** "This school has no academic years yet" is a
 successful answer. `404` is for a year, school or date that was named and does not exist.
