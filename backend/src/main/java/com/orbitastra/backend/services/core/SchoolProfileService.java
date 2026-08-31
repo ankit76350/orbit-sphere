@@ -6,8 +6,8 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.common.tenant.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.core.SchoolAddressRequest;
 import com.orbitastra.backend.dto.core.SchoolLocalizationRequest;
 import com.orbitastra.backend.dto.core.SchoolLogoRequest;

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.common.tenant;
+package com.orbitastra.backend.common.current;
 
 import org.springframework.stereotype.Component;
 
