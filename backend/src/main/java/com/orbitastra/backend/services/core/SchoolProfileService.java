@@ -47,7 +47,7 @@ public class SchoolProfileService {
     private final CurrentSchoolResolver currentSchool;
     private final CoreValidator coreValidator;
 
-    //! endpoint 6 — the school's own details ------------------------------------------
+    //? endpoint 6 — the school's own details ------------------------------------------
 
     // Gets the current school.
     // Rejects empty updates.
@@ -94,7 +94,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //! endpoint 7 — the postal address ------------------------------------------------
+    //? endpoint 7 — the postal address ------------------------------------------------
 
     /**
      * Replaces the school's complete postal address.
@@ -115,7 +115,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //! endpoint 8 — language and time zone --------------------------------------------
+    //? endpoint 8 — language and time zone --------------------------------------------
 
     //? step 1 - get the current school
     //? step 2 - reject empty updates
@@ -178,7 +178,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //! endpoint 9 — the logo ----------------------------------------------------------
+    //? endpoint 9 — the logo ----------------------------------------------------------
 
     /**
     * Replaces or removes the school's logo.
