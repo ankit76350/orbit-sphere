@@ -1,8 +1,8 @@
 /**
- * Where the battleground sends requests.
+ * Which backend the app talks to.
  *
- * Nothing in the app writes a base URL inline. Everything reads it from here, or from the
- * copy the user has edited, which is kept in the browser's local storage.
+ * Nothing in the app writes a base URL inline. Everything reads it from here, and the choice
+ * is remembered in this browser.
  */
 
 export const DEFAULT_ENVIRONMENTS = [
@@ -14,7 +14,7 @@ export const DEFAULT_ENVIRONMENTS = [
     // same-origin call. This is the one to use: no CORS, and every response header is
     // readable.
     baseUrl: '',
-    description: 'Through this dev server on port 1300. No CORS, all headers visible.',
+    description: 'Through this dev server on port 1300. No CORS, and every response header is readable.',
   },
   {
     id: 'dev-direct',
@@ -27,44 +27,21 @@ export const DEFAULT_ENVIRONMENTS = [
   {
     id: 'staging',
     name: 'Staging',
-    baseUrl: 'https://staging.orbitastra.example',
-    description: 'Not set up yet. Edit the base URL when there is a staging server.',
+    // Deliberately empty rather than a made-up domain. A placeholder address that looks real
+    // fails as a name-lookup error deep in the browser, which reads like a bug in the app
+    // instead of "nobody has set this up yet".
+    baseUrl: '',
+    placeholder: true,
+    description: 'No address set yet. Put the staging server here when there is one.',
   },
   {
     id: 'production',
     name: 'Production',
-    baseUrl: 'https://api.orbitastra.example',
-    description: 'Not set up yet. Careful — these endpoints create and suspend real schools.',
+    baseUrl: '',
+    placeholder: true,
+    description: 'No address set yet. These endpoints create and suspend real schools.',
   },
 ];
 
-/** How the tester should send credentials, when it sends any. */
-export const AUTH_TYPES = [
-  { id: 'none', name: 'No auth' },
-  { id: 'bearer', name: 'Bearer token' },
-  { id: 'basic', name: 'Basic auth' },
-  { id: 'apiKey', name: 'API key header' },
-];
-
-export const DEFAULT_AUTH = {
-  type: 'none',
-  token: '',
-  username: '',
-  password: '',
-  apiKeyName: 'X-API-Key',
-  apiKeyValue: '',
-};
-
 /** Give up on a request after this long, so a dead backend does not hang the page forever. */
 export const DEFAULT_TIMEOUT_MS = 30000;
-
-/**
- * Values that get put into URLs, headers and bodies wherever {{name}} appears. Same idea as
- * Postman variables, and the same names the Postman collection already uses, so text can be
- * copied between the two.
- */
-export const DEFAULT_VARIABLES = {
-  schoolId: '',
-  createdSubdomain: '',
-  academicYear: '2026-2027',
-};

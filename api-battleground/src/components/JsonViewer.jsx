@@ -8,13 +8,13 @@ import { ChevronRight, Copy, Check, Search, Maximize2, Minimize2 } from 'lucide-
 
 /** One colour per value type, shared by the tree view and the raw view. */
 const TOKEN_CLASS = {
-  key: 'text-sky-300',
-  string: 'text-emerald-300',
-  number: 'text-amber-300',
-  boolean: 'text-fuchsia-300',
-  null: 'text-slate-500 italic',
-  punctuation: 'text-slate-500',
-  count: 'text-slate-500',
+  key: 'text-slate-900 font-medium',
+  string: 'text-emerald-700',
+  number: 'text-blue-700',
+  boolean: 'text-violet-700',
+  null: 'text-slate-400 italic',
+  punctuation: 'text-slate-400',
+  count: 'text-slate-400',
 };
 
 function typeOf(value) {
@@ -38,7 +38,7 @@ function Highlighted({ text, search }) {
   while (at !== -1) {
     if (at > from) pieces.push(<span key={index++}>{full.slice(from, at)}</span>);
     pieces.push(
-      <mark key={index++} className="rounded-sm bg-amber-400/30 text-amber-200">
+      <mark key={index++} className="rounded-sm bg-amber-200 text-amber-900">
         {full.slice(at, at + needle.length)}
       </mark>,
     );
@@ -126,7 +126,7 @@ function Node({ name, value, depth, defaultDepth, search, isLast, forceOpen }) {
         <button
           type="button"
           onClick={() => setOpen((was) => !was)}
-          className="inline-flex w-4 items-center justify-center align-middle text-slate-500 hover:text-slate-200"
+          className="inline-flex w-4 items-center justify-center align-middle text-slate-400 hover:text-slate-700"
           aria-label={isOpen ? 'Collapse' : 'Expand'}
         >
           <ChevronRight size={12} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -178,7 +178,7 @@ export function ToolButton({ onClick, title, children, active }) {
       onClick={onClick}
       title={title}
       className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition ${
-        active ? 'bg-sky-500/20 text-sky-200' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-100'
+        active ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
       }`}
     >
       {children}
@@ -202,7 +202,7 @@ export function CopyButton({ text, label = 'Copy', title }) {
         }
       }}
     >
-      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+      {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
       {copied ? 'Copied' : label}
     </ToolButton>
   );
@@ -246,16 +246,16 @@ export default function JsonViewer({
   }, [pretty, search]);
 
   return (
-    <div className="rounded-lg border border-slate-700/70 bg-slate-900/70">
+    <div className="rounded-lg border border-slate-200 bg-slate-50">
       {toolbar && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-700/70 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 px-2 py-1.5">
           <div className="relative">
-            <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search in response"
-              className="w-44 rounded-md border border-slate-700 bg-slate-800/70 py-1 pl-7 pr-2 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+              className="w-48 rounded-md border border-slate-300 bg-white py-1 pl-7 pr-2 text-[11px] text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
             />
           </div>
           {search && (
@@ -289,7 +289,7 @@ export default function JsonViewer({
 
       <div className="overflow-auto p-3 font-mono text-[12px]" style={{ maxHeight }}>
         {isEmpty ? (
-          <p className="italic text-slate-500">{emptyMessage}</p>
+          <p className="italic text-slate-400">{emptyMessage}</p>
         ) : hasTree && !showRaw ? (
           <Node
             name={null}
@@ -301,7 +301,7 @@ export default function JsonViewer({
             forceOpen={expandAll}
           />
         ) : (
-          <pre className="whitespace-pre-wrap break-words text-slate-300">
+          <pre className="whitespace-pre-wrap break-words text-slate-700">
             <Highlighted text={pretty} search={search} />
           </pre>
         )}

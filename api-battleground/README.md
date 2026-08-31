@@ -1,14 +1,22 @@
 # api-battleground
 
-A place to fire requests at the Orbit Sphere backend and see exactly what happened.
+The Orbit Sphere school administration screens, running against the real backend.
 
-Postman-style request building and response inspection, plus an application-like view of the
-data for reads. It is a separate app from [`../frontend`](../frontend) and shares nothing with
-it — different port, different dependencies, its own storage.
+It looks and works like the application a school actually uses — a list of schools, forms,
+buttons, switches, a holiday calendar. Nothing is a mock: every button press is a real HTTP call
+to Spring Boot, and if the backend is down you get "could not reach the backend", not made-up
+data.
 
-**Every call it makes is a real one.** There is no sample data and no offline mode anywhere in
-this app. If the backend is down you get a "could not reach the backend" panel, not a made-up
-answer.
+**Every action shows you what it did.** Anything that changes something — a create, a save, a
+lifecycle button, a switch — opens a pop-up as soon as it finishes. It leads with the answer in
+plain terms (what changed, and the fields that came back, laid out and labelled), with the wire
+detail a tab away: the address, both sets of headers, both bodies as JSON, and the timing.
+
+Reads are silent — a pop-up on every page load would be unusable — so a list that fails says so
+in the page itself. The **Activity** button in the header lists every call the app has made;
+click any of them to reopen its details.
+
+Separate from [`../frontend`](../frontend), which it does not touch.
 
 ---
 
@@ -24,140 +32,118 @@ cd backend && ./mvnw spring-boot:run      # port 3456, takes about a minute
 cd api-battleground && npm install && npm run dev    # http://localhost:1300
 ```
 
-## What it knows about
+## The screens
 
-Read out of the backend, not typed in by hand:
+### Schools
 
-| Where from | What it gave |
+The list, the way an operator would use it: a search box, status filter chips, sorting, page
+size and paging. Clicking a row opens that school.
+
+`Add a school` is an ordinary sign-up form — the web address is suggested from the school's name
+and previewed as `name.orbitastra.com`, and if the backend rejects a field the message appears
+under that field rather than as a wall of JSON.
+
+### One school
+
+The buttons that show depend on where the school is in its life:
+
+| The school is | You get |
 |---|---|
-| `controllers/core/SchoolController.java` | the 5 endpoints that exist, their methods and paths |
-| `dto/core/*.java` | which fields are required, which are optional, what comes back |
-| `services/core/SchoolService.java` | every error code and when it happens |
-| `common/error/ApiError.java` | the error shape, so `fieldErrors` gets its own table |
-| `postman/…postman_collection.json` | the numbered test cases, one click each |
-| `controllers/core/README.md` | the other 25 write endpoints, marked **plan** |
+| being set up / on trial | **Finish setting up**, then **Take it live** |
+| live | **Suspend** — asks for the reason, which is required |
+| suspended | **Let it back in** — a note is optional |
+| any | **Change web address** — asks you to confirm, and warns about saved links |
 
-**5 built, 25 planned.** The planned ones are greyed out and can still be sent — a 404 from a
-path that does not exist is a real answer, and a list that pretends otherwise is worse than an
-honest short one. "Built only" in the sidebar hides them.
+**Finish setting up** reports what it created — 47 numbering sequences, 3 roles — as counts and
+role chips, not a JSON blob.
 
-### The flow that works today
+### Settings
 
-`Create School` → `Complete Provisioning` → `Activate School` → `Suspend School` →
-`Reactivate School`
+Four small forms, each saved on its own, because the backend keeps them as four operations and
+one big Save would hide which one failed.
 
-The id links them, and you do not have to copy it: a successful create saves `{{schoolId}}` and
-`{{createdSubdomain}}`, and the next four endpoints already point at them.
+Changing the time zone is refused by the backend until it is confirmed. The app catches that and
+shows a dialog explaining what actually changes: no record moves, but the *day* the records
+already belong to does.
 
-## The panels
+### Academic year
 
-**Left** — endpoints grouped by backend package, with method badges, search, and the built-only
-filter.
+Create the year, then set admissions and result locking with two switches.
 
-**Request** — method, URL, Send, and tabs:
+The calendar shows the closed days grouped by month. **A day can be closed for more than one
+reason** — a Sunday that is also Diwali — so each day carries its reasons as chips, each of
+which can be edited or removed on its own; "Reopen" removes the whole day. **Weekly day off**
+generates one real dated entry per occurrence of a weekday, because there is no "weekly off day"
+setting anywhere in this system on purpose: a school may run on Sunday and close on another day.
 
-| Tab | What is on it |
-|---|---|
-| Params | path parameters, and query parameters that can be switched off without deleting |
-| Headers | same, with a tick per row |
-| Auth | none / bearer / basic / API key. Nothing needs it yet; it is ready for when it does |
-| Body | JSON editor with pretty, minify, clear, copy, and a warning when the JSON is broken |
-| Docs | required and optional fields, what comes back, and every error this endpoint can give |
-| Cases | the Postman test cases. "Use this" loads that body |
+> **One honest gap.** The backend has no endpoint that *reads* a year or its calendar — every
+> academic-year endpoint is a write. So this page shows the answer from the last change made
+> here, and says so on screen. When a read endpoint exists, this is the one page that changes.
 
-A broken body is still sent exactly as typed — that is how you check what the backend does with
-one.
+## Where the calls come from
 
-**Response** — status, time, size, start and finish times, then:
+The screens never write a URL. They say what they want:
 
-| Tab | What is on it |
-|---|---|
-| Overview / Data | for a GET, the data drawn as a table or a set of fields. For a write, the same view of what was written, plus the error panel |
-| Body | the JSON tree — collapsible, searchable, colour-coded, copyable, with a raw view |
-| Response headers | all of them. `Authorization` and any API key are shortened |
-| Request details | method, URL, filled-in path parameters, headers, body, and the timings |
+```js
+api.call('activate-school', { pathParams: { id: school.schoolId } })
+api.call('update-profile', { subdomain: school.subdomain, body: { schoolName } })
+```
 
-For a GET the Data tab opens first, because the data is the point. For a write the Body tab
-opens first, because the exact answer is the point.
+[`src/api/buildCall.js`](src/api/buildCall.js) turns that into a request, and the paths and
+methods come from [`src/config/endpoints.js`](src/config/endpoints.js), which is generated from
+the Postman collection:
 
-### The Data view
+```bash
+python3 tools/generate-endpoints.py
+```
 
-It works out what to draw from the shape of the response, not from a list of known endpoints:
+All 23 endpoints are covered, with the collection's own notes carried across — they are what the
+*About this call* tab in the details pop-up shows.
 
-- a list of records → a table, with the columns being every field across all rows
-- a page (`content`, `items`, `data`, `results`) → the table plus the page details
-- one record → labelled fields, with nested things as their own tables and cards
-- `nextStep` is pulled out into its own line, because it is the part written for a person
+### The tenant header
 
-That means it already works for the GET endpoints nobody has built yet.
+Every `/schools/current/…` call needs `X-School-Subdomain`; without it the backend answers
+`400 TENANT_NOT_RESOLVED`. There is no sign-in yet, so `CurrentSchoolResolver` reads the tenant
+from that header. The app adds it from the school you are working on — nobody types a header.
 
-## Errors
+## Which backend
 
-Every one is shown as itself, with the backend's `code`, its message, and a plain sentence
-about what that status means here.
-
-- `VALIDATION_FAILED` gets a field-by-field table straight from `fieldErrors`
-- 409 gets said plainly, because in this API it means *the request is fine and the answer is
-  still no* — not *your JSON is wrong*
-- a non-JSON body (a Spring error page, say) is shown as text rather than an empty panel
-- no answer at all — backend down, CORS, timeout — gets its own panel saying which, how long it
-  waited, and what to check
-
-## History
-
-The last 100 calls, kept in this browser. Method, path, status, time, size, when, and which
-environment. **Inspect** reopens that exact request and response; **Resend** runs it again.
-Filter by path or status, or show failures only.
-
-## Environments
-
-Nothing writes a base URL into the code. Four to start with, all editable in Settings, all
-saved in this browser:
+Picked in the header, remembered in this browser. No base URL is written into the code.
 
 | Environment | Base URL | Notes |
 |---|---|---|
-| Development (proxy) | *(empty)* | Same origin. This dev server forwards to 3456. **Use this one** |
+| Development (proxy) | *(empty)* | Same origin; this dev server forwards to 3456. **Use this one** |
 | Development (direct) | `http://localhost:3456` | Needs `DevCorsConfig` on the backend |
-| Staging | placeholder | Edit it when there is a staging server |
-| Production | placeholder | These endpoints create and suspend real schools |
+| Staging / Production | placeholders | Edit them when those servers exist |
 
 Prefer the proxy: no CORS, and the browser lets the page read every response header — which
-matters, because `Location` is where the new school's id comes back.
+matters, because `Location` is where a new school's id comes back.
 
-The direct environment works because of
-[`DevCorsConfig`](../backend/src/main/java/com/orbitastra/backend/config/DevCorsConfig.java),
-which allows any localhost port and exposes `Location`. It is on for the `dev` profile only.
+## Tests
 
-## Variables
+```bash
+npm run test:render   # renders every screen headlessly; fails on anything that throws
+npm run test:e2e      # walks every screen action against a real backend on 3456
+```
 
-`{{name}}` anywhere in a URL, a header or a body, the same as the Postman collection so text
-can be pasted between them.
+`test:e2e` covers all 23 endpoints — 46 checks including the refusals the screens are built
+around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
+the same kind of holiday twice on one day, and shrinking a year past a closed day.
 
-| Variable | Filled by |
-|---|---|
-| `{{schoolId}}` | a successful Create School, Complete Provisioning or Activate |
-| `{{createdSubdomain}}` | a successful Create School |
-| `{{academicYear}}` | you — used by the planned academic-year paths |
-| `{{$timestamp}}` | made fresh on every send. This is what keeps a subdomain unique |
+`test:render` also runs two static checks, for two bugs that got past everything else:
 
-Also `{{$isoTimestamp}}`, `{{$randomInt}}`, `{{$guid}}`. A placeholder with no value is left
-visible in the URL rather than blanked, and the URL bar warns about it before you send.
+- **no screen depends on the whole `api` object.** When one context carried both the actions and
+  the activity log, a screen that loaded itself re-ran after every call — and each run called
+  again. The context is split now (`useApi()` for what you do, `useApiState()` for what changes),
+  and this check stops a future merge bringing the loop back.
+- **every endpoint name a screen asks for exists.** A wrong name only throws when the button is
+  pressed, which is how a rename silently broke three handlers.
 
 ## Other things worth knowing
 
-- **Ctrl / Cmd + Enter** sends.
-- **Cancel** during a request drops the answer when it arrives, rather than letting a stale one
-  land in the panel.
-- Requests give up after 30 seconds by default. Raise it in Settings if you are starting the
-  backend at the same time.
-- Nothing is sent with cookies (`credentials: 'omit'`), so the tester behaves like a plain
-  client.
-- Everything saved — environments, variables, credentials, history — lives in this browser's
-  local storage under `orbit.battleground.*`. Nothing leaves the machine.
-
-## Adding an endpoint when one gets built
-
-One file: [`src/config/endpoints.js`](src/config/endpoints.js). Move the row out of the planned
-table into the live list and fill in `requiredFields`, `responseFields`, `errors`, `captures`
-and the `examples`. Nothing else needs touching — the sidebar, the docs tab, the cases tab and
-the counts all read from there.
+- The details pop-up opens for POST, PUT, PATCH and DELETE. GET stays quiet.
+- Requests give up after 30 seconds.
+- Staging and Production have no address set. Choosing one shows a banner and sends nothing,
+  rather than failing as a name-lookup error that reads like a bug.
+- Nothing is sent with cookies, so the app behaves like a plain client.
+- Only the chosen environment and the timeout are stored in the browser.

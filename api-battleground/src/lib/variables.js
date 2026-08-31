@@ -1,10 +1,9 @@
 /**
- * Replaces {{name}} placeholders in URLs, headers and bodies, the same way Postman does, so
- * the collection in postman/ and this tester can use the same text.
+ * Fills in {{name}} placeholders, the same way Postman does.
  *
- * Two kinds:
- *   {{schoolId}}     — a saved value, filled in after a call that captures it
- *   {{$timestamp}}   — a value made fresh every time the request is sent
+ * The screens pass real values, so this mostly matters for the sample bodies that come from
+ * the Postman collection and are shown in the technical details — a {{$timestamp}} in one of
+ * those should read as a number, not as braces.
  */
 
 /** Values made up on the spot. These are what keep a unique subdomain unique per send. */
@@ -43,16 +42,4 @@ export function applyVariables(text, variables) {
     return whole;
   });
   return { text: filled, used };
-}
-
-/** Any {{name}} in the text that we have no value for. */
-export function missingVariables(text, variables) {
-  const { used } = applyVariables(text, variables);
-  return [...new Set(used.filter((one) => one.kind === 'missing').map((one) => one.name))];
-}
-
-/** Reads a value out of a response body by a dotted path, for the capture rules. */
-export function readPath(value, path) {
-  if (value == null) return undefined;
-  return path.split('.').reduce((current, key) => (current == null ? undefined : current[key]), value);
 }

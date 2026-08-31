@@ -17,7 +17,9 @@ export function buildPath(path, pathParams, variables) {
     filledParams[param.name] = text;
     result = result.split(`{${param.name}}`).join(encodeURIComponent(text));
   });
-  return { path: result, filledParams };
+  // Anything still written as {{name}} in the URL box is filled in too, so a path typed by
+  // hand or pasted from the Postman collection works the same as a path parameter.
+  return { path: applyVariables(result, variables).text, filledParams };
 }
 
 /** Adds the query parameters that are switched on. */

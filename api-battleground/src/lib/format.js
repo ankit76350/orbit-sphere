@@ -1,39 +1,6 @@
 /**
- * Small helpers for showing JSON, sizes and times. No packages needed for any of it.
+ * Small helpers for showing sizes, times and status codes. No packages needed for any of it.
  */
-
-/** Tidies JSON up so it is readable. Gives the text back unchanged if it is not JSON. */
-export function prettyPrint(text) {
-  if (typeof text !== 'string' || text.trim() === '') return text;
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
-}
-
-/** Squeezes JSON onto one line. Gives the text back unchanged if it is not JSON. */
-export function minifyJson(text) {
-  try {
-    return JSON.stringify(JSON.parse(text));
-  } catch {
-    return text;
-  }
-}
-
-/**
- * Checks whether some text is valid JSON, and says what went wrong if not.
- * Empty text counts as fine, because several endpoints take no body.
- */
-export function checkJson(text) {
-  if (typeof text !== 'string' || text.trim() === '') return { valid: true, error: null };
-  try {
-    JSON.parse(text);
-    return { valid: true, error: null };
-  } catch (error) {
-    return { valid: false, error: error.message };
-  }
-}
 
 /** Turns a byte count into something a person can read. */
 export function formatBytes(bytes) {
