@@ -1,12 +1,16 @@
-# controllers/core — write API plan
+# controllers/core — API plan
 
 **Twenty of 27 endpoints are built — #1 to #10 and #18 to #27**, plus the two `DELETE`s that
 pair with the calendar endpoints. Phases 1 to 5 are complete; Phase 6 has the four gates and the
 subdomain change.
 
-**Nothing here is "next".** Of the seven not built, six are deferred by decision — #12 until
+**No writes are "next".** Of the seven not built, six are deferred by decision — #12 until
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
-optional. The write API for `core` is done for now; the next module starts elsewhere.
+optional.
+
+**The reads are the open work.** Eleven `GET` endpoints are inventoried below and none are built,
+so nothing can currently read a school, list its academic years, or ask whether a given date is a
+working day.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -33,7 +37,8 @@ Mirrors [`models/core`](../../models/core), which holds exactly two collections:
 The state machines and validation split are not invented here — they are already written in
 [`models/core/README.md`](../../models/core/README.md). These endpoints enforce that file.
 
-**Scope: writes only**, as asked. Reads are a separate pass. Two `DELETE`s appear in the
+**The write plan was scoped to writes**, as asked. The reads are inventoried below and **none
+are built.** Two `DELETE`s appear in the
 inventory because they exist and you should see them, but they are not counted in the totals.
 
 ---
@@ -83,6 +88,130 @@ All paths below are under `/schools/current/academic-years`.
 | 26 | `POST` | `/{name}/results/lock` | 6 — **built** |
 | 27 | `POST` | `/{name}/results/unlock` | 6 — **built** |
 | 28 | `POST` | `/{name}/clone` | 8 — optional, see below |
+
+---
+
+# Complete read inventory — 11 GET endpoints
+
+**None are built.** This is the same exercise as the write plan: name every `GET` the `core`
+module needs before writing one, so they can be built and reviewed one at a time.
+
+Numbered `G1`–`G11` so the numbers never collide with the write plan's `#1`–`#28`.
+
+## Platform surface — 3
+
+The operator's console. Outside any tenant, so the school is named in the URL.
+
+| # | Path | Returns |
+|---|---|---|
+| G1 | `GET /platform/schools` | a page of schools; filter by `status`, search by name or subdomain |
+| G2 | `GET /platform/schools/{id}` | one school in full, including lifecycle timestamps and `statusReason` |
+| G3 | `GET /platform/schools/subdomain-available?value=` | whether a subdomain can be claimed |
+
+## School surface — 8
+
+The tenant comes from [`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java),
+never from the URL — exactly as on the writes. A caller cannot name a school they do not belong
+to, because they never name one at all.
+
+| # | Path | Returns |
+|---|---|---|
+| G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 |
+| G5 | `GET /schools/current/academic-years` | every year, newest first |
+| G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` |
+| G7 | `GET /schools/current/academic-years/{name}` | one year |
+| G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar |
+| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
+| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
+| G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
+
+## G9 is the one the rest of the system is waiting for
+
+Attendance, timetables, transport and fee due dates all ask the same question — **is this date a
+working day** — and none of them can ask it today.
+
+It is also why [`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) was restructured
+on 2026-08-31 to key on `date` with an array of reasons. Before that, a date could appear several
+times in the calendar and this endpoint would have had to scan and not stop at the first match.
+Now it is one lookup returning one entry, and a Sunday that is also Diwali answers with both
+reasons rather than whichever was written first.
+
+**It should answer for a working day too**, with `closed: false`, rather than `404`. "The school
+is open" is a real answer to the question asked; a `404` makes every caller treat "not found" and
+"open" as the same thing, which is exactly the bug this endpoint exists to prevent.
+
+**G10 is the same question asked in bulk** — attendance percentages and fee proration need a
+count, not 200 individual lookups. Both derive entirely from
+`AcademicYear.holidays`. **Neither may infer a non-working day from the weekday**: schools here
+may run on Sunday with the weekly off on any other day, which is why every closure is a dated
+entry and why #23 exists to generate them.
+
+## G3 exists so #1 and #10 do not fail at the end
+
+A subdomain is refused for three different reasons — shape, reserved word, already taken — and
+today a caller discovers all three only by submitting the whole form. G3 lets a signup or rename
+screen say so while it is being typed.
+
+It must run **the same** [`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java)
+the writes use, and return the same code, or it becomes a second list to keep in step and
+eventually a screen that promises a name the write then refuses.
+
+It leaks whether a subdomain exists, and that is fine: a subdomain is a public hostname. Nothing
+else about the school may come back with it.
+
+## What the reads must not return
+
+**`encryptionKeyReference` never appears on any response, on either surface.** It is a pointer to
+a key. It is already absent from every write response, and a read is the likelier place for it to
+be added by accident.
+
+The platform reads may show lifecycle detail — `status`, `activatedAt`, `suspendedAt`,
+`statusReason` — that the school surface should not. `statusReason` in particular is written for
+the operator ("Non-payment. Third invoice unpaid past 60 days.") and is not a message to show the
+school.
+
+## Shapes already exist for most of these
+
+The writes already return exactly what a read should, so the reads reuse them rather than
+inventing parallel records that drift:
+
+| Read | Response |
+|---|---|
+| G2, G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — G2 needs a platform variant carrying the lifecycle fields |
+| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) |
+| G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
+| G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
+
+Two need something new: G3 an availability record, and G10 a count with the range it covers.
+
+`nextStep` and `changeSummary` are **write** fields — they say what just happened. A read should
+not carry them.
+
+## Points to settle before building
+
+**Pagination on G1 only.** Every other list here is bounded by something real: a school has a
+handful of academic years, a year has about sixty closed days. G1 is the only one that grows
+without limit, so it is the only one that needs a page.
+
+**A literal path segment beats a template in Spring**, so `G6 /academic-years/current` resolves
+ahead of `G7 /academic-years/{name}` without any ordering trick. It is still worth knowing, since
+a year *could* be named `current` and then be unreachable by name.
+
+**An empty list is `200` with `[]`, never `404`.** "This school has no academic years yet" is a
+successful answer. `404` is for a year, school or date that was named and does not exist.
+
+**`current` is derived from the dates, never stored** — see the note further down on why there is
+no "set current year". G6 computes it the same way `AcademicYearResponse.current` already does.
+
+## Reads that are deliberately not listed
+
+- **Anything under `audit_events`.** The trail is not written yet — #26 and #27 record nothing —
+  so a read of it would return an empty collection and imply a guarantee that does not exist.
+- **A platform read of one school's academic years.** Years are school-surface only, matching the
+  writes: a year belongs to one school's calendar and no operator should be browsing it.
+- **Per-field reads** such as `GET /schools/current/localization`. G4 returns the whole profile;
+  four endpoints returning slices of one small document is four things to keep in step.
+- **Anything on `SchoolSubscription`.** Its own resource, its own controller.
 
 ---
 
