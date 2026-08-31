@@ -30,7 +30,6 @@ import com.orbitastra.backend.dto.core.platform.SchoolDetailResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
-import com.orbitastra.backend.dto.core.platform.SubdomainAvailabilityResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
@@ -578,53 +577,5 @@ public class SchoolPlatformService {
                         "No school found with id '" + schoolId + "'."));
 
         return SchoolDetailResponse.fromSchool(school);
-    }
-
-    /**
-     * G3 — says whether a subdomain can be claimed, before anybody submits a form.
-     *
-     * <p>A subdomain is refused for four different reasons: nothing was sent, the shape is
-     * wrong, it is a name the platform keeps for itself, or another school already has it.
-     * Today a caller finds all four out only by sending the whole of #1 or #10 and having it
-     * fail at the end.
-     *
-     * <p><b>It runs the real validator and reads the code off the exception.</b> That is the
-     * important part here. Checking the shape and the reserved list again in this method would
-     * work today, and it would be a second copy of the rules to keep in step; the day somebody
-     * adds a reserved word to CoreValidator and not here, this endpoint starts telling people a
-     * name is free that the write then refuses.
-     *
-     * <p>It never throws for a name it does not like. "No, and here is why" is a real answer to
-     * the question that was asked, so it comes back as a 200 with available false, rather than
-     * an error the screen has to handle differently from the normal reply.
-     *
-     * <p>The answer is a guess, not a promise — another school can take the name in the moment
-     * between this reply and the write. The unique index on subdomain is what actually stops two
-     * schools sharing one, and #1 and #10 still check for themselves.
-     *
-     * <p>This only reads, so there is no need for @Transactional.
-     */
-    public SubdomainAvailabilityResponse checkSubdomainAvailability(String value) {
-        // Work out what the name would be stored as, so we can show it back even if the
-        // validator then turns it down.
-        String normalized = coreValidator.normalizeSubdomain(value);
-
-        // Ask the real validator. If it is happy, the name is well formed and not reserved.
-        // If it is not, it has already worked out which reason applies and put the code on the
-        // exception, so we hand that same code straight back.
-        try {
-            normalized = coreValidator.validateSubdomain(value);
-        } catch (ApiException refused) {
-            return SubdomainAvailabilityResponse.unavailable(
-                    value, normalized, refused.getCode(), refused.getMessage());
-        }
-
-        // Well formed and allowed. The only thing left is whether somebody already has it.
-        if (schools.existsBySubdomain(normalized)) {
-            return SubdomainAvailabilityResponse.unavailable(value, normalized, "SUBDOMAIN_TAKEN",
-                    "The subdomain '" + normalized + "' is already in use.");
-        }
-
-        return SubdomainAvailabilityResponse.available(value, normalized);
     }
 }

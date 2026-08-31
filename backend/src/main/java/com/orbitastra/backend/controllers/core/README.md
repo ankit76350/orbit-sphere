@@ -8,8 +8,8 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Eleven `GET` endpoints are inventoried below and **three are
-built** — G1 to G3, which finishes the platform surface. Nothing on the school surface can be
+**The reads are the open work.** Ten `GET` endpoints are inventoried below and **two are
+built** — G1 and G2, which finishes the platform surface. Nothing on the school surface can be
 read yet: no school profile, no list of academic years, and no way to ask whether a given date
 is a working day.
 
@@ -21,7 +21,7 @@ a time.
 
 | Controller | Endpoints |
 |---|---|
-| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5, #10, G1–G3 |
+| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5, #10, G1–G2 |
 | [`SchoolProfileController`](SchoolProfileController.java) | #6–9 |
 | [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE` |
 
@@ -92,15 +92,19 @@ All paths below are under `/schools/current/academic-years`.
 
 ---
 
-# Complete read inventory — 11 GET endpoints
+# Complete read inventory — 10 GET endpoints
 
-**Three are built — G1, G2 and G3.** This is the same exercise as the write plan: name every
-`GET` the `core` module needs before writing one, so they can be built and reviewed one at a
-time.
+**Both platform reads are built — G1 and G2.** This is the same exercise as the write plan:
+name every `GET` the `core` module needs before writing one, so they can be built and reviewed
+one at a time.
+
+**10, not 11.** G3 `subdomain-available` was dropped on 2026-08-31 — the reasoning is under
+"G3" below. As with #11 the number is left alone rather than closed up, so nothing that already
+refers to G4 onwards has to be renumbered.
 
 Numbered `G1`–`G11` so the numbers never collide with the write plan's `#1`–`#28`.
 
-## Platform surface — 3
+## Platform surface — 2
 
 The operator's console. Outside any tenant, so the school is named in the URL.
 
@@ -108,7 +112,7 @@ The operator's console. Outside any tenant, so the school is named in the URL.
 |---|---|---|
 | G1 | `GET /platform/schools` | a page of schools; filter, search, sort — **built** |
 | G2 | `GET /platform/schools/{id}` | one school in full, including lifecycle timestamps and `statusReason` — **built** |
-| G3 | `GET /platform/schools/subdomain-available?value=` | whether a subdomain can be claimed — **built** |
+| ~~G3~~ | ~~`GET /platform/schools/subdomain-available?value=`~~ | **dropped — #1 and #10 already answer this** |
 
 ## School surface — 8
 
@@ -227,49 +231,30 @@ hiding it here would only send them to the database. An id matching nothing is a
 No `encryptionKeyReference`, and no `nextStep` — a read did not change anything, so it has
 nothing to say about what happens next.
 
-## G3 — `GET /platform/schools/subdomain-available?value=` — BUILT
+## ~~G3~~ — `subdomain-available` — dropped
 
-### It exists so #1 and #10 do not fail at the end
+**Dropped on 2026-08-31. It was built, then removed the same day.** The endpoint, its
+`SubdomainAvailabilityResponse` record and the `normalizeSubdomain` helper that existed only to
+serve it are all gone.
 
-A subdomain is refused for three different reasons — shape, reserved word, already taken — and
-today a caller discovers all three only by submitting the whole form. G3 lets a signup or rename
-screen say so while it is being typed.
+**Why it went.** The case for it was that a subdomain is refused for three different reasons —
+shape, reserved word, already taken — and a caller discovers all three only by submitting the
+whole form. That is true, and it is not worth an endpoint. #1 and #10 already answer the same
+question at the same moment with the same precision: they return `SUBDOMAIN_INVALID`,
+`SUBDOMAIN_RESERVED` or `SUBDOMAIN_TAKEN` as a `409` with the offending name in the message. A
+signup screen submits, reads the code, and puts the message next to the field. That is one round
+trip instead of one per keystroke, and one place where the rules live instead of two.
 
-### How it stays in step
+**What it cost to keep.** An unauthenticated endpoint sitting in front of signup whose only job
+is to confirm that a given tenant exists. It was written not to leak anything else, but it is a
+thing that has to keep being true as the record grows, and the whole benefit was saving a caller
+from reading an error code it already has to handle for the taken-during-typing race anyway.
 
-It calls **the same** [`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java)
-the writes call, catches the `ApiException`, and hands back the code off it. So `reason` is
-literally `SUBDOMAIN_REQUIRED`, `SUBDOMAIN_INVALID`, `SUBDOMAIN_RESERVED` or `SUBDOMAIN_TAKEN` —
-whichever the write would have thrown.
-
-Re-checking the shape and the reserved list in the service would have worked today and would be
-a second list to keep in step; the day somebody adds a reserved word to `CoreValidator` and not
-here, this endpoint starts promising a name the write then refuses.
-
-`normalizeSubdomain` was split out of `validateSubdomain` for this, so the reply can show what
-the name would turn into — type `St Marys`, get `st-marys` — even when the answer is no. It is
-the tidying step only. **The rules did not move and must not be copied.**
-
-### Every answer is a `200`
-
-Including "no". The caller asked whether they could have a name and got a real reply, so it comes
-back as `available: false` with a reason rather than an error the screen has to handle
-differently from the normal case. Only a missing `value` parameter is a `400`, and
-`GlobalExceptionHandler` already covers that one.
-
-The answer is a guess, not a promise — another school can take the name between this reply and
-the write. The unique index on `subdomain` is what actually stops two schools sharing one, and
-#1 and #10 still check for themselves.
-
-### What it gives away
-
-It leaks whether a subdomain exists, and that is fine: a subdomain is a public hostname. **Nothing
-else about the school may ever be added to this record.** It sits unauthenticated in front of
-signup, so it must not become a way to read somebody's tenant.
-
-`subdomain-available` is a fixed word, so Spring matches it ahead of G2's `/{id}` with no
-ordering trick — the same point as G6 against G7 further down. Worth knowing all the same: a
-school whose id was the literal text `subdomain-available` could never be read by G2.
+**If a live check is ever wanted again**, the rule stays the same: call
+[`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java), catch the
+`ApiException`, and return the code off it. Do not re-list the shape or the reserved words —
+the day somebody adds a reserved word to `CoreValidator` and not to the copy, the check starts
+promising a name the write then refuses.
 
 ## What the reads must not return
 
@@ -295,7 +280,7 @@ inventing parallel records that drift:
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
 | G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
 
-Two needed something new: G3 got [`SubdomainAvailabilityResponse`](../../dto/core/platform/SubdomainAvailabilityResponse.java) — **built** — and G10 still needs a count with the range it covers.
+One needs something new: G10, a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.
 
 `nextStep` and `changeSummary` are **write** fields — they say what just happened. A read should
 not carry them.

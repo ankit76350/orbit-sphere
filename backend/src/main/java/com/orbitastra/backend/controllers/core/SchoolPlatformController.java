@@ -30,7 +30,6 @@ import com.orbitastra.backend.dto.core.platform.SchoolStatusResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSuspendRequest;
-import com.orbitastra.backend.dto.core.platform.SubdomainAvailabilityResponse;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
 
 import jakarta.validation.Valid;
@@ -190,13 +189,5 @@ public class SchoolPlatformController {
     @GetMapping("/{id}")
     public ResponseEntity<SchoolDetailResponse> getOne(@PathVariable String id) {
         return ResponseEntity.ok(provisioningService.getSchool(id));
-    }
-
-    // check if subdomain is abaivble or not
-    @GetMapping("/subdomain-available")
-    public ResponseEntity<SubdomainAvailabilityResponse> subdomainAvailable(
-            @RequestParam String value) {
-
-        return ResponseEntity.ok(provisioningService.checkSubdomainAvailability(value));
     }
 }
