@@ -8,11 +8,11 @@ subdomain change.
 something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
 optional.
 
-**The reads are the open work.** Ten `GET` endpoints are inventoried below and **five are
-built** — G1 and G2, which finishes the platform surface, and G4 to G6. A school can read its own
-profile, the list of years it has, and which year today falls in. It still cannot read a year by
-name or look at a calendar — G7 to G9 are the open ones, and **G9 is the one the rest of the
-system is waiting for**.
+**The reads are the open work.** Ten `GET` endpoints are inventoried below and **six are
+built** — G1 and G2, which finishes the platform surface, and G4 to G7. A school can read its own
+profile, every year it has, which year today falls in, and any year by name. What is left is the
+calendar: **G8, and G9 — the one the rest of the system is waiting for** — plus G10 and the
+optional G11.
 
 **27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
 is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
@@ -126,7 +126,7 @@ to, because they never name one at all.
 | G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 — **built** |
 | G5 | `GET /schools/current/academic-years` | every year, newest first — **built** |
 | G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` — **built** |
-| G7 | `GET /schools/current/academic-years/{name}` | one year |
+| G7 | `GET /schools/current/academic-years/{name}` | one year — **built** |
 | G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar |
 | G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** |
 | G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | how many working days fall in a range |
@@ -284,6 +284,44 @@ G6 could return a year whose own `current` field said `false`. **The fix is one 
 everywhere or none**: thread the school's zone through `AcademicYearResponse` and every caller
 of `LocalDate.now()` in core, in one go.
 
+## G7 — `GET /schools/current/academic-years/{name}` — BUILT
+
+One year, in the same [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java)
+G5 and G6 return.
+
+**Keyed on the name, not the id**, exactly as the writes are. Every other collection stores
+`academicYear` as this string, so the name is what the whole system already means when it says
+"which year" — and a URL that cannot change is a daily reminder that the thing it names cannot
+either.
+
+It reuses `AcademicYearServiceUtils.loadYear(school, name)`, so a name that is not in this school
+gives the same `404 ACADEMIC_YEAR_NOT_FOUND` the writes give rather than a second wording of the
+same thing. That also means **tenant isolation comes for free**: the lookup is
+`findBySchoolIdAndName`, so asking for another school's year is a `404`, not somebody else's
+data. Tested.
+
+### #18 now refuses a year named `current`
+
+This was the open decision left at the bottom of the G6 section, and building G7 is what forced
+it. `current` is a fixed path segment, so Spring routes it to G6; a year actually called
+`current` could be created and listed and then never opened, edited, or given a holiday.
+
+The name is now rejected at creation with `409 ACADEMIC_YEAR_NAME_RESERVED`, in
+[`CoreValidator.validateAcademicYearName`](../../services/core/helper/CoreValidator.java)
+alongside the reserved-subdomain list, which is the same kind of rule: well-formed, and still not
+allowed.
+
+**Creation is the only chance to catch it.** There is no rename endpoint and there must never be
+one, so a bad name that gets in is stuck forever. The alternative — accept one unaddressable row
+— fails silently: the year looks perfectly normal in G5 and fails only when somebody tries to
+open it.
+
+The check is case-insensitive and trims, because the path match is neither strict about case nor
+going to see the spaces: `Current`, `CURRENT` and `" current "` are all refused.
+
+**Add to that list if another fixed word is ever put under `/academic-years/`.** Today it holds
+exactly one entry.
+
 ## Reads resolve the tenant with `require`, not `requireUsable`
 
 Both school-surface reads call
@@ -381,7 +419,7 @@ inventing parallel records that drift:
 |---|---|
 | G2 | [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java) — **built**, the platform variant carrying the lifecycle fields |
 | G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
-| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — G5 and G6 **built**; a read factory passes no `nextStep` |
+| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — all three **built**; a read factory passes no `nextStep` |
 | G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) |
 | G9 | [`HolidayView`](../../dto/core/academicyear/HolidayView.java), plus a `closed` flag |
 
@@ -397,9 +435,9 @@ has a handful of academic years, a year has about sixty closed days. G1 is the o
 grows without limit, so it is the only one that needs a page.
 
 **A literal path segment beats a template in Spring**, so `G6 /academic-years/current` resolves
-ahead of `G7 /academic-years/{name}` without any ordering trick — confirmed now that G6 is built.
-The other half of that is confirmed too: a year *can* be named `current`, and it will then be
-unreachable once G7 exists. See the G6 section above.
+ahead of `G7 /academic-years/{name}` without any ordering trick — confirmed now that both are
+built. The other half of it is settled too: a year could once be named `current` and then be
+unreachable, so #18 now refuses that name. See the G7 section above.
 
 **An empty list is `200` with `[]`, never `404`.** "This school has no academic years yet" is a
 successful answer. `404` is for a year, school or date that was named and does not exist.
