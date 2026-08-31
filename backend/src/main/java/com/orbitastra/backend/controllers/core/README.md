@@ -487,9 +487,16 @@ belongs to both, and every "which year is this?" lookup gets two answers.
 
 **Validates:** `name` unique within the school; `startDate` before `endDate`; **no overlap with
 any existing year**; the range is plausible — 30 to 800 days, outside which it is a typo rather
-than a calendar; every supplied holiday inside the range; no two holidays on one date.
+than a calendar.
 
-Holidays may be supplied here or added afterwards.
+**Holidays are not accepted here.** The plan originally allowed supplying them at creation; that
+was removed on 2026-08-31. A year is always created with an empty calendar and filled through
+#20 to #23.
+
+The reason is that one request could otherwise fail for two unrelated things — a bad date range
+or a stray holiday — leaving the caller to work out which, and doubling the create endpoint's
+validation surface for a convenience the calendar endpoints already provide. A `holidays` array
+sent to this endpoint is ignored rather than honoured, because the field is not on the DTO.
 
 **The overlap test is written as "unless one ends before the other starts"**, not as four date
 comparisons. The four-way version is where off-by-one bugs live, and adjacency must stay legal:

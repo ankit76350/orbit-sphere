@@ -1,10 +1,7 @@
 package com.orbitastra.backend.dto.core.academicyear;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -26,8 +23,11 @@ import jakarta.validation.constraints.Size;
  * and imposing one would be this platform deciding something that is not its business. It only
  * has to be unique within the school and never change.
  *
- * <p>Holidays are optional here and can be added afterwards. Supplying them at creation is
- * convenient for a school importing next year's calendar from a spreadsheet in one go.
+ * <p><b>Holidays are not accepted here.</b> A year is created with an empty calendar, and the
+ * calendar is filled through its own endpoints — #20 to #23. Accepting them at creation meant
+ * one request that could fail for two unrelated reasons, a bad date range or a stray holiday,
+ * leaving the caller to work out which. It also made a school importing a spreadsheet choose
+ * between one enormous request and the endpoints that exist for exactly that.
  */
 public record AcademicYearCreateRequest(
 
@@ -38,12 +38,5 @@ public record AcademicYearCreateRequest(
         @NotNull LocalDate startDate,
 
         /** Example: 2027-03-31 */
-        @NotNull LocalDate endDate,
-
-        /** Optional. Every date must fall inside the year. */
-        @Valid List<HolidayRequest> holidays) {
-
-    public List<HolidayRequest> holidaysOrEmpty() {
-        return holidays == null ? new ArrayList<>() : holidays;
-    }
+        @NotNull LocalDate endDate) {
 }

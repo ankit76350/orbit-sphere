@@ -2,9 +2,7 @@ package com.orbitastra.backend.services.core;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,7 +12,6 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
-import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
@@ -48,11 +45,15 @@ public class AcademicYearService {
     //! endpoint 18 — create a year -----------------------------------------------------
 
     /**
-     * Creates an academic year, optionally with its calendar already filled in.
+     * Creates an academic year with an empty calendar.
      *
      * <p>The overlap check is the one that matters. Two years covering one date means every
      * "which year is this?" lookup has two answers — and since AcademicYear deliberately has no
      * {@code current} flag, the dates are the only thing that can answer it.
+     *
+     * <p>Holidays are deliberately not accepted here; they are their own resource with their own
+     * endpoints. A year always starts with nothing in its calendar, which is also why the
+     * response tells the caller to go and fill it in.
      */
     @Transactional
     public AcademicYearResponse createAcademicYear(AcademicYearCreateRequest request) {
@@ -73,30 +74,28 @@ public class AcademicYearService {
         coreValidator.validateNoAcademicYearOverlap(
                 school.getId(), null, request.startDate(), request.endDate());
 
-        //! step 5 - holidays, if any came with the request
-        List<HolidayDetail> holidays = buildHolidays(
-                request.holidaysOrEmpty(), request.startDate(), request.endDate());
-
-        //! step 6 - build the document
+        //! step 5 - build the document, with an empty calendar
+        // Holidays are never set here. The calendar is its own resource with its own endpoints
+        // (#20 to #23), and mixing it into creation meant one request that could fail for two
+        // unrelated reasons — a bad date range or a stray holiday — with the caller having to
+        // work out which.
         AcademicYear year = AcademicYear.builder()
                 .schoolId(school.getId())
                 .name(name)
                 .startDate(request.startDate())
                 .endDate(request.endDate())
-                .holidays(holidays)
+                .holidays(new ArrayList<>())
                 .enrollmentEnabled(false)
                 .resultsLocked(false)
                 .build();
 
-        //! step 7 - save
+        //! step 6 - save
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                holidays.isEmpty()
-                        ? "Add the holiday calendar. Weekly offs are dated entries, so use "
-                                + "generate-weekly-off rather than entering ~52 dates by hand."
-                        : "Calendar started with " + holidays.size() + " entries. Generate the "
-                                + "weekly offs if you have not already.");
+                "The year has no calendar yet. Add holidays next — and use "
+                        + "generate-weekly-off for the weekly offs rather than entering ~52 "
+                        + "dates by hand, because every non-working day is a dated entry.");
     }
 
     //! endpoint 19 — move the boundaries -----------------------------------------------
@@ -167,29 +166,4 @@ public class AcademicYearService {
                         + "name and are not checked against the new range yet.");
     }
 
-    // ---------------------------------------------------------------------------------
-
-
-
-    /** Holidays must sit inside the year, and no date may appear twice. */
-    private List<HolidayDetail> buildHolidays(List<HolidayRequest> requests,
-            LocalDate start, LocalDate end) {
-
-        List<HolidayDetail> details = new ArrayList<>();
-        Set<LocalDate> seen = new HashSet<>();
-
-        for (HolidayRequest holiday : requests) {
-            if (holiday.date().isBefore(start) || holiday.date().isAfter(end)) {
-                throw ApiException.badRequest("HOLIDAY_OUTSIDE_YEAR",
-                        "'" + holiday.name() + "' on " + holiday.date()
-                                + " is outside " + start + " to " + end + ".");
-            }
-            if (!seen.add(holiday.date())) {
-                throw ApiException.badRequest("DUPLICATE_HOLIDAY_DATE",
-                        "More than one holiday sent for " + holiday.date() + ".");
-            }
-            details.add(holiday.toDetail());
-        }
-        return details;
-    }
 }
