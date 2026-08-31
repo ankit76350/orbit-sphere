@@ -1,7 +1,6 @@
 package com.orbitastra.backend.services.core;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +19,7 @@ import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.services.core.helper.CoreValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,12 +41,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AcademicYearService {
 
-    /** A year is a year. Outside this range it is a typo, not a calendar. */
-    private static final long MIN_DAYS = 30;
-    private static final long MAX_DAYS = 800;
-
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
+    private final CoreValidator coreValidator;
 
     //! endpoint 18 — create a year -----------------------------------------------------
 
@@ -70,10 +67,11 @@ public class AcademicYearService {
         }
 
         //! step 3 - the dates must make sense on their own
-        validateRange(request.startDate(), request.endDate());
+        coreValidator.validateAcademicYearRange(request.startDate(), request.endDate());
 
         //! step 4 - and must not overlap a year that already exists
-        checkNoOverlap(school.getId(), null, request.startDate(), request.endDate());
+        coreValidator.validateNoAcademicYearOverlap(
+                school.getId(), null, request.startDate(), request.endDate());
 
         //! step 5 - holidays, if any came with the request
         List<HolidayDetail> holidays = buildHolidays(
@@ -138,10 +136,11 @@ public class AcademicYearService {
         //! step 4 - work out the new range, keeping whichever date was not sent
         LocalDate newStart = request.startDate() == null ? year.getStartDate() : request.startDate();
         LocalDate newEnd = request.endDate() == null ? year.getEndDate() : request.endDate();
-        validateRange(newStart, newEnd);
+        coreValidator.validateAcademicYearRange(newStart, newEnd);
 
         //! step 5 - it must still not overlap another year
-        checkNoOverlap(school.getId(), year.getId(), newStart, newEnd);
+        coreValidator.validateNoAcademicYearOverlap(
+                school.getId(), year.getId(), newStart, newEnd);
 
         //! step 6 - every holiday already on this year must still fall inside it
         // The only orphaning this method can currently detect. Everything else that references
@@ -170,42 +169,7 @@ public class AcademicYearService {
 
     // ---------------------------------------------------------------------------------
 
-    /** A start before an end, and a span that looks like a school year rather than a typo. */
-    private void validateRange(LocalDate start, LocalDate end) {
-        if (!start.isBefore(end)) {
-            throw ApiException.badRequest("INVALID_DATE_RANGE",
-                    "startDate (" + start + ") must be before endDate (" + end + ").");
-        }
-        long days = ChronoUnit.DAYS.between(start, end) + 1;
-        if (days < MIN_DAYS || days > MAX_DAYS) {
-            throw ApiException.badRequest("IMPLAUSIBLE_DATE_RANGE",
-                    "An academic year of " + days + " days is almost certainly a typo. Expected "
-                            + "between " + MIN_DAYS + " and " + MAX_DAYS + " days.");
-        }
-    }
 
-    /**
-     * No two years of one school may cover the same date.
-     *
-     * <p>Two ranges overlap unless one ends before the other starts. Written that way rather than
-     * as four comparisons because the four-way version is where off-by-one bugs live.
-     *
-     * @param ignoreId the year being edited, excluded so it does not overlap itself
-     */
-    private void checkNoOverlap(String schoolId, String ignoreId, LocalDate start, LocalDate end) {
-        for (AcademicYear other : academicYears.findBySchoolId(schoolId)) {
-            if (other.getId().equals(ignoreId)) {
-                continue;
-            }
-            boolean apart = end.isBefore(other.getStartDate()) || start.isAfter(other.getEndDate());
-            if (!apart) {
-                throw ApiException.conflict("ACADEMIC_YEAR_OVERLAP",
-                        "These dates overlap '" + other.getName() + "' ("
-                                + other.getStartDate() + " to " + other.getEndDate()
-                                + "). Two years cannot cover the same day.");
-            }
-        }
-    }
 
     /** Holidays must sit inside the year, and no date may appear twice. */
     private List<HolidayDetail> buildHolidays(List<HolidayRequest> requests,

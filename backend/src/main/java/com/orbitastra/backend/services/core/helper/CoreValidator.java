@@ -1,12 +1,18 @@
 package com.orbitastra.backend.services.core.helper;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.models.core.AcademicYear;
+import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+
+import lombok.RequiredArgsConstructor;
 
 
 /**
@@ -37,7 +43,15 @@ import com.orbitastra.backend.common.error.exception.ApiException;
  * {@link TextHelper}, which trims and lowercases and rejects nothing.
  */
 @Component
+@RequiredArgsConstructor
 public class CoreValidator {
+
+    /**
+     * Needed by the overlap check, which is the first rule here that cannot be answered from
+     * the value alone — it has to know what the school already has. The subdomain and time-zone
+     * checks stay pure.
+     */
+    private final AcademicYearRepository academicYears;
 
     //! subdomain ---------------------------------------------------------------- 
     /** Lowercase letters, digits and single inner hyphens. No leading or trailing hyphen. */
@@ -102,5 +116,61 @@ public class CoreValidator {
                     "'" + candidate + "' is not a known IANA time zone id.");
         }
         return candidate;
+    }
+
+    //! academic year dates ------------------------------------------------------------
+
+    /** A year is a year. Outside this range it is a typo, not a calendar. */
+    private static final long MIN_YEAR_DAYS = 30;
+    private static final long MAX_YEAR_DAYS = 800;
+
+    /**
+     * A start before an end, and a span that looks like a school year.
+     *
+     * <p>The length check is a typo guard, not a rule about how schools work. A three-day
+     * "year" and a five-year one are both somebody mistyping a date, and letting either through
+     * means every later question about which year a date belongs to has a strange answer.
+     */
+    public void validateAcademicYearRange(LocalDate start, LocalDate end) {
+        if (!start.isBefore(end)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDate (" + start + ") must be before endDate (" + end + ").");
+        }
+        long days = ChronoUnit.DAYS.between(start, end) + 1;
+        if (days < MIN_YEAR_DAYS || days > MAX_YEAR_DAYS) {
+            throw ApiException.badRequest("IMPLAUSIBLE_DATE_RANGE",
+                    "An academic year of " + days + " days is almost certainly a typo. Expected "
+                            + "between " + MIN_YEAR_DAYS + " and " + MAX_YEAR_DAYS + " days.");
+        }
+    }
+
+    /**
+     * No two years of one school may cover the same date.
+     *
+     * <p>Two ranges overlap unless one ends before the other starts. Written that way rather
+     * than as four comparisons because the four-way version is where off-by-one bugs live — and
+     * adjacency must stay legal: a year ending 03-31 and the next starting 04-01 are fine.
+     *
+     * <p>This matters more than it looks. AcademicYear deliberately has no {@code current} flag,
+     * so "which year is this date in" is answered from the dates alone. Two years covering one
+     * day would give that question two answers.
+     *
+     * @param ignoreId the year being edited, excluded so it does not overlap itself
+     */
+    public void validateNoAcademicYearOverlap(String schoolId, String ignoreId,
+            LocalDate start, LocalDate end) {
+
+        for (AcademicYear other : academicYears.findBySchoolId(schoolId)) {
+            if (other.getId().equals(ignoreId)) {
+                continue;
+            }
+            boolean apart = end.isBefore(other.getStartDate()) || start.isAfter(other.getEndDate());
+            if (!apart) {
+                throw ApiException.conflict("ACADEMIC_YEAR_OVERLAP",
+                        "These dates overlap '" + other.getName() + "' ("
+                                + other.getStartDate() + " to " + other.getEndDate()
+                                + "). Two years cannot cover the same day.");
+            }
+        }
     }
 }
