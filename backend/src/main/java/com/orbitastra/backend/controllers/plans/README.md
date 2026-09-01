@@ -24,13 +24,13 @@ Seven documents:
 
 | Document | Collection | What it holds |
 |---|---|---|
-| `PlanDefinition` | `plan_definitions` | one version of a plan we sell — price, limits, features |
-| `SchoolSubscription` | `school_subscriptions` | what one school actually bought |
-| `SubscriptionHistory` | `subscription_history` | every change to that, never edited |
-| `SubscriptionInvoice` | `subscription_invoices` | one bill for one billing period |
-| `SubscriptionPayment` | `subscription_payments` | money that arrived against a bill |
-| `PaymentAttempt` | `subscription_payment_attempts` | every try at the gateway, failures included |
-| `BillingWebhookEvent` | `billing_webhook_events` | what the payment provider told us |
+| [`PlanDefinition`](../../models/plans/PlanDefinition.java) | [`plan_definitions`](../../models/plans/PlanDefinition.java) | one version of a plan we sell — price, limits, features |
+| [`SchoolSubscription`](../../models/plans/SchoolSubscription.java) | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) | what one school actually bought |
+| [`SubscriptionHistory`](../../models/plans/SubscriptionHistory.java) | [`subscription_history`](../../models/plans/SubscriptionHistory.java) | every change to that, never edited |
+| [`SubscriptionInvoice`](../../models/plans/billing/SubscriptionInvoice.java) | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) | one bill for one billing period |
+| [`SubscriptionPayment`](../../models/plans/billing/SubscriptionPayment.java) | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) | money that arrived against a bill |
+| [`PaymentAttempt`](../../models/plans/billing/PaymentAttempt.java) | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) | every try at the gateway, failures included |
+| [`BillingWebhookEvent`](../../models/plans/billing/BillingWebhookEvent.java) | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) | what the payment provider told us |
 
 ## Three surfaces, and why
 
@@ -302,3 +302,392 @@ collection exists to answer.
 and not a history event, so there is nowhere to put it. Either give it a small document of its
 own, or make #38 raise a notification and hold no state. Decide before building it, because a
 request that is accepted and then forgotten is worse than no endpoint at all.
+
+---
+
+# Appendix — what every API touches, field by field
+
+The same 71 endpoints, with the fields each one reads and each one writes. Written so that whoever
+builds an endpoint does not have to work this out again from the models, and so a reviewer can see
+at a glance whether a change reaches a field it should not.
+
+Read **updates** as "changes an existing document", **insert** as "writes a new one", and
+**reads** as "looks at it but does not change it".
+
+Two things are left out of every entry because they are true of all of them:
+
+- **The audit fields** — `createdAt`, `updatedAt`, `createdByDocsId`, `updatedByDocsId` and `version` — are filled in by Spring Data on every write. No endpoint sets them by hand.
+- **`schoolId`** is on every document here except `plan_definitions`, and every query must carry it. On the school surface it comes from `CurrentSchoolResolver`; on the platform surface it comes from the `{id}` in the URL.
+
+## The plan catalogue — writes  ·  1–7
+
+**1 · `POST /platform/plans`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode`, `planVersion` = 1, `name`, `description`, `status` = `DRAFT`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`, `publiclyAvailable` = false, `features`
+
+**2 · `PATCH /platform/plans/{code}/versions/{version}`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status` — must be `DRAFT` or the edit is refused
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`
+
+**3 · `PUT /platform/plans/{code}/versions/{version}/features`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `features` — the whole list is replaced
+
+**4 · `POST /platform/plans/{code}/versions/{version}/publish`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` — all must be filled in before it can go on sale
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `ACTIVE`, `effectiveFrom`
+
+**5 · `POST /platform/plans/{code}/versions/{version}/new-version`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: every field of the `version` being copied
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode` — the same, `planVersion` — one higher, `status` = `DRAFT`, and `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` copied from the old `version`
+
+**6 · `POST /platform/plans/{code}/versions/{version}/retire`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `RETIRED`, `effectiveUntil`
+
+**7 · `PATCH /platform/plans/{code}/versions/{version}/availability`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `publiclyAvailable`
+
+## The plan catalogue — reads  ·  8–12
+
+**8 · `GET /platform/plans`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`, `status`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil`
+
+**9 · `GET /platform/plans/{code}/versions`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `status`, `listPrice`, `effectiveFrom`, `effectiveUntil`, `createdAt`
+
+**10 · `GET /platform/plans/{code}/versions/{version}`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: every field, `features` included
+
+**11 · `GET /schools/current/plans`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil` — the filter; then `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `planDefinitionDocsId`, `planVersion` — to mark the plan the school is already on
+
+**12 · `GET /schools/current/plans/{code}/versions/{version}/comparison`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `maxStudentsOverride`, `maxUsersOverride`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` — of both the `current` and the target `version`
+
+## The subscription lifecycle — writes  ·  13–26
+
+**13 · `POST /platform/schools/{id}/subscriptions`**
+
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `subscriptionNo`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
+
+**14 · `POST /platform/schools/{id}/subscriptions/{no}/activate`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`, `currentPeriodStart`, `currentPeriodEnd`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `ACTIVATED`, `previousStatus` = `TRIAL`, `newStatus` = `ACTIVE`, `source`, `performedByDocsId`, `effectiveAt`
+
+**15 · `POST /platform/schools/{id}/subscriptions/{no}/extend-trial`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodEnd`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: **nothing today** — no `eventType` describes it. See the note above.
+
+**16 · `POST /platform/schools/{id}/subscriptions/{no}/change-plan`**
+
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `planVersion`, `listPrice`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers` — of the target `version`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `currencyCode`, `billingCycle`, and `currentPeriodStart`, `currentPeriodEnd` if the period restarts
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus`, `newStatus`, `reason`, `performedByDocsId`, `effectiveAt`
+
+**17 · `POST /platform/schools/{id}/subscriptions/{no}/renew`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd`, `billingCycle`, `contractedPrice`, `autoRenew`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodStart`, `currentPeriodEnd` — moved to the next period
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `invoiceNo`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *insert*: `invoiceNo`, `schoolSubscriptionDocsId`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status` = `DRAFT`, `currencyCode`, `subTotal`, `taxAmount`, `totalAmount`, `paidAmount` = 0, `outstandingAmount` = `totalAmount`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `previousStatus`, `newStatus`, `source`, `effectiveAt`
+
+**18 · `POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `PAST_DUE`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PAYMENT_PAST_DUE`, `previousStatus` = `ACTIVE`, `newStatus` = `PAST_DUE`, `reason`, `effectiveAt`
+
+**19 · `POST /platform/schools/{id}/subscriptions/{no}/suspend`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `SUSPENDED`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `SUSPENDED`, `previousStatus`, `newStatus` = `SUSPENDED`, `reason`, `performedByDocsId`, `effectiveAt`
+
+**20 · `POST /platform/schools/{id}/subscriptions/{no}/resume`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, `previousStatus`, `newStatus` = `ACTIVE`, `reason`, `effectiveAt`
+
+**21 · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `cancelledAt`, `cancellationReason`, `autoRenew` = false
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `CANCELLED`, `previousStatus`, `newStatus` = `CANCELLED`, `reason`, `performedByDocsId`, `effectiveAt`
+
+**22 · `POST /platform/schools/{id}/subscriptions/{no}/expire`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd` — must already have passed
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `EXPIRED`, `current` = false
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `EXPIRED`, `previousStatus`, `newStatus` = `EXPIRED`, `source`, `effectiveAt`
+
+**23 · `PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `autoRenew`
+
+**24 · `PATCH /platform/schools/{id}/subscriptions/{no}/overrides`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `maxStudentsOverride`, `maxUsersOverride` — either may be set back to null to fall through to the plan's own limits
+
+**25 · `PATCH /platform/schools/{id}/subscriptions/{no}/price`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `contractedPrice`, `currencyCode`
+
+**26 · `PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference`
+
+## The subscription — platform reads  ·  27–32
+
+**27 · `GET /platform/schools/{id}/subscription`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: every field, found by `schoolId` and `current` = true
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `planCode`, `maxStudents`, `maxUsers`, `features`
+
+**28 · `GET /platform/schools/{id}/subscriptions`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `current`, `cancelledAt`, `cancellationReason`
+
+**29 · `GET /platform/schools/{id}/subscriptions/{no}/history`**
+
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: every field — `eventType`, `previousStatus`, `newStatus`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `source`, `sourceEventId`, `reason`, `performedByDocsId`, `effectiveAt`
+
+**30 · `GET /platform/subscriptions`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `schoolId`, `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `autoRenew`, `current`
+
+**31 · `GET /platform/subscriptions/renewals-due`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd` — the filter; plus `status`, `autoRenew`, `contractedPrice`, `current`
+
+**32 · `GET /platform/subscriptions/at-risk`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `currentPeriodEnd`, `autoRenew`, `current`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status`, `dueDate`, `outstandingAmount`
+
+## The subscription — the school's own view  ·  33–38
+
+**33 · `GET /schools/current/subscription`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`. **Not** `billingCustomerReference` — that is ours, not theirs
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `description`
+
+**34 · `GET /schools/current/subscription/entitlements`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`
+
+**35 · `GET /schools/current/subscription/usage`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `maxStudentsOverride`, `maxUsersOverride`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `maxStudents`, `maxUsers`, `features`
+- [`students`](../../models/student/Student.java) — *reads*: a count by `schoolId` and `status`
+- [`user_accounts`](../../models/identity/UserAccount.java) — *reads*: a count by `schoolId` and `status`
+
+**36 · `GET /schools/current/subscription/history`**
+
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: `eventType`, `previousStatus`, `newStatus`, `effectiveAt`. **Not** `reason` or `performedByDocsId` — those are the operator's internal notes
+
+**37 · `PATCH /schools/current/subscription/auto-renew`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `autoRenew` — and nothing else the school could reach
+
+**38 · `POST /schools/current/subscription/cancel-request`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `currentPeriodEnd` — to tell the school what it would lose and when
+
+## Invoices — writes  ·  39–46
+
+**39 · `POST /platform/schools/{id}/subscription/invoices`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `contractedPrice`, `currencyCode`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *insert*: `invoiceNo`, `schoolSubscriptionDocsId`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status` = `DRAFT`, `currencyCode`, `subTotal`, `taxAmount`, `totalAmount` = `subTotal` + `taxAmount`, `paidAmount` = 0, `outstandingAmount` = `totalAmount`
+
+**40 · `PATCH /platform/schools/{id}/subscription/invoices/{no}`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status` — must be `DRAFT`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `billingPeriodStart`, `billingPeriodEnd`, `dueDate`, `subTotal`, `taxAmount`, and `totalAmount` and `outstandingAmount` recalculated from them
+
+**41 · `POST /platform/schools/{id}/subscription/invoices/{no}/issue`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status` — must be `DRAFT`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `ISSUED`, `issuedAt`, `issueDate`
+
+**42 · `POST /platform/schools/{id}/subscription/invoices/{no}/void`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `paidAmount` — a bill with money against it cannot simply be voided
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `VOID`, `voidedAt`, `voidReason`, `outstandingAmount` = 0
+
+**43 · `PATCH /platform/schools/{id}/subscription/invoices/{no}/due-date`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `dueDate`, and `status` back from `OVERDUE` if the new date is in the future
+
+**44 · `POST /platform/schools/{id}/subscription/invoices/{no}/record-payment`**
+
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `paymentNo`
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *insert*: `paymentNo`, `schoolSubscriptionDocsId`, `subscriptionInvoiceDocsId`, `status` = `SUCCEEDED`, `paymentMethod`, `amount`, `currencyCode`, `receivedAt`. `gatewayProvider` stays null — no gateway was involved
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `paidAmount`, `outstandingAmount`, `status` = `PARTIALLY_PAID` or `PAID`, `paidAt` when `outstandingAmount` reaches zero
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`, if the school was `PAST_DUE` and this clears it
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, only when the `status` above changed
+
+**45 · `POST /platform/schools/{id}/subscription/invoices/{no}/remind`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `invoiceNo`, `dueDate`, `outstandingAmount`, `currencyCode`, `status` — nothing is written
+
+**46 · `POST /platform/schools/{id}/subscription/invoices/{no}/write-off`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `VOID`, `voidedAt`, `voidReason`, `outstandingAmount` = 0 — **there is no `WRITTEN_OFF` `status`; see the note above**
+
+## Invoices — the school's own view  ·  47–50
+
+**47 · `GET /schools/current/subscription/invoices`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `invoiceNo`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status`, `currencyCode`, `totalAmount`, `paidAmount`, `outstandingAmount`. Rows with `status` = `DRAFT` are left out
+
+**48 · `GET /schools/current/subscription/invoices/{no}`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: as above plus `taxAmount`, `subTotal`, `paidAt`, `voidedAt`, `voidReason`
+
+**49 · `GET /schools/current/subscription/invoices/{no}/pdf`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field that appears on the printed bill
+
+**50 · `GET /schools/current/subscription/outstanding`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `outstandingAmount` summed, plus `status`, `dueDate` and `currencyCode` to work out what is overdue
+
+## Invoices — platform reads  ·  51–54
+
+**51 · `GET /platform/schools/{id}/subscription/invoices`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field, drafts included
+
+**52 · `GET /platform/invoices`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `schoolId`, `invoiceNo`, `status`, `issueDate`, `dueDate`, `currencyCode`, `totalAmount`, `paidAmount`, `outstandingAmount`
+
+**53 · `GET /platform/invoices/overdue`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `dueDate` and `status` — the filter; plus `outstandingAmount`, `schoolId`, `invoiceNo`
+
+**54 · `GET /platform/invoices/{no}`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `status`, `paymentMethod`, `amount`, `receivedAt`
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `attemptNo`, `status`, `failureCode`, `failureMessage`, `attemptedAt`
+
+## Paying — the school  ·  55–60
+
+**55 · `POST /schools/current/subscription/invoices/{no}/pay`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status`, `outstandingAmount`, `currencyCode` — you cannot pay a draft, a void or a settled bill
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `attemptNo` — the highest so far, to number this one
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *insert*: `subscriptionInvoiceDocsId`, `attemptNo`, `status` = `INITIATED`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `idempotencyKey`, `attemptedAt`
+
+**56 · `GET /schools/current/subscription/payments/{no}`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `status`, `amount`, `currencyCode`, `receivedAt`, `failureReason`
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `status`, `failureCode`, `failureMessage`
+
+**57 · `GET /schools/current/subscription/payments`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `status`, `paymentMethod`, `amount`, `currencyCode`, `receivedAt`, `subscriptionInvoiceDocsId`
+
+**58 · `GET /schools/current/subscription/payments/{no}/receipt`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `amount`, `currencyCode`, `paymentMethod`, `receivedAt`, `subscriptionInvoiceDocsId`
+
+**59 · `POST /schools/current/subscription/payment-method`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference` — the card itself never touches us, only the provider's reference to it
+
+**60 · `DELETE /schools/current/subscription/payment-method`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference` = null, and `autoRenew` = false, because a renewal with nothing to charge fails silently
+
+## Payments — platform  ·  61–65
+
+**61 · `GET /platform/schools/{id}/subscription/payments`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: every field, gateway references included
+
+**62 · `GET /platform/invoices/{no}/attempts`**
+
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `attemptNo`, `status`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `gatewayAttemptReference`, `idempotencyKey`, `failureCode`, `failureMessage`, `attemptedAt`, `completedAt`
+
+**63 · `POST /platform/schools/{id}/subscription/payments/{no}/refund`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `status` = `REFUNDED` or `PARTIALLY_REFUNDED`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `paidAmount`, `outstandingAmount`, `status`, `paidAt` cleared if the bill is no longer fully paid
+
+**64 · `POST /platform/schools/{id}/subscription/payments/{no}/reconcile`**
+
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `settlementReference`, `settledAt`
+
+**65 · `POST /platform/schools/{id}/subscription/payments/{no}/retry`**
+
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *insert*: `attemptNo` — one higher, a **new** `idempotencyKey`, `status` = `INITIATED`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `attemptedAt`
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `status` — back to `PENDING` while the retry runs
+
+## The payment provider talking to us  ·  66–69
+
+**66 · `POST /billing/webhooks/{provider}`**
+
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *insert*: `gatewayProvider`, `providerEventId`, `providerEventType`, `processingStatus` = `RECEIVED`, `signatureValid`, `payloadHash`, `encryptedPayload`, `receivedAt`, `processingAttemptCount` = 0
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *updates*: `processingStatus` through `VERIFIED` to `PROCESSED`, `relatedEntityType`, `relatedEntityDocsId`, `processedAt` — or `failureCode`, `failureMessage` and `nextRetryAt` when it goes wrong
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `status`, `gatewayPaymentReference`, `gatewayOrderReference`, `receivedAt`, `failureReason`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `paidAmount`, `outstandingAmount`, `status`, `paidAt`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` — when a payment brings a `PAST_DUE` school back
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType`, `source` = the provider, `sourceEventId` = `providerEventId`, `newStatus`, `effectiveAt`
+
+**67 · `GET /platform/billing/webhooks`**
+
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: `gatewayProvider`, `providerEventId`, `providerEventType`, `processingStatus`, `signatureValid`, `receivedAt`, `processedAt`, `processingAttemptCount`, `nextRetryAt`. **Never** `encryptedPayload`
+
+**68 · `GET /platform/billing/webhooks/{id}`**
+
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: as above plus `relatedEntityType`, `relatedEntityDocsId`, `payloadHash`, `failureCode`, `failureMessage`. Still not `encryptedPayload`
+
+**69 · `POST /platform/billing/webhooks/{id}/replay`**
+
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: `encryptedPayload` — the only thing that decrypts it
+- [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *updates*: `processingStatus`, `processingAttemptCount`, `processedAt`, `nextRetryAt`, `failureCode`, `failureMessage`
+- [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: the same fields #66 would have set
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: the same fields #66 would have set
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: the same fields #66 would have set
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: only if #66 never got that far — `sourceEventId` stops it being written twice
+
+## The jobs  ·  70–71
+
+**70 · `POST /platform/billing/jobs/renew-due`**
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd`, `autoRenew`, `status`, `current` — the ones due today
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodStart`, `currentPeriodEnd`
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue`, once per invoice raised
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *insert*: the same fields as #39
+- [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *insert*: the same fields as #55, for schools with a `billingCustomerReference` saved
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `source` = the job, `effectiveAt`
+
+**71 · `POST /platform/billing/jobs/age-overdue`**
+
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `dueDate`, `status`, `outstandingAmount`
+- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `OVERDUE`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `PAST_DUE`, then `SUSPENDED` once the grace period has run out
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PAYMENT_PAST_DUE` or `SUSPENDED`, `source` = the job, `reason`, `effectiveAt`
