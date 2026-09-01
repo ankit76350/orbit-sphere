@@ -20,14 +20,7 @@ import {
   statusText,
   STATUS_MEANING,
 } from '../lib/format.js';
-
-const METHOD_LOOK = {
-  GET: 'green',
-  POST: 'amber',
-  PUT: 'blue',
-  PATCH: 'violet',
-  DELETE: 'red',
-};
+import { METHOD_LOOK } from './EndpointTag.jsx';
 
 function Headers({ headers, empty }) {
   const rows = Object.entries(headers || {});

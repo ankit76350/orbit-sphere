@@ -11,6 +11,7 @@ import {
   CalendarDays, Plus, Trash2, Pencil, Repeat, Upload, RefreshCw, CalendarSearch, Sigma,
 } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
+import EndpointTag from '../components/EndpointTag.jsx';
 import {
   Card, Button, Field, TextInput, SelectInput, TextArea, Modal, Badge, Toggle, EmptyState,
   Detail, Loading,
@@ -305,11 +306,18 @@ export default function AcademicYearPage({ school }) {
         title="Academic year"
         description="Everything on this page applies to the year chosen here."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Choosing a year runs both of these. */}
+            <EndpointTag id="list-academic-years" />
+            <EndpointTag id="get-academic-year" pathParams={{ name: yearName }} />
+            <EndpointTag id="get-holiday-calendar" pathParams={{ name: yearName }} />
             <Button icon={RefreshCw} size="sm" onClick={() => loadYear(yearName)} title="Read it again" />
-            <Button look="primary" icon={Plus} size="sm" onClick={() => setDialog({ kind: 'create' })}>
-              New year
-            </Button>
+            <div className="flex flex-col items-center gap-1">
+              <Button look="primary" icon={Plus} size="sm" onClick={() => setDialog({ kind: 'create' })}>
+                New year
+              </Button>
+              <EndpointTag id="create-academic-year" />
+            </div>
           </div>
         }
       >
@@ -351,8 +359,15 @@ export default function AcademicYearPage({ school }) {
 
       {/* Gates */}
       {year && (
-        <Card title="Admissions and results">
+        <Card
+          title="Admissions and results"
+          description="Each switch calls a different endpoint depending on which way it goes."
+        >
           <div className="divide-y divide-slate-100">
+            <div className="flex flex-wrap items-center gap-2 pb-2 pt-1">
+              <EndpointTag id="enable-enrollment" pathParams={{ name: yearName }} />
+              <EndpointTag id="disable-enrollment" pathParams={{ name: yearName }} />
+            </div>
             <Toggle
               label="Admissions are open"
               description="Whether new students can be enrolled into this year."
@@ -363,6 +378,10 @@ export default function AcademicYearPage({ school }) {
                   next ? 'Open admissions' : 'Close admissions', 'enrol')
               }
             />
+            <div className="flex flex-wrap items-center gap-2 pb-2 pt-3">
+              <EndpointTag id="lock-results" pathParams={{ name: yearName }} />
+              <EndpointTag id="unlock-results" pathParams={{ name: yearName }} />
+            </div>
             <Toggle
               label="Results are locked"
               description="Once locked, marks cannot be changed. Unlocking is recorded every time."
@@ -380,7 +399,11 @@ export default function AcademicYearPage({ school }) {
       {/* Two quick questions the calendar can answer */}
       {year && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card title="Is the school open?" description="Check any single day.">
+          <Card
+            title="Is the school open?"
+            description="Check any single day."
+            action={<EndpointTag id="get-day-status" pathParams={{ name: yearName }} />}
+          >
             <div className="flex flex-wrap items-end gap-3">
               <Field label="Date" className="w-44">
                 <TextInput
@@ -420,7 +443,11 @@ export default function AcademicYearPage({ school }) {
             )}
           </Card>
 
-          <Card title="How many working days?" description="Across any range. Leave the dates empty for the whole year.">
+          <Card
+            title="How many working days?"
+            description="Across any range. Leave the dates empty for the whole year."
+            action={<EndpointTag id="count-working-days" pathParams={{ name: yearName }} />}
+          >
             <div className="flex flex-wrap items-end gap-3">
               <Field label="From" className="w-40">
                 <TextInput
@@ -464,24 +491,33 @@ export default function AcademicYearPage({ school }) {
           title="Days the school is closed"
           description="A day can be closed for more than one reason — a Sunday that is also Diwali."
           action={
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" icon={Repeat} onClick={() => setDialog({ kind: 'weekly' })}>
-                Weekly day off
-              </Button>
-              <Button size="sm" icon={Upload} onClick={() => setDialog({ kind: 'import' })}>
-                Import
-              </Button>
-              <Button
-                look="primary"
-                size="sm"
-                icon={Plus}
-                onClick={() => {
-                  setHolidayForm({ name: '', description: '', type: 'FESTIVAL', date: year.startDate });
-                  setDialog({ kind: 'addHoliday' });
-                }}
-              >
-                Add a closed day
-              </Button>
+            <div className="flex flex-wrap items-start gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <Button size="sm" icon={Repeat} onClick={() => setDialog({ kind: 'weekly' })}>
+                  Weekly day off
+                </Button>
+                <EndpointTag id="generate-weekly-off" pathParams={{ name: yearName }} />
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Button size="sm" icon={Upload} onClick={() => setDialog({ kind: 'import' })}>
+                  Import
+                </Button>
+                <EndpointTag id="replace-holiday-calendar" pathParams={{ name: yearName }} />
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  look="primary"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setHolidayForm({ name: '', description: '', type: 'FESTIVAL', date: year.startDate });
+                    setDialog({ kind: 'addHoliday' });
+                  }}
+                >
+                  Add a closed day
+                </Button>
+                <EndpointTag id="add-holiday" pathParams={{ name: yearName }} />
+              </div>
             </div>
           }
         >
@@ -502,9 +538,12 @@ export default function AcademicYearPage({ school }) {
                 ))}
               </span>
               {calendar.countsByType?.WEEKLY_OFF > 0 && (
-                <Button size="sm" look="danger" icon={Trash2} busy={busy === 'clearWeekly'} onClick={clearWeeklyOffs}>
-                  Clear weekly offs
-                </Button>
+                <span className="flex items-center gap-2">
+                  <EndpointTag id="remove-holidays-by-type" pathParams={{ name: yearName }} />
+                  <Button size="sm" look="danger" icon={Trash2} busy={busy === 'clearWeekly'} onClick={clearWeeklyOffs}>
+                    Clear weekly offs
+                  </Button>
+                </span>
               )}
             </div>
           )}
@@ -570,6 +609,11 @@ export default function AcademicYearPage({ school }) {
                             </span>
                           ))}
                         </span>
+                        <EndpointTag
+                          id="remove-holiday"
+                          pathParams={{ name: yearName, date: day.date }}
+                          showPath={false}
+                        />
                         <Button
                           size="sm"
                           look="quiet"
@@ -606,6 +650,7 @@ export default function AcademicYearPage({ school }) {
         title="Change the year's dates"
         footer={
           <>
+          <EndpointTag id="update-academic-year-dates" pathParams={{ name: yearName }} className="mr-auto" />
             <Button onClick={() => setDialog(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'dates'} onClick={saveDates}>
               Save the dates
@@ -644,6 +689,7 @@ export default function AcademicYearPage({ school }) {
         description="If the day is already closed, this reason joins the ones already on it."
         footer={
           <>
+          <EndpointTag id="add-holiday" pathParams={{ name: yearName }} className="mr-auto" />
             <Button onClick={() => setDialog(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'add'} onClick={addHoliday}>
               Add it
@@ -701,6 +747,7 @@ export default function AcademicYearPage({ school }) {
         description={editing ? `On ${showDate(editing.date)}` : ''}
         footer={
           <>
+          <EndpointTag id="update-holiday" pathParams={{ name: yearName }} className="mr-auto" />
             <Button onClick={() => setEditing(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'edit'} onClick={saveHoliday}>
               Save
@@ -743,6 +790,7 @@ export default function AcademicYearPage({ school }) {
         description="Adds one closed day for every occurrence of that weekday in the year."
         footer={
           <>
+          <EndpointTag id="generate-weekly-off" pathParams={{ name: yearName }} className="mr-auto" />
             <Button onClick={() => setDialog(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'weekly'} onClick={generateWeekly}>
               Add them
@@ -795,6 +843,7 @@ export default function AcademicYearPage({ school }) {
         description="This replaces the whole calendar, weekly days off included."
         footer={
           <>
+          <EndpointTag id="replace-holiday-calendar" pathParams={{ name: yearName }} className="mr-auto" />
             <Button onClick={() => setDialog(null)}>Cancel</Button>
             <Button look="danger" busy={busy === 'import'} onClick={() => importCalendar([])}>
               Clear the calendar
@@ -881,6 +930,7 @@ function NewYearDialog({ open, onClose, form, setForm, errors, busy, onSave }) {
       description="A year starts with an empty calendar. Closed days are added afterwards."
       footer={
         <>
+        <EndpointTag id="create-academic-year" className="mr-auto" />
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" busy={busy} onClick={onSave}>
             Create the year

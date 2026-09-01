@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
+import EndpointTag from '../components/EndpointTag.jsx';
 import { Card, Button, Field, TextInput, SelectInput, Modal, Loading } from '../components/ui.jsx';
 
 const TIME_ZONES = [
@@ -156,17 +157,20 @@ export default function SchoolSettings({ school, onChanged }) {
         title="School details"
         description="The name and contact details the school shows."
         action={
-          <Button
-            look="primary"
-            size="sm"
-            busy={busy === 'profile'}
-            onClick={() =>
-              save('profile', 'Save school details', 'update-profile',
-                Object.fromEntries(Object.entries(profile).filter(([, v]) => v !== '')))
-            }
-          >
-            Save
-          </Button>
+          <div className="flex items-center gap-2">
+            <EndpointTag id="update-profile" />
+            <Button
+              look="primary"
+              size="sm"
+              busy={busy === 'profile'}
+              onClick={() =>
+                save('profile', 'Save school details', 'update-profile',
+                  Object.fromEntries(Object.entries(profile).filter(([, v]) => v !== '')))
+              }
+            >
+              Save
+            </Button>
+          </div>
         }
       >
         <div className="grid gap-4">
@@ -207,14 +211,17 @@ export default function SchoolSettings({ school, onChanged }) {
         title="Address"
         description="Saved together, because half an address is not an address."
         action={
-          <Button
-            look="primary"
-            size="sm"
-            busy={busy === 'address'}
-            onClick={() => save('address', 'Save the address', 'replace-address', address)}
-          >
-            Save
-          </Button>
+          <div className="flex items-center gap-2">
+            <EndpointTag id="replace-address" />
+            <Button
+              look="primary"
+              size="sm"
+              busy={busy === 'address'}
+              onClick={() => save('address', 'Save the address', 'replace-address', address)}
+            >
+              Save
+            </Button>
+          </div>
         }
       >
         <div className="grid gap-4">
@@ -252,9 +259,12 @@ export default function SchoolSettings({ school, onChanged }) {
         title="Language and time"
         description="The time zone decides which day attendance and timetables fall on."
         action={
-          <Button look="primary" size="sm" busy={busy === 'local'} onClick={() => saveLocalization(false)}>
-            Save
-          </Button>
+          <div className="flex items-center gap-2">
+            <EndpointTag id="update-localization" />
+            <Button look="primary" size="sm" busy={busy === 'local'} onClick={() => saveLocalization(false)}>
+              Save
+            </Button>
+          </div>
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -289,14 +299,17 @@ export default function SchoolSettings({ school, onChanged }) {
         title="Logo"
         description="Must be an https address on an allowed host."
         action={
-          <Button
-            look="primary"
-            size="sm"
-            busy={busy === 'logo'}
-            onClick={() => save('logo', 'Save the logo', 'replace-logo', { logoUrl: logo })}
-          >
-            Save
-          </Button>
+          <div className="flex items-center gap-2">
+            <EndpointTag id="replace-logo" />
+            <Button
+              look="primary"
+              size="sm"
+              busy={busy === 'logo'}
+              onClick={() => save('logo', 'Save the logo', 'replace-logo', { logoUrl: logo })}
+            >
+              Save
+            </Button>
+          </div>
         }
       >
         <div className="grid gap-4">

@@ -20,6 +20,7 @@ import {
   Badge,
 } from '../components/ui.jsx';
 import NewSchoolModal from './NewSchoolModal.jsx';
+import EndpointTag from '../components/EndpointTag.jsx';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All', statuses: [] },
@@ -36,6 +37,26 @@ const SORTS = [
   { id: 'name,desc', label: 'Name Z–A' },
   { id: 'status,asc', label: 'Status' },
 ];
+
+/**
+ * The query for the list, from what is on screen.
+ *
+ * A plain function outside the component on purpose. The tag under the heading has to show the
+ * same query the call sends, and the obvious way — build the object once in the body and use it
+ * twice — would put a fresh object in load()'s dependencies on every render, so load() would
+ * change identity, the effect that runs it would fire again, and the page would call the backend
+ * in a loop. That has happened here before; see the note in api/apiContext.js.
+ */
+function listQueryFrom({ search, filter, page, size, sort }) {
+  const statuses = STATUS_FILTERS.find((one) => one.id === filter)?.statuses ?? [];
+  return {
+    search: search.trim() || undefined,
+    status: statuses.length ? statuses : undefined,
+    page,
+    size,
+    sort,
+  };
+}
 
 export default function SchoolsPage({ onOpenSchool }) {
   const { call, inspect } = useApi();
@@ -56,19 +77,16 @@ export default function SchoolsPage({ onOpenSchool }) {
   // somebody types quickly.
   const latestLoad = useRef(0);
 
+  // What the tag shows. Recomputed each render from the same function load() uses, so the two
+  // cannot disagree — but not passed into load(), for the reason in the note above.
+  const listQuery = listQueryFrom({ search, filter, page, size, sort });
+
   const load = useCallback(async () => {
     const ticket = ++latestLoad.current;
     setLoading(true);
-    const statuses = STATUS_FILTERS.find((one) => one.id === filter)?.statuses ?? [];
     const result = await call('list-schools', {
       label: 'Load schools',
-      query: {
-        search: search.trim() || undefined,
-        status: statuses.length ? statuses : undefined,
-        page,
-        size,
-        sort,
-      },
+      query: listQueryFrom({ search, filter, page, size, sort }),
     });
     if (ticket !== latestLoad.current) return;
     setLoading(false);
@@ -99,21 +117,29 @@ export default function SchoolsPage({ onOpenSchool }) {
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-slate-900">Schools</h1>
           <p className="mt-0.5 text-sm text-slate-500">
             {data
               ? `${data.totalElements} school${data.totalElements === 1 ? '' : 's'} on the platform`
               : 'Every school on the platform'}
           </p>
+          {/* The live request, filters and paging included. Click it for the last response. */}
+          <EndpointTag id="list-schools" query={listQuery} className="mt-2" />
         </div>
         <div className="flex items-center gap-2">
-          <Button icon={RefreshCw} onClick={load} busy={loading}>
-            Refresh
-          </Button>
-          <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>
-            Add a school
-          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button icon={RefreshCw} onClick={load} busy={loading}>
+              Refresh
+            </Button>
+            <EndpointTag id="list-schools" query={listQuery} showPath={false} />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>
+              Add a school
+            </Button>
+            <EndpointTag id="create-school" />
+          </div>
         </div>
       </header>
 

@@ -2,15 +2,8 @@
 
 import { Activity as ActivityIcon, Trash2 } from 'lucide-react';
 import { Modal, Button, Badge, EmptyState } from './ui.jsx';
+import { METHOD_LOOK } from './EndpointTag.jsx';
 import { formatDuration, formatDateTime, timeAgo } from '../lib/format.js';
-
-const METHOD_LOOK = {
-  GET: 'green',
-  POST: 'amber',
-  PUT: 'blue',
-  PATCH: 'violet',
-  DELETE: 'red',
-};
 
 /** Everything this session has sent, for when somebody wants to look back. */
 export function ActivityModal({ open, onClose, log, onInspect, onClear }) {

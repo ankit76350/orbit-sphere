@@ -179,5 +179,40 @@ view = await mount(wrap(React.createElement(AcademicYearPage, { school })));
 check('asks for the first year to be created', view.text.includes('No academic year yet'));
 await view.unmount();
 
+console.log('\nThe endpoint tags');
+handler = () => ({ status: 200, body: {
+  content: [{ schoolId: 'sch-1', schoolName: 'Orbit Astra International School',
+    subdomain: 'orbit-astra', status: 'PROVISIONING', createdAt: '2026-08-01T04:00:00Z' }],
+  page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
+view = await mount(React.createElement(App));
+// The point of the tags: the screen says which endpoint each control calls, and the one under
+// the heading shows the request that was actually sent — paging and sorting included.
+check('names the method', view.text.includes('GET') && view.text.includes('POST'));
+check('shows the live query, not a description of it',
+  view.text.includes('/platform/schools?page=0&size=20&sort=createdAt,desc'),
+  view.text.slice(0, 300));
+// A tag for an endpoint that has been called is a button that reopens the last call. One that
+// has not been called says so instead of looking like a dead control.
+const tagTitles = [...view.container.querySelectorAll('[title*="/platform/schools"]')]
+  .map((one) => one.getAttribute('title'));
+check('a called endpoint offers its last call', tagTitles.some((one) => one.includes('click to see')),
+  tagTitles.join(' | ').slice(0, 300));
+check('an uncalled endpoint says so rather than looking dead',
+  tagTitles.some((one) => one.includes('not called yet')), tagTitles.join(' | ').slice(0, 300));
+await view.unmount();
+
+console.log('\nThe endpoint tags follow the filters');
+view = await mount(React.createElement(App));
+const searchBox = view.container.querySelector('input[placeholder="Search by name or subdomain"]');
+await act(async () => {
+  // React tracks its own value, so the setter has to be called the way React would see it.
+  const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  setter.call(searchBox, 'orbit');
+  searchBox.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+});
+check('the tag picks up what was typed', view.container.textContent.includes('search=orbit'),
+  view.container.textContent.slice(0, 300));
+await view.unmount();
+
 console.log(`\nPASS=${pass} FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

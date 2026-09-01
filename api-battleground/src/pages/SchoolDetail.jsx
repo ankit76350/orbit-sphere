@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
+import EndpointTag from '../components/EndpointTag.jsx';
 import {
   Button, Card, StatusBadge, Detail, Modal, Field, TextInput, TextArea,
 } from '../components/ui.jsx';
@@ -108,6 +109,8 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
               <Globe size={14} className="text-slate-400" />
               <span className="font-mono">{school.subdomain}</span>
             </p>
+            {/* What this page loads itself. */}
+            <EndpointTag id="get-school" className="mt-2" />
             {school.statusReason && (
               <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 <span className="font-medium text-slate-700">Last status note:</span>{' '}
@@ -118,43 +121,61 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
 
           <div className="flex flex-wrap items-center gap-2">
             {actions.includes('complete') && (
-              <Button
-                icon={Wrench}
-                busy={busy === 'complete'}
-                onClick={() => run('complete', 'Finish setting up', 'complete-provisioning')}
-              >
-                Finish setting up
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  icon={Wrench}
+                  busy={busy === 'complete'}
+                  onClick={() => run('complete', 'Finish setting up', 'complete-provisioning')}
+                >
+                  Finish setting up
+                </Button>
+                <EndpointTag id="complete-provisioning" />
+              </div>
             )}
             {actions.includes('activate') && (
-              <Button
-                look="primary"
-                icon={CheckCircle2}
-                busy={busy === 'activate'}
-                onClick={() => run('activate', 'Take the school live', 'activate-school')}
-              >
-                Take it live
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  look="primary"
+                  icon={CheckCircle2}
+                  busy={busy === 'activate'}
+                  onClick={() => run('activate', 'Take the school live', 'activate-school')}
+                >
+                  Take it live
+                </Button>
+                <EndpointTag id="activate-school" />
+              </div>
             )}
             {actions.includes('suspend') && (
-              <Button look="danger" icon={PauseCircle} onClick={() => setAsking('suspend')}>
-                Suspend
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button look="danger" icon={PauseCircle} onClick={() => setAsking('suspend')}>
+                  Suspend
+                </Button>
+                <EndpointTag id="suspend-school" />
+              </div>
             )}
             {actions.includes('reactivate') && (
-              <Button
-                look="primary"
-                icon={PlayCircle}
-                busy={busy === 'reactivate'}
-                onClick={() => setAsking('reactivate')}
-              >
-                Let it back in
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  look="primary"
+                  icon={PlayCircle}
+                  busy={busy === 'reactivate'}
+                  onClick={() => setAsking('reactivate')}
+                >
+                  Let it back in
+                </Button>
+                <EndpointTag id="reactivate-school" />
+              </div>
             )}
-            <Button icon={Globe} onClick={() => setAsking('subdomain')}>
-              Change web address
-            </Button>
-            <Button icon={RefreshCw} busy={loading} onClick={reload} title="Fetch this school again" />
+            <div className="flex flex-col items-center gap-1">
+              <Button icon={Globe} onClick={() => setAsking('subdomain')}>
+                Change web address
+              </Button>
+              <EndpointTag id="change-subdomain" />
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <Button icon={RefreshCw} busy={loading} onClick={reload} title="Fetch this school again" />
+              <EndpointTag id="get-school" showPath={false} />
+            </div>
           </div>
         </div>
 
@@ -242,6 +263,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
         description="Nobody at the school will be able to use it until it is let back in."
         footer={
           <>
+            <EndpointTag id="suspend-school" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button
               look="solidDanger"
@@ -277,6 +299,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
         description="Access is restored straight away."
         footer={
           <>
+            <EndpointTag id="reactivate-school" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button
               look="primary"
@@ -312,6 +335,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
         description="Every saved link and bookmark to the old address stops working."
         footer={
           <>
+            <EndpointTag id="change-subdomain" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button
               look="primary"

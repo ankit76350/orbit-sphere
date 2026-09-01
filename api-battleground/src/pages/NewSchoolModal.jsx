@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '../api/apiContext.js';
+import EndpointTag from '../components/EndpointTag.jsx';
 import { Modal, Button, Field, TextInput, SelectInput, Badge } from '../components/ui.jsx';
 
 const TIME_ZONES = [
@@ -128,6 +129,7 @@ export default function NewSchoolModal({ open, onClose, onCreated }) {
       description="This creates the school. Setting it up and taking it live are the next two steps."
       footer={
         <>
+          <EndpointTag id="create-school" className="mr-auto" />
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" onClick={save} busy={saving}>
             Create the school
