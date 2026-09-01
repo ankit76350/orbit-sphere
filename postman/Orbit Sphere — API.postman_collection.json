@@ -719,6 +719,340 @@
         "description": "**POST** `/schools/current/academic-years/{name}/results/unlock` — unlocks results so they can\nbe corrected.\n\nIdempotent, takes no body.\n\n### It records nothing about who unlocked, or why\n\nUnlocking lets somebody change a mark a parent has already seen, and this endpoint leaves no\ntrace of it having happened. That is a deliberate simplification for now: there is no\nauthentication, so an audit row could not name who acted anyway.\n\n**Before results are real this needs a required reason and an audit row on every call, refusals\nincluded.** The design is kept in `controllers/core/README.md`.\n\n### The four test cases are in the request body as comments\n"
        },
        "response": []
+      },
+      {
+       "name": "List Academic Years",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years"
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years` — every year this school has, newest first.\n\n**Sorted on `startDate`, not `createdAt`.** \"Newest\" means the year furthest along the calendar, not the row typed most recently — a school setting up enters 2025-2026 after 2026-2027 often enough that the two orders disagree.\n\n**No page envelope.** A school has a handful of years. List Schools stays the only list in this collection that pages.\n\nA school with no years yet is `200` with `[]`, never a `404`.\n\n`nextStep` is absent: it is a write field, and nothing just happened.\n\n### Cases\n\n| # | Setup | Expected |\n|---|---|---|\n| 01 | a fresh school | `200` `[]` |\n| 02 | create 2025-2026, then 2027-2028, then 2026-2027 | `200` — returned 2027, 2026, 2025 |\n| 03 | header removed | `400 TENANT_NOT_RESOLVED` |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const rows = pm.response.json();",
+           "",
+           "pm.test('it is an array', () => pm.expect(rows).to.be.an('array'));",
+           "pm.test('newest first, by startDate', () => {",
+           "  for (let i = 1; i < rows.length; i++) {",
+           "    pm.expect(rows[i - 1].startDate >= rows[i].startDate).to.be.true;",
+           "  }",
+           "});",
+           "pm.test('a read carries no nextStep', () =>",
+           "  rows.forEach(r => pm.expect(r).to.not.have.property('nextStep')));",
+           "pm.test('at most one year is current', () =>",
+           "  pm.expect(rows.filter(r => r.current).length).to.be.at.most(1));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Current Academic Year",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/current",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "current"
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years/current` — the year today falls in.\n\n**Worked out from the dates, never stored.** `AcademicYear` has no `current` flag on purpose — two sources for \"which year is it\" is two sources that can disagree. The year this returns is always the one List Academic Years marks `current: true`.\n\nOnly one year can match, because Create Academic Year refuses an overlapping one.\n\nBoth ends are inclusive: a year ending **today** is still the current year; one that ended yesterday is not.\n\n### The 404 says which kind of nothing\n\n| Situation | Message |\n|---|---|\n| no years at all | `This school has no academic years yet.` |\n| years, none covering today | `No academic year covers 2026-08-31 in this school.` |\n\nBoth are `404 NO_CURRENT_ACADEMIC_YEAR`. The two need different things done about them.\n\n### `current` is a reserved year name\n\nThis fixed path segment wins over `/{name}`, so Create Academic Year refuses a year called `current` — otherwise it could be created and then never opened.\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 when a year covers today, 404 when none does', () =>",
+           "  pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+           "const b = pm.response.json();",
+           "",
+           "if (pm.response.code === 200) {",
+           "  pm.test('the year it returns says it is current', () =>",
+           "    pm.expect(b.current).to.be.true);",
+           "  pm.test('today really is inside its dates', () => {",
+           "    const today = new Date().toISOString().slice(0, 10);",
+           "    pm.expect(b.startDate <= today && today <= b.endDate).to.be.true;",
+           "  });",
+           "  pm.test('a read carries no nextStep', () =>",
+           "    pm.expect(b).to.not.have.property('nextStep'));",
+           "} else {",
+           "  pm.test('it explains which kind of nothing', () =>",
+           "    pm.expect(b.code).to.eql('NO_CURRENT_ACADEMIC_YEAR'));",
+           "}"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Academic Year",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}"
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years/{name}` — one year.\n\n**Keyed on the name, not the id**, exactly as the writes are. Every other collection stores `academicYear` as this string, so the name is what the whole system already means when it says \"which year\" — and a URL that cannot change is a reminder that the thing it names cannot either.\n\nThe lookup is by school **and** name, so **asking for another school's year is a `404`**, not somebody else's data.\n\n### Cases\n\n| # | name | Expected |\n|---|---|---|\n| 01 | `{{academicYearName}}` | `200` |\n| 02 | `2099-2100` | `404 ACADEMIC_YEAR_NOT_FOUND` |\n| 03 | `some%20year` | `404` — not a 500 |\n| 04 | another school's year name | `404` |\n| 05 | `current` | reaches Get Current Academic Year instead — see that request |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('it is the year we asked for', () =>",
+           "  pm.expect(b.name).to.eql(pm.collectionVariables.get('academicYearName')));",
+           "pm.test('the dates are the right way round', () =>",
+           "  pm.expect(b.startDate < b.endDate).to.be.true);",
+           "pm.test('a read carries no nextStep', () =>",
+           "  pm.expect(b).to.not.have.property('nextStep'));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Holiday Calendar",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "holidays"
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years/{name}/holidays` — the whole calendar.\n\nThe same record every calendar write returns, so a screen that adds a holiday and a screen that only reads one use a single shape. `changeSummary` is absent — nothing just happened.\n\nDays come back **sorted by date**. A year created by Create Academic Year has an empty calendar, so `200` with `holidays: []` is the normal first answer.\n\n### Two counts, because a day and a reason are not the same thing\n\nOn a year with 52 generated Sundays, Independence Day, and Diwali landing on one of those Sundays:\n\n```\nclosedDayCount 53      the number attendance and fees divide by\neventCount     54      reasons recorded across those days\ncountsByType   { WEEKLY_OFF: 52, PUBLIC_HOLIDAY: 1, FESTIVAL: 1 }\n```\n\n`countsByType` counts **events**, not days — \"how many festivals\" must not be reduced by the ones that happened to land on a Sunday.\n\n### No filtering, on purpose\n\nNo `?type=`, no date range. A full year is about sixty closed days. The questions worth asking about dates are **Get Day Status** and **Count Working Days**, which answer them properly rather than handing you a list to filter.\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('the envelope is complete', () => {",
+           "  ['academicYearName','startDate','endDate','closedDayCount','eventCount',",
+           "   'countsByType','holidays'].forEach(k => pm.expect(b).to.have.property(k));",
+           "});",
+           "pm.test('a read carries no changeSummary', () =>",
+           "  pm.expect(b).to.not.have.property('changeSummary'));",
+           "pm.test('days are sorted by date', () => {",
+           "  for (let i = 1; i < b.holidays.length; i++) {",
+           "    pm.expect(b.holidays[i - 1].date <= b.holidays[i].date).to.be.true;",
+           "  }",
+           "});",
+           "pm.test('closedDayCount is the number of days', () =>",
+           "  pm.expect(b.closedDayCount).to.eql(b.holidays.length));",
+           "pm.test('eventCount counts reasons, so it is never smaller', () =>",
+           "  pm.expect(b.eventCount).to.be.at.least(b.closedDayCount));",
+           "pm.test('every closed day has at least one reason', () =>",
+           "  b.holidays.forEach(d => pm.expect(d.events.length).to.be.above(0)));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Day Status",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/holidays/2026-11-08",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "holidays",
+          "2026-11-08"
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years/{name}/holidays/{date}` — is the school closed that day, and why.\n\n**This is the one the rest of the system was waiting for.** Attendance, timetables, transport and fee due dates all ask it. Every one of them should call this rather than reading the calendar and deciding for itself — the moment two places decide what a working day is, they disagree.\n\n### An open day is a `200`, not a `404`\n\nA working day answers `200` with `closed: false` and an empty `events` list. A `404` would make every caller treat \"the school is open\" and \"something went wrong\" as the same reply, which is exactly the bug this endpoint exists to prevent. The only `404` here is a year that does not exist.\n\n### It never looks at the day of the week\n\n**Schools here may run on Sunday and take the weekly off on another day.** Only a dated entry on the calendar closes a day. On a year with the weekly off generated on Wednesday:\n\n| date | | answer |\n|---|---|---|\n| 2026-11-08 | Sunday | `closed: false` — open |\n| 2026-11-11 | Wednesday | `closed: true` — Weekly Off **and** Diwali |\n\n`dayOfWeek` is on the response for a person to read. **`dayOfWeek === 'SUNDAY'` in a caller is the bug.**\n\n### Cases\n\n| # | date | Expected |\n|---|---|---|\n| 01 | a closed date | `200` `closed: true`, every reason listed |\n| 02 | a working date | `200` `closed: false`, `events: []` |\n| 03 | the year's first or last day | `200` — both ends are inside the year |\n| 04 | a date outside the year | `400 DATE_OUTSIDE_ACADEMIC_YEAR` — **not** `closed: false` |\n| 05 | `08-11-2026` | `400 INVALID_PARAMETER` — dates are ISO |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK — an open day is an answer, not a 404', () =>",
+           "  pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('it answers the question asked', () => {",
+           "  ['academicYearName','date','dayOfWeek','closed','events']",
+           "    .forEach(k => pm.expect(b).to.have.property(k));",
+           "  pm.expect(b.closed).to.be.a('boolean');",
+           "});",
+           "pm.test('closed and the reasons agree', () =>",
+           "  pm.expect(b.events.length > 0).to.eql(b.closed));",
+           "pm.test('every reason has a name and a type', () =>",
+           "  b.events.forEach(e => {",
+           "    pm.expect(e.name).to.be.a('string').and.not.empty;",
+           "    pm.expect(e.type).to.be.a('string').and.not.empty;",
+           "  }));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Count Working Days",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/working-days?from=2026-11-02&to=2026-11-08",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "working-days"
+         ],
+         "query": [
+          {
+           "key": "from",
+           "value": "2026-11-02",
+           "description": "Optional. Defaults to the year's start date."
+          },
+          {
+           "key": "to",
+           "value": "2026-11-08",
+           "description": "Optional. Defaults to the year's end date."
+          }
+         ]
+        },
+        "description": "**GET** `/schools/current/academic-years/{name}/working-days?from=&to=` — which days in a range are working days, and how many.\n\nGet Day Status asked about one date; this is the same question in bulk. Attendance percentages and fee proration need the answer for a whole range, not two hundred separate calls — and they need the **same** answer as each other.\n\n### It returns the days, not just the count\n\n```json\n{\n  \"totalDayCount\": 7, \"workingDayCount\": 6, \"closedDayCount\": 1,\n  \"workingDays\": [\n    { \"date\": \"2026-11-02\", \"dayOfWeek\": \"MONDAY\" },\n    { \"date\": \"2026-11-03\", \"dayOfWeek\": \"TUESDAY\" }\n  ]\n}\n```\n\nA timetable being laid out or a fee schedule spread over teaching days needs to know *which* days. `workingDayCount` is the length of that list, not a separate subtraction, so the number and the list cannot drift apart.\n\n### Leaving the range off means the whole year\n\n`from` and `to` both default to the year's own dates, so a bare call answers \"which days does this year teach on\" — and its count is the denominator of every attendance percentage. `from` alone runs to the end of the year; `to` alone runs from the start.\n\n### It counts days, not reasons\n\nA Sunday that is also Diwali is **one** closed day. Overcounting it would quietly understate attendance on exactly the weeks a school has festivals. That is also why there is no per-type breakdown — ask Get Holiday Calendar if you need the reasons.\n\n### Cases\n\n| # | Query | Expected |\n|---|---|---|\n| 01 | none | the whole year; `closedDayCount` matches the calendar's |\n| 02 | `from` only | runs to the year's end |\n| 03 | `to` only | runs from the year's start |\n| 04 | one day, closed | `totalDayCount 1`, `workingDayCount 0` |\n| 05 | `from` after `to` | `400 INVALID_DATE_RANGE` |\n| 06 | either end outside the year | `400 DATE_OUTSIDE_ACADEMIC_YEAR` |\n| 07 | `from=01-05-2026` | `400 INVALID_PARAMETER` — dates are ISO |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('the range is echoed back', () => {",
+           "  pm.expect(b.from).to.be.a('string');",
+           "  pm.expect(b.to).to.be.a('string');",
+           "  pm.expect(b.from <= b.to).to.be.true;",
+           "});",
+           "pm.test('the arithmetic holds', () =>",
+           "  pm.expect(b.workingDayCount + b.closedDayCount).to.eql(b.totalDayCount));",
+           "pm.test('the count is the length of the list', () =>",
+           "  pm.expect(b.workingDays.length).to.eql(b.workingDayCount));",
+           "pm.test('both ends of the range count', () => {",
+           "  const days = (new Date(b.to) - new Date(b.from)) / 86400000 + 1;",
+           "  pm.expect(b.totalDayCount).to.eql(days);",
+           "});",
+           "pm.test('every row has a date and its weekday', () =>",
+           "  b.workingDays.forEach(d => {",
+           "    pm.expect(d.date).to.be.a('string').and.not.empty;",
+           "    pm.expect(d.dayOfWeek).to.be.a('string').and.not.empty;",
+           "  }));",
+           "pm.test('the working days are in order and inside the range', () => {",
+           "  for (let i = 1; i < b.workingDays.length; i++) {",
+           "    pm.expect(b.workingDays[i - 1].date < b.workingDays[i].date).to.be.true;",
+           "  }",
+           "  b.workingDays.forEach(d =>",
+           "    pm.expect(d.date >= b.from && d.date <= b.to).to.be.true);",
+           "});"
+          ]
+         }
+        }
+       ]
       }
      ],
      "description": "The school's academic years, at /schools/current/academic-years. Mirrors AcademicYearController.\n\nAddressed by NAME, not id — that is how the whole system refers to a year. There is no rename and no DELETE."
@@ -945,6 +1279,57 @@
         "description": "**PUT** `/schools/current/logo` — replaces the logo, or removes it.\n\n`https` only, and the host must be on the service's allow-list. `logoUrl: \"\"` removes it, which\nis why there is no separate `DELETE`.\n\nA file upload would be better — a school-supplied URL can rot or be changed after approval —\nbut there is no storage service yet.\n\n### The four test cases are in the request body as comments\n"
        },
        "response": []
+      },
+      {
+       "name": "Get Profile",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current"
+         ]
+        },
+        "description": "**GET** `/schools/current` — the school reading its own details.\n\nThe read behind Update Profile, Replace Address, Update Localization and Replace Logo. It returns the **identical** record those four return, so a settings screen loads the form and saves it with one shape rather than two that drift apart.\n\n`status` is here, because a school being told it is `SUSPENDED` is how its own screens explain why editing stopped working. `statusReason`, `activatedAt` and `suspendedAt` are **not** — those belong to the operator, on Get School.\n\nNeeds `X-School-Subdomain`. Resolved with `require`, not `requireUsable`, so **a suspended school can still read this** — being blocked from editing is not being blocked from looking.\n\n### Cases\n\n| # | Header | Expected |\n|---|---|---|\n| 01 | `{{createdSubdomain}}` | `200` |\n| 02 | header removed | `400 TENANT_NOT_RESOLVED` |\n| 03 | `no-such-school` | `404 SCHOOL_NOT_FOUND` |\n| 04 | after Suspend School | `200` — the read still works |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('it is the caller\\'s own school', () =>",
+           "  pm.expect(b.subdomain).to.eql(pm.collectionVariables.get('createdSubdomain')));",
+           "pm.test('the editable profile is all here', () => {",
+           "  ['schoolName','accountHolderName','defaultLocale','defaultTimeZone','countryCode']",
+           "    .forEach(k => pm.expect(b).to.have.property(k));",
+           "});",
+           "pm.test('status is shown, so the school can explain itself', () =>",
+           "  pm.expect(b).to.have.property('status'));",
+           "pm.test(\"the operator's fields stay on the platform surface\", () => {",
+           "  ['statusReason','activatedAt','suspendedAt']",
+           "    .forEach(k => pm.expect(b).to.not.have.property(k));",
+           "});",
+           "pm.test('the key reference is never returned', () =>",
+           "  pm.expect(b).to.not.have.property('encryptionKeyReference'));"
+          ]
+         }
+        }
+       ]
       }
      ],
      "description": "The school editing itself, at /schools/current. Mirrors SchoolProfileController.\n\n**Every request needs the X-School-Subdomain header** — a stand-in for the session, saved by Create School. It is not safe: any caller can set it to any school's subdomain."
@@ -1381,6 +1766,48 @@
            "  pm.expect(b.hasPrevious).to.be.false);",
            "pm.test('the key reference is never returned', () =>",
            "  b.content.forEach(s => pm.expect(s).to.not.have.property('encryptionKeyReference')));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get School",
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}"
+         ]
+        },
+        "description": "**GET** `/platform/schools/{id}` — one school in full, for the operator.\n\nThe row picked out of List Schools, opened. Everything on the school plus the three lifecycle fields the school itself never sees: `activatedAt`, `suspendedAt` and `statusReason`.\n\n`statusReason` is written **for the operator** — \"Non-payment. Third invoice unpaid past 60 days.\" — and is not a message to show the school. It is on this endpoint and not on Get Profile for that reason.\n\nA school at **any** status comes back, closed and deleted included: the console is exactly where somebody needs to look at a school that is no longer running and find out why.\n\n`encryptionKeyReference` is never returned, on either surface.\n\n### Cases\n\n| # | id | Expected |\n|---|---|---|\n| 01 | `{{schoolId}}` | `200` |\n| 02 | `000000000000000000000000` | `404 SCHOOL_NOT_FOUND` |\n| 03 | `not-an-objectid` | `404 SCHOOL_NOT_FOUND` — not a 500 |\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "",
+           "pm.test('it is the school we asked for', () =>",
+           "  pm.expect(b.schoolId).to.eql(pm.collectionVariables.get('schoolId')));",
+           "pm.test('the lifecycle fields are present', () => {",
+           "  ['status','statusReason','activatedAt','suspendedAt','createdAt','updatedAt']",
+           "    .forEach(k => pm.expect(b).to.have.property(k));",
+           "});",
+           "pm.test('the key reference is never returned', () =>",
+           "  pm.expect(b).to.not.have.property('encryptionKeyReference'));",
+           "pm.test('a read carries no nextStep', () =>",
+           "  pm.expect(b).to.not.have.property('nextStep'));"
           ]
          }
         }
