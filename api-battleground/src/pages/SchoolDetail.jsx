@@ -6,9 +6,10 @@
  * dialog rather than making somebody write JSON.
  */
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft, CheckCircle2, PauseCircle, PlayCircle, Wrench, Globe, Settings, CalendarDays, Info,
+  RefreshCw,
 } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
 import {
@@ -46,7 +47,24 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
   const [reason, setReason] = useState('');
   const [newSubdomain, setNewSubdomain] = useState('');
 
+  const [loading, setLoading] = useState(false);
+
   const actions = actionsFor(school.status);
+
+  /*
+   * The row that opened this screen is a summary — no address, no logo, no language, no
+   * updatedAt. Fetch the whole record so the tabs below have something real to show.
+   */
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const result = await call('get-school', { label: 'Load the school', pathParams: { id: school.schoolId } });
+    setLoading(false);
+    if (result.ok) onChanged({ ...school, ...result.bodyJson });
+  }, [call, school.schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   /** Runs one of the lifecycle actions and folds the answer back into the school on screen. */
   const run = async (id, label, endpointId, body) => {
@@ -62,6 +80,8 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
       setAsking(null);
       setReason('');
       setNewSubdomain('');
+      // The lifecycle answers carry only a few fields, so read the school back in full.
+      reload();
     }
     return result;
   };
@@ -134,6 +154,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
             <Button icon={Globe} onClick={() => setAsking('subdomain')}>
               Change web address
             </Button>
+            <Button icon={RefreshCw} busy={loading} onClick={reload} title="Fetch this school again" />
           </div>
         </div>
 
@@ -180,7 +201,11 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
 
           <Card title="Where it is">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <Detail label="City">{school.city}</Detail>
+              <Detail label="Address" className="col-span-2">
+                {[school.addressLine, school.city, school.stateOrProvince, school.postalCode]
+                  .filter(Boolean)
+                  .join(', ') || null}
+              </Detail>
               <Detail label="Country">{school.countryCode}</Detail>
               <Detail label="Language">{school.defaultLocale}</Detail>
               <Detail label="Time zone">{school.defaultTimeZone}</Detail>
@@ -188,7 +213,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
           </Card>
 
           <Card title="History" className="lg:col-span-2">
-            <dl className="grid gap-x-4 gap-y-4 sm:grid-cols-3">
+            <dl className="grid gap-x-4 gap-y-4 sm:grid-cols-4">
               <Detail label="Added">
                 {school.createdAt ? new Date(school.createdAt).toLocaleString() : null}
               </Detail>
@@ -197,6 +222,9 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
               </Detail>
               <Detail label="Last suspended">
                 {school.suspendedAt ? new Date(school.suspendedAt).toLocaleString() : null}
+              </Detail>
+              <Detail label="Last changed">
+                {school.updatedAt ? new Date(school.updatedAt).toLocaleString() : null}
               </Detail>
             </dl>
           </Card>

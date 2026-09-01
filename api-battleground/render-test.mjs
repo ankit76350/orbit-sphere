@@ -142,13 +142,16 @@ const screens = [
   ['School detail — being set up',
     wrap(React.createElement(SchoolDetail, { school: { ...school, status: 'PROVISIONING' }, onBack() {}, onChanged() {} })),
     ['Finish setting up', 'Take it live', 'not usable yet']],
-  ['Settings', wrap(React.createElement(SchoolSettings, { school, onChanged() {} })),
-    ['School details', 'Address', 'Language and time', 'Logo']],
+  // These three read on mount, so their first paint is a loading state. What they look like
+  // once the answer is in is covered by behaviour-test.mjs, which runs the effects.
+  ['Settings — first paint', wrap(React.createElement(SchoolSettings, { school, onChanged() {} })),
+    // No apostrophe in the assertion: React escapes it to &#x27; in the rendered HTML.
+    ['Loading the', 'settings']],
   ['Settings — closed school',
     wrap(React.createElement(SchoolSettings, { school: { ...school, status: 'CLOSED' }, onChanged() {} })),
     ['cannot be changed']],
-  ['Academic year', wrap(React.createElement(AcademicYearPage, { school })),
-    ['Academic year', 'no endpoint that reads', 'Year name']],
+  ['Academic year — first paint', wrap(React.createElement(AcademicYearPage, { school })),
+    ['Loading the academic years']],
   ['Add a school form', wrap(React.createElement(NewSchoolModal, { open: true, onClose() {}, onCreated() {} })),
     ['Add a school', 'Web address', 'Time zone', 'Start this school on a trial']],
   ['Technical details — success', wrap(React.createElement(ApiDetailsModal, { entry, onClose() {} })),

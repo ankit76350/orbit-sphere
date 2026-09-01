@@ -55,6 +55,11 @@ await act('Form with missing fields', 'create-school', {
     countryCode: 'ZZZ', defaultLocale: 'en-IN', defaultTimeZone: 'Asia/Kolkata' },
 }, 400);
 
+console.log('\nSCREEN: School detail — reads the full record');
+const full = await act('Load the school', 'get-school', { pathParams: { id } });
+console.log(`        ${full.bodyJson.schoolName} · ${full.bodyJson.status} · created ${full.bodyJson.createdAt}`);
+await act('A school id that does not exist', 'get-school', { pathParams: { id: '6a90000000000000000000aa' } }, 404);
+
 console.log('\nSCREEN: School detail — the lifecycle buttons');
 const setup = await act('“Finish setting up”', 'complete-provisioning', { pathParams: { id } });
 console.log(`        ${setup.bodyJson.numberSequencesCreated} sequences, ${setup.bodyJson.rolesCreated} roles, ready=${setup.bodyJson.readyToActivate}`);
@@ -65,6 +70,9 @@ await act('“Let it back in” with a note', 'reactivate-school', { pathParams:
 await act('“Let it back in” again', 'reactivate-school', { pathParams: { id } }, 409);
 
 console.log('\nSCREEN: Settings — the tenant header is added for us');
+const profile = await act('Load the profile', 'get-profile', { subdomain });
+console.log(`        ${profile.bodyJson.schoolName} · ${profile.bodyJson.defaultTimeZone}`);
+await act('Loading it with no school named', 'get-profile', {}, 400);
 await act('Save school details', 'update-profile', { subdomain, body: { schoolName: 'Riverside Public School', accountHolderName: 'Ankit Kumar', emailAddress: 'admin@riverside.edu' } });
 await act('Save with nothing filled in', 'update-profile', { subdomain, body: {} }, 400);
 await act('Save with a bad email', 'update-profile', { subdomain, body: { emailAddress: 'not-an-email' } }, 400);
@@ -89,6 +97,14 @@ await act('Close admissions', 'disable-enrollment', { subdomain, pathParams: { n
 await act('Lock the results', 'lock-results', { subdomain, pathParams: { name } });
 await act('Unlock the results', 'unlock-results', { subdomain, pathParams: { name } });
 
+console.log('\nSCREEN: Academic year — the reads behind the screen');
+const yearList = await act('List the years', 'list-academic-years', { subdomain });
+console.log(`        ${yearList.bodyJson.length} year(s): ${yearList.bodyJson.map((y) => y.name).join(', ')}`);
+await act('Read one year', 'get-academic-year', { subdomain, pathParams: { name } });
+await act('A year name that does not exist', 'get-academic-year', { subdomain, pathParams: { name: '1999-2000' } }, 404);
+const current = await act('The year containing today', 'get-current-academic-year', { subdomain });
+console.log(`        today falls in ${current.bodyJson.name}`);
+
 console.log('\nSCREEN: Academic year — the calendar');
 await act('Add a closed day', 'add-holiday', { subdomain, pathParams: { name }, body: { name: 'Diwali', description: 'Festival of lights', type: 'FESTIVAL', date: '2026-11-08' } });
 const two = await act('A second reason on the same day', 'add-holiday', { subdomain, pathParams: { name }, body: { name: 'Weekly Off', type: 'WEEKLY_OFF', date: '2026-11-08' } });
@@ -112,6 +128,18 @@ const cleared = await act('Clear the weekly days off', 'remove-holidays-by-type'
 console.log(`        back to ${cleared.bodyJson.closedDayCount} closed days`);
 await act('Extend the year', 'update-academic-year-dates', { subdomain, pathParams: { name }, body: { endDate: '2027-05-31' } });
 await act('Shrink past a closed day', 'update-academic-year-dates', { subdomain, pathParams: { name }, body: { startDate: '2026-12-01' } }, 409);
+
+console.log('\nSCREEN: Academic year — the two questions');
+const cal = await act('Read the calendar', 'get-holiday-calendar', { subdomain, pathParams: { name } });
+console.log(`        ${cal.bodyJson.closedDayCount} closed days, ${cal.bodyJson.eventCount} reasons`);
+const closed = await act('“Is the school open?” on a closed day', 'get-day-status', { subdomain, pathParams: { name, date: '2026-11-08' } });
+console.log(`        2026-11-08 closed=${closed.bodyJson.closed} because ${closed.bodyJson.events.map((e) => e.name).join(' + ') || '—'}`);
+const open = await act('“Is the school open?” on a working day', 'get-day-status', { subdomain, pathParams: { name, date: '2026-09-15' } });
+console.log(`        2026-09-15 closed=${open.bodyJson.closed}`);
+const week = await act('Count the working days in a week', 'count-working-days', { subdomain, pathParams: { name }, query: { from: '2026-11-02', to: '2026-11-08' } });
+console.log(`        ${week.bodyJson.workingDayCount} working of ${week.bodyJson.totalDayCount} days`);
+const whole = await act('Count them across the whole year', 'count-working-days', { subdomain, pathParams: { name } });
+console.log(`        ${whole.bodyJson.workingDayCount} working, ${whole.bodyJson.closedDayCount} closed, ${whole.bodyJson.totalDayCount} in the year`);
 
 console.log('\nSCREEN: School detail — change the web address');
 const renamed = await act('Change it', 'change-subdomain', { pathParams: { id }, body: { currentSubdomain: subdomain, newSubdomain: `${subdomain}-renamed` } });

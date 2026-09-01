@@ -8,10 +8,10 @@
  * tenant. Nobody types a header.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
-import { Card, Button, Field, TextInput, SelectInput, Modal } from '../components/ui.jsx';
+import { Card, Button, Field, TextInput, SelectInput, Modal, Loading } from '../components/ui.jsx';
 
 const TIME_ZONES = [
   'Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Colombo', 'Asia/Kathmandu',
@@ -50,26 +50,57 @@ export default function SchoolSettings({ school, onChanged }) {
   const [errors, setErrors] = useState({});
   const [zoneWarning, setZoneWarning] = useState(false);
 
-  // Start each form from whatever the school currently says.
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+
+  /** Fills every form from one record, so the boxes show what is actually stored. */
+  const fill = (record) => {
     setProfile({
-      schoolName: school.schoolName ?? '',
-      accountHolderName: school.accountHolderName ?? '',
-      phoneNumber: school.phoneNumber ?? '',
-      emailAddress: school.emailAddress ?? '',
+      schoolName: record.schoolName ?? '',
+      accountHolderName: record.accountHolderName ?? '',
+      phoneNumber: record.phoneNumber ?? '',
+      emailAddress: record.emailAddress ?? '',
     });
     setAddress({
-      addressLine: school.addressLine ?? '',
-      city: school.city ?? '',
-      stateOrProvince: school.stateOrProvince ?? '',
-      postalCode: school.postalCode ?? '',
+      addressLine: record.addressLine ?? '',
+      city: record.city ?? '',
+      stateOrProvince: record.stateOrProvince ?? '',
+      postalCode: record.postalCode ?? '',
     });
     setLocal({
-      defaultLocale: school.defaultLocale ?? 'en-IN',
-      defaultTimeZone: school.defaultTimeZone ?? 'Asia/Kolkata',
+      defaultLocale: record.defaultLocale ?? 'en-IN',
+      defaultTimeZone: record.defaultTimeZone ?? 'Asia/Kolkata',
     });
-    setLogo(school.logoUrl ?? '');
-  }, [school.schoolId, school.subdomain]); // eslint-disable-line react-hooks/exhaustive-deps
+    setLogo(record.logoUrl ?? '');
+  };
+
+  /*
+   * Read the profile from the school surface rather than reusing the row that opened this
+   * screen. This is the read the four forms below write back to, so what is on screen is what
+   * those endpoints will be changing.
+   */
+  const editable = ['ACTIVE', 'TRIAL', 'PROVISIONING'].includes(school.status);
+
+  const loadProfile = useCallback(async () => {
+    // A school past its usable life cannot be edited, so there is nothing to fetch.
+    if (!editable) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const result = await call('get-profile', { label: 'Load the profile', subdomain: school.subdomain });
+    setLoading(false);
+    if (result.ok) {
+      fill(result.bodyJson);
+      onChanged({ ...school, ...result.bodyJson });
+    } else {
+      // Fall back to what the list gave us, so the forms are still usable.
+      fill(school);
+    }
+  }, [call, school.subdomain, editable]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const save = async (key, label, endpointId, body) => {
     setBusy(key);
@@ -81,6 +112,9 @@ export default function SchoolSettings({ school, onChanged }) {
     });
     setBusy(null);
     if (result.ok) {
+      // Every one of these answers with the whole profile, so refill from it: a value the
+      // backend tidied up on the way in then shows as it was actually stored.
+      fill(result.bodyJson);
       onChanged({ ...school, ...result.bodyJson });
       return result;
     }
@@ -102,9 +136,7 @@ export default function SchoolSettings({ school, onChanged }) {
     }
   };
 
-  const notEditable = !['ACTIVE', 'TRIAL', 'PROVISIONING'].includes(school.status);
-
-  if (notEditable) {
+  if (!editable) {
     return (
       <Card>
         <p className="flex items-start gap-2 text-sm text-slate-600">
@@ -115,6 +147,8 @@ export default function SchoolSettings({ school, onChanged }) {
       </Card>
     );
   }
+
+  if (loading) return <Loading label="Loading the school's settings…" />;
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">

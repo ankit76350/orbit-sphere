@@ -45,6 +45,9 @@ under that field rather than as a wall of JSON.
 
 ### One school
 
+Opening a school reads the whole record — the list row is only a summary, so the address, the
+logo, the language and the last-changed time come from `GET /platform/schools/{id}`.
+
 The buttons that show depend on where the school is in its life:
 
 | The school is | You get |
@@ -59,8 +62,12 @@ role chips, not a JSON blob.
 
 ### Settings
 
+The forms are filled from `GET /schools/current` — the read that sits behind the four write
+endpoints — so the boxes show what is actually stored, not what the list happened to carry.
+
 Four small forms, each saved on its own, because the backend keeps them as four operations and
-one big Save would hide which one failed.
+one big Save would hide which one failed. Each save answers with the whole profile, and the
+boxes refill from it, so a value the backend tidied up on the way in shows as it was stored.
 
 Changing the time zone is refused by the backend until it is confirmed. The app catches that and
 shows a dialog explaining what actually changes: no record moves, but the *day* the records
@@ -76,9 +83,15 @@ which can be edited or removed on its own; "Reopen" removes the whole day. **Wee
 generates one real dated entry per occurrence of a weekday, because there is no "weekly off day"
 setting anywhere in this system on purpose: a school may run on Sunday and close on another day.
 
-> **One honest gap.** The backend has no endpoint that *reads* a year or its calendar — every
-> academic-year endpoint is a write. So this page shows the answer from the last change made
-> here, and says so on screen. When a read endpoint exists, this is the one page that changes.
+Two questions the calendar can answer, each its own small panel:
+
+- **Is the school open?** — pick a day and it says open or closed, and for closed days which
+  reasons apply.
+- **How many working days?** — pick a range (or leave it empty for the whole year) and it counts
+  the working days, the closed days and the total.
+
+Everything on this screen is read back from the backend. After any change the calendar is
+re-read rather than guessed at, so what is on screen is what is stored.
 
 ## Where the calls come from
 
@@ -122,13 +135,21 @@ matters, because `Location` is where a new school's id comes back.
 ## Tests
 
 ```bash
-npm run test:render   # renders every screen headlessly; fails on anything that throws
-npm run test:e2e      # walks every screen action against a real backend on 3456
+npm test               # render + behaviour, no backend needed
+npm run test:render    # renders every screen headlessly; fails on anything that throws
+npm run test:behaviour # mounts screens in a real DOM against a stubbed backend
+npm run test:e2e       # walks every screen action against a real backend on 3456
 ```
 
-`test:e2e` covers all 23 endpoints — 46 checks including the refusals the screens are built
+`test:e2e` covers all 31 endpoints — 59 checks including the refusals the screens are built
 around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
-the same kind of holiday twice on one day, and shrinking a year past a closed day.
+the same kind of holiday twice on one day, shrinking a year past a closed day, and a 404 for a
+year name that does not exist.
+
+`test:behaviour` is the one that runs effects, so it can check what the other two cannot: that a
+screen loads **once** rather than in a loop, that what comes back reaches the screen, and that a
+dead backend is named as such. The reload loop that once hammered the backend is a single
+assertion there.
 
 `test:render` also runs two static checks, for two bugs that got past everything else:
 

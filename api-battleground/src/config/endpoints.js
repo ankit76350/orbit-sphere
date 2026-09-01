@@ -1581,6 +1581,316 @@ included.** The design is kept in \`controllers/core/README.md\`.
         },
       ],
     },
+    {
+      id: "list-academic-years",
+      name: "List Academic Years",
+      method: "GET",
+      path: "/schools/current/academic-years",
+      status: 'live',
+      summary: "Every academic year the school has, newest first.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years\` — every year this school has, newest first.
+
+**Sorted on \`startDate\`, not \`createdAt\`.** "Newest" means the year furthest along the calendar, not the row typed most recently — a school setting up enters 2025-2026 after 2026-2027 often enough that the two orders disagree.
+
+**No page envelope.** A school has a handful of years. List Schools stays the only list in this collection that pages.
+
+A school with no years yet is \`200\` with \`[]\`, never a \`404\`.
+
+\`nextStep\` is absent: it is a write field, and nothing just happened.
+
+### Cases
+
+| # | Setup | Expected |
+|---|---|---|
+| 01 | a fresh school | \`200\` \`[]\` |
+| 02 | create 2025-2026, then 2027-2028, then 2026-2027 | \`200\` — returned 2027, 2026, 2025 |
+| 03 | header removed | \`400 TENANT_NOT_RESOLVED\` |
+`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearId", "name", "startDate", "endDate", "durationDays", "current", "holidayCount", "enrollmentEnabled", "resultsLocked"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "get-current-academic-year",
+      name: "Get Current Academic Year",
+      method: "GET",
+      path: "/schools/current/academic-years/current",
+      status: 'live',
+      summary: "The year that contains today. A 404 when no year covers it — which is a real answer, not a fault.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/current\` — the year today falls in.
+
+**Worked out from the dates, never stored.** \`AcademicYear\` has no \`current\` flag on purpose — two sources for "which year is it" is two sources that can disagree. The year this returns is always the one List Academic Years marks \`current: true\`.
+
+Only one year can match, because Create Academic Year refuses an overlapping one.
+
+Both ends are inclusive: a year ending **today** is still the current year; one that ended yesterday is not.
+
+### The 404 says which kind of nothing
+
+| Situation | Message |
+|---|---|
+| no years at all | \`This school has no academic years yet.\` |
+| years, none covering today | \`No academic year covers 2026-08-31 in this school.\` |
+
+Both are \`404 NO_CURRENT_ACADEMIC_YEAR\`. The two need different things done about them.
+
+### \`current\` is a reserved year name
+
+This fixed path segment wins over \`/{name}\`, so Create Academic Year refuses a year called \`current\` — otherwise it could be created and then never opened.
+`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearId", "name", "startDate", "endDate", "durationDays", "current", "holidayCount"],
+      captures: [
+        { variable: "academicYearName", from: "name" },
+      ],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "get-academic-year",
+      name: "Get Academic Year",
+      method: "GET",
+      path: "/schools/current/academic-years/{name}",
+      status: 'live',
+      summary: "One year by name.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{name}\` — one year.
+
+**Keyed on the name, not the id**, exactly as the writes are. Every other collection stores \`academicYear\` as this string, so the name is what the whole system already means when it says "which year" — and a URL that cannot change is a reminder that the thing it names cannot either.
+
+The lookup is by school **and** name, so **asking for another school's year is a \`404\`**, not somebody else's data.
+
+### Cases
+
+| # | name | Expected |
+|---|---|---|
+| 01 | \`{{academicYearName}}\` | \`200\` |
+| 02 | \`2099-2100\` | \`404 ACADEMIC_YEAR_NOT_FOUND\` |
+| 03 | \`some%20year\` | \`404\` — not a 500 |
+| 04 | another school's year name | \`404\` |
+| 05 | \`current\` | reaches Get Current Academic Year instead — see that request |
+`,
+      pathParams: [
+        { name: "name", value: "{{academicYearName}}", description: "The year name, such as 2026-2027. It is the join key and can never change." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearId", "name", "startDate", "endDate", "durationDays", "current", "holidayCount", "enrollmentEnabled", "resultsLocked"],
+      captures: [
+        { variable: "academicYearName", from: "name" },
+      ],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "get-holiday-calendar",
+      name: "Get Holiday Calendar",
+      method: "GET",
+      path: "/schools/current/academic-years/{name}/holidays",
+      status: 'live',
+      summary: "The year's whole calendar: every closed day, and why each one is closed.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{name}/holidays\` — the whole calendar.
+
+The same record every calendar write returns, so a screen that adds a holiday and a screen that only reads one use a single shape. \`changeSummary\` is absent — nothing just happened.
+
+Days come back **sorted by date**. A year created by Create Academic Year has an empty calendar, so \`200\` with \`holidays: []\` is the normal first answer.
+
+### Two counts, because a day and a reason are not the same thing
+
+On a year with 52 generated Sundays, Independence Day, and Diwali landing on one of those Sundays:
+
+\`\`\`
+closedDayCount 53      the number attendance and fees divide by
+eventCount     54      reasons recorded across those days
+countsByType   { WEEKLY_OFF: 52, PUBLIC_HOLIDAY: 1, FESTIVAL: 1 }
+\`\`\`
+
+\`countsByType\` counts **events**, not days — "how many festivals" must not be reduced by the ones that happened to land on a Sunday.
+
+### No filtering, on purpose
+
+No \`?type=\`, no date range. A full year is about sixty closed days. The questions worth asking about dates are **Get Day Status** and **Count Working Days**, which answer them properly rather than handing you a list to filter.
+`,
+      pathParams: [
+        { name: "name", value: "{{academicYearName}}", description: "The year name, such as 2026-2027. It is the join key and can never change." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearName", "startDate", "endDate", "closedDayCount", "eventCount", "countsByType", "holidays"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "get-day-status",
+      name: "Get Day Status",
+      method: "GET",
+      path: "/schools/current/academic-years/{name}/holidays/{date}",
+      status: 'live',
+      summary: "Is the school closed on this day, and why.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{name}/holidays/{date}\` — is the school closed that day, and why.
+
+**This is the one the rest of the system was waiting for.** Attendance, timetables, transport and fee due dates all ask it. Every one of them should call this rather than reading the calendar and deciding for itself — the moment two places decide what a working day is, they disagree.
+
+### An open day is a \`200\`, not a \`404\`
+
+A working day answers \`200\` with \`closed: false\` and an empty \`events\` list. A \`404\` would make every caller treat "the school is open" and "something went wrong" as the same reply, which is exactly the bug this endpoint exists to prevent. The only \`404\` here is a year that does not exist.
+
+### It never looks at the day of the week
+
+**Schools here may run on Sunday and take the weekly off on another day.** Only a dated entry on the calendar closes a day. On a year with the weekly off generated on Wednesday:
+
+| date | | answer |
+|---|---|---|
+| 2026-11-08 | Sunday | \`closed: false\` — open |
+| 2026-11-11 | Wednesday | \`closed: true\` — Weekly Off **and** Diwali |
+
+\`dayOfWeek\` is on the response for a person to read. **\`dayOfWeek === 'SUNDAY'\` in a caller is the bug.**
+
+### Cases
+
+| # | date | Expected |
+|---|---|---|
+| 01 | a closed date | \`200\` \`closed: true\`, every reason listed |
+| 02 | a working date | \`200\` \`closed: false\`, \`events: []\` |
+| 03 | the year's first or last day | \`200\` — both ends are inside the year |
+| 04 | a date outside the year | \`400 DATE_OUTSIDE_ACADEMIC_YEAR\` — **not** \`closed: false\` |
+| 05 | \`08-11-2026\` | \`400 INVALID_PARAMETER\` — dates are ISO |
+`,
+      pathParams: [
+        { name: "name", value: "{{academicYearName}}", description: "The year name, such as 2026-2027. It is the join key and can never change." },
+        { name: "date", value: "2026-11-08", description: "The closed day, as YYYY-MM-DD." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearName", "date", "dayOfWeek", "closed", "events"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "count-working-days",
+      name: "Count Working Days",
+      method: "GET",
+      path: "/schools/current/academic-years/{name}/working-days",
+      status: 'live',
+      summary: "Which days in a range are working days, and how many.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{name}/working-days?from=&to=\` — which days in a range are working days, and how many.
+
+Get Day Status asked about one date; this is the same question in bulk. Attendance percentages and fee proration need the answer for a whole range, not two hundred separate calls — and they need the **same** answer as each other.
+
+### It returns the days, not just the count
+
+\`\`\`json
+{
+  "totalDayCount": 7, "workingDayCount": 6, "closedDayCount": 1,
+  "workingDays": [
+    { "date": "2026-11-02", "dayOfWeek": "MONDAY" },
+    { "date": "2026-11-03", "dayOfWeek": "TUESDAY" }
+  ]
+}
+\`\`\`
+
+A timetable being laid out or a fee schedule spread over teaching days needs to know *which* days. \`workingDayCount\` is the length of that list, not a separate subtraction, so the number and the list cannot drift apart.
+
+### Leaving the range off means the whole year
+
+\`from\` and \`to\` both default to the year's own dates, so a bare call answers "which days does this year teach on" — and its count is the denominator of every attendance percentage. \`from\` alone runs to the end of the year; \`to\` alone runs from the start.
+
+### It counts days, not reasons
+
+A Sunday that is also Diwali is **one** closed day. Overcounting it would quietly understate attendance on exactly the weeks a school has festivals. That is also why there is no per-type breakdown — ask Get Holiday Calendar if you need the reasons.
+
+### Cases
+
+| # | Query | Expected |
+|---|---|---|
+| 01 | none | the whole year; \`closedDayCount\` matches the calendar's |
+| 02 | \`from\` only | runs to the year's end |
+| 03 | \`to\` only | runs from the year's start |
+| 04 | one day, closed | \`totalDayCount 1\`, \`workingDayCount 0\` |
+| 05 | \`from\` after \`to\` | \`400 INVALID_DATE_RANGE\` |
+| 06 | either end outside the year | \`400 DATE_OUTSIDE_ACADEMIC_YEAR\` |
+| 07 | \`from=01-05-2026\` | \`400 INVALID_PARAMETER\` — dates are ISO |
+`,
+      pathParams: [
+        { name: "name", value: "{{academicYearName}}", description: "The year name, such as 2026-2027. It is the join key and can never change." },
+      ],
+      queryParams: [
+        { key: "from", value: "2026-11-02", enabled: true },
+        { key: "to", value: "2026-11-08", enabled: true },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["academicYearName", "from", "to", "totalDayCount", "workingDayCount", "closedDayCount", "workingDays"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
   ],
 };
 
@@ -2039,6 +2349,48 @@ but there is no storage service yet.
 }`,
         },
       ],
+    },
+    {
+      id: "get-profile",
+      name: "Get Profile",
+      method: "GET",
+      path: "/schools/current",
+      status: 'live',
+      summary: "The school's own profile — the read behind the four settings forms.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current\` — the school reading its own details.
+
+The read behind Update Profile, Replace Address, Update Localization and Replace Logo. It returns the **identical** record those four return, so a settings screen loads the form and saves it with one shape rather than two that drift apart.
+
+\`status\` is here, because a school being told it is \`SUSPENDED\` is how its own screens explain why editing stopped working. \`statusReason\`, \`activatedAt\` and \`suspendedAt\` are **not** — those belong to the operator, on Get School.
+
+Needs \`X-School-Subdomain\`. Resolved with \`require\`, not \`requireUsable\`, so **a suspended school can still read this** — being blocked from editing is not being blocked from looking.
+
+### Cases
+
+| # | Header | Expected |
+|---|---|---|
+| 01 | \`{{createdSubdomain}}\` | \`200\` |
+| 02 | header removed | \`400 TENANT_NOT_RESOLVED\` |
+| 03 | \`no-such-school\` | \`404 SCHOOL_NOT_FOUND\` |
+| 04 | after Suspend School | \`200\` — the read still works |
+`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["schoolId", "subdomain", "status", "schoolName", "accountHolderName", "phoneNumber", "emailAddress", "logoUrl", "defaultLocale", "defaultTimeZone", "addressLine", "city", "stateOrProvince", "postalCode", "countryCode"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
     },
   ],
 };
@@ -3350,6 +3702,48 @@ from every other response in this package.`,
           queryParams: [{ key: "search", value: ".*", enabled: true }],
         },
       ],
+    },
+    {
+      id: "get-school",
+      name: "Get School",
+      method: "GET",
+      path: "/platform/schools/{id}",
+      status: 'live',
+      summary: "One school in full, including its lifecycle timestamps and the reason for its current status.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/schools/{id}\` — one school in full, for the operator.
+
+The row picked out of List Schools, opened. Everything on the school plus the three lifecycle fields the school itself never sees: \`activatedAt\`, \`suspendedAt\` and \`statusReason\`.
+
+\`statusReason\` is written **for the operator** — "Non-payment. Third invoice unpaid past 60 days." — and is not a message to show the school. It is on this endpoint and not on Get Profile for that reason.
+
+A school at **any** status comes back, closed and deleted included: the console is exactly where somebody needs to look at a school that is no longer running and find out why.
+
+\`encryptionKeyReference\` is never returned, on either surface.
+
+### Cases
+
+| # | id | Expected |
+|---|---|---|
+| 01 | \`{{schoolId}}\` | \`200\` |
+| 02 | \`000000000000000000000000\` | \`404 SCHOOL_NOT_FOUND\` |
+| 03 | \`not-an-objectid\` | \`404 SCHOOL_NOT_FOUND\` — not a 500 |
+`,
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["schoolId", "schoolName", "accountHolderName", "subdomain", "logoUrl", "phoneNumber", "emailAddress", "defaultLocale", "defaultTimeZone", "addressLine", "city", "stateOrProvince", "postalCode", "countryCode", "status", "statusReason", "activatedAt", "suspendedAt", "createdAt", "updatedAt"],
+      captures: [
+        { variable: "schoolId", from: "schoolId" },
+        { variable: "createdSubdomain", from: "subdomain" },
+      ],
+      errors: [],
+      examples: [],
     },
   ],
 };
