@@ -1889,6 +1889,63 @@
          }
         }
        ]
+      },
+      {
+       "name": "Update Plan Draft",
+       "request": {
+        "method": "PATCH",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions/{{planVersion}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions",
+          "{{planVersion}}"
+         ]
+        },
+        "description": "**PATCH** `/platform/plans/{code}/versions/{version}` — fixes the details of a draft.\n\n### Only a draft can be edited\n\nOnce a plan is published a school can be on it, and changing the price then would change what\nthey agreed to pay without anybody agreeing to it. Editing an `ACTIVE` or `RETIRED` plan is a\n`409`; #5 copies it into a new draft version instead.\n\n### Partial, with the project's PATCH convention\n\nOmitted or null leaves a field alone, `\"\"` clears the description, a value replaces. `name`\ncannot be cleared.\n\n### The selling window is replaced as a pair\n\nThe two dates are only meaningful next to each other, so they are nested. Omit `sellingWindow` to\nleave it alone; send it with nulls inside to clear it.\n\n### Not on this request\n\n`planCode`, `planVersion`, `status`, `publiclyAvailable`, `features` — each has its own endpoint\nor is the plan's identity.\n\n### The thirteen test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"name\": \"Premium Plus\",\n  \"listPrice\": 44999,\n  \"maxStudents\": 3000\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /platform/plans/{code}/versions/{version}\n//  Platform surface. Run Create Plan Draft first — it saves {{planCode}}.\n// ===========================================================================\n//\n//  ONLY A DRAFT CAN BE EDITED. That is the rule the whole catalogue is built\n//  on. The moment a plan is published a school can be on it, and changing the\n//  price then would change what they agreed to pay — retroactively, with no\n//  record that it happened. #5 copies a published version into a new draft\n//  instead, and the schools on the old version stay where they are.\n//\n//  PARTIAL, the same way core's PATCHes are:\n//     omitted or null -> leave it exactly as it is\n//     \"\"              -> clear it (description only)\n//     a value         -> replace it\n//  name cannot be cleared: \"\" is a 400, not a deletion.\n//\n//  THE SELLING WINDOW IS REPLACED AS A PAIR, not as two loose fields. The two\n//  dates are only meaningful next to each other — an effectiveUntil moved\n//  earlier than the existing effectiveFrom is a plan that can never be sold —\n//  so changing one alone could create a window nobody asked for. Same\n//  reasoning that puts the school's address behind a PUT.\n//\n//  NOT ON THIS REQUEST: planCode and planVersion (they are the identity, in\n//  the URL), status (publish is #4, retire is #6), publiclyAvailable (#7) and\n//  features (#3). Each is a decision with its own rules; a PATCH that could\n//  set them all would make \"put this on sale\" look like \"fix a typo\".\n//\n// ---------------------------------------------------------------------------\n// 01  CHANGE A FEW FIELDS                                  -> 200 OK\n//     The body above. Everything not mentioned is untouched.\n//     OUT: status still \"DRAFT\", planVersion still 1.\n// ---------------------------------------------------------------------------\n//\n// 02  CHANGE ONE FIELD ONLY                                -> 200 OK\n// {\n//   \"name\": \"   Renamed   \"\n// }\n//     Trimmed on the way in. Price, currency, cycle and limits unchanged.\n// ---------------------------------------------------------------------------\n//\n// 03  CLEAR THE DESCRIPTION                                -> 200 OK\n// {\n//   \"description\": \"\"\n// }\n//     OUT: description null. Omitting it instead would have left it alone.\n// ---------------------------------------------------------------------------\n//\n// 04  REPLACE THE SELLING WINDOW                           -> 200 OK\n// {\n//   \"sellingWindow\": {\n//     \"effectiveFrom\": \"2026-06-01T00:00:00Z\",\n//     \"effectiveUntil\": \"2027-05-31T00:00:00Z\"\n//   }\n// }\n// ---------------------------------------------------------------------------\n//\n// 05  CLEAR THE SELLING WINDOW                             -> 200 OK\n// {\n//   \"sellingWindow\": { \"effectiveFrom\": null, \"effectiveUntil\": null }\n// }\n//     Nulls INSIDE the pair mean \"no date\". This is the only way to clear a\n//     date here — \"\" cannot mean anything to an instant.\n//     OMITTING sellingWindow leaves the window alone. The two are different.\n// ---------------------------------------------------------------------------\n//\n// 06  EDIT A PUBLISHED PLAN                            -> 409 Conflict\n//     Publish it with #4 first, then send anything.\n//     OUT: { \"code\": \"PLAN_NOT_EDITABLE\",\n//            \"message\": \"'PREMIUM' version 1 is ACTIVE and cannot be edited.\n//                        Schools may already be on it. Make a new version of\n//                        it instead.\" }\n//     A RETIRED plan is refused the same way — schools may still be on it.\n//     THIS IS THE POINT OF THE ENDPOINT. Nothing is changed by a refusal.\n// ---------------------------------------------------------------------------\n//\n// 07  AN EMPTY BODY                                  -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     Checked BEFORE the plan is looked up, so an empty PATCH on a plan that\n//     does not exist says the body is empty rather than sending you hunting\n//     for a missing plan.\n// ---------------------------------------------------------------------------\n//\n// 08  TRY TO CLEAR THE NAME                          -> 400 Bad Request\n// {\n//   \"name\": \"   \"\n// }\n//     OUT: { \"code\": \"PLAN_NAME_REQUIRED\" }\n// ---------------------------------------------------------------------------\n//\n// 09  A BAD PRICE, CURRENCY OR LIMIT                 -> 400 / 409\n//     { \"listPrice\": -1 }      -> 400 PRICE_NEGATIVE\n//     { \"listPrice\": 9.999 }   -> 400 PRICE_TOO_PRECISE\n//     { \"currencyCode\": \"RUP\" }-> 409 CURRENCY_INVALID\n//     { \"maxUsers\": 0 }        -> 400 LIMIT_TOO_LOW\n//     The same checks #1 makes, from the same validator — one set of rules,\n//     not two that drift.\n// ---------------------------------------------------------------------------\n//\n// 10  A WINDOW THAT RUNS BACKWARDS                   -> 400 Bad Request\n// {\n//   \"sellingWindow\": {\n//     \"effectiveFrom\": \"2027-01-01T00:00:00Z\",\n//     \"effectiveUntil\": \"2026-01-01T00:00:00Z\"\n//   }\n// }\n//     OUT: { \"code\": \"INVALID_SELLING_WINDOW\" }\n// ---------------------------------------------------------------------------\n//\n// 11  A PLAN OR VERSION THAT DOES NOT EXIST            -> 404 Not Found\n//     Change the URL to /platform/plans/NOPE/versions/1, or ask for version 9.\n//     OUT: { \"code\": \"PLAN_NOT_FOUND\",\n//            \"message\": \"No plan 'NOPE' version 1 exists.\" }\n// ---------------------------------------------------------------------------\n//\n// 12  A LOWERCASE CODE IN THE URL                          -> 200 OK\n//     /platform/plans/premium_plus/versions/1 finds PREMIUM_PLUS.\n//     A code arrives in a URL where a person may have typed it, so it is\n//     normalized the same way it was when the plan was created. A code of the\n//     wrong shape simply matches nothing — that is a 404, not a complaint\n//     about its shape.\n// ---------------------------------------------------------------------------\n//\n// 13  FIELDS THAT ARE NOT OURS TO SET                      -> 200 OK\n// {\n//   \"name\": \"Fine\",\n//   \"planCode\": \"HACKED\",\n//   \"planVersion\": 9,\n//   \"status\": \"ACTIVE\",\n//   \"publiclyAvailable\": true\n// }\n//     OUT: planCode, planVersion, status and publiclyAvailable all unchanged.\n//     They are not on the request record, so Jackson drops them.\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "// Asserts case 01, on the draft created by Create Plan Draft.",
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is still a draft', () => pm.expect(b.status).to.eql('DRAFT'));",
+           "pm.test('the identity did not move', () => {",
+           "  pm.expect(b.planCode).to.eql(pm.collectionVariables.get('planCode'));",
+           "  pm.expect(b.planVersion).to.eql(1);",
+           "});",
+           "pm.test('the price still has two decimal places', () =>",
+           "  pm.expect(String(b.listPrice)).to.match(/\\.\\d{2}$/));",
+           "pm.test('features were not touched by a details edit', () =>",
+           "  pm.expect(b.featureCount).to.eql(0));"
+          ]
+         }
+        }
+       ]
       }
      ]
     }

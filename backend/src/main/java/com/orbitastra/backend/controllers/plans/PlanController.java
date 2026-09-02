@@ -3,6 +3,9 @@ package com.orbitastra.backend.controllers.plans;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,5 +67,28 @@ public class PlanController {
                 .created(URI.create("/platform/plans/" + response.planCode() + "/versions/"
                         + response.planVersion()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #2 — fixes the details of a draft.
+     *
+     * <p><b>Refused once the plan is published.</b> A published plan may have schools on it, and
+     * editing its price would change what they agreed to pay without anybody agreeing to it. #5
+     * copies it into a new draft version instead.
+     *
+     * <p>Partial: an omitted field is left alone, {@code ""} clears the description. The selling
+     * window is replaced as a pair — the two dates are only meaningful next to each other.
+     *
+     * <p>{@code code} and {@code version} identify the plan and are not editable. Neither is
+     * {@code status} — publishing is #4 — nor {@code publiclyAvailable} (#7) nor
+     * {@code features} (#3).
+     */
+    @PatchMapping("/{code}/versions/{version}")
+    public ResponseEntity<PlanResponse> updateDraft(
+            @PathVariable String code,
+            @PathVariable Integer version,
+            @Valid @RequestBody PlanDraftUpdateRequest request) {
+
+        return ResponseEntity.ok(planCatalogueService.updateDraft(code, version, request));
     }
 }

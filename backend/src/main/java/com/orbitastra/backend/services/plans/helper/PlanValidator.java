@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PlanValidator {
 
-    //! plan code — used by endpoint 1 -------------------------------------------------
+    //! plan code — used by endpoints 1 and 2 -------------------------------------------------
 
     /** Uppercase letters, digits and single inner underscores. No leading or trailing one. */
     private static final Pattern PLAN_CODE_SHAPE =
@@ -86,7 +86,25 @@ public class PlanValidator {
         return normalized;
     }
 
-    //! money — used by endpoint 1 -----------------------------------------------------
+    /**
+     * The same normalization as {@link #resolvePlanCode}, for finding a plan rather than making
+     * one. Never throws.
+     *
+     * <p>A code arrives in a URL, where it may have been typed by a person: {@code
+     * /platform/plans/premium-plus/versions/1} should find {@code PREMIUM_PLUS}. What it must not
+     * do is refuse — a code of the wrong shape simply matches no plan, and "no such plan" is a
+     * 404, not a complaint about the shape of something the caller was reading off a link.
+     */
+    public String normalizePlanCode(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.trim().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+    }
+
+    //! money — used by endpoints 1 and 2 ----------------------------------------------
 
     /**
      * Validates and normalizes a price.
@@ -138,7 +156,7 @@ public class PlanValidator {
         return normalized;
     }
 
-    //! limits and windows — used by endpoint 1 ----------------------------------------
+    //! limits and windows — used by endpoints 1 and 2 ----------------------------------------
 
     /**
      * A plan's student or user ceiling.

@@ -126,8 +126,8 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 1 of 71** — `POST /platform/plans/drafts`, the first endpoint of a module whose whole
-plan lives in
+**Plans is 2 of 71** — `POST /platform/plans/drafts` and the `PATCH` that edits a draft, the
+first endpoints of a module whose whole plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 
 **None of the seven missing core writes is "next".** Six are deferred by decision — #12 until
@@ -196,14 +196,17 @@ not on the request, so sending them does nothing.
 
 Two things that will bite while testing:
 
-- **A plan cannot be deleted, edited or published yet.** #2 to #7 are not built, so a draft you
-  create stays a draft forever and its `planCode` stays taken. Use `{{$timestamp}}` in the code
-  if you are going to run it repeatedly.
+- **A draft can be edited (#2) but not published or deleted.** #3 to #7 are not built, so a
+  draft stays a draft forever and its `planCode` stays taken. The code is derived from the name,
+  so put `{{$timestamp}}` in the **name** if you are going to run it repeatedly.
+- **Editing only works while it is a draft**, which is the whole point of #2 — but with #4 not
+  built there is no way to publish one through the API, so the `409` cannot be reached from
+  Postman yet.
 - **`featureCount` is always 0.** Features come from #3, which is not built. `sellable` is
   therefore always `false`.
 
-Its test script saves `planCode` and `planVersion`, so the URLs of #2 onwards will work the day
-they exist.
+Create Plan Draft saves `planCode` and `planVersion`, which is what the `PATCH` URL uses — run
+it first.
 
 ## List Schools (G1) is the first read
 

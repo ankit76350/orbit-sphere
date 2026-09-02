@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.plans;
 
+import java.time.Instant;
 import java.util.ArrayList;
 
 import org.springframework.stereotype.Service;
@@ -7,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
@@ -45,29 +47,21 @@ public class PlanCatalogueService {
 
     //! endpoint 1 — create a draft plan -----------------------------------------------
 
-    /**
-     * #1 — makes a new plan, as a draft.
-     *
-     * <p>It starts at {@code DRAFT}, version 1, and not publicly available. Nobody can buy it
-     * while the price is still being decided, which is the reason the endpoint does not simply
-     * create a live plan.
-     *
-     * <p><b>The code must be new.</b> A second {@code PREMIUM} is refused even though the unique
-     * index is on the code <i>and</i> version, so version 1 of a second PREMIUM would technically
-     * fit. It is refused because {@code planCode} is the plan's permanent identity and two plans
-     * sharing it can never be told apart afterwards — a school subscription stores the code and
-     * a version, and "which PREMIUM" would have no answer. A genuinely new price for an existing
-     * plan is #5, not this.
-     *
-     * <p><b>The code is normally not sent.</b> It is derived from the name — "Premium Plus"
-     * becomes {@code PREMIUM_PLUS} — so a create form asks for one thing. An explicit code is
-     * accepted for the case where the derived one is already taken.
-     *
-     * <p>The plan is created with an <b>empty feature list</b>; #3 sets the whole list in one go.
-     *
-     * <p>Reached at {@code POST /platform/plans/drafts} — the only endpoint in the group not
-     * addressed by code and version, because nothing exists yet to name.
-     */
+        /**
+         * Creates a new plan as a draft.
+         *
+         * <p>The plan starts as {@code DRAFT}, version 1, and cannot be purchased yet.
+         *
+         * <p>The plan code must be unique. The same code cannot be used for another plan because the
+         * code is the plan's permanent identity.
+         *
+         * <p>The code is optional. If not provided, it is created from the name. For example,
+         * {@code Premium Plus} becomes {@code PREMIUM_PLUS}.
+         *
+         * <p>The new plan starts with no features. Use #3 to add features.
+         *
+         * <p>Endpoint: {@code POST /platform/plans/drafts}
+         */
     @Transactional
     public PlanResponse createDraft(PlanCreateRequest request) {
         //! step 1 - normalize and check everything the caller sent
@@ -111,5 +105,102 @@ public class PlanCatalogueService {
         return PlanResponse.fromPlan(savedPlan,
                 "Draft created. Nobody can buy it yet: set its features, then publish it. "
                         + "While it is a DRAFT everything about it can still be changed.");
+    }
+
+    //! endpoint 2 — edit a draft ------------------------------------------------------
+        /**
+         * Updates the details of a draft plan.
+         *
+         * <p>Published plans cannot be changed. This prevents changing the price or details for schools
+         * that are already using the plan.
+         *
+         * <p>Retired plans also cannot be changed because schools may still be using them.
+         *
+         * <p>Only the fields provided are updated. A {@code null} value keeps the existing value, while
+         * {@code ""} clears the description.
+         *
+         * <p>The start and end dates are updated together.
+         */
+    @Transactional
+    public PlanResponse updateDraft(String code, Integer version, PlanDraftUpdateRequest request) {
+        //! step 1 - refuse a request that asks for nothing. Before the lookup, because a 404 for
+        //! an empty PATCH would send the caller looking for the wrong problem.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send at least one of name, description, billingCycle, listPrice, "
+                            + "currencyCode, maxStudents, maxUsers or sellingWindow.");
+        }
+
+        //! step 2 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        //! step 3 - only a draft may be edited
+        if (plan.getStatus() != PlanStatus.DRAFT) {
+            throw ApiException.conflict("PLAN_NOT_EDITABLE",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " is "
+                            + plan.getStatus() + " and cannot be edited. Schools may already be "
+                            + "on it. Make a new version of it instead.");
+        }
+
+        //! step 4 - apply only what was sent
+        if (request.name() != null) {
+            String name = request.name().trim();
+            if (name.isEmpty()) {
+                throw ApiException.badRequest("PLAN_NAME_REQUIRED",
+                        "A plan name cannot be removed. Send a new one, or omit the field.");
+            }
+            plan.setName(name);
+        }
+        if (request.description() != null) {
+            plan.setDescription(TextHelper.blankToNull(request.description()));
+        }
+        if (request.billingCycle() != null) {
+            plan.setBillingCycle(request.billingCycle());
+        }
+        if (request.listPrice() != null) {
+            plan.setListPrice(planValidator.validatePrice("listPrice", request.listPrice()));
+        }
+        if (request.currencyCode() != null) {
+            plan.setCurrencyCode(planValidator.validateCurrencyCode(request.currencyCode()));
+        }
+        if (request.maxStudents() != null) {
+            planValidator.validateLimit("maxStudents", request.maxStudents());
+            plan.setMaxStudents(request.maxStudents());
+        }
+        if (request.maxUsers() != null) {
+            planValidator.validateLimit("maxUsers", request.maxUsers());
+            plan.setMaxUsers(request.maxUsers());
+        }
+
+        //! step 5 - the window, replaced whole when it was mentioned at all
+        if (request.sellingWindow() != null) {
+            Instant from = request.sellingWindow().effectiveFrom();
+            Instant until = request.sellingWindow().effectiveUntil();
+            planValidator.validateSellingWindow(from, until);
+            plan.setEffectiveFrom(from);
+            plan.setEffectiveUntil(until);
+        }
+
+        //! step 6 - save
+        PlanDefinition savedPlan = plans.save(plan);
+
+        return PlanResponse.fromPlan(savedPlan,
+                "Draft updated. It is still a DRAFT, so nobody can buy it and everything about "
+                        + "it can still be changed. Publish it when the price is settled.");
+    }
+
+    //* ---------------------------------------------------------------------------------
+
+    /**
+     * One plan version, by the code and version in the URL, or a 404.
+     *
+     * <p>The code is normalized the same way it was when the plan was created, so a link typed
+     * as {@code /plans/premium-plus/versions/1} finds {@code PREMIUM_PLUS} rather than nothing.
+     */
+    private PlanDefinition loadPlan(String code, Integer version) {
+        String planCode = planValidator.normalizePlanCode(code);
+        return plans.findByPlanCodeAndPlanVersion(planCode, version)
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "No plan '" + planCode + "' version " + version + " exists."));
     }
 }
