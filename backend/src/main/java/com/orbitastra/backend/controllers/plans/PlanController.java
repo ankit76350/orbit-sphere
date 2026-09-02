@@ -48,10 +48,17 @@ public class PlanController {
      * {@code publiclyAvailable} are not on the request for that reason.
      *
      * <p>Created with an empty feature list; #3 sets the features.
+     *
+     * <p><b>{@code /drafts} is in the path deliberately.</b> The URL says what this makes, so a
+     * caller cannot read {@code POST /platform/plans} and think they are putting a plan on sale.
+     * Everything after this addresses the plan by code and version — {@code
+     * /platform/plans/PREMIUM/versions/1} — because from then on the draft-ness is a status on a
+     * plan that exists, not a different resource. This is the one endpoint where nothing exists
+     * yet to name.
      */
-    @PostMapping
-    public ResponseEntity<PlanResponse> create(@Valid @RequestBody PlanCreateRequest request) {
-        PlanResponse response = planCatalogueService.createPlan(request);
+    @PostMapping("/drafts")
+    public ResponseEntity<PlanResponse> createDraft(@Valid @RequestBody PlanCreateRequest request) {
+        PlanResponse response = planCatalogueService.createDraft(request);
 
         return ResponseEntity
                 .created(URI.create("/platform/plans/" + response.planCode() + "/versions/"

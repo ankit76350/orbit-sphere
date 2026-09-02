@@ -107,23 +107,33 @@ Then Send, or **Run collection** for the active bodies.
 | `schoolId` | a successful create | endpoints taking `{id}` |
 | `createdSubdomain` | a successful create, **and Change Subdomain** | case 05, duplicate; the `X-School-Subdomain` header on every school-surface request |
 | `academicYearName` | a successful Create Academic Year | every `/academic-years/{name}` URL, holidays included |
+| `planCode` | a successful Create Plan Draft | every `/platform/plans/{code}` URL |
+| `planVersion` | a successful Create Plan Draft | every `/versions/{version}` URL |
 
 ## Folders mirror `controllers/`
 
-`Core / School — platform`, `Core / School — profile` and `Core / Academic Year` today. One
-folder per controller, so the collection and the code stay findable from each other.
+`Core / School — platform`, `Core / School — profile`, `Core / Academic Year` and
+`Plans / Plan catalogue` today. One folder per controller, so the collection and the code stay
+findable from each other.
 
 ## Coverage
 
-**20 of 27 planned write endpoints, plus 1 of 11 reads** — 23 requests, because two of the
-writes were not in the original plan. The rest are specified in
+**Core is 20 of 27 writes and 9 of 11 reads.** Plus the two `DELETE`s that were never in the
+plan, that is 31 requests. The rest are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md` and are not built —
 a collection full of 404s is worse than a short honest one.
 
-**None of the seven is "next".** Six are deferred by decision — #12 until something is actually
-encrypted, #13 to #17 (offboarding and deletion) until they are wanted — and #28 was always
-optional. One consequence to know while testing: **a school you create cannot be closed or
-deleted.** `SUSPENDED` is as far as it goes, so test schools accumulate.
+The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
+file).
+
+**Plans is 1 of 71** — `POST /platform/plans/drafts`, the first endpoint of a module whose whole
+plan lives in
+`backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
+
+**None of the seven missing core writes is "next".** Six are deferred by decision — #12 until
+something is actually encrypted, #13 to #17 (offboarding and deletion) until they are wanted —
+and #28 was always optional. One consequence to know while testing: **a school you create cannot
+be closed or deleted.** `SUSPENDED` is as far as it goes, so test schools accumulate.
 
 The plan is 27 rather than 28 because #11 `account-holder` was dropped on 2026-08-31 and folded
 into #6 — it is a plain label that nothing links to an account, so its own platform endpoint was
@@ -177,6 +187,23 @@ stores an **array of reasons per date**, and the requests are shaped around that
 - **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
+
+## Plan catalogue: a draft is all you can make so far
+
+`POST /platform/plans/drafts` is the only plans endpoint built. It always creates a **`DRAFT` at
+version 1 that is not publicly available** — `status`, `planVersion` and `publiclyAvailable` are
+not on the request, so sending them does nothing.
+
+Two things that will bite while testing:
+
+- **A plan cannot be deleted, edited or published yet.** #2 to #7 are not built, so a draft you
+  create stays a draft forever and its `planCode` stays taken. Use `{{$timestamp}}` in the code
+  if you are going to run it repeatedly.
+- **`featureCount` is always 0.** Features come from #3, which is not built. `sellable` is
+  therefore always `false`.
+
+Its test script saves `planCode` and `planVersion`, so the URLs of #2 onwards will work the day
+they exist.
 
 ## List Schools (G1) is the first read
 

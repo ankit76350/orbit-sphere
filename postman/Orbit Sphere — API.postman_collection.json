@@ -1817,6 +1817,80 @@
      "description": "Tenant provisioning and lifecycle, at /platform/schools. Mirrors SchoolPlatformController. The caller is outside the tenant — provisioning is what creates the school these requests are about."
     }
    ]
+  },
+  {
+   "name": "Plans",
+   "item": [
+    {
+     "name": "Plan catalogue",
+     "item": [
+      {
+       "name": "Create Plan Draft",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/drafts",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "drafts"
+         ]
+        },
+        "description": "**POST** `/platform/plans/drafts` — makes a new plan, as a draft.\n\nThe platform's own price list: what a school pays **us** for Orbit Sphere. Not student fees —\n`models/finance` is money a parent pays a school, and the two never meet.\n\n### It always makes a draft\n\n`status` (always `DRAFT`), `planVersion` (always 1) and `publiclyAvailable` (always false) are\n**not on the request**. A plan that could be created `ACTIVE` would be on sale before it was\npriced. Later versions come from #5.\n\n### Features are not accepted here\n\nThe plan starts with an empty feature list; #3 sets the whole list in one go — the same shape\nacademic years use for holidays.\n\n### Normalized on the way in\n\n`planCode` uppercased with hyphens becoming underscores, `currencyCode` uppercased, `listPrice`\nforced to exactly two decimal places, blank text becoming null.\n\n### Refused, not rounded or guessed\n\nA price with three decimal places, a currency code that is not ISO 4217, a limit of zero, a\nselling window that runs backwards, and a `planCode` that already exists.\n\n### The thirteen test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"planCode\": \"PREMIUM\",\n  \"name\": \"Premium\",\n  \"description\": \"Advanced ERP modules and AI capabilities for growing schools.\",\n  \"billingCycle\": \"YEARLY\",\n  \"listPrice\": 49999,\n  \"currencyCode\": \"INR\",\n  \"maxStudents\": 2000,\n  \"maxUsers\": 250\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/plans/drafts\n//  Platform surface. No tenant header: a PlanDefinition has no schoolId.\n// ===========================================================================\n//\n//  THIS IS THE PLATFORM'S OWN PRICE LIST, NOT SCHOOL FEES. Money a school pays\n//  us for Orbit Sphere. models/finance is the other thing entirely — money a\n//  parent pays a school — and nothing here may touch a FeeInvoice.\n//\n//  IT ALWAYS MAKES A DRAFT. status, planVersion and publiclyAvailable are NOT\n//  on the request:\n//    status             always DRAFT   — nobody can buy it while we are still\n//                                        deciding the price\n//    planVersion        always 1       — later versions come from #5, which\n//                                        copies a published one\n//    publiclyAvailable  always false   — #7 decides if it shows publicly\n//  Send them anyway and they are ignored, not half-honoured (case 10).\n//\n//  FEATURES ARE NOT ACCEPTED HERE. The plan starts with an empty feature list\n//  and #3 sets the whole list in one go — the same shape academic years use\n//  for holidays. A create that can fail on either a bad price or a bad feature\n//  leaves you working out which, and a half-filled feature list is the \"plan\n//  nobody can price\" that #3 exists to prevent.\n//\n//  WHY /drafts IS IN THE PATH: so nobody reads POST /platform/plans and thinks\n//  they are putting a plan on sale. Every endpoint after this addresses the\n//  plan by code and version — /platform/plans/PREMIUM/versions/1 — because\n//  from then on draft-ness is a status on a plan that exists.\n//\n// ---------------------------------------------------------------------------\n// 01  CREATE A DRAFT PLAN                                  -> 201 Created\n//     The body above.\n//     OUT: status: \"DRAFT\", planVersion: 1, publiclyAvailable: false,\n//          featureCount: 0, sellable: false\n//     Header: Location: /platform/plans/PREMIUM/versions/1\n//\n//     sellable is DERIVED, never stored: published AND public AND inside the\n//     selling window. Three separate facts, so every screen does not combine\n//     them slightly differently.\n// ---------------------------------------------------------------------------\n//\n// 02  EVERYTHING IS NORMALIZED ON THE WAY IN                -> 201 Created\n// {\n//   \"planCode\": \"  premium-plus \",\n//   \"name\": \"   Premium Plus   \",\n//   \"description\": \"   \",\n//   \"billingCycle\": \"YEARLY\",\n//   \"listPrice\": 79999,\n//   \"currencyCode\": \"inr\",\n//   \"maxStudents\": 5000,\n//   \"maxUsers\": 500\n// }\n//     OUT: planCode \"PREMIUM_PLUS\"   <- uppercased, hyphen becomes underscore\n//          name      \"Premium Plus\"  <- trimmed\n//          description null          <- \"   \" is nothing, so it is nothing\n//          listPrice 79999.00        <- always two decimal places\n//          currencyCode \"INR\"        <- uppercased\n// ---------------------------------------------------------------------------\n//\n// 03  THE SAME CODE AGAIN                              -> 409 Conflict\n//     Send case 01 twice. Case differences do not help — \"premium\" and\n//     \"PREMIUM\" normalize to the same code.\n//     OUT: { \"code\": \"PLAN_CODE_TAKEN\",\n//            \"message\": \"A plan called 'PREMIUM' already exists. To change its\n//                        price, make a new version of it instead of a new\n//                        plan.\" }\n//\n//     Refused even though the unique index is on planCode AND planVersion, so\n//     a second PREMIUM v1 would technically fit. planCode is the plan's\n//     permanent identity and SchoolSubscription stores it — two plans sharing\n//     it could never be told apart, and \"which PREMIUM\" would have no answer.\n// ---------------------------------------------------------------------------\n//\n// 04  A FREE PLAN                                          -> 201 Created\n// {\n//   \"planCode\": \"FREE\",\n//   \"name\": \"Free\",\n//   \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": 0,\n//   \"currencyCode\": \"INR\",\n//   \"maxStudents\": 50,\n//   \"maxUsers\": 5\n// }\n//     ZERO IS ALLOWED. A free tier is a real plan.\n// ---------------------------------------------------------------------------\n//\n// 05  A NEGATIVE PRICE                               -> 400 Bad Request\n// {\n//   \"planCode\": \"ODD\", \"name\": \"Odd\", \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": -5, \"currencyCode\": \"INR\", \"maxStudents\": 10, \"maxUsers\": 5\n// }\n//     OUT: { \"code\": \"PRICE_NEGATIVE\" }\n//     A plan we pay the school to be on is not a thing.\n// ---------------------------------------------------------------------------\n//\n// 06  MORE THAN TWO DECIMAL PLACES                   -> 400 Bad Request\n// {\n//   \"planCode\": \"ODD2\", \"name\": \"Odd\", \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": 1999.999, \"currencyCode\": \"INR\", \"maxStudents\": 10,\n//   \"maxUsers\": 5\n// }\n//     OUT: { \"code\": \"PRICE_TOO_PRECISE\" }\n//     REFUSED, NOT ROUNDED. Rounding somebody's price for them is how 1999.999\n//     quietly becomes 2000.00 on every invoice for a year.\n// ---------------------------------------------------------------------------\n//\n// 07  A CURRENCY THAT DOES NOT EXIST                   -> 409 Conflict\n// {\n//   \"planCode\": \"ODD3\", \"name\": \"Odd\", \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": 1, \"currencyCode\": \"RUP\", \"maxStudents\": 10, \"maxUsers\": 5\n// }\n//     OUT: { \"code\": \"CURRENCY_INVALID\",\n//            \"message\": \"'RUP' is not an ISO 4217 currency code. Example:\n//                        INR.\" }\n//     Checked against the JDK's ISO 4217 list, not a hand-written one — for\n//     the same reason time zones are. RUP and INS look plausible and do not\n//     exist, and nobody notices until an invoice is issued in one.\n//\n//     409 rather than 400: the request is well formed and still refused.\n// ---------------------------------------------------------------------------\n//\n// 08  A LIMIT OF ZERO                                -> 400 Bad Request\n// {\n//   \"planCode\": \"ODD4\", \"name\": \"Odd\", \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": 1, \"currencyCode\": \"INR\", \"maxStudents\": 0, \"maxUsers\": 5\n// }\n//     OUT: { \"code\": \"LIMIT_TOO_LOW\" }\n//     A plan capped at zero students blocks the first thing the school tries\n//     to do, which reads as a broken platform rather than as the plan it was\n//     sold.\n// ---------------------------------------------------------------------------\n//\n// 09  A SELLING WINDOW THAT RUNS BACKWARDS           -> 400 Bad Request\n// {\n//   \"planCode\": \"ODD5\", \"name\": \"Odd\", \"billingCycle\": \"YEARLY\",\n//   \"listPrice\": 1, \"currencyCode\": \"INR\", \"maxStudents\": 10, \"maxUsers\": 5,\n//   \"effectiveFrom\": \"2027-04-01T00:00:00Z\",\n//   \"effectiveUntil\": \"2026-04-01T00:00:00Z\"\n// }\n//     OUT: { \"code\": \"INVALID_SELLING_WINDOW\" }\n//     Both dates are OPTIONAL, and a draft usually has neither — #4 stamps\n//     effectiveFrom when it publishes. Only the pair together can be wrong.\n// ---------------------------------------------------------------------------\n//\n// 10  FIELDS THAT ARE NOT OURS TO SET                      -> 201 Created\n// {\n//   \"planCode\": \"IGNORED\",\n//   \"name\": \"Try to cheat\",\n//   \"billingCycle\": \"YEARLY\",\n//   \"listPrice\": 1,\n//   \"currencyCode\": \"INR\",\n//   \"maxStudents\": 10,\n//   \"maxUsers\": 5,\n//   \"status\": \"ACTIVE\",\n//   \"planVersion\": 9,\n//   \"publiclyAvailable\": true,\n//   \"features\": [{ \"featureCode\": \"EVERYTHING\" }]\n// }\n//     OUT: status \"DRAFT\", planVersion 1, publiclyAvailable false,\n//          featureCount 0 — every one of those four was ignored.\n//     They are not on the request record, so Jackson drops them. A plan that\n//     could be created ACTIVE would be on sale before it was priced.\n// ---------------------------------------------------------------------------\n//\n// 11  A BAD PLAN CODE                                  -> 409 Conflict\n// {\n//   \"planCode\": \"_bad_\", \"name\": \"X\", \"billingCycle\": \"MONTHLY\",\n//   \"listPrice\": 1, \"currencyCode\": \"INR\", \"maxStudents\": 10, \"maxUsers\": 5\n// }\n//     OUT: { \"code\": \"PLAN_CODE_INVALID\" }\n//     Letters, digits and INNER underscores. No leading or trailing one.\n// ---------------------------------------------------------------------------\n//\n// 12  A BILLING CYCLE THAT DOES NOT EXIST            -> 400 Bad Request\n//     \"billingCycle\": \"WEEKLY\"\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }\n//     Accepted: MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY, CUSTOM.\n// ---------------------------------------------------------------------------\n//\n// 13  NOTHING AT ALL                                 -> 400 Bad Request\n// {\n// }\n//     OUT: { \"code\": \"VALIDATION_FAILED\" } with fieldErrors naming planCode,\n//     name, billingCycle, listPrice, currencyCode, maxStudents, maxUsers.\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 Created', () => pm.response.to.have.status(201));",
+           "const b = pm.response.json();",
+           "pm.test('it is a draft nobody can buy', () => {",
+           "  pm.expect(b.status).to.eql('DRAFT');",
+           "  pm.expect(b.publiclyAvailable).to.be.false;",
+           "  pm.expect(b.sellable).to.be.false;",
+           "});",
+           "pm.test('it is version 1 with no features yet', () => {",
+           "  pm.expect(b.planVersion).to.eql(1);",
+           "  pm.expect(b.featureCount).to.eql(0);",
+           "});",
+           "pm.test('the code was uppercased', () =>",
+           "  pm.expect(b.planCode).to.eql(b.planCode.toUpperCase()));",
+           "pm.test('the price has exactly two decimal places', () =>",
+           "  pm.expect(String(b.listPrice)).to.match(/\\.\\d{2}$/));",
+           "pm.test('Location points at the code-and-version address', () =>",
+           "  pm.expect(pm.response.headers.get('Location'))",
+           "    .to.eql(`/platform/plans/${b.planCode}/versions/${b.planVersion}`));",
+           "// Every later plan endpoint is addressed by code and version, so remember both.",
+           "pm.collectionVariables.set('planCode', b.planCode);",
+           "pm.collectionVariables.set('planVersion', b.planVersion);"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ],
  "variable": [
@@ -1839,6 +1913,16 @@
    "key": "academicYearName",
    "value": "",
    "description": "Saved by Create Academic Year; used by the dates URL."
+  },
+  {
+   "key": "planCode",
+   "value": "",
+   "description": "Saved by Create Plan Draft; used by every /plans/{code} URL."
+  },
+  {
+   "key": "planVersion",
+   "value": "",
+   "description": "Saved by Create Plan Draft; used by every /versions/{version} URL."
   }
  ]
 }

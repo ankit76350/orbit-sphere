@@ -60,9 +60,12 @@ public class PlanCatalogueService {
      * plan is #5, not this.
      *
      * <p>The plan is created with an <b>empty feature list</b>; #3 sets the whole list in one go.
+     *
+     * <p>Reached at {@code POST /platform/plans/drafts} — the only endpoint in the group not
+     * addressed by code and version, because nothing exists yet to name.
      */
     @Transactional
-    public PlanResponse createPlan(PlanCreateRequest request) {
+    public PlanResponse createDraft(PlanCreateRequest request) {
         //! step 1 - normalize and check everything the caller sent
         String planCode = planValidator.validatePlanCode(request.planCode());
         String currencyCode = planValidator.validateCurrencyCode(request.currencyCode());
