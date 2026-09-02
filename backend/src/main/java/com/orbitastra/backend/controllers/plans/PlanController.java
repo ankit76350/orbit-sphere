@@ -44,20 +44,18 @@ public class PlanController {
     private final PlanCatalogueService planCatalogueService;
 
     /**
-     * Endpoint #1 — makes a new plan.
+     * Creates a new plan.
      *
-     * <p>It starts as a {@code DRAFT} at version 1, and not publicly available, so nobody can
-     * buy it while the price is still being decided. {@code status}, {@code planVersion} and
-     * {@code publiclyAvailable} are not on the request for that reason.
+     * <p>The plan starts as {@code DRAFT}, version 1, and is not publicly available.
+     * The request does not include status, version, or public availability because these
+     * values are set automatically.
      *
-     * <p>Created with an empty feature list; #3 sets the features.
+     * <p>The plan starts with no features. Use #3 to add features.
      *
-     * <p><b>{@code /drafts} is in the path deliberately.</b> The URL says what this makes, so a
-     * caller cannot read {@code POST /platform/plans} and think they are putting a plan on sale.
-     * Everything after this addresses the plan by code and version — {@code
-     * /platform/plans/PREMIUM/versions/1} — because from then on the draft-ness is a status on a
-     * plan that exists, not a different resource. This is the one endpoint where nothing exists
-     * yet to name.
+     * <p>The {@code /drafts} path makes it clear that this endpoint creates a draft,
+     * not a plan that is ready for sale.
+     *
+     * <p>After creation, the plan is identified by its code and version.
      */
     @PostMapping("/drafts")
     public ResponseEntity<PlanResponse> createDraft(@Valid @RequestBody PlanCreateRequest request) {
@@ -70,18 +68,17 @@ public class PlanController {
     }
 
     /**
-     * Endpoint #2 — fixes the details of a draft.
+     * Updates the details of a draft plan.
      *
-     * <p><b>Refused once the plan is published.</b> A published plan may have schools on it, and
-     * editing its price would change what they agreed to pay without anybody agreeing to it. #5
-     * copies it into a new draft version instead.
+     * <p>Published plans cannot be changed. If changes are needed, #5 creates a new draft version.
      *
-     * <p>Partial: an omitted field is left alone, {@code ""} clears the description. The selling
-     * window is replaced as a pair — the two dates are only meaningful next to each other.
+     * <p>Only the provided fields are updated. A {@code null} value keeps the current value, while
+     * {@code ""} clears the description.
      *
-     * <p>{@code code} and {@code version} identify the plan and are not editable. Neither is
-     * {@code status} — publishing is #4 — nor {@code publiclyAvailable} (#7) nor
-     * {@code features} (#3).
+     * <p>The start and end dates are updated together.
+     *
+     * <p>The plan code, version, status, public availability, and features cannot be changed here.
+     * Use #3, #4, and #7 for those changes.
      */
     @PatchMapping("/{code}/versions/{version}")
     public ResponseEntity<PlanResponse> updateDraft(
