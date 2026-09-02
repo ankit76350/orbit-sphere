@@ -59,6 +59,10 @@ public class PlanCatalogueService {
      * a version, and "which PREMIUM" would have no answer. A genuinely new price for an existing
      * plan is #5, not this.
      *
+     * <p><b>The code is normally not sent.</b> It is derived from the name — "Premium Plus"
+     * becomes {@code PREMIUM_PLUS} — so a create form asks for one thing. An explicit code is
+     * accepted for the case where the derived one is already taken.
+     *
      * <p>The plan is created with an <b>empty feature list</b>; #3 sets the whole list in one go.
      *
      * <p>Reached at {@code POST /platform/plans/drafts} — the only endpoint in the group not
@@ -67,7 +71,8 @@ public class PlanCatalogueService {
     @Transactional
     public PlanResponse createDraft(PlanCreateRequest request) {
         //! step 1 - normalize and check everything the caller sent
-        String planCode = planValidator.validatePlanCode(request.planCode());
+        // Normally nothing was sent, and the code comes from the name.
+        String planCode = planValidator.resolvePlanCode(request.planCode(), request.name());
         String currencyCode = planValidator.validateCurrencyCode(request.currencyCode());
         var listPrice = planValidator.validatePrice("listPrice", request.listPrice());
         planValidator.validateLimit("maxStudents", request.maxStudents());

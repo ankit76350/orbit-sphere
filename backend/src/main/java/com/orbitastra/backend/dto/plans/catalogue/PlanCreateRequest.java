@@ -36,13 +36,21 @@ import jakarta.validation.constraints.Size;
 public record PlanCreateRequest(
 
         /**
-         * The plan's permanent code, uppercased on the way in. Example: "PREMIUM"
+         * The plan's permanent family code. <b>Optional</b> — leave it out. Example: "PREMIUM"
          *
-         * <p>Together with the version this is the plan's identity, and
-         * {@code SchoolSubscription} stores the version alongside a link to the document. Choose
-         * it carefully — every later version carries the same code.
+         * <p>Derived from {@code name} when it is not sent: "Premium Plus" becomes
+         * {@code PREMIUM_PLUS}. A create form should ask for the name only, rather than making
+         * somebody type the same words twice in two shapes.
+         *
+         * <p>Send one explicitly only when the derived code will not do — the name would produce
+         * a code another plan already has, or the code has to match something outside this
+         * system.
+         *
+         * <p>Either way it is <b>fixed once the plan exists</b>, and every later version of the
+         * plan carries it. It is the only thing joining the versions of one plan together, which
+         * is why the editable {@code name} cannot do the job.
          */
-        @NotBlank @Size(max = 40) String planCode,
+        @Size(max = 40) String planCode,
 
         /** Example: "Premium" */
         @NotBlank @Size(max = 120) String name,

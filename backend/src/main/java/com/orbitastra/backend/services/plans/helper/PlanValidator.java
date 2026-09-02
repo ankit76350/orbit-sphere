@@ -32,24 +32,56 @@ public class PlanValidator {
             Pattern.compile("^[A-Z0-9](?:[A-Z0-9_]{0,38}[A-Z0-9])?$");
 
     /**
-     * Validates and normalizes a plan code.
+     * The plan code to store, given what the caller sent and what the plan is called.
      *
-     * <p>Uppercased rather than refused for being lowercase, because {@code premium} and
-     * {@code PREMIUM} are obviously the same intent and the unique index cannot tell — two
-     * documents would exist and a school could be sold either.
+     * <p><b>Normally nobody sends a code.</b> It is derived from the name — "Premium Plus"
+     * becomes {@code PREMIUM_PLUS} — so a create form asks for one thing rather than making an
+     * operator type the same words twice in two shapes.
      *
-     * @return the normalized code
+     * <p>An explicit code is still accepted, for the case the derivation cannot help with: the
+     * name that would produce a code somebody else already has, or a code that has to match
+     * something outside this system.
+     *
+     * <p><b>Why the code exists at all, given the name is right there.</b> It is the family key:
+     * the only thing joining version 1, 2 and 3 of one plan. A subscription stores a document id
+     * and a version number, so without it "version 2" means version 2 of nothing, and copying a
+     * published plan into a new version has no way to say which family the copy joins. The name
+     * cannot do that job, because a name is display text somebody will want to change — and a
+     * key that can change is not a key.
+     *
+     * @return the code to store, uppercased and normalized
      */
-    public String validatePlanCode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw ApiException.badRequest("PLAN_CODE_REQUIRED", "A plan code is required.");
+    public String resolvePlanCode(String rawCode, String name) {
+        boolean derived = rawCode == null || rawCode.isBlank();
+        String source = derived ? name : rawCode;
+
+        if (source == null || source.isBlank()) {
+            throw ApiException.badRequest("PLAN_CODE_REQUIRED",
+                    "A plan code is required, and could not be worked out because the plan has "
+                            + "no name either.");
         }
-        String normalized = raw.trim().toUpperCase().replaceAll("[\\s-]+", "_");
+
+        // Anything that is not a letter or a digit becomes one underscore: spaces, hyphens,
+        // ampersands, punctuation. Then the ends are trimmed, so "Premium (2026)" does not
+        // produce a code ending in an underscore.
+        String normalized = source.trim().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+
+        if (normalized.length() > 40) {
+            normalized = normalized.substring(0, 40).replaceAll("_+$", "");
+        }
 
         if (!PLAN_CODE_SHAPE.matcher(normalized).matches()) {
+            // A name of nothing but punctuation cannot produce a code. Say which it was, because
+            // "PLAN_CODE_INVALID" about a code the caller never sent is baffling otherwise.
             throw ApiException.conflict("PLAN_CODE_INVALID",
-                    "A plan code must be 1 to 40 characters of letters, digits and inner "
-                            + "underscores. Received: " + normalized);
+                    derived
+                            ? "No plan code could be worked out from the name '" + name
+                                    + "'. Send a planCode of letters, digits and inner "
+                                    + "underscores."
+                            : "A plan code must be 1 to 40 characters of letters, digits and "
+                                    + "inner underscores. Received: " + normalized);
         }
         return normalized;
     }
