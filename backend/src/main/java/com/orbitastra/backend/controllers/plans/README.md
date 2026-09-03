@@ -1,7 +1,7 @@
 # controllers/plans — API plan
 
-**Five of 71 are built — #1 to #4 and #6**, the plan catalogue's whole life apart from
-versioning: create a draft, edit it, set its features, publish it, retire it.
+**Six of 71 are built — #1 to #4, #6 and #7**: the whole plan catalogue apart from versioning.
+Create a draft, edit it, set its features, publish it, list it publicly, retire it.
 
 **#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
 published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
@@ -80,7 +80,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 4 — **built** | [`POST /platform/plans/{code}/versions/{version}/publish`](#e4) | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 5 — **deferred** | [`POST /platform/plans/{code}/versions/{version}/new-version`](#e5) | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 6 — **built** | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 7 | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 7 — **built** | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 
 ## 2. The plan catalogue — reads · [Build order ↓](#build-order)
 
@@ -573,9 +573,59 @@ It belongs to #7. Touching it here would make no difference anyway: every list o
 filters on `ACTIVE` first, so a retired plan is off the pricing page whatever that flag says.
 
 <a id="e7"></a>
-**7 · `PATCH /platform/plans/{code}/versions/{version}/availability`**
+**7 · `PATCH /platform/plans/{code}/versions/{version}/availability`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `publiclyAvailable`
+
+### Public list, or private quote
+
+The difference between a plan a school can find and pick for itself, and one that only exists in
+a quote somebody sends them. A bespoke price for one large trust is a real plan — published,
+sellable, and deliberately not on the pricing page. That is why it is a separate decision from
+publishing, and a separate endpoint.
+
+### `sellable` is three facts, and this owns one
+
+| Fact | Set by |
+|---|---|
+| `status` is `ACTIVE` | #4 publish |
+| `publiclyAvailable` is true | **#7** |
+| today is inside `effectiveFrom`–`effectiveUntil` | #1 or #2 |
+
+`sellable` is derived from all three on every plan response, and **#7's response names whichever
+of the other two is still missing**. Without that, somebody who has just made a plan public and
+still sees `sellable: false` has no way to tell which fact is short, and the obvious guess is
+that the call failed.
+
+### Idempotent, unlike #4 and #6
+
+| | Repeat call | Why |
+|---|---|---|
+| #4 publish | `409` | one-way door — "it was already published" is a fact the caller needs |
+| #6 retire | `409` | one-way door, same reason |
+| **#7 availability** | `200`, saying nothing changed | a switch that flips back in one call |
+
+Refusing a repeat here would only teach callers to read first and then race.
+
+### A retired plan cannot be listed, but can be unlisted
+
+`409 PLAN_RETIRED` for the "on" direction: nobody can buy a retired plan, so advertising it would
+put something on the pricing page that every purchase would refuse.
+
+**The "off" direction is allowed.** The objection is specifically about advertising, and taking a
+retired plan off the list is tidying up. Refusing both would also have meant a message that lies
+about half the cases — the first version said "listing it publicly would…" in response to a
+request to *unlist* it.
+
+### A draft can be made public
+
+Allowed, so the decision can be made before the plan goes live. It changes nothing on its own —
+`sellable` stays false until #4 — and the response says so.
+
+### `publiclyAvailable` is required, and boxed
+
+An omitted `boolean` arrives as `false`, which is indistinguishable from deliberately hiding the
+plan. A forgotten field would pull a plan off the pricing page and report success.
 
 ## The plan catalogue — reads  ·  8–12
 

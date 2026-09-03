@@ -2075,6 +2075,64 @@
        ]
       },
       {
+       "name": "Set Plan Availability",
+       "request": {
+        "method": "PATCH",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions/{{planVersion}}/availability",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions",
+          "{{planVersion}}",
+          "availability"
+         ]
+        },
+        "description": "**PATCH** `/platform/plans/{code}/versions/{version}/availability` — public list, or private\nquote only.\n\nThe difference between a plan a school can find and pick for itself, and one that only exists in\na quote you send them. A bespoke price for one large trust is published, sellable and\ndeliberately off the pricing page.\n\n### On its own it makes nothing buyable\n\n`sellable` is three facts: `ACTIVE` (#4), public (this), and inside the selling window. Every\nresponse says which of the other two is still missing, so a public plan that is not on sale\nexplains itself.\n\n### Idempotent, unlike #4 and #6\n\nThose are one-way doors. This is a switch that flips back, so setting it to what it already is\ncomes back `200` saying so.\n\n### A retired plan cannot be listed\n\n`409` — advertising it would put something on the pricing page that every purchase would refuse.\nTaking a retired plan **off** the list is allowed; that direction is only tidying up.\n\n### The ten test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"publiclyAvailable\": true\n}\n\n// ===========================================================================\n//  TEST CASES  —  PATCH /platform/plans/{code}/versions/{version}/availability\n//  Platform surface.\n// ===========================================================================\n//\n//  PUBLIC LIST, OR PRIVATE QUOTE. The difference between a plan a school can\n//  find and pick for itself, and one that only exists in a quote somebody\n//  sends them. A bespoke price for one large trust is a real plan —\n//  published, sellable, and deliberately not on the pricing page.\n//\n//  ON ITS OWN IT MAKES NOTHING BUYABLE. A plan is sellable when THREE things\n//  are true:\n//      status is ACTIVE          (#4 publish)\n//      publiclyAvailable is true (this endpoint)\n//      today is inside the selling window\n//  This endpoint owns one of them. Every response says which of the other two\n//  is still missing, so a public plan that is not on sale explains itself.\n//\n//  IT IS IDEMPOTENT, unlike #4 and #6. Those are one-way doors, so \"it was\n//  already done\" is a fact the caller needs. This is a switch that can be\n//  flipped back in one call, so a repeat costs nothing and refusing it would\n//  only teach callers to read first and then race.\n//\n//  publiclyAvailable IS REQUIRED and boxed. An omitted boolean would arrive as\n//  false — indistinguishable from deliberately hiding the plan — so a\n//  forgotten field would pull a plan off the pricing page and report success.\n//\n// ---------------------------------------------------------------------------\n// 01  PUT A PUBLISHED PLAN ON THE PUBLIC LIST              -> 200 OK\n//     Run Create Plan Draft, Set Plan Features, Publish Plan, then this.\n//     OUT: publiclyAvailable true, sellable TRUE\n//          nextStep: \"Now on the public list. Schools can now pick it.\"\n//     THIS IS THE CALL THAT FINALLY MAKES A PLAN BUYABLE.\n// ---------------------------------------------------------------------------\n//\n// 02  SEND IT AGAIN                                        -> 200 OK\n//     IDEMPOTENT. \"It was already on the public list. Schools can now pick\n//     it.\"\n// ---------------------------------------------------------------------------\n//\n// 03  TAKE IT OFF THE LIST                                 -> 200 OK\n// {\n//   \"publiclyAvailable\": false\n// }\n//     OUT: sellable false\n//          \"Taken off the public list. It can still be offered privately in a\n//           quote. It is not sellable: a plan has to be on the public list to\n//           be picked.\"\n//     The plan is still ACTIVE and still real — just not advertised.\n// ---------------------------------------------------------------------------\n//\n// 04  ON A DRAFT                                           -> 200 OK\n//     Set it on a draft before publishing. ALLOWED, so the decision can be\n//     made before the plan goes live.\n//     OUT: publiclyAvailable true, sellable FALSE\n//          \"Now on the public list. It is NOT sellable yet — it is still a\n//           DRAFT. Publish it to put it on sale.\"\n// ---------------------------------------------------------------------------\n//\n// 05  ON A PLAN WITH A FUTURE LAUNCH DATE                  -> 200 OK\n//     Set effectiveFrom to 2030 with #2, publish, then this.\n//     OUT: ACTIVE, public true, sellable FALSE\n//          \"Now on the public list. It is not sellable yet: it goes on sale on\n//           2030-01-01T00:00:00Z.\"\n//     All three facts reported separately, so nothing looks broken.\n// ---------------------------------------------------------------------------\n//\n// 06  LISTING A RETIRED PLAN                           -> 409 Conflict\n//     Retire it with #6 first, then send true.\n//     OUT: { \"code\": \"PLAN_RETIRED\",\n//            \"message\": \"... is retired, so nobody can buy it. Listing it\n//                        publicly would advertise a plan every purchase would\n//                        refuse.\" }\n// ---------------------------------------------------------------------------\n//\n// 07  UNLISTING A RETIRED PLAN                             -> 200 OK\n// {\n//   \"publiclyAvailable\": false\n// }\n//     ALLOWED. Only the \"on\" direction is refused — taking a retired plan off\n//     the list is tidying up, and never wrong.\n//     OUT: \"Taken off the public list. It is not sellable, and cannot become\n//           sellable: it is retired.\"\n//     Note it does NOT say \"can still be offered privately\" here: a retired\n//     plan cannot be sold at all.\n// ---------------------------------------------------------------------------\n//\n// 08  AN EMPTY BODY                                  -> 400 Bad Request\n// {\n// }\n//     OUT: fieldErrors: { \"publiclyAvailable\": [\"must not be null\"] }\n//     The one field is required — there is no partial case for a PATCH whose\n//     only field is the thing being set.\n// ---------------------------------------------------------------------------\n//\n// 09  NOT A BOOLEAN                                  -> 400 Bad Request\n// {\n//   \"publiclyAvailable\": \"yes please\"\n// }\n//     OUT: { \"code\": \"MALFORMED_REQUEST\" }\n// ---------------------------------------------------------------------------\n//\n// 10  A PLAN OR VERSION THAT DOES NOT EXIST             -> 404 Not Found\n//     OUT: { \"code\": \"PLAN_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "// Asserts case 01: a published plan being made public.",
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is on the public list', () => pm.expect(b.publiclyAvailable).to.be.true);",
+           "pm.test('and now finally sellable', () => pm.expect(b.sellable).to.be.true);",
+           "pm.test('sellable agrees with the three facts behind it', () => {",
+           "  const inWindow = (!b.effectiveFrom || new Date(b.effectiveFrom) <= new Date())",
+           "    && (!b.effectiveUntil || new Date(b.effectiveUntil) > new Date());",
+           "  pm.expect(b.sellable).to.eql(b.status === 'ACTIVE' && b.publiclyAvailable && inWindow);",
+           "});",
+           "pm.test('the response says what a school can do now', () =>",
+           "  pm.expect(b.nextStep).to.include('pick it'));"
+          ]
+         }
+        }
+       ]
+      },
+      {
        "name": "Retire Plan",
        "request": {
         "method": "POST",
