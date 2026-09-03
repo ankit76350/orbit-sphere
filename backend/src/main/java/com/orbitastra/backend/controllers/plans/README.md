@@ -1,6 +1,14 @@
 # controllers/plans — API plan
 
-**Nine of 71 are built — #1 to #4 and #6 to #10: the entire plan catalogue except versioning.**
+**Ten of 71 are built — #1 to #4, #6 to #10, and #13.** The entire plan catalogue except
+versioning, plus the first subscription.
+
+**#13 closes the gap `core` has been announcing.** `activateSchool` was written to require an
+active subscription, found that nothing could create one, and settled for a soft check that says
+so in every response: *"Activation was allowed anyway because nothing creates subscriptions yet —
+this check must become a hard requirement once it does."* It does now. **Making that check hard
+is a decision still to take** — see the note under "13".
+
 Create a draft, edit it, set its features, publish it, list it publicly, retire it; and read it
 three ways — the whole catalogue, one plan's version history, or one version in full.
 
@@ -113,7 +121,7 @@ file.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 13 | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| 13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | 14 | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | 15 | [`POST /platform/schools/{id}/subscriptions/{no}/extend-trial`](#e15) | Push the trial end date out. A sales decision, so only an operator can do it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
@@ -801,11 +809,84 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 ## The subscription lifecycle — writes  ·  13–26
 
 <a id="e13"></a>
-**13 · `POST /platform/schools/{id}/subscriptions`**
+**13 · `POST /platform/schools/{id}/subscriptions`** — built
 
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `subscriptionNo`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
+
+### Two fields is the ordinary request
+
+`planCode` and `planVersion`. The plan already knows the price, the currency, the billing cycle
+and therefore when the first period ends, so everything else on the request exists for the deal
+that is **not** ordinary — a discount, a raised limit, a trial, a custom period.
+
+The plan is named by code and version rather than by id, the same way every plan URL names one.
+Asking for a Mongo id would mean reading it out of another response first.
+
+### Three documents, one transaction
+
+| Document | Why it cannot be a second transaction |
+|---|---|
+| `school_subscriptions` | the subscription itself |
+| `subscription_history` | a subscription with no history row is a customer nobody can explain, and the row that goes missing is the one explaining the thing that went wrong |
+| `number_sequences` | a number handed out with no subscription attached is a permanent gap in the numbering that reads as a deleted record |
+
+### The number sequence needed building
+
+Nothing in this codebase had ever read a `NumberSequence`. Provisioning seeds the rows and
+nothing consumed them, so #13 also built
+[`NumberSequenceService`](../../services/institution/NumberSequenceService.java) — which every
+module needs eventually: admission numbers, invoice numbers, receipts.
+
+**The increment has to be a database operation.** Read-add-save hands the *same number to two
+callers* the moment two requests overlap: both read 41, both write 42, and two subscriptions are
+called `SUB/2026/000041`. It is a single `findAndModify`, so no two callers can see the same
+value. That is the one thing in the class that cannot be written another way.
+
+`NumberSequenceType` gained a **`SUBSCRIPTION`** constant. There were types for a subscription's
+invoices and its payments but not for the subscription itself.
+
+### The plan must be sellable, and "publicly available" is not part of that
+
+`ACTIVE`, and inside its selling window. A draft's price is still being decided; a retired plan
+was taken off the menu. **A published plan that is not publicly available is allowed** — that is
+exactly a private quote, and this endpoint is how a private quote gets sold.
+
+The refusal for a retired plan says something different from the one for a draft, because
+"publish it first" sent to a retired plan points at an endpoint that will refuse it.
+
+### One current subscription per school
+
+Enforced by a unique partial index on `{schoolId, current}`, but checked here first: a
+duplicate-key error tells the caller nothing about what to do instead. The message names the
+existing subscription and says to change its plan.
+
+### The period end is calendar arithmetic, in the school's zone
+
+Derived from the plan's cycle, so a caller does not redo arithmetic the plan already implies. Two
+things had to be right:
+
+- **`Instant` has no calendar.** `Instant.plus(1, ChronoUnit.YEARS)` throws — a year is not a
+  fixed number of seconds. The addition happens on a `ZonedDateTime`. This was a real 500 during
+  testing.
+- **The school's time zone, not UTC.** A billing period is a pair of dates somebody reads —
+  "your year runs to 31 March". Adding a year in UTC holds the UTC wall clock steady and drifts
+  the local one across a daylight-saving change.
+
+31 January plus a month gives 28 February; the calendar clamps, which is what a person means.
+
+A `CUSTOM` cycle has no length, so `currentPeriodEnd` is **required** there. Guessing a month
+would be inventing a contract term.
+
+### What is not done, and is not pretended
+
+- **`performedByDocsId` on the history row is null.** Nobody is signed in — see
+  `CurrentSchoolResolver`. A sentinel there would read as a real account.
+- **No invoice is raised.** That is a separate endpoint, and the response says so.
+- **The activation check is still soft.** #3 in `core` still lets a school go live with no
+  subscription, and still says so in `subscriptionNote`. The condition that note waits for is now
+  met; tightening it is a deliberate change to `core` and has not been made.
 
 <a id="e14"></a>
 **14 · `POST /platform/schools/{id}/subscriptions/{no}/activate`**

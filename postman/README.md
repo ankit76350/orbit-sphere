@@ -126,7 +126,8 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 9 of 71 — the entire plan catalogue except versioning (#5).** Create a draft, edit
+**Plans is 10 of 71 — the entire plan catalogue except versioning (#5), plus the first
+subscription (#13).** Create a draft, edit
 it, set its features, publish it, list it publicly, retire it; and read it three ways: the whole
 catalogue, one plan's version history, or one version in full. The whole module
 plan lives in
@@ -189,6 +190,22 @@ stores an **array of reasons per date**, and the requests are shaped around that
 - **Two counts come back everywhere**: `closedDayCount` (days the school is shut) and
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
+
+## Subscriptions: #13 closes core's activation gap
+
+`POST /platform/schools/{id}/subscriptions` is what makes a school a paying customer. Before it,
+**Activate School** always answered `"subscriptionStatus": "NONE"` with a note saying activation
+was allowed anyway because nothing could create one. Create a subscription first and the same
+call reports `ACTIVE`.
+
+Order: **Create School → Complete Provisioning → (a published plan) → Create Subscription →
+Activate School.**
+
+- **Two fields is the ordinary request** — the plan's code and version. Price, currency, cycle and
+  the period end all come from the plan.
+- **One subscription per school.** A second is a `409`; nothing yet changes or cancels one, so a
+  test school is on its first plan for good.
+- **Numbering is per school**, so every school's first subscription is `SUB/2026/000001`.
 
 ## Plan catalogue: a draft is all you can make so far
 

@@ -41,6 +41,7 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.identity.RoleRepository;
 import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
+import com.orbitastra.backend.services.institution.NumberSequenceService;
 import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
 import com.orbitastra.backend.services.core.helper.DefaultRoles;
@@ -237,7 +238,7 @@ public class SchoolPlatformService {
             missing.add(NumberSequence.builder()
                     .schoolId(schoolId)
                     .sequenceType(type)
-                    .scopeKey("GLOBAL")
+                    .scopeKey(NumberSequenceService.GLOBAL_SCOPE)
                     .nextValue(1L)
                     .paddingWidth(6)
                     .resetPolicy(SequenceResetPolicy.NEVER)

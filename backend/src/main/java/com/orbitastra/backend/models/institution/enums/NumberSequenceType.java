@@ -53,6 +53,11 @@ public enum NumberSequenceType {
     UPI_MANDATE,
 
     /** SaaS subscription invoice number. */
+    // The subscription itself, not a bill for one. Added 2026-09-03 with endpoint #13: a
+    // subscription carries a human-quotable number ("SUB/2026/000001") that support and finance
+    // use to name it, and there was a type for its invoices and its payments but not for it.
+    SUBSCRIPTION,
+
     SUBSCRIPTION_INVOICE,
 
     /** SaaS subscription payment number. */

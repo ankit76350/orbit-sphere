@@ -2379,6 +2379,80 @@
        ]
       }
      ]
+    },
+    {
+     "name": "Subscriptions",
+     "item": [
+      {
+       "name": "Create Subscription",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions"
+         ]
+        },
+        "description": "**POST** `/platform/schools/{id}/subscriptions` — gives a school its first subscription.\n\nWhat makes a school a paying customer, and the piece `core` has been complaining about:\n`activateSchool` was written to require a subscription, found nothing could create one, and\nsettled for a soft check that announces the gap in every response. Create one first and\n`subscriptionStatus` reports `ACTIVE` instead of `NONE`.\n\n### Two fields is the ordinary request\n\nThe plan already knows the price, the currency, the cycle and therefore when the first period\nends. Everything else exists for a negotiated deal — a discount, a raised limit, a trial.\n\n### Three documents, one transaction\n\nThe subscription, its first `subscription_history` row, and the `number_sequences` row it took\n`subscriptionNo` from. A subscription with no history row is a customer nobody can explain.\n\n### The plan must be sellable\n\n`ACTIVE` and inside its selling window. A plan that is published but **not** publicly available\nis allowed — that is exactly a private quote.\n\n### One current subscription per school\n\nA second is a `409` telling you to change the plan on the existing one.\n\n### The eleven test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"planCode\": \"{{planCode}}\",\n  \"planVersion\": 1\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/subscriptions\n//  Platform surface. Needs {{schoolId}} and a PUBLISHED plan.\n// ===========================================================================\n//\n//  THIS IS WHAT MAKES A SCHOOL A PAYING CUSTOMER, and it is the piece core has\n//  been complaining about. activateSchool (#3 in core) was written to require\n//  an active subscription, found nothing could create one, and settled for a\n//  soft check — every activate response carried:\n//\n//    \"subscriptionStatus\": \"NONE\",\n//    \"subscriptionNote\": \"No subscription exists for this school. Activation\n//     was allowed anyway because nothing creates subscriptions yet — this\n//     check must become a hard requirement once it does.\"\n//\n//  Create a subscription first and the same call now reports\n//  \"subscriptionStatus\": \"ACTIVE\" with no note.\n//\n//  TWO FIELDS IS THE ORDINARY REQUEST. The plan already knows the price, the\n//  currency, the billing cycle and therefore when the first period ends. The\n//  rest of the fields exist for a negotiated deal.\n//\n//  THE PLAN IS NAMED BY CODE AND VERSION, not by a Mongo id — the same way\n//  every plan URL names one.\n//\n//  THREE DOCUMENTS, ONE TRANSACTION: the subscription, its first\n//  subscription_history row, and the number_sequences row it took\n//  subscriptionNo from. A subscription with no history row is a customer\n//  nobody can explain; a number handed out with no subscription attached is a\n//  permanent gap in the numbering that looks like a deleted record.\n//\n// ---------------------------------------------------------------------------\n// 01  THE ORDINARY REQUEST                                -> 201 Created\n//     The body above, on a published plan.\n//     OUT: subscriptionNo \"SUB/2026/000001\", status \"ACTIVE\", current true\n//          contractedPrice = the plan's listPrice\n//          currencyCode    = the plan's currency (never the caller's)\n//          billingCycle    = the plan's cycle\n//          currentPeriodEnd = start + one cycle\n//          maxStudents / maxUsers = the plan's, since no override was sent\n//     Header: Location: /platform/schools/{id}/subscriptions/SUB/2026/000001\n// ---------------------------------------------------------------------------\n//\n// 02  A NEGOTIATED DEAL                                   -> 201 Created\n// {\n//   \"planCode\": \"{{planCode}}\",\n//   \"planVersion\": 1,\n//   \"trial\": true,\n//   \"contractedPrice\": 39999.50,\n//   \"maxStudentsOverride\": 2500,\n//   \"maxUsersOverride\": 300,\n//   \"autoRenew\": false,\n//   \"billingCustomerReference\": \"cus_Qx7B2mR9\",\n//   \"reason\": \"Pilot, 20% partner discount.\"\n// }\n//     OUT: status \"TRIAL\", hasLimitOverrides true, and the response shows\n//          contractedPrice 39999.50 NEXT TO planListPrice 49999.00 — the only\n//          way to notice a school is on a discount.\n//     maxStudents comes back as 2500: the response reports the limit IN FORCE,\n//     not the raw override, so no caller has to work out which applies.\n// ---------------------------------------------------------------------------\n//\n// 03  A SECOND SUBSCRIPTION FOR THE SAME SCHOOL       -> 409 Conflict\n//     Send case 01 twice.\n//     OUT: { \"code\": \"SUBSCRIPTION_ALREADY_EXISTS\",\n//            \"message\": \"... is already on SUB/2026/000001. Change the plan on\n//                        that subscription rather than creating a second\n//                        one.\" }\n//     A unique partial index enforces one current subscription per school, but\n//     a duplicate-key error tells the caller nothing about what to do instead.\n// ---------------------------------------------------------------------------\n//\n// 04  A PLAN THAT IS STILL A DRAFT                    -> 409 Conflict\n//     OUT: { \"code\": \"PLAN_NOT_SELLABLE\",\n//            \"message\": \"... is DRAFT, so no school can be put on it. Publish\n//                        it first.\" }\n//\n//     A RETIRED plan is also refused, with different advice — \"A retired plan\n//     cannot be sold again\" — because telling somebody to publish a retired\n//     plan sends them to an endpoint that will refuse them.\n//\n//     A plan that is published but NOT publicly available IS allowed: that is\n//     exactly a private quote, and this is how a private quote gets sold.\n// ---------------------------------------------------------------------------\n//\n// 05  A CUSTOM BILLING CYCLE                        -> 400 Bad Request\n//     On a plan whose billingCycle is CUSTOM, with no currentPeriodEnd:\n//     OUT: { \"code\": \"BILLING_PERIOD_END_REQUIRED\",\n//            \"message\": \"This plan bills on a CUSTOM cycle, which has no set\n//                        length, so currentPeriodEnd has to be sent.\" }\n//     Every other cycle derives it. Guessing a month for CUSTOM would be\n//     inventing a contract term.\n// ---------------------------------------------------------------------------\n//\n// 06  THE PERIOD END DERIVED FROM THE CYCLE               -> 201 Created\n// {\n//   \"planCode\": \"{{planCode}}\", \"planVersion\": 1,\n//   \"currentPeriodStart\": \"2026-04-01T00:00:00Z\"\n// }\n//     A YEARLY plan gives currentPeriodEnd 2027-04-01.\n//     A MONTHLY plan starting 31 January gives 28 February — the calendar\n//     clamps, which is what a person means by \"a month later\".\n//     The arithmetic runs in the SCHOOL'S time zone, because a billing period\n//     is a pair of dates somebody reads.\n// ---------------------------------------------------------------------------\n//\n// 07  A PERIOD THAT RUNS BACKWARDS                  -> 400 Bad Request\n// {\n//   \"planCode\": \"{{planCode}}\", \"planVersion\": 1,\n//   \"currentPeriodStart\": \"2027-01-01T00:00:00Z\",\n//   \"currentPeriodEnd\": \"2026-01-01T00:00:00Z\"\n// }\n//     OUT: { \"code\": \"INVALID_BILLING_PERIOD\" }\n// ---------------------------------------------------------------------------\n//\n// 08  AN OVERRIDE OF ZERO                           -> 400 Bad Request\n// {\n//   \"planCode\": \"{{planCode}}\", \"planVersion\": 1, \"maxStudentsOverride\": 0\n// }\n//     OUT: { \"code\": \"LIMIT_TOO_LOW\", \"message\": \"... Omit it to use the\n//            plan's own limit.\" }\n//     A negative contractedPrice is PRICE_NEGATIVE, from the same validator #1\n//     and #2 use.\n// ---------------------------------------------------------------------------\n//\n// 09  A SCHOOL THAT CANNOT BE SOLD TO               -> 409 Conflict\n//     A CLOSED, DELETION_PENDING or DELETED school.\n//     OUT: { \"code\": \"SCHOOL_NOT_SUBSCRIBABLE\" }\n//     Not reachable yet — #13 to #17 in core are deferred, so no school can\n//     reach those states.\n// ---------------------------------------------------------------------------\n//\n// 10  AN UNKNOWN SCHOOL OR PLAN                       -> 404 Not Found\n//     SCHOOL_NOT_FOUND or PLAN_NOT_FOUND.\n// ---------------------------------------------------------------------------\n//\n// 11  WHAT LANDS IN THE DATABASE\n//     From mongosh, after case 01:\n//       db.school_subscriptions.findOne({schoolId: \"...\"})\n//       db.subscription_history.find({schoolSubscriptionDocsId: \"...\"})\n//         -> one row: eventType CREATED (or TRIAL_STARTED), previousStatus\n//            null — there was no status before this — newStatus ACTIVE,\n//            source ADMIN_PORTAL, performedByDocsId null because nobody is\n//            signed in yet.\n//       db.number_sequences.findOne({schoolId: \"...\",\n//                                    sequenceType: \"SUBSCRIPTION\"})\n//         -> nextValue 2, prefixTemplate \"SUB/{YYYY}/\"\n//\n//     NUMBERING IS PER SCHOOL. Two schools both get SUB/2026/000001, which is\n//     correct: subscriptionNo is unique per school, not globally.\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 Created', () => pm.response.to.have.status(201));",
+           "const b = pm.response.json();",
+           "pm.test('it has a quotable number', () =>",
+           "  pm.expect(b.subscriptionNo).to.match(/^SUB\\/\\d{4}\\/\\d{6}$/));",
+           "pm.test('it is the school we asked for', () =>",
+           "  pm.expect(b.schoolId).to.eql(pm.collectionVariables.get('schoolId')));",
+           "pm.test('it starts as the live subscription', () => {",
+           "  pm.expect(b.current).to.be.true;",
+           "  pm.expect(b.status).to.be.oneOf(['ACTIVE', 'TRIAL']);",
+           "});",
+           "pm.test('the plan is named, not just linked', () => {",
+           "  pm.expect(b.planCode).to.be.a('string').and.not.empty;",
+           "  pm.expect(b.planName).to.be.a('string').and.not.empty;",
+           "});",
+           "pm.test('the currency came from the plan', () =>",
+           "  pm.expect(b.currencyCode).to.be.a('string').and.have.lengthOf(3));",
+           "pm.test('the period runs forwards', () =>",
+           "  pm.expect(new Date(b.currentPeriodEnd)).to.be.above(new Date(b.currentPeriodStart)));",
+           "pm.test('with no override, the limits are the plan\\'s', () => {",
+           "  if (!b.hasLimitOverrides) {",
+           "    pm.expect(b.maxStudents).to.be.a('number');",
+           "    pm.expect(b.maxUsers).to.be.a('number');",
+           "  }",
+           "});",
+           "pm.collectionVariables.set('subscriptionNo', b.subscriptionNo);"
+          ]
+         }
+        }
+       ]
+      }
+     ]
     }
    ]
   }
@@ -2413,6 +2487,11 @@
    "key": "planVersion",
    "value": "",
    "description": "Saved by Create Plan Draft; used by every /versions/{version} URL."
+  },
+  {
+   "key": "subscriptionNo",
+   "value": "",
+   "description": "Saved by Create Subscription; used by the subscription URLs."
   }
  ]
 }
