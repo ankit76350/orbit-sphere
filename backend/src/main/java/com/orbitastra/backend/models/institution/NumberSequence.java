@@ -70,7 +70,18 @@ public class NumberSequence extends SchoolBase {
     @NotBlank
     private String scopeKey;
 
-    // Example: "ADM/{YYYY}/"
+    // What goes in front of the number. The house format is XXX/{YYYY}/{MM}/ — a short code, the
+    // year, the month, and a trailing separator — so every number in the system reads the same
+    // way: SUB/2026/09/000001, ADM/2026/09/000123, RCPT/2026/09/000045.
+    //
+    // {YYYY} the four-digit year, {YY} the last two, {MM} the zero-padded month. Filled in when
+    // the number is made, then STORED on this row, so a school's numbering cannot change shape
+    // halfway through a run.
+    //
+    // END IT WITH A SEPARATOR. The number is appended straight on, so "ADM/{YYYY}/{MM}" gives
+    // ADM/2026/09000123 with the month running into the digits.
+    //
+    // Example: "ADM/{YYYY}/{MM}/"
     private String prefixTemplate;
 
     // Example: ""

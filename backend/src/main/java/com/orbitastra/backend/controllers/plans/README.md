@@ -841,11 +841,20 @@ module needs eventually: admission numbers, invoice numbers, receipts.
 
 **The increment has to be a database operation.** Read-add-save hands the *same number to two
 callers* the moment two requests overlap: both read 41, both write 42, and two subscriptions are
-called `SUB/2026/000041`. It is a single `findAndModify`, so no two callers can see the same
+called `SUB/2026/09/000041`. It is a single `findAndModify`, so no two callers can see the same
 value. That is the one thing in the class that cannot be written another way.
 
 `NumberSequenceType` gained a **`SUBSCRIPTION`** constant. There were types for a subscription's
 invoices and its payments but not for the subscription itself.
+
+**The house format is `XXX/{YYYY}/{MM}/` plus six digits** — `SUB/2026/09/000001` — and every kind
+of number in the system follows it, so they all read the same way and each one carries the month
+it was issued in. `{YYYY}`, `{YY}` and `{MM}` are filled in when the number is made and the
+resolved template is then stored on the counter row, so a school's numbering cannot change shape
+part-way through a run.
+
+The trailing separator is not decoration: the number is appended straight onto the prefix, so
+`SUB/{YYYY}/{MM}` would produce `SUB/2026/09000001` with the month running into the digits.
 
 ### The plan must be sellable, and "publicly available" is not part of that
 

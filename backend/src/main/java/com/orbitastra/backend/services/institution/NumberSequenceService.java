@@ -59,8 +59,12 @@ public class NumberSequenceService {
      * @param schoolId the school the number belongs to — numbering restarts per school, which is
      *                 why two schools can both have a SUB/2026/000001
      * @param type     which counter
-     * @param prefixTemplate used only when the row has none of its own. {@code {YYYY}} becomes
-     *                 the four-digit year and {@code {YY}} the last two. Example: "SUB/{YYYY}/"
+     * @param prefixTemplate used only when the row has none of its own. Placeholders:
+     *                 {@code {YYYY}} the four-digit year, {@code {YY}} the last two,
+     *                 {@code {MM}} the two-digit month. Example: "SUB/{YYYY}/{MM}/"
+     *                 <p><b>End it with a separator.</b> The number is appended straight on, so
+     *                 "SUB/{YYYY}/{MM}" produces SUB/2026/09000001 with the month running into
+     *                 the digits, where "SUB/{YYYY}/{MM}/" produces SUB/2026/09/000001.
      * @return the formatted number, ready to store
      */
     public String next(String schoolId, NumberSequenceType type, String prefixTemplate) {
@@ -153,9 +157,13 @@ public class NumberSequenceService {
             return "";
         }
         ZonedDateTime now = ZonedDateTime.ofInstant(Instant.now(), ZoneOffset.UTC);
+
+        // {MM} is zero-padded, so September is 09 and the numbers of one year sort in order as
+        // text. An unpadded 9 would sort after 10.
         return template
                 .replace("{YYYY}", String.valueOf(now.getYear()))
-                .replace("{YY}", String.format("%02d", now.getYear() % 100));
+                .replace("{YY}", String.format("%02d", now.getYear() % 100))
+                .replace("{MM}", String.format("%02d", now.getMonthValue()));
     }
 
     private String pad(long value, int width) {

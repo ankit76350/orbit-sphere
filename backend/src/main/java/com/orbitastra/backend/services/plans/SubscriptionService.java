@@ -131,7 +131,7 @@ public class SubscriptionService {
         //! step 5 - take a subscription number. Atomic, so two requests can never be handed the
         //! same one. See NumberSequenceService.
         String subscriptionNo = numberSequences.next(schoolId, NumberSequenceType.SUBSCRIPTION,
-                "SUB/{YYYY}/");
+                "SUB/{YYYY}/{MM}/");
 
         //! step 6 - build it
         SchoolSubscription subscription = SchoolSubscription.builder()
