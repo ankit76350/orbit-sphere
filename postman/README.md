@@ -126,9 +126,9 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 8 of 71** — the whole plan catalogue apart from versioning, plus two reads: create
-a draft, edit it, set its features, publish it, list it publicly, retire it, list the lot, and
-read one plan's version history. The whole module
+**Plans is 9 of 71 — the entire plan catalogue except versioning (#5).** Create a draft, edit
+it, set its features, publish it, list it publicly, retire it; and read it three ways: the whole
+catalogue, one plan's version history, or one version in full. The whole module
 plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 

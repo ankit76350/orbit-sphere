@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanDetailResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
@@ -231,5 +232,22 @@ public class PlanController {
     @GetMapping("/{code}/versions")
     public ResponseEntity<PlanVersionHistoryResponse> listVersions(@PathVariable String code) {
         return ResponseEntity.ok(planCatalogueService.listVersions(code));
+    }
+
+    /**
+     * Endpoint #10 — one plan version, everything about it.
+     *
+     * <p>What somebody sees after picking a row out of #8 or #9: the whole document, with the
+     * feature list rather than a count of it. Each feature carries its label and description
+     * from {@code FeatureCode}, so a screen does not keep its own copy of the wording.
+     *
+     * <p>No {@code nextStep} — nothing happened. That field belongs to the writes.
+     */
+    @GetMapping("/{code}/versions/{version}")
+    public ResponseEntity<PlanDetailResponse> getVersion(
+            @PathVariable String code,
+            @PathVariable Integer version) {
+
+        return ResponseEntity.ok(planCatalogueService.getVersion(code, version));
     }
 }

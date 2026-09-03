@@ -2329,6 +2329,54 @@
          }
         }
        ]
+      },
+      {
+       "name": "Get Plan Version",
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions/{{planVersion}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions",
+          "{{planVersion}}"
+         ]
+        },
+        "description": "**GET** `/platform/plans/{code}/versions/{version}` — one plan version, everything about it.\n\nWhat you open after picking a row out of #8 or #9. The list endpoints report a feature **count**\nso a page of rows stays readable; this is where the features themselves are.\n\n### Every feature comes with its wording\n\n`label` and `description` come from the `FeatureCode` enum — the only place they are written — so\na \"what this plan includes\" screen does not keep its own copy of the wording for 24 features.\n\n### No `nextStep`\n\nNothing happened. That field belongs to the writes, which use a different record for exactly this\nreason.\n\n### `schoolsOnThisVersion`\n\nNot in the endpoint's field list, and here because it is the question somebody looking at one\nversion actually has: *can this be retired, or is somebody on it?* It is 0 everywhere until #13\nexists, and the `note` says so.\n\n### The seven test cases are in the description below\n\nPostman sends no body on a GET, so they live here:\n\n```\n01  ONE VERSION IN FULL                                   -> 200 OK\n    GET /platform/plans/{{planCode}}/versions/{{planVersion}}\n    OUT: every field of the plan, plus features[] in full and\n         schoolsOnThisVersion.\n    Each feature row: featureCode, label, description, enabled, usageLimit,\n    usageMetric, overagePolicy.\n\n02  THE SAME SHAPE #3 RETURNS                             -> 200 OK\n    Compare a feature row here with one from Set Plan Features. Identical —\n    both are PlanFeatureView, so a client that reads one reads the other.\n\n03  A FEATURE WITH NO LIMIT                               -> 200 OK\n    ATTENDANCE comes back with usageLimit null AND usageMetric null. It has\n    nothing to count; it is included or it is not.\n\n04  A DISABLED FEATURE IS STILL LISTED                    -> 200 OK\n    HOSTEL with \"enabled\": false appears in the list. That is the point of the\n    flag: a comparison table can show it with a cross rather than omitting it.\n\n05  A PLAN WITH NO FEATURES                               -> 200 OK\n    featureCount 0 and features []. A valid state for a draft; #4 refuses to\n    publish it.\n\n06  A VERSION THAT DOES NOT EXIST                    -> 404 Not Found\n    Change the version to 9.\n    OUT: { \"code\": \"PLAN_NOT_FOUND\",\n           \"message\": \"No plan 'PREMIUM' version 9 exists.\" }\n    Same for a code that does not exist.\n\n07  A LOWERCASE OR HYPHENATED CODE                        -> 200 OK\n    /platform/plans/premium-plus/versions/1 finds PREMIUM_PLUS, normalized the\n    same way it was when the plan was created.\n```\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is the version that was asked for', () => {",
+           "  pm.expect(b.planCode).to.eql(pm.collectionVariables.get('planCode'));",
+           "  pm.expect(String(b.planVersion)).to.eql(String(pm.collectionVariables.get('planVersion')));",
+           "});",
+           "pm.test('the features are here, not just a count', () =>",
+           "  pm.expect(b.features).to.have.lengthOf(b.featureCount));",
+           "pm.test('every feature carries its wording from the enum', () =>",
+           "  b.features.forEach(f => {",
+           "    pm.expect(f.label, f.featureCode).to.be.a('string').and.not.empty;",
+           "    pm.expect(f.description, f.featureCode).to.be.a('string').and.not.empty;",
+           "  }));",
+           "pm.test('a metric never appears without a limit', () =>",
+           "  b.features.forEach(f => { if (f.usageLimit === null) pm.expect(f.usageMetric).to.be.null; }));",
+           "pm.test('a read carries no nextStep', () =>",
+           "  pm.expect(b).to.not.have.property('nextStep'));"
+          ]
+         }
+        }
+       ]
       }
      ]
     }

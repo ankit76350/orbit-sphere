@@ -1,8 +1,11 @@
 # controllers/plans — API plan
 
-**Eight of 71 are built — #1 to #4, #6, #7, #8 and #9**: the whole plan catalogue apart from
-versioning, plus its two reads. Create a draft, edit it, set its features, publish it, list it
-publicly, retire it — and read the catalogue either as a list or as one plan's history.
+**Nine of 71 are built — #1 to #4 and #6 to #10: the entire plan catalogue except versioning.**
+Create a draft, edit it, set its features, publish it, list it publicly, retire it; and read it
+three ways — the whole catalogue, one plan's version history, or one version in full.
+
+The only thing missing from the group is **#5**, deferred by decision, and its absence means a
+published plan's price can never be changed. See "5" below.
 
 **#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
 published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
@@ -89,7 +92,7 @@ around: you edit a draft, and after that you make a new version instead.
 |---|---|---|---|
 | 8 — **built** | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 9 — **built** | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 10 | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 10 — **built** | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 12 | [`GET /schools/current/plans/{code}/versions/{version}/comparison`](#e12) | What would change if this school moved to that plan: the price difference, and any limit that would drop below what the school is already using. Stops a school upgrading into a plan that immediately blocks it. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
@@ -743,9 +746,45 @@ question was "which plans match this", and "none" is an answer.
 The `note` and the null price change are the only parts visible without inserting a v2 directly.
 
 <a id="e10"></a>
-**10 · `GET /platform/plans/{code}/versions/{version}`**
+**10 · `GET /platform/plans/{code}/versions/{version}`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: every field, `features` included
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *counts*: how many are on this version
+
+### Where the features are
+
+#8 and #9 report a feature **count**, because a page of rows carrying twenty entitlements each is
+not a page anybody can read. This is the endpoint that returns them, so it is what a screen opens
+after somebody picks a row.
+
+Each row carries `label` and `description` from
+[`FeatureCode`](../../models/plans/enums/FeatureCode.java) — the only place that wording is
+written. Otherwise every screen showing "what this plan includes" keeps its own copy of 24
+descriptions, and they drift.
+
+### It does not reuse the writes' response
+
+[`PlanResponse`](../../dto/plans/catalogue/PlanResponse.java) carries a `nextStep` — a sentence
+about what just happened and what to do next — and a read did not make anything happen. It also
+reports only a count of features, which is right for a price change and wrong here.
+
+So #10 has [`PlanDetailResponse`](../../dto/plans/catalogue/PlanDetailResponse.java): the whole
+document, and nothing about a transition. This is the rule `controllers/core/README.md` set out
+for its own reads — *`nextStep` and `changeSummary` are write fields* — applied.
+
+### The feature row is now shared
+
+Building this made two endpoints return features, so the row moved into its own record,
+[`PlanFeatureView`](../../dto/plans/catalogue/PlanFeatureView.java). #3 and #10 return the
+identical shape, so a client that can read one can read the other, and there is one place to
+change if a field is ever added.
+
+### `schoolsOnThisVersion`
+
+Not in the field list above, and included for the same reason #9 has it: somebody looking at one
+version is usually asking whether it can be retired. It costs one indexed count. Zero everywhere
+until #13 exists, and the `note` says to read it as *unknown* rather than *nobody*.
 
 <a id="e11"></a>
 **11 · `GET /schools/current/plans`**

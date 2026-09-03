@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanDetailResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
@@ -592,6 +593,40 @@ public class PlanCatalogueService {
                 : onAnyVersion + " subscription(s) point at this plan across all its versions.";
 
         return PlanVersionHistoryResponse.fromVersions(versions, schoolCounts, note);
+    }
+
+
+    //! endpoint 10 — one version in full ----------------------------------------------
+    /**
+     * #10 — one plan version, everything about it, features included.
+     *
+     * <p>What somebody sees after picking a row out of #8 or #9. The list endpoints report a
+     * feature <i>count</i> so a page of rows stays readable; this is where the features
+     * themselves are.
+     *
+     * <p>Each feature comes back with the label and description from {@code FeatureCode}, so a
+     * screen showing "what this plan includes" does not have to keep its own copy of the wording
+     * for twenty-four features.
+     *
+     * <p>Also carries {@code schoolsOnThisVersion}, which is not in the endpoint's field list.
+     * It is the question somebody looking at one version has — can this be retired, or is
+     * somebody still on it — and answering it costs one indexed count.
+     */
+    public PlanDetailResponse getVersion(String code, Integer version) {
+        //! step 1 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        //! step 2 - who is on it
+        long schoolsOnThisVersion = subscriptions.countByPlanDefinitionDocsId(plan.getId());
+
+        //! step 3 - a zero that cannot yet be trusted has to say so
+        String note = schoolsOnThisVersion == 0
+                ? "schoolsOnThisVersion is 0 because nothing creates subscriptions yet — that is "
+                        + "endpoint #13, which is not built. Read it as \"unknown\", not as "
+                        + "\"nobody\"."
+                : null;
+
+        return PlanDetailResponse.fromPlan(plan, schoolsOnThisVersion, note);
     }
 
     //* ---------------------------------------------------------------------------------
