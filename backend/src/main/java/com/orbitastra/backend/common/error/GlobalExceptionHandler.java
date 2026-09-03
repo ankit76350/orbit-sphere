@@ -1,10 +1,12 @@
 package com.orbitastra.backend.common.error;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import tools.jackson.databind.exc.InvalidFormatException;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -45,9 +47,56 @@ public class GlobalExceptionHandler {
          */
         @ExceptionHandler(HttpMessageNotReadableException.class)
         public ResponseEntity<ApiError> onUnreadable(HttpMessageNotReadableException exception) {
+                // A misspelled enum arrives here rather than as a type mismatch, because it
+                // failed inside the body rather than on a query parameter. Left generic, the
+                // caller is told the body "could not be read" — true, and useless against a
+                // twenty-value enum they now have to guess at.
+                //
+                // NOTE the import: Boot 4.1 ships Jackson 3, whose root package is
+                // tools.jackson, not com.fasterxml.jackson. The old package is still on the
+                // classpath for jackson-annotations, so an IDE offers the wrong one first and
+                // it compiles nowhere. Jackson 3 also renamed Reference.getFieldName() to
+                // getPropertyName(), which is why the path walk below reads differently from
+                // every Jackson 2 example.
+                if (exception.getCause() instanceof InvalidFormatException invalid
+                                && invalid.getTargetType() != null
+                                && invalid.getTargetType().isEnum()) {
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiError.createError("INVALID_VALUE",
+                                                        "'" + invalid.getValue() + "' is not a valid value for '"
+                                                                        + fieldPath(invalid) + "'. Accepted values: "
+                                                                        + String.join(", ", Arrays
+                                                                                        .stream(invalid.getTargetType()
+                                                                                                        .getEnumConstants())
+                                                                                        .map(Object::toString).toList())
+                                                                        + "."));
+                }
+
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.createError("MALFORMED_REQUEST",
                                 "The request body could not be read. Check that it is valid JSON and that every "
                                                 + "field has the expected type."));
+        }
+
+        /**
+         * Where in the body the bad value was, as {@code features[0].featureCode}.
+         *
+         * <p>Jackson records the path it was walking when it gave up. Rebuilding it matters most
+         * exactly where it is hardest to work out by eye: one wrong value in a list of twenty.
+         */
+        private String fieldPath(InvalidFormatException invalid) {
+                StringBuilder path = new StringBuilder();
+                for (tools.jackson.core.JacksonException.Reference step : invalid.getPath()) {
+                        if (step.getPropertyName() != null) {
+                                if (path.length() > 0) {
+                                        path.append('.');
+                                }
+                                path.append(step.getPropertyName());
+                        } else if (step.getIndex() >= 0) {
+                                path.append('[').append(step.getIndex()).append(']');
+                        }
+                }
+                return path.length() == 0 ? "the request body" : path.toString();
         }
 
 

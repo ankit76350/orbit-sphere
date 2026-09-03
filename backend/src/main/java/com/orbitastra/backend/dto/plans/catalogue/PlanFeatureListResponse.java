@@ -3,7 +3,9 @@ package com.orbitastra.backend.dto.plans.catalogue;
 import java.util.List;
 
 import com.orbitastra.backend.models.plans.PlanDefinition;
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
 import com.orbitastra.backend.models.plans.enums.OveragePolicy;
+import com.orbitastra.backend.models.plans.enums.UsageMetric;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 
 /**
@@ -25,12 +27,21 @@ public record PlanFeatureListResponse(
         List<FeatureView> features,
         String changeSummary) {
 
-    /** One entitlement as the API returns it. */
+    /**
+     * One entitlement as the API returns it.
+     *
+     * <p>{@code label} and {@code description} come from the {@link FeatureCode} enum, which is
+     * the only place they are written. A pricing page, a plan comparison and the "your plan does
+     * not include this" message then all say the same words, rather than three screens each
+     * inventing their own wording for the same feature.
+     */
     public record FeatureView(
-            String featureCode,
+            FeatureCode featureCode,
+            String label,
+            String description,
             Boolean enabled,
             Long usageLimit,
-            String usageMetric,
+            UsageMetric usageMetric,
             OveragePolicy overagePolicy) {
     }
 
@@ -39,6 +50,8 @@ public record PlanFeatureListResponse(
                 : plan.getFeatures().stream()
                         .map(one -> new FeatureView(
                                 one.getFeatureCode(),
+                                one.getFeatureCode().getLabel(),
+                                one.getFeatureCode().getDescription(),
                                 one.getEnabled(),
                                 one.getUsageLimit(),
                                 one.getUsageMetric(),

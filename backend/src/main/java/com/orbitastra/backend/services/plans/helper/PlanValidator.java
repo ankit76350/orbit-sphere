@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Currency;
 import java.util.regex.Pattern;
 
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
+
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
@@ -104,72 +106,46 @@ public class PlanValidator {
                 .replaceAll("^_+|_+$", "");
     }
 
-    //! feature code — used by endpoint 3 ----------------------------------------------
-
-    /** Uppercase letters, digits and single inner underscores, like a plan code. */
-    private static final Pattern FEATURE_CODE_SHAPE =
-            Pattern.compile("^[A-Z0-9](?:[A-Z0-9_]{0,58}[A-Z0-9])?$");
+    //! features — used by endpoint 3 --------------------------------------------------
 
     /**
-     * Validates and normalizes one feature code.
+     * The rules one entitlement has to satisfy.
      *
-     * <p>Uppercased rather than refused, the same as a plan code: {@code student_management} and
-     * {@code STUDENT_MANAGEMENT} are one intent, and storing both would give the entitlement
-     * service two names for one thing to check against.
+     * <p><b>The code itself is not checked here any more.</b> {@code FeatureCode} is an enum, so
+     * an unknown feature never reaches this method — it is refused at the request boundary with
+     * the accepted values named. What is left are the rules about the <i>number</i>, which no
+     * type can express.
      *
-     * @return the normalized code
-     */
-    public String validateFeatureCode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw ApiException.badRequest("FEATURE_CODE_REQUIRED", "A feature code is required.");
-        }
-        String normalized = raw.trim().toUpperCase()
-                .replaceAll("[^A-Z0-9]+", "_")
-                .replaceAll("^_+|_+$", "");
-
-        if (!FEATURE_CODE_SHAPE.matcher(normalized).matches()) {
-            throw ApiException.badRequest("FEATURE_CODE_INVALID",
-                    "A feature code must be 1 to 60 characters of letters, digits and inner "
-                            + "underscores. Received: '" + raw + "'.");
-        }
-        return normalized;
-    }
-
-    /**
-     * The rules a single entitlement has to satisfy.
-     *
-     * <p><b>A limit needs a metric.</b> The model says so, and the reason is that a bare 2000
-     * cannot be enforced: nothing downstream knows whether it counts students, staff, messages
-     * or gigabytes. Storing it would produce a plan that looks limited and is not.
+     * <p><b>A limit only means something on a feature that counts something.</b> "Attendance" is
+     * included or it is not; a limit of 500 on it would be a number nothing reads, and a plan
+     * that reads as capped and behaves as unlimited is worse than one with no cap at all.
      *
      * <p><b>A limit of zero on an enabled feature is refused.</b> "Included, but you may use none
      * of it" is the same outcome as switching the feature off, reached by a route that leaves it
-     * looking available on every screen that lists what the plan includes. {@code enabled: false}
-     * says it plainly.
+     * looking available on every screen listing what the plan includes. {@code enabled: false}
+     * says it plainly, and is allowed with a limit of zero.
      */
-    public void validateFeature(String featureCode, Boolean enabled, Long usageLimit,
-            String usageMetric) {
-
+    public void validateFeature(FeatureCode featureCode, Boolean enabled, Long usageLimit) {
+        if (usageLimit == null) {
+            return;
+        }
         boolean isEnabled = enabled == null || enabled;
 
-        if (usageLimit != null) {
-            if (usageMetric == null || usageMetric.isBlank()) {
-                throw ApiException.badRequest("FEATURE_METRIC_REQUIRED",
-                        "'" + featureCode + "' has a usageLimit of " + usageLimit + " but no "
-                                + "usageMetric, so nothing knows what the number counts. Send a "
-                                + "metric such as ACTIVE_STUDENTS, or drop the limit.");
-            }
-            if (usageLimit < 0) {
-                throw ApiException.badRequest("FEATURE_LIMIT_NEGATIVE",
-                        "'" + featureCode + "' cannot have a negative usageLimit. Received: "
-                                + usageLimit + ".");
-            }
-            if (usageLimit == 0 && isEnabled) {
-                throw ApiException.badRequest("FEATURE_LIMIT_ZERO",
-                        "'" + featureCode + "' is enabled with a usageLimit of 0, which allows "
-                                + "nothing. Send \"enabled\": false instead, so the plan does "
-                                + "not list a feature that cannot be used.");
-            }
+        if (!featureCode.isMeasurable()) {
+            throw ApiException.badRequest("FEATURE_NOT_MEASURABLE",
+                    "'" + featureCode + "' has no limit to set — it is either included or it is "
+                            + "not. Drop usageLimit, or use \"enabled\": false to exclude it.");
+        }
+        if (usageLimit < 0) {
+            throw ApiException.badRequest("FEATURE_LIMIT_NEGATIVE",
+                    "'" + featureCode + "' cannot have a negative usageLimit. Received: "
+                            + usageLimit + ".");
+        }
+        if (usageLimit == 0 && isEnabled) {
+            throw ApiException.badRequest("FEATURE_LIMIT_ZERO",
+                    "'" + featureCode + "' is enabled with a usageLimit of 0, which allows "
+                            + "nothing. Send \"enabled\": false instead, so the plan does not "
+                            + "list a feature that cannot be used.");
         }
     }
 

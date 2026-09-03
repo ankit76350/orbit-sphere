@@ -1,30 +1,34 @@
 package com.orbitastra.backend.dto.plans.catalogue;
 
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
 import com.orbitastra.backend.models.plans.enums.OveragePolicy;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 
 /**
- * One entitlement in a plan's feature list. Endpoint #3 takes an array of these.
+ * One entitlement in a plan's feature list. Endpoint #3 takes a list of these.
  *
  * <p>A feature says what the plan lets a school do, and — when there is a number involved — how
  * much of it and what happens when they go over.
  *
- * <p><b>{@code usageLimit} and {@code usageMetric} belong together.</b> A limit of 2000 with no
- * metric is a number nothing can measure: the entitlement service would not know whether 2000
- * counts students, staff, SMS messages or gigabytes. The model says as much, and #3 refuses the
- * pair half-filled rather than storing a limit nobody can enforce.
+ * <p><b>{@code usageMetric} is not here.</b> It used to be, and it let a caller write "student
+ * management, limited to 2000 gigabytes". Each {@link FeatureCode} now declares what it is
+ * measured in, so the metric is copied from the feature and the mismatch cannot be expressed.
  *
- * <p>{@code enabled: false} is how a feature is switched off, not a {@code usageLimit} of zero.
- * Zero reads as "allowed, but never" — which is the same outcome by a route that leaves the
- * feature looking available on every screen that lists it.
+ * <p><b>{@code enabled: false} is how a feature is switched off</b>, not a {@code usageLimit} of
+ * zero. Zero reads as "allowed, but never" — the same outcome by a route that leaves the feature
+ * looking available on every screen that lists what the plan includes.
  */
 public record PlanFeatureRequest(
 
-        /** Uppercased on the way in. Example: "STUDENT_MANAGEMENT" */
-        @NotBlank @Size(max = 60) String featureCode,
+        /**
+         * Which capability. Example: FeatureCode.STUDENT_MANAGEMENT
+         *
+         * <p>One of a fixed list. An unknown value is refused with the accepted ones named,
+         * rather than stored as a code nothing will ever match.
+         */
+        @NotNull FeatureCode featureCode,
 
         /**
          * Whether the plan includes this at all. Defaults to true when omitted.
@@ -34,24 +38,24 @@ public record PlanFeatureRequest(
          */
         Boolean enabled,
 
-        /** How much is included. Omit for no numeric limit. Example: 2000 */
+        /**
+         * How much is included. Omit for no numeric limit. Example: 2000
+         *
+         * <p>Only allowed on a feature that has something to count. A limit on "attendance"
+         * is refused — it is included or it is not.
+         */
         Long usageLimit,
-
-        /** Which counter the limit is measured in. Required with a limit. Example: "ACTIVE_STUDENTS" */
-        @Size(max = 60) String usageMetric,
 
         /** What happens past the limit. Defaults to BLOCK. Example: OveragePolicy.WARN */
         OveragePolicy overagePolicy) {
 
-    /** With the code already normalized, since the service is the only thing that can do that. */
-    public PlanFeature toFeature(String normalizedCode) {
+    /** The metric comes from the feature itself, and only when there is a limit to measure. */
+    public PlanFeature toFeature() {
         return PlanFeature.builder()
-                .featureCode(normalizedCode)
+                .featureCode(featureCode)
                 .enabled(enabled == null ? Boolean.TRUE : enabled)
                 .usageLimit(usageLimit)
-                .usageMetric(usageMetric == null || usageMetric.isBlank()
-                        ? null
-                        : usageMetric.trim().toUpperCase())
+                .usageMetric(usageLimit == null ? null : featureCode.getUsageMetric())
                 .overagePolicy(overagePolicy == null ? OveragePolicy.BLOCK : overagePolicy)
                 .build();
     }

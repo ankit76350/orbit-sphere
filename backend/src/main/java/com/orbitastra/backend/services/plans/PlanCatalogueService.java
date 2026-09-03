@@ -17,6 +17,7 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
@@ -219,23 +220,20 @@ public class PlanCatalogueService {
 
         //! step 3 - check every feature, and refuse the same code twice
         List<PlanFeatureRequest> incoming = requests == null ? List.of() : requests;
-        Set<String> seen = new LinkedHashSet<>();
+        Set<FeatureCode> seen = new LinkedHashSet<>();
         List<PlanFeature> replacement = new ArrayList<>();
 
         for (PlanFeatureRequest one : incoming) {
-            String featureCode = planValidator.validateFeatureCode(one.featureCode());
-
-            if (!seen.add(featureCode)) {
+            if (!seen.add(one.featureCode())) {
                 // Two rows for one code is not a bigger entitlement, it is a question: which of
                 // the two limits applies? Nothing downstream could answer it.
                 throw ApiException.badRequest("DUPLICATE_FEATURE",
-                        "'" + featureCode + "' appears more than once. Each feature can only be "
-                                + "listed once, with one limit.");
+                        "'" + one.featureCode() + "' appears more than once. Each feature can "
+                                + "only be listed once, with one limit.");
             }
 
-            planValidator.validateFeature(featureCode, one.enabled(), one.usageLimit(),
-                    one.usageMetric());
-            replacement.add(one.toFeature(featureCode));
+            planValidator.validateFeature(one.featureCode(), one.enabled(), one.usageLimit());
+            replacement.add(one.toFeature());
         }
 
         //! step 4 - swap the whole list and save
