@@ -43,7 +43,7 @@ Represents one immutable version of a public or private SaaS plan.
 | `effectiveFrom` | First date/time when this version may be sold. |
 | `effectiveUntil` | Last date/time when this version may be sold. |
 | `publiclyAvailable` | Whether schools can select the plan without a private quotation. |
-| `features` | Embedded PlanFeature entitlements. |
+| `features` | Embedded PlanFeature entitlements. Set as a whole list by the API, never one at a time — a plan is priced as a set. |
 
 `effectiveFrom` and `effectiveUntil` belong to the plan version. They do not
 represent a school's current subscription period.
@@ -62,13 +62,33 @@ Existing subscriptions continue to reference their contracted version.
 
 Represents one feature entitlement inside a PlanDefinition.
 
+Read one row as a sentence: *this plan includes X, up to N of Y, and does Z when the school goes
+past it.*
+
 | Field | Meaning |
 |---|---|
-| `featureCode` | Stable application feature key. |
-| `enabled` | Whether the feature is included. |
-| `usageLimit` | Optional limit; null means no numeric limit is defined. |
-| `usageMetric` | Counter being measured, such as `AI_REQUESTS_PER_MONTH`. |
+| `featureCode` | Which capability. One of [`FeatureCode`](enums/FeatureCode.java) — a fixed list of 24, not free text. |
+| `enabled` | Whether the plan includes it. `false` deliberately lists it as excluded, so a comparison table can show a cross rather than omitting the row. |
+| `usageLimit` | How much is included. Null means no numeric limit. |
+| `usageMetric` | What that number counts, from [`UsageMetric`](enums/UsageMetric.java). Copied from the feature, never sent by a caller. Null whenever `usageLimit` is null. |
 | `overagePolicy` | Block, warn, allow, or charge after reaching the limit. |
+
+**`featureCode` was a `String` until 2026-09-03.** That accepted `STUDNET_MANAGEMENT` without
+complaint: the plan looked right on every screen while the entitlement service, asking for
+`STUDENT_MANAGEMENT`, found nothing and locked the school out of what they had paid for. A
+feature code points at behaviour in this codebase rather than at anything a user invents, so the
+set is closed and belongs in an enum. Add constants, never rename one — the name is stored in
+every plan already sold.
+
+**Each feature declares the metric it is measured in**, so `usageMetric` is copied in rather than
+chosen: `TRANSPORT` counts `VEHICLES`, `STUDENT_MANAGEMENT` counts `ACTIVE_STUDENTS`. "Student
+management limited to 2000 gigabytes" is not refused by a rule — it cannot be written down. A
+feature with no metric has nothing to count, so a `usageLimit` on it is refused: `ATTENDANCE` is
+included or it is not.
+
+**The metric is stored, not derived on read.** A published plan version is immutable, so if a
+feature's metric were ever changed, a plan sold last year must keep meaning what it meant when it
+was sold.
 
 Maximum users and students belong to PlanDefinition rather than PlanFeature
 because they are core subscription capacities.

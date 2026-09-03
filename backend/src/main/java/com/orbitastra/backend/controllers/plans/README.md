@@ -354,6 +354,75 @@ Two things are left out of every entry because they are true of all of them:
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `features` — the whole list is replaced
 
+### `featureCode` became an enum while this was built
+
+It was a `String` on [`PlanFeature`](../../models/plans/embedded/PlanFeature.java). That accepted
+`STUDNET_MANAGEMENT` with a `200`: the plan looked correct on every screen, and the entitlement
+service — asking for `STUDENT_MANAGEMENT` — found nothing and locked the school out of what they
+had paid for. One transposed letter, discovered when they rang up.
+
+**A feature code points at behaviour in this codebase, not at anything a user invents**, so the
+set is closed by definition and belongs in
+[`FeatureCode`](../../models/plans/enums/FeatureCode.java). A misspelling is now a `400` naming
+the row and listing every accepted value.
+
+| Group | Features |
+|---|---|
+| Teaching | `STUDENT_MANAGEMENT` `ACADEMICS` `ATTENDANCE` `TIMETABLE` `EXAMINATIONS` `HOMEWORK` |
+| Money | `FEE_MANAGEMENT` `PAYROLL` |
+| People | `STAFF_MANAGEMENT` `ADMISSIONS_CRM` |
+| Daily operations | `TRANSPORT` `LIBRARY` `HOSTEL` `MESS` `HEALTH` `FRONT_OFFICE` |
+| Stores and premises | `INVENTORY` `PROCUREMENT` `FACILITIES` |
+| Communication | `NOTIFICATIONS` `DOCUMENTS` `GALLERY` `FEEDBACK` `STUDENT_LIFE` |
+
+**Not on the list:** the tenant itself, accounts and sign-in, the audit trail, and the plan and
+billing machinery. Every plan includes those and nobody is charged for them separately — a
+feature nobody can be sold is not a feature, and listing one invites somebody to switch it off.
+
+**The rule for changing the list: add constants, never rename or remove one.** The name is what
+is stored in every existing plan, and a published version is immutable — a rename would orphan
+the feature on every plan already sold, silently, with the rows still looking valid. Adding one
+needs a deploy, which costs nothing: the software has to be able to do the new thing before a
+plan can sell it.
+
+### Each feature declares its own metric, so `usageMetric` left the request
+
+A limit is a bare number. [`UsageMetric`](../../models/plans/enums/UsageMetric.java) says what it
+counts, and **the feature knows** — `TRANSPORT` in `VEHICLES`, `STUDENT_MANAGEMENT` in
+`ACTIVE_STUDENTS`. So callers no longer send one, and "student management limited to 2000
+gigabytes" is not refused by a rule; it cannot be written down.
+
+**It is stored on the row, not looked up on read.** If `TRANSPORT` were ever changed from
+`VEHICLES` to `ROUTES`, a plan sold last year would silently become a different contract — same
+row in the database, different meaning. Copying the metric in when the plan is written freezes
+it, which is the same immutability the rest of this group is built on.
+
+**A feature with nothing to count refuses a limit.** `ATTENDANCE` is included or it is not; a
+limit of 500 on it would be a number nothing reads, and a plan that reads as capped and behaves
+as unlimited is worse than one with no cap at all. This replaced the earlier "a limit needs a
+metric" check, which could only refuse the mismatch after the fact.
+
+### What #3 refuses
+
+| Case | Code |
+|---|---|
+| unknown or misspelled feature | `400 INVALID_VALUE`, with the accepted values |
+| the same feature twice | `400 DUPLICATE_FEATURE` |
+| a limit on a feature with nothing to count | `400 FEATURE_NOT_MEASURABLE` |
+| `enabled: true` with a limit of 0 | `400 FEATURE_LIMIT_ZERO` |
+| a negative limit | `400 FEATURE_LIMIT_NEGATIVE` |
+| no `features` key at all | `400`, so a forgotten field cannot wipe the list |
+| the plan is not a `DRAFT` | `409 PLAN_NOT_EDITABLE` |
+
+`{ "features": [] }` empties the list, which is why there is no separate delete.
+
+### The body is an object, not a bare array
+
+`{ "features": [ … ] }`. A bare array made Spring report a bad row as a Java method signature and
+an error count; as an object it validates like every other endpoint, and a bad row comes back as
+`features[1].featureCode`. The holiday calendar in `core` was changed the same way and for the
+same reason.
+
 **4 · `POST /platform/plans/{code}/versions/{version}/publish`**
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` — all must be filled in before it can go on sale
