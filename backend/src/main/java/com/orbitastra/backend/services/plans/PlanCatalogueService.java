@@ -107,6 +107,7 @@ public class PlanCatalogueService {
                 .build();
 
         //! step 4 - save
+        //TODO: save
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanResponse.fromPlan(savedPlan,
@@ -184,6 +185,7 @@ public class PlanCatalogueService {
         }
 
         //! step 6 - save
+        //TODO: save
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanResponse.fromPlan(savedPlan,
@@ -239,11 +241,90 @@ public class PlanCatalogueService {
         //! step 4 - swap the whole list and save
         int before = plan.getFeatures() == null ? 0 : plan.getFeatures().size();
         plan.setFeatures(replacement);
+        //TODO: save
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanFeatureListResponse.fromPlan(savedPlan,
                 "Replaced the feature list: " + before + " out, " + replacement.size()
                         + " in. Still a DRAFT, so it can be replaced again before publishing.");
+    }
+
+
+    //! endpoint 4 — publish a draft ---------------------------------------------------
+    /**
+     * #4 — turns a draft into a plan schools can buy.
+     *
+     * <p><b>A one-way door.</b> From here the version can never be edited again: #2 and #3 both
+     * refuse anything that is not a draft, and there is no unpublish. A school can be on it from
+     * the moment it goes live, and changing what they bought after they bought it is the thing
+     * this whole group is arranged to prevent. A new price means #5 — a new version — and the
+     * schools on this one stay exactly where they are.
+     *
+     * <p>Because it cannot be undone, it is <b>checked rather than trusted</b>: a plan with no
+     * features would take a school's money and grant nothing, and a plan whose selling window
+     * has already closed could never be bought at all. Both are refused here rather than
+     * discovered by a school.
+     *
+     * <p><b>Publishing does not put it on the public list.</b> That is #7. A published plan is
+     * real and sellable in a quote; whether it appears on the pricing page is a separate
+     * decision, so the two are separate endpoints.
+     */
+    @Transactional
+    public PlanResponse publish(String code, Integer version) {
+        //! step 1 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        //! step 2 - only a draft can be published. Refused rather than answered 200, because
+        //! "it was already published" and "you just published it" are different facts and a
+        //! caller who cannot tell them apart will assume the wrong one.
+        if (plan.getStatus() == PlanStatus.ACTIVE) {
+            throw ApiException.conflict("PLAN_ALREADY_PUBLISHED",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion()
+                            + " is already published. To change it, make a new version.");
+        }
+
+        requireDraft(plan, "cannot be published");
+
+        //! step 3 - a plan with nothing in it is not a plan
+        if (plan.getFeatures() == null || plan.getFeatures().isEmpty()) {
+            throw ApiException.conflict("PLAN_HAS_NO_FEATURES",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " has no "
+                            + "features, so a school buying it would get nothing. Set its "
+                            + "features first.");
+        }
+
+        //! step 4 - and neither is one that can never be sold
+        Instant now = Instant.now();
+        if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
+            throw ApiException.conflict("PLAN_WINDOW_ALREADY_CLOSED",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " stops "
+                            + "being sold on " + plan.getEffectiveUntil() + ", which has passed. "
+                            + "Change or clear the selling window before publishing.");
+        }
+
+        //! step 5 - go live. An effectiveFrom already set is kept, so a launch date chosen while
+        //! it was a draft still stands; an empty one means "from now".
+        boolean scheduled = plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now);
+        if (plan.getEffectiveFrom() == null) {
+            plan.setEffectiveFrom(now);
+        }
+        plan.setStatus(PlanStatus.ACTIVE);
+
+        //TODO: save
+        PlanDefinition savedPlan = plans.save(plan);
+
+        //! step 6 - say plainly what just became true, and what has not
+        String nextStep = "Published, and now permanent: this version can never be edited again. "
+                + (scheduled
+                        ? "It goes on sale on " + savedPlan.getEffectiveFrom() + ". "
+                        : "")
+                + (Boolean.TRUE.equals(savedPlan.getPubliclyAvailable())
+                        ? "It is on the public list."
+                        : "It is NOT on the public list yet — it can only be offered privately "
+                                + "in a quote until that is turned on.")
+                + " To change the price, make a new version.";
+
+        return PlanResponse.fromPlan(savedPlan, nextStep);
     }
 
     //* ---------------------------------------------------------------------------------

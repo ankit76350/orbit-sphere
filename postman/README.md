@@ -126,8 +126,8 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 2 of 71** — `POST /platform/plans/drafts` and the `PATCH` that edits a draft, the
-first endpoints of a module whose whole plan lives in
+**Plans is 4 of 71** — create a draft, edit it, set its features, publish it. The whole module
+plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 
 **None of the seven missing core writes is "next".** Six are deferred by decision — #12 until
@@ -196,12 +196,17 @@ not on the request, so sending them does nothing.
 
 Two things that will bite while testing:
 
-- **A draft can be edited (#2) but not published or deleted.** #3 to #7 are not built, so a
-  draft stays a draft forever and its `planCode` stays taken. The code is derived from the name,
-  so put `{{$timestamp}}` in the **name** if you are going to run it repeatedly.
-- **Editing only works while it is a draft**, which is the whole point of #2 — but with #4 not
-  built there is no way to publish one through the API, so the `409` cannot be reached from
-  Postman yet.
+**Run them in order: Create Plan Draft → Set Plan Features → Publish Plan.** Publishing refuses
+a plan with no features.
+
+- **Publishing cannot be undone.** #2 and #3 refuse the plan afterwards, and there is no
+  unpublish endpoint — #5 (new version) and #6 (retire) are not built yet, so a published test
+  plan is frozen for good. Put `{{$timestamp}}` in the **name** if you are going to run this
+  repeatedly; the code is derived from the name.
+- **A published plan is not yet sellable.** `publiclyAvailable` stays false until #7, which is
+  not built, so `sellable` is always false today.
+- **Nothing can be deleted.** No plan endpoint removes anything, so drafts and published plans
+  both accumulate.
 - **`featureCount` is always 0.** Features come from #3, which is not built. `sellable` is
   therefore always `false`.
 

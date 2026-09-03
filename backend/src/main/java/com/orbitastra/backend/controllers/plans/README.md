@@ -1,6 +1,7 @@
 # controllers/plans — API plan
 
-**Three of 71 are built — #1, #2 and #3**, the start of the plan catalogue. Everything else is
+**Four of 71 are built — #1 to #4**, the start of the plan catalogue: create a draft, edit it,
+set its features, publish it. Everything else is
 listed below and not built. This is the full set of endpoints the `plans` module needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md) was done.
@@ -71,7 +72,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 1 — **built** | `POST /platform/plans/drafts` | Make a new plan. It starts as `DRAFT`, so nobody can buy it while we are still deciding the price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 2 — **built** | `PATCH /platform/plans/{code}/versions/{version}` | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 3 — **built** | `PUT /platform/plans/{code}/versions/{version}/features` | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 4 | `POST /platform/plans/{code}/versions/{version}/publish` | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 4 — **built** | `POST /platform/plans/{code}/versions/{version}/publish` | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 5 | `POST /platform/plans/{code}/versions/{version}/new-version` | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 6 | `POST /platform/plans/{code}/versions/{version}/retire` | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 7 | `PATCH /platform/plans/{code}/versions/{version}/availability` | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
@@ -423,10 +424,48 @@ an error count; as an object it validates like every other endpoint, and a bad r
 `features[1].featureCode`. The holiday calendar in `core` was changed the same way and for the
 same reason.
 
-**4 · `POST /platform/plans/{code}/versions/{version}/publish`**
+**4 · `POST /platform/plans/{code}/versions/{version}/publish`** — built
 
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` — all must be filled in before it can go on sale
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `ACTIVE`, `effectiveFrom`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `features`, `effectiveUntil`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `ACTIVE`, `effectiveFrom` if it was empty
+
+### The one-way door, and what makes it safe to walk through
+
+This is the endpoint after which nothing can be changed. #2 and #3 both refuse a plan that is not
+a `DRAFT`, and **there is no unpublish** — a school can be on the plan from the moment it goes
+live, and editing what they bought after they bought it is what this whole group is arranged to
+prevent. A new price is #5, a new version, and the schools on this one stay where they are.
+
+Because it cannot be undone, it is **checked rather than trusted**:
+
+| Refused | Code | Why |
+|---|---|---|
+| the plan has no features | `409 PLAN_HAS_NO_FEATURES` | a school would pay and be granted nothing |
+| its selling window has already closed | `409 PLAN_WINDOW_ALREADY_CLOSED` | it could never be bought |
+| it is already `ACTIVE` | `409 PLAN_ALREADY_PUBLISHED` | see below |
+| it is `RETIRED` | `409 PLAN_NOT_EDITABLE` | retiring is not a way back to draft |
+
+**The completeness check is only about features.** The plan spec listed `listPrice`,
+`currencyCode`, `maxStudents` and `maxUsers` as things to verify here, and they need no check:
+all four are `@NotNull` on the model and validated by #1 and #2, so a draft cannot exist without
+them. `features` is the only one that can legitimately be empty, and the only one worth a guard.
+
+**Publishing twice is a `409`, not an idempotent `200`.** The enrollment and results gates in
+`core` are idempotent because a no-op there is harmless. Here it is the opposite: "it was already
+published" and "you just published it" are different facts about the one action that cannot be
+undone, and a caller who cannot tell them apart will assume the wrong one.
+
+### Publishing is not listing
+
+`publiclyAvailable` is untouched, so straight after publishing the plan is `ACTIVE` and
+`sellable` is still **false**. A published plan is real and can be offered privately in a quote;
+whether it appears on the pricing page is #7's decision. Two decisions, two endpoints.
+
+### `effectiveFrom`
+
+Stamped with now if it was empty. A future date set while the plan was a draft is **kept**, so a
+scheduled launch works: the plan becomes `ACTIVE` immediately and `sellable` only when the window
+opens. The response's `nextStep` names the date when that is the case.
 
 **5 · `POST /platform/plans/{code}/versions/{version}/new-version`**
 

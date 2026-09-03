@@ -114,4 +114,24 @@ public class PlanController {
         return ResponseEntity.ok(
                 planCatalogueService.replaceFeatures(code, version, request.features()));
     }
+
+    /**
+     * Endpoint #4 — turns a draft into a plan schools can buy.
+     *
+     * <p><b>A one-way door.</b> From here the version can never be edited: #2 and #3 refuse
+     * anything that is not a draft, and there is no unpublish. To change the price, make a new
+     * version with #5 — the schools on this one keep what they bought.
+     *
+     * <p>Takes no body. Refused if the plan has no features, or if its selling window has
+     * already closed, because neither could ever be bought.
+     *
+     * <p>Publishing does not put the plan on the public list; that is #7.
+     */
+    @PostMapping("/{code}/versions/{version}/publish")
+    public ResponseEntity<PlanResponse> publish(
+            @PathVariable String code,
+            @PathVariable Integer version) {
+
+        return ResponseEntity.ok(planCatalogueService.publish(code, version));
+    }
 }

@@ -2014,6 +2014,65 @@
          }
         }
        ]
+      },
+      {
+       "name": "Publish Plan",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions/{{planVersion}}/publish",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions",
+          "{{planVersion}}",
+          "publish"
+         ]
+        },
+        "description": "**POST** `/platform/plans/{code}/versions/{version}/publish` — turns a draft into a plan schools\ncan buy.\n\n### A one-way door\n\nFrom here the version can never be edited: #2 and #3 both refuse anything that is not a draft,\nand there is no unpublish. To change the price, make a new version with #5 — the schools on this\none keep what they bought.\n\n### Checked, not trusted\n\nBecause it cannot be undone, two things are refused here rather than discovered by a school: a\nplan with **no features** (they would pay and get nothing) and a plan whose **selling window has\nalready closed** (it could never be bought).\n\n### Publishing is not the same as listing publicly\n\nThat is #7. Straight after publishing, `publiclyAvailable` is still false and `sellable` is still\nfalse — the plan is real and can be offered privately in a quote.\n\n### `effectiveFrom`\n\nFilled with now if it was empty. A future date chosen while the plan was a draft is kept, so a\nscheduled launch still works.\n\n### The eight test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/plans/{code}/versions/{version}/publish\n//  Platform surface. No body needed; anything sent is ignored.\n// ===========================================================================\n//\n//  THIS IS A ONE-WAY DOOR. From here the version can NEVER be edited again:\n//  #2 (details) and #3 (features) both refuse anything that is not a DRAFT,\n//  and there is no unpublish. A school can be on it from the moment it goes\n//  live, and changing what they bought after they bought it is the thing this\n//  whole group is arranged to prevent.\n//\n//  To change the price afterwards: #5, a new version. The schools on this\n//  version stay exactly where they are.\n//\n//  BECAUSE IT CANNOT BE UNDONE, IT IS CHECKED RATHER THAN TRUSTED. Two things\n//  are refused here rather than discovered by a school:\n//    - a plan with no features would take their money and grant nothing\n//    - a plan whose selling window has already closed could never be bought\n//\n//  PUBLISHING DOES NOT PUT IT ON THE PUBLIC LIST. That is #7. A published plan\n//  is real and can be offered privately in a quote; whether it shows on the\n//  pricing page is a separate decision, so it is a separate endpoint. Expect\n//  sellable: false straight after publishing.\n//\n// ---------------------------------------------------------------------------\n// 01  PUBLISH A COMPLETE DRAFT                             -> 200 OK\n//     Run Create Plan Draft, then Set Plan Features, then this.\n//     OUT: status \"ACTIVE\", effectiveFrom stamped with now,\n//          publiclyAvailable false, sellable false\n//          nextStep: \"Published, and now permanent: this version can never be\n//                     edited again. It is NOT on the public list yet ...\"\n// ---------------------------------------------------------------------------\n//\n// 02  A DRAFT WITH NO FEATURES                         -> 409 Conflict\n//     Create a draft and publish it without running Set Plan Features.\n//     OUT: { \"code\": \"PLAN_HAS_NO_FEATURES\",\n//            \"message\": \"... has no features, so a school buying it would get\n//                        nothing. Set its features first.\" }\n// ---------------------------------------------------------------------------\n//\n// 03  PUBLISH IT AGAIN                                 -> 409 Conflict\n//     OUT: { \"code\": \"PLAN_ALREADY_PUBLISHED\",\n//            \"message\": \"... is already published. To change it, make a new\n//                        version.\" }\n//     NOT an idempotent 200. \"It was already published\" and \"you just\n//     published it\" are different facts, and a caller who cannot tell them\n//     apart will assume the wrong one — on the one action that cannot be\n//     undone.\n// ---------------------------------------------------------------------------\n//\n// 04  A SELLING WINDOW THAT HAS ALREADY CLOSED        -> 409 Conflict\n//     On a draft, set the window in the past with #2:\n//       { \"sellingWindow\": { \"effectiveFrom\": \"2020-01-01T00:00:00Z\",\n//                            \"effectiveUntil\": \"2021-01-01T00:00:00Z\" } }\n//     then publish.\n//     OUT: { \"code\": \"PLAN_WINDOW_ALREADY_CLOSED\",\n//            \"message\": \"... stops being sold on 2021-01-01T00:00:00Z, which\n//                        has passed.\" }\n// ---------------------------------------------------------------------------\n//\n// 05  A LAUNCH DATE IN THE FUTURE                          -> 200 OK\n//     On a draft, set effectiveFrom to a future date with #2, then publish.\n//     OUT: status \"ACTIVE\", effectiveFrom UNCHANGED — the date chosen while it\n//          was a draft still stands; publishing only fills an empty one.\n//          sellable false, because the window has not opened.\n//          nextStep says \"It goes on sale on 2027-04-01T00:00:00Z.\"\n// ---------------------------------------------------------------------------\n//\n// 06  AFTERWARDS, IT IS FROZEN                         -> 409 Conflict\n//     PATCH the details:  409 PLAN_NOT_EDITABLE\n//       \"... is ACTIVE and cannot be edited.\"\n//     PUT the features:   409 PLAN_NOT_EDITABLE\n//       \"... is ACTIVE and its features cannot be changed.\"\n//     THIS IS THE POINT OF THE ENDPOINT. Check both after case 01.\n// ---------------------------------------------------------------------------\n//\n// 07  A RETIRED PLAN                                   -> 409 Conflict\n//     Retire it with #6 first (not built yet).\n//     OUT: { \"code\": \"PLAN_NOT_EDITABLE\" } — \"... is RETIRED and cannot be\n//     published.\" Retiring is not a way back to draft.\n// ---------------------------------------------------------------------------\n//\n// 08  A PLAN OR VERSION THAT DOES NOT EXIST             -> 404 Not Found\n//     OUT: { \"code\": \"PLAN_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "// Asserts case 01: a draft that has had its features set.",
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is live', () => pm.expect(b.status).to.eql('ACTIVE'));",
+           "pm.test('it has a date it goes on sale from', () =>",
+           "  pm.expect(b.effectiveFrom).to.not.be.null);",
+           "pm.test('publishing did not make it public', () =>",
+           "  pm.expect(b.publiclyAvailable).to.be.false);",
+           "pm.test('so it is not sellable yet — that needs #7', () =>",
+           "  pm.expect(b.sellable).to.be.false);",
+           "pm.test('the caller is told it can never be edited again', () =>",
+           "  pm.expect(b.nextStep).to.include('never be edited'));",
+           "pm.test('it kept its features', () => pm.expect(b.featureCount).to.be.above(0));"
+          ]
+         }
+        }
+       ]
       }
      ]
     }
