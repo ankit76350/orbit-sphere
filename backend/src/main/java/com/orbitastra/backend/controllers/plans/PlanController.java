@@ -134,4 +134,22 @@ public class PlanController {
 
         return ResponseEntity.ok(planCatalogueService.publish(code, version));
     }
+
+    /**
+     * Endpoint #6 — retires a plan from the catalogue.
+     *
+     * <p>Existing schools keep their plan, price, and features.
+     * This does not cancel subscriptions.
+     *
+     * <p>Draft plans can also be retired.
+     *
+     * <p>No body required. A retired plan cannot be restored.
+     */
+    @PostMapping("/{code}/versions/{version}/retire")
+    public ResponseEntity<PlanResponse> retire(
+            @PathVariable String code,
+            @PathVariable Integer version) {
+
+        return ResponseEntity.ok(planCatalogueService.retire(code, version));
+    }
 }

@@ -1,7 +1,7 @@
 # controllers/plans — API plan
 
-**Four of 71 are built — #1 to #4**, the start of the plan catalogue: create a draft, edit it,
-set its features, publish it.
+**Five of 71 are built — #1 to #4 and #6**, the plan catalogue's whole life apart from
+versioning: create a draft, edit it, set its features, publish it, retire it.
 
 **#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
 published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
@@ -79,7 +79,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 3 — **built** | [`PUT /platform/plans/{code}/versions/{version}/features`](#e3) | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 4 — **built** | [`POST /platform/plans/{code}/versions/{version}/publish`](#e4) | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 5 — **deferred** | [`POST /platform/plans/{code}/versions/{version}/new-version`](#e5) | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 6 | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 6 — **built** | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 7 | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 
 ## 2. The plan catalogue — reads
@@ -515,9 +515,61 @@ and leaves no link between the old price and the new one.
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode` — the same, `planVersion` — one higher, `status` = `DRAFT`, and `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` copied from the old `version`
 
 <a id="e6"></a>
-**6 · `POST /platform/plans/{code}/versions/{version}/retire`**
+**6 · `POST /platform/plans/{code}/versions/{version}/retire`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `RETIRED`, `effectiveUntil`
+- **Nothing else.** No subscription, no invoice, no school is touched.
+
+### It is about the menu, not about anybody's subscription
+
+Schools already on the plan keep it — same price, same features — and nothing about their
+subscription changes. Retiring says only that the plan is no longer something a school can pick.
+
+**That distinction is the whole endpoint.** Retiring a popular plan is a routine commercial
+decision. If it reached into subscriptions it would cut off every school on it at once, on a
+single call that reads like a catalogue tidy-up. Cancelling a school is #19, one school at a
+time, on purpose.
+
+### A draft can be retired too
+
+Not in the original spec, and added deliberately: **no endpoint in this module deletes anything**,
+so without it a draft created by mistake would sit in the catalogue for ever with its
+`planCode` permanently taken. Nobody is on a draft, so withdrawing one costs nothing.
+
+The response distinguishes the two, because they are different facts:
+
+| Was | Response says |
+|---|---|
+| `DRAFT` | *"Withdrawn. It was still a draft, so it was never sold to anybody… Its plan code stays taken."* |
+| `ACTIVE` | *"Retired, and no longer on the menu… Schools ALREADY on it keep it…"* |
+
+**It does not release the `planCode`.** Retiring is not deleting, and the unique index still
+holds — so a mistaken draft can be got out of the way but its code is spent.
+
+### Terminal, and everything after it is refused
+
+| Then | Code |
+|---|---|
+| retire again | `409 PLAN_ALREADY_RETIRED` |
+| `PATCH` the details (#2) | `409 PLAN_NOT_EDITABLE` |
+| `PUT` the features (#3) | `409 PLAN_NOT_EDITABLE` |
+| publish (#4) | `409 PLAN_NOT_EDITABLE` |
+
+There is no un-retire endpoint, in this plan or in the code. Retiring is not a way back to draft.
+
+All three refusals end *"Make a new version of it instead"* — which is #5, and #5 is deferred, so
+that advice cannot be followed today.
+
+### `effectiveUntil`
+
+Set to now, **unless it is already in the past**, in which case it is kept: that is when the plan
+actually stopped being sold, and moving the date forward would rewrite it. A date in the future
+is brought forward to now — it stops being sold now, not in 2030.
+
+### `publiclyAvailable` is left alone
+
+It belongs to #7. Touching it here would make no difference anyway: every list of buyable plans
+filters on `ACTIVE` first, so a retired plan is off the pricing page whatever that flag says.
 
 <a id="e7"></a>
 **7 · `PATCH /platform/plans/{code}/versions/{version}/availability`**

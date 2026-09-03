@@ -2073,6 +2073,65 @@
          }
         }
        ]
+      },
+      {
+       "name": "Retire Plan",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions/{{planVersion}}/retire",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions",
+          "{{planVersion}}",
+          "retire"
+         ]
+        },
+        "description": "**POST** `/platform/plans/{code}/versions/{version}/retire` — stops a plan being sold.\n\n### It is about the catalogue, not about anybody's subscription\n\nSchools already on the plan keep it, at the price and with the features they were sold. Nothing\nabout their subscription changes. Cancelling one school is #19, one school at a time.\n\nThat distinction matters: retiring a popular plan is a routine decision, and if it touched\nsubscriptions it would cut off every school on it at once.\n\n### A draft can be retired too\n\nIt is the only way to withdraw one — no endpoint here deletes anything. The response says which\ncase it was. The `planCode` stays taken either way.\n\n### Terminal\n\nThere is no un-retire, and #2, #3 and #4 all refuse a retired plan afterwards.\n\n### `effectiveUntil`\n\nSet to now, unless it is already in the past — then it is kept, because that is when the plan\nactually stopped being sold.\n\n### The seven test cases are in the request body as comments\n",
+        "body": {
+         "mode": "raw",
+         "raw": "{\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/plans/{code}/versions/{version}/retire\n//  Platform surface. No body needed.\n// ===========================================================================\n//\n//  RETIRING IS ABOUT THE MENU, NOT ABOUT ANYBODY'S SUBSCRIPTION. The plan\n//  stops being something a school can pick. Schools ALREADY on it keep it —\n//  same price, same features — and nothing about their subscription changes.\n//\n//  THAT DISTINCTION IS THE WHOLE POINT. Retiring a popular plan is a routine\n//  commercial decision. If it touched subscriptions it would cut off every\n//  school on it at once. Cancelling one school is #19, deliberately, one\n//  school at a time.\n//\n//  A DRAFT CAN BE RETIRED TOO, and it is the only way to withdraw one: no\n//  endpoint in this module deletes anything. Nobody is on a draft, so it costs\n//  nothing. The response says which of the two happened — \"withdrawn before it\n//  was ever sold\" and \"stopped being sold\" are different facts.\n//\n//  TERMINAL. There is no un-retire, and #2, #3 and #4 all refuse a retired\n//  plan afterwards.\n//\n//  publiclyAvailable IS LEFT ALONE. It belongs to #7, and it makes no\n//  difference anyway: every list of buyable plans filters on ACTIVE first, so\n//  a retired plan is off the pricing page whatever that flag says.\n//\n// ---------------------------------------------------------------------------\n// 01  RETIRE A PUBLISHED PLAN                              -> 200 OK\n//     Run Create Plan Draft, Set Plan Features, Publish Plan, then this.\n//     OUT: status \"RETIRED\", effectiveUntil stamped with now, sellable false\n//          nextStep: \"Retired, and no longer on the menu ... Schools ALREADY\n//                     on it keep it, at the price and features they were sold,\n//                     and nothing about their subscription has changed.\"\n// ---------------------------------------------------------------------------\n//\n// 02  WITHDRAW A DRAFT                                     -> 200 OK\n//     Create a draft and retire it without publishing.\n//     OUT: status \"RETIRED\"\n//          nextStep: \"Withdrawn. It was still a draft, so it was never sold to\n//                     anybody and nothing else is affected. Its plan code\n//                     stays taken.\"\n//     NOTE the last sentence: the code is NOT released. Nothing here deletes.\n// ---------------------------------------------------------------------------\n//\n// 03  RETIRE IT AGAIN                                  -> 409 Conflict\n//     OUT: { \"code\": \"PLAN_ALREADY_RETIRED\" }\n//     Not an idempotent 200: retiring is terminal, and a caller who cannot\n//     tell \"it was already retired\" from \"you just retired it\" will assume the\n//     wrong one.\n// ---------------------------------------------------------------------------\n//\n// 04  AFTERWARDS, EVERYTHING IS REFUSED                -> 409 Conflict\n//     PATCH the details:  PLAN_NOT_EDITABLE  \"... is RETIRED and cannot be\n//                                             edited.\"\n//     PUT the features:   PLAN_NOT_EDITABLE  \"... its features cannot be\n//                                             changed.\"\n//     POST publish:       PLAN_NOT_EDITABLE  \"... cannot be published.\"\n//     Retiring is not a way back to draft.\n//\n//     All three messages end \"Make a new version of it instead\" — which is #5,\n//     and #5 is deferred. The advice cannot be followed yet.\n// ---------------------------------------------------------------------------\n//\n// 05  effectiveUntil ALREADY IN THE PAST                   -> 200 OK\n//     Set the window in the past with #2, then retire.\n//     OUT: effectiveUntil UNCHANGED. It stopped being sold then; moving the\n//     date forward to now would rewrite that.\n// ---------------------------------------------------------------------------\n//\n// 06  effectiveUntil IN THE FUTURE                         -> 200 OK\n//     Set effectiveUntil to 2030 with #2, publish, then retire.\n//     OUT: effectiveUntil BROUGHT FORWARD to now — it stops being sold now,\n//     not in 2030.\n// ---------------------------------------------------------------------------\n//\n// 07  A PLAN OR VERSION THAT DOES NOT EXIST             -> 404 Not Found\n//     OUT: { \"code\": \"PLAN_NOT_FOUND\" }\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "// Asserts case 01: a published plan.",
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is retired', () => pm.expect(b.status).to.eql('RETIRED'));",
+           "pm.test('nobody can buy it now', () => pm.expect(b.sellable).to.be.false);",
+           "pm.test('there is a record of when it stopped being sold', () =>",
+           "  pm.expect(b.effectiveUntil).to.not.be.null);",
+           "pm.test('the caller is told existing schools are unaffected', () =>",
+           "  pm.expect(b.nextStep).to.include('keep it'));",
+           "pm.test('its features and price are untouched', () => {",
+           "  pm.expect(b.featureCount).to.be.above(0);",
+           "  pm.expect(b.listPrice).to.not.be.null;",
+           "});"
+          ]
+         }
+        }
+       ]
       }
      ]
     }

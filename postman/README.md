@@ -126,7 +126,7 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 4 of 71** — create a draft, edit it, set its features, publish it. The whole module
+**Plans is 5 of 71** — create a draft, edit it, set its features, publish it, retire it. The whole module
 plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 
@@ -207,8 +207,11 @@ a plan with no features.
   derived from the name.
 - **A published plan is not yet sellable.** `publiclyAvailable` stays false until #7, which is
   not built, so `sellable` is always false today.
-- **Nothing can be deleted.** No plan endpoint removes anything, so drafts and published plans
-  both accumulate.
+- **Nothing can be deleted, but a plan can be retired (#6).** That is the only way to take a
+  draft or a published plan out of the catalogue, and it does not release the `planCode`. Retiring
+  is terminal — there is no un-retire.
+- **Retiring does not touch subscriptions.** Schools already on the plan keep it. Nothing in this
+  collection cancels anybody.
 - **`featureCount` is always 0.** Features come from #3, which is not built. `sellable` is
   therefore always `false`.
 

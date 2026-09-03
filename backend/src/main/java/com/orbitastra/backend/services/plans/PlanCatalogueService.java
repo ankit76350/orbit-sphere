@@ -327,6 +327,53 @@ public class PlanCatalogueService {
         return PlanResponse.fromPlan(savedPlan, nextStep);
     }
 
+
+    //! endpoint 6 — retire a plan -----------------------------------------------------
+        /**
+         * #6 — retires a plan from the catalogue.
+         *
+         * <p>Existing schools keep their plan, price, and features.
+         * This does not cancel subscriptions.
+         *
+         * <p>Draft plans can also be retired. No data is deleted.
+         *
+         * <p>{@code publiclyAvailable} is managed by #7.
+         */
+    @Transactional
+    public PlanResponse retire(String code, Integer version) {
+        //! step 1 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        //! step 2 - retiring is terminal, so saying "already retired" matters. There is no way
+        //! back: no endpoint returns a plan to DRAFT or ACTIVE.
+        if (plan.getStatus() == PlanStatus.RETIRED) {
+            throw ApiException.conflict("PLAN_ALREADY_RETIRED",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion()
+                            + " is already retired.");
+        }
+
+        //! step 3 - remember what it was, because the two cases read differently
+        boolean wasNeverSold = plan.getStatus() == PlanStatus.DRAFT;
+
+        //! step 4 - record when it stopped being sold. A date already in the past is kept: it
+        //! stopped then, and moving it forward would rewrite that.
+        Instant now = Instant.now();
+        if (plan.getEffectiveUntil() == null || plan.getEffectiveUntil().isAfter(now)) {
+            plan.setEffectiveUntil(now);
+        }
+        plan.setStatus(PlanStatus.RETIRED);
+
+        //TODO: save
+        PlanDefinition savedPlan = plans.save(plan);
+
+        return PlanResponse.fromPlan(savedPlan, wasNeverSold
+                ? "Withdrawn. It was still a draft, so it was never sold to anybody and nothing "
+                        + "else is affected. Its plan code stays taken."
+                : "Retired, and no longer on the menu: no school can pick it from here. Schools "
+                        + "ALREADY on it keep it, at the price and features they were sold, and "
+                        + "nothing about their subscription has changed.");
+    }
+
     //* ---------------------------------------------------------------------------------
 
     /**
