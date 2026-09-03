@@ -67,7 +67,7 @@ request a school can send that does them.
 
 Numbered straight through, 1 to 71. Grouped only so the list is readable.
 
-## 1. The plan catalogue — writes (platform)
+## 1. The plan catalogue — writes (platform) · [Build order ↓](#build-order)
 
 A plan version is **immutable once published**. That is the rule the whole group is shaped
 around: you edit a draft, and after that you make a new version instead.
@@ -82,7 +82,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 6 — **built** | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 7 | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 
-## 2. The plan catalogue — reads
+## 2. The plan catalogue — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -92,7 +92,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 12 | [`GET /schools/current/plans/{code}/versions/{version}/comparison`](#e12) | What would change if this school moved to that plan: the price difference, and any limit that would drop below what the school is already using. Stops a school upgrading into a plan that immediately blocks it. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
-## 3. The subscription lifecycle — writes (platform)
+## 3. The subscription lifecycle — writes (platform) · [Build order ↓](#build-order)
 
 The allowed moves are already written in [`models/plans/README.md`](../../models/plans/README.md)
 under "Status workflow".
@@ -124,7 +124,7 @@ file.
 | 25 | [`PATCH /platform/schools/{id}/subscriptions/{no}/price`](#e25) | Change the agreed price for this one school without changing the plan everybody else is on. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 26 | [`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`](#e26) | Save the payment provider's customer id against the school, so future charges can be raised against it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
-## 4. The subscription — reads (platform)
+## 4. The subscription — reads (platform) · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -135,7 +135,7 @@ file.
 | 31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 32 | [`GET /platform/subscriptions/at-risk`](#e32) | Everything past due, suspended, or ending soon with auto-renew off. The list somebody works through on a Monday morning. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
-## 5. The subscription — the school's own view
+## 5. The subscription — the school's own view · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -146,7 +146,7 @@ file.
 | 37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 38 | [`POST /schools/current/subscription/cancel-request`](#e38) | The school asks to cancel. It **requests** — it does not cancel. Cancelling is #21, and it stays with the operator so somebody talks to the school first. | **none — no model holds a cancellation request yet.** See the note at the end of this file. |
 
-## 6. Invoices — writes (platform)
+## 6. Invoices — writes (platform) · [Build order ↓](#build-order)
 
 Money rules from [`models/plans/billing/README.md`](../../models/plans/billing/README.md):
 `totalAmount = subTotal + taxAmount` and `outstandingAmount = totalAmount - paidAmount`. **Every
@@ -163,7 +163,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 45 | [`POST /platform/schools/{id}/subscription/invoices/{no}/remind`](#e45) | Send the school a reminder that the bill is unpaid. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 | 46 | [`POST /platform/schools/{id}/subscription/invoices/{no}/write-off`](#e46) | Accept that a bill will never be paid and close it, with a reason. Keeps the outstanding list honest instead of full of debts nobody is chasing. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
-## 7. Invoices — the school's own view
+## 7. Invoices — the school's own view · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -172,7 +172,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 49 | [`GET /schools/current/subscription/invoices/{no}/pdf`](#e49) | The bill as a file the school can download, keep and give to its accountant. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 | 50 | [`GET /schools/current/subscription/outstanding`](#e50) | One number: how much this school owes right now. What a banner at the top of the screen shows. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
-## 8. Invoices — reads (platform)
+## 8. Invoices — reads (platform) · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -181,7 +181,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 53 | [`GET /platform/invoices/overdue`](#e53) | Everything unpaid and past its due date. The collections list. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 | 54 | [`GET /platform/invoices/{no}`](#e54) | One invoice in full, with its payments and every attempt at paying it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
 
-## 9. Paying — the school
+## 9. Paying — the school · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -192,7 +192,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 59 | [`POST /schools/current/subscription/payment-method`](#e59) | Save a card or set up a UPI mandate so renewals can charge automatically instead of somebody paying by hand every month. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 60 | [`DELETE /schools/current/subscription/payment-method`](#e60) | Remove the saved payment method. Auto-renew has to be dealt with at the same time, or the next renewal fails silently. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
-## 10. Payments — platform
+## 10. Payments — platform · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -202,7 +202,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 64 | [`POST /platform/schools/{id}/subscription/payments/{no}/reconcile`](#e64) | Match a payment to the money the bank actually settled, and mark it settled. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
 | 65 | [`POST /platform/schools/{id}/subscription/payments/{no}/retry`](#e65) | Try a failed automatic charge again. | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
 
-## 11. The payment provider talking to us
+## 11. The payment provider talking to us · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
@@ -211,7 +211,7 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 | 68 | [`GET /platform/billing/webhooks/{id}`](#e68) | One event in full, including what went wrong if it failed. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) |
 | 69 | [`POST /platform/billing/webhooks/{id}/replay`](#e69) | Process a failed event again after the bug is fixed. The raw payload was saved for exactly this. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 
-## 12. The jobs that run on their own
+## 12. The jobs that run on their own · [Build order ↓](#build-order)
 
 These do the work nobody clicks a button for. They are endpoints as well as scheduled jobs so
 they can be run by hand when something needs fixing, and so they can be tested.
@@ -223,6 +223,7 @@ they can be run by hand when something needs fixing, and so they can be tested.
 
 ---
 
+<a id="build-order"></a>
 # Build order
 
 Nothing about this module works until a school can have a subscription at all, and nothing about
