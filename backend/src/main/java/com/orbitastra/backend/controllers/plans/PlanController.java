@@ -1,14 +1,13 @@
 package com.orbitastra.backend.controllers.plans;
 
 import java.net.URI;
-import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
-import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -100,7 +99,9 @@ public class PlanController {
      * priced as a set, so there is no moment at which half of it is a plan — and endpoints that
      * added or removed one entitlement would make that half-state ordinary.
      *
-     * <p>Send {@code []} to empty it. There is no separate delete for the same reason.
+     * <p>The rows arrive under a {@code features} key rather than as a bare array, so a bad row
+     * is reported with the same {@code fieldErrors} shape as every other endpoint. Send
+     * {@code &#123;"features": []&#125;} to empty the list; there is no separate delete.
      *
      * <p>Refused unless the plan is a {@code DRAFT}: features are what a school is buying.
      */
@@ -108,9 +109,9 @@ public class PlanController {
     public ResponseEntity<PlanFeatureListResponse> replaceFeatures(
             @PathVariable String code,
             @PathVariable Integer version,
-            @Valid @RequestBody List<PlanFeatureRequest> features) {
+            @Valid @RequestBody PlanFeatureListRequest request) {
 
         return ResponseEntity.ok(
-                planCatalogueService.replaceFeatures(code, version, features));
+                planCatalogueService.replaceFeatures(code, version, request.features()));
     }
 }

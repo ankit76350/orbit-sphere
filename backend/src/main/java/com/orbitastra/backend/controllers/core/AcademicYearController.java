@@ -23,6 +23,7 @@ import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
 import com.orbitastra.backend.dto.core.academicyear.DayStatusResponse;
 import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
+import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
 import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
@@ -151,9 +152,9 @@ public class AcademicYearController {
     @PutMapping("/{name}/holidays")
     public ResponseEntity<HolidayCalendarResponse> replaceCalendar(
             @PathVariable String name,
-            @Valid @RequestBody List<HolidayRequest> holidays) {
+            @Valid @RequestBody HolidayCalendarRequest request) {
 
-        return ResponseEntity.ok(academicYearService.replaceCalendar(name, holidays));
+        return ResponseEntity.ok(academicYearService.replaceCalendar(name, request.holidays()));
     }
 
     /**

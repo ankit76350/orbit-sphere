@@ -242,11 +242,13 @@ export default function AcademicYearPage({ school }) {
       }),
     );
 
+  // The rows go under a `holidays` key rather than as a bare array. The endpoint changed shape
+  // on 2026-09-03 so that a bad row comes back naming the field, like every other endpoint.
   const importCalendar = async (rows) =>
     refresh(
       await act('import', 'Replace the calendar', 'replace-holiday-calendar', {
         pathParams: { name: yearName },
-        body: rows,
+        body: { holidays: rows },
       }),
     );
 

@@ -335,6 +335,12 @@ The bulk-import case: a school publishes next year's calendar in one go, from a 
 Sending the complete list makes a half-imported calendar impossible, which a sequence of
 individual adds cannot promise.
 
+### The rows go under a \`holidays\` key
+
+Not a bare array. A bad row then comes back naming the field — \`[1].name must not be blank\` —
+instead of a Java method signature, because an object body validates the way every other endpoint
+here does. Send \`{ "holidays": [] }\` to clear the calendar.
+
 ### Flat in, grouped out
 
 You send **one row per reason**. The service groups rows by date, so two rows sharing a date
@@ -380,12 +386,14 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
         { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
       ],
       bodyAllowed: true,
-      body: `[
-  { "name": "Weekly Off",       "type": "WEEKLY_OFF",     "date": "2026-11-08" },
-  { "name": "Diwali",           "type": "FESTIVAL",       "date": "2026-11-08",
-    "description": "Festival of lights" },
-  { "name": "Independence Day", "type": "PUBLIC_HOLIDAY", "date": "2026-08-15" }
-]`,
+      body: `{
+  "holidays": [
+    { "name": "Weekly Off",       "type": "WEEKLY_OFF",     "date": "2026-11-08" },
+    { "name": "Diwali",           "type": "FESTIVAL",       "date": "2026-11-08",
+      "description": "Festival of lights" },
+    { "name": "Independence Day", "type": "PUBLIC_HOLIDAY", "date": "2026-08-15" }
+  ]
+}`,
       successStatus: 200,
       responseFields: ["academicYearName", "startDate", "endDate", "closedDayCount", "eventCount", "countsByType", "holidays", "changeSummary"],
       captures: [],
