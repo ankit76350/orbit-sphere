@@ -8,10 +8,12 @@
  * a plain summary of what changed, and the full request and response a tab away. The Activity
  * button in the header lists every call the app has made.
  *
- * A SIDE PANEL holds the navigation: which module, and which of its screens. Only `core` has
- * screens today — the school list, and inside a school its overview, settings and academic year
- * — so it is the only module you can enter. `plans` is listed and disabled rather than left out,
- * because a panel showing Core alone would suggest Core is all there is.
+ * A SIDE PANEL holds the navigation: which module, and which of its screens. `core` is schools
+ * and their academic years; `plans` is the catalogue — what we sell, at what price, and what
+ * each plan includes.
+ *
+ * Each module keeps its own open thing and its own tab. One shared tab would mean leaving Core
+ * on Settings and arriving in Plans on a tab that does not exist there.
  */
 
 import { useState } from 'react';
@@ -20,6 +22,8 @@ import ApiProvider from './api/ApiProvider.jsx';
 import { useApi, useApiState } from './api/apiContext.js';
 import SchoolsPage from './pages/SchoolsPage.jsx';
 import SchoolDetail from './pages/SchoolDetail.jsx';
+import PlansPage from './pages/PlansPage.jsx';
+import PlanDetail from './pages/PlanDetail.jsx';
 import ModulePanel from './components/ModulePanel.jsx';
 import ApiDetailsModal from './components/ApiDetailsModal.jsx';
 import { ActivityModal } from './components/ApiActivity.jsx';
@@ -38,9 +42,19 @@ function Shell() {
   const [moduleId, setModuleId] = useState('core');
   const [tab, setTab] = useState('overview');
 
+  // The plans module keeps its own open thing and its own tab. Sharing one "tab" across both
+  // would mean leaving Core on Settings and arriving in Plans on a tab that does not exist.
+  const [plan, setPlan] = useState(null);
+  const [planTab, setPlanTab] = useState('overview');
+
   const openSchools = () => {
     setSchool(null);
     setTab('overview');
+  };
+
+  const openPlans = () => {
+    setPlan(null);
+    setPlanTab('overview');
   };
 
   const failures = log.filter((one) => !one.ok).length;
@@ -51,7 +65,10 @@ function Shell() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-6 py-3">
           <button
             type="button"
-            onClick={openSchools}
+            onClick={() => {
+              setModuleId('core');
+              openSchools();
+            }}
             className="flex items-center gap-2.5 text-left"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
@@ -121,11 +138,31 @@ function Shell() {
               tab={tab}
               onTab={setTab}
               onSchools={openSchools}
+              plan={plan}
+              planTab={planTab}
+              onPlanTab={setPlanTab}
+              onPlans={openPlans}
             />
           </aside>
 
           <div className="min-w-0">
-            {school ? (
+            {moduleId === 'plans' ? (
+              plan ? (
+                <PlanDetail
+                  plan={plan}
+                  tab={planTab}
+                  onTabChange={setPlanTab}
+                  onBack={openPlans}
+                />
+              ) : (
+                <PlansPage
+                  onOpenPlan={(picked) => {
+                    setPlan(picked);
+                    setPlanTab('overview');
+                  }}
+                />
+              )
+            ) : school ? (
               <SchoolDetail
                 school={school}
                 tab={tab}

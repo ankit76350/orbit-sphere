@@ -206,6 +206,68 @@ CURATED = {
     responseFields=['academicYearId','name','resultsLocked','nextStep'], successStatus=200),
   'Unlock Results': dict(summary='Unlocking lets somebody change a mark a parent has already seen.',
     responseFields=['academicYearId','name','resultsLocked','nextStep'], successStatus=200),
+
+  # ----------------------------------------------------------------- plans
+  'Create Plan Draft': dict(
+    summary='Makes a plan as a DRAFT at version 1, not publicly available. Nobody can buy it yet.',
+    required=['name','billingCycle','listPrice','currencyCode','maxStudents','maxUsers'],
+    optional=['planCode','description','effectiveFrom','effectiveUntil'],
+    responseFields=['planId','planCode','planVersion','name','status','billingCycle','listPrice','currencyCode','maxStudents','maxUsers','publiclyAvailable','featureCount','sellable','nextStep'],
+    successStatus=201,
+    successNote='Also sends a Location header: /platform/plans/{planCode}/versions/1',
+    captures=[('planCode','planCode'),('planVersion','planVersion')],
+  ),
+  'Update Plan Draft': dict(
+    summary='Edits a draft — name, price, limits, selling window. Refused once the plan is published.',
+    optional=['name','description','billingCycle','listPrice','currencyCode','maxStudents','maxUsers','sellingWindow'],
+    responseFields=['planCode','planVersion','name','status','listPrice','currencyCode','maxStudents','maxUsers','featureCount','sellable','nextStep'],
+    successStatus=200,
+  ),
+  'Set Plan Features': dict(
+    summary='Replaces the whole feature list of a draft. featureCode is one of 24 fixed values.',
+    required=['features'],
+    responseFields=['planCode','planVersion','status','featureCount','features','changeSummary'],
+    successStatus=200,
+  ),
+  'Publish Plan': dict(
+    summary='Turns a draft into a plan schools can buy. One-way: it can never be edited again.',
+    responseFields=['planCode','planVersion','status','effectiveFrom','publiclyAvailable','sellable','nextStep'],
+    successStatus=200,
+  ),
+  'Set Plan Availability': dict(
+    summary='Public list, or private quote only. The last of the three things that make a plan sellable.',
+    required=['publiclyAvailable'],
+    responseFields=['planCode','planVersion','status','publiclyAvailable','sellable','nextStep'],
+    successStatus=200,
+  ),
+  'Retire Plan': dict(
+    summary='Stops a plan being sold. Schools already on it keep it — their subscription does not change.',
+    responseFields=['planCode','planVersion','status','effectiveUntil','sellable','nextStep'],
+    successStatus=200,
+  ),
+  'List Plans': dict(
+    summary='The catalogue, filtered and paged. One row per plan VERSION, newest version of each first.',
+    responseFields=['content','page','size','totalElements','totalPages','hasNext','hasPrevious'],
+    successStatus=200,
+  ),
+  'List Plan Versions': dict(
+    summary='Every version of one plan, newest first, with the price change and who is on each.',
+    responseFields=['planCode','name','versionCount','versions','note'],
+    successStatus=200,
+  ),
+  'Get Plan Version': dict(
+    summary='One plan version in full, with all its features and their labels.',
+    responseFields=['planCode','planVersion','name','status','listPrice','currencyCode','publiclyAvailable','sellable','featureCount','features','schoolsOnThisVersion','note'],
+    successStatus=200,
+  ),
+  'Create Subscription': dict(
+    summary='Makes a school a paying customer. Closes the gap core activation complains about.',
+    required=['planCode','planVersion'],
+    optional=['trial','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','maxStudentsOverride','maxUsersOverride','billingCustomerReference','reason'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
+    successStatus=201,
+    captures=[('subscriptionNo','subscriptionNo')],
+  ),
 }
 
 # Errors every school-surface endpoint can give, because of the tenant header.
@@ -418,6 +480,19 @@ def build_path_params(path):
         out = out.replace('{{academicYearName}}', '{name}')
         params.append(('name', '{{academicYearName}}',
                        'The year name, such as 2026-2027. It is the join key and can never change.'))
+    if '{{planCode}}' in out:
+        out = out.replace('{{planCode}}', '{code}')
+        params.append(('code', '{{planCode}}',
+                       "The plan's permanent family code. Create Plan Draft fills this in."))
+    if '{{planVersion}}' in out:
+        out = out.replace('{{planVersion}}', '{version}')
+        params.append(('version', '{{planVersion}}',
+                       'Which version of that plan. Versions are immutable once published.'))
+    if '{{subscriptionNo}}' in out:
+        out = out.replace('{{subscriptionNo}}', '{no}')
+        params.append(('no', '{{subscriptionNo}}',
+                       'The subscription number, such as SUB/2026/09/000001.'))
+
     # A literal date in the path is the holiday key.
     m = re.search(r'/(\d{4}-\d{2}-\d{2})(?=/|$)', out)
     if m:

@@ -7,4 +7,8 @@ export { default as AcademicYearPage } from './src/pages/AcademicYearPage.jsx';
 export { default as NewSchoolModal } from './src/pages/NewSchoolModal.jsx';
 export { default as ApiDetailsModal } from './src/components/ApiDetailsModal.jsx';
 export { default as ModulePanel } from './src/components/ModulePanel.jsx';
+export { default as PlansPage } from './src/pages/PlansPage.jsx';
+export { default as PlanDetail } from './src/pages/PlanDetail.jsx';
+export { default as PlanFeaturesTab } from './src/pages/PlanFeaturesTab.jsx';
+export { default as NewPlanModal } from './src/pages/NewPlanModal.jsx';
 export { ActivityModal } from './src/components/ApiActivity.jsx';

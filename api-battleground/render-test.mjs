@@ -36,7 +36,7 @@ rmSync(bundlePath);
 
 const {
   App, ApiProvider, SchoolDetail, SchoolSettings, AcademicYearPage, ApiDetailsModal, NewSchoolModal,
-  ActivityModal, ModulePanel,
+  ActivityModal, ModulePanel, PlansPage, PlanDetail, PlanFeaturesTab, NewPlanModal,
 } = parts;
 
 const school = {
@@ -137,9 +137,35 @@ const wrap = (node) => React.createElement(ApiProvider, null, node);
 
 const screens = [
   ['Schools list (the whole app)', React.createElement(App), ['Schools', 'Add a school']],
+  ['Module panel — the plans module', wrap(React.createElement(ModulePanel,
+    { moduleId: 'plans', onModule() {}, school: null, tab: 'overview', onTab() {}, onSchools() {},
+      plan: { planCode: 'PREMIUM', planVersion: 2 }, planTab: 'features', onPlanTab() {}, onPlans() {} })),
+    ['Plans', 'Catalogue', 'PREMIUM v2', 'Features', 'Versions']],
+  ['Plans list — first paint', wrap(React.createElement(PlansPage, { onOpenPlan() {} })),
+    ['Plans', 'New plan', 'Search by name or code']],
+  ['Plan detail — first paint', wrap(React.createElement(PlanDetail,
+    { plan: { planCode: 'PREMIUM', planVersion: 1 }, onBack() {} })),
+    ['Loading PREMIUM']],
+  ['Plan features — a draft', wrap(React.createElement(PlanFeaturesTab,
+    { plan: { planCode: 'PREMIUM', planVersion: 1, status: 'DRAFT', featureCount: 0, features: [] },
+      onChanged() {} })),
+    // "Show as excluded" is not here: it belongs to a ticked feature, and the tick state comes
+    // from an effect this test does not run.
+    ['What this plan includes', 'Student management', 'Save the list', 'priced as a set']],
+  ['Plan features — published, so frozen', wrap(React.createElement(PlanFeaturesTab,
+    { plan: { planCode: 'PREMIUM', planVersion: 1, status: 'ACTIVE', featureCount: 1,
+      features: [{ featureCode: 'TRANSPORT', label: 'Transport', enabled: true, usageLimit: 12,
+        usageMetric: 'VEHICLES', overagePolicy: 'BLOCK' }] }, onChanged() {} })),
+    // Published: read-only, and the rows come from an effect, so the first paint is the header.
+    // Assert nothing that spans two JSX expressions — React SSR puts a <!-- --> between them, so
+    // "1 included" is "1<!-- --> included" in the markup this test greps.
+    ['cannot be changed', 'Make a new version']],
+  ['New plan form', wrap(React.createElement(NewPlanModal,
+    { open: true, onClose() {}, onCreated() {} })),
+    ['New plan', 'Billing cycle', 'Students included', 'Features are set after this']],
   ['Module panel — nothing open', wrap(React.createElement(ModulePanel,
     { moduleId: 'core', onModule() {}, school: null, tab: 'overview', onTab() {}, onSchools() {} })),
-    ['Modules', 'Core', 'Schools', 'Plans', 'no screens yet']],
+    ['Modules', 'Core', 'Schools', 'Plans']],
   ['Module panel — a school open', wrap(React.createElement(ModulePanel,
     { moduleId: 'core', onModule() {}, school, tab: 'settings', onTab() {}, onSchools() {} })),
     ['Orbit Astra International School', 'Overview', 'Settings', 'Academic year']],

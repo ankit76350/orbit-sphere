@@ -36,13 +36,15 @@ cd api-battleground && npm install && npm run dev    # http://localhost:1300
 
 Navigation lives on the left: which module, and which of its screens.
 
-**`Core` is the only module you can enter**, because it is the only one the frontend has screens
-for — the school list, and inside a school its overview, settings and academic year. `Plans` is
-listed and **disabled**: its API is built but it has no screens, and a panel showing Core alone
-would suggest Core is all there is.
+Two modules: **Core** — schools and their academic years — and **Plans** — what we sell, at what
+price, and what each plan includes.
 
-A school's own screens appear under it only once a school is open. A `Settings` link with nothing
-selected would go nowhere, so it is not offered.
+Each module has the same shape: a list you can always reach, and the thing you have opened with
+its sections underneath. Those sections appear **only once something is open**, because a
+`Features` link with no plan chosen goes nowhere.
+
+Each module keeps its own open thing and its own tab. One shared tab would mean leaving Core on
+Settings and arriving in Plans on a tab that does not exist there.
 
 The panel and the tab strip inside a school are two ways of choosing the same thing, so the
 choice is held once in the shell rather than in both — which is how they would come to disagree.
@@ -107,6 +109,37 @@ Two questions the calendar can answer, each its own small panel:
 
 Everything on this screen is read back from the backend. After any change the calendar is
 re-read rather than guessed at, so what is on screen is what is stored.
+### Plans
+
+The catalogue, one row per plan **version** — `PREMIUM v1` and `PREMIUM v2` are two prices, and a
+school is on exactly one of them. Search, status chips, sorting and paging, like the school list.
+
+**"Can be bought" is the column worth having.** The API returns `sellable` as a single boolean off
+three separate facts — published, on the public list, inside its selling window — so when it is
+false the screen says *which* one is missing: "Not published yet", "Not on the public list", "Past
+its selling window".
+
+Opening a plan gives three sections:
+
+- **Overview** — the commercial terms, the selling window, and how many schools are on this
+  version. That count is 0 for everything until subscriptions can be created, and the screen
+  passes the API's own note along rather than showing a bare zero.
+- **Features** — the 24 features as tick boxes. Ticking and saving replaces the **whole list**,
+  because a feature list is priced as a set. A limit box only appears on the features that have
+  something to count: "attendance" is included or it is not. Read-only once published.
+- **Versions** — every version newest first, with the price change against the one before it.
+
+**The lifecycle buttons depend on where the plan is.** A draft can be edited, given features and
+published. A published plan can be listed publicly or retired. A retired one can only be read.
+Publish and retire both ask first and say what will not be possible afterwards, because neither
+can be undone and there is no endpoint that returns a plan to draft.
+
+**New plan** asks for the name, not the code: the code is derived from the name — "Premium Plus"
+becomes `PREMIUM_PLUS` — and the form shows what it will be as you type, since it is permanent.
+
+**Not reachable from these screens yet:** creating a subscription (`POST
+/platform/schools/{id}/subscriptions`). It is built and belongs to a school rather than to a plan,
+so it wants a tab on the school detail.
 
 ## Where the calls come from
 

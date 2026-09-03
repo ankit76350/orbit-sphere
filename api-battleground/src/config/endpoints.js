@@ -337,9 +337,8 @@ individual adds cannot promise.
 
 ### The rows go under a \`holidays\` key
 
-Not a bare array. A bad row then comes back naming the field — \`[1].name must not be blank\` —
-instead of a Java method signature, because an object body validates the way every other endpoint
-here does. Send \`{ "holidays": [] }\` to clear the calendar.
+Not a bare array, so a bad row is reported with the same \`fieldErrors\` shape as every other
+endpoint. \`{ "holidays": [] }\` clears the calendar; \`{}\` is refused.
 
 ### Flat in, grouped out
 
@@ -354,6 +353,11 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
 ### The seven test cases are in the request body as comments
 `,
       bodyNotes: `Needs X-School-Subdomain. Run Create School and Create Academic Year first.
+
+ THE ROWS GO UNDER A "holidays" KEY, not as a bare array. Changed on
+ 2026-09-03: a bare array made Spring report a bad row as a method
+ signature and an error count, instead of naming the field. As an object it
+ validates like every other endpoint — [1].name must not be blank.
 
  THE REQUEST IS FLAT, STORAGE IS GROUPED. You send one row per REASON, the
  way a spreadsheet holds it. The service groups them by date, so the body
@@ -401,7 +405,7 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
         { status: 400, code: "DUPLICATE_HOLIDAY_ENTRY", when: "Same type twice on one date" },
         { status: 400, code: "HOLIDAY_OUTSIDE_YEAR", when: "A date outside the year" },
         { status: 400, code: "MALFORMED_REQUEST", when: "An unknown type" },
-        { status: 400, code: "—", when: "A missing name or type" },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name or type" },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
@@ -426,7 +430,9 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
           expect: "200 OK",
           notes: `An empty array is the honest way to empty it. There is no DELETE for
     the whole calendar.`,
-          body: `[]`,
+          body: `{
+  "holidays": []
+}`,
         },
         {
           id: "03",
@@ -438,10 +444,12 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
 
     A day genuinely closed for two reasons has two DIFFERENT types. The same
     one twice is a duplicated spreadsheet row.`,
-          body: `[
-  { "name": "Weekly Off",       "type": "WEEKLY_OFF", "date": "2026-11-08" },
-  { "name": "Weekly Off again", "type": "WEEKLY_OFF", "date": "2026-11-08" }
-]`,
+          body: `{
+  "holidays": [
+    { "name": "Weekly Off",       "type": "WEEKLY_OFF", "date": "2026-11-08" },
+    { "name": "Weekly Off again", "type": "WEEKLY_OFF", "date": "2026-11-08" }
+  ]
+}`,
         },
         {
           id: "04",
@@ -450,9 +458,9 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
           notes: `OUT: { "code": "HOLIDAY_OUTSIDE_YEAR" }
     A holiday belongs to the year that contains it; one outside would never
     be found by anything looking at that year.`,
-          body: `[
-  { "name": "New Year", "type": "PUBLIC_HOLIDAY", "date": "2028-01-01" }
-]`,
+          body: `{
+  "holidays": [{ "name": "New Year", "type": "PUBLIC_HOLIDAY", "date": "2028-01-01" }]
+}`,
         },
         {
           id: "05",
@@ -461,18 +469,32 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
           notes: `OUT: { "code": "MALFORMED_REQUEST" }
     There is no NATIONAL_HOLIDAY. Accepted: WEEKLY_OFF, PUBLIC_HOLIDAY,
     FESTIVAL, RELIGIOUS, SCHOOL_EVENT, VACATION, EXAM_BREAK, OTHER.`,
-          body: `[
-  { "name": "Sports Day", "type": "NATIONAL_HOLIDAY", "date": "2026-12-01" }
-]`,
+          body: `{
+  "holidays": [{ "name": "Sports Day", "type": "NATIONAL_HOLIDAY", "date": "2026-12-01" }]
+}`,
         },
         {
           id: "06",
           name: "A MISSING NAME OR TYPE",
           expect: "400 Bad Request",
-          notes: `OUT: fieldErrors names the row's field. Every reason needs a name.`,
-          body: `[
-  { "type": "FESTIVAL", "date": "2026-12-01" }
-]`,
+          notes: `OUT: { "code": "VALIDATION_FAILED",
+           "fieldErrors": { "holidays[1].name": ["must not be blank"] } }
+    THE ROW IS NAMED. Against a spreadsheet of sixty rows, which one matters
+    more than what. This only works because the body is an object — see the
+    note at the top.
+
+06b NO holidays KEY AT ALL                         -> 400 Bad Request
+{
+}
+    OUT: fieldErrors: { "holidays": ["must not be null"] }
+    REFUSED, not treated as "clear it". Wiping a year of closures should not
+    be what happens when a field is forgotten.`,
+          body: `{
+  "holidays": [
+    { "name": "Fine", "type": "FESTIVAL", "date": "2026-12-01" },
+    { "type": "FESTIVAL", "date": "2026-12-02" }
+  ]
+}`,
         },
         {
           id: "07",
@@ -3756,10 +3778,2226 @@ A school at **any** status comes back, closed and deleted included: the console 
   ],
 };
 
+const GROUP_PLANS_PLAN_CATALOGUE = {
+  id: "plans-plan-catalogue",
+  module: "Plans / Plan catalogue",
+  endpoints: [
+    {
+      id: "create-plan-draft",
+      name: "Create Plan Draft",
+      method: "POST",
+      path: "/platform/plans/drafts",
+      status: 'live',
+      summary: "Makes a plan as a DRAFT at version 1, not publicly available. Nobody can buy it yet.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/plans/drafts\` — makes a new plan, as a draft.
+
+The platform's own price list: what a school pays **us** for Orbit Sphere. Not student fees —
+\`models/finance\` is money a parent pays a school, and the two never meet.
+
+### You do not send a plan code
+
+It is derived from the name — "Premium Plus" becomes \`PREMIUM_PLUS\`. Send one explicitly only
+when the derived code will not do.
+
+The code exists because it is the **family key**: the only thing joining version 1, 2 and 3 of
+one plan. An editable \`name\` cannot do that job, because a key that can change is not a key.
+
+### It always makes a draft
+
+\`status\` (always \`DRAFT\`), \`planVersion\` (always 1) and \`publiclyAvailable\` (always false) are
+**not on the request**. A plan that could be created \`ACTIVE\` would be on sale before it was
+priced. Later versions come from #5.
+
+### Features are not accepted here
+
+The plan starts with an empty feature list; #3 sets the whole list in one go — the same shape
+academic years use for holidays.
+
+### Normalized on the way in
+
+\`planCode\` derived from the name, \`currencyCode\` uppercased, \`listPrice\` forced to exactly two
+decimal places, blank text becoming null.
+
+### Refused, not rounded or guessed
+
+A price with three decimal places, a currency code that is not ISO 4217, a limit of zero, a
+selling window that runs backwards, and a \`planCode\` that already exists.
+
+### The fifteen test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. No tenant header: a PlanDefinition has no schoolId.
+
+ THIS IS THE PLATFORM'S OWN PRICE LIST, NOT SCHOOL FEES. Money a school pays
+ us for Orbit Sphere. models/finance is the other thing entirely — money a
+ parent pays a school — and nothing here may touch a FeeInvoice.
+
+ YOU DO NOT SEND planCode. It is worked out from the name — "Premium Plus"
+ becomes PREMIUM_PLUS — so a create form asks for one thing instead of
+ making somebody type the same words twice in two shapes. Send one only when
+ the derived code will not do (case 03).
+
+ WHY THE CODE EXISTS AT ALL, given the name is right there: it is the FAMILY
+ KEY, the only thing joining version 1, 2 and 3 of one plan. A subscription
+ stores a document id and a version number, so without it "version 2" means
+ version 2 of nothing, and #5 (copy a published plan into a new version) has
+ no way to say which family the copy joins. The name cannot do that job,
+ because a name is display text somebody will want to change — and a key
+ that can change is not a key.
+
+ IT ALWAYS MAKES A DRAFT. status, planVersion and publiclyAvailable are NOT
+ on the request:
+   status             always DRAFT   — nobody can buy it while we are still
+                                       deciding the price
+   planVersion        always 1       — later versions come from #5, which
+                                       copies a published one
+   publiclyAvailable  always false   — #7 decides if it shows publicly
+ Send them anyway and they are ignored, not half-honoured (case 10).
+
+ FEATURES ARE NOT ACCEPTED HERE. The plan starts with an empty feature list
+ and #3 sets the whole list in one go — the same shape academic years use
+ for holidays. A create that can fail on either a bad price or a bad feature
+ leaves you working out which, and a half-filled feature list is the "plan
+ nobody can price" that #3 exists to prevent.
+
+ WHY /drafts IS IN THE PATH: so nobody reads POST /platform/plans and thinks
+ they are putting a plan on sale. Every endpoint after this addresses the
+ plan by code and version — /platform/plans/PREMIUM/versions/1 — because
+ from then on draft-ness is a status on a plan that exists.`,
+      requiredFields: ["name", "billingCycle", "listPrice", "currencyCode", "maxStudents", "maxUsers"],
+      optionalFields: ["planCode", "description", "effectiveFrom", "effectiveUntil"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Premium",
+  "description": "Advanced ERP modules and AI capabilities for growing schools.",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header: /platform/plans/{planCode}/versions/1",
+      responseFields: ["planId", "planCode", "planVersion", "name", "status", "billingCycle", "listPrice", "currencyCode", "maxStudents", "maxUsers", "publiclyAvailable", "featureCount", "sellable", "nextStep"],
+      captures: [
+        { variable: "planCode", from: "planCode" },
+        { variable: "planVersion", from: "planVersion" },
+      ],
+      errors: [
+        { status: 400, code: "PRICE_NEGATIVE", when: "A negative price" },
+        { status: 400, code: "PRICE_TOO_PRECISE", when: "More than two decimal places" },
+        { status: 400, code: "LIMIT_TOO_LOW", when: "A limit of zero" },
+        { status: 400, code: "INVALID_SELLING_WINDOW", when: "A selling window that runs backwards" },
+        { status: 400, code: "MALFORMED_REQUEST", when: "A billing cycle that does not exist" },
+        { status: 400, code: "VALIDATION_FAILED", when: "Nothing at all" },
+        { status: 409, code: "PLAN_CODE_TAKEN", when: "A name that derives a code somebody has" },
+        { status: 409, code: "CURRENCY_INVALID", when: "A currency that does not exist" },
+        { status: 409, code: "PLAN_CODE_INVALID", when: "An explicit code that is not a code" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "CREATE A DRAFT PLAN",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: status: "DRAFT", planVersion: 1, publiclyAvailable: false,
+         featureCount: 0, sellable: false
+    Header: Location: /platform/plans/PREMIUM/versions/1
+
+    sellable is DERIVED, never stored: published AND public AND inside the
+    selling window. Three separate facts, so every screen does not combine
+    them slightly differently.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE CODE COMES FROM THE NAME",
+          expect: "201 Created",
+          notes: `OUT: planCode "PREMIUM_PLUS"  <- derived; nothing was sent
+         name      "Premium Plus" <- trimmed
+         description null         <- "   " is nothing, so it is nothing
+         listPrice 79999.00       <- always two decimal places
+         currencyCode "INR"       <- uppercased
+
+    Anything that is not a letter or digit becomes one underscore, and the
+    ends are trimmed:
+       "Premium Plus"     -> PREMIUM_PLUS
+       "Starter (2026)"   -> STARTER_2026
+       "Schools & Trusts" -> SCHOOLS_TRUSTS
+
+02b AN EXPLICIT CODE STILL WINS                          -> 201 Created
+{
+  "name": "Anything",
+  "planCode": "enterprise",
+  "billingCycle": "YEARLY",
+  "listPrice": 9,
+  "currencyCode": "INR",
+  "maxStudents": 10,
+  "maxUsers": 10
+}
+    OUT: planCode "ENTERPRISE" — uppercased, hyphens become underscores.
+    For when the derived code is taken, or has to match something outside
+    this system.
+
+02c A NAME THAT CANNOT PRODUCE A CODE               -> 409 Conflict
+{
+  "name": "★★★", "billingCycle": "YEARLY", "listPrice": 1,
+  "currencyCode": "INR", "maxStudents": 1, "maxUsers": 1
+}
+    OUT: { "code": "PLAN_CODE_INVALID",
+           "message": "No plan code could be worked out from the name '★★★'.
+                       Send a planCode of letters, digits and inner
+                       underscores." }
+    The message names the NAME, not a code the caller never sent.`,
+          body: `{
+  "name": "   Premium Plus   ",
+  "description": "   ",
+  "billingCycle": "YEARLY",
+  "listPrice": 79999,
+  "currencyCode": "inr",
+  "maxStudents": 5000,
+  "maxUsers": 500
+}`,
+        },
+        {
+          id: "03",
+          name: "A NAME THAT DERIVES A CODE SOMEBODY HAS",
+          expect: "409 Conflict",
+          notes: `Send case 01 twice. Two plans both called "Premium" derive the same
+    PREMIUM code, and casing does not help — "premium" normalizes to it too.
+    OUT: { "code": "PLAN_CODE_TAKEN",
+           "message": "A plan called 'PREMIUM' already exists. To change its
+                       price, make a new version of it instead of a new
+                       plan." }
+
+    Refused even though the unique index is on planCode AND planVersion, so
+    a second PREMIUM v1 would technically fit. planCode is the plan's
+    permanent identity and SchoolSubscription stores it — two plans sharing
+    it could never be told apart, and "which PREMIUM" would have no answer.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A FREE PLAN",
+          expect: "201 Created",
+          notes: `ZERO IS ALLOWED. A free tier is a real plan.`,
+          body: `{
+  "planCode": "FREE",
+  "name": "Free",
+  "billingCycle": "MONTHLY",
+  "listPrice": 0,
+  "currencyCode": "INR",
+  "maxStudents": 50,
+  "maxUsers": 5
+}`,
+        },
+        {
+          id: "05",
+          name: "A NEGATIVE PRICE",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "PRICE_NEGATIVE" }
+    A plan we pay the school to be on is not a thing.`,
+          body: `{
+  "planCode": "ODD", "name": "Odd", "billingCycle": "MONTHLY",
+  "listPrice": -5, "currencyCode": "INR", "maxStudents": 10, "maxUsers": 5
+}`,
+        },
+        {
+          id: "06",
+          name: "MORE THAN TWO DECIMAL PLACES",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "PRICE_TOO_PRECISE" }
+    REFUSED, NOT ROUNDED. Rounding somebody's price for them is how 1999.999
+    quietly becomes 2000.00 on every invoice for a year.`,
+          body: `{
+  "planCode": "ODD2", "name": "Odd", "billingCycle": "MONTHLY",
+  "listPrice": 1999.999, "currencyCode": "INR", "maxStudents": 10,
+  "maxUsers": 5
+}`,
+        },
+        {
+          id: "07",
+          name: "A CURRENCY THAT DOES NOT EXIST",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "CURRENCY_INVALID",
+           "message": "'RUP' is not an ISO 4217 currency code. Example:
+                       INR." }
+    Checked against the JDK's ISO 4217 list, not a hand-written one — for
+    the same reason time zones are. RUP and INS look plausible and do not
+    exist, and nobody notices until an invoice is issued in one.
+
+    409 rather than 400: the request is well formed and still refused.`,
+          body: `{
+  "planCode": "ODD3", "name": "Odd", "billingCycle": "MONTHLY",
+  "listPrice": 1, "currencyCode": "RUP", "maxStudents": 10, "maxUsers": 5
+}`,
+        },
+        {
+          id: "08",
+          name: "A LIMIT OF ZERO",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "LIMIT_TOO_LOW" }
+    A plan capped at zero students blocks the first thing the school tries
+    to do, which reads as a broken platform rather than as the plan it was
+    sold.`,
+          body: `{
+  "planCode": "ODD4", "name": "Odd", "billingCycle": "MONTHLY",
+  "listPrice": 1, "currencyCode": "INR", "maxStudents": 0, "maxUsers": 5
+}`,
+        },
+        {
+          id: "09",
+          name: "A SELLING WINDOW THAT RUNS BACKWARDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_SELLING_WINDOW" }
+    Both dates are OPTIONAL, and a draft usually has neither — #4 stamps
+    effectiveFrom when it publishes. Only the pair together can be wrong.`,
+          body: `{
+  "planCode": "ODD5", "name": "Odd", "billingCycle": "YEARLY",
+  "listPrice": 1, "currencyCode": "INR", "maxStudents": 10, "maxUsers": 5,
+  "effectiveFrom": "2027-04-01T00:00:00Z",
+  "effectiveUntil": "2026-04-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "10",
+          name: "FIELDS THAT ARE NOT OURS TO SET",
+          expect: "201 Created",
+          notes: `OUT: status "DRAFT", planVersion 1, publiclyAvailable false,
+         featureCount 0 — every one of those four was ignored.
+    They are not on the request record, so Jackson drops them. A plan that
+    could be created ACTIVE would be on sale before it was priced.`,
+          body: `{
+  "planCode": "IGNORED",
+  "name": "Try to cheat",
+  "billingCycle": "YEARLY",
+  "listPrice": 1,
+  "currencyCode": "INR",
+  "maxStudents": 10,
+  "maxUsers": 5,
+  "status": "ACTIVE",
+  "planVersion": 9,
+  "publiclyAvailable": true,
+  "features": [{ "featureCode": "EVERYTHING" }]
+}`,
+        },
+        {
+          id: "11",
+          name: "AN EXPLICIT CODE THAT IS NOT A CODE",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "PLAN_CODE_INVALID" }
+    Letters, digits and INNER underscores. No leading or trailing one — and
+    a derived code never has one, because the ends are trimmed.`,
+          body: `{
+  "planCode": "_bad_", "name": "X", "billingCycle": "MONTHLY",
+  "listPrice": 1, "currencyCode": "INR", "maxStudents": 10, "maxUsers": 5
+}`,
+        },
+        {
+          id: "12",
+          name: "A BILLING CYCLE THAT DOES NOT EXIST",
+          expect: "400 Bad Request",
+          notes: `"billingCycle": "WEEKLY"
+    OUT: { "code": "MALFORMED_REQUEST" }
+    Accepted: MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY, CUSTOM.`,
+          body: null,
+        },
+        {
+          id: "13",
+          name: "NOTHING AT ALL",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "VALIDATION_FAILED" } with fieldErrors naming name,
+    billingCycle, listPrice, currencyCode, maxStudents, maxUsers.
+    NOT planCode — it is optional, and with no name there is nothing to
+    derive it from either.`,
+          body: `{
+}`,
+        },
+      ],
+    },
+    {
+      id: "update-plan-draft",
+      name: "Update Plan Draft",
+      method: "PATCH",
+      path: "/platform/plans/{code}/versions/{version}",
+      status: 'live',
+      summary: "Edits a draft — name, price, limits, selling window. Refused once the plan is published.",
+      schoolSurface: false,
+      docs: `**PATCH** \`/platform/plans/{code}/versions/{version}\` — fixes the details of a draft.
+
+### Only a draft can be edited
+
+Once a plan is published a school can be on it, and changing the price then would change what
+they agreed to pay without anybody agreeing to it. Editing an \`ACTIVE\` or \`RETIRED\` plan is a
+\`409\`; #5 copies it into a new draft version instead.
+
+### Partial, with the project's PATCH convention
+
+Omitted or null leaves a field alone, \`""\` clears the description, a value replaces. \`name\`
+cannot be cleared.
+
+### The selling window is replaced as a pair
+
+The two dates are only meaningful next to each other, so they are nested. Omit \`sellingWindow\` to
+leave it alone; send it with nulls inside to clear it.
+
+### Not on this request
+
+\`planCode\`, \`planVersion\`, \`status\`, \`publiclyAvailable\`, \`features\` — each has its own endpoint
+or is the plan's identity.
+
+### The thirteen test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Run Create Plan Draft first — it saves {{planCode}}.
+
+ ONLY A DRAFT CAN BE EDITED. That is the rule the whole catalogue is built
+ on. The moment a plan is published a school can be on it, and changing the
+ price then would change what they agreed to pay — retroactively, with no
+ record that it happened. #5 copies a published version into a new draft
+ instead, and the schools on the old version stay where they are.
+
+ PARTIAL, the same way core's PATCHes are:
+    omitted or null -> leave it exactly as it is
+    ""              -> clear it (description only)
+    a value         -> replace it
+ name cannot be cleared: "" is a 400, not a deletion.
+
+ THE SELLING WINDOW IS REPLACED AS A PAIR, not as two loose fields. The two
+ dates are only meaningful next to each other — an effectiveUntil moved
+ earlier than the existing effectiveFrom is a plan that can never be sold —
+ so changing one alone could create a window nobody asked for. Same
+ reasoning that puts the school's address behind a PUT.
+
+ NOT ON THIS REQUEST: planCode and planVersion (they are the identity, in
+ the URL), status (publish is #4, retire is #6), publiclyAvailable (#7) and
+ features (#3). Each is a decision with its own rules; a PATCH that could
+ set them all would make "put this on sale" look like "fix a typo".`,
+      optionalFields: ["name", "description", "billingCycle", "listPrice", "currencyCode", "maxStudents", "maxUsers", "sellingWindow"],
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Premium Plus",
+  "listPrice": 44999,
+  "maxStudents": 3000
+}`,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "name", "status", "listPrice", "currencyCode", "maxStudents", "maxUsers", "featureCount", "sellable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "An empty body" },
+        { status: 400, code: "PLAN_NAME_REQUIRED", when: "Try to clear the name" },
+        { status: 400, code: "—", when: "A bad price, currency or limit" },
+        { status: 400, code: "INVALID_SELLING_WINDOW", when: "A window that runs backwards" },
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A plan or version that does not exist" },
+        { status: 409, code: "PLAN_NOT_EDITABLE", when: "Edit a published plan" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "CHANGE A FEW FIELDS",
+          expect: "200 OK",
+          notes: `The body above. Everything not mentioned is untouched.
+    OUT: status still "DRAFT", planVersion still 1.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "CHANGE ONE FIELD ONLY",
+          expect: "200 OK",
+          notes: `Trimmed on the way in. Price, currency, cycle and limits unchanged.`,
+          body: `{
+  "name": "   Renamed   "
+}`,
+        },
+        {
+          id: "03",
+          name: "CLEAR THE DESCRIPTION",
+          expect: "200 OK",
+          notes: `OUT: description null. Omitting it instead would have left it alone.`,
+          body: `{
+  "description": ""
+}`,
+        },
+        {
+          id: "04",
+          name: "REPLACE THE SELLING WINDOW",
+          expect: "200 OK",
+          notes: ``,
+          body: `{
+  "sellingWindow": {
+    "effectiveFrom": "2026-06-01T00:00:00Z",
+    "effectiveUntil": "2027-05-31T00:00:00Z"
+  }
+}`,
+        },
+        {
+          id: "05",
+          name: "CLEAR THE SELLING WINDOW",
+          expect: "200 OK",
+          notes: `Nulls INSIDE the pair mean "no date". This is the only way to clear a
+    date here — "" cannot mean anything to an instant.
+    OMITTING sellingWindow leaves the window alone. The two are different.`,
+          body: `{
+  "sellingWindow": { "effectiveFrom": null, "effectiveUntil": null }
+}`,
+        },
+        {
+          id: "06",
+          name: "EDIT A PUBLISHED PLAN",
+          expect: "409 Conflict",
+          notes: `Publish it with #4 first, then send anything.
+    OUT: { "code": "PLAN_NOT_EDITABLE",
+           "message": "'PREMIUM' version 1 is ACTIVE and cannot be edited.
+                       Schools may already be on it. Make a new version of
+                       it instead." }
+    A RETIRED plan is refused the same way — schools may still be on it.
+    THIS IS THE POINT OF THE ENDPOINT. Nothing is changed by a refusal.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }
+    Checked BEFORE the plan is looked up, so an empty PATCH on a plan that
+    does not exist says the body is empty rather than sending you hunting
+    for a missing plan.`,
+          body: `{
+}`,
+        },
+        {
+          id: "08",
+          name: "TRY TO CLEAR THE NAME",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "PLAN_NAME_REQUIRED" }`,
+          body: `{
+  "name": "   "
+}`,
+        },
+        {
+          id: "09",
+          name: "A BAD PRICE, CURRENCY OR LIMIT",
+          expect: "400 / 409",
+          notes: `{ "listPrice": -1 }      -> 400 PRICE_NEGATIVE
+    { "listPrice": 9.999 }   -> 400 PRICE_TOO_PRECISE
+    { "currencyCode": "RUP" }-> 409 CURRENCY_INVALID
+    { "maxUsers": 0 }        -> 400 LIMIT_TOO_LOW
+    The same checks #1 makes, from the same validator — one set of rules,
+    not two that drift.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "A WINDOW THAT RUNS BACKWARDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_SELLING_WINDOW" }`,
+          body: `{
+  "sellingWindow": {
+    "effectiveFrom": "2027-01-01T00:00:00Z",
+    "effectiveUntil": "2026-01-01T00:00:00Z"
+  }
+}`,
+        },
+        {
+          id: "11",
+          name: "A PLAN OR VERSION THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `Change the URL to /platform/plans/NOPE/versions/1, or ask for version 9.
+    OUT: { "code": "PLAN_NOT_FOUND",
+           "message": "No plan 'NOPE' version 1 exists." }`,
+          body: null,
+        },
+        {
+          id: "12",
+          name: "A LOWERCASE CODE IN THE URL",
+          expect: "200 OK",
+          notes: `/platform/plans/premium_plus/versions/1 finds PREMIUM_PLUS.
+    A code arrives in a URL where a person may have typed it, so it is
+    normalized the same way it was when the plan was created. A code of the
+    wrong shape simply matches nothing — that is a 404, not a complaint
+    about its shape.`,
+          body: null,
+        },
+        {
+          id: "13",
+          name: "FIELDS THAT ARE NOT OURS TO SET",
+          expect: "200 OK",
+          notes: `OUT: planCode, planVersion, status and publiclyAvailable all unchanged.
+    They are not on the request record, so Jackson drops them.`,
+          body: `{
+  "name": "Fine",
+  "planCode": "HACKED",
+  "planVersion": 9,
+  "status": "ACTIVE",
+  "publiclyAvailable": true
+}`,
+        },
+      ],
+    },
+    {
+      id: "set-plan-features",
+      name: "Set Plan Features",
+      method: "PUT",
+      path: "/platform/plans/{code}/versions/{version}/features",
+      status: 'live',
+      summary: "Replaces the whole feature list of a draft. featureCode is one of 24 fixed values.",
+      schoolSurface: false,
+      docs: `**PUT** \`/platform/plans/{code}/versions/{version}/features\` — sets the whole feature list of a
+draft.
+
+### \`featureCode\` is a fixed list of 24, not free text
+
+A feature code points at behaviour in our code, so the set is closed. A misspelling is a \`400\`
+naming the row and listing every accepted value — it used to be a \`String\`, which accepted
+\`STUDNET_MANAGEMENT\` and silently locked the school out of what they paid for.
+
+### You do not send \`usageMetric\`
+
+Each feature declares what it is measured in — \`TRANSPORT\` in \`VEHICLES\`, \`STUDENT_MANAGEMENT\` in
+\`ACTIVE_STUDENTS\` — so the metric is copied from the feature. It is **stored**, not looked up on
+read, because a published plan must keep meaning what it meant when it was sold.
+
+Features with nothing to count (\`ATTENDANCE\`, \`EXAMINATIONS\`, …) refuse a \`usageLimit\` outright.
+
+### The whole list, not one feature at a time
+
+A feature list is priced as a set. Send \`{ "features": [] }\` to empty it; there is no separate
+delete.
+
+### Only a draft
+
+Features are what a school is buying — \`409\` on a published plan, same as #2.
+
+### The twelve test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Run Create Plan Draft first — it saves {{planCode}}.
+
+ featureCode IS A FIXED LIST, not free text. Changed on 2026-09-03: it was a
+ String, which accepted "STUDNET_MANAGEMENT" with a 200 — the plan looked
+ perfect on every screen while the entitlement service, asking for
+ STUDENT_MANAGEMENT, found nothing and locked the school out of what they
+ had paid for. One transposed letter, discovered when they rang up.
+
+ A feature code points at behaviour in our code, not at anything a user
+ invents, so the set is closed. An unknown value is now a 400 that lists
+ every accepted one (case 05).
+
+ THE 24 FEATURES:
+   Teaching   STUDENT_MANAGEMENT · ACADEMICS · ATTENDANCE · TIMETABLE
+              EXAMINATIONS · HOMEWORK
+   Money      FEE_MANAGEMENT · PAYROLL
+   People     STAFF_MANAGEMENT · ADMISSIONS_CRM
+   Daily      TRANSPORT · LIBRARY · HOSTEL · MESS · HEALTH · FRONT_OFFICE
+   Premises   INVENTORY · PROCUREMENT · FACILITIES
+   Comms      NOTIFICATIONS · DOCUMENTS · GALLERY · FEEDBACK · STUDENT_LIFE
+
+ YOU DO NOT SEND usageMetric. Each feature declares what it is measured in,
+ so the metric is copied from the feature. TRANSPORT is counted in VEHICLES,
+ STUDENT_MANAGEMENT in ACTIVE_STUDENTS. "Student management limited to 2000
+ gigabytes" is not refused — it cannot be written down (case 08).
+
+ SOME FEATURES HAVE NOTHING TO COUNT. ATTENDANCE is included or it is not,
+ so a usageLimit on it is refused (case 06). Every response says which
+ metric applies, or null.
+
+ THE WHOLE LIST, NOT ONE FEATURE AT A TIME. A feature list is priced as a
+ set — "2000 students and examinations for this much" is one offer — and
+ there is no moment at which half of it is a plan.
+
+ ONLY A DRAFT. Features are what a school is buying; changing them on a
+ published plan changes what somebody already bought.
+
+ DEFAULTS: enabled true, overagePolicy BLOCK.`,
+      requiredFields: ["features"],
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "features": [
+    { "featureCode": "STUDENT_MANAGEMENT", "usageLimit": 2000, "overagePolicy": "WARN" },
+    { "featureCode": "ATTENDANCE" },
+    { "featureCode": "EXAMINATIONS" },
+    { "featureCode": "TRANSPORT", "usageLimit": 12 },
+    { "featureCode": "HOSTEL", "enabled": false }
+  ]
+}`,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "status", "featureCount", "features", "changeSummary"],
+      captures: [],
+      errors: [
+        { status: 400, code: "DUPLICATE_FEATURE", when: "The same feature twice" },
+        { status: 400, code: "INVALID_VALUE", when: "A misspelled feature" },
+        { status: 400, code: "FEATURE_NOT_MEASURABLE", when: "A limit on something with nothing to count" },
+        { status: 400, code: "FEATURE_LIMIT_ZERO", when: "Enabled with a limit of zero" },
+        { status: 400, code: "—", when: "No featurecode at all" },
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A plan that does not exist" },
+        { status: 409, code: "PLAN_NOT_EDITABLE", when: "On a published plan" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "SET FIVE FEATURES",
+          expect: "200 OK",
+          notes: `The body above.
+    OUT: featureCount 5, changeSummary "0 out, 5 in", and every row carries
+         its label and description from the enum:
+           STUDENT_MANAGEMENT "Student management"
+             limit 2000 ACTIVE_STUDENTS, policy WARN
+           ATTENDANCE         "Attendance"        limit null, metric null
+           TRANSPORT          "Transport"         limit 12 VEHICLES
+           HOSTEL             "Hostel"            enabled false
+
+    label and description come from FeatureCode, the only place they are
+    written — so the pricing page, the comparison table and the "your plan
+    does not include this" message all say the same words.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "REPLACE WITH A SHORTER LIST",
+          expect: "200 OK",
+          notes: `The four not listed are gone. That is what replace means.`,
+          body: `{
+  "features": [
+    { "featureCode": "STUDENT_MANAGEMENT", "usageLimit": 500 }
+  ]
+}`,
+        },
+        {
+          id: "03",
+          name: "EMPTY THE LIST",
+          expect: "200 OK",
+          notes: `The honest way to clear it, and why there is no separate delete.
+    A body of {} is a 400 — features is required, and forgetting a field
+    should not wipe a plan's entitlements.`,
+          body: `{
+  "features": []
+}`,
+        },
+        {
+          id: "04",
+          name: "THE SAME FEATURE TWICE",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "DUPLICATE_FEATURE" }
+    Two rows for one feature is not a bigger entitlement, it is a question:
+    which of the two limits applies?`,
+          body: `{
+  "features": [{ "featureCode": "LIBRARY" }, { "featureCode": "LIBRARY" }]
+}`,
+        },
+        {
+          id: "05",
+          name: "A MISSPELLED FEATURE",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_VALUE",
+           "message": "'STUDNET_MANAGEMENT' is not a valid value for
+                       'features[1].featureCode'. Accepted values:
+                       STUDENT_MANAGEMENT, ACADEMICS, ATTENDANCE, ..." }
+    THE ROW IS NAMED AND THE OPTIONS ARE LISTED. This is the whole reason
+    featureCode stopped being a String. Nothing is written.`,
+          body: `{
+  "features": [
+    { "featureCode": "STUDENT_MANAGEMENT" },
+    { "featureCode": "STUDNET_MANAGEMENT" }
+  ]
+}`,
+        },
+        {
+          id: "06",
+          name: "A LIMIT ON SOMETHING WITH NOTHING TO COUNT",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "FEATURE_NOT_MEASURABLE",
+           "message": "'ATTENDANCE' has no limit to set — it is either
+                       included or it is not. Drop usageLimit, or use
+                       \\"enabled\\": false to exclude it." }
+    A plan that reads as capped and behaves as unlimited is worse than one
+    with no cap at all.
+
+    MEASURABLE:   STUDENT_MANAGEMENT (ACTIVE_STUDENTS) · PAYROLL and
+    STAFF_MANAGEMENT (ACTIVE_STAFF) · TRANSPORT (VEHICLES) · LIBRARY
+    (LIBRARY_TITLES) · HOSTEL (HOSTEL_BEDS) · NOTIFICATIONS (SMS_MESSAGES) ·
+    DOCUMENTS and GALLERY (STORAGE_MEGABYTES)
+    NOT MEASURABLE: everything else — included or not.`,
+          body: `{
+  "features": [{ "featureCode": "ATTENDANCE", "usageLimit": 500 }]
+}`,
+        },
+        {
+          id: "07",
+          name: "ENABLED WITH A LIMIT OF ZERO",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "FEATURE_LIMIT_ZERO" }
+    "Included, but you may use none of it" is the same outcome as switching
+    it off, by a route that leaves it listed as available. Send
+    "enabled": false — which IS allowed with a limit of 0.
+    A negative limit is FEATURE_LIMIT_NEGATIVE.`,
+          body: `{
+  "features": [{ "featureCode": "TRANSPORT", "usageLimit": 0 }]
+}`,
+        },
+        {
+          id: "08",
+          name: "TRY TO CHOOSE THE METRIC",
+          expect: "200 OK",
+          notes: `OUT: usageMetric "ACTIVE_STUDENTS" — the field is not on the request, so
+    it is ignored and the feature's own metric is used.
+
+    IT IS STORED, NOT LOOKED UP ON READ. A plan version is immutable once
+    published: if TRANSPORT were ever changed from VEHICLES to ROUTES, a
+    plan sold last year must keep meaning 12 vehicles.`,
+          body: `{
+  "features": [
+    { "featureCode": "STUDENT_MANAGEMENT", "usageLimit": 2000,
+      "usageMetric": "STORAGE_MEGABYTES" }
+  ]
+}`,
+        },
+        {
+          id: "09",
+          name: "A BAD OVERAGE POLICY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_VALUE",
+           "message": "'SHRUG' is not a valid value for
+                       'features[0].overagePolicy'. Accepted values: BLOCK,
+                       WARN, ALLOW, CHARGE." }`,
+          body: `{
+  "features": [{ "featureCode": "LIBRARY", "overagePolicy": "SHRUG" }]
+}`,
+        },
+        {
+          id: "10",
+          name: "NO featureCode AT ALL",
+          expect: "400 Bad Request",
+          notes: `OUT: fieldErrors: { "features[0].featureCode": ["must not be null"] }`,
+          body: `{
+  "features": [{ "usageLimit": 5 }]
+}`,
+        },
+        {
+          id: "11",
+          name: "ON A PUBLISHED PLAN",
+          expect: "409 Conflict",
+          notes: `Publish it with #4 first.
+    OUT: { "code": "PLAN_NOT_EDITABLE",
+           "message": "... is ACTIVE and its features cannot be changed." }
+    Not reachable from Postman yet — #4 is not built.`,
+          body: null,
+        },
+        {
+          id: "12",
+          name: "A PLAN THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "PLAN_NOT_FOUND" }`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "publish-plan",
+      name: "Publish Plan",
+      method: "POST",
+      path: "/platform/plans/{code}/versions/{version}/publish",
+      status: 'live',
+      summary: "Turns a draft into a plan schools can buy. One-way: it can never be edited again.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/plans/{code}/versions/{version}/publish\` — turns a draft into a plan schools
+can buy.
+
+### A one-way door
+
+From here the version can never be edited: #2 and #3 both refuse anything that is not a draft,
+and there is no unpublish. To change the price, make a new version with #5 — the schools on this
+one keep what they bought.
+
+### Checked, not trusted
+
+Because it cannot be undone, two things are refused here rather than discovered by a school: a
+plan with **no features** (they would pay and get nothing) and a plan whose **selling window has
+already closed** (it could never be bought).
+
+### Publishing is not the same as listing publicly
+
+That is #7. Straight after publishing, \`publiclyAvailable\` is still false and \`sellable\` is still
+false — the plan is real and can be offered privately in a quote.
+
+### \`effectiveFrom\`
+
+Filled with now if it was empty. A future date chosen while the plan was a draft is kept, so a
+scheduled launch still works.
+
+### The eight test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. No body needed; anything sent is ignored.
+
+ THIS IS A ONE-WAY DOOR. From here the version can NEVER be edited again:
+ #2 (details) and #3 (features) both refuse anything that is not a DRAFT,
+ and there is no unpublish. A school can be on it from the moment it goes
+ live, and changing what they bought after they bought it is the thing this
+ whole group is arranged to prevent.
+
+ To change the price afterwards: #5, a new version. The schools on this
+ version stay exactly where they are.
+
+ BECAUSE IT CANNOT BE UNDONE, IT IS CHECKED RATHER THAN TRUSTED. Two things
+ are refused here rather than discovered by a school:
+   - a plan with no features would take their money and grant nothing
+   - a plan whose selling window has already closed could never be bought
+
+ PUBLISHING DOES NOT PUT IT ON THE PUBLIC LIST. That is #7. A published plan
+ is real and can be offered privately in a quote; whether it shows on the
+ pricing page is a separate decision, so it is a separate endpoint. Expect
+ sellable: false straight after publishing.`,
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+}`,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "status", "effectiveFrom", "publiclyAvailable", "sellable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A plan or version that does not exist" },
+        { status: 409, code: "PLAN_HAS_NO_FEATURES", when: "A draft with no features" },
+        { status: 409, code: "PLAN_ALREADY_PUBLISHED", when: "Publish it again" },
+        { status: 409, code: "PLAN_WINDOW_ALREADY_CLOSED", when: "A selling window that has already closed" },
+        { status: 409, code: "—", when: "Afterwards, it is frozen" },
+        { status: 409, code: "PLAN_NOT_EDITABLE", when: "A retired plan" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "PUBLISH A COMPLETE DRAFT",
+          expect: "200 OK",
+          notes: `Run Create Plan Draft, then Set Plan Features, then this.
+    OUT: status "ACTIVE", effectiveFrom stamped with now,
+         publiclyAvailable false, sellable false
+         nextStep: "Published, and now permanent: this version can never be
+                    edited again. It is NOT on the public list yet ..."`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "A DRAFT WITH NO FEATURES",
+          expect: "409 Conflict",
+          notes: `Create a draft and publish it without running Set Plan Features.
+    OUT: { "code": "PLAN_HAS_NO_FEATURES",
+           "message": "... has no features, so a school buying it would get
+                       nothing. Set its features first." }`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "PUBLISH IT AGAIN",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "PLAN_ALREADY_PUBLISHED",
+           "message": "... is already published. To change it, make a new
+                       version." }
+    NOT an idempotent 200. "It was already published" and "you just
+    published it" are different facts, and a caller who cannot tell them
+    apart will assume the wrong one — on the one action that cannot be
+    undone.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A SELLING WINDOW THAT HAS ALREADY CLOSED",
+          expect: "409 Conflict",
+          notes: `On a draft, set the window in the past with #2:
+      { "sellingWindow": { "effectiveFrom": "2020-01-01T00:00:00Z",
+                           "effectiveUntil": "2021-01-01T00:00:00Z" } }
+    then publish.
+    OUT: { "code": "PLAN_WINDOW_ALREADY_CLOSED",
+           "message": "... stops being sold on 2021-01-01T00:00:00Z, which
+                       has passed." }`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A LAUNCH DATE IN THE FUTURE",
+          expect: "200 OK",
+          notes: `On a draft, set effectiveFrom to a future date with #2, then publish.
+    OUT: status "ACTIVE", effectiveFrom UNCHANGED — the date chosen while it
+         was a draft still stands; publishing only fills an empty one.
+         sellable false, because the window has not opened.
+         nextStep says "It goes on sale on 2027-04-01T00:00:00Z."`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "AFTERWARDS, IT IS FROZEN",
+          expect: "409 Conflict",
+          notes: `PATCH the details:  409 PLAN_NOT_EDITABLE
+      "... is ACTIVE and cannot be edited."
+    PUT the features:   409 PLAN_NOT_EDITABLE
+      "... is ACTIVE and its features cannot be changed."
+    THIS IS THE POINT OF THE ENDPOINT. Check both after case 01.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A RETIRED PLAN",
+          expect: "409 Conflict",
+          notes: `Retire it with #6 first (not built yet).
+    OUT: { "code": "PLAN_NOT_EDITABLE" } — "... is RETIRED and cannot be
+    published." Retiring is not a way back to draft.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "A PLAN OR VERSION THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "PLAN_NOT_FOUND" }`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "set-plan-availability",
+      name: "Set Plan Availability",
+      method: "PATCH",
+      path: "/platform/plans/{code}/versions/{version}/availability",
+      status: 'live',
+      summary: "Public list, or private quote only. The last of the three things that make a plan sellable.",
+      schoolSurface: false,
+      docs: `**PATCH** \`/platform/plans/{code}/versions/{version}/availability\` — public list, or private
+quote only.
+
+The difference between a plan a school can find and pick for itself, and one that only exists in
+a quote you send them. A bespoke price for one large trust is published, sellable and
+deliberately off the pricing page.
+
+### On its own it makes nothing buyable
+
+\`sellable\` is three facts: \`ACTIVE\` (#4), public (this), and inside the selling window. Every
+response says which of the other two is still missing, so a public plan that is not on sale
+explains itself.
+
+### Idempotent, unlike #4 and #6
+
+Those are one-way doors. This is a switch that flips back, so setting it to what it already is
+comes back \`200\` saying so.
+
+### A retired plan cannot be listed
+
+\`409\` — advertising it would put something on the pricing page that every purchase would refuse.
+Taking a retired plan **off** the list is allowed; that direction is only tidying up.
+
+### The ten test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface.
+
+ PUBLIC LIST, OR PRIVATE QUOTE. The difference between a plan a school can
+ find and pick for itself, and one that only exists in a quote somebody
+ sends them. A bespoke price for one large trust is a real plan —
+ published, sellable, and deliberately not on the pricing page.
+
+ ON ITS OWN IT MAKES NOTHING BUYABLE. A plan is sellable when THREE things
+ are true:
+     status is ACTIVE          (#4 publish)
+     publiclyAvailable is true (this endpoint)
+     today is inside the selling window
+ This endpoint owns one of them. Every response says which of the other two
+ is still missing, so a public plan that is not on sale explains itself.
+
+ IT IS IDEMPOTENT, unlike #4 and #6. Those are one-way doors, so "it was
+ already done" is a fact the caller needs. This is a switch that can be
+ flipped back in one call, so a repeat costs nothing and refusing it would
+ only teach callers to read first and then race.
+
+ publiclyAvailable IS REQUIRED and boxed. An omitted boolean would arrive as
+ false — indistinguishable from deliberately hiding the plan — so a
+ forgotten field would pull a plan off the pricing page and report success.`,
+      requiredFields: ["publiclyAvailable"],
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "publiclyAvailable": true
+}`,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "status", "publiclyAvailable", "sellable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "—", when: "An empty body" },
+        { status: 400, code: "MALFORMED_REQUEST", when: "Not a boolean" },
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A plan or version that does not exist" },
+        { status: 409, code: "PLAN_RETIRED", when: "Listing a retired plan" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "PUT A PUBLISHED PLAN ON THE PUBLIC LIST",
+          expect: "200 OK",
+          notes: `Run Create Plan Draft, Set Plan Features, Publish Plan, then this.
+    OUT: publiclyAvailable true, sellable TRUE
+         nextStep: "Now on the public list. Schools can now pick it."
+    THIS IS THE CALL THAT FINALLY MAKES A PLAN BUYABLE.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "SEND IT AGAIN",
+          expect: "200 OK",
+          notes: `IDEMPOTENT. "It was already on the public list. Schools can now pick
+    it."`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "TAKE IT OFF THE LIST",
+          expect: "200 OK",
+          notes: `OUT: sellable false
+         "Taken off the public list. It can still be offered privately in a
+          quote. It is not sellable: a plan has to be on the public list to
+          be picked."
+    The plan is still ACTIVE and still real — just not advertised.`,
+          body: `{
+  "publiclyAvailable": false
+}`,
+        },
+        {
+          id: "04",
+          name: "ON A DRAFT",
+          expect: "200 OK",
+          notes: `Set it on a draft before publishing. ALLOWED, so the decision can be
+    made before the plan goes live.
+    OUT: publiclyAvailable true, sellable FALSE
+         "Now on the public list. It is NOT sellable yet — it is still a
+          DRAFT. Publish it to put it on sale."`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "ON A PLAN WITH A FUTURE LAUNCH DATE",
+          expect: "200 OK",
+          notes: `Set effectiveFrom to 2030 with #2, publish, then this.
+    OUT: ACTIVE, public true, sellable FALSE
+         "Now on the public list. It is not sellable yet: it goes on sale on
+          2030-01-01T00:00:00Z."
+    All three facts reported separately, so nothing looks broken.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "LISTING A RETIRED PLAN",
+          expect: "409 Conflict",
+          notes: `Retire it with #6 first, then send true.
+    OUT: { "code": "PLAN_RETIRED",
+           "message": "... is retired, so nobody can buy it. Listing it
+                       publicly would advertise a plan every purchase would
+                       refuse." }`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "UNLISTING A RETIRED PLAN",
+          expect: "200 OK",
+          notes: `ALLOWED. Only the "on" direction is refused — taking a retired plan off
+    the list is tidying up, and never wrong.
+    OUT: "Taken off the public list. It is not sellable, and cannot become
+          sellable: it is retired."
+    Note it does NOT say "can still be offered privately" here: a retired
+    plan cannot be sold at all.`,
+          body: `{
+  "publiclyAvailable": false
+}`,
+        },
+        {
+          id: "08",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: fieldErrors: { "publiclyAvailable": ["must not be null"] }
+    The one field is required — there is no partial case for a PATCH whose
+    only field is the thing being set.`,
+          body: `{
+}`,
+        },
+        {
+          id: "09",
+          name: "NOT A BOOLEAN",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "MALFORMED_REQUEST" }`,
+          body: `{
+  "publiclyAvailable": "yes please"
+}`,
+        },
+        {
+          id: "10",
+          name: "A PLAN OR VERSION THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "PLAN_NOT_FOUND" }`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "retire-plan",
+      name: "Retire Plan",
+      method: "POST",
+      path: "/platform/plans/{code}/versions/{version}/retire",
+      status: 'live',
+      summary: "Stops a plan being sold. Schools already on it keep it — their subscription does not change.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/plans/{code}/versions/{version}/retire\` — stops a plan being sold.
+
+### It is about the catalogue, not about anybody's subscription
+
+Schools already on the plan keep it, at the price and with the features they were sold. Nothing
+about their subscription changes. Cancelling one school is #19, one school at a time.
+
+That distinction matters: retiring a popular plan is a routine decision, and if it touched
+subscriptions it would cut off every school on it at once.
+
+### A draft can be retired too
+
+It is the only way to withdraw one — no endpoint here deletes anything. The response says which
+case it was. The \`planCode\` stays taken either way.
+
+### Terminal
+
+There is no un-retire, and #2, #3 and #4 all refuse a retired plan afterwards.
+
+### \`effectiveUntil\`
+
+Set to now, unless it is already in the past — then it is kept, because that is when the plan
+actually stopped being sold.
+
+### The seven test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. No body needed.
+
+ RETIRING IS ABOUT THE MENU, NOT ABOUT ANYBODY'S SUBSCRIPTION. The plan
+ stops being something a school can pick. Schools ALREADY on it keep it —
+ same price, same features — and nothing about their subscription changes.
+
+ THAT DISTINCTION IS THE WHOLE POINT. Retiring a popular plan is a routine
+ commercial decision. If it touched subscriptions it would cut off every
+ school on it at once. Cancelling one school is #19, deliberately, one
+ school at a time.
+
+ A DRAFT CAN BE RETIRED TOO, and it is the only way to withdraw one: no
+ endpoint in this module deletes anything. Nobody is on a draft, so it costs
+ nothing. The response says which of the two happened — "withdrawn before it
+ was ever sold" and "stopped being sold" are different facts.
+
+ TERMINAL. There is no un-retire, and #2, #3 and #4 all refuse a retired
+ plan afterwards.
+
+ publiclyAvailable IS LEFT ALONE. It belongs to #7, and it makes no
+ difference anyway: every list of buyable plans filters on ACTIVE first, so
+ a retired plan is off the pricing page whatever that flag says.`,
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+}`,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "status", "effectiveUntil", "sellable", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A plan or version that does not exist" },
+        { status: 409, code: "PLAN_ALREADY_RETIRED", when: "Retire it again" },
+        { status: 409, code: "—", when: "Afterwards, everything is refused" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "RETIRE A PUBLISHED PLAN",
+          expect: "200 OK",
+          notes: `Run Create Plan Draft, Set Plan Features, Publish Plan, then this.
+    OUT: status "RETIRED", effectiveUntil stamped with now, sellable false
+         nextStep: "Retired, and no longer on the menu ... Schools ALREADY
+                    on it keep it, at the price and features they were sold,
+                    and nothing about their subscription has changed."`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "WITHDRAW A DRAFT",
+          expect: "200 OK",
+          notes: `Create a draft and retire it without publishing.
+    OUT: status "RETIRED"
+         nextStep: "Withdrawn. It was still a draft, so it was never sold to
+                    anybody and nothing else is affected. Its plan code
+                    stays taken."
+    NOTE the last sentence: the code is NOT released. Nothing here deletes.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "RETIRE IT AGAIN",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "PLAN_ALREADY_RETIRED" }
+    Not an idempotent 200: retiring is terminal, and a caller who cannot
+    tell "it was already retired" from "you just retired it" will assume the
+    wrong one.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "AFTERWARDS, EVERYTHING IS REFUSED",
+          expect: "409 Conflict",
+          notes: `PATCH the details:  PLAN_NOT_EDITABLE  "... is RETIRED and cannot be
+                                            edited."
+    PUT the features:   PLAN_NOT_EDITABLE  "... its features cannot be
+                                            changed."
+    POST publish:       PLAN_NOT_EDITABLE  "... cannot be published."
+    Retiring is not a way back to draft.
+
+    All three messages end "Make a new version of it instead" — which is #5,
+    and #5 is deferred. The advice cannot be followed yet.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "effectiveUntil ALREADY IN THE PAST",
+          expect: "200 OK",
+          notes: `Set the window in the past with #2, then retire.
+    OUT: effectiveUntil UNCHANGED. It stopped being sold then; moving the
+    date forward to now would rewrite that.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "effectiveUntil IN THE FUTURE",
+          expect: "200 OK",
+          notes: `Set effectiveUntil to 2030 with #2, publish, then retire.
+    OUT: effectiveUntil BROUGHT FORWARD to now — it stops being sold now,
+    not in 2030.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A PLAN OR VERSION THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "PLAN_NOT_FOUND" }`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "list-plans",
+      name: "List Plans",
+      method: "GET",
+      path: "/platform/plans",
+      status: 'live',
+      summary: "The catalogue, filtered and paged. One row per plan VERSION, newest version of each first.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/plans\` — the operator's list of every plan.
+
+Every parameter is optional. A bare call returns the first page of the whole catalogue.
+
+| Parameter | Meaning |
+|---|---|
+| \`status\` | repeatable — \`?status=DRAFT&status=ACTIVE\` means either |
+| \`planCode\` | **exact**, case-insensitive, normalized — \`premium-plus\` finds \`PREMIUM_PLUS\` |
+| \`name\` | **partial**, case-insensitive |
+| \`publiclyAvailable\` | \`true\` or \`false\` |
+| \`search\` | partial, across **code or name** — the one box on a screen |
+| \`page\`, \`size\` | zero-based; size defaults to 20, max 100 |
+| \`sort\` | \`field,direction\` — \`name\`, \`planCode\`, \`planVersion\`, \`status\`, \`listPrice\`, \`createdAt\`, \`updatedAt\` |
+
+Filters combine with AND; only \`status\` is OR within itself.
+
+### One row per plan *version*
+
+\`PREMIUM\` v1 and v2 are two documents with two prices, and a school is on exactly one of them.
+The default order groups them: by code, newest version of each first — the catalogue read as a
+menu.
+
+### \`sellable\` is the field the list is for
+
+An operator scanning the catalogue is usually asking which of these a school can buy right now.
+It is computed from the same three facts everywhere — \`ACTIVE\`, public, in window — so the list
+and #10 can never disagree.
+
+### The fifteen test cases are in the description below
+
+Postman sends no body on a GET, so they live here:
+
+\`\`\`
+01  BARE LIST                                             -> 200 OK
+    GET /platform/plans
+    First 20, by code with the newest version of each first.
+    content + page, size, totalElements, totalPages, hasNext, hasPrevious.
+
+02  FILTER BY STATUS                                      -> 200 OK
+    ?status=DRAFT           only drafts
+    ?status=DRAFT&status=ACTIVE   either — repeat the parameter
+
+03  EVERY VERSION OF ONE PLAN                             -> 200 OK
+    ?planCode=PREMIUM
+    EXACT match, and normalized: ?planCode=premium-plus finds PREMIUM_PLUS.
+    A code of the wrong shape simply matches nothing — that is an empty list,
+    not an error.
+
+04  FIND A PLAN BY PART OF ITS NAME                       -> 200 OK
+    ?name=premium     matches "Premium" and "Premium Plus"
+    PARTIAL, because nobody types a plan's full display name to find it.
+
+05  THE ONE SEARCH BOX                                    -> 200 OK
+    ?search=prem
+    Partial across the code OR the name. planCode and name are there for when
+    you know which of the two you are looking at.
+
+06  WHAT A SCHOOL COULD PICK TODAY                        -> 200 OK
+    ?status=ACTIVE&publiclyAvailable=true
+    Close to the public pricing page. Note it does not check the selling
+    window — read \`sellable\` on each row for that.
+
+07  SORT                                                  -> 200 OK
+    ?sort=name,asc      ?sort=listPrice,desc      ?sort=createdAt,desc
+    Case-insensitive: sort=CreatedAt works.
+    EVERY SORT ENDS WITH planCode ASC, planVersion DESC. That pair is unique,
+    so paging is deterministic — without a tiebreaker, paging a hundred plans
+    that are all ACTIVE can show one twice and miss another, on page two, in
+    production, and never in a small test.
+
+08  PAGINATE                                              -> 200 OK
+    ?sort=name,asc&page=0&size=1   then   &page=1
+    hasPrevious flips to true on page 1.
+
+09  ALL OF IT AT ONCE                                     -> 200 OK
+    ?status=DRAFT&search=premium&page=0&size=10&sort=listPrice,desc
+
+10  NO MATCHES                                            -> 200 OK
+    ?search=zzz-nothing
+    OUT: content [], totalElements 0, totalPages 0
+    A 200 with an empty list, NOT a 404. "No plan matches" is a successful
+    answer to the question asked.
+
+11  size=0  or  size=5000                            -> 400 Bad Request
+    OUT: { "code": "INVALID_PAGE_SIZE",
+           "message": "size must be between 1 and 100. Received: 5000" }
+    REFUSED, NOT CLAMPED. Silently returning 100 rows for size=5000 looks like
+    the whole catalogue.
+
+12  page=-1                                          -> 400 Bad Request
+    OUT: { "code": "INVALID_PAGE" }
+
+13  SORT BY SOMETHING NOT ON THE ALLOW-LIST          -> 400 Bad Request
+    ?sort=encryptionKeyReference,asc
+    OUT: { "code": "INVALID_SORT_FIELD", "message": "... Allowed: name,
+           planCode, planVersion, status, listPrice, createdAt, updatedAt." }
+    An allow-list, not a pass-through: an arbitrary field means a collection
+    scan per request, and the ORDER of a field can leak it even when the value
+    is never returned.
+
+    ?sort=name,sideways -> 400 INVALID_SORT_DIRECTION
+
+14  A MISSPELLED STATUS                              -> 400 Bad Request
+    ?status=NOPE
+    OUT: { "code": "INVALID_PARAMETER",
+           "message": "'NOPE' is not a valid value for 'status'. Accepted
+                       values: DRAFT, ACTIVE, RETIRED." }
+
+15  REGEX INJECTION IS NOT POSSIBLE                       -> 200 OK
+    ?search=.*
+    OUT: totalElements 0 — the term is escaped and matched literally.
+    Unescaped, \`.*\` would return every plan, and a nested-quantifier pattern
+    could hold a database thread on very little input.
+\`\`\`
+`,
+      pathParams: [],
+      queryParams: [
+        { key: "page", value: "0", enabled: true },
+        { key: "size", value: "20", enabled: true },
+        { key: "sort", value: "name,asc", enabled: false },
+        { key: "status", value: "ACTIVE", enabled: false },
+        { key: "planCode", value: "{{planCode}}", enabled: false },
+        { key: "name", value: "premium", enabled: false },
+        { key: "publiclyAvailable", value: "true", enabled: false },
+        { key: "search", value: "prem", enabled: false },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "Size=0  or  size=5000" },
+        { status: 400, code: "INVALID_PAGE", when: "Page=-1" },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "Sort by something not on the allow-list" },
+        { status: 400, code: "INVALID_PARAMETER", when: "A misspelled status" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "BARE LIST",
+          expect: "200 OK",
+          notes: `GET /platform/plans
+    First 20, by code with the newest version of each first.
+    content + page, size, totalElements, totalPages, hasNext, hasPrevious.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "FILTER BY STATUS",
+          expect: "200 OK",
+          notes: `?status=DRAFT           only drafts
+    ?status=DRAFT&status=ACTIVE   either — repeat the parameter`,
+          body: null,
+          queryParams: [{ key: "status", value: "DRAFT", enabled: true }],
+        },
+        {
+          id: "03",
+          name: "EVERY VERSION OF ONE PLAN",
+          expect: "200 OK",
+          notes: `?planCode=PREMIUM
+    EXACT match, and normalized: ?planCode=premium-plus finds PREMIUM_PLUS.
+    A code of the wrong shape simply matches nothing — that is an empty list,
+    not an error.`,
+          body: null,
+          queryParams: [{ key: "planCode", value: "PREMIUM", enabled: true }],
+        },
+        {
+          id: "04",
+          name: "FIND A PLAN BY PART OF ITS NAME",
+          expect: "200 OK",
+          notes: `?name=premium     matches "Premium" and "Premium Plus"
+    PARTIAL, because nobody types a plan's full display name to find it.`,
+          body: null,
+          queryParams: [{ key: "name", value: "premium", enabled: true }],
+        },
+        {
+          id: "05",
+          name: "THE ONE SEARCH BOX",
+          expect: "200 OK",
+          notes: `?search=prem
+    Partial across the code OR the name. planCode and name are there for when
+    you know which of the two you are looking at.`,
+          body: null,
+          queryParams: [{ key: "search", value: "prem", enabled: true }],
+        },
+        {
+          id: "06",
+          name: "WHAT A SCHOOL COULD PICK TODAY",
+          expect: "200 OK",
+          notes: `?status=ACTIVE&publiclyAvailable=true
+    Close to the public pricing page. Note it does not check the selling
+    window — read \`sellable\` on each row for that.`,
+          body: null,
+          queryParams: [{ key: "status", value: "ACTIVE", enabled: true }, { key: "publiclyAvailable", value: "true", enabled: true }],
+        },
+        {
+          id: "07",
+          name: "SORT",
+          expect: "200 OK",
+          notes: `?sort=name,asc      ?sort=listPrice,desc      ?sort=createdAt,desc
+    Case-insensitive: sort=CreatedAt works.
+    EVERY SORT ENDS WITH planCode ASC, planVersion DESC. That pair is unique,
+    so paging is deterministic — without a tiebreaker, paging a hundred plans
+    that are all ACTIVE can show one twice and miss another, on page two, in
+    production, and never in a small test.`,
+          body: null,
+          queryParams: [{ key: "sort", value: "name,asc", enabled: true }],
+        },
+        {
+          id: "08",
+          name: "PAGINATE",
+          expect: "200 OK",
+          notes: `?sort=name,asc&page=0&size=1   then   &page=1
+    hasPrevious flips to true on page 1.`,
+          body: null,
+          queryParams: [{ key: "sort", value: "name,asc", enabled: true }, { key: "page", value: "0", enabled: true }, { key: "size", value: "1", enabled: true }],
+        },
+        {
+          id: "09",
+          name: "ALL OF IT AT ONCE",
+          expect: "200 OK",
+          notes: `?status=DRAFT&search=premium&page=0&size=10&sort=listPrice,desc`,
+          body: null,
+          queryParams: [{ key: "status", value: "DRAFT", enabled: true }, { key: "search", value: "premium", enabled: true }, { key: "page", value: "0", enabled: true }, { key: "size", value: "10", enabled: true }, { key: "sort", value: "listPrice,desc", enabled: true }],
+        },
+        {
+          id: "10",
+          name: "NO MATCHES",
+          expect: "200 OK",
+          notes: `?search=zzz-nothing
+    OUT: content [], totalElements 0, totalPages 0
+    A 200 with an empty list, NOT a 404. "No plan matches" is a successful
+    answer to the question asked.`,
+          body: null,
+          queryParams: [{ key: "search", value: "zzz-nothing", enabled: true }],
+        },
+        {
+          id: "11",
+          name: "size=0  or  size=5000",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_PAGE_SIZE",
+           "message": "size must be between 1 and 100. Received: 5000" }
+    REFUSED, NOT CLAMPED. Silently returning 100 rows for size=5000 looks like
+    the whole catalogue.`,
+          body: null,
+        },
+        {
+          id: "12",
+          name: "page=-1",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_PAGE" }`,
+          body: null,
+        },
+        {
+          id: "13",
+          name: "SORT BY SOMETHING NOT ON THE ALLOW-LIST",
+          expect: "400 Bad Request",
+          notes: `?sort=encryptionKeyReference,asc
+    OUT: { "code": "INVALID_SORT_FIELD", "message": "... Allowed: name,
+           planCode, planVersion, status, listPrice, createdAt, updatedAt." }
+    An allow-list, not a pass-through: an arbitrary field means a collection
+    scan per request, and the ORDER of a field can leak it even when the value
+    is never returned.
+
+    ?sort=name,sideways -> 400 INVALID_SORT_DIRECTION`,
+          body: null,
+          queryParams: [{ key: "sort", value: "encryptionKeyReference,asc", enabled: true }],
+        },
+        {
+          id: "14",
+          name: "A MISSPELLED STATUS",
+          expect: "400 Bad Request",
+          notes: `?status=NOPE
+    OUT: { "code": "INVALID_PARAMETER",
+           "message": "'NOPE' is not a valid value for 'status'. Accepted
+                       values: DRAFT, ACTIVE, RETIRED." }`,
+          body: null,
+          queryParams: [{ key: "status", value: "NOPE", enabled: true }],
+        },
+        {
+          id: "15",
+          name: "REGEX INJECTION IS NOT POSSIBLE",
+          expect: "200 OK",
+          notes: `?search=.*
+    OUT: totalElements 0 — the term is escaped and matched literally.
+    Unescaped, \`.*\` would return every plan, and a nested-quantifier pattern
+    could hold a database thread on very little input.`,
+          body: null,
+          queryParams: [{ key: "search", value: ".*", enabled: true }],
+        },
+      ],
+    },
+    {
+      id: "list-plan-versions",
+      name: "List Plan Versions",
+      method: "GET",
+      path: "/platform/plans/{code}/versions",
+      status: 'live',
+      summary: "Every version of one plan, newest first, with the price change and who is on each.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/plans/{code}/versions\` — every version of one plan, newest first.
+
+### It answers two questions #8 cannot
+
+**How did the price move?** Each row carries \`priceChangeFromPrevious\` — the subtraction done for
+you rather than by eye down a column.
+
+**Can the old versions be forgotten?** Each row carries \`schoolsOnThisVersion\`.
+
+### Not paged
+
+A price does not change fifty times. A history read in pages is not a history, so the whole
+thing comes back in one answer.
+
+### \`priceChangeFromPrevious\` is null in two cases
+
+On the **oldest** version, which has nothing to compare against; and across a **currency change**,
+because 49999 INR to 699 USD is not a difference of −49300 and pretending otherwise is worse than
+saying nothing.
+
+### \`schoolsOnThisVersion\` is 0 everywhere today
+
+Nothing creates subscriptions yet — that is #13, not built. The response's \`note\` says so, so a
+column of zeroes is not read as "this plan has no customers". Read them as *unknown*.
+
+### The eight test cases are in the description below
+
+Postman sends no body on a GET, so they live here:
+
+\`\`\`
+01  ONE PLAN'S HISTORY                                    -> 200 OK
+    GET /platform/plans/{{planCode}}/versions
+    OUT: planCode, name (the NEWEST version's name), versionCount, versions[],
+         note
+    Rows are newest first. Each has planVersion, name, status, listPrice,
+    currencyCode, priceChangeFromPrevious, billingCycle, maxStudents,
+    maxUsers, publiclyAvailable, sellable, featureCount,
+    schoolsOnThisVersion, effectiveFrom, effectiveUntil, createdAt.
+
+02  A PLAN WITH ONLY ONE VERSION                          -> 200 OK
+    versionCount 1, and priceChangeFromPrevious null — there is nothing
+    before it.
+
+03  READING THE PRICE HISTORY                             -> 200 OK
+    With three versions at 10000, 12500 and 11000 INR:
+      v3  11000  change -1500
+      v2  12500  change +2500
+      v1  10000  change null
+    Newest first, so each row is compared with the row BELOW it.
+
+04  A CURRENCY CHANGE                                     -> 200 OK
+    If one version is in USD and its neighbours in INR, the change is null on
+    both sides of it. A number there would be arithmetic on two different
+    currencies.
+
+05  name IS THE NEWEST VERSION'S NAME                     -> 200 OK
+    A plan can be renamed between versions. The top-level name is what
+    somebody means today; each row also carries its own, so a rename is
+    visible rather than hidden.
+
+06  A LOWERCASE OR HYPHENATED CODE                        -> 200 OK
+    /platform/plans/premium-plus/versions finds PREMIUM_PLUS. Normalized the
+    same way it was when the plan was created.
+
+07  A CODE THAT DOES NOT EXIST                       -> 404 Not Found
+    OUT: { "code": "PLAN_NOT_FOUND", "message": "No plan 'NOPE' exists." }
+    A 404 rather than an empty list: you asked about a specific plan, and it
+    is not there. Contrast with #8, where no matches is a 200 and [].
+
+08  CREATING A SECOND VERSION
+    You cannot, from the API: #5 (new version) is deferred. Every plan here
+    has exactly one version until it is built. To see a real history, insert
+    one directly:
+      db.plan_definitions.insertOne(
+        Object.assign({}, db.plan_definitions.findOne({planCode:'PREMIUM'}),
+                      {_id: undefined, planVersion: 2,
+                       listPrice: NumberDecimal('12500.00')}))
+\`\`\`
+`,
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["planCode", "name", "versionCount", "versions", "note"],
+      captures: [],
+      errors: [
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A code that does not exist" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "ONE PLAN'S HISTORY",
+          expect: "200 OK",
+          notes: `GET /platform/plans/{{planCode}}/versions
+    OUT: planCode, name (the NEWEST version's name), versionCount, versions[],
+         note
+    Rows are newest first. Each has planVersion, name, status, listPrice,
+    currencyCode, priceChangeFromPrevious, billingCycle, maxStudents,
+    maxUsers, publiclyAvailable, sellable, featureCount,
+    schoolsOnThisVersion, effectiveFrom, effectiveUntil, createdAt.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "A PLAN WITH ONLY ONE VERSION",
+          expect: "200 OK",
+          notes: `versionCount 1, and priceChangeFromPrevious null — there is nothing
+    before it.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "READING THE PRICE HISTORY",
+          expect: "200 OK",
+          notes: `With three versions at 10000, 12500 and 11000 INR:
+      v3  11000  change -1500
+      v2  12500  change +2500
+      v1  10000  change null
+    Newest first, so each row is compared with the row BELOW it.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A CURRENCY CHANGE",
+          expect: "200 OK",
+          notes: `If one version is in USD and its neighbours in INR, the change is null on
+    both sides of it. A number there would be arithmetic on two different
+    currencies.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "name IS THE NEWEST VERSION'S NAME",
+          expect: "200 OK",
+          notes: `A plan can be renamed between versions. The top-level name is what
+    somebody means today; each row also carries its own, so a rename is
+    visible rather than hidden.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "A LOWERCASE OR HYPHENATED CODE",
+          expect: "200 OK",
+          notes: `/platform/plans/premium-plus/versions finds PREMIUM_PLUS. Normalized the
+    same way it was when the plan was created.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A CODE THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "PLAN_NOT_FOUND", "message": "No plan 'NOPE' exists." }
+    A 404 rather than an empty list: you asked about a specific plan, and it
+    is not there. Contrast with #8, where no matches is a 200 and [].
+
+08  CREATING A SECOND VERSION
+    You cannot, from the API: #5 (new version) is deferred. Every plan here
+    has exactly one version until it is built. To see a real history, insert
+    one directly:
+      db.plan_definitions.insertOne(
+        Object.assign({}, db.plan_definitions.findOne({planCode:'PREMIUM'}),
+                      {_id: undefined, planVersion: 2,
+                       listPrice: NumberDecimal('12500.00')}))`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "get-plan-version",
+      name: "Get Plan Version",
+      method: "GET",
+      path: "/platform/plans/{code}/versions/{version}",
+      status: 'live',
+      summary: "One plan version in full, with all its features and their labels.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/plans/{code}/versions/{version}\` — one plan version, everything about it.
+
+What you open after picking a row out of #8 or #9. The list endpoints report a feature **count**
+so a page of rows stays readable; this is where the features themselves are.
+
+### Every feature comes with its wording
+
+\`label\` and \`description\` come from the \`FeatureCode\` enum — the only place they are written — so
+a "what this plan includes" screen does not keep its own copy of the wording for 24 features.
+
+### No \`nextStep\`
+
+Nothing happened. That field belongs to the writes, which use a different record for exactly this
+reason.
+
+### \`schoolsOnThisVersion\`
+
+Not in the endpoint's field list, and here because it is the question somebody looking at one
+version actually has: *can this be retired, or is somebody on it?* It is 0 everywhere until #13
+exists, and the \`note\` says so.
+
+### The seven test cases are in the description below
+
+Postman sends no body on a GET, so they live here:
+
+\`\`\`
+01  ONE VERSION IN FULL                                   -> 200 OK
+    GET /platform/plans/{{planCode}}/versions/{{planVersion}}
+    OUT: every field of the plan, plus features[] in full and
+         schoolsOnThisVersion.
+    Each feature row: featureCode, label, description, enabled, usageLimit,
+    usageMetric, overagePolicy.
+
+02  THE SAME SHAPE #3 RETURNS                             -> 200 OK
+    Compare a feature row here with one from Set Plan Features. Identical —
+    both are PlanFeatureView, so a client that reads one reads the other.
+
+03  A FEATURE WITH NO LIMIT                               -> 200 OK
+    ATTENDANCE comes back with usageLimit null AND usageMetric null. It has
+    nothing to count; it is included or it is not.
+
+04  A DISABLED FEATURE IS STILL LISTED                    -> 200 OK
+    HOSTEL with "enabled": false appears in the list. That is the point of the
+    flag: a comparison table can show it with a cross rather than omitting it.
+
+05  A PLAN WITH NO FEATURES                               -> 200 OK
+    featureCount 0 and features []. A valid state for a draft; #4 refuses to
+    publish it.
+
+06  A VERSION THAT DOES NOT EXIST                    -> 404 Not Found
+    Change the version to 9.
+    OUT: { "code": "PLAN_NOT_FOUND",
+           "message": "No plan 'PREMIUM' version 9 exists." }
+    Same for a code that does not exist.
+
+07  A LOWERCASE OR HYPHENATED CODE                        -> 200 OK
+    /platform/plans/premium-plus/versions/1 finds PREMIUM_PLUS, normalized the
+    same way it was when the plan was created.
+\`\`\`
+`,
+      pathParams: [
+        { name: "code", value: "{{planCode}}", description: "The plan's permanent family code. Create Plan Draft fills this in." },
+        { name: "version", value: "{{planVersion}}", description: "Which version of that plan. Versions are immutable once published." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["planCode", "planVersion", "name", "status", "listPrice", "currencyCode", "publiclyAvailable", "sellable", "featureCount", "features", "schoolsOnThisVersion", "note"],
+      captures: [],
+      errors: [
+        { status: 404, code: "PLAN_NOT_FOUND", when: "A version that does not exist" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "ONE VERSION IN FULL",
+          expect: "200 OK",
+          notes: `GET /platform/plans/{{planCode}}/versions/{{planVersion}}
+    OUT: every field of the plan, plus features[] in full and
+         schoolsOnThisVersion.
+    Each feature row: featureCode, label, description, enabled, usageLimit,
+    usageMetric, overagePolicy.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE SAME SHAPE #3 RETURNS",
+          expect: "200 OK",
+          notes: `Compare a feature row here with one from Set Plan Features. Identical —
+    both are PlanFeatureView, so a client that reads one reads the other.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "A FEATURE WITH NO LIMIT",
+          expect: "200 OK",
+          notes: `ATTENDANCE comes back with usageLimit null AND usageMetric null. It has
+    nothing to count; it is included or it is not.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A DISABLED FEATURE IS STILL LISTED",
+          expect: "200 OK",
+          notes: `HOSTEL with "enabled": false appears in the list. That is the point of the
+    flag: a comparison table can show it with a cross rather than omitting it.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A PLAN WITH NO FEATURES",
+          expect: "200 OK",
+          notes: `featureCount 0 and features []. A valid state for a draft; #4 refuses to
+    publish it.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "A VERSION THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `Change the version to 9.
+    OUT: { "code": "PLAN_NOT_FOUND",
+           "message": "No plan 'PREMIUM' version 9 exists." }
+    Same for a code that does not exist.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A LOWERCASE OR HYPHENATED CODE",
+          expect: "200 OK",
+          notes: `/platform/plans/premium-plus/versions/1 finds PREMIUM_PLUS, normalized the
+    same way it was when the plan was created.`,
+          body: null,
+        },
+      ],
+    },
+  ],
+};
+
+const GROUP_PLANS_SUBSCRIPTIONS = {
+  id: "plans-subscriptions",
+  module: "Plans / Subscriptions",
+  endpoints: [
+    {
+      id: "create-subscription",
+      name: "Create Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions",
+      status: 'live',
+      summary: "Makes a school a paying customer. Closes the gap core activation complains about.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions\` — gives a school its first subscription.
+
+What makes a school a paying customer, and the piece \`core\` has been complaining about:
+\`activateSchool\` was written to require a subscription, found nothing could create one, and
+settled for a soft check that announces the gap in every response. Create one first and
+\`subscriptionStatus\` reports \`ACTIVE\` instead of \`NONE\`.
+
+### Two fields is the ordinary request
+
+The plan already knows the price, the currency, the cycle and therefore when the first period
+ends. Everything else exists for a negotiated deal — a discount, a raised limit, a trial.
+
+### Three documents, one transaction
+
+The subscription, its first \`subscription_history\` row, and the \`number_sequences\` row it took
+\`subscriptionNo\` from. A subscription with no history row is a customer nobody can explain.
+
+### The plan must be sellable
+
+\`ACTIVE\` and inside its selling window. A plan that is published but **not** publicly available
+is allowed — that is exactly a private quote.
+
+### One current subscription per school
+
+A second is a \`409\` telling you to change the plan on the existing one.
+
+### The eleven test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Needs {{schoolId}} and a PUBLISHED plan.
+
+ THIS IS WHAT MAKES A SCHOOL A PAYING CUSTOMER, and it is the piece core has
+ been complaining about. activateSchool (#3 in core) was written to require
+ an active subscription, found nothing could create one, and settled for a
+ soft check — every activate response carried:
+
+   "subscriptionStatus": "NONE",
+   "subscriptionNote": "No subscription exists for this school. Activation
+    was allowed anyway because nothing creates subscriptions yet — this
+    check must become a hard requirement once it does."
+
+ Create a subscription first and the same call now reports
+ "subscriptionStatus": "ACTIVE" with no note.
+
+ TWO FIELDS IS THE ORDINARY REQUEST. The plan already knows the price, the
+ currency, the billing cycle and therefore when the first period ends. The
+ rest of the fields exist for a negotiated deal.
+
+ THE PLAN IS NAMED BY CODE AND VERSION, not by a Mongo id — the same way
+ every plan URL names one.
+
+ THREE DOCUMENTS, ONE TRANSACTION: the subscription, its first
+ subscription_history row, and the number_sequences row it took
+ subscriptionNo from. A subscription with no history row is a customer
+ nobody can explain; a number handed out with no subscription attached is a
+ permanent gap in the numbering that looks like a deleted record.`,
+      requiredFields: ["planCode", "planVersion"],
+      optionalFields: ["trial", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "contractedPrice", "maxStudentsOverride", "maxUsersOverride", "billingCustomerReference", "reason"],
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "planCode": "{{planCode}}",
+  "planVersion": 1
+}`,
+      successStatus: 201,
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planCode", "planVersion", "planName", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "contractedPrice", "planListPrice", "currencyCode", "maxStudents", "maxUsers", "hasLimitOverrides", "current", "nextStep"],
+      captures: [
+        { variable: "subscriptionNo", from: "subscriptionNo" },
+      ],
+      errors: [
+        { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom billing cycle" },
+        { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
+        { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
+        { status: 404, code: "—", when: "An unknown school or plan" },
+        { status: 409, code: "SUBSCRIPTION_ALREADY_EXISTS", when: "A second subscription for the same school" },
+        { status: 409, code: "PLAN_NOT_SELLABLE", when: "A plan that is still a draft" },
+        { status: 409, code: "SCHOOL_NOT_SUBSCRIBABLE", when: "A school that cannot be sold to" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE ORDINARY REQUEST",
+          expect: "201 Created",
+          notes: `The body above, on a published plan.
+    OUT: subscriptionNo "SUB/2026/09/000001", status "ACTIVE", current true
+         contractedPrice = the plan's listPrice
+         currencyCode    = the plan's currency (never the caller's)
+         billingCycle    = the plan's cycle
+         currentPeriodEnd = start + one cycle
+         maxStudents / maxUsers = the plan's, since no override was sent
+    Header: Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "A NEGOTIATED DEAL",
+          expect: "201 Created",
+          notes: `OUT: status "TRIAL", hasLimitOverrides true, and the response shows
+         contractedPrice 39999.50 NEXT TO planListPrice 49999.00 — the only
+         way to notice a school is on a discount.
+    maxStudents comes back as 2500: the response reports the limit IN FORCE,
+    not the raw override, so no caller has to work out which applies.`,
+          body: `{
+  "planCode": "{{planCode}}",
+  "planVersion": 1,
+  "trial": true,
+  "contractedPrice": 39999.50,
+  "maxStudentsOverride": 2500,
+  "maxUsersOverride": 300,
+  "autoRenew": false,
+  "billingCustomerReference": "cus_Qx7B2mR9",
+  "reason": "Pilot, 20% partner discount."
+}`,
+        },
+        {
+          id: "03",
+          name: "A SECOND SUBSCRIPTION FOR THE SAME SCHOOL",
+          expect: "409 Conflict",
+          notes: `Send case 01 twice.
+    OUT: { "code": "SUBSCRIPTION_ALREADY_EXISTS",
+           "message": "... is already on SUB/2026/09/000001. Change the plan on
+                       that subscription rather than creating a second
+                       one." }
+    A unique partial index enforces one current subscription per school, but
+    a duplicate-key error tells the caller nothing about what to do instead.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A PLAN THAT IS STILL A DRAFT",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "PLAN_NOT_SELLABLE",
+           "message": "... is DRAFT, so no school can be put on it. Publish
+                       it first." }
+
+    A RETIRED plan is also refused, with different advice — "A retired plan
+    cannot be sold again" — because telling somebody to publish a retired
+    plan sends them to an endpoint that will refuse them.
+
+    A plan that is published but NOT publicly available IS allowed: that is
+    exactly a private quote, and this is how a private quote gets sold.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A CUSTOM BILLING CYCLE",
+          expect: "400 Bad Request",
+          notes: `On a plan whose billingCycle is CUSTOM, with no currentPeriodEnd:
+    OUT: { "code": "BILLING_PERIOD_END_REQUIRED",
+           "message": "This plan bills on a CUSTOM cycle, which has no set
+                       length, so currentPeriodEnd has to be sent." }
+    Every other cycle derives it. Guessing a month for CUSTOM would be
+    inventing a contract term.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "THE PERIOD END DERIVED FROM THE CYCLE",
+          expect: "201 Created",
+          notes: `A YEARLY plan gives currentPeriodEnd 2027-04-01.
+    A MONTHLY plan starting 31 January gives 28 February — the calendar
+    clamps, which is what a person means by "a month later".
+    The arithmetic runs in the SCHOOL'S time zone, because a billing period
+    is a pair of dates somebody reads.`,
+          body: `{
+  "planCode": "{{planCode}}", "planVersion": 1,
+  "currentPeriodStart": "2026-04-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "07",
+          name: "A PERIOD THAT RUNS BACKWARDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_BILLING_PERIOD" }`,
+          body: `{
+  "planCode": "{{planCode}}", "planVersion": 1,
+  "currentPeriodStart": "2027-01-01T00:00:00Z",
+  "currentPeriodEnd": "2026-01-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "08",
+          name: "AN OVERRIDE OF ZERO",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "LIMIT_TOO_LOW", "message": "... Omit it to use the
+           plan's own limit." }
+    A negative contractedPrice is PRICE_NEGATIVE, from the same validator #1
+    and #2 use.`,
+          body: `{
+  "planCode": "{{planCode}}", "planVersion": 1, "maxStudentsOverride": 0
+}`,
+        },
+        {
+          id: "09",
+          name: "A SCHOOL THAT CANNOT BE SOLD TO",
+          expect: "409 Conflict",
+          notes: `A CLOSED, DELETION_PENDING or DELETED school.
+    OUT: { "code": "SCHOOL_NOT_SUBSCRIBABLE" }
+    Not reachable yet — #13 to #17 in core are deferred, so no school can
+    reach those states.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "AN UNKNOWN SCHOOL OR PLAN",
+          expect: "404 Not Found",
+          notes: `SCHOOL_NOT_FOUND or PLAN_NOT_FOUND.
+
+11  WHAT LANDS IN THE DATABASE
+    From mongosh, after case 01:
+      db.school_subscriptions.findOne({schoolId: "..."})
+      db.subscription_history.find({schoolSubscriptionDocsId: "..."})
+        -> one row: eventType CREATED (or TRIAL_STARTED), previousStatus
+           null — there was no status before this — newStatus ACTIVE,
+           source ADMIN_PORTAL, performedByDocsId null because nobody is
+           signed in yet.
+      db.number_sequences.findOne({schoolId: "...",
+                                   sequenceType: "SUBSCRIPTION"})
+        -> nextValue 2, prefixTemplate "SUB/{YYYY}/{MM}/"
+
+    THE HOUSE FORMAT IS XXX/{YYYY}/{MM}/ + six digits, for every kind of
+    number in the system: SUB/2026/09/000001, ADM/2026/09/000123,
+    RCPT/2026/09/000045. The trailing slash matters — the number is appended
+    straight on, so "SUB/{YYYY}/{MM}" would give SUB/2026/09000001.
+
+    NUMBERING IS PER SCHOOL. Two schools both get SUB/2026/09/000001, which
+    is correct: subscriptionNo is unique per school, not globally.`,
+          body: null,
+        },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
   GROUP_CORE_SCHOOL_PLATFORM,
+  GROUP_PLANS_PLAN_CATALOGUE,
+  GROUP_PLANS_SUBSCRIPTIONS,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */

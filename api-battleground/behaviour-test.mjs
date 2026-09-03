@@ -221,11 +221,10 @@ handler = () => ({ status: 200, body: {
   page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
 view = await mount(React.createElement(App));
 check('the panel lists the modules', view.text.includes('Modules') && view.text.includes('Core'));
-check('Plans is shown but not enterable', view.text.includes('Plans')
-  && view.text.includes('no screens yet'));
+check('lists the plans module too', view.text.includes('Plans'));
 const plansButton = [...view.container.querySelectorAll('button')]
   .find((b) => b.textContent.includes('Plans'));
-check('and it is actually disabled', plansButton?.disabled === true);
+check('and it can be entered', plansButton?.disabled !== true);
 check('Core lists the school list', view.text.includes('Schools'));
 check('a school\'s own screens are not offered until one is open',
   !view.text.includes('Academic year'), view.text.slice(0, 200));
@@ -254,6 +253,91 @@ check('choosing it from the panel changes the screen',
   view.container.textContent.includes('School details')
   || view.container.textContent.includes('Loading the'),
   view.container.textContent.slice(0, 240));
+await view.unmount();
+
+console.log('\nThe plans module');
+handler = (url) => {
+  if (url.includes('/platform/plans?') || url.endsWith('/platform/plans')) {
+    return { status: 200, body: {
+      content: [
+        { planId: 'p1', planCode: 'PREMIUM', planVersion: 2, name: 'Premium', status: 'ACTIVE',
+          billingCycle: 'YEARLY', listPrice: 49999.0, currencyCode: 'INR', maxStudents: 2000,
+          maxUsers: 250, publiclyAvailable: true, sellable: true, featureCount: 4 },
+        { planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', status: 'DRAFT',
+          billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR', maxStudents: 100,
+          maxUsers: 10, publiclyAvailable: false, sellable: false, featureCount: 0 },
+      ],
+      page: 0, size: 20, totalElements: 2, totalPages: 1, hasNext: false, hasPrevious: false } };
+  }
+  return { status: 200, body: {} };
+};
+view = await mount(React.createElement(App));
+const plansNav = [...view.container.querySelectorAll('button')]
+  .find((b) => b.textContent.includes('Plans'));
+await act(async () => { plansNav.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+
+check('entering Plans loads the catalogue',
+  calls.some((one) => one.url.includes('/platform/plans')), JSON.stringify(calls.map(c=>c.url)));
+check('draws both plan versions', view.container.textContent.includes('Premium')
+  && view.container.textContent.includes('Basic'));
+check('shows a version next to the code', view.container.textContent.includes('PREMIUM · v2'));
+// The whole point of the "can be bought" column: sellable is three facts, and when it is false
+// the useful thing is which one is missing.
+check('says why a draft cannot be bought',
+  view.container.textContent.includes('Not published yet'), view.container.textContent.slice(0, 400));
+check('and says the published one can', view.container.textContent.includes('Yes'));
+check('the panel offers the catalogue', view.container.textContent.includes('Catalogue'));
+check('a plan\'s own screens are not offered until one is open',
+  !view.container.textContent.includes('Versions'));
+await view.unmount();
+
+console.log('\nA plan opened from the catalogue');
+handler = (url) => {
+  if (url.includes('/versions/1') && !url.includes('/features')) {
+    return { status: 200, body: {
+      planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', description: 'Small schools.',
+      status: 'DRAFT', billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR',
+      maxStudents: 100, maxUsers: 10, publiclyAvailable: false, sellable: false,
+      featureCount: 0, features: [], schoolsOnThisVersion: 0,
+      note: 'schoolsOnThisVersion is 0 because nothing creates subscriptions yet.' } };
+  }
+  if (url.includes('/platform/plans?') || url.endsWith('/platform/plans')) {
+    return { status: 200, body: {
+      content: [{ planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', status: 'DRAFT',
+        billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR', maxStudents: 100,
+        maxUsers: 10, publiclyAvailable: false, sellable: false, featureCount: 0 }],
+      page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false } };
+  }
+  return { status: 200, body: {} };
+};
+view = await mount(React.createElement(App));
+const toPlans = [...view.container.querySelectorAll('button')]
+  .find((b) => b.textContent.includes('Plans'));
+await act(async () => { toPlans.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+const planRow = [...view.container.querySelectorAll('tr')]
+  .find((r) => r.textContent.includes('Basic'));
+await act(async () => { planRow.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+
+check('reads the plan version it was given',
+  calls.some((one) => one.url.includes('/platform/plans/BASIC/versions/1')),
+  JSON.stringify(calls.map(c=>c.url)));
+check('draws the plan', view.container.textContent.includes('BASIC')
+  && view.container.textContent.includes('version 1'));
+// A draft is the one state where everything is still possible, so the screen has to say so.
+check('says a draft cannot be bought yet',
+  view.container.textContent.includes('Not published yet'));
+check('offers the lifecycle actions a draft has',
+  ['Edit', 'Publish', 'Retire'].every((label) => view.container.textContent.includes(label)));
+check('does not offer listing publicly on a draft',
+  !view.container.textContent.includes('List publicly'));
+check('the panel now names the open plan', view.container.textContent.includes('BASIC v1'));
+check('and offers its screens', ['Overview', 'Features', 'Versions']
+  .every((label) => view.container.textContent.includes(label)));
+check('repeats the zero-subscription note rather than a bare 0',
+  view.container.textContent.includes('nothing creates subscriptions yet'));
 await view.unmount();
 
 console.log(`\nPASS=${pass} FAIL=${fail}`);
