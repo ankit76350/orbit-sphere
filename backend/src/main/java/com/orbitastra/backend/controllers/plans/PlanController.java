@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.services.plans.PlanCatalogueService;
@@ -151,5 +152,28 @@ public class PlanController {
             @PathVariable Integer version) {
 
         return ResponseEntity.ok(planCatalogueService.retire(code, version));
+    }
+
+    /**
+     * Endpoint #7 — says whether a plan shows on the public list.
+     *
+     * <p>The difference between a plan a school can find and pick, and one that only exists in a
+     * quote somebody sends them. A bespoke price for one large trust is published, sellable, and
+     * deliberately not on the pricing page.
+     *
+     * <p><b>Idempotent</b>, unlike #4 and #6: this is a switch that can be flipped back, so
+     * setting it to what it already is comes back {@code 200} saying so.
+     *
+     * <p>On its own it makes nothing buyable — a plan must also be {@code ACTIVE} and inside its
+     * selling window. The response says which of those is still missing.
+     */
+    @PatchMapping("/{code}/versions/{version}/availability")
+    public ResponseEntity<PlanResponse> setAvailability(
+            @PathVariable String code,
+            @PathVariable Integer version,
+            @Valid @RequestBody PlanAvailabilityRequest request) {
+
+        return ResponseEntity.ok(
+                planCatalogueService.setAvailability(code, version, request));
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
@@ -374,7 +375,106 @@ public class PlanCatalogueService {
                         + "nothing about their subscription has changed.");
     }
 
+
+    //! endpoint 7 — list it publicly, or not ------------------------------------------
+    /**
+     * #7 — says whether a plan shows on the public list.
+     *
+     * <p>The difference between a plan a school can find and pick for itself, and one that only
+     * exists in a quote somebody sends them. A bespoke price for one large trust is a real plan —
+     * published, sellable, and deliberately not on the pricing page.
+     *
+     * <p><b>It is a switch, so it is idempotent.</b> Setting it to what it already is comes back
+     * {@code 200} saying so. That is the opposite of #4 and #6, and the reason is that those two
+     * are one-way doors: nothing undoes a publish or a retire, so "it was already done" is a fact
+     * the caller needs. This can be turned off again in one call, so a repeat costs nothing and
+     * refusing it would only invite the caller to read first and then race.
+     *
+     * <p><b>On its own it makes nothing buyable.</b> A plan is sellable when it is {@code ACTIVE}
+     * <i>and</i> public <i>and</i> inside its selling window — three separate facts. This
+     * endpoint owns one of them, so the response says which of the others are still missing
+     * rather than leaving somebody to wonder why a public plan is not on sale.
+     *
+     * <p><b>A retired plan cannot be listed.</b> Nobody can buy it, so advertising it would put
+     * something on the pricing page that every attempt to purchase would refuse. Only that
+     * direction is refused — taking a retired plan <i>off</i> the list is tidying up, and there
+     * is no reason to stop somebody doing it.
+     */
+    @Transactional
+    public PlanResponse setAvailability(String code, Integer version,
+            PlanAvailabilityRequest request) {
+
+        //! step 1 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        boolean wanted = request.publiclyAvailable();
+
+        //! step 2 - a retired plan is not something to advertise. Only the "on" direction is
+        //! refused: taking a retired plan off the list is tidying up, and never wrong.
+        if (wanted && plan.getStatus() == PlanStatus.RETIRED) {
+            throw ApiException.conflict("PLAN_RETIRED",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " is "
+                            + "retired, so nobody can buy it. Listing it publicly would "
+                            + "advertise a plan every purchase would refuse.");
+        }
+
+        //! step 3 - nothing to do if it is already that way. A switch, not a door.
+        if (Boolean.valueOf(wanted).equals(plan.getPubliclyAvailable())) {
+            return PlanResponse.fromPlan(plan, (wanted
+                    ? "It was already on the public list. "
+                    : "It was already off the public list. ") + sellabilityNote(plan));
+        }
+
+        //! step 4 - flip it and save
+        plan.setPubliclyAvailable(wanted);
+        //TODO: save
+        PlanDefinition savedPlan = plans.save(plan);
+
+        // "still offered privately" is true of a live plan and false of a retired one, so it is
+        // only said where it holds.
+        String off = savedPlan.getStatus() == PlanStatus.RETIRED
+                ? "Taken off the public list. "
+                : "Taken off the public list. It can still be offered privately in a quote. ";
+
+        return PlanResponse.fromPlan(savedPlan,
+                (wanted ? "Now on the public list. " : off) + sellabilityNote(savedPlan));
+    }
+
     //* ---------------------------------------------------------------------------------
+
+    /**
+     * Why the plan can or cannot be bought right now, in a sentence.
+     *
+     * <p>Sellability is three facts — published, public, and inside the selling window — and
+     * only one of them is what #7 changes. Without this, a caller who has just made a plan
+     * public and still sees {@code sellable: false} has no way to tell which of the other two is
+     * missing, and the obvious guess is that the call failed.
+     */
+    private String sellabilityNote(PlanDefinition plan) {
+        if (plan.getStatus() == PlanStatus.RETIRED) {
+            // Checked before the public-list line, because for a retired plan that flag is not
+            // the reason it cannot be sold and saying so would send somebody to fix the wrong
+            // thing.
+            return "It is not sellable, and cannot become sellable: it is retired.";
+        }
+        if (!Boolean.TRUE.equals(plan.getPubliclyAvailable())) {
+            return "It is not sellable: a plan has to be on the public list to be picked.";
+        }
+        if (plan.getStatus() != PlanStatus.ACTIVE) {
+            return "It is NOT sellable yet — it is still a " + plan.getStatus()
+                    + ". Publish it to put it on sale.";
+        }
+
+        Instant now = Instant.now();
+        if (plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now)) {
+            return "It is not sellable yet: it goes on sale on " + plan.getEffectiveFrom() + ".";
+        }
+        if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
+            return "It is not sellable: it stopped being sold on " + plan.getEffectiveUntil()
+                    + ".";
+        }
+        return "Schools can now pick it.";
+    }
 
     /**
      * Refuses anything but a draft.
