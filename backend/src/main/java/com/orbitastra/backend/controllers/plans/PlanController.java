@@ -1,12 +1,16 @@
 package com.orbitastra.backend.controllers.plans;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -87,5 +91,26 @@ public class PlanController {
             @Valid @RequestBody PlanDraftUpdateRequest request) {
 
         return ResponseEntity.ok(planCatalogueService.updateDraft(code, version, request));
+    }
+
+    /**
+     * Endpoint #3 — sets the whole feature list of a draft.
+     *
+     * <p>A {@code PUT} because the list is replaced, not edited row by row. A feature list is
+     * priced as a set, so there is no moment at which half of it is a plan — and endpoints that
+     * added or removed one entitlement would make that half-state ordinary.
+     *
+     * <p>Send {@code []} to empty it. There is no separate delete for the same reason.
+     *
+     * <p>Refused unless the plan is a {@code DRAFT}: features are what a school is buying.
+     */
+    @PutMapping("/{code}/versions/{version}/features")
+    public ResponseEntity<PlanFeatureListResponse> replaceFeatures(
+            @PathVariable String code,
+            @PathVariable Integer version,
+            @Valid @RequestBody List<PlanFeatureRequest> features) {
+
+        return ResponseEntity.ok(
+                planCatalogueService.replaceFeatures(code, version, features));
     }
 }

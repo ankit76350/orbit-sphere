@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -38,6 +39,78 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body(ApiError.createValidationError("One or more fields are invalid.", fields));
         }
+
+        /**
+         * A validation failure on a request body that is a <b>list</b>.
+         *
+         * <p>{@code @Valid @RequestBody List<Something>} does not go through
+         * {@code MethodArgumentNotValidException} — Spring reports it as a
+         * {@code HandlerMethodValidationException} instead, and without this handler the caller
+         * received Spring's own words: "Validation failed for method='public
+         * org.springframework.http.ResponseEntity com.orbitastra...replaceFeatures(...)'. Error
+         * count: 1". A method signature and a count, telling nobody which row or which field.
+         *
+         * <p>Two endpoints send a bare array — {@code PUT .../holidays} and
+         * {@code PUT .../features} — so both were leaking it.
+         *
+         * <p><b>The field names come back with their position</b>, as {@code [0].featureCode}.
+         * "featureCode must not be blank" is not much help against a list of twenty; which one
+         * matters more than what.
+         */
+        @ExceptionHandler(HandlerMethodValidationException.class)
+        public ResponseEntity<ApiError> onListValidation(HandlerMethodValidationException exception) {
+                Map<String, List<String>> fields = new LinkedHashMap<>();
+
+                exception.visitResults(new HandlerMethodValidationException.Visitor() {
+
+                        /** One bad element of the list: its index, and the fields inside it. */
+                        @Override
+                        public void cursorAwareArgument(org.springframework.core.MethodParameter parameter,
+                                        Object argument, org.springframework.validation.method.ParameterErrors errors) {
+                                errors.getFieldErrors().forEach(error -> fields
+                                                .computeIfAbsent(position(errors) + error.getField(),
+                                                                key -> new ArrayList<>())
+                                                .add(error.getDefaultMessage()));
+                                errors.getGlobalErrors().forEach(error -> fields
+                                                .computeIfAbsent(position(errors) + "(whole row)",
+                                                                key -> new ArrayList<>())
+                                                .add(error.getDefaultMessage()));
+                        }
+
+                        /**
+                         * The request body. For a list body this is called once per bad element,
+                         * with the element's index on the errors — so the prefix is applied here
+                         * too, not only in the cursor-aware case.
+                         */
+                        @Override
+                        public void requestBody(org.springframework.web.bind.annotation.RequestBody annotation,
+                                        org.springframework.validation.method.ParameterErrors errors) {
+                                errors.getFieldErrors().forEach(error -> fields
+                                                .computeIfAbsent(position(errors) + error.getField(),
+                                                                key -> new ArrayList<>())
+                                                .add(error.getDefaultMessage()));
+                        }
+
+                        private String position(org.springframework.validation.method.ParameterErrors errors) {
+                                return errors.getContainerIndex() == null
+                                                ? ""
+                                                : "[" + errors.getContainerIndex() + "].";
+                        }
+                });
+
+                if (fields.isEmpty()) {
+                        // Something failed validation in a shape the visitor above does not name.
+                        // Say so plainly rather than answering with an empty fieldErrors object.
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiError.createError("VALIDATION_FAILED",
+                                                        "One or more values in the request are invalid."));
+                }
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiError.createValidationError(
+                                                "One or more fields are invalid.", fields));
+        }
+
 
         /**
          * Handles invalid request data, such as malformed JSON or wrong field types.

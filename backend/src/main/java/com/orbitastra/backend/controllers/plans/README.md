@@ -1,8 +1,12 @@
 # controllers/plans — API plan
 
-**Nothing here is built yet.** This is the full list of endpoints the `plans` module needs,
-written before any of them, so they can be built and reviewed one at a time — the same way
+**Three of 71 are built — #1, #2 and #3**, the start of the plan catalogue. Everything else is
+listed below and not built. This is the full set of endpoints the `plans` module needs, written
+before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md) was done.
+
+Built endpoints are marked **built** in the `#` column. Anything unmarked does not exist yet, and
+a request to it returns a 404.
 
 Mirrors [`models/plans`](../../models/plans) and
 [`models/plans/billing`](../../models/plans/billing), whose two READMEs already describe the
@@ -64,9 +68,9 @@ around: you edit a draft, and after that you make a new version instead.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 1 | `POST /platform/plans` | Make a new plan. It starts as `DRAFT`, so nobody can buy it while we are still deciding the price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 2 | `PATCH /platform/plans/{code}/versions/{version}` | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 3 | `PUT /platform/plans/{code}/versions/{version}/features` | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 1 — **built** | `POST /platform/plans/drafts` | Make a new plan. It starts as `DRAFT`, so nobody can buy it while we are still deciding the price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 2 — **built** | `PATCH /platform/plans/{code}/versions/{version}` | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 3 — **built** | `PUT /platform/plans/{code}/versions/{version}/features` | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 4 | `POST /platform/plans/{code}/versions/{version}/publish` | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 5 | `POST /platform/plans/{code}/versions/{version}/new-version` | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 6 | `POST /platform/plans/{code}/versions/{version}/retire` | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
@@ -321,16 +325,31 @@ Two things are left out of every entry because they are true of all of them:
 
 ## The plan catalogue — writes  ·  1–7
 
-**1 · `POST /platform/plans`**
+**1 · `POST /platform/plans/drafts`** — built
 
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode`, `planVersion` = 1, `name`, `description`, `status` = `DRAFT`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`, `publiclyAvailable` = false, `features`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode`, `planVersion` = 1, `name`, `description`, `status` = `DRAFT`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`, `publiclyAvailable` = false, `features` = `[]`
 
-**2 · `PATCH /platform/plans/{code}/versions/{version}`**
+**Two things came out differently from this plan, both deliberate:**
+
+- **The path is `/platform/plans/drafts`**, not `/platform/plans`, so nobody can read the URL and
+  think they are putting a plan on sale. Everything after #1 addresses the plan by code and
+  version, because from then on draft-ness is a status on a plan that exists.
+- **`planCode` is not sent.** It is derived from `name` — "Premium Plus" becomes `PREMIUM_PLUS` —
+  so a create form asks for one thing rather than the same words twice in two shapes. An explicit
+  code is still accepted for when the derived one is taken. The field stays on the model because
+  it is the **family key**: the only thing joining v1, v2 and v3 of a plan, which an editable
+  `name` cannot be.
+- **`features` is not accepted either.** A plan is created with an empty list and #3 sets it, the
+  same shape academic years use for holidays: a create that can fail on either a bad price or a
+  bad feature leaves the caller working out which, and a part-filled feature list is the "plan
+  nobody can price" that #3 exists to prevent.
+
+**2 · `PATCH /platform/plans/{code}/versions/{version}`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status` — must be `DRAFT` or the edit is refused
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`
 
-**3 · `PUT /platform/plans/{code}/versions/{version}/features`**
+**3 · `PUT /platform/plans/{code}/versions/{version}/features`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `features` — the whole list is replaced

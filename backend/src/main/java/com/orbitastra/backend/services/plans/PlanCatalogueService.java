@@ -2,6 +2,9 @@ package com.orbitastra.backend.services.plans;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,8 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
+import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
@@ -135,12 +141,7 @@ public class PlanCatalogueService {
         PlanDefinition plan = loadPlan(code, version);
 
         //! step 3 - only a draft may be edited
-        if (plan.getStatus() != PlanStatus.DRAFT) {
-            throw ApiException.conflict("PLAN_NOT_EDITABLE",
-                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " is "
-                            + plan.getStatus() + " and cannot be edited. Schools may already be "
-                            + "on it. Make a new version of it instead.");
-        }
+        requireDraft(plan, "cannot be edited");
 
         //! step 4 - apply only what was sent
         if (request.name() != null) {
@@ -189,7 +190,85 @@ public class PlanCatalogueService {
                         + "it can still be changed. Publish it when the price is settled.");
     }
 
+
+    //! endpoint 3 — set a draft's features --------------------------------------------
+    /**
+     * #3 — replaces the whole feature list of a draft.
+     *
+     * <p><b>The whole list, not one feature at a time.</b> A feature list is priced as a set:
+     * "2000 students and the AI reports for a given figure" is one offer, and there is no moment
+     * at which half of it is a plan. Endpoints that added and removed a single entitlement would
+     * make that half-state reachable and ordinary, and the plan would sit there priced for a set
+     * of features it no longer has.
+     *
+     * <p>Sending {@code []} empties the list. That is the honest way to clear it, and it is why
+     * there is no separate delete.
+     *
+     * <p><b>Only a draft.</b> Features are what the plan entitles a school to; changing them on
+     * a published plan would silently change what somebody already bought. Same refusal as #2.
+     */
+    @Transactional
+    public PlanFeatureListResponse replaceFeatures(String code, Integer version,
+            List<PlanFeatureRequest> requests) {
+
+        //! step 1 - find the plan, or 404
+        PlanDefinition plan = loadPlan(code, version);
+
+        //! step 2 - only a draft may be changed
+        requireDraft(plan, "its features cannot be changed");
+
+        //! step 3 - check every feature, and refuse the same code twice
+        List<PlanFeatureRequest> incoming = requests == null ? List.of() : requests;
+        Set<String> seen = new LinkedHashSet<>();
+        List<PlanFeature> replacement = new ArrayList<>();
+
+        for (PlanFeatureRequest one : incoming) {
+            String featureCode = planValidator.validateFeatureCode(one.featureCode());
+
+            if (!seen.add(featureCode)) {
+                // Two rows for one code is not a bigger entitlement, it is a question: which of
+                // the two limits applies? Nothing downstream could answer it.
+                throw ApiException.badRequest("DUPLICATE_FEATURE",
+                        "'" + featureCode + "' appears more than once. Each feature can only be "
+                                + "listed once, with one limit.");
+            }
+
+            planValidator.validateFeature(featureCode, one.enabled(), one.usageLimit(),
+                    one.usageMetric());
+            replacement.add(one.toFeature(featureCode));
+        }
+
+        //! step 4 - swap the whole list and save
+        int before = plan.getFeatures() == null ? 0 : plan.getFeatures().size();
+        plan.setFeatures(replacement);
+        PlanDefinition savedPlan = plans.save(plan);
+
+        return PlanFeatureListResponse.fromPlan(savedPlan,
+                "Replaced the feature list: " + before + " out, " + replacement.size()
+                        + " in. Still a DRAFT, so it can be replaced again before publishing.");
+    }
+
     //* ---------------------------------------------------------------------------------
+
+    /**
+     * Refuses anything but a draft.
+     *
+     * <p>The rule the whole catalogue is built on, in one place: a published plan may have
+     * schools on it, so changing what it costs or what it includes would change what somebody
+     * already agreed to without anybody agreeing to it. A retired plan is refused for the same
+     * reason — schools may still be on it.
+     *
+     * <p>{@code what} completes the sentence, so each endpoint says which change was refused
+     * rather than all of them sharing one vague message.
+     */
+    private void requireDraft(PlanDefinition plan, String what) {
+        if (plan.getStatus() != PlanStatus.DRAFT) {
+            throw ApiException.conflict("PLAN_NOT_EDITABLE",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " is "
+                            + plan.getStatus() + " and " + what + ". Schools may already be on "
+                            + "it. Make a new version of it instead.");
+        }
+    }
 
     /**
      * One plan version, by the code and version in the URL, or a 404.
