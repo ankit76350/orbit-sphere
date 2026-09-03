@@ -42,16 +42,30 @@ public record PlanResponse(
         boolean sellable,
         String nextStep) {
 
-    public static PlanResponse fromPlan(PlanDefinition plan, String nextStep) {
+    /**
+     * Whether a school could buy this plan right now.
+     *
+     * <p><b>Three facts, and all three have to hold:</b> the plan is published, it is on the
+     * public list, and today is inside its selling window. Each is set by a different endpoint —
+     * #4, #7, and #1 or #2 — which is exactly why this is computed in one place. Two screens
+     * combining the same three conditions slightly differently is how a plan comes to look
+     * buyable on one page and not on another.
+     *
+     * <p>Public and static because the catalogue list reports it too; see
+     * {@link PlanSummaryResponse}.
+     */
+    public static boolean isSellable(PlanDefinition plan) {
         Instant now = Instant.now();
         boolean started = plan.getEffectiveFrom() == null || !now.isBefore(plan.getEffectiveFrom());
         boolean notEnded = plan.getEffectiveUntil() == null || !now.isAfter(plan.getEffectiveUntil());
 
-        boolean sellable = plan.getStatus() == PlanStatus.ACTIVE
+        return plan.getStatus() == PlanStatus.ACTIVE
                 && Boolean.TRUE.equals(plan.getPubliclyAvailable())
                 && started
                 && notEnded;
+    }
 
+    public static PlanResponse fromPlan(PlanDefinition plan, String nextStep) {
         return new PlanResponse(
                 plan.getId(),
                 plan.getPlanCode(),
@@ -68,7 +82,7 @@ public record PlanResponse(
                 plan.getEffectiveUntil(),
                 plan.getPubliclyAvailable(),
                 plan.getFeatures() == null ? 0 : plan.getFeatures().size(),
-                sellable,
+                isSellable(plan),
                 nextStep);
     }
 }

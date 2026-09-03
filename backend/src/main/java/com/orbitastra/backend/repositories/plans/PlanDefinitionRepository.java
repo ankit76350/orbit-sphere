@@ -16,7 +16,8 @@ import com.orbitastra.backend.models.plans.PlanDefinition;
  * documents with two prices, and a school is on exactly one of them. There is a unique index on
  * the pair.
  */
-public interface PlanDefinitionRepository extends MongoRepository<PlanDefinition, String> {
+public interface PlanDefinitionRepository
+        extends MongoRepository<PlanDefinition, String>, PlanDefinitionRepositoryCustom {
 
     Optional<PlanDefinition> findByPlanCodeAndPlanVersion(String planCode, Integer planVersion);
 

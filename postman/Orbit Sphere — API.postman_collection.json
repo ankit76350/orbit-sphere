@@ -2190,6 +2190,93 @@
          }
         }
        ]
+      },
+      {
+       "name": "List Plans",
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans?page=0&size=20",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans"
+         ],
+         "query": [
+          {
+           "key": "page",
+           "value": "0"
+          },
+          {
+           "key": "size",
+           "value": "20"
+          },
+          {
+           "key": "sort",
+           "value": "name,asc",
+           "disabled": true
+          },
+          {
+           "key": "status",
+           "value": "ACTIVE",
+           "disabled": true
+          },
+          {
+           "key": "planCode",
+           "value": "{{planCode}}",
+           "disabled": true
+          },
+          {
+           "key": "name",
+           "value": "premium",
+           "disabled": true
+          },
+          {
+           "key": "publiclyAvailable",
+           "value": "true",
+           "disabled": true
+          },
+          {
+           "key": "search",
+           "value": "prem",
+           "disabled": true
+          }
+         ]
+        },
+        "description": "**GET** `/platform/plans` — the operator's list of every plan.\n\nEvery parameter is optional. A bare call returns the first page of the whole catalogue.\n\n| Parameter | Meaning |\n|---|---|\n| `status` | repeatable — `?status=DRAFT&status=ACTIVE` means either |\n| `planCode` | **exact**, case-insensitive, normalized — `premium-plus` finds `PREMIUM_PLUS` |\n| `name` | **partial**, case-insensitive |\n| `publiclyAvailable` | `true` or `false` |\n| `search` | partial, across **code or name** — the one box on a screen |\n| `page`, `size` | zero-based; size defaults to 20, max 100 |\n| `sort` | `field,direction` — `name`, `planCode`, `planVersion`, `status`, `listPrice`, `createdAt`, `updatedAt` |\n\nFilters combine with AND; only `status` is OR within itself.\n\n### One row per plan *version*\n\n`PREMIUM` v1 and v2 are two documents with two prices, and a school is on exactly one of them.\nThe default order groups them: by code, newest version of each first — the catalogue read as a\nmenu.\n\n### `sellable` is the field the list is for\n\nAn operator scanning the catalogue is usually asking which of these a school can buy right now.\nIt is computed from the same three facts everywhere — `ACTIVE`, public, in window — so the list\nand #10 can never disagree.\n\n### The fifteen test cases are in the description below\n\nPostman sends no body on a GET, so they live here:\n\n```\n01  BARE LIST                                             -> 200 OK\n    GET /platform/plans\n    First 20, by code with the newest version of each first.\n    content + page, size, totalElements, totalPages, hasNext, hasPrevious.\n\n02  FILTER BY STATUS                                      -> 200 OK\n    ?status=DRAFT           only drafts\n    ?status=DRAFT&status=ACTIVE   either — repeat the parameter\n\n03  EVERY VERSION OF ONE PLAN                             -> 200 OK\n    ?planCode=PREMIUM\n    EXACT match, and normalized: ?planCode=premium-plus finds PREMIUM_PLUS.\n    A code of the wrong shape simply matches nothing — that is an empty list,\n    not an error.\n\n04  FIND A PLAN BY PART OF ITS NAME                       -> 200 OK\n    ?name=premium     matches \"Premium\" and \"Premium Plus\"\n    PARTIAL, because nobody types a plan's full display name to find it.\n\n05  THE ONE SEARCH BOX                                    -> 200 OK\n    ?search=prem\n    Partial across the code OR the name. planCode and name are there for when\n    you know which of the two you are looking at.\n\n06  WHAT A SCHOOL COULD PICK TODAY                        -> 200 OK\n    ?status=ACTIVE&publiclyAvailable=true\n    Close to the public pricing page. Note it does not check the selling\n    window — read `sellable` on each row for that.\n\n07  SORT                                                  -> 200 OK\n    ?sort=name,asc      ?sort=listPrice,desc      ?sort=createdAt,desc\n    Case-insensitive: sort=CreatedAt works.\n    EVERY SORT ENDS WITH planCode ASC, planVersion DESC. That pair is unique,\n    so paging is deterministic — without a tiebreaker, paging a hundred plans\n    that are all ACTIVE can show one twice and miss another, on page two, in\n    production, and never in a small test.\n\n08  PAGINATE                                              -> 200 OK\n    ?sort=name,asc&page=0&size=1   then   &page=1\n    hasPrevious flips to true on page 1.\n\n09  ALL OF IT AT ONCE                                     -> 200 OK\n    ?status=DRAFT&search=premium&page=0&size=10&sort=listPrice,desc\n\n10  NO MATCHES                                            -> 200 OK\n    ?search=zzz-nothing\n    OUT: content [], totalElements 0, totalPages 0\n    A 200 with an empty list, NOT a 404. \"No plan matches\" is a successful\n    answer to the question asked.\n\n11  size=0  or  size=5000                            -> 400 Bad Request\n    OUT: { \"code\": \"INVALID_PAGE_SIZE\",\n           \"message\": \"size must be between 1 and 100. Received: 5000\" }\n    REFUSED, NOT CLAMPED. Silently returning 100 rows for size=5000 looks like\n    the whole catalogue.\n\n12  page=-1                                          -> 400 Bad Request\n    OUT: { \"code\": \"INVALID_PAGE\" }\n\n13  SORT BY SOMETHING NOT ON THE ALLOW-LIST          -> 400 Bad Request\n    ?sort=encryptionKeyReference,asc\n    OUT: { \"code\": \"INVALID_SORT_FIELD\", \"message\": \"... Allowed: name,\n           planCode, planVersion, status, listPrice, createdAt, updatedAt.\" }\n    An allow-list, not a pass-through: an arbitrary field means a collection\n    scan per request, and the ORDER of a field can leak it even when the value\n    is never returned.\n\n    ?sort=name,sideways -> 400 INVALID_SORT_DIRECTION\n\n14  A MISSPELLED STATUS                              -> 400 Bad Request\n    ?status=NOPE\n    OUT: { \"code\": \"INVALID_PARAMETER\",\n           \"message\": \"'NOPE' is not a valid value for 'status'. Accepted\n                       values: DRAFT, ACTIVE, RETIRED.\" }\n\n15  REGEX INJECTION IS NOT POSSIBLE                       -> 200 OK\n    ?search=.*\n    OUT: totalElements 0 — the term is escaped and matched literally.\n    Unescaped, `.*` would return every plan, and a nested-quantifier pattern\n    could hold a database thread on very little input.\n```\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the page envelope is complete', () => {",
+           "  ['content','page','size','totalElements','totalPages','hasNext','hasPrevious']",
+           "    .forEach(k => pm.expect(b).to.have.property(k));",
+           "});",
+           "pm.test('no more rows than asked for', () =>",
+           "  pm.expect(b.content.length).to.be.at.most(b.size));",
+           "pm.test('the default order is the catalogue as a menu', () => {",
+           "  const codes = b.content.map(p => p.planCode);",
+           "  pm.expect(codes).to.eql([...codes].sort());",
+           "});",
+           "pm.test('sellable agrees with the three facts behind it', () =>",
+           "  b.content.forEach(p => {",
+           "    const inWindow = (!p.effectiveFrom || new Date(p.effectiveFrom) <= new Date())",
+           "      && (!p.effectiveUntil || new Date(p.effectiveUntil) > new Date());",
+           "    pm.expect(p.sellable, p.planCode).to.eql(",
+           "      p.status === 'ACTIVE' && p.publiclyAvailable && inWindow);",
+           "  }));"
+          ]
+         }
+        }
+       ]
       }
      ]
     }

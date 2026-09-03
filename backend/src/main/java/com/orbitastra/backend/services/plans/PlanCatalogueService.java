@@ -3,12 +3,19 @@ package com.orbitastra.backend.services.plans;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
@@ -16,6 +23,8 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
@@ -49,6 +58,34 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PlanCatalogueService {
+
+    /** Used when the caller does not say. Twenty rows is a screen without a scrollbar. */
+    private static final int DEFAULT_PAGE_SIZE = 20;
+
+    /** The most a caller may ask for at once, refused above rather than clamped. */
+    private static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * What #8 may sort on, and what each name means on the document.
+     *
+     * <p>Keyed lowercase so {@code sort=CreatedAt} works, and an allow-list rather than a
+     * pass-through so a caller cannot order by an unindexed field.
+     */
+    private static final Map<String, String> SORTABLE_PLAN_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_PLAN_FIELDS.put("name", "name");
+        SORTABLE_PLAN_FIELDS.put("plancode", "planCode");
+        SORTABLE_PLAN_FIELDS.put("planversion", "planVersion");
+        SORTABLE_PLAN_FIELDS.put("status", "status");
+        SORTABLE_PLAN_FIELDS.put("listprice", "listPrice");
+        SORTABLE_PLAN_FIELDS.put("createdat", "createdAt");
+        SORTABLE_PLAN_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same names spelled as they should be typed, for the error message. */
+    private static final String SORTABLE_PLAN_FIELD_NAMES =
+            "name, planCode, planVersion, status, listPrice, createdAt, updatedAt";
 
     private final PlanDefinitionRepository plans;
     private final PlanValidator planValidator;
@@ -439,6 +476,73 @@ public class PlanCatalogueService {
         return PlanResponse.fromPlan(savedPlan,
                 (wanted ? "Now on the public list. " : off) + sellabilityNote(savedPlan));
     }
+
+
+    //! endpoint 8 — list the catalogue ------------------------------------------------
+
+        /**
+         * #8 — lists plans with optional filters, sorting, and pagination.
+        */
+        public PageResponse<PlanSummaryResponse> listPlans(PlanSearchRequest request) {
+
+        int page = request.page() == null ? 0 : request.page();
+        int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
+
+        if (page < 0) {
+                throw ApiException.badRequest(
+                        "INVALID_PAGE",
+                        "page cannot be negative. Received: " + page);
+        }
+
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+                throw ApiException.badRequest(
+                        "INVALID_PAGE_SIZE",
+                        "size must be between 1 and " + MAX_PAGE_SIZE + ". Received: " + size);
+        }
+
+        Sort sort = Sort.by(
+                Sort.Order.asc("planCode"),
+                Sort.Order.desc("planVersion"));
+
+        String rawSort = request.sort();
+
+        if (rawSort != null && !rawSort.isBlank()) {
+                String[] parts = rawSort.split(",");
+                String requested = parts[0].trim();
+
+                String field = SORTABLE_PLAN_FIELDS.get(requested.toLowerCase());
+
+                if (field == null) {
+                throw ApiException.badRequest(
+                        "INVALID_SORT_FIELD",
+                        "'" + requested + "' cannot be sorted on. Allowed: "
+                                + SORTABLE_PLAN_FIELD_NAMES + ".");
+                }
+
+                Sort.Direction direction = Sort.Direction.ASC;
+
+                if (parts.length > 1 && !parts[1].isBlank()) {
+                String requestedDirection = parts[1].trim();
+
+                if (requestedDirection.equalsIgnoreCase("desc")) {
+                        direction = Sort.Direction.DESC;
+                } else if (!requestedDirection.equalsIgnoreCase("asc")) {
+                        throw ApiException.badRequest(
+                                "INVALID_SORT_DIRECTION",
+                                "'" + requestedDirection + "' is not a direction. Use asc or desc.");
+                }
+                }
+
+                sort = Sort.by(direction, field).and(sort);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        //TODO: query
+        Page<PlanDefinition> plansPage = plans.search(request, pageable);
+
+        return PageResponse.from(plansPage, PlanSummaryResponse::fromPlan);
+        }
 
     //* ---------------------------------------------------------------------------------
 

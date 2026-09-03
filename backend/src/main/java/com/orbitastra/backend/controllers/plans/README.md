@@ -1,7 +1,8 @@
 # controllers/plans — API plan
 
-**Six of 71 are built — #1 to #4, #6 and #7**: the whole plan catalogue apart from versioning.
-Create a draft, edit it, set its features, publish it, list it publicly, retire it.
+**Seven of 71 are built — #1 to #4, #6, #7 and #8**: the whole plan catalogue apart from
+versioning, plus its first read. Create a draft, edit it, set its features, publish it, list it
+publicly, retire it — and list the lot.
 
 **#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
 published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
@@ -86,7 +87,7 @@ around: you edit a draft, and after that you make a new version instead.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 8 | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 8 — **built** | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 9 | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 10 | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -630,9 +631,59 @@ plan. A forgotten field would pull a plan off the pricing page and report succes
 ## The plan catalogue — reads  ·  8–12
 
 <a id="e8"></a>
-**8 · `GET /platform/plans`**
+**8 · `GET /platform/plans`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`, `status`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil`
+
+### Filters, search, sort, page
+
+| Parameter | Behaviour |
+|---|---|
+| `status` | repeatable; `?status=DRAFT&status=ACTIVE` means either |
+| `planCode` | **exact**, case-insensitive, normalized — `premium-plus` finds `PREMIUM_PLUS` |
+| `name` | **partial**, case-insensitive |
+| `publiclyAvailable` | true or false |
+| `search` | partial, across code **or** name |
+| `page`, `size` | zero-based; 20 by default, 100 maximum |
+| `sort` | `name`, `planCode`, `planVersion`, `status`, `listPrice`, `createdAt`, `updatedAt` |
+
+All optional, so a bare call is the first page of the catalogue. AND between them; OR within
+`status`.
+
+**`planCode` is exact and `name` is partial**, deliberately. An exact-code filter is how somebody
+asks for every version of one plan; an exact-name filter would be unusable, because nobody types
+a plan's full display name to find it. `search` covers both partially for the one box on a screen.
+
+### One row per plan *version*
+
+`PREMIUM` v1 and v2 are two documents with two prices, and a school is on exactly one of them, so
+a list that collapsed them would hide what somebody opened it to see. **The default order groups
+them** — code ascending, version descending — which reads as a menu rather than as a change log.
+
+### The same four decisions the school list made
+
+Built on the same parts, for the same reasons:
+
+- **It runs in the database.** [`PlanDefinitionRepositoryImpl`](../../repositories/plans/PlanDefinitionRepositoryImpl.java) builds one query; one page of documents is read however large the catalogue grows.
+- **Bad paging is refused, not clamped.** `size=5000` is a `400`. A clamped page looks like a complete result.
+- **`sort` is an allow-list.** An arbitrary field means an unindexed collection scan per request — and the *order* of a field can leak it even when the value is never returned.
+- **Every sort ends with the plan's identity**, `planCode` asc + `planVersion` desc. That pair is unique, so paging is deterministic; without a tiebreaker, paging equal sort keys can show one row twice and miss another.
+
+### Two things this endpoint made shared
+
+**`sellable` moved to one definition.** It is three facts — `ACTIVE`, public, in window — and both
+this list and the single-plan responses report it. Two screens combining the same three
+conditions slightly differently is how a plan comes to look buyable on one page and not on
+another, so it is computed in
+[`PlanResponse.isSellable`](../../dto/plans/catalogue/PlanResponse.java) and called from both.
+
+**Regex escaping moved to [`CriteriaText`](../../common/mongo/CriteriaText.java).** The school
+list already had it. One copy was fine; two copies of a security rule is one that gets fixed and
+one that quietly does not. `?search=.*` returns nothing, because the term is matched literally.
+
+### An empty result is `200` with `[]`
+
+`totalElements: 0`, not a `404`. "No plan matches" is a successful answer.
 
 <a id="e9"></a>
 **9 · `GET /platform/plans/{code}/versions`**

@@ -1,8 +1,10 @@
 package com.orbitastra.backend.controllers.plans;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
@@ -11,12 +13,17 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
+import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.services.plans.PlanCatalogueService;
 
 import jakarta.validation.Valid;
@@ -175,5 +182,38 @@ public class PlanController {
 
         return ResponseEntity.ok(
                 planCatalogueService.setAvailability(code, version, request));
+    }
+
+    /**
+     * Endpoint #8 — the operator's list of every plan.
+     *
+     * <p>Every parameter is optional: a bare {@code GET /platform/plans} returns the first page
+     * of the whole catalogue. Filters combine with AND, except {@code status}, which may be
+     * repeated and means "any of these".
+     *
+     * <p><code>?status=ACTIVE&amp;publiclyAvailable=true&amp;search=prem&amp;page=0&amp;size=20&amp;sort=name,asc</code>
+     *
+     * <p>One row per plan <b>version</b>. The default order groups them: by code, newest version
+     * of each first — the catalogue read as a menu.
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<PlanSummaryResponse>> list(
+            @RequestParam(required = false) List<PlanStatus> status,
+            @RequestParam(required = false) String planCode,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Boolean publiclyAvailable,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+
+        // Bound one at a time rather than through @ModelAttribute, so a misspelled status comes
+        // back through the type-mismatch handler naming the accepted values.
+        PlanSearchRequest request = new PlanSearchRequest(
+                status, planCode, name, publiclyAvailable, search, page, size, sort);
+
+        return ResponseEntity.ok(planCatalogueService.listPlans(request));
     }
 }

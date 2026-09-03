@@ -126,8 +126,9 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 6 of 71** — the whole plan catalogue apart from versioning: create a draft, edit
-it, set its features, publish it, list it publicly, retire it. The whole module
+**Plans is 7 of 71** — the whole plan catalogue apart from versioning, plus its first read:
+create a draft, edit it, set its features, publish it, list it publicly, retire it, and list the
+lot. The whole module
 plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 
@@ -200,6 +201,10 @@ Two things that will bite while testing:
 **Run them in order: Create Plan Draft → Set Plan Features → Publish Plan → Set Plan
 Availability → Retire Plan.** Publishing refuses a plan with no features, and retiring blocks
 availability afterwards — which is why Retire is last in the folder.
+
+**List Plans (#8) is the only read.** Every parameter is optional, and the saved request sends
+`page` and `size` with the rest present but **disabled**, so you can tick one on rather than
+typing it. Its fifteen cases are in the request description — Postman sends no body on a `GET`.
 
 **Only after Set Plan Availability is a plan `sellable`.** It takes all three: `ACTIVE`, on the
 public list, and inside the selling window. Every plan response reports `sellable` and says which

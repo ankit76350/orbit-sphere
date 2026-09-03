@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import com.orbitastra.backend.common.mongo.CriteriaText;
 import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
 import com.orbitastra.backend.models.core.School;
 
@@ -25,6 +26,10 @@ import lombok.RequiredArgsConstructor;
  * <p>Two round trips per request: one for the page, one for the total. That is the price of
  * reporting {@code totalElements}, and it is why the count query is built from the same criteria
  * rather than a second, hand-written copy that could drift out of agreement with it.
+ *
+ * <p>The text matching lives in {@link CriteriaText}, shared with the plan list. Escaping
+ * caller input before it reaches a regex is a security rule, and a second copy of it is a second
+ * thing to remember to fix.
  */
 @RequiredArgsConstructor
 public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
@@ -56,10 +61,10 @@ public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
             filters.add(Criteria.where("status").in(request.statuses()));
         }
         if (hasText(request.countryCode())) {
-            filters.add(exactIgnoreCase("countryCode", request.countryCode().trim()));
+            filters.add(CriteriaText.exactIgnoreCase("countryCode", request.countryCode().trim()));
         }
         if (hasText(request.city())) {
-            filters.add(exactIgnoreCase("city", request.city().trim()));
+            filters.add(CriteriaText.exactIgnoreCase("city", request.city().trim()));
         }
         if (request.createdFrom() != null || request.createdTo() != null) {
             Criteria created = Criteria.where("createdAt");
@@ -72,38 +77,12 @@ public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
             filters.add(created);
         }
         if (hasText(request.search())) {
-            String term = escapeRegex(request.search().trim());
             filters.add(new Criteria().orOperator(
-                    Criteria.where("schoolName").regex(term, "i"),
-                    Criteria.where("subdomain").regex(term, "i")));
+                    CriteriaText.containsIgnoreCase("schoolName", request.search()),
+                    CriteriaText.containsIgnoreCase("subdomain", request.search())));
         }
 
         return filters.isEmpty() ? new Criteria() : new Criteria().andOperator(filters);
-    }
-
-    /** An exact match that ignores case, anchored so it cannot also match a longer value. */
-    private Criteria exactIgnoreCase(String field, String value) {
-        return Criteria.where(field).regex("^" + escapeRegex(value) + "$", "i");
-    }
-
-    /**
-     * Makes caller input safe to put inside a regular expression.
-     *
-     * <p><b>This is not optional.</b> The search term goes into a Mongo regex, so without it a
-     * caller can send a pattern rather than a word: {@code .*} matches everything, and a
-     * nested-quantifier pattern can pin a database thread for a very long time on very little
-     * input. Escaping turns every metacharacter back into the literal the caller typed, which is
-     * what somebody searching for "st." meant anyway.
-     */
-    private String escapeRegex(String value) {
-        StringBuilder escaped = new StringBuilder(value.length() + 8);
-        for (char c : value.toCharArray()) {
-            if ("\\.[]{}()*+-?^$|/".indexOf(c) >= 0) {
-                escaped.append('\\');
-            }
-            escaped.append(c);
-        }
-        return escaped.toString();
     }
 
     private boolean hasText(String value) {
