@@ -1,8 +1,8 @@
 # controllers/plans — API plan
 
-**Seven of 71 are built — #1 to #4, #6, #7 and #8**: the whole plan catalogue apart from
-versioning, plus its first read. Create a draft, edit it, set its features, publish it, list it
-publicly, retire it — and list the lot.
+**Eight of 71 are built — #1 to #4, #6, #7, #8 and #9**: the whole plan catalogue apart from
+versioning, plus its two reads. Create a draft, edit it, set its features, publish it, list it
+publicly, retire it — and read the catalogue either as a list or as one plan's history.
 
 **#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
 published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
@@ -88,7 +88,7 @@ around: you edit a draft, and after that you make a new version instead.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | 8 — **built** | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 9 | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 9 — **built** | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 10 | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 12 | [`GET /schools/current/plans/{code}/versions/{version}/comparison`](#e12) | What would change if this school moved to that plan: the price difference, and any limit that would drop below what the school is already using. Stops a school upgrading into a plan that immediately blocks it. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -686,9 +686,61 @@ one that quietly does not. `?search=.*` returns nothing, because the term is mat
 `totalElements: 0`, not a `404`. "No plan matches" is a successful answer.
 
 <a id="e9"></a>
-**9 · `GET /platform/plans/{code}/versions`**
+**9 · `GET /platform/plans/{code}/versions`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `status`, `listPrice`, `effectiveFrom`, `effectiveUntil`, `createdAt`
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *counts*: how many point at each version
+
+### It answers two questions #8 cannot
+
+**How did the price move**, and **can the old versions be forgotten**. The first needs the
+versions next to each other in order; the second needs to know who is still on each one. Neither
+falls out of a filtered list.
+
+So each row carries `priceChangeFromPrevious` — the subtraction done for the reader rather than
+by eye down a column — and `schoolsOnThisVersion`.
+
+### Not paged, unlike #8
+
+A price does not change fifty times. A history read in pages is not a history.
+
+### `priceChangeFromPrevious` is null in two places
+
+On the **oldest** version, which has nothing before it — and **across a currency change**, because
+49999 INR to 699 USD is not a difference of −49300. A number there would be arithmetic on two
+different currencies, which is worse than saying nothing.
+
+### The subscription count needed an index
+
+The endpoint's own description says it shows "which version each school is on", which the spec's
+field list did not cover. Counting it meant asking `school_subscriptions` a question none of its
+indexes answered — `planDefinitionDocsId` was unindexed, so the count was a scan of every
+subscription on the platform, on a collection that eventually holds one row per school.
+
+So [`SchoolSubscription`](../../models/plans/SchoolSubscription.java) gained
+`subscription_plan_version_idx`. It is the only index there that is **not** school-scoped, which
+is right: the question is about a plan, and a plan belongs to no school.
+
+The count includes **cancelled and expired** subscriptions on purpose. "Nobody is on it now" and
+"nobody ever was" are different answers to "can this version be forgotten", and only the second
+one means it can.
+
+### The counts are all 0 today, and the response says so
+
+Nothing creates subscriptions — that is #13, not built. A column of zeroes would read as "this
+plan has no customers", so the response carries a `note` saying to read them as *unknown*. Same
+approach #3 in `core` takes with its subscription gap.
+
+### A missing code is a `404`, not an empty list
+
+You asked about one specific plan. Contrast #8, where no matches is a `200` and `[]` — there the
+question was "which plans match this", and "none" is an answer.
+
+### Testing it needs a hand-inserted version
+
+#5 is deferred, so nothing in the API creates a second version and every plan has exactly one.
+The `note` and the null price change are the only parts visible without inserting a v2 directly.
 
 <a id="e10"></a>
 **10 · `GET /platform/plans/{code}/versions/{version}`**

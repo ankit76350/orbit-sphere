@@ -2277,6 +2277,58 @@
          }
         }
        ]
+      },
+      {
+       "name": "List Plan Versions",
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/platform/plans/{{planCode}}/versions",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "plans",
+          "{{planCode}}",
+          "versions"
+         ]
+        },
+        "description": "**GET** `/platform/plans/{code}/versions` — every version of one plan, newest first.\n\n### It answers two questions #8 cannot\n\n**How did the price move?** Each row carries `priceChangeFromPrevious` — the subtraction done for\nyou rather than by eye down a column.\n\n**Can the old versions be forgotten?** Each row carries `schoolsOnThisVersion`.\n\n### Not paged\n\nA price does not change fifty times. A history read in pages is not a history, so the whole\nthing comes back in one answer.\n\n### `priceChangeFromPrevious` is null in two cases\n\nOn the **oldest** version, which has nothing to compare against; and across a **currency change**,\nbecause 49999 INR to 699 USD is not a difference of −49300 and pretending otherwise is worse than\nsaying nothing.\n\n### `schoolsOnThisVersion` is 0 everywhere today\n\nNothing creates subscriptions yet — that is #13, not built. The response's `note` says so, so a\ncolumn of zeroes is not read as \"this plan has no customers\". Read them as *unknown*.\n\n### The eight test cases are in the description below\n\nPostman sends no body on a GET, so they live here:\n\n```\n01  ONE PLAN'S HISTORY                                    -> 200 OK\n    GET /platform/plans/{{planCode}}/versions\n    OUT: planCode, name (the NEWEST version's name), versionCount, versions[],\n         note\n    Rows are newest first. Each has planVersion, name, status, listPrice,\n    currencyCode, priceChangeFromPrevious, billingCycle, maxStudents,\n    maxUsers, publiclyAvailable, sellable, featureCount,\n    schoolsOnThisVersion, effectiveFrom, effectiveUntil, createdAt.\n\n02  A PLAN WITH ONLY ONE VERSION                          -> 200 OK\n    versionCount 1, and priceChangeFromPrevious null — there is nothing\n    before it.\n\n03  READING THE PRICE HISTORY                             -> 200 OK\n    With three versions at 10000, 12500 and 11000 INR:\n      v3  11000  change -1500\n      v2  12500  change +2500\n      v1  10000  change null\n    Newest first, so each row is compared with the row BELOW it.\n\n04  A CURRENCY CHANGE                                     -> 200 OK\n    If one version is in USD and its neighbours in INR, the change is null on\n    both sides of it. A number there would be arithmetic on two different\n    currencies.\n\n05  name IS THE NEWEST VERSION'S NAME                     -> 200 OK\n    A plan can be renamed between versions. The top-level name is what\n    somebody means today; each row also carries its own, so a rename is\n    visible rather than hidden.\n\n06  A LOWERCASE OR HYPHENATED CODE                        -> 200 OK\n    /platform/plans/premium-plus/versions finds PREMIUM_PLUS. Normalized the\n    same way it was when the plan was created.\n\n07  A CODE THAT DOES NOT EXIST                       -> 404 Not Found\n    OUT: { \"code\": \"PLAN_NOT_FOUND\", \"message\": \"No plan 'NOPE' exists.\" }\n    A 404 rather than an empty list: you asked about a specific plan, and it\n    is not there. Contrast with #8, where no matches is a 200 and [].\n\n08  CREATING A SECOND VERSION\n    You cannot, from the API: #5 (new version) is deferred. Every plan here\n    has exactly one version until it is built. To see a real history, insert\n    one directly:\n      db.plan_definitions.insertOne(\n        Object.assign({}, db.plan_definitions.findOne({planCode:'PREMIUM'}),\n                      {_id: undefined, planVersion: 2,\n                       listPrice: NumberDecimal('12500.00')}))\n```\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('every row belongs to the plan asked for', () =>",
+           "  pm.expect(b.versionCount).to.eql(b.versions.length));",
+           "pm.test('newest version first', () => {",
+           "  const nums = b.versions.map(v => v.planVersion);",
+           "  pm.expect(nums).to.eql([...nums].sort((a, c) => c - a));",
+           "});",
+           "pm.test('the oldest version has nothing to compare against', () =>",
+           "  pm.expect(b.versions[b.versions.length - 1].priceChangeFromPrevious).to.be.null);",
+           "pm.test('a price change is never computed across two currencies', () => {",
+           "  b.versions.forEach((v, i) => {",
+           "    const older = b.versions[i + 1];",
+           "    if (older && v.currencyCode !== older.currencyCode) {",
+           "      pm.expect(v.priceChangeFromPrevious, `v${v.planVersion}`).to.be.null;",
+           "    }",
+           "  });",
+           "});",
+           "pm.test('the zero school counts are explained, not left bare', () => {",
+           "  const none = b.versions.every(v => v.schoolsOnThisVersion === 0);",
+           "  if (none) pm.expect(b.note).to.include('not built');",
+           "});"
+          ]
+         }
+        }
+       ]
       }
      ]
     }

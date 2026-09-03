@@ -25,11 +25,13 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanVersionHistoryResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
+import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
 import com.orbitastra.backend.services.plans.helper.PlanValidator;
 
@@ -88,6 +90,7 @@ public class PlanCatalogueService {
             "name, planCode, planVersion, status, listPrice, createdAt, updatedAt";
 
     private final PlanDefinitionRepository plans;
+    private final SchoolSubscriptionRepository subscriptions;
     private final PlanValidator planValidator;
 
     //! endpoint 1 — create a draft plan -----------------------------------------------
@@ -481,7 +484,7 @@ public class PlanCatalogueService {
     //! endpoint 8 — list the catalogue ------------------------------------------------
 
         /**
-         * #8 — lists plans with optional filters, sorting, and pagination.
+         ** 8 — lists plans with optional filters, sorting, and pagination.
         */
         public PageResponse<PlanSummaryResponse> listPlans(PlanSearchRequest request) {
 
@@ -543,6 +546,53 @@ public class PlanCatalogueService {
 
         return PageResponse.from(plansPage, PlanSummaryResponse::fromPlan);
         }
+
+
+    //! endpoint 9 — one plan's version history ----------------------------------------
+    /**
+     * #9 — every version of one plan, newest first.
+     *
+     * <p>Two questions, and they are the reason this is not just a filtered #8: <b>how did the
+     * price move</b>, and <b>can the old versions be forgotten</b>. The first needs the versions
+     * next to each other in order; the second needs to know who is still on each one.
+     *
+     * <p>So each row carries {@code priceChangeFromPrevious} — the subtraction done for the
+     * reader rather than by them — and {@code schoolsOnThisVersion}.
+     *
+     * <p><b>Not paged.</b> A price does not change fifty times, and a caller reading a history
+     * would have to stitch pages together to see the shape of it.
+     */
+    public PlanVersionHistoryResponse listVersions(String code) {
+        //! step 1 - every version of that code, newest first
+        String planCode = planValidator.normalizePlanCode(code);
+        List<PlanDefinition> versions = plans.findByPlanCodeOrderByPlanVersionDesc(planCode);
+
+        if (versions.isEmpty()) {
+            throw ApiException.notFound("PLAN_NOT_FOUND",
+                    "No plan '" + planCode + "' exists.");
+        }
+
+        //! step 2 - who is on each one. One indexed count per version rather than one query for
+        //! all of them: a plan has a handful of versions, and a count that never loads a
+        //! document is cheaper than fetching every subscription to group them here.
+        Map<Integer, Long> schoolCounts = new LinkedHashMap<>();
+        long onAnyVersion = 0;
+        for (PlanDefinition version : versions) {
+            long count = subscriptions.countByPlanDefinitionDocsId(version.getId());
+            schoolCounts.put(version.getPlanVersion(), count);
+            onAnyVersion += count;
+        }
+
+        //! step 3 - say plainly that the counts cannot be trusted yet, rather than letting a
+        //! column of zeroes read as "this plan has no customers"
+        String note = onAnyVersion == 0
+                ? "Every schoolsOnThisVersion is 0 because nothing creates subscriptions yet — "
+                        + "that is endpoint #13, which is not built. Read the zeroes as "
+                        + "\"unknown\", not as \"nobody\"."
+                : onAnyVersion + " subscription(s) point at this plan across all its versions.";
+
+        return PlanVersionHistoryResponse.fromVersions(versions, schoolCounts, note);
+    }
 
     //* ---------------------------------------------------------------------------------
 

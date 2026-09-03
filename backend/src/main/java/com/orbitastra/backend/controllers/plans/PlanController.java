@@ -23,6 +23,7 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanVersionHistoryResponse;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.services.plans.PlanCatalogueService;
 
@@ -215,5 +216,20 @@ public class PlanController {
                 status, planCode, name, publiclyAvailable, search, page, size, sort);
 
         return ResponseEntity.ok(planCatalogueService.listPlans(request));
+    }
+
+    /**
+     * Endpoint #9 — every version of one plan, newest first.
+     *
+     * <p>Answers two questions #8 cannot: how the price moved, and whether the old versions can
+     * be forgotten. Each row carries the difference from the version before it, and how many
+     * schools are on it.
+     *
+     * <p><b>Not paged.</b> A price does not change fifty times, and a history read in pages is
+     * not a history.
+     */
+    @GetMapping("/{code}/versions")
+    public ResponseEntity<PlanVersionHistoryResponse> listVersions(@PathVariable String code) {
+        return ResponseEntity.ok(planCatalogueService.listVersions(code));
     }
 }

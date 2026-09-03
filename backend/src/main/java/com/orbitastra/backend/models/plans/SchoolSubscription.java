@@ -39,7 +39,16 @@ import lombok.experimental.SuperBuilder;
 @CompoundIndexes({
                 @CompoundIndex(name = "school_subscription_no_uniq", def = "{'schoolId': 1, 'subscriptionNo': 1}", unique = true),
                 @CompoundIndex(name = "school_current_subscription_uniq", def = "{'schoolId': 1, 'current': 1}", unique = true, partialFilter = "{'current': true}"),
-                @CompoundIndex(name = "school_subscription_status_period_idx", def = "{'schoolId': 1, 'status': 1, 'currentPeriodEnd': 1}")
+                @CompoundIndex(name = "school_subscription_status_period_idx", def = "{'schoolId': 1, 'status': 1, 'currentPeriodEnd': 1}"),
+                // Answers "who is on this plan version". Added 2026-09-03 for the plan version
+                // history (#9), which asks it once per version — and for anything later that has
+                // to know whether a version can be retired without stranding somebody. Without
+                // it that question is a scan of every subscription in the platform, on a
+                // collection that eventually holds one row per school.
+                //
+                // NOT school-scoped, unlike every other index here: the question is about a
+                // plan, and a plan belongs to no school.
+                @CompoundIndex(name = "subscription_plan_version_idx", def = "{'planDefinitionDocsId': 1, 'planVersion': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)

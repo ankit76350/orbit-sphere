@@ -16,4 +16,18 @@ public interface SchoolSubscriptionRepository extends MongoRepository<SchoolSubs
      * pick through.
      */
     Optional<SchoolSubscription> findBySchoolIdAndCurrentIsTrue(String schoolId);
+
+    /**
+     * How many schools are on one plan version.
+     *
+     * <p>Backed by {@code subscription_plan_version_idx}. A plan version is its own document, so
+     * its id alone identifies the version — the stored {@code planVersion} is a convenience for
+     * reading a subscription, not part of the link.
+     *
+     * <p>Counts <b>every</b> subscription pointing at it, including cancelled and expired ones.
+     * That is deliberate for the version history: "nobody is on it now" and "nobody ever was"
+     * are different answers to "can this version be retired", and the second is the one that
+     * says the version can be forgotten.
+     */
+    long countByPlanDefinitionDocsId(String planDefinitionDocsId);
 }
