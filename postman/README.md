@@ -199,10 +199,12 @@ Two things that will bite while testing:
 **Run them in order: Create Plan Draft → Set Plan Features → Publish Plan.** Publishing refuses
 a plan with no features.
 
-- **Publishing cannot be undone.** #2 and #3 refuse the plan afterwards, and there is no
-  unpublish endpoint — #5 (new version) and #6 (retire) are not built yet, so a published test
-  plan is frozen for good. Put `{{$timestamp}}` in the **name** if you are going to run this
-  repeatedly; the code is derived from the name.
+- **Publishing cannot be undone, and there is no way back.** #2 and #3 refuse the plan
+  afterwards, there is no unpublish, and **#5 (new version) is deferred by decision** — so a
+  published plan's price can never be changed by anything that exists. The `409` messages tell
+  you to "make a new version", which is #5; that advice cannot be followed yet. Put
+  `{{$timestamp}}` in the **name** if you are going to run this repeatedly, since the code is
+  derived from the name.
 - **A published plan is not yet sellable.** `publiclyAvailable` stays false until #7, which is
   not built, so `sellable` is always false today.
 - **Nothing can be deleted.** No plan endpoint removes anything, so drafts and published plans

@@ -1,7 +1,12 @@
 # controllers/plans — API plan
 
 **Four of 71 are built — #1 to #4**, the start of the plan catalogue: create a draft, edit it,
-set its features, publish it. Everything else is
+set its features, publish it.
+
+**#5 is deferred by decision.** That has a consequence worth knowing before you hit it: **a
+published plan's price can never be changed by any endpoint that exists today.** #2, #3 and #4
+all refuse a published plan and tell the caller to make a new version instead — which is #5. So
+today the advice in those messages cannot be followed. See "5" below. Everything else is
 listed below and not built. This is the full set of endpoints the `plans` module needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md) was done.
@@ -73,7 +78,7 @@ around: you edit a draft, and after that you make a new version instead.
 | 2 — **built** | `PATCH /platform/plans/{code}/versions/{version}` | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 3 — **built** | `PUT /platform/plans/{code}/versions/{version}/features` | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 4 — **built** | `POST /platform/plans/{code}/versions/{version}/publish` | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 5 | `POST /platform/plans/{code}/versions/{version}/new-version` | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 5 — **deferred** | `POST /platform/plans/{code}/versions/{version}/new-version` | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 6 | `POST /platform/plans/{code}/versions/{version}/retire` | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 7 | `PATCH /platform/plans/{code}/versions/{version}/availability` | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 
@@ -467,7 +472,39 @@ Stamped with now if it was empty. A future date set while the plan was a draft i
 scheduled launch works: the plan becomes `ACTIVE` immediately and `sellable` only when the window
 opens. The response's `nextStep` names the date when that is the case.
 
-**5 · `POST /platform/plans/{code}/versions/{version}/new-version`**
+**5 · `POST /platform/plans/{code}/versions/{version}/new-version`** — DEFERRED
+
+Deferred on 2026-09-03, by decision. The design below stands and is what to build from.
+
+**What being without it means.** #1 to #4 make a plan and freeze it. Nothing then reopens it:
+
+- #2 refuses a published plan — *"Make a new version of it instead."*
+- #3 refuses its features — *"Make a new version of it instead."*
+- #4 refuses a second publish — *"To change it, make a new version."*
+- and #4's success message ends *"To change the price, make a new version."*
+
+Four messages point at an endpoint that does not exist. They are left as they are on purpose: they
+describe the design, and softening them to "you cannot change this" would be wrong the moment #5
+is built. But **a published plan is currently permanent in the strongest sense** — the only way to
+sell at a different price is #1, a brand-new plan with its own code, which is not the same thing
+and leaves no link between the old price and the new one.
+
+**What #5 has to do when it is built** — and the hard part is not the copy:
+
+- insert a new document with the **same** `planCode`, `planVersion` one higher, `status` =
+  `DRAFT`, and `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`,
+  `maxUsers` and `features` copied from the version being copied
+- `publiclyAvailable` = false and both selling-window dates cleared, because they are decisions
+  about the new version rather than facts inherited from the old one
+- **the version number must be one higher than the highest that exists**, not one higher than the
+  version being copied. Copying v1 when v2 already exists must not try to create a second v2 —
+  the unique index on `{planCode, planVersion}` would refuse it, but with a duplicate-key error
+  rather than anything a caller could act on.
+- **only one draft per plan at a time.** Two open drafts of `PREMIUM` is two answers to "what are
+  we about to sell", and whichever is published second silently wins.
+
+`PlanDefinitionRepository.findByPlanCodeOrderByPlanVersionDesc` already exists for exactly this
+— it was written with #5 and #9 in mind and is currently unused.
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: every field of the `version` being copied
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode` — the same, `planVersion` — one higher, `status` = `DRAFT`, and `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` copied from the old `version`
