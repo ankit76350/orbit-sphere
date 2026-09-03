@@ -26,6 +26,17 @@ import java.util.stream.Collectors;
  * <p>Adding one needs a deploy, which costs nothing: a new feature always needed a deploy,
  * because the software has to actually do the new thing before a plan can sell it.
  *
+ * <p><b>If a constant ever has to go, migrate the stored data first — in the same release.</b>
+ * Mongo stores the name, and reading a document whose feature code is not on this list throws
+ * inside the mapping layer, before any code of ours runs. It does not skip the row or null the
+ * field: it fails the whole query, so <i>one</i> stale document takes out
+ * {@code GET /platform/plans} for every plan. That happened once, on 2026-09-03, with a code
+ * left behind from when this field was a String.
+ *
+ * <p>The check is one line:
+ * {@code db.plan_definitions.distinct("features.featureCode")} — every value it returns has to
+ * appear below.
+ *
  * <h2>What is not here</h2>
  *
  * <p>The things every plan includes and nobody is charged separately for — the tenant itself,

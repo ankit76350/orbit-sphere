@@ -11,6 +11,11 @@ package com.orbitastra.backend.models.plans.enums;
  * in, because a feature knows what it counts: students are counted in students. That makes
  * "student management, limited to 2000 gigabytes" unrepresentable rather than merely refused.
  *
+ * <p><b>The same removal rule as {@link FeatureCode}:</b> add constants, never remove one
+ * without migrating the stored data in the same release. A stored value that is not on this list
+ * fails the whole query that reads it, not just the row.
+ * {@code db.plan_definitions.distinct("features.usageMetric")} lists what is out there.
+ *
  * <p>Every constant here needs a counter somebody actually implements. Adding one that nothing
  * measures produces a limit that is never reached and never enforced, which is worse than having
  * no limit at all — the plan reads as capped and behaves as unlimited.

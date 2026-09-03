@@ -15,6 +15,9 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -24,6 +27,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  *
  * <p>Handles duplicate key errors and returns 409 instead of 500.
  */
+@Slf4j
 @RestControllerAdvice // ! ← "check this class for handlers, on every controller" what this anonation does?
 public class GlobalExceptionHandler {
 
@@ -184,5 +188,44 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(ApiError.createError("DUPLICATE_KEY",
                                                 "That value is already in use. Another request may have just taken it."));
+        }
+
+        /**
+         * Anything nothing else caught.
+         *
+         * <p><b>Why this exists.</b> Without it, an unexpected exception fell through to Spring's
+         * own error page, which in this profile carries a <b>full stack trace in the response
+         * body</b> — class names, file paths, the shape of the code. That is information a caller
+         * should never receive, and it does not match any other error this API returns.
+         *
+         * <p>It was added after a real one: a single plan document held a feature code left over
+         * from before {@code FeatureCode} became an enum, and reading it threw
+         * {@code IllegalArgumentException} deep inside Mongo's converter. That took out
+         * {@code GET /platform/plans} entirely and answered with sixty frames of stack.
+         *
+         * <p><b>The exception is logged, not returned.</b> Whoever has to fix it needs the
+         * detail; whoever called the endpoint needs to know it failed and that it was not their
+         * fault.
+         *
+         * <p><b>Spring's own statuses are preserved.</b> A handful of framework exceptions carry
+         * the status they deserve — an unmapped URL, an unsupported method — and catching
+         * everything as a 500 would turn a 404 into a server error. Those implement
+         * {@link ErrorResponse}, so they keep their status and only the body is reshaped.
+         */
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiError> onUnexpected(Exception exception) {
+                if (exception instanceof ErrorResponse spring) {
+                        HttpStatus status = HttpStatus.valueOf(spring.getStatusCode().value());
+                        return ResponseEntity.status(status)
+                                        .body(ApiError.createError(status.name(),
+                                                        status.getReasonPhrase() + "."));
+                }
+
+                log.error("Unhandled exception answering a request", exception);
+
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ApiError.createError("INTERNAL_ERROR",
+                                                "Something went wrong on our side. The failure has been logged; "
+                                                                + "nothing about the request needs changing."));
         }
 }
