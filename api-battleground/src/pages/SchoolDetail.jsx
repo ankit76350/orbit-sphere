@@ -34,15 +34,23 @@ function actionsFor(status) {
   }
 }
 
-const TABS = [
+export const SCHOOL_TABS = [
   { id: 'overview', label: 'Overview', icon: Info },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'year', label: 'Academic year', icon: CalendarDays },
 ];
 
-export default function SchoolDetail({ school, onBack, onChanged }) {
+export default function SchoolDetail({ school, onBack, onChanged, tab: controlledTab, onTabChange }) {
   const { call } = useApi();
-  const [tab, setTab] = useState('overview');
+  // The side panel in the shell lists this school's sections, so it needs to be able to say
+  // which one is showing. Kept working uncontrolled too: a caller that passes no tab gets the
+  // old behaviour, which is what the render and behaviour tests mount.
+  const [ownTab, setOwnTab] = useState('overview');
+  const tab = controlledTab ?? ownTab;
+  const setTab = (next) => {
+    setOwnTab(next);
+    onTabChange?.(next);
+  };
   const [busy, setBusy] = useState(null);
   const [asking, setAsking] = useState(null);
   const [reason, setReason] = useState('');
@@ -190,7 +198,7 @@ export default function SchoolDetail({ school, onBack, onChanged }) {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200">
-        {TABS.map((one) => (
+        {SCHOOL_TABS.map((one) => (
           <button
             key={one.id}
             type="button"

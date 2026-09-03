@@ -32,6 +32,21 @@ cd backend && ./mvnw spring-boot:run      # port 3456, takes about a minute
 cd api-battleground && npm install && npm run dev    # http://localhost:1300
 ```
 
+## The side panel
+
+Navigation lives on the left: which module, and which of its screens.
+
+**`Core` is the only module you can enter**, because it is the only one the frontend has screens
+for — the school list, and inside a school its overview, settings and academic year. `Plans` is
+listed and **disabled**: its API is built but it has no screens, and a panel showing Core alone
+would suggest Core is all there is.
+
+A school's own screens appear under it only once a school is open. A `Settings` link with nothing
+selected would go nowhere, so it is not offered.
+
+The panel and the tab strip inside a school are two ways of choosing the same thing, so the
+choice is held once in the shell rather than in both — which is how they would come to disagree.
+
 ## The screens
 
 ### Schools

@@ -214,5 +214,47 @@ check('the tag picks up what was typed', view.container.textContent.includes('se
   view.container.textContent.slice(0, 300));
 await view.unmount();
 
+console.log('\nThe side panel');
+handler = () => ({ status: 200, body: {
+  content: [{ schoolId: 'sch-1', schoolName: 'Orbit Astra International School',
+    subdomain: 'orbit-astra', status: 'ACTIVE', createdAt: '2026-08-01T04:00:00Z' }],
+  page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
+view = await mount(React.createElement(App));
+check('the panel lists the modules', view.text.includes('Modules') && view.text.includes('Core'));
+check('Plans is shown but not enterable', view.text.includes('Plans')
+  && view.text.includes('no screens yet'));
+const plansButton = [...view.container.querySelectorAll('button')]
+  .find((b) => b.textContent.includes('Plans'));
+check('and it is actually disabled', plansButton?.disabled === true);
+check('Core lists the school list', view.text.includes('Schools'));
+check('a school\'s own screens are not offered until one is open',
+  !view.text.includes('Academic year'), view.text.slice(0, 200));
+check(`opening the panel loads nothing extra (${calls.length})`, calls.length <= 2,
+  `made ${calls.length} calls`);
+await view.unmount();
+
+console.log('\nThe side panel with a school open');
+view = await mount(React.createElement(App));
+const row = [...view.container.querySelectorAll('tr')]
+  .find((r) => r.textContent.includes('Orbit Astra International School'));
+await act(async () => { row.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 250)); });
+// A school being open is what makes its screens meaningful, so that is when the panel offers
+// them — a Settings link with no school chosen would go nowhere.
+check('the panel now names the school', view.container.textContent.includes('Orbit Astra'));
+check('and offers its screens', ['Overview', 'Settings', 'Academic year']
+  .every((label) => view.container.textContent.includes(label)));
+const settingsLink = [...view.container.querySelectorAll('button')]
+  .filter((b) => b.textContent.trim() === 'Settings');
+check(`Settings is reachable from the panel (${settingsLink.length} way(s))`,
+  settingsLink.length >= 1);
+await act(async () => { settingsLink[0].click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 250)); });
+check('choosing it from the panel changes the screen',
+  view.container.textContent.includes('School details')
+  || view.container.textContent.includes('Loading the'),
+  view.container.textContent.slice(0, 240));
+await view.unmount();
+
 console.log(`\nPASS=${pass} FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

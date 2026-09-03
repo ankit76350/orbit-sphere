@@ -6,4 +6,5 @@ export { default as SchoolSettings } from './src/pages/SchoolSettings.jsx';
 export { default as AcademicYearPage } from './src/pages/AcademicYearPage.jsx';
 export { default as NewSchoolModal } from './src/pages/NewSchoolModal.jsx';
 export { default as ApiDetailsModal } from './src/components/ApiDetailsModal.jsx';
+export { default as ModulePanel } from './src/components/ModulePanel.jsx';
 export { ActivityModal } from './src/components/ApiActivity.jsx';

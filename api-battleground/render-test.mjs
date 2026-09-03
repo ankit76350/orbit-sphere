@@ -36,7 +36,7 @@ rmSync(bundlePath);
 
 const {
   App, ApiProvider, SchoolDetail, SchoolSettings, AcademicYearPage, ApiDetailsModal, NewSchoolModal,
-  ActivityModal,
+  ActivityModal, ModulePanel,
 } = parts;
 
 const school = {
@@ -137,6 +137,12 @@ const wrap = (node) => React.createElement(ApiProvider, null, node);
 
 const screens = [
   ['Schools list (the whole app)', React.createElement(App), ['Schools', 'Add a school']],
+  ['Module panel — nothing open', wrap(React.createElement(ModulePanel,
+    { moduleId: 'core', onModule() {}, school: null, tab: 'overview', onTab() {}, onSchools() {} })),
+    ['Modules', 'Core', 'Schools', 'Plans', 'no screens yet']],
+  ['Module panel — a school open', wrap(React.createElement(ModulePanel,
+    { moduleId: 'core', onModule() {}, school, tab: 'settings', onTab() {}, onSchools() {} })),
+    ['Orbit Astra International School', 'Overview', 'Settings', 'Academic year']],
   ['School detail', wrap(React.createElement(SchoolDetail, { school, onBack() {}, onChanged() {} })),
     ['Orbit Astra International School', 'Suspend', 'Change web address', 'Academic year']],
   ['School detail — being set up',

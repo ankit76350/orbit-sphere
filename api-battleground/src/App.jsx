@@ -7,6 +7,11 @@
  * Anything that changes something shows its answer straight away: the details pop-up opens with
  * a plain summary of what changed, and the full request and response a tab away. The Activity
  * button in the header lists every call the app has made.
+ *
+ * A SIDE PANEL holds the navigation: which module, and which of its screens. Only `core` has
+ * screens today — the school list, and inside a school its overview, settings and academic year
+ * — so it is the only module you can enter. `plans` is listed and disabled rather than left out,
+ * because a panel showing Core alone would suggest Core is all there is.
  */
 
 import { useState } from 'react';
@@ -15,6 +20,7 @@ import ApiProvider from './api/ApiProvider.jsx';
 import { useApi, useApiState } from './api/apiContext.js';
 import SchoolsPage from './pages/SchoolsPage.jsx';
 import SchoolDetail from './pages/SchoolDetail.jsx';
+import ModulePanel from './components/ModulePanel.jsx';
 import ApiDetailsModal from './components/ApiDetailsModal.jsx';
 import { ActivityModal } from './components/ApiActivity.jsx';
 import { SelectInput, Badge } from './components/ui.jsx';
@@ -25,6 +31,18 @@ function Shell() {
   const [school, setSchool] = useState(null);
   const [activityOpen, setActivityOpen] = useState(false);
 
+  // Which module the side panel is in, and — inside a school — which of its screens. Held here
+  // rather than inside SchoolDetail so the panel and the tab strip agree: they are two ways of
+  // choosing the same thing, and two pieces of state for one choice is how they come to
+  // disagree.
+  const [moduleId, setModuleId] = useState('core');
+  const [tab, setTab] = useState('overview');
+
+  const openSchools = () => {
+    setSchool(null);
+    setTab('overview');
+  };
+
   const failures = log.filter((one) => !one.ok).length;
 
   return (
@@ -33,7 +51,7 @@ function Shell() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-6 py-3">
           <button
             type="button"
-            onClick={() => setSchool(null)}
+            onClick={openSchools}
             className="flex items-center gap-2.5 text-left"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
@@ -93,16 +111,38 @@ function Shell() {
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl px-6 py-7">
-        {school ? (
-          <SchoolDetail
-            school={school}
-            onBack={() => setSchool(null)}
-            onChanged={(updated) => setSchool(updated)}
-          />
-        ) : (
-          <SchoolsPage onOpenSchool={setSchool} />
-        )}
+      <main className="mx-auto max-w-[100rem] px-6 py-7">
+        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <aside className="lg:sticky lg:top-20 lg:self-start">
+            <ModulePanel
+              moduleId={moduleId}
+              onModule={setModuleId}
+              school={school}
+              tab={tab}
+              onTab={setTab}
+              onSchools={openSchools}
+            />
+          </aside>
+
+          <div className="min-w-0">
+            {school ? (
+              <SchoolDetail
+                school={school}
+                tab={tab}
+                onTabChange={setTab}
+                onBack={openSchools}
+                onChanged={(updated) => setSchool(updated)}
+              />
+            ) : (
+              <SchoolsPage
+                onOpenSchool={(picked) => {
+                  setSchool(picked);
+                  setTab('overview');
+                }}
+              />
+            )}
+          </div>
+        </div>
       </main>
 
       <ActivityModal
