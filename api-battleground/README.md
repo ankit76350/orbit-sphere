@@ -36,15 +36,28 @@ cd api-battleground && npm install && npm run dev    # http://localhost:1300
 
 Navigation lives on the left: which module, and which of its screens.
 
-Two modules: **Core** — schools and their academic years — and **Plans** — what we sell, at what
-price, and what each plan includes.
+Navigation is three levels, each in the place that suits it.
 
-Each module has the same shape: a list you can always reach, and the thing you have opened with
-its sections underneath. Those sections appear **only once something is open**, because a
-`Features` link with no plan chosen goes nowhere.
+**1 — the side panel: which module.** One question, one level, nothing nested. **Core** is schools
+and their academic years; **Plans** is what we sell and for how much. A module with no screens
+yet is listed and disabled rather than hidden, because a panel showing only what is finished
+suggests that is all there is.
+
+**2 — a navbar inside the module: which of its screens, and what is open.** It sits in the
+content column because that is where there is room: a row of labels reads at a glance, where the
+same list indented three deep in a narrow panel did not. When something is open the bar keeps its
+screen selected and shows what is open after it — `Catalogue › PREMIUM v2` — so it is both a
+statement of where you are and the way back out.
+
+**3 — the tab strip on a detail screen: which part of the open thing.** Overview, Settings,
+Academic year for a school; Overview, Features, Versions for a plan.
 
 Each module keeps its own open thing and its own tab. One shared tab would mean leaving Core on
 Settings and arriving in Plans on a tab that does not exist there.
+
+The panel used to hold all three levels at once, with the current module filled near-black and
+the current tab ringed in blue: two things looked selected, in two different languages, and
+neither read as the screen you were on. Now exactly one thing is highlighted at each level.
 
 The panel and the tab strip inside a school are two ways of choosing the same thing, so the
 choice is held once in the shell rather than in both — which is how they would come to disagree.
@@ -133,6 +146,10 @@ Opening a plan gives three sections:
 published. A published plan can be listed publicly or retired. A retired one can only be read.
 Publish and retire both ask first and say what will not be possible afterwards, because neither
 can be undone and there is no endpoint that returns a plan to draft.
+
+**Every control says which endpoint it calls**, the same as on the Core screens — the live
+request under the heading (filters and paging included), and the endpoint under each lifecycle
+button. Click a tag to reopen that endpoint's last call.
 
 **New plan** asks for the name, not the code: the code is derived from the name — "Premium Plus"
 becomes `PREMIUM_PLUS` — and the form shows what it will be as you type, since it is permanent.

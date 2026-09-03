@@ -225,7 +225,7 @@ check('lists the plans module too', view.text.includes('Plans'));
 const plansButton = [...view.container.querySelectorAll('button')]
   .find((b) => b.textContent.includes('Plans'));
 check('and it can be entered', plansButton?.disabled !== true);
-check('Core lists the school list', view.text.includes('Schools'));
+check('the navbar lists the school screen', view.text.includes('Schools'));
 check('a school\'s own screens are not offered until one is open',
   !view.text.includes('Academic year'), view.text.slice(0, 200));
 check(`opening the panel loads nothing extra (${calls.length})`, calls.length <= 2,
@@ -240,7 +240,7 @@ await act(async () => { row.click(); });
 await act(async () => { await new Promise((r) => setTimeout(r, 250)); });
 // A school being open is what makes its screens meaningful, so that is when the panel offers
 // them — a Settings link with no school chosen would go nowhere.
-check('the panel now names the school', view.container.textContent.includes('Orbit Astra'));
+check('the navbar names the school', view.container.textContent.includes('Orbit Astra'));
 check('and offers its screens', ['Overview', 'Settings', 'Academic year']
   .every((label) => view.container.textContent.includes(label)));
 const settingsLink = [...view.container.querySelectorAll('button')]
@@ -287,7 +287,7 @@ check('shows a version next to the code', view.container.textContent.includes('P
 check('says why a draft cannot be bought',
   view.container.textContent.includes('Not published yet'), view.container.textContent.slice(0, 400));
 check('and says the published one can', view.container.textContent.includes('Yes'));
-check('the panel offers the catalogue', view.container.textContent.includes('Catalogue'));
+check('the navbar offers the catalogue', view.container.textContent.includes('Catalogue'));
 check('a plan\'s own screens are not offered until one is open',
   !view.container.textContent.includes('Versions'));
 await view.unmount();
@@ -333,11 +333,58 @@ check('offers the lifecycle actions a draft has',
   ['Edit', 'Publish', 'Retire'].every((label) => view.container.textContent.includes(label)));
 check('does not offer listing publicly on a draft',
   !view.container.textContent.includes('List publicly'));
-check('the panel now names the open plan', view.container.textContent.includes('BASIC v1'));
+check('the navbar names the open plan', view.container.textContent.includes('BASIC v1'));
 check('and offers its screens', ['Overview', 'Features', 'Versions']
   .every((label) => view.container.textContent.includes(label)));
 check('repeats the zero-subscription note rather than a bare 0',
   view.container.textContent.includes('nothing creates subscriptions yet'));
+await view.unmount();
+
+console.log('\nEndpoint tags on the plans screens');
+const EMPTY_PAGE = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0,
+  hasNext: false, hasPrevious: false };
+handler = (url) => {
+  // The app opens on Core, so the school list asks first. Answering it with plan rows gives it
+  // objects with no schoolId, and React rightly complains about the missing key — the warning
+  // was the stub's fault, not the screen's.
+  if (url.includes('/platform/schools')) return { status: 200, body: EMPTY_PAGE };
+  if (url.includes('/versions/1')) {
+    return { status: 200, body: {
+      planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', status: 'DRAFT',
+      billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR', maxStudents: 100,
+      maxUsers: 10, publiclyAvailable: false, sellable: false, featureCount: 0, features: [],
+      schoolsOnThisVersion: 0 } };
+  }
+  return { status: 200, body: {
+    content: [{ planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', status: 'DRAFT',
+      billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR', maxStudents: 100,
+      maxUsers: 10, publiclyAvailable: false, sellable: false, featureCount: 0 }],
+    page: 0, size: 20, totalElements: 1, totalPages: 1, hasNext: false, hasPrevious: false } };
+};
+view = await mount(React.createElement(App));
+const goPlans = [...view.container.querySelectorAll('button')]
+  .find((b) => b.textContent.includes('Plans'));
+await act(async () => { goPlans.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+
+// Every control on the plans screens says which endpoint it calls, the way the core screens do.
+check('the catalogue shows the live request it made',
+  view.container.textContent.includes('/platform/plans?page=0'),
+  view.container.textContent.slice(0, 300));
+check('and names the method', view.container.textContent.includes('GET')
+  && view.container.textContent.includes('POST'));
+check('New plan names its endpoint',
+  view.container.textContent.includes('/platform/plans/drafts'));
+
+const openPlan = [...view.container.querySelectorAll('tr')]
+  .find((r) => r.textContent.includes('Basic'));
+await act(async () => { openPlan.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+check('the plan screen names what it read',
+  view.container.textContent.includes('/platform/plans/{code}/versions/{version}'),
+  view.container.textContent.slice(0, 400));
+check('and the lifecycle buttons name theirs',
+  ['/publish', '/retire'].every((path) => view.container.textContent.includes(path)));
 await view.unmount();
 
 console.log(`\nPASS=${pass} FAIL=${fail}`);

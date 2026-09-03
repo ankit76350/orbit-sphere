@@ -19,6 +19,7 @@ import {
   Button, SearchInput, SelectInput, Table, Th, Td, EmptyState, SkeletonRows, Badge,
 } from '../components/ui.jsx';
 import NewPlanModal from './NewPlanModal.jsx';
+import EndpointTag from '../components/EndpointTag.jsx';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All', statuses: [] },
@@ -76,7 +77,10 @@ export function money(amount, currencyCode) {
   }
 }
 
-/** Built once, outside the component, for the reason written in SchoolsPage. */
+/**
+ * Built once, outside the component, for the reason written in SchoolsPage: an object rebuilt in
+ * the body would give load() a new identity every render and fire the effect in a loop.
+ */
 function listQueryFrom({ search, filter, page, size, sort }) {
   const statuses = STATUS_FILTERS.find((one) => one.id === filter)?.statuses ?? [];
   return {
@@ -127,6 +131,9 @@ export default function PlansPage({ onOpenPlan }) {
     return () => clearTimeout(timer);
   }, [load, search]);
 
+  // What the tag shows. Same function load() uses, so the two cannot disagree.
+  const listQuery = listQueryFrom({ search, filter, page, size, sort });
+
   const rows = data?.content ?? [];
   const from = (data?.page ?? 0) * (data?.size ?? size) + 1;
   const to = from + rows.length - 1;
@@ -146,14 +153,22 @@ export default function PlansPage({ onOpenPlan }) {
               ? `${data.totalElements} plan version${data.totalElements === 1 ? '' : 's'} in the catalogue`
               : 'What we sell, and at what price'}
           </p>
+          {/* The live request, filters and paging included. Click it for the last response. */}
+          <EndpointTag id="list-plans" query={listQuery} className="mt-2" />
         </div>
         <div className="flex items-center gap-2">
-          <Button icon={RefreshCw} onClick={load} busy={loading}>
-            Refresh
-          </Button>
-          <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>
-            New plan
-          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button icon={RefreshCw} onClick={load} busy={loading}>
+              Refresh
+            </Button>
+            <EndpointTag id="list-plans" query={listQuery} showPath={false} />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>
+              New plan
+            </Button>
+            <EndpointTag id="create-plan-draft" />
+          </div>
         </div>
       </header>
 

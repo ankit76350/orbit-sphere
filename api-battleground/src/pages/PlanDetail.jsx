@@ -20,6 +20,7 @@ import {
   Button, Card, Badge, Detail, Modal, Field, TextInput, SelectInput, Loading, EmptyState,
 } from '../components/ui.jsx';
 import PlanFeaturesTab from './PlanFeaturesTab.jsx';
+import EndpointTag from '../components/EndpointTag.jsx';
 import { PlanStatusBadge, sellableReason, money } from './PlansPage.jsx';
 
 export const PLAN_TABS = [
@@ -140,11 +141,15 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
             <p className="mt-1 font-mono text-sm text-slate-500">
               {plan.planCode} · version {plan.planVersion}
             </p>
+            {/* What this screen reads. */}
+            <EndpointTag id="get-plan-version"
+              pathParams={{ code, version }} className="mt-2" />
             {plan.description && <p className="mt-2 text-sm text-slate-600">{plan.description}</p>}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {actions.includes('edit') && (
+              <div className="flex flex-col items-center gap-1">
               <Button icon={Pencil} onClick={() => {
                 setEdit({
                   name: plan.name,
@@ -157,31 +162,42 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
               }}>
                 Edit
               </Button>
+              <EndpointTag id="update-plan-draft" />
+              </div>
             )}
             {actions.includes('publish') && (
-              <Button look="primary" icon={Rocket} onClick={() => setAsking('publish')}>
-                Publish
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button look="primary" icon={Rocket} onClick={() => setAsking('publish')}>
+                  Publish
+                </Button>
+                <EndpointTag id="publish-plan" />
+              </div>
             )}
             {actions.includes('availability') && (
-              plan.publiclyAvailable ? (
-                <Button icon={EyeOff} busy={busy === 'availability'}
-                  onClick={() => run('availability', 'Take it off the public list',
-                    'set-plan-availability', { publiclyAvailable: false })}>
-                  Unlist
-                </Button>
-              ) : (
-                <Button look="primary" icon={Globe} busy={busy === 'availability'}
-                  onClick={() => run('availability', 'Put it on the public list',
-                    'set-plan-availability', { publiclyAvailable: true })}>
-                  List publicly
-                </Button>
-              )
+              <div className="flex flex-col items-center gap-1">
+                {plan.publiclyAvailable ? (
+                  <Button icon={EyeOff} busy={busy === 'availability'}
+                    onClick={() => run('availability', 'Take it off the public list',
+                      'set-plan-availability', { publiclyAvailable: false })}>
+                    Unlist
+                  </Button>
+                ) : (
+                  <Button look="primary" icon={Globe} busy={busy === 'availability'}
+                    onClick={() => run('availability', 'Put it on the public list',
+                      'set-plan-availability', { publiclyAvailable: true })}>
+                    List publicly
+                  </Button>
+                )}
+                <EndpointTag id="set-plan-availability" />
+              </div>
             )}
             {actions.includes('retire') && (
-              <Button look="danger" icon={Archive} onClick={() => setAsking('retire')}>
-                Retire
-              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <Button look="danger" icon={Archive} onClick={() => setAsking('retire')}>
+                  Retire
+                </Button>
+                <EndpointTag id="retire-plan" />
+              </div>
             )}
             <Button icon={RefreshCw} busy={loading} onClick={load} title="Read it again" />
           </div>
@@ -270,7 +286,8 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
 
       {tab === 'versions' && (
         <Card title="Every version of this plan"
-          description="Newest first, with what changed in the price and who is on each.">
+          description="Newest first, with what changed in the price and who is on each."
+          action={<EndpointTag id="list-plan-versions" pathParams={{ code }} />}>
           {!versions ? (
             <Loading label="Loading the history…" />
           ) : (
@@ -318,6 +335,7 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
         description="From here it can never be edited again."
         footer={
           <>
+            <EndpointTag id="publish-plan" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'publish'}
               onClick={() => run('publish', 'Publish the plan', 'publish-plan')}>
@@ -344,6 +362,7 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
         description="It stops being something a school can pick."
         footer={
           <>
+            <EndpointTag id="retire-plan" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button look="solidDanger" busy={busy === 'retire'}
               onClick={() => run('retire', 'Retire the plan', 'retire-plan')}>
@@ -369,6 +388,7 @@ export default function PlanDetail({ plan: initial, tab: controlledTab, onTabCha
         description="Only a draft can be changed. Leave a field alone to keep it as it is."
         footer={
           <>
+            <EndpointTag id="update-plan-draft" className="mr-auto" />
             <Button onClick={() => setAsking(null)}>Cancel</Button>
             <Button look="primary" busy={busy === 'edit'}
               onClick={() => run('edit', 'Edit the draft', 'update-plan-draft', {

@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../api/apiContext.js';
 import { Modal, Button, Field, TextInput, TextArea, SelectInput, Badge } from '../components/ui.jsx';
+import EndpointTag from '../components/EndpointTag.jsx';
 
 const CYCLES = [
   ['YEARLY', 'Yearly'],
@@ -113,6 +114,7 @@ export default function NewPlanModal({ open, onClose, onCreated }) {
       description="It starts as a draft, so nobody can buy it until you publish it."
       footer={
         <>
+          <EndpointTag id="create-plan-draft" className="mr-auto" />
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" onClick={save} busy={saving} disabled={!form.name.trim()}>
             Create the draft

@@ -36,7 +36,7 @@ rmSync(bundlePath);
 
 const {
   App, ApiProvider, SchoolDetail, SchoolSettings, AcademicYearPage, ApiDetailsModal, NewSchoolModal,
-  ActivityModal, ModulePanel, PlansPage, PlanDetail, PlanFeaturesTab, NewPlanModal,
+  ActivityModal, ModulePanel, ModuleNav, PlansPage, PlanDetail, PlanFeaturesTab, NewPlanModal,
 } = parts;
 
 const school = {
@@ -137,10 +137,19 @@ const wrap = (node) => React.createElement(ApiProvider, null, node);
 
 const screens = [
   ['Schools list (the whole app)', React.createElement(App), ['Schools', 'Add a school']],
-  ['Module panel — the plans module', wrap(React.createElement(ModulePanel,
-    { moduleId: 'plans', onModule() {}, school: null, tab: 'overview', onTab() {}, onSchools() {},
-      plan: { planCode: 'PREMIUM', planVersion: 2 }, planTab: 'features', onPlanTab() {}, onPlans() {} })),
-    ['Plans', 'Catalogue', 'PREMIUM v2', 'Features', 'Versions']],
+  // The panel is one level: which module, and nothing else. A module's screens are the navbar
+  // below, which is asserted separately.
+  ['Module panel — in Plans', wrap(React.createElement(ModulePanel,
+    { moduleId: 'plans', onModule() {} })),
+    ['Modules', 'Core', 'Plans', 'What we sell', 'Schools and academic years']],
+  ['Module navbar — nothing open', wrap(React.createElement(ModuleNav,
+    { moduleLabel: 'Plans', screens: [{ id: 'catalogue', label: 'Catalogue' }],
+      screenId: 'catalogue', onScreen() {}, openName: null })),
+    ['Plans', 'Catalogue']],
+  ['Module navbar — a plan open', wrap(React.createElement(ModuleNav,
+    { moduleLabel: 'Plans', screens: [{ id: 'catalogue', label: 'Catalogue' }],
+      screenId: 'catalogue', onScreen() {}, openName: 'PREMIUM v2' })),
+    ['Catalogue', 'PREMIUM v2']],
   ['Plans list — first paint', wrap(React.createElement(PlansPage, { onOpenPlan() {} })),
     ['Plans', 'New plan', 'Search by name or code']],
   ['Plan detail — first paint', wrap(React.createElement(PlanDetail,
@@ -163,12 +172,13 @@ const screens = [
   ['New plan form', wrap(React.createElement(NewPlanModal,
     { open: true, onClose() {}, onCreated() {} })),
     ['New plan', 'Billing cycle', 'Students included', 'Features are set after this']],
-  ['Module panel — nothing open', wrap(React.createElement(ModulePanel,
-    { moduleId: 'core', onModule() {}, school: null, tab: 'overview', onTab() {}, onSchools() {} })),
-    ['Modules', 'Core', 'Schools', 'Plans']],
-  ['Module panel — a school open', wrap(React.createElement(ModulePanel,
-    { moduleId: 'core', onModule() {}, school, tab: 'settings', onTab() {}, onSchools() {} })),
-    ['Orbit Astra International School', 'Overview', 'Settings', 'Academic year']],
+  ['Module panel — in Core', wrap(React.createElement(ModulePanel,
+    { moduleId: 'core', onModule() {} })),
+    ['Modules', 'Core', 'Plans']],
+  ['Module navbar — a school open', wrap(React.createElement(ModuleNav,
+    { moduleLabel: 'Core', screens: [{ id: 'schools', label: 'Schools' }],
+      screenId: 'schools', onScreen() {}, openName: school.schoolName })),
+    ['Core', 'Schools', 'Orbit Astra International School']],
   ['School detail', wrap(React.createElement(SchoolDetail, { school, onBack() {}, onChanged() {} })),
     ['Orbit Astra International School', 'Suspend', 'Change web address', 'Academic year']],
   ['School detail — being set up',

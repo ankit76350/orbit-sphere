@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { Save, Lock, Gauge } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
 import { Card, Button, Badge, TextInput, SelectInput, EmptyState } from '../components/ui.jsx';
+import EndpointTag from '../components/EndpointTag.jsx';
 
 /**
  * The features, as the backend defines them.
@@ -135,7 +136,9 @@ export default function PlanFeaturesTab({ plan, onChanged }) {
       }
       action={
         editable ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <EndpointTag id="set-plan-features"
+              pathParams={{ code: plan.planCode, version: plan.planVersion }} />
             <Badge look={count ? 'green' : 'amber'}>{count} chosen</Badge>
             <Button look="primary" size="sm" icon={Save} onClick={save} busy={saving}>
               Save the list

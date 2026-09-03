@@ -8,9 +8,12 @@
  * a plain summary of what changed, and the full request and response a tab away. The Activity
  * button in the header lists every call the app has made.
  *
- * A SIDE PANEL holds the navigation: which module, and which of its screens. `core` is schools
- * and their academic years; `plans` is the catalogue — what we sell, at what price, and what
- * each plan includes.
+ * NAVIGATION IS THREE LEVELS, each in the place that suits it:
+ *
+ *   1. the side panel — which module. `core` is schools and their academic years, `plans` is the
+ *      catalogue. One question, one level, nothing nested.
+ *   2. a navbar in the content column — which of that module's screens, and what is open.
+ *   3. the tab strip on a detail screen — which part of the open thing.
  *
  * Each module keeps its own open thing and its own tab. One shared tab would mean leaving Core
  * on Settings and arriving in Plans on a tab that does not exist there.
@@ -25,9 +28,11 @@ import SchoolDetail from './pages/SchoolDetail.jsx';
 import PlansPage from './pages/PlansPage.jsx';
 import PlanDetail from './pages/PlanDetail.jsx';
 import ModulePanel from './components/ModulePanel.jsx';
+import ModuleNav from './components/ModuleNav.jsx';
 import ApiDetailsModal from './components/ApiDetailsModal.jsx';
 import { ActivityModal } from './components/ApiActivity.jsx';
 import { SelectInput, Badge } from './components/ui.jsx';
+import { School as SchoolIcon, Package } from 'lucide-react';
 
 function Shell() {
   const api = useApi();
@@ -129,23 +134,32 @@ function Shell() {
       )}
 
       <main className="mx-auto max-w-[100rem] px-6 py-7">
-        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-20 lg:self-start">
-            <ModulePanel
-              moduleId={moduleId}
-              onModule={setModuleId}
-              school={school}
-              tab={tab}
-              onTab={setTab}
-              onSchools={openSchools}
-              plan={plan}
-              planTab={planTab}
-              onPlanTab={setPlanTab}
-              onPlans={openPlans}
-            />
+        <div className="grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
+          <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto">
+            <ModulePanel moduleId={moduleId} onModule={setModuleId} />
           </aside>
 
           <div className="min-w-0">
+            {/* The module's own screens. One each today, and the bar still earns its place: it
+                names what is open and is the way back out of it. */}
+            {moduleId === 'plans' ? (
+              <ModuleNav
+                moduleLabel="Plans"
+                screens={[{ id: 'catalogue', label: 'Catalogue', icon: Package }]}
+                screenId="catalogue"
+                onScreen={openPlans}
+                openName={plan && `${plan.planCode} v${plan.planVersion}`}
+              />
+            ) : (
+              <ModuleNav
+                moduleLabel="Core"
+                screens={[{ id: 'schools', label: 'Schools', icon: SchoolIcon }]}
+                screenId="schools"
+                onScreen={openSchools}
+                openName={school?.schoolName}
+              />
+            )}
+
             {moduleId === 'plans' ? (
               plan ? (
                 <PlanDetail
