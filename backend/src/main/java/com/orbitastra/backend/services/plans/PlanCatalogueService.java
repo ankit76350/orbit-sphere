@@ -123,6 +123,7 @@ public class PlanCatalogueService {
         planValidator.validateSellingWindow(request.effectiveFrom(), request.effectiveUntil());
 
         //! step 2 - the code has to be free
+        // TODO: check plan code exists
         if (plans.existsByPlanCode(planCode)) {
             throw ApiException.conflict("PLAN_CODE_TAKEN",
                     "A plan called '" + planCode + "' already exists. To change its price, make "
@@ -149,7 +150,7 @@ public class PlanCatalogueService {
                 .build();
 
         //! step 4 - save
-        //TODO: save
+        // TODO: insert plan
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanResponse.fromPlan(savedPlan,
@@ -227,7 +228,7 @@ public class PlanCatalogueService {
         }
 
         //! step 6 - save
-        //TODO: save
+        // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanResponse.fromPlan(savedPlan,
@@ -283,7 +284,8 @@ public class PlanCatalogueService {
         //! step 4 - swap the whole list and save
         int before = plan.getFeatures() == null ? 0 : plan.getFeatures().size();
         plan.setFeatures(replacement);
-        //TODO: save
+
+        // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanFeatureListResponse.fromPlan(savedPlan,
@@ -352,7 +354,7 @@ public class PlanCatalogueService {
         }
         plan.setStatus(PlanStatus.ACTIVE);
 
-        //TODO: save
+        // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         //! step 6 - say plainly what just became true, and what has not
@@ -405,7 +407,7 @@ public class PlanCatalogueService {
         }
         plan.setStatus(PlanStatus.RETIRED);
 
-        //TODO: save
+        // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         return PlanResponse.fromPlan(savedPlan, wasNeverSold
@@ -468,7 +470,8 @@ public class PlanCatalogueService {
 
         //! step 4 - flip it and save
         plan.setPubliclyAvailable(wanted);
-        //TODO: save
+
+        // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         // "still offered privately" is true of a live plan and false of a retired one, so it is
@@ -542,7 +545,7 @@ public class PlanCatalogueService {
 
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        //TODO: query
+        // TODO: search plans
         Page<PlanDefinition> plansPage = plans.search(request, pageable);
 
         return PageResponse.from(plansPage, PlanSummaryResponse::fromPlan);
@@ -566,6 +569,7 @@ public class PlanCatalogueService {
     public PlanVersionHistoryResponse listVersions(String code) {
         //! step 1 - every version of that code, newest first
         String planCode = planValidator.normalizePlanCode(code);
+        // TODO: read plans
         List<PlanDefinition> versions = plans.findByPlanCodeOrderByPlanVersionDesc(planCode);
 
         if (versions.isEmpty()) {
@@ -579,6 +583,7 @@ public class PlanCatalogueService {
         Map<Integer, Long> schoolCounts = new LinkedHashMap<>();
         long onAnyVersion = 0;
         for (PlanDefinition version : versions) {
+            // TODO: count subscriptions
             long count = subscriptions.countByPlanDefinitionDocsId(version.getId());
             schoolCounts.put(version.getPlanVersion(), count);
             onAnyVersion += count;
@@ -617,6 +622,7 @@ public class PlanCatalogueService {
         PlanDefinition plan = loadPlan(code, version);
 
         //! step 2 - who is on it
+        // TODO: count subscriptions
         long schoolsOnThisVersion = subscriptions.countByPlanDefinitionDocsId(plan.getId());
 
         //! step 3 - a zero that cannot yet be trusted has to say so
@@ -693,6 +699,7 @@ public class PlanCatalogueService {
      */
     private PlanDefinition loadPlan(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
+        // TODO: read plan
         return plans.findByPlanCodeAndPlanVersion(planCode, version)
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
                         "No plan '" + planCode + "' version " + version + " exists."));

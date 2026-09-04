@@ -145,6 +145,7 @@ public class SchoolPlatformService {
         // Checked before writing so the caller gets a clear message. The unique index is still
         // the real guard: two simultaneous requests both pass this, and the loser surfaces as a
         // DuplicateKeyException, which GlobalExceptionHandler turns into the same 409.
+        // TODO: check school subdomain exists
         if (schools.existsBySubdomain(subdomain)) {
             throw ApiException.conflict("SUBDOMAIN_TAKEN",
                     "The subdomain '" + subdomain + "' is already in use.");
@@ -168,6 +169,7 @@ public class SchoolPlatformService {
                 .build();
 
         //! step 2 - save it with the new school
+        // TODO: insert school
         School savedSchool = schools.save(school);
 
         return SchoolCreateResponse.fromSchool(savedSchool);
@@ -185,6 +187,7 @@ public class SchoolPlatformService {
     @Transactional
     public CompleteProvisioningResponse completeProvisioning(String schoolId) {
         // step 1 - find the school, or 404
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -197,11 +200,11 @@ public class SchoolPlatformService {
                     "A school at status " + school.getStatus() + " cannot be provisioned.");
         }
 
-        //!TODO: step 3 - save the missing number sequences
+        //! step 3 - save the missing number sequences
         int sequencesCreated = seedMissingNumberSequences(schoolId);
         int sequencesPresent = NumberSequenceType.values().length - sequencesCreated;
 
-        //!TODO: step 4 - save the missing roles
+        //! step 4 - save the missing roles
         List<Role> wanted = DefaultRoles.forSchool(schoolId);
         int rolesCreated = seedMissingRoles(schoolId, wanted);
         int rolesPresent = wanted.size() - rolesCreated;
@@ -209,6 +212,7 @@ public class SchoolPlatformService {
         // step 5 - read back what the school ended up with
         // Read from the database, not from `wanted`: a school may hold roles nobody here
         // created, and readyToActivate is about what exists rather than what we just added.
+        // TODO: read roles
         List<String> roleKeys = roles.findBySchoolId(schoolId).stream()
                 .map(Role::getRoleKey)
                 .sorted()
@@ -225,6 +229,7 @@ public class SchoolPlatformService {
          */
     private int seedMissingNumberSequences(String schoolId) {
         //! step 1 - read what the school already has
+        // TODO: read number sequences
         Set<NumberSequenceType> existing = numberSequences.findBySchoolId(schoolId).stream()
                 .map(NumberSequence::getSequenceType)
                 .collect(Collectors.toSet());
@@ -247,7 +252,12 @@ public class SchoolPlatformService {
 
         //! step 3 - save them, and return how many were saved
         // Nothing missing means no write at all, which is what makes a repeat call free.
-        return missing.isEmpty() ? 0 : numberSequences.saveAll(missing).size();
+        if (missing.isEmpty()) {
+            return 0;
+        }
+
+        // TODO: insert number sequences
+        return numberSequences.saveAll(missing).size();
     }
 
         /**
@@ -257,6 +267,7 @@ public class SchoolPlatformService {
          */
     private int seedMissingRoles(String schoolId, List<Role> wanted) {
         //! step 1 - read the role keys the school already has
+        // TODO: read roles
         Set<String> existingKeys = roles.findBySchoolId(schoolId).stream()
                 .map(Role::getRoleKey)
                 .collect(Collectors.toSet());
@@ -268,7 +279,12 @@ public class SchoolPlatformService {
 
         //! step 3 - save them, and return how many were saved
         // An existing role is never touched, only skipped.
-        return missing.isEmpty() ? 0 : roles.saveAll(missing).size();
+        if (missing.isEmpty()) {
+            return 0;
+        }
+
+        // TODO: insert roles
+        return roles.saveAll(missing).size();
     }
 
 
@@ -282,6 +298,7 @@ public class SchoolPlatformService {
     @Transactional
     public SchoolActivateResponse activateSchool(String schoolId) {
         //! step 1 - find the school, or 404
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -299,10 +316,12 @@ public class SchoolPlatformService {
         // Without a SCHOOL_ADMIN role the first administrator account has nothing to hold, and
         // without the number sequences the first admission has no number to take. Activating
         // either way produces a live school that fails on first use.
+        // TODO: check role exists
         if (!roles.existsBySchoolIdAndRoleKey(schoolId, "SCHOOL_ADMIN")) {
             throw ApiException.conflict("SETUP_INCOMPLETE",
                     "This school has no SCHOOL_ADMIN role. Run complete-provisioning first.");
         }
+        // TODO: count number sequences
         long sequenceCount = numberSequences.countBySchoolId(schoolId);
         if (sequenceCount < NumberSequenceType.values().length) {
             throw ApiException.conflict("SETUP_INCOMPLETE",
@@ -312,6 +331,7 @@ public class SchoolPlatformService {
         }
 
         //! step 4 - check the subscription, where there is one to check
+        // TODO: read subscription
         Optional<SchoolSubscription> subscription =
                 subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId);
         String subscriptionStatus = subscription
@@ -326,7 +346,7 @@ public class SchoolPlatformService {
             school.setActivatedAt(Instant.now()); //? ← changed, first time only
         }
         
-        //TODO: save (status or activatedAt)
+        // TODO: update school
         School savedSchool = schools.save(school);
 
         return SchoolActivateResponse.fromSchool(
@@ -361,6 +381,7 @@ public class SchoolPlatformService {
     @Transactional
     public SchoolStatusResponse suspendSchool(String schoolId, String reason) {
         //! step 1 - find the school, or 404
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -377,7 +398,7 @@ public class SchoolPlatformService {
         school.setSuspendedAt(Instant.now());
         school.setStatusReason(reason.trim());
 
-        //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
 
         // NOT DONE HERE, and it matters: nothing kills the school's live AuthSessions or stops
@@ -398,6 +419,7 @@ public class SchoolPlatformService {
     @Transactional
     public SchoolStatusResponse reactivateSchool(String schoolId, String note) {
         //! step 1 - find the school, or 404
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -416,7 +438,7 @@ public class SchoolPlatformService {
             school.setStatusReason(note.trim());
         }
 
-        // TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
 
         return SchoolStatusResponse.fromSchool(savedSchool,
@@ -442,6 +464,7 @@ public class SchoolPlatformService {
     @Transactional
     public SchoolSubdomainResponse changeSubdomain(String schoolId, SchoolSubdomainRequest request) {
         //! step 1 - find the school, or 404
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -472,6 +495,7 @@ public class SchoolPlatformService {
         }
 
         //! step 5 - nobody else may be using it
+        // TODO: check school subdomain exists
         if (schools.existsBySubdomain(newSubdomain)) {
             throw ApiException.conflict("SUBDOMAIN_TAKEN",
                     "The subdomain '" + newSubdomain + "' is already in use.");
@@ -480,7 +504,7 @@ public class SchoolPlatformService {
         //! step 6 - move
         school.setSubdomain(newSubdomain);
 
-        //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
 
         return SchoolSubdomainResponse.fromSchool(savedSchool, oldSubdomain,
@@ -554,7 +578,7 @@ public class SchoolPlatformService {
         Pageable pageable = PageRequest.of(page, size, sort);
 
         // Step 4: Get schools from database
-        //TODO: Search query
+        // TODO: search schools
         Page<School> schoolPage = schools.search(request, pageable);
 
         // Step 5: Convert schools to response objects
@@ -573,6 +597,7 @@ public class SchoolPlatformService {
      * <p>This only reads, so there is no need for @Transactional.
      */
     public SchoolDetailResponse getSchool(String schoolId) {
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));

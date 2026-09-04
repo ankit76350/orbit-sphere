@@ -196,6 +196,7 @@ public class CoreValidator {
     public void validateNoAcademicYearOverlap(String schoolId, String ignoreId,
             LocalDate start, LocalDate end) {
 
+        // TODO: read academic years
         for (AcademicYear other : academicYears.findBySchoolId(schoolId)) {
             if (other.getId().equals(ignoreId)) {
                 continue;

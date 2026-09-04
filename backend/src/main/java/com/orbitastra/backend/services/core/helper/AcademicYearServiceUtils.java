@@ -72,6 +72,7 @@ public class AcademicYearServiceUtils {
      * <p>If #26 and #27 are not coming back, delete this overload with them.
      */
     public AcademicYear loadYear(School school, String name) {
+        // TODO: read academic year
         return academicYears.findBySchoolIdAndName(school.getId(), name.trim())
                 .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
                         "No academic year called '" + name + "' in this school."));

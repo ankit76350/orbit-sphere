@@ -1,3 +1,4 @@
 - [Backend Foundation Review](backend-foundation-review.md) — 2026-07-18 review: critical gaps (committed DB creds, no auth, no tenant isolation) to fix before new modules
 - [Code Comment & Log Style](code-comment-and-log-style.md) — write all comments and logs in simple, plain, beginner-friendly language; no jargon
 - [MongoDB Document ID Naming](mongodb-document-id-naming.md) — fields that store another MongoDB document's ObjectId must use the `DocsId` suffix
+- [Database Call Markers & Two-Step Writes](database-call-markers-and-two-step-writes.md) — mark every DB call with `// TODO: read/insert/update <thing>`; build the object and save it in two separate steps

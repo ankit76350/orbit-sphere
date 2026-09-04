@@ -73,6 +73,7 @@ public class AcademicYearService {
     public List<AcademicYearResponse> listAcademicYears() {
         School school = currentSchool.require();
 
+        // TODO: read academic year
         return academicYears.findBySchoolIdOrderByStartDateDesc(school.getId()).stream()
                 .map(AcademicYearResponse::fromAcademicYear)
                 .toList();
@@ -85,11 +86,13 @@ public class AcademicYearService {
         School school = currentSchool.require();
         LocalDate today = LocalDate.now();
 
+        // TODO: read academic year
         return academicYears
                 .findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
                         school.getId(), today, today)
                 .map(AcademicYearResponse::fromAcademicYear)
                 .orElseThrow(() -> ApiException.notFound("NO_CURRENT_ACADEMIC_YEAR",
+                        // TODO: read academic years
                         academicYears.findBySchoolId(school.getId()).isEmpty()
                                 ? "This school has no academic years yet."
                                 : "No academic year covers " + today + " in this school."));
@@ -183,6 +186,7 @@ public class AcademicYearService {
         //! step 2 - the name must be one a URL can point at, must be free, and can never
         //! be changed later
         coreValidator.validateAcademicYearName(name);
+        // TODO: check academic year exists
         if (academicYears.existsBySchoolIdAndName(school.getId(), name)) {
             throw ApiException.conflict("ACADEMIC_YEAR_NAME_TAKEN",
                     "This school already has a year called '" + name + "'.");
@@ -211,6 +215,7 @@ public class AcademicYearService {
                 .build();
 
         //! step 6 - save
+        // TODO: insert academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -249,6 +254,7 @@ public class AcademicYearService {
         }
 
         //! step 3 - find the year by its name
+        // TODO: read academic year
         AcademicYear year = academicYears.findBySchoolIdAndName(school.getId(), name.trim())
                 .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
                         "No academic year called '" + name + "' in this school."));
@@ -280,6 +286,7 @@ public class AcademicYearService {
         //! step 7 - apply and save
         year.setStartDate(newStart);
         year.setEndDate(newEnd);
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -333,7 +340,7 @@ public class AcademicYearService {
         int daysBefore = yearUtils.sizeOf(year);
         List<HolidayDetail> replacement = new ArrayList<>(byDate.values());
         year.setHolidays(replacement);
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -381,7 +388,7 @@ public class AcademicYearService {
         });
         day.getEvents().add(request.toEvent());
 
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -445,7 +452,7 @@ public class AcademicYearService {
         }
 
         //! step 5 - save
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -495,7 +502,7 @@ public class AcademicYearService {
             }
         }
 
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear, summary);
@@ -572,7 +579,7 @@ public class AcademicYearService {
         }
 
         //! step 4 - save
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return new WeeklyOffGenerateResponse(
@@ -615,7 +622,7 @@ public class AcademicYearService {
         int daysClosed = daysBefore - holidays.size();
 
         //! step 3 - save
-        //TODO: Save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
@@ -648,7 +655,7 @@ public class AcademicYearService {
 
         //! step 3 - open it and save
         year.setEnrollmentEnabled(true);
-        //TODO: save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -677,7 +684,7 @@ public class AcademicYearService {
 
         //! step 3 - close it and save
         year.setEnrollmentEnabled(false);
-        //TODO: save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -706,7 +713,7 @@ public class AcademicYearService {
         //! step 3 - lock it and save
         year.setResultsLocked(true);
 
-        //TODO: save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
@@ -732,7 +739,7 @@ public class AcademicYearService {
 
         //! step 3 - unlock it and save
         year.setResultsLocked(false);
-        //TODO: save
+        // TODO: update academic year
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,

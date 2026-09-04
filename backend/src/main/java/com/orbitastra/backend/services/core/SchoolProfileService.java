@@ -125,7 +125,7 @@ public class SchoolProfileService {
         }
 
         
-         //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
         // countryCode is untouched on purpose and is not on the request. See the DTO.
         return SchoolProfileResponse.fromSchool(savedSchool);
@@ -147,7 +147,7 @@ public class SchoolProfileService {
         school.setStateOrProvince(TextHelper.blankToNull(request.stateOrProvince()));
         school.setPostalCode(TextHelper.blankToNull(request.postalCode()));
 
-        //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
@@ -196,6 +196,7 @@ public class SchoolProfileService {
                 // attendance and holidays are already anchored to the old zone, and moving it
                 // shifts them with no error anywhere.
                 LocalDate today = LocalDate.now();
+                // TODO: check academic year exists
                 boolean yearInProgress = academicYears
                         .existsBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
                                 school.getId(), today, today);
@@ -210,7 +211,7 @@ public class SchoolProfileService {
         }
 
 
-        //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
@@ -229,7 +230,10 @@ public class SchoolProfileService {
         String url = TextHelper.blankToNull(request.logoUrl());
         if (url == null) {
             school.setLogoUrl(null);
-            return SchoolProfileResponse.fromSchool(schools.save(school));
+
+            // TODO: update school
+            School clearedSchool = schools.save(school);
+            return SchoolProfileResponse.fromSchool(clearedSchool);
         }
 
         //! step 3 - https only, allow-listed host only
@@ -254,7 +258,7 @@ public class SchoolProfileService {
         //! step 4 - save
         school.setLogoUrl(url);
         
-        //TODO: - save
+        // TODO: update school
         School savedSchool = schools.save(school);
         return SchoolProfileResponse.fromSchool(savedSchool);
     }

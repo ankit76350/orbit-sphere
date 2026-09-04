@@ -76,6 +76,7 @@ public class NumberSequenceService {
         //! step 2 - take a number, atomically. returnNew(false) hands back the row as it WAS, so
         //! the value read is the one being allocated and the stored nextValue has already moved
         //! on. Two callers can never be given the same one.
+        // TODO: read and update number sequence
         NumberSequence before = mongo.findAndModify(
                 query(schoolId, type),
                 new Update().inc("nextValue", 1),
@@ -102,6 +103,7 @@ public class NumberSequenceService {
         //! number would depend on each caller passing the same string — and the day one of them
         //! passes a different one, a school's numbering changes shape halfway through.
         if ((stored == null || stored.isBlank()) && !prefix.isEmpty()) {
+            // TODO: update number sequence
             mongo.updateFirst(query(schoolId, type),
                     new Update().set("prefixTemplate", prefix), NumberSequence.class);
         }
@@ -120,19 +122,23 @@ public class NumberSequenceService {
      * many callers arrive at once.
      */
     private void ensureRow(String schoolId, NumberSequenceType type, String prefixTemplate) {
+        // TODO: check number sequence exists
         if (mongo.exists(query(schoolId, type), NumberSequence.class)) {
             return;
         }
+        NumberSequence row = NumberSequence.builder()
+                .schoolId(schoolId)
+                .sequenceType(type)
+                .scopeKey(GLOBAL_SCOPE)
+                .prefixTemplate(prefixTemplate)
+                .nextValue(1L)
+                .paddingWidth(6)
+                .resetPolicy(SequenceResetPolicy.NEVER)
+                .build();
+
         try {
-            mongo.insert(NumberSequence.builder()
-                    .schoolId(schoolId)
-                    .sequenceType(type)
-                    .scopeKey(GLOBAL_SCOPE)
-                    .prefixTemplate(prefixTemplate)
-                    .nextValue(1L)
-                    .paddingWidth(6)
-                    .resetPolicy(SequenceResetPolicy.NEVER)
-                    .build());
+            // TODO: insert number sequence
+            mongo.insert(row);
         } catch (DuplicateKeyException raced) {
             // Somebody else created it between the check and the insert. Nothing to do.
         }

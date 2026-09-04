@@ -104,6 +104,7 @@ public class SubscriptionService {
             SubscriptionCreateRequest request) {
 
         //! step 1 - the school has to exist and be a school we can still sell to
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -118,6 +119,7 @@ public class SubscriptionService {
 
         //! step 2 - one current subscription per school. The unique partial index enforces it,
         //! but a duplicate-key error tells the caller nothing about what to do instead.
+        // TODO: read subscription
         subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId).ifPresent(existing -> {
             throw ApiException.conflict("SUBSCRIPTION_ALREADY_EXISTS",
                     "'" + school.getSchoolName() + "' is already on " + existing.getSubscriptionNo()
@@ -172,7 +174,7 @@ public class SubscriptionService {
                 .current(true)
                 .build();
 
-        //TODO: - save - 1
+        // TODO: insert subscription
         SchoolSubscription savedSubscription = subscriptions.save(subscription);
 
         //! step 7 - its first history row, in this same transaction
@@ -188,8 +190,8 @@ public class SubscriptionService {
                 .performedByDocsId(null)
                 .effectiveAt(periodStart)
                 .build();
-                
-        //TODO: - save - 2        
+
+        // TODO: insert history
         history.save(subscriptionHistory);
 
         return SubscriptionResponse.fromSubscription(savedSubscription, plan, nextStepFor(school,
@@ -219,6 +221,7 @@ public class SubscriptionService {
                 : request;
 
         //! step 1 - the school has to exist
+        // TODO: read school
         School school = schools.findById(schoolId)
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
@@ -267,6 +270,7 @@ public class SubscriptionService {
         history.save(historyEntry);
 
         //! step 7 - the plan is only read so the response can name it and show the limits
+        // TODO: read plan
         PlanDefinition plan = plans.findById(saved.getPlanDefinitionDocsId())
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
                         "The plan this subscription points at no longer exists."));
@@ -289,6 +293,7 @@ public class SubscriptionService {
      */
     private PlanDefinition loadSellablePlan(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
+        // TODO: read plan
         PlanDefinition plan = plans.findByPlanCodeAndPlanVersion(planCode, version)
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
                         "No plan '" + planCode + "' version " + version + " exists."));
@@ -393,12 +398,14 @@ public class SubscriptionService {
             String subscriptionNo) {
 
         if (CURRENT_SUBSCRIPTION.equalsIgnoreCase(subscriptionNo)) {
+            // TODO: read subscription
             return subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId)
                     .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                             "'" + school.getSchoolName() + "' has no subscription yet. Create "
                                     + "one first."));
         }
 
+        // TODO: read subscription
         return subscriptions.findBySchoolIdAndSubscriptionNo(schoolId, subscriptionNo)
                 .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                         "'" + school.getSchoolName() + "' has no subscription numbered '"
