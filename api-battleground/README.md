@@ -92,11 +92,18 @@ role chips, not a JSON blob.
 
 ### Subscription
 
-Two endpoints: `GET /platform/schools/{id}/subscription` reads what the school is on, and
-`POST /platform/schools/{id}/subscriptions` creates one when it has none. The second is the piece
-`core` complains about — `activateSchool` was written to require a subscription, found nothing
-could create one, and settled for a soft check that says so in every response. Create one here
-and that response stops apologising.
+Four endpoints, and the tab is arranged around **who is asking**:
+
+| | |
+|---|---|
+| `GET /platform/schools/{id}/subscription` | what *we* see. Decides which half of the tab shows. |
+| `POST /platform/schools/{id}/subscriptions` | create one, when the school has none. |
+| `GET /schools/current/subscription` | what the *school* sees. Deliberately less. |
+| `GET /schools/current/subscription/entitlements` | what the school may actually use. |
+
+The create is the piece `core` complains about — `activateSchool` was written to require a
+subscription, found nothing could create one, and settled for a soft check that says so in every
+response. Create one here and that response stops apologising.
 
 **The read decides which half of the tab you see.** A school that already pays gets its
 subscription; one with none gets the form. So opening a school that pays no longer shows a form
@@ -121,6 +128,25 @@ the create response. Each row says whether it is included, what its limit counts
 "365 days" or "Ended 33 days ago". `periodEnded` matters: nothing renews or expires a
 subscription yet, so a period lapses while `status` still says `ACTIVE`, and the API's own `note`
 explaining that is shown as written rather than re-derived.
+
+**The two school-surface reads are there to be compared with the platform one**, which is the
+only reason a battleground shows the same subscription twice. Both go out with `subdomain`, which
+is what puts the tenant header on the request — the school surface never names a school in the
+URL, so that header is the only thing saying who is asking.
+
+**The point of the "What the school sees" card is what is missing from it.** No `planListPrice`,
+no `billingCustomerReference`, no negotiated overrides, no `planCode`. Those absences are
+**checked against the live response** rather than asserted in a comment: each field is looked for
+in the body, and one that starts coming through is reported in red as a problem. A privacy rule
+nobody verifies is a privacy rule until the day it is not.
+
+**One feature list, and it comes from the entitlements read.** The platform read carries the
+plan's features too, and showing both would put two feature lists on one screen that could
+disagree — the exact thing the entitlements endpoint exists to prevent. So there is one, and it
+reads `allowed`: the plan saying yes *and* the subscription granting. When those differ the row
+says "in the plan, but not available", because that difference is why no module may read the plan
+directly. When the subscription grants nothing the card leads with **Nothing is allowed** and the
+API's `reason`.
 
 **The plan is picked, not typed.** The list is `GET /platform/plans?status=ACTIVE`, so the only
 plans offered are ones that exist. A plan that cannot be sold today is still listed, with the
@@ -257,7 +283,7 @@ npm run test:behaviour # mounts screens in a real DOM against a stubbed backend
 npm run test:e2e       # walks every screen action against a real backend on 3456
 ```
 
-`test:render` paints 25 screens and states; `test:behaviour` runs 81 checks against a stubbed
+`test:render` paints 25 screens and states; `test:behaviour` runs 93 checks against a stubbed
 backend. `test:e2e` covers all 31 endpoints — 59 checks including the refusals the screens are
 built around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
 the same kind of holiday twice on one day, shrinking a year past a closed day, and a 404 for a

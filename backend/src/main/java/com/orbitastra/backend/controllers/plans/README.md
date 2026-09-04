@@ -424,7 +424,7 @@ new row, because a history you can edit is not a history.
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
 | `newStatus` | SubscriptionStatus, required | **`TRIAL`** or **`ACTIVE`** today; any of the six once the lifecycle endpoints exist. |
 | `reason` | String, optional | **Open** — free text from the caller, or null. |
-| `source` | String, required | **`ADMIN_PORTAL`** is the only value written today, from a constant in `SubscriptionService`. **The set is closed in intent but open in the type** — a `String`, not an enum, so a typo would be stored and a later "who did this" report would silently miss the row. The other sources this is meant to distinguish are the school's own portal, the payment gateway's webhook, and the scheduled jobs (#70–71); it should become an enum when the second one appears. |
+| `source` | String, required | **`ADMIN_PORTAL`** is the only value written today, from a constant in `PlatformSubscriptionService`. **The set is closed in intent but open in the type** — a `String`, not an enum, so a typo would be stored and a later "who did this" report would silently miss the row. The other sources this is meant to distinguish are the school's own portal, the payment gateway's webhook, and the scheduled jobs (#70–71); it should become an enum when the second one appears. |
 | `sourceEventId` | String, optional | **Open** — the id of whatever caused this outside our system, so a row can be traced back to it: a `billing_webhook_events` `providerEventId` for a gateway event, a job run id for #70–71. **Null for anything a person did**, which is every row today, since `ADMIN_PORTAL` is the only source. It is what makes a webhook replay safe to detect — same `sourceEventId`, same event, do not write it twice. |
 | `effectiveAt` | Instant, required | **When the change took effect**, which is not when the row was written: a cancellation agreed today for the end of the period is dated at the end of the period. `createdAt` is the write time and Spring Data fills that. |
 | `performedByDocsId` | String, optional | **Null for anything automated** — and null on every row today, because #13 does not yet resolve the acting account. Otherwise the `_id` of the identity that acted. |
@@ -1365,16 +1365,17 @@ another school's bill would otherwise be a matter of editing a URL.
 
 ### The logic lives in one class, and that is the whole point
 
-[`EntitlementService`](../../services/plans/EntitlementService.java) is the only place that
-decides what a school may use. **A module that gates a feature calls that service directly**;
+[`SchoolSubscriptionService`](../../services/plans/SchoolSubscriptionService.java) is the only
+place that decides what a school may use. **A module that gates a feature calls that service directly**;
 this endpoint is the same method with a URL in front of it. Nothing else may read
 `plan_definitions.features` and decide for itself — two places working it out disagree, and they
 disagree quietly, in the direction of letting a school use what it has not paid for. Transport
 checking *"is TRANSPORT in the features list"* looks right and misses that the subscription was
 cancelled last month.
 
-It is a class of its own rather than another method on `SubscriptionService` so the one place is
-easy to find.
+It sits with #33 in the school-surface service rather than anywhere a platform endpoint could
+reach it, so "what may this school use" has exactly one implementation and it is where a school's
+own reads live.
 
 ### Read `allowed`, not `includedInPlan`
 
