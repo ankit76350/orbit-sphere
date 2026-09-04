@@ -189,10 +189,28 @@ load, and the bundler was perfectly happy about it.
 
 ### Every control says which endpoint it calls
 
-`EndpointTag` sits beside every button and shows the **real** request: path parameters filled in
-and the query string actually being sent, so the tag under the list changes as you filter. Click
-it to reopen that endpoint's last call. Until it has made one there is nothing to open, so it
-renders as plain text rather than a button that does nothing.
+`EndpointTag` sits beside every control and reads **name · METHOD path**:
+
+```
+The list, as filtered · GET   /platform/schools?page=0&size=20&sort=createdAt,desc
+Take it live          · POST  /platform/schools/6a9a76a4…/activate
+Change web address    · PATCH /platform/schools/6a9a76a4…/subdomain
+```
+
+**The name is there because a bare method and path says what is sent but not by what**, and the
+two are only obvious while the tag happens to sit next to its button. Read on its own — in the
+response panel, in the log — the name is the half that identifies the control. It falls back to
+the endpoint's own name from the Postman collection, so a tag is never nameless, and that
+fallback is the string to search for in Postman.
+
+The path is the **real** request: path parameters filled in and the query string actually being
+sent, so the tag under the list changes as you filter. Click it to reopen that endpoint's last
+call. Until it has made one there is nothing to open, so it renders as plain text rather than a
+button that does nothing.
+
+Nothing hand-types a method or a path. Both come from the generated catalogue, so a tag cannot
+drift from the call it describes — the one place that did (`"Read from GET /platform/schools/{id}"`
+typed into a card heading) has been replaced by a tag.
 
 Anything that changes something opens `ResponseModal` by itself — the answer to "did that work"
 should not need a second click. Reads stay quiet; they run on load and the screen shows its own

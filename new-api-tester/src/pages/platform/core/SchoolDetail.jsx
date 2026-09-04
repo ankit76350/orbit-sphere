@@ -169,7 +169,7 @@ export default function SchoolDetail() {
             }
           />
           <div className="toolbar" style={{ justifyContent: 'center', marginTop: 12 }}>
-            <EndpointTag id="get-school" pathParams={{ id }} />
+            <EndpointTag id="get-school" name="The record" pathParams={{ id }} />
           </div>
         </Card>
       </div>
@@ -194,7 +194,7 @@ export default function SchoolDetail() {
           <Badge tone={STATUS_TONE[school.status]}>{school.status}</Badge>
           <span className="toolbar-spacer" />
           <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-          <EndpointTag id="get-school" pathParams={{ id }} showPath={false} />
+          <EndpointTag id="get-school" name="Refresh" pathParams={{ id }} />
         </div>
       </div>
 
@@ -205,7 +205,7 @@ export default function SchoolDetail() {
         </Card>
       ) : null}
 
-      <Card title="The record" description="Read from GET /platform/schools/{id}">
+      <Card title="The record" description="Every field the platform read returns.">
         <dl className="dl">
           <Value label="Account holder">{school.accountHolderName}</Value>
           <Value label="Email">{school.emailAddress}</Value>
@@ -246,7 +246,7 @@ export default function SchoolDetail() {
                 </Button>
                 <span className="muted">{action.note}</span>
                 <span className="toolbar-spacer" />
-                <EndpointTag id={action.endpoint} pathParams={{ id }} />
+                <EndpointTag id={action.endpoint} name={action.label} pathParams={{ id }} />
               </div>
             )
           })}
@@ -257,7 +257,7 @@ export default function SchoolDetail() {
             <Button icon={Globe} onClick={() => setRenaming(true)}>Change web address</Button>
             <span className="muted">Old links stop working immediately.</span>
             <span className="toolbar-spacer" />
-            <EndpointTag id="change-subdomain" pathParams={{ id }} />
+            <EndpointTag id="change-subdomain" name="Change web address" pathParams={{ id }} />
           </div>
         </div>
       </Card>
@@ -265,7 +265,11 @@ export default function SchoolDetail() {
       {/* The payload the fields above were read from. Behind a disclosure because it is the
           evidence, not the headline. */}
       <details className="raw">
-        <summary>The raw response</summary>
+        <summary>
+          The raw response
+          <span className="toolbar-spacer" />
+          <EndpointTag id="get-school" name="Read from" pathParams={{ id }} />
+        </summary>
         <pre className="resp-body">{JSON.stringify(school, null, 2)}</pre>
       </details>
 

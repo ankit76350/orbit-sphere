@@ -95,6 +95,11 @@ const screenChecks = [
   // The point of this app over a product UI: every control says what it sends.
   ['the list says which endpoint it calls', schools.includes('/platform/schools')],
   ['and which method', schools.includes('>GET<')],
+  // A tag names the control it belongs to as well as the request. Read on its own — in the
+  // response panel, in the log — the method and path say what was sent but not by what.
+  ['and which control sends it', schools.includes('endpoint-tag-name')],
+  ['the name, method and path are all in one tag',
+    /endpoint-tag-name[^]*?The list, as filtered[\s\S]{0,200}?GET[\s\S]{0,200}?\/platform\/schools/.test(schools)],
   ['the paging query is in the tag', schools.includes('page=0') && schools.includes('size=20')],
   ['the status filters are offered', schools.includes('Being set up') && schools.includes('Suspended')],
   // Until an endpoint has been called there is nothing to open, so the tag must not look like

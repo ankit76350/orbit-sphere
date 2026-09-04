@@ -26,13 +26,13 @@ export default function ResponseModal() {
   const { inspecting } = useApiState()
   if (!inspecting) return null
 
-  const { result, method, path, status, ok, durationMs, action } = inspecting
+  const { result, method, path, status, ok, durationMs, action, endpointName } = inspecting
 
   return (
     <Modal
       open
       onClose={() => inspect(null)}
-      title={action || `${method} ${path}`}
+      title={action || endpointName || `${method} ${path}`}
       description={`${method} ${path}`}
     >
       <div className="stack">

@@ -153,7 +153,7 @@ export default function Schools() {
 
           <span className="toolbar-spacer" />
           {/* The live request, filters and paging included. Click it for the last response. */}
-          <EndpointTag id="list-schools" query={query} />
+          <EndpointTag id="list-schools" name="The list, as filtered" query={query} />
         </div>
 
         {problem ? (
@@ -284,7 +284,7 @@ function NewSchool({ open, onClose, onCreated }) {
           <Button onClick={onClose}>Cancel</Button>
           <div className="stack" style={{ gap: 4, alignItems: 'flex-end' }}>
             <Button look="primary" busy={saving} onClick={submit}>Create</Button>
-            <EndpointTag id="create-school" showPath={false} />
+            <EndpointTag id="create-school" name="Create" />
           </div>
         </>
       }

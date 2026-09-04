@@ -411,3 +411,13 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
 @media (max-width: 560px) {
   .dl { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The name of the control the tag belongs to, ahead of the method. Not monospace: it is a label
+   somebody wrote, where the method and path are what goes on the wire. */
+.endpoint-tag-name {
+  font-family: var(--font-sans, inherit);
+  font-size: 11px; font-weight: 600; color: var(--ink-2);
+  white-space: nowrap;
+}
+.endpoint-tag-name::after { content: '·'; margin-left: 6px; color: var(--ink-muted); font-weight: 400; }
+button.endpoint-tag:hover .endpoint-tag-name { color: var(--brand); }
