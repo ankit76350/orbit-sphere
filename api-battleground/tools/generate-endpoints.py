@@ -283,6 +283,20 @@ CURATED = {
     successStatus=200,
     captures=[('subscriptionNo','subscriptionNo')],
   ),
+  'Get My Subscription': dict(
+    summary="The school's own billing screen. Deliberately less than the platform sees.",
+    required=[],
+    optional=[],
+    responseFields=['subscriptionNo','status','planName','planDescription','planVersion','billingCycle','price','currencyCode','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','cancelledAt','note'],
+    successStatus=200,
+  ),
+  'Get Entitlements': dict(
+    summary='What this school is allowed to use. The one every other module has to ask.',
+    required=[],
+    optional=[],
+    responseFields=['active','reason','subscriptionNo','status','planName','planVersion','currentPeriodEnd','maxStudents','maxUsers','featureCount','features'],
+    successStatus=200,
+  ),
 }
 
 # Errors every school-surface endpoint can give, because of the tenant header.

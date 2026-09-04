@@ -1,10 +1,31 @@
 /**
  * The school's subscription — what it is on, and how it gets one.
  *
- * TWO ENDPOINTS. `GET /platform/schools/{id}/subscription` reads what the school is on;
- * `POST /platform/schools/{id}/subscriptions` creates one when it has none. The read is what
- * decides which half of the screen you see, so opening a school that already pays shows the
- * subscription rather than a form that would only be refused.
+ * FOUR ENDPOINTS, AND THE SCREEN IS ARRANGED AROUND WHO IS ASKING:
+ *
+ *   - `GET  /platform/schools/{id}/subscription`   what WE see. Decides which half shows.
+ *   - `POST /platform/schools/{id}/subscriptions`  create one, when the school has none.
+ *   - `GET  /schools/current/subscription`         what the SCHOOL sees. Deliberately less.
+ *   - `GET  /schools/current/subscription/entitlements`  what the school may actually use.
+ *
+ * The first read decides which half of the screen you see, so opening a school that already pays
+ * shows the subscription rather than a form that would only be refused.
+ *
+ * THE TWO SCHOOL-SURFACE READS ARE HERE TO BE COMPARED WITH THE PLATFORM ONE. The point of the
+ * "What the school sees" card is what is missing from it: no list price, no gateway customer
+ * reference, no negotiated overrides. Those absences are CHECKED against the live response
+ * rather than asserted in a comment — see WITHHELD. A privacy rule nobody verifies is a privacy
+ * rule until the day it is not.
+ *
+ * THE FEATURE LIST COMES FROM THE ENTITLEMENTS READ, NOT FROM THE PLAN. The platform read
+ * carries the plan's features too, and showing both would put two feature lists on one screen
+ * that could disagree — which is the exact thing the entitlements endpoint exists to prevent.
+ * So there is one list, and it reads `allowed`: the plan saying yes AND the subscription
+ * granting. When those two differ the row says so, because that difference is the whole reason
+ * no module may read the plan directly.
+ *
+ * They go out with `subdomain`, which is what puts the tenant header on the request. The school
+ * surface never names a school in the URL, so that header is the only thing saying who is asking.
  *
  * WHAT IS ON SCREEN COMES FROM THE READ, NOT FROM THE CREATE. After creating one the tab
  * re-reads rather than rendering the 201 body, so there is one source of truth for what a school
@@ -33,6 +54,21 @@ import {
 } from '../components/ui.jsx';
 import { sellableReason, money } from './PlansPage.jsx';
 import { METRIC_LABEL, POLICY_LABEL } from './PlanFeaturesTab.jsx';
+
+/**
+ * The fields the platform read (#27) carries and the school's read (#33) is meant not to.
+ *
+ * Listed here so the screen can CHECK rather than claim: each one is looked for in the actual
+ * response, and a field that starts coming through is reported as a problem instead of being
+ * quietly reassuring. A privacy rule nobody verifies is a privacy rule until the day it is not.
+ */
+const WITHHELD = [
+  ['planListPrice', 'a school on a negotiated price would see a number it is not paying'],
+  ['billingCustomerReference', "the payment gateway's id for them — ours to hold"],
+  ['maxStudentsOverride', 'that a limit was negotiated is a commercial conversation'],
+  ['maxUsersOverride', 'the same'],
+  ['planCode', 'the internal family key. A school reads the name'],
+];
 
 /** One colour per status, so a lapsed or cancelled subscription does not look healthy. */
 const STATUS_LOOK = {
@@ -103,6 +139,12 @@ export default function SchoolSubscriptionTab({ school }) {
   const [reading, setReading] = useState(true);
   const [readProblem, setReadProblem] = useState(null);
 
+  // The same subscription as the school itself sees it (#33), and what it is allowed to use
+  // (#34). Both are school-surface reads, so they go out with the tenant header rather than the
+  // school's id in the path.
+  const [schoolView, setSchoolView] = useState(null);
+  const [entitlements, setEntitlements] = useState(null);
+
   const [plans, setPlans] = useState(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [planProblem, setPlanProblem] = useState(null);
@@ -157,6 +199,44 @@ export default function SchoolSubscriptionTab({ school }) {
   useEffect(() => {
     loadSubscription();
   }, [loadSubscription]);
+
+  /**
+   * The school's own two reads, together.
+   *
+   * In parallel because neither depends on the other and both are cheap. They go out with
+   * `subdomain`, which is what puts the tenant header on the request — the school surface never
+   * names a school in the URL, so this is the only thing that says which school is asking.
+   */
+  const loadSchoolView = useCallback(async () => {
+    const [mine, allowed] = await Promise.all([
+      call('get-my-subscription', {
+        label: "Read the school's own view",
+        subdomain: school.subdomain,
+      }),
+      call('get-entitlements', {
+        label: 'Read the entitlements',
+        subdomain: school.subdomain,
+      }),
+    ]);
+    setSchoolView(mine.ok && mine.bodyJson?.subscriptionNo ? mine.bodyJson : null);
+    // Guarded on the shape, not just on `ok`: a 200 carrying something unexpected should show
+    // the "did not load" panel, not crash the tab on a missing feature list.
+    setEntitlements(
+      allowed.ok && Array.isArray(allowed.bodyJson?.features) ? allowed.bodyJson : null,
+    );
+  }, [call, school.subdomain]);
+
+  // Keyed on the subscription number rather than the object, so this runs when the subscription
+  // actually changes and not on every refetch of the same one. Refresh reloads all three.
+  const subscriptionNo = subscription?.subscriptionNo;
+  useEffect(() => {
+    if (subscriptionNo) loadSchoolView();
+  }, [subscriptionNo, loadSchoolView]);
+
+  const refreshAll = useCallback(async () => {
+    await loadSubscription();
+    await loadSchoolView();
+  }, [loadSubscription, loadSchoolView]);
 
   const loadPlans = useCallback(async () => {
     setLoadingPlans(true);
@@ -283,7 +363,7 @@ export default function SchoolSubscriptionTab({ school }) {
           description={`${s.planName} — ${s.planCode} v${s.planVersion}`}
           action={
             <div className="flex flex-col items-end gap-1">
-              <Button icon={RefreshCw} onClick={loadSubscription} busy={reading}>
+              <Button icon={RefreshCw} onClick={refreshAll} busy={reading}>
                 Refresh
               </Button>
               <EndpointTag id="get-subscription" pathParams={{ id: school.schoolId }} showPath={false} />
@@ -358,45 +438,159 @@ export default function SchoolSubscriptionTab({ school }) {
           )}
         </Card>
 
+        {/* --------------------------------- the same subscription, as the school sees it */}
         <Card
-          title="What this plan includes"
-          description={`${s.featureCount} feature${s.featureCount === 1 ? '' : 's'} on the plan this school is on`}
+          title="What the school sees"
+          description="The school's own billing screen — GET /schools/current/subscription"
+          action={<EndpointTag id="get-my-subscription" showPath={false} />}
         >
-          {(s.features ?? []).length === 0 ? (
+          {schoolView ? (
+            <>
+              <dl className="grid gap-x-4 gap-y-4 sm:grid-cols-3">
+                <Detail label="Plan">{schoolView.planName}</Detail>
+                <Detail label="Price">{money(schoolView.price, schoolView.currencyCode)}</Detail>
+                <Detail label="Renews">{schoolView.autoRenew ? 'Automatically' : 'No — it ends'}</Detail>
+                <Detail label="Period ends">{when(schoolView.currentPeriodEnd)}</Detail>
+                <Detail label="Days left">{daysLeft(schoolView)}</Detail>
+                <Detail label="Status">
+                  <Badge look={STATUS_LOOK[schoolView.status] ?? 'grey'}>{schoolView.status}</Badge>
+                </Detail>
+              </dl>
+
+              {/* The school's note is written for them, and says different things from the
+                  platform's note above — that is the point of it being a separate field. */}
+              {schoolView.note && (
+                <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+                  <Info size={14} className="mt-px shrink-0 text-slate-400" />
+                  <span>
+                    <span className="font-medium">What the school is told: </span>
+                    {schoolView.note}
+                  </span>
+                </p>
+              )}
+
+              {/* CHECKED, NOT CLAIMED. These are the fields the platform read has and this one
+                  is meant not to — a school must not see a list price it is not paying, or the
+                  gateway's id for it. Read off the actual response, so if one ever starts coming
+                  through, this panel says so instead of quietly reassuring. */}
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Held back from the school
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {WITHHELD.map(([field, why]) => {
+                    const leaked = field in schoolView;
+                    return (
+                      <li key={field} className="flex items-start gap-1.5 text-[11.5px]">
+                        {leaked
+                          ? <AlertTriangle size={12} className="mt-0.5 shrink-0 text-red-600" />
+                          : <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-emerald-600" />}
+                        <span className={leaked ? 'text-red-800' : 'text-slate-500'}>
+                          <code className="font-mono">{field}</code>
+                          {leaked ? ' is being sent — it should not be. ' : ' — '}
+                          {why}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
+          ) : (
             <EmptyState
-              icon={Info}
-              title="No features on this plan"
-              description="The plan was published with an empty list, so this school is paying for nothing it can use."
+              icon={AlertTriangle}
+              title="The school's own view did not load"
+              description="This read needs the tenant header, which comes from the school's subdomain."
+              action={<Button icon={RefreshCw} onClick={loadSchoolView}>Try again</Button>}
+            />
+          )}
+        </Card>
+
+        {/* -------------------------------------------------- what the school may actually use */}
+        <Card
+          title="Entitlements"
+          description="What this school may use right now — GET /schools/current/subscription/entitlements"
+          action={<EndpointTag id="get-entitlements" showPath={false} />}
+        >
+          {!entitlements ? (
+            <EmptyState
+              icon={AlertTriangle}
+              title="The entitlements did not load"
+              description="This read needs the tenant header, which comes from the school's subdomain."
+              action={<Button icon={RefreshCw} onClick={loadSchoolView}>Try again</Button>}
             />
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {s.features.map((feature) => (
-                <li key={feature.featureCode} className="flex items-start gap-3 py-2.5">
-                  {feature.enabled
-                    ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
-                    : <XCircle size={15} className="mt-0.5 shrink-0 text-slate-300" />}
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[13px] font-medium ${feature.enabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                      {feature.label}
+            <>
+              {/* The one thing every module has to honour. A green line here is not decoration:
+                  when it is red, nothing on the plan may be used, whatever the plan says. */}
+              {entitlements.active ? (
+                <p className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+                  <CheckCircle2 size={14} className="mt-px shrink-0 text-emerald-600" />
+                  This subscription is granting what the plan includes.
+                </p>
+              ) : (
+                <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-900">
+                  <AlertTriangle size={14} className="mt-px shrink-0 text-red-600" />
+                  <span>
+                    <strong>Nothing is allowed.</strong> {entitlements.reason}
+                  </span>
+                </p>
+              )}
+
+              <dl className="mt-4 grid gap-x-4 gap-y-4 sm:grid-cols-3">
+                <Detail label="Students">{entitlements.maxStudents}</Detail>
+                <Detail label="Users">{entitlements.maxUsers}</Detail>
+                <Detail label="Features">
+                  {entitlements.features.filter((one) => one.allowed).length} of{' '}
+                  {entitlements.featureCount} available
+                </Detail>
+              </dl>
+
+              {entitlements.featureCount === 0 ? (
+                <EmptyState
+                  icon={Info}
+                  title="No features on this plan"
+                  description="The plan was published with an empty list, so this school is paying for nothing it can use."
+                />
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100">
+                  {entitlements.features.map((feature) => (
+                    <li key={feature.featureCode} className="flex items-start gap-3 py-2.5">
+                      {feature.allowed
+                        ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
+                        : <XCircle size={15} className="mt-0.5 shrink-0 text-slate-300" />}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-medium ${feature.allowed ? 'text-slate-800' : 'text-slate-400'}`}>
+                          {feature.label}
+                          {feature.usageLimit != null && (
+                            <span className="ml-1.5 font-normal text-slate-500">
+                              up to {feature.usageLimit}
+                              {feature.usageMetric ? ` ${metricWords(feature.usageMetric)}` : ''}
+                            </span>
+                          )}
+                        </p>
+                        {/* The two disagreeing is the whole reason this endpoint exists: the
+                            plan grants it, the subscription does not, and a module reading the
+                            plan on its own would have let it through. */}
+                        {feature.includedInPlan && !feature.allowed && (
+                          <p className="mt-0.5 text-[11px] text-amber-800">
+                            In the plan, but not available while the subscription is not granting.
+                          </p>
+                        )}
+                        {!feature.includedInPlan && (
+                          <p className="mt-0.5 text-[11px] text-slate-400">Not part of this plan.</p>
+                        )}
+                      </div>
                       {feature.usageLimit != null && (
-                        <span className="ml-1.5 font-normal text-slate-500">
-                          up to {feature.usageLimit}
-                          {feature.usageMetric ? ` ${metricWords(feature.usageMetric)}` : ''}
-                        </span>
+                        <Badge look="grey" title={POLICY_LABEL[feature.overagePolicy] || feature.overagePolicy}>
+                          {feature.overagePolicy}
+                        </Badge>
                       )}
-                    </p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                      {feature.description}
-                    </p>
-                  </div>
-                  {feature.usageLimit != null && (
-                    <Badge look="grey" title={POLICY_LABEL[feature.overagePolicy] || feature.overagePolicy}>
-                      {feature.overagePolicy}
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </Card>
       </div>

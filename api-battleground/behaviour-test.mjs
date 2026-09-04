@@ -43,7 +43,10 @@ let handler = () => ({ status: 200, body: {} });
 globalThis.fetch = async (url, options = {}) => {
   // The body is recorded too: what a form leaves OUT of a request is as much a decision as what
   // it puts in, and an empty optional that arrives as null overrules a default the API picks.
-  calls.push({ url: String(url), method: options.method || 'GET', body: options.body });
+  // Headers too: the school surface never names a school in the URL, so the tenant header is
+  // the only thing that says which school is asking — and that is worth asserting.
+  calls.push({ url: String(url), method: options.method || 'GET', body: options.body,
+               headers: options.headers || {} });
   const { status, body, contentType } = handler(String(url), options);
   const text = body === undefined ? '' : JSON.stringify(body);
   // A dev server whose backend is down answers text/plain with nothing in it — the shape the
@@ -432,9 +435,33 @@ const A_SUBSCRIPTION = { status: 200, body: {
   ],
   cancelledAt: null, cancellationReason: null, billingCustomerReference: null, note: null } };
 
+// What the school's own two reads answer (#33 and #34). Separate from the platform read above,
+// because the whole point of the pair is that they say less than it does.
+const SCHOOL_VIEW = { status: 200, body: {
+  subscriptionNo: 'SUB/2026/09/000001', status: 'ACTIVE', planName: 'Premium',
+  planDescription: 'Everything a growing school needs.', planVersion: 2,
+  billingCycle: 'YEARLY', price: 44999.0, currencyCode: 'INR',
+  currentPeriodStart: '2026-09-03T00:00:00Z', currentPeriodEnd: '2027-09-03T00:00:00Z',
+  daysRemaining: 365, periodEnded: false, autoRenew: true, cancelledAt: null, note: null } };
+
+const ENTITLEMENTS = { status: 200, body: {
+  active: true, reason: null, subscriptionNo: 'SUB/2026/09/000001', status: 'ACTIVE',
+  planName: 'Premium', planVersion: 2, currentPeriodEnd: '2027-09-03T00:00:00Z',
+  maxStudents: 2500, maxUsers: 250, featureCount: 2,
+  features: [
+    { featureCode: 'STUDENT_MANAGEMENT', label: 'Student management', includedInPlan: true,
+      allowed: true, usageLimit: 2000, usageMetric: 'ACTIVE_STUDENTS', overagePolicy: 'BLOCK' },
+    { featureCode: 'TRANSPORT', label: 'Transport', includedInPlan: true, allowed: true,
+      usageLimit: 5, usageMetric: 'VEHICLES', overagePolicy: 'WARN' },
+  ] } };
+
+let schoolViewAnswer = SCHOOL_VIEW;
+let entitlementsAnswer = ENTITLEMENTS;
 let readAnswer = NO_SUBSCRIPTION;
 let created = { status: 201, body: { subscriptionNo: 'SUB/2026/09/000001' } };
 handler = (url, options = {}) => {
+  if (url.endsWith('/schools/current/subscription/entitlements')) return entitlementsAnswer;
+  if (url.endsWith('/schools/current/subscription')) return schoolViewAnswer;
   if (url.endsWith('/subscription')) return readAnswer;
   if (url.includes('/subscriptions') && options.method === 'POST') return created;
   if (url.includes('/platform/plans')) return { status: 200, body: PLANS };
@@ -543,7 +570,84 @@ check('says what a limit counts, in words not the enum',
   view.container.textContent.includes('up to 2000 students')
     && !view.container.textContent.includes('ACTIVE_STUDENTS'),
   view.container.textContent.slice(-700));
+
+// ------------------------------------------- the school's own two reads, next to the platform's
+// The school surface names no school in the URL, so the tenant header is the only thing saying
+// who is asking. If it goes out missing, the backend answers 400 and the card looks broken for a
+// reason nobody would guess from the screen.
+const tenantOf = (suffix) => {
+  const hit = calls.find((one) => one.url.endsWith(suffix));
+  return hit && Object.entries(hit.headers).find(([k]) => /school-subdomain/i.test(k))?.[1];
+};
+check('reads the school-surface pair as well',
+  Boolean(tenantOf('/schools/current/subscription'))
+    && Boolean(tenantOf('/schools/current/subscription/entitlements')),
+  JSON.stringify(calls.map((c) => c.url)));
+check('and sends the tenant header on both',
+  tenantOf('/schools/current/subscription') === 'orbit-astra'
+    && tenantOf('/schools/current/subscription/entitlements') === 'orbit-astra',
+  JSON.stringify(calls.map((c) => [c.url, c.headers])));
+
+// The point of the school's card is what is NOT in it. Checked against the live response, so a
+// field that starts coming through is reported rather than quietly assumed absent.
+check('confirms the four fields held back from the school',
+  view.container.textContent.includes('Held back from the school')
+    && view.container.textContent.includes('planListPrice')
+    && !view.container.textContent.includes('is being sent'),
+  view.container.textContent.slice(-900));
+
+// One feature list, and it comes from the entitlements read — two lists on one screen is the
+// exact thing that endpoint exists to prevent.
+check('the entitlements card says how many are available',
+  view.container.textContent.includes('2 of 2 available'),
+  view.container.textContent.slice(-900));
+check('and says the subscription is granting',
+  view.container.textContent.includes('granting what the plan includes'));
 await view.unmount();
+
+// A field the school must not see, arriving anyway. The panel has to call it out — that is the
+// difference between checking a privacy rule and merely stating one.
+console.log('\nThe subscription tab, when a withheld field leaks through');
+schoolViewAnswer = { status: 200, body: { ...SCHOOL_VIEW.body, planListPrice: 49999.0 } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+check('reports a withheld field that is being sent',
+  view.container.textContent.includes('is being sent'),
+  view.container.textContent.slice(-900));
+await view.unmount();
+schoolViewAnswer = SCHOOL_VIEW;
+
+// Nothing is allowed, and the plan still says yes. This is the case a module reading the plan
+// on its own would get wrong.
+console.log('\nThe subscription tab, when the subscription grants nothing');
+entitlementsAnswer = { status: 200, body: {
+  ...ENTITLEMENTS.body, active: false,
+  reason: 'The subscription period ended on 2026-08-01T00:00:00Z.',
+  features: ENTITLEMENTS.body.features.map((f) => ({ ...f, allowed: false })) } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+
+check('says plainly that nothing is allowed',
+  view.container.textContent.includes('Nothing is allowed'),
+  view.container.textContent.slice(-900));
+check('and gives the reason', view.container.textContent.includes('period ended on'));
+check('counts none as available', view.container.textContent.includes('0 of 2 available'));
+// The disagreement is the whole point: in the plan, not available.
+check('flags the features the plan grants but the subscription does not',
+  view.container.textContent.includes('In the plan, but not available'),
+  view.container.textContent.slice(-900));
+await view.unmount();
+entitlementsAnswer = ENTITLEMENTS;
+
+// A 200 carrying something unexpected must show "did not load", not white-screen the tab.
+console.log('\nThe subscription tab, when a school-surface read answers oddly');
+entitlementsAnswer = { status: 200, body: { unexpected: true } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+check('survives a 200 with the wrong shape',
+  view.container.textContent.includes('entitlements did not load'),
+  view.container.textContent.slice(-500));
+check('and still shows the platform read',
+  view.container.textContent.includes('SUB/2026/09/000001'));
+await view.unmount();
+entitlementsAnswer = ENTITLEMENTS;
 
 // A period can lapse while the status still says ACTIVE, because nothing expires a subscription
 // yet. The API says so in `note` and the screen must not quietly drop it.

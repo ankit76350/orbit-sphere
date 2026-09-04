@@ -6243,12 +6243,166 @@ subscription expired yet so it has to be read as lapsed. This is the case a scre
   ],
 };
 
+const GROUP_PLANS_SUBSCRIPTION_THE_SCHOOL_S_OWN_VIEW = {
+  id: "plans-subscription-the-school-s-own-view",
+  module: "Plans / Subscription — the school's own view",
+  endpoints: [
+    {
+      id: "get-my-subscription",
+      name: "Get My Subscription",
+      method: "GET",
+      path: "/schools/current/subscription",
+      status: 'live',
+      summary: "The school's own billing screen. Deliberately less than the platform sees.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/subscription\` — the school's own billing screen.
+
+What plan it is on, what it costs, when the period ends, whether it renews.
+
+### There is no \`{id}\` in the path, and that is the point
+
+The tenant comes from \`CurrentSchoolResolver\` — today the \`X-School-Subdomain\` header, tomorrow
+the session. A caller cannot ask about a school it does not belong to, because it never names one.
+
+### It is not #27 with a different URL
+
+#27 is the platform read and shows everything. This one leaves out four things on purpose:
+
+- \`planListPrice\` — a school on a negotiated price would see a number it is not paying.
+- \`billingCustomerReference\` — the gateway's id for them. Ours, not theirs.
+- the limit overrides — "your limit is 2500" is useful; "negotiated up from 2000" is a
+  commercial conversation.
+- \`planCode\` — the internal family key. A school reads the name.
+
+\`contractedPrice\` comes back as \`price\`: from where the school sits there is only one price.
+
+### \`note\` is written for the school
+
+Every branch says what it means for the person paying, and none of them mention what the module
+cannot do yet. That is deliberately different from #27's note.
+
+### The four test cases
+
+**01  A SCHOOL WITH A SUBSCRIPTION  -> 200 OK**
+\`status\`, \`planName\`, \`price\`, \`currencyCode\`, the period, and \`daysRemaining\` counting down.
+Confirm \`planListPrice\` and \`billingCustomerReference\` are **absent** — that is the whole design.
+
+**02  NO TENANT HEADER  -> 400 Bad Request**
+\`{ "code": "TENANT_NOT_RESOLVED" }\`. Disable the header to see it.
+
+**03  A SUBDOMAIN THAT MATCHES NO SCHOOL  -> 404 Not Found**
+\`{ "code": "SCHOOL_NOT_FOUND" }\`.
+
+**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**
+\`{ "code": "SUBSCRIPTION_NOT_FOUND", "message": "This school has no subscription." }\`
+Note it uses \`require()\`, not \`requireUsable()\` — a suspended school can still read its own
+billing screen, which is exactly when somebody needs to.
+`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["subscriptionNo", "status", "planName", "planDescription", "planVersion", "billingCycle", "price", "currencyCode", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "cancelledAt", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+    {
+      id: "get-entitlements",
+      name: "Get Entitlements",
+      method: "GET",
+      path: "/schools/current/subscription/entitlements",
+      status: 'live',
+      summary: "What this school is allowed to use. The one every other module has to ask.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/subscription/entitlements\` — what this school is allowed to use.
+
+**The one the rest of the product asks.** No module may read \`plan_definitions.features\` and
+decide for itself whether a school can use something: two places working that out disagree, and
+they disagree in the direction of letting a school use what it has not paid for.
+
+In-process callers use \`EntitlementService\` directly. This endpoint is the same method with a URL
+in front of it.
+
+### Read \`allowed\`, not \`includedInPlan\`
+
+- \`includedInPlan\` — what the plan says.
+- \`allowed\` — whether it may be used **right now**: the plan saying yes *and* the subscription
+  granting anything at all.
+
+\`allowed\` is false on every feature when the subscription grants nothing, so a caller that reads
+the rows and forgets the top-level \`active\` flag still gets the right answer.
+
+### What grants nothing
+
+\`SUSPENDED\`, \`CANCELLED\`, \`EXPIRED\`, or a period end in the past whatever the status says.
+\`PAST_DUE\` **does** still grant — an unpaid invoice is a conversation to have, not a reason to
+lock a school out of its attendance register mid-morning. \`reason\` says which it is.
+
+### No usage counts
+
+This is the ceiling, not how much is gone. Counting students and users is #35, separate because a
+gate check runs on every request that touches a feature.
+
+### The five test cases
+
+**01  A SCHOOL ON A LIVE SUBSCRIPTION  -> 200 OK**
+\`active: true\`, \`reason: null\`, and every included feature \`allowed: true\`. \`maxStudents\` and
+\`maxUsers\` are the ceilings in force — the school's override where it has one.
+
+**02  A SCHOOL ON A TRIAL  -> 200 OK**
+\`active: true\`. A trial grants everything the plan does; it is a paying question, not an access
+question.
+
+**03  A LAPSED PERIOD  -> 200 OK, granting nothing**
+Create a subscription with \`currentPeriodEnd\` in the past. \`active: false\`,
+\`reason: "The subscription period ended on …"\`, and **every** feature \`allowed: false\` while
+\`includedInPlan\` stays true. This is the case a module reading the plan directly would get wrong.
+
+**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**
+\`{ "code": "SUBSCRIPTION_NOT_FOUND", "message": "This school has no subscription, so it is not
+entitled to anything." }\`
+A 404 rather than an empty allowance: entitled to nothing either way, but an empty feature list
+would be indistinguishable from a plan published with no features.
+
+**05  NO TENANT HEADER / UNKNOWN SUBDOMAIN  -> 400 / 404**
+\`TENANT_NOT_RESOLVED\` and \`SCHOOL_NOT_FOUND\`.
+`,
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["active", "reason", "subscriptionNo", "status", "planName", "planVersion", "currentPeriodEnd", "maxStudents", "maxUsers", "featureCount", "features"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+      ],
+      examples: [],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
   GROUP_CORE_SCHOOL_PLATFORM,
   GROUP_PLANS_PLAN_CATALOGUE,
   GROUP_PLANS_SUBSCRIPTIONS,
+  GROUP_PLANS_SUBSCRIPTION_THE_SCHOOL_S_OWN_VIEW,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */
