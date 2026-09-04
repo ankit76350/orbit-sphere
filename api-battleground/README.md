@@ -92,10 +92,35 @@ role chips, not a JSON blob.
 
 ### Subscription
 
-The tab that makes a school a paying customer: `POST /platform/schools/{id}/subscriptions`. It is
-the piece `core` complains about — `activateSchool` was written to require a subscription, found
-nothing could create one, and settled for a soft check that says so in every response. Create one
-here and that response stops apologising.
+Two endpoints: `GET /platform/schools/{id}/subscription` reads what the school is on, and
+`POST /platform/schools/{id}/subscriptions` creates one when it has none. The second is the piece
+`core` complains about — `activateSchool` was written to require a subscription, found nothing
+could create one, and settled for a soft check that says so in every response. Create one here
+and that response stops apologising.
+
+**The read decides which half of the tab you see.** A school that already pays gets its
+subscription; one with none gets the form. So opening a school that pays no longer shows a form
+that would only be refused, and the catalogue is not loaded for a school that will never choose
+a plan.
+
+**A 404 is not an error here — it is the other state.** `SUBSCRIPTION_NOT_FOUND` means "none
+yet", which is exactly when the form belongs. `SCHOOL_NOT_FOUND` is a real error and says so.
+The API returns two codes precisely so a caller can tell them apart, and this is the caller that
+needs to.
+
+**What is on screen comes from the read, not from the create.** After creating one the tab
+re-reads rather than rendering the `201`, so there is one source of truth for what a school is
+on — and leaving the tab and coming back shows the same thing, which it could not do before.
+
+**The features are listed, not counted**, which is the reason the read exists rather than reusing
+the create response. Each row says whether it is included, what its limit counts in words
+(`up to 2000 students`, not `ACTIVE_STUDENTS`), and what happens past the limit.
+
+**Three things come from the API rather than being worked out here:** `daysRemaining`,
+`planRetired`, and `periodEnded`. The screen only turns the sign of `daysRemaining` into words —
+"365 days" or "Ended 33 days ago". `periodEnded` matters: nothing renews or expires a
+subscription yet, so a period lapses while `status` still says `ACTIVE`, and the API's own `note`
+explaining that is shown as written rather than re-derived.
 
 **The plan is picked, not typed.** The list is `GET /platform/plans?status=ACTIVE`, so the only
 plans offered are ones that exist. A plan that cannot be sold today is still listed, with the
@@ -111,12 +136,10 @@ would overrule one. A `CUSTOM` billing cycle is the exception: it has no length 
 the form asks for the period end up front instead of letting you find out via
 `400 BILLING_PERIOD_END_REQUIRED`.
 
-**It does not read a subscription back yet, and says so.** `GET /platform/schools/{id}/subscription`
-(#27) is built, but this tab does not call it — so it shows what it just created and loses it when
-you leave. That is stated on screen: a blank panel meaning "nothing here" and a blank panel meaning
-"nothing asked" are different problems, and guessing between them is how somebody tries to create a
-second subscription for a school that already has one. Until #27 is wired in, the way to find that
-out is the refusal — `409 SUBSCRIPTION_ALREADY_EXISTS` — which the tab shows with what it means.
+**Activating a trial is not here yet.** `POST …/subscriptions/{no}/activate` (#14) is built but
+no screen calls it, so a trial shown on this tab cannot be turned into a paying subscription from
+the UI. `409 SUBSCRIPTION_ALREADY_EXISTS` is still shown with what it means, for the case where
+two people create at once.
 
 ### Settings
 
@@ -234,7 +257,7 @@ npm run test:behaviour # mounts screens in a real DOM against a stubbed backend
 npm run test:e2e       # walks every screen action against a real backend on 3456
 ```
 
-`test:render` paints 25 screens and states; `test:behaviour` runs 67 checks against a stubbed
+`test:render` paints 25 screens and states; `test:behaviour` runs 81 checks against a stubbed
 backend. `test:e2e` covers all 31 endpoints — 59 checks including the refusals the screens are
 built around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
 the same kind of holiday twice on one day, shrinking a year past a closed day, and a 404 for a

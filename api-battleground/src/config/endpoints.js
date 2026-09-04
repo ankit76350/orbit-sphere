@@ -5989,6 +5989,257 @@ A second is a \`409\` telling you to change the plan on the existing one.
         },
       ],
     },
+    {
+      id: "activate-subscription",
+      name: "Activate Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/activate",
+      status: 'live',
+      summary: "Turns a trial into a paying subscription. The plan, price and limits do not move.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/{no}/activate\` — turns a trial into a paying subscription.
+
+For when the school has tried it and agreed to buy. Nothing about what they are buying changes:
+same plan, same price, same limits, same \`autoRenew\`. All that changes is that they are paying
+now, and a fresh paid period starts.
+
+### Use \`current\` as the number
+
+A real subscription number is \`SUB/2026/09/000001\`. The slashes end the path segment, so it
+cannot be written in a URL, and \`%2F\` is refused by Tomcat with a 400 before Spring sees it. A
+school has exactly one current subscription, so \`current\` names it without ambiguity.
+
+### The body is optional — all of it
+
+Send nothing and the paid period starts now and runs for one billing cycle, read from the
+subscription rather than the plan because the cycle was frozen onto it when it was sold.
+
+### Only a TRIAL can be activated
+
+Anything else is a \`409\` that says what to do instead, and the advice differs by status.
+
+### The plan is not re-checked
+
+If the plan was retired mid-trial the school still gets to buy it. Retiring takes a plan off the
+menu for new schools and changes nothing for a school already on it.
+
+### The eight test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Needs {{schoolId}} and a subscription that is on TRIAL.
+ Make one with Create Subscription, sending "trial": true.
+
+ THIS IS ONE STATUS CHANGE AND NOTHING ELSE. Same plan, same price, same
+ limits. The plan, the price and the limits are deliberately NOT in the
+ request body, so they cannot be changed here by accident.
+
+ THE CLOCK STARTS AGAIN. The trial is finished, so a fresh paid period
+ begins rather than the trial's dates being kept. It runs for one of
+ whatever cycle the subscription was sold on — read from the SUBSCRIPTION,
+ not the plan, because the cycle was copied onto it when it was sold and
+ that is the contract.
+
+ USE current AS THE NUMBER. A real one is SUB/2026/09/000001 and the
+ slashes end the path segment. Encoding them as %2F does not help:
+   GET /platform/plans/AB%2FCD/versions/1
+   -> 400 Invalid URI: [The encoded slash character is not allowed]
+ That is Tomcat, before Spring routes anything.`,
+      optionalFields: ["currentPeriodStart", "currentPeriodEnd", "reason"],
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{}`,
+      successStatus: 200,
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planCode", "planVersion", "planName", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "contractedPrice", "planListPrice", "currencyCode", "maxStudents", "maxUsers", "hasLimitOverrides", "current", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
+        { status: 404, code: "—", when: "A school or a number that does not exist" },
+        { status: 409, code: "SUBSCRIPTION_NOT_TRIAL", when: "Activating something that is not a trial" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE ORDINARY CASE — NO BODY AT ALL",
+          expect: "200 OK",
+          notes: `Send nothing. Or {} as it stands above.
+    OUT: status "ACTIVE", currentPeriodStart now, currentPeriodEnd one
+         billing cycle later, nextStep "Now paying, from ... to ...".`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "WITH A REASON, FOR THE HISTORY ROW",
+          expect: "200 OK",
+          notes: `The reason lands on the subscription_history row, not on the
+    subscription. See case 08.`,
+          body: `{
+  "reason": "Signed the annual contract on 3 September."
+}`,
+        },
+        {
+          id: "03",
+          name: "BACKDATED, BECAUSE THE DEAL WAS AGREED LAST WEEK",
+          expect: "200 OK",
+          notes: `currentPeriodEnd is worked out from the start, so a yearly plan now
+    runs to 2027-09-01.`,
+          body: `{
+  "currentPeriodStart": "2026-09-01T00:00:00Z",
+  "reason": "Backdated to the date they signed."
+}`,
+        },
+        {
+          id: "04",
+          name: "BOTH DATES SPELLED OUT",
+          expect: "200 OK",
+          notes: `A short first period, to line the school up with the April billing run.`,
+          body: `{
+  "currentPeriodStart": "2026-09-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z"
+}`,
+        },
+        {
+          id: "05",
+          name: "A PERIOD THAT RUNS BACKWARDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_BILLING_PERIOD" }`,
+          body: `{
+  "currentPeriodStart": "2026-09-01T00:00:00Z",
+  "currentPeriodEnd": "2026-08-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "06",
+          name: "ACTIVATING SOMETHING THAT IS NOT A TRIAL",
+          expect: "409 Conflict",
+          notes: `Run case 01 twice. The second time:
+    OUT: { "code": "SUBSCRIPTION_NOT_TRIAL",
+           "message": "SUB/2026/09/000001 is ACTIVE, and only a TRIAL can
+                       be activated. It is already paying, so there is
+                       nothing to do." }
+    A 409 rather than a quiet 200 on purpose: the second call is a
+    different intention from the first, usually somebody who does not know
+    it already happened, and a 200 would hide that.
+    The advice changes with the status — PAST_DUE says take the payment,
+    SUSPENDED says lift the suspension, CANCELLED and EXPIRED say create a
+    new subscription. None of those states are reachable yet: the
+    endpoints that set them are #15 to #26 and are not built.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A SCHOOL OR A NUMBER THAT DOES NOT EXIST",
+          expect: "404 Not Found",
+          notes: `SCHOOL_NOT_FOUND, or SUBSCRIPTION_NOT_FOUND when the school has no
+    subscription at all. Ask for a school that has none and the message
+    tells you to create one first.
+
+08  WHAT LANDS IN THE DATABASE
+    From mongosh, after case 02:
+      db.school_subscriptions.findOne({schoolId: "..."})
+        -> status ACTIVE, currentPeriodStart and currentPeriodEnd both
+           moved. planDefinitionDocsId, contractedPrice, currencyCode,
+           maxStudentsOverride, autoRenew and current all unchanged.
+      db.subscription_history.find({schoolSubscriptionDocsId: "..."})
+        -> now TWO rows. The first from Create Subscription
+           (TRIAL_STARTED, previousStatus null), and a second:
+           eventType ACTIVATED, previousStatus TRIAL, newStatus ACTIVE,
+           source ADMIN_PORTAL, reason the one you sent,
+           performedByDocsId null because nobody is signed in yet,
+           effectiveAt the period start — which is when it took effect,
+           not when the row was written. createdAt is the write time.
+
+    NO NUMBER IS TAKEN. Unlike Create Subscription this touches no
+    number_sequences row: the subscription already has its number.`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "get-subscription",
+      name: "Get Subscription",
+      method: "GET",
+      path: "/platform/schools/{id}/subscription",
+      status: 'live',
+      summary: "What one school is on right now: the plan and its features, the price, the status, the period.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/schools/{id}/subscription\` — what this school is on right now.
+
+The whole of it: the plan and its features, the price they actually pay against the plan's list
+price, the status, and when the period ends.
+
+### Singular, because a school has one
+
+\`/subscriptions\` is the collection you post to; \`/subscription\` is the one they are on. A unique
+partial index makes sure there is only ever one, so there is nothing to page through.
+
+### The features are listed, not counted
+
+The plan list reports a count, because feature rows on every row of a page is noise. This is one
+school, and *what has this school paid for* is the question it answers.
+
+### Three things it works out for you
+
+- \`daysRemaining\` — how long is left in the period.
+- \`periodEnded\` — the end has passed while the status still says the school is paying. Real
+  today: nothing renews or expires a subscription yet, so a period just lapses.
+- \`planRetired\` — the plan has been taken off the menu. Allowed; the school keeps it.
+
+\`note\` says any of that in a sentence.
+
+### Two 404s, not one
+
+\`SCHOOL_NOT_FOUND\` and \`SUBSCRIPTION_NOT_FOUND\` are different problems and get different answers.
+
+### The five test cases are in this description — Postman sends no body on a GET
+
+---
+
+**01  A SCHOOL ON A PAID SUBSCRIPTION  -> 200 OK**
+Run Create Subscription first. Returns \`status\` ACTIVE, \`daysRemaining\` counting down,
+\`periodEnded\` false, \`note\` null, and \`features\` listing what the plan grants.
+
+**02  A SCHOOL ON A TRIAL  -> 200 OK**
+Create one with \`"trial": true\`. \`status\` TRIAL, and \`note\` says activating it is what turns it
+into a paying subscription. Run Activate Subscription and call this again: \`status\` ACTIVE and
+that part of the note is gone.
+
+**03  A NEGOTIATED DEAL  -> 200 OK**
+Create with \`contractedPrice\` below the plan's, and \`maxStudentsOverride\` above it.
+\`hasDiscount\` true, \`contractedPrice\` and \`planListPrice\` both present and different,
+\`maxStudents\` shows the override with \`hasLimitOverrides\` true.
+
+**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**
+\`{ "code": "SUBSCRIPTION_NOT_FOUND", "message": "'<school>' has no subscription. Create one
+first." }\`
+A school id that does not exist gives \`SCHOOL_NOT_FOUND\` instead — that is the whole reason
+there are two codes.
+
+**05  A LAPSED PERIOD  -> 200 OK**
+Create with \`currentPeriodEnd\` in the past, then call this. \`periodEnded\` true while \`status\`
+still says ACTIVE, \`daysRemaining\` negative, and \`note\` explains that nothing marks a
+subscription expired yet so it has to be read as lapsed. This is the case a screen trusting
+\`status\` alone would get wrong.
+`,
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "cancelledAt", "cancellationReason", "billingCustomerReference", "note"],
+      captures: [
+        { variable: "subscriptionNo", from: "subscriptionNo" },
+      ],
+      errors: [],
+      examples: [],
+    },
   ],
 };
 

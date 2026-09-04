@@ -407,25 +407,53 @@ const PLANS = {
   page: 0, size: 100, totalElements: 2, totalPages: 1,
 };
 
-let created = null;
+// What GET /platform/schools/{id}/subscription answers. The tab reads first and the answer
+// decides which half of the screen you get, so every case below is set by changing this.
+const NO_SUBSCRIPTION = { status: 404, body: {
+  code: 'SUBSCRIPTION_NOT_FOUND',
+  message: "'Orbit Astra International School' has no subscription. Create one first." } };
+
+const A_SUBSCRIPTION = { status: 200, body: {
+  subscriptionId: 'sub-1', subscriptionNo: 'SUB/2026/09/000001', schoolId: 'sch-1',
+  planDefinitionDocsId: 'p1', planCode: 'PREMIUM', planVersion: 2, planName: 'Premium',
+  planStatus: 'ACTIVE', planRetired: false, status: 'ACTIVE', billingCycle: 'YEARLY',
+  currentPeriodStart: '2026-09-03T00:00:00Z', currentPeriodEnd: '2027-09-03T00:00:00Z',
+  daysRemaining: 365, periodEnded: false, autoRenew: true, current: true,
+  contractedPrice: 44999.0, planListPrice: 49999.0, currencyCode: 'INR', hasDiscount: true,
+  maxStudents: 2500, maxUsers: 250, maxStudentsOverride: 2500, maxUsersOverride: null,
+  hasLimitOverrides: true, featureCount: 2,
+  features: [
+    { featureCode: 'STUDENT_MANAGEMENT', label: 'Student management',
+      description: 'Admissions, records, guardians', enabled: true, usageLimit: 2000,
+      usageMetric: 'ACTIVE_STUDENTS', overagePolicy: 'BLOCK' },
+    { featureCode: 'TRANSPORT', label: 'Transport',
+      description: 'Routes, vehicles, tracking', enabled: false, usageLimit: null,
+      usageMetric: null, overagePolicy: 'BLOCK' },
+  ],
+  cancelledAt: null, cancellationReason: null, billingCustomerReference: null, note: null } };
+
+let readAnswer = NO_SUBSCRIPTION;
+let created = { status: 201, body: { subscriptionNo: 'SUB/2026/09/000001' } };
 handler = (url, options = {}) => {
+  if (url.endsWith('/subscription')) return readAnswer;
   if (url.includes('/subscriptions') && options.method === 'POST') return created;
   if (url.includes('/platform/plans')) return { status: 200, body: PLANS };
   return { status: 200, body: {} };
 };
 
-created = { status: 201, body: {
-  subscriptionId: 'sub-1', subscriptionNo: 'SUB/2026/09/000001', schoolId: 'sch-1',
-  planCode: 'PREMIUM', planVersion: 2, planName: 'Premium', status: 'ACTIVE',
-  billingCycle: 'YEARLY', currentPeriodStart: '2026-09-03T00:00:00Z',
-  currentPeriodEnd: '2027-09-03T00:00:00Z', autoRenew: true, contractedPrice: 49999.0,
-  planListPrice: 49999.0, currencyCode: 'INR', maxStudents: 2000, maxUsers: 250,
-  hasLimitOverrides: false, current: true,
-  nextStep: 'Activate the school; it now reports subscriptionStatus ACTIVE.' } };
-
 view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
 
-check('opens by asking the catalogue what can be sold',
+// The read comes first and decides what to show. A 404 SUBSCRIPTION_NOT_FOUND is not an error
+// here — it is the answer "none yet", which is exactly when the create form belongs.
+check('reads what the school is on before showing anything',
+  calls.some((one) => one.method === 'GET'
+    && one.url.includes('/platform/schools/sch-1/subscription')),
+  JSON.stringify(calls.map((c) => `${c.method} ${c.url}`)));
+check('a 404 for no subscription shows the form, not an error',
+  view.container.textContent.includes('Give this school a subscription')
+    && !view.container.textContent.includes('could not be read'),
+  view.container.textContent.slice(0, 300));
+check('and only then asks the catalogue what can be sold',
   calls.some((one) => one.url.includes('/platform/plans') && one.url.includes('status=ACTIVE')),
   JSON.stringify(calls.map((c) => c.url)));
 check('offers the published plan', view.container.textContent.includes('Premium'));
@@ -470,18 +498,91 @@ check('leaves every untouched option out of the body',
 check('does not send autoRenew when it is left on',
   !('autoRenew' in sent), JSON.stringify(sent));
 
-check('shows the number the backend allocated',
-  view.container.textContent.includes('SUB/2026/09/000001'), view.container.textContent.slice(0, 300));
-check('and says what to do next',
-  view.container.textContent.includes('subscriptionStatus ACTIVE'));
-// There is no GET for a subscription, so the screen must not imply it could reload this.
-check('says plainly that it does not read the subscription back',
-  view.container.textContent.includes('does not read the subscription back yet'),
-  view.container.textContent.slice(-400));
+// The create response is NOT what gets rendered — the tab re-reads, so one place decides what
+// a school is on and revisiting the tab shows the same thing.
+check('creating re-reads instead of rendering the 201',
+  calls.filter((one) => one.method === 'GET' && one.url.endsWith('/subscription')).length >= 2,
+  JSON.stringify(calls.map((c) => `${c.method} ${c.url}`)));
 await view.unmount();
 
 // A school already has one. The 409 is the only way to find that out today, so it has to be
 // legible rather than a bare code.
+// ---------------------------------------------------------- a school that already pays
+// The half of the tab that did not exist before #27: what the school is on, read back.
+console.log('\nThe subscription tab, showing what a school is on');
+readAnswer = A_SUBSCRIPTION;
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+
+check('shows the subscription instead of the form',
+  view.container.textContent.includes('SUB/2026/09/000001')
+    && !view.container.textContent.includes('Give this school a subscription'),
+  view.container.textContent.slice(0, 300));
+check('names the plan and version', view.container.textContent.includes('PREMIUM'));
+// A school that already pays never sees the form, so loading the catalogue for it is a call
+// nothing would read.
+check('does not ask the catalogue it has no use for',
+  !calls.some((one) => one.url.includes('/platform/plans')),
+  JSON.stringify(calls.map((c) => c.url)));
+
+// The gap between contracted and list price is the discount, and the discount is what somebody
+// rings up about — so both numbers have to be on screen, not just the one they pay.
+check('shows the discount as well as the list price',
+  view.container.textContent.includes('44,999') && view.container.textContent.includes('49,999'),
+  view.container.textContent.slice(0, 700));
+check('flags a negotiated limit', view.container.textContent.includes('negotiated'));
+// daysRemaining comes from the API; the screen only turns the sign into words.
+check('turns days remaining into words', view.container.textContent.includes('365 days'),
+  view.container.textContent.slice(0, 700));
+
+// The features are the reason this read exists rather than reusing the create response.
+check('lists the features rather than counting them',
+  view.container.textContent.includes('Student management')
+    && view.container.textContent.includes('Transport'),
+  view.container.textContent.slice(-700));
+check('says what a limit counts, in words not the enum',
+  view.container.textContent.includes('up to 2000 students')
+    && !view.container.textContent.includes('ACTIVE_STUDENTS'),
+  view.container.textContent.slice(-700));
+await view.unmount();
+
+// A period can lapse while the status still says ACTIVE, because nothing expires a subscription
+// yet. The API says so in `note` and the screen must not quietly drop it.
+console.log('\nThe subscription tab, when the period has lapsed');
+readAnswer = { status: 200, body: {
+  ...A_SUBSCRIPTION.body,
+  currentPeriodEnd: '2026-08-01T00:00:00Z', daysRemaining: -33, periodEnded: true,
+  note: 'The period ended on 2026-08-01T00:00:00Z but the status still says ACTIVE. Nothing '
+      + 'renews a subscription or marks one expired yet, so this has to be read as lapsed '
+      + 'rather than paying.' } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+
+check('marks the period as ended', view.container.textContent.includes('period ended'),
+  view.container.textContent.slice(0, 400));
+check('counts the days the other way', view.container.textContent.includes('Ended 33 days ago'),
+  view.container.textContent.slice(0, 700));
+// Passed through as the API wrote it, so the screen cannot disagree with the API.
+check('repeats the API note rather than re-deriving it',
+  view.container.textContent.includes('has to be read as lapsed'),
+  view.container.textContent.slice(0, 900));
+await view.unmount();
+
+// A missing school is a real error, and must not look like "no subscription yet" — that is the
+// whole reason the API returns two different 404 codes.
+console.log('\nThe subscription tab, when the school does not exist');
+readAnswer = { status: 404, body: {
+  code: 'SCHOOL_NOT_FOUND', message: "No school found with id 'sch-1'." } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+
+check('says it could not be read', view.container.textContent.includes('could not be read'),
+  view.container.textContent.slice(0, 300));
+check('names the code it got back',
+  view.container.textContent.includes('SCHOOL_NOT_FOUND'));
+check('does not offer to create one for a school that is not there',
+  !view.container.textContent.includes('Create the subscription'),
+  view.container.textContent.slice(0, 300));
+await view.unmount();
+
+readAnswer = NO_SUBSCRIPTION;
 console.log('\nThe subscription tab, when the school already has one');
 created = { status: 409, body: {
   code: 'SUBSCRIPTION_ALREADY_EXISTS',

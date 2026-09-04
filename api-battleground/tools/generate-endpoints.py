@@ -268,6 +268,21 @@ CURATED = {
     successStatus=201,
     captures=[('subscriptionNo','subscriptionNo')],
   ),
+  'Activate Subscription': dict(
+    summary='Turns a trial into a paying subscription. The plan, price and limits do not move.',
+    required=[],
+    optional=['currentPeriodStart','currentPeriodEnd','reason'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
+    successStatus=200,
+  ),
+  'Get Subscription': dict(
+    summary='What one school is on right now: the plan and its features, the price, the status, the period.',
+    required=[],
+    optional=[],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','cancelledAt','cancellationReason','billingCustomerReference','note'],
+    successStatus=200,
+    captures=[('subscriptionNo','subscriptionNo')],
+  ),
 }
 
 # Errors every school-surface endpoint can give, because of the tenant header.

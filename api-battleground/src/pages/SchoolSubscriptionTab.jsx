@@ -1,17 +1,19 @@
 /**
- * The school's subscription — the screen that makes a school a paying customer.
+ * The school's subscription — what it is on, and how it gets one.
  *
- * One endpoint lives here: `POST /platform/schools/{id}/subscriptions`. It is the piece `core`
- * has been complaining about — `activateSchool` was written to require a subscription, found
- * nothing could create one, and settled for a soft check that announces the gap in every
- * response. Create one here and that response stops apologising.
+ * TWO ENDPOINTS. `GET /platform/schools/{id}/subscription` reads what the school is on;
+ * `POST /platform/schools/{id}/subscriptions` creates one when it has none. The read is what
+ * decides which half of the screen you see, so opening a school that already pays shows the
+ * subscription rather than a form that would only be refused.
  *
- * THIS SCREEN DOES NOT READ A SUBSCRIPTION BACK YET. `GET /platform/schools/{id}/subscription`
- * (#27) exists now, but this tab does not call it — so it can still only show what it created,
- * and only until the page is reloaded. That is stated on the screen rather than worked around,
- * because a blank panel that means "nothing to show" and a blank panel that means "nothing asked"
- * are different problems, and guessing which one you are looking at is how somebody creates a
- * second subscription for a school that already has one. Wiring #27 up is what removes the note.
+ * WHAT IS ON SCREEN COMES FROM THE READ, NOT FROM THE CREATE. After creating one the tab
+ * re-reads rather than rendering the 201 body, so there is one source of truth for what a school
+ * is on — and leaving the tab and coming back shows the same thing, which it could not do before.
+ *
+ * A 404 IS NOT AN ERROR HERE, IT IS THE OTHER STATE. `SUBSCRIPTION_NOT_FOUND` means "no
+ * subscription yet", which is exactly when the create form is the right thing to show.
+ * `SCHOOL_NOT_FOUND` is a real error and says so. The API returns two codes precisely so a
+ * caller can tell them apart, and this is the caller that needs to.
  *
  * THE PLAN IS PICKED, NOT TYPED. The list comes from `GET /platform/plans`, so the only plans
  * offered are ones that exist, and a plan that cannot be sold today is shown with the reason it
@@ -22,7 +24,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  CreditCard, RefreshCw, AlertTriangle, CheckCircle2, Info, SlidersHorizontal,
+  CreditCard, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Info, SlidersHorizontal,
 } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
 import EndpointTag from '../components/EndpointTag.jsx';
@@ -30,6 +32,43 @@ import {
   Button, Card, Badge, Detail, Field, TextInput, SelectInput, Toggle, Loading, EmptyState,
 } from '../components/ui.jsx';
 import { sellableReason, money } from './PlansPage.jsx';
+import { METRIC_LABEL, POLICY_LABEL } from './PlanFeaturesTab.jsx';
+
+/** One colour per status, so a lapsed or cancelled subscription does not look healthy. */
+const STATUS_LOOK = {
+  ACTIVE: 'green',
+  TRIAL: 'amber',
+  PAST_DUE: 'red',
+  SUSPENDED: 'red',
+  CANCELLED: 'grey',
+  EXPIRED: 'grey',
+};
+
+/** An instant as something a person reads, or nothing when there is none. */
+function when(instant) {
+  return instant ? new Date(instant).toLocaleString() : null;
+}
+
+/**
+ * How long is left, said in words.
+ *
+ * `daysRemaining` comes from the API and goes negative once the period has passed, so the sign
+ * is the whole answer: "12 days" or "ended 3 days ago". Working this out in the browser instead
+ * is how the count ends up a day out across a time zone.
+ */
+function daysLeft(subscription) {
+  const days = subscription.daysRemaining;
+  if (days == null) return null;
+  if (days > 1) return `${days} days`;
+  if (days === 1) return '1 day';
+  if (days === 0) return 'Ends today';
+  return `Ended ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
+}
+
+/** What a limit counts. Falls back to the raw constant rather than showing nothing. */
+function metricWords(metric) {
+  return METRIC_LABEL[metric] || metric.toLowerCase().replace(/_/g, ' ');
+}
 
 /** Only the plans a school could actually be put on today, newest version of each first. */
 const PLAN_QUERY = { status: ['ACTIVE'], size: 100 };
@@ -58,6 +97,12 @@ function asNumber(raw) {
 export default function SchoolSubscriptionTab({ school }) {
   const { call } = useApi();
 
+  // What the school is on. `null` while we have not asked, and stays null when the answer is
+  // "none" — which is the create form's cue, not an error.
+  const [subscription, setSubscription] = useState(null);
+  const [reading, setReading] = useState(true);
+  const [readProblem, setReadProblem] = useState(null);
+
   const [plans, setPlans] = useState(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [planProblem, setPlanProblem] = useState(null);
@@ -77,9 +122,41 @@ export default function SchoolSubscriptionTab({ school }) {
   });
 
   const [saving, setSaving] = useState(false);
-  const [created, setCreated] = useState(null);
   const [refused, setRefused] = useState(null);
   const [errors, setErrors] = useState({});
+
+  /**
+   * Reads what the school is on.
+   *
+   * A `404 SUBSCRIPTION_NOT_FOUND` is not treated as a failure: it is the answer "none yet", and
+   * the create form is what should follow. Anything else — a missing school, a dead backend — is
+   * a real problem and gets said out loud.
+   */
+  const loadSubscription = useCallback(async () => {
+    setReading(true);
+    const result = await call('get-subscription', {
+      label: 'Read the subscription',
+      pathParams: { id: school.schoolId },
+    });
+    setReading(false);
+
+    if (result.ok) {
+      setSubscription(result.bodyJson);
+      setReadProblem(null);
+      return;
+    }
+
+    setSubscription(null);
+    setReadProblem(
+      result.status === 404 && result.bodyJson?.code === 'SUBSCRIPTION_NOT_FOUND'
+        ? null
+        : result,
+    );
+  }, [call, school.schoolId]);
+
+  useEffect(() => {
+    loadSubscription();
+  }, [loadSubscription]);
 
   const loadPlans = useCallback(async () => {
     setLoadingPlans(true);
@@ -93,9 +170,12 @@ export default function SchoolSubscriptionTab({ school }) {
     }
   }, [call]);
 
+  // Only worth asking for the plans when a plan has to be chosen. A school that already pays
+  // never sees the form, so loading the catalogue for it would be a call nothing reads.
+  const needsPlans = !reading && !subscription && !readProblem;
   useEffect(() => {
-    loadPlans();
-  }, [loadPlans]);
+    if (needsPlans) loadPlans();
+  }, [needsPlans, loadPlans]);
 
   const chosen = (plans ?? []).find(
     (one) => `${one.planCode}@${one.planVersion}` === picked,
@@ -147,7 +227,9 @@ export default function SchoolSubscriptionTab({ school }) {
     setSaving(false);
 
     if (result.ok) {
-      setCreated(result.bodyJson);
+      // Re-read rather than render the 201. One source of truth for what the school is on, and
+      // the read carries things the create response does not — the features, daysRemaining.
+      await loadSubscription();
       return;
     }
     if (result.bodyJson?.fieldErrors) {
@@ -164,69 +246,159 @@ export default function SchoolSubscriptionTab({ school }) {
     }
   };
 
-  /* ------------------------------------------------------------------ what was created */
+  /* ------------------------------------------------------- reading what it is on */
 
-  if (created) {
+  if (reading && !subscription) {
+    return <Loading label="Reading the subscription…" />;
+  }
+
+  // A missing school, or a backend that is not answering. Not the same as "no subscription".
+  if (readProblem) {
+    return (
+      <Card title="The subscription could not be read">
+        <EmptyState
+          icon={AlertTriangle}
+          title={readProblem.bodyJson?.code || `The server answered ${readProblem.status}`}
+          description={
+            readProblem.bodyJson?.message
+            || 'Nothing came back. Check the environment in the header.'
+          }
+          action={<Button icon={RefreshCw} onClick={loadSubscription}>Try again</Button>}
+        />
+        <div className="mt-3 flex justify-center">
+          <EndpointTag id="get-subscription" pathParams={{ id: school.schoolId }} />
+        </div>
+      </Card>
+    );
+  }
+
+  /* ------------------------------------------------------------- what it is on */
+
+  if (subscription) {
+    const s = subscription;
     return (
       <div className="space-y-5">
         <Card
-          title="Subscription created"
-          description="This school is now a paying customer."
+          title="Subscription"
+          description={`${s.planName} — ${s.planCode} v${s.planVersion}`}
           action={
-            <Button onClick={() => { setCreated(null); setPicked(''); }}>
-              Create another
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button icon={RefreshCw} onClick={loadSubscription} busy={reading}>
+                Refresh
+              </Button>
+              <EndpointTag id="get-subscription" pathParams={{ id: school.schoolId }} showPath={false} />
+            </div>
           }
         >
           <dl className="grid gap-x-4 gap-y-4 sm:grid-cols-3">
             <Detail label="Number">
-              <span className="font-mono text-xs">{created.subscriptionNo}</span>
+              <span className="font-mono text-xs">{s.subscriptionNo}</span>
             </Detail>
             <Detail label="Status">
-              <Badge look={created.status === 'TRIAL' ? 'amber' : 'green'}>{created.status}</Badge>
+              <Badge look={STATUS_LOOK[s.status] ?? 'grey'}>{s.status}</Badge>
+              {s.periodEnded && <Badge look="red" className="ml-1.5">period ended</Badge>}
             </Detail>
             <Detail label="Plan">
-              {created.planName} — {created.planCode} v{created.planVersion}
+              {s.planCode} v{s.planVersion}
+              {s.planRetired && <Badge look="grey" className="ml-1.5">retired</Badge>}
             </Detail>
-            <Detail label="Billing cycle">{created.billingCycle}</Detail>
+
+            <Detail label="Billing cycle">{s.billingCycle}</Detail>
             <Detail label="Price">
-              {money(created.contractedPrice, created.currencyCode)}
-              {created.contractedPrice !== created.planListPrice && (
+              {money(s.contractedPrice, s.currencyCode)}
+              {/* The gap between the two is the discount, and the discount is what somebody
+                  rings up about — so both are shown whenever they differ. */}
+              {s.hasDiscount && (
                 <span className="ml-1.5 text-xs text-slate-500">
-                  list {money(created.planListPrice, created.currencyCode)}
+                  list {money(s.planListPrice, s.currencyCode)}
                 </span>
               )}
             </Detail>
-            <Detail label="Renews automatically">{created.autoRenew ? 'Yes' : 'No'}</Detail>
-            <Detail label="Period start">
-              {created.currentPeriodStart ? new Date(created.currentPeriodStart).toLocaleString() : null}
-            </Detail>
-            <Detail label="Period end">
-              {created.currentPeriodEnd ? new Date(created.currentPeriodEnd).toLocaleString() : null}
-            </Detail>
-            <Detail label="Limits">
-              {created.maxStudents} students · {created.maxUsers} users
-              {created.hasLimitOverrides && (
+            <Detail label="Renews automatically">{s.autoRenew ? 'Yes' : 'No'}</Detail>
+
+            <Detail label="Period start">{when(s.currentPeriodStart)}</Detail>
+            <Detail label="Period end">{when(s.currentPeriodEnd)}</Detail>
+            {/* daysRemaining comes from the API rather than being worked out here: counting days
+                between two instants in a browser is where time zones go wrong. */}
+            <Detail label="Days left">{daysLeft(s)}</Detail>
+
+            <Detail label="Students">
+              {s.maxStudents}
+              {s.maxStudentsOverride != null && (
                 <Badge look="violet" className="ml-1.5">negotiated</Badge>
               )}
             </Detail>
+            <Detail label="Users">
+              {s.maxUsers}
+              {s.maxUsersOverride != null && (
+                <Badge look="violet" className="ml-1.5">negotiated</Badge>
+              )}
+            </Detail>
+            <Detail label="Billing reference">
+              {s.billingCustomerReference
+                ? <span className="font-mono text-xs">{s.billingCustomerReference}</span>
+                : null}
+            </Detail>
+
+            {s.cancelledAt && (
+              <>
+                <Detail label="Cancelled">{when(s.cancelledAt)}</Detail>
+                <Detail label="Why" className="sm:col-span-2">{s.cancellationReason}</Detail>
+              </>
+            )}
           </dl>
 
-          {created.nextStep && (
-            <p className="mt-4 flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
-              <Info size={14} className="mt-px shrink-0 text-blue-600" />
-              {created.nextStep}
+          {/* The API's own sentence about anything odd — a lapsed period, a retired plan. Shown
+              as it comes rather than re-derived, so the screen cannot disagree with the API. */}
+          {s.note && (
+            <p className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <AlertTriangle size={14} className="mt-px shrink-0 text-amber-600" />
+              {s.note}
             </p>
           )}
         </Card>
 
-        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
-          <AlertTriangle size={14} className="mt-px shrink-0 text-amber-600" />
-          Shown from the response to the call just made. This tab does not read the subscription
-          back yet, so leaving it loses it from the screen. The subscription itself is saved, and
-          <code className="font-mono">GET /platform/schools/{'{id}'}/subscription</code> can fetch
-          it once this screen is wired to call it.
-        </p>
+        <Card
+          title="What this plan includes"
+          description={`${s.featureCount} feature${s.featureCount === 1 ? '' : 's'} on the plan this school is on`}
+        >
+          {(s.features ?? []).length === 0 ? (
+            <EmptyState
+              icon={Info}
+              title="No features on this plan"
+              description="The plan was published with an empty list, so this school is paying for nothing it can use."
+            />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {s.features.map((feature) => (
+                <li key={feature.featureCode} className="flex items-start gap-3 py-2.5">
+                  {feature.enabled
+                    ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
+                    : <XCircle size={15} className="mt-0.5 shrink-0 text-slate-300" />}
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[13px] font-medium ${feature.enabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                      {feature.label}
+                      {feature.usageLimit != null && (
+                        <span className="ml-1.5 font-normal text-slate-500">
+                          up to {feature.usageLimit}
+                          {feature.usageMetric ? ` ${metricWords(feature.usageMetric)}` : ''}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                      {feature.description}
+                    </p>
+                  </div>
+                  {feature.usageLimit != null && (
+                    <Badge look="grey" title={POLICY_LABEL[feature.overagePolicy] || feature.overagePolicy}>
+                      {feature.overagePolicy}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
     );
   }
@@ -471,11 +643,10 @@ export default function SchoolSubscriptionTab({ school }) {
       <p className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-500 shadow-sm">
         <Info size={14} className="mt-px shrink-0 text-slate-400" />
         <span>
-          Creating is all this tab does today. The read exists —{' '}
-          <code className="font-mono">GET /platform/schools/{'{id}'}/subscription</code> — but this
-          screen does not call it yet, so there is nothing shown for a school that already has one.
-          Until it is wired up, a second attempt is how you find out:{' '}
-          <code className="font-mono">409 SUBSCRIPTION_ALREADY_EXISTS</code>.
+          <code className="font-mono">GET /platform/schools/{'{id}'}/subscription</code> answered{' '}
+          <code className="font-mono">404 SUBSCRIPTION_NOT_FOUND</code>, which is why this form is
+          here rather than a subscription. Creating one re-reads it, so what you see next comes
+          from the API and not from this form.
         </span>
       </p>
     </div>

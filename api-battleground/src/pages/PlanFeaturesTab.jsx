@@ -52,6 +52,14 @@ const FEATURES = [
   ['STUDENT_LIFE', 'Student life', 'Houses, clubs, achievements, discipline', null],
 ];
 
+/** What each overage policy does, in words. Exported: the subscription tab shows them too. */
+export const POLICY_LABEL = {
+  BLOCK: 'Blocked past the limit',
+  WARN: 'Warned past the limit',
+  ALLOW: 'Limit not enforced',
+  CHARGE: 'Billed past the limit',
+};
+
 const POLICIES = [
   ['BLOCK', 'Block them'],
   ['WARN', 'Let them through, warn'],
@@ -59,14 +67,23 @@ const POLICIES = [
   ['CHARGE', 'Bill the extra'],
 ];
 
-const METRIC_LABEL = {
+/**
+ * What each usage metric counts, in words. All nine of UsageMetric are here on purpose: a
+ * missing one falls back to the raw constant, and ACTIVE_STAFF on screen is a bug you only
+ * notice if you happen to open that plan.
+ *
+ * Exported, because the subscription tab lists the same limits.
+ */
+export const METRIC_LABEL = {
   ACTIVE_STUDENTS: 'students',
   ACTIVE_STAFF: 'staff',
+  USER_ACCOUNTS: 'user accounts',
   VEHICLES: 'vehicles',
-  LIBRARY_TITLES: 'titles',
   HOSTEL_BEDS: 'beds',
-  SMS_MESSAGES: 'messages',
+  LIBRARY_TITLES: 'titles',
   STORAGE_MEGABYTES: 'MB',
+  SMS_MESSAGES: 'SMS messages',
+  EMAIL_MESSAGES: 'emails',
 };
 
 export default function PlanFeaturesTab({ plan, onChanged }) {
