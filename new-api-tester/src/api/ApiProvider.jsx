@@ -57,6 +57,10 @@ export default function ApiProvider({ children }) {
   const [log, setLog] = useState([]);
   const [inspecting, setInspecting] = useState(null);
 
+  // Which school the app is acting as, for the school surface. The platform surface names its
+  // school in the URL and ignores this entirely.
+  const [actingSubdomain, setActingSubdomain] = useState(() => store.loadActingSubdomain());
+
   const environment = useMemo(
     () => environments.find((one) => one.id === environmentId) || environments[0],
     [environments, environmentId],
@@ -78,10 +82,30 @@ export default function ApiProvider({ children }) {
     store.saveActiveEnvironmentId(id);
   }, []);
 
+  // Same ref trick as the environment, and for the same reason: call() has to keep one identity.
+  const actingRef = useRef(actingSubdomain);
+  // oxlint-disable-next-line react/refs
+  actingRef.current = actingSubdomain;
+
+  const chooseSchool = useCallback((subdomain) => {
+    const next = subdomain ? subdomain.trim() : null;
+    setActingSubdomain(next);
+    store.saveActingSubdomain(next);
+  }, []);
+
   const call = useCallback(
     async (endpointId, options = {}) => {
       const environment = environmentRef.current;
-      const { endpoint, prepared } = buildCall(endpointId, options, environment);
+
+      // The school surface reads the tenant from a header and never from the URL, so every call
+      // to it needs one. Filled in here rather than at each call site: a screen that forgot
+      // would get a 400 TENANT_NOT_RESOLVED that looks like a bug in the screen, and one that
+      // passed the wrong school would be worse — it would answer, about the wrong tenant.
+      const withTenant = options.subdomain
+        ? options
+        : { ...options, subdomain: actingRef.current || undefined };
+
+      const { endpoint, prepared } = buildCall(endpointId, withTenant, environment);
 
       // An environment nobody has set up yet has no address. Say that, rather than letting the
       // browser fail to look up a host and report it as a network error.
@@ -121,13 +145,13 @@ export default function ApiProvider({ children }) {
   const clearLog = useCallback(() => setLog([]), []);
 
   const actions = useMemo(
-    () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment }),
-    [call, clearLog, chooseEnvironment],
+    () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment, chooseSchool }),
+    [call, clearLog, chooseEnvironment, chooseSchool],
   );
 
   const state = useMemo(
-    () => ({ log, inspecting, environment, environments }),
-    [log, inspecting, environment, environments],
+    () => ({ log, inspecting, environment, environments, actingSubdomain }),
+    [log, inspecting, environment, environments, actingSubdomain],
   );
 
   return (

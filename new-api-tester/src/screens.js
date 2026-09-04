@@ -1,6 +1,9 @@
 import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
 import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
 import Schools from './pages/platform/core/Schools.jsx'
+import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
+import AcademicYears from './pages/school/core/AcademicYears.jsx'
+import Profile from './pages/school/core/Profile.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -66,8 +69,23 @@ export const SURFACES = [
         label: 'Core',
         icon: Settings2,
         submodules: [
-          { id: 'profile', label: 'Profile', endpoints: 5, group: 'Core / School — profile' },
-          { id: 'academic-years', label: 'Academic years', endpoints: 18, group: 'Core / Academic Year' },
+          {
+            id: 'profile',
+            label: 'Profile',
+            endpoints: 5,
+            group: 'Core / School — profile',
+            screen: Profile,
+          },
+          {
+            id: 'academic-years',
+            label: 'Academic years',
+            endpoints: 18,
+            group: 'Core / Academic Year',
+            screen: AcademicYears,
+            // A year is addressed by its name, which the API guarantees is immutable — so
+            // it is safe in a URL in a way an editable field would not be.
+            detail: { param: 'name', screen: AcademicYearDetail },
+          },
         ],
       },
       {

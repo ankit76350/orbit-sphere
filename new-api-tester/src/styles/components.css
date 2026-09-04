@@ -427,3 +427,29 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
 .endpoint-tag-name[data-look='danger'] { background: var(--bad-bg); color: var(--bad); }
 button.endpoint-tag:hover .endpoint-tag-name { color: var(--brand); }
 button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--bad); }
+
+/* ── Acting as ────────────────────────────────────────────── */
+/* Which school the school surface acts as. In the top bar because it is a mode, not a page's
+   setting, and it has to be visible from every screen that depends on it. */
+.acting {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+}
+.acting-icon { color: var(--ink-muted); flex-shrink: 0; }
+.acting-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--ink-muted); white-space: nowrap;
+}
+.acting-input {
+  width: 130px; border: 0; background: none; color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px; font-weight: 600;
+}
+.acting-input:focus { outline: none; }
+.acting-input::placeholder { color: var(--ink-muted); font-weight: 400; font-style: italic; }
+.acting:focus-within { border-color: var(--brand); }
+
+@media (max-width: 720px) {
+  .acting-label { display: none; }
+  .acting-input { width: 96px; }
+}

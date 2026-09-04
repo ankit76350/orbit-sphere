@@ -146,11 +146,17 @@ They live at `src/pages/{surface}/{module}/`, so a file's path says which caller
 
 ```
 src/pages/
-  platform/core/Schools.jsx     ← built: all 8 endpoints
-  platform/plans/               ← Plan catalogue (9), Subscriptions (3)
-  school/core/                  ← Profile (5), Academic years (18)
-  school/plans/                 ← Subscription (2)
+  platform/core/Schools.jsx            ← built: 3 endpoints
+  platform/core/SchoolDetail.jsx       ← built: 5
+  platform/plans/                      ← Plan catalogue (9), Subscriptions (3)
+  school/core/Profile.jsx              ← built: 5
+  school/core/AcademicYears.jsx        ← built: 3
+  school/core/AcademicYearDetail.jsx   ← built: 15
+  school/core/NoSchoolChosen.jsx       ← what the school surface shows with no tenant
+  school/plans/                        ← Subscription (2)
 ```
+
+**Core is done: 31 of the 45 endpoints.** What is left is Plans.
 
 A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,
 so the navigation stays complete while the screens are filled in one at a time.
@@ -225,9 +231,55 @@ Anything that changes something opens `ResponseModal` by itself — the answer t
 should not need a second click. Reads stay quiet; they run on load and the screen shows its own
 message when one fails.
 
+### The school surface needs to know which school
+
+The school surface never names a school in the URL — the tenant comes from the
+`X-School-Subdomain` header, which stands in for a session until there is sign-in. So
+`GET /schools/current/profile` is meaningless until somebody says which school "current" is.
+
+**"Acting as" in the top bar is that answer**, and it is there because it is a mode rather than a
+page's setting: everything under `School` asks "what does THIS school see", and re-picking it per
+screen is how somebody ends up testing the wrong tenant without noticing. It is remembered
+between reloads, and `call()` attaches it to every school-surface request — filled in centrally,
+because a screen that forgot would get a `400 TENANT_NOT_RESOLVED` that reads as its own bug, and
+one that passed the wrong school would be worse: it would answer, about the wrong tenant.
+
+Its suggestions come from `GET /platform/schools`, loaded only when the picker is focused. That
+is the one place the two surfaces touch in this app. It is a text input rather than a select, so
+a subdomain outside the first hundred can still be typed.
+
+With no school chosen, every school-surface screen says so and where to fix it rather than firing
+a call that cannot work.
+
+### School › Core › Profile
+
+Four writes, and their shapes are the point: `PATCH /profile` is a partial edit, `PUT /address`
+is replaced whole (a patched address can name a city in the wrong state and still look fine),
+`PATCH /localization` is partial, `PUT /logo` replaced whole. So **each section sends its own
+request** and its button says which. One Save would mean inventing a fifth endpoint on the client
+and guessing which of the four to call.
+
+The time zone asks before it moves: the API refuses the change while a year is running unless
+`confirmTimeZoneChange` is sent, so **"Change it anyway" only appears once the API has said it
+needs confirming** — sending the flag every time would defeat the check it exists for.
+
+### School › Core › Academic years
+
+A year is addressed by its **name** — `/school-core/academic-years/2026-2027`. That is safe in a
+URL precisely because the API guarantees the name never changes: it is the natural key other
+collections reference.
+
+Fifteen of the eighteen endpoints are on the year's own page, grouped by the question they answer
+rather than by verb: the dates, the two gates, the holiday calendar, and two reads that take an
+argument. **The calendar is dated entries each holding a list of events**, because one date can
+be a festival *and* a school event — the screen keeps that shape rather than flattening it, since
+flattening is what loses the second reason. `PATCH` and `DELETE` on one event send the type as a
+query parameter for the same reason: the date alone does not identify which event is meant.
+
+Two writes are deliberately destructive and say so — `PUT` replaces the whole calendar, and
+`DELETE ?type=` removes every entry of that kind across the year. Both are marked danger, and
+neither is the default action of anything.
+
 ## What comes next
 
-The rest of Core: **School › Core › Profile** (5) and **School › Core › Academic years** (18).
-Both are school-surface, so they send the tenant header instead of naming a school in the URL —
-`buildCall` already does that when an endpoint is marked `schoolSurface`, which the generator
-works out from the path.
+**Plans**, both surfaces: Plan catalogue (9), Subscriptions (3), and a school's own view (2).

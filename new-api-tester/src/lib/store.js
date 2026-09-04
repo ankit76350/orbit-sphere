@@ -10,6 +10,7 @@ import { DEFAULT_ENVIRONMENTS, DEFAULT_TIMEOUT_MS } from '../config/environments
 const PREFIX = 'orbit.tester.';
 const KEYS = {
   activeEnvironment: `${PREFIX}activeEnvironment`,
+  actingSubdomain: `${PREFIX}actingSubdomain`,
   timeout: `${PREFIX}timeout`,
 };
 
@@ -55,6 +56,21 @@ export const store = {
   },
   saveActiveEnvironmentId(id) {
     write(KEYS.activeEnvironment, id);
+  },
+
+  /**
+   * Which school the app is acting as on the school surface.
+   *
+   * Saved because it is a mode, not a per-page choice: everything under `School` is asking "what
+   * does THIS school see", and having to re-pick it on every screen would be the kind of friction
+   * that ends in somebody testing the wrong tenant without noticing.
+   */
+  loadActingSubdomain() {
+    const saved = read(KEYS.actingSubdomain, null);
+    return typeof saved === 'string' && saved.trim() ? saved.trim() : null;
+  },
+  saveActingSubdomain(subdomain) {
+    write(KEYS.actingSubdomain, subdomain || null);
   },
 
   loadTimeout() {

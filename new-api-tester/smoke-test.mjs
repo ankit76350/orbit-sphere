@@ -59,13 +59,16 @@ const ROUTES = [
   ['/platform-core/schools', ['Platform', 'Core', 'Schools', 'Add a school', '/platform/schools']],
   ['/platform-plans/catalogue', ['Platform', 'Plans', 'Plan catalogue', '9 endpoints']],
   ['/platform-plans/subscriptions', ['Subscriptions', '3 endpoints']],
-  ['/school-core/profile', ['School', 'Profile', '5 endpoints']],
-  ['/school-core/academic-years', ['Academic years', '18 endpoints']],
+  // Built, and with no school chosen it says so rather than firing a call that cannot work.
+  ['/school-core/profile', ['School', 'Profile', 'No school chosen']],
+  ['/school-core/academic-years', ['Academic years', 'No school chosen']],
   ['/school-plans/subscription', ['Subscription', '2 endpoint']],
   // Opening a row is its own address. First paint is the read, because renderToString does not
   // run effects — which is the point: the page reads the school itself rather than being handed
   // a row from a list that may already be stale.
   ['/platform-core/schools/6a95000000000000000000aa', ['Reading the school']],
+  // A year is addressed by its name, which the API guarantees never changes.
+  ['/school-core/academic-years/2026-2027', ['No school chosen']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -131,6 +134,26 @@ for (const [label, ok] of screenChecks) {
 // both read the SAME value. The detail page's lifecycle rows cannot be rendered here — first
 // paint is the read — so this checks the thing that would break: the pair drifting apart in the
 // source, one hard-coded and the other not.
+// The school surface reads its tenant from a header, so it needs somebody to have said which
+// school. Every screen under School has to cope with that not having happened yet.
+console.log('\nThe school surface without a school')
+const profile = at('/school-core/profile')
+const surfaceChecks = [
+  ['it says no school is chosen', profile.includes('No school chosen')],
+  ['it says where to set one', profile.includes('Acting as')],
+  // Sending anyway would render 400 TENANT_NOT_RESOLVED, which reads as a broken screen.
+  ['it does not pretend to have read a profile', !profile.includes('what this school can change')],
+  ['the top bar offers the picker', profile.includes('acting-input')],
+  // Every school-surface screen has to cope with it, not just the first one.
+  ['the years list copes too', at('/school-core/academic-years').includes('No school chosen')],
+  ["and so does one year's own address",
+    at('/school-core/academic-years/2026-2027').includes('No school chosen')],
+]
+for (const [label, ok] of surfaceChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nA tag matches its button')
 const detailSource = readFileSync('src/pages/platform/core/SchoolDetail.jsx', 'utf8')
 const shared = (detailSource.match(/look=\{action\.look\}/g) || []).length

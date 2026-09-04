@@ -1,5 +1,6 @@
 import { Menu, Moon, Search, Sun } from 'lucide-react'
 import { useTheme } from '../theme/themeContext.js'
+import ActingAs from './ActingAs.jsx'
 
 /**
  * The top bar.
@@ -10,10 +11,10 @@ import { useTheme } from '../theme/themeContext.js'
  * name and a role on screen would be a claim about somebody who does not exist. A control that
  * looks live and is not costs more than the space it fills.
  *
- * WHAT BELONGS HERE INSTEAD, once the API layer lands: which backend the app is pointed at, and
- * how many calls have been made and how many failed. Both are real state that changes, which is
- * what a top bar is for. The search box and the theme switch stay because both will do something
- * — search over the endpoint list, and the switch already works.
+ * WHAT BELONGS HERE IS REAL STATE. `ActingAs` is the first of it: which school the school
+ * surface is acting as, which is a mode rather than a page's setting and has to be visible from
+ * every screen that depends on it. Which backend, and how many calls have failed, belong here
+ * too and are not built yet.
  */
 export default function Topbar({ onMenuClick }) {
   const { theme, toggleTheme } = useTheme()
@@ -30,6 +31,7 @@ export default function Topbar({ onMenuClick }) {
       </div>
 
       <div className="topbar-actions">
+        <ActingAs />
         <button
           type="button"
           className="theme-toggle"
