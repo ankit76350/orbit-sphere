@@ -11,8 +11,8 @@ npm test        # renders every route headlessly
 npm run lint
 ```
 
-**Nothing calls the API yet.** Every route renders a placeholder. What is here is the frame the
-screens will sit in.
+**One screen is wired up: Platform › Core › Schools**, all eight endpoints of it. The other five
+routes render a placeholder that says how many endpoints are waiting for them.
 
 ## What was removed, and why
 
@@ -118,14 +118,68 @@ segments so a route in this app whose name merely starts with one of those words
 the backend by mistake. Going through the proxy means no CORS, and the browser can read every
 response header — which matters, because `Location` is where a newly created id comes back.
 
+## The API layer
+
+Ported from `../api-battleground` rather than rewritten, because it was already the answer:
+
+| | |
+|---|---|
+| `src/config/endpoints.js` | 45 endpoints — paths, required and optional fields, refusal codes, worked examples |
+| `src/config/environments.js` | which backend, and the timeout |
+| `src/lib/httpClient.js` | building a request and sending it |
+| `src/lib/store.js` | the chosen environment, remembered in this browser |
+| `src/lib/variables.js` | `{{name}}` placeholders, the way Postman does them |
+| `src/api/` | `ApiProvider`, the split contexts, and `buildCall` |
+
+**`endpoints.js` is generated, and now written to both apps in one run.**
+`api-battleground/tools/generate-endpoints.py` reads the Postman collection and writes its output
+to both `src/config/endpoints.js` files. A copy taken by hand is a copy that drifts the first
+time somebody regenerates and forgets the other one.
+
+**The contexts are split** — `useApi()` for what you do, `useApiState()` for what changes. When
+one context carried both, a screen that loaded itself re-ran after every call, and each run
+called again. Anything that loads itself should depend on `call`, never on the whole object.
+
+## Screens
+
+They live at `src/pages/{surface}/{module}/`, so a file's path says which caller it acts as:
+
+```
+src/pages/
+  platform/core/Schools.jsx     ← built: all 8 endpoints
+  platform/plans/               ← Plan catalogue (9), Subscriptions (3)
+  school/core/                  ← Profile (5), Academic years (18)
+  school/plans/                 ← Subscription (2)
+```
+
+A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,
+so the navigation stays complete while the screens are filled in one at a time.
+
+### Platform › Core › Schools
+
+The list — search, status filter, sort, paging — then any row opens the whole record, because a
+row is a summary and the full read is a separate endpoint. **The lifecycle buttons depend on
+where the school is:** one being set up gets "Finish setting up" and "Take it live", a live one
+gets "Suspend", a suspended one gets "Let it back in". Offering all five always would mean four
+of them answering `409`, which tells you nothing you could not have been told first.
+
+Suspend asks for its reason before sending, because the API requires one — better to ask than to
+send a request you know will be refused.
+
+### Every control says which endpoint it calls
+
+`EndpointTag` sits beside every button and shows the **real** request: path parameters filled in
+and the query string actually being sent, so the tag under the list changes as you filter. Click
+it to reopen that endpoint's last call. Until it has made one there is nothing to open, so it
+renders as plain text rather than a button that does nothing.
+
+Anything that changes something opens `ResponseModal` by itself — the answer to "did that work"
+should not need a second click. Reads stay quiet; they run on load and the screen shows its own
+message when one fails.
+
 ## What comes next
 
-The API layer. `../api-battleground` already has the pieces worth taking rather than rewriting:
-
-- **`src/config/endpoints.js`** — 45 endpoints with their paths, required and optional fields,
-  refusal codes and worked examples, generated from the Postman collection by
-  `tools/generate-endpoints.py`. It is generated, so it cannot drift from the collection.
-- **`src/api/`** — the send/inspect layer: environments, the tenant header, timeouts, and a log
-  of every call made.
-
-Whether to copy those across or import them is the first decision to take.
+The rest of Core: **School › Core › Profile** (5) and **School › Core › Academic years** (18).
+Both are school-surface, so they send the tenant header instead of naming a school in the URL —
+`buildCall` already does that when an endpoint is marked `schoolSurface`, which the generator
+works out from the path.

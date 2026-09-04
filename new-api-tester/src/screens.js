@@ -1,4 +1,5 @@
 import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
+import Schools from './pages/platform/core/Schools.jsx'
 
 /**
  * Every screen this app has, in the shape the navigation reads it: surface, then module, then
@@ -27,7 +28,15 @@ export const SURFACES = [
         label: 'Core',
         icon: Building2,
         submodules: [
-          { id: 'schools', label: 'Schools', endpoints: 8, group: 'Core / School — platform' },
+          {
+            id: 'schools',
+            label: 'Schools',
+            endpoints: 8,
+            group: 'Core / School — platform',
+            // A submodule with no `screen` falls back to Placeholder, so the nav stays
+            // complete while the screens are filled in one at a time.
+            screen: Schools,
+          },
         ],
       },
       {

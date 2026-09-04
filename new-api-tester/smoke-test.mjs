@@ -14,8 +14,18 @@ import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { rolldown } from 'rolldown'
 
+// The store remembers the chosen environment in the browser, and reads it while the provider
+// first renders — so there has to be something to read here.
+const memory = new Map()
+globalThis.localStorage = {
+  getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+  setItem: (key, value) => memory.set(key, String(value)),
+  removeItem: (key) => memory.delete(key),
+}
+
 const bundle = await rolldown({
-  input: 'src/App.jsx',
+  // Both, so the screens can be rendered inside the provider they need.
+  input: 'smoke-entry.js',
   external: ['react', /^react\//, 'react-dom', /^react-dom\//, 'lucide-react',
              'react-router', 'react-router-dom'],
   // The styles are irrelevant to what renders, and nothing here can parse them.
@@ -27,15 +37,24 @@ const bundle = await rolldown({
 const { output } = await bundle.generate({ format: 'esm' })
 const tmp = new URL('./.smoke-bundle.mjs', import.meta.url)
 writeFileSync(tmp, output[0].code)
-const { default: App } = await import(tmp.href)
+const { App, ApiProvider } = await import(tmp.href)
 rmSync(tmp)
 
+/**
+ * Renders one address.
+ *
+ * Wrapped in ApiProvider because the screens call useApi(). Nothing is sent: renderToString does
+ * not run effects, so this is first paint only — which is exactly the moment a broken screen
+ * throws.
+ */
 const at = (path) => renderToString(
-  React.createElement(StaticRouter, { location: path }, React.createElement(App)))
+  React.createElement(ApiProvider, null,
+    React.createElement(StaticRouter, { location: path }, React.createElement(App))))
 
 /** Every address the navigation offers, and words that prove the right screen answered. */
 const ROUTES = [
-  ['/platform-core/schools', ['Platform', 'Core', 'Schools', '8 endpoints']],
+  // Schools is built, so it should show its own screen and not the placeholder.
+  ['/platform-core/schools', ['Platform', 'Core', 'Schools', 'Add a school', '/platform/schools']],
   ['/platform-plans/catalogue', ['Platform', 'Plans', 'Plan catalogue', '9 endpoints']],
   ['/platform-plans/subscriptions', ['Subscriptions', '3 endpoints']],
   ['/school-core/profile', ['School', 'Profile', '5 endpoints']],
@@ -62,6 +81,25 @@ for (const [path, expected] of ROUTES) {
   } else {
     console.log(`  ok     ${path}`)
   }
+}
+
+console.log('\nThe Schools screen')
+const schools = at('/platform-core/schools')
+const screenChecks = [
+  ['it is the real screen, not the placeholder', !schools.includes('is not built yet')],
+  // The point of this app over a product UI: every control says what it sends.
+  ['the list says which endpoint it calls', schools.includes('/platform/schools')],
+  ['and which method', schools.includes('>GET<')],
+  ['the paging query is in the tag', schools.includes('page=0') && schools.includes('size=20')],
+  ['the status filters are offered', schools.includes('Being set up') && schools.includes('Suspended')],
+  // Until an endpoint has been called there is nothing to open, so the tag must not look like
+  // a button that does nothing.
+  ['an uncalled endpoint tag is not a button',
+    !/<button[^>]*class="endpoint-tag"/.test(schools)],
+]
+for (const [label, ok] of screenChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
 }
 
 console.log('\nNavigation')

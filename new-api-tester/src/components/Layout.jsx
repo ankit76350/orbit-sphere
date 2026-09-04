@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import ModuleNav from './ModuleNav.jsx'
+import ResponseModal from './ResponseModal.jsx'
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
 
@@ -35,6 +36,9 @@ export default function Layout({ children }) {
           <ModuleNav />
           {children}
         </main>
+        {/* In the shell, so a call made anywhere can be inspected and no screen has to
+            remember to render it. */}
+        <ResponseModal />
       </div>
     </div>
   )

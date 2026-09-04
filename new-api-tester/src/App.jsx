@@ -19,13 +19,17 @@ export default function App() {
             key={path}
             path={path}
             element={
-              <Placeholder
-                title={submodule.label}
-                surface={surface.label}
-                module={module.label}
-                group={submodule.group}
-                endpoints={submodule.endpoints}
-              />
+              submodule.screen ? (
+                <submodule.screen />
+              ) : (
+                <Placeholder
+                  title={submodule.label}
+                  surface={surface.label}
+                  module={module.label}
+                  group={submodule.group}
+                  endpoints={submodule.endpoints}
+                />
+              )
             }
           />
         ))}

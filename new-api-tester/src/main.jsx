@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import ApiProvider from './api/ApiProvider.jsx'
 import App from './App.jsx'
 import ThemeProvider from './theme/ThemeProvider.jsx'
 
@@ -12,9 +13,11 @@ import './styles/components.css'
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ThemeProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ApiProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ApiProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )

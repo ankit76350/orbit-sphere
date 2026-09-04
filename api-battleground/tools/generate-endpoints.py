@@ -16,7 +16,12 @@ import json, re, os, sys
 
 ROOT = '/Users/rohanshinde/FlutterDev/projects/school-edu-sphere'
 COLLECTION = os.path.join(ROOT, 'postman', 'Orbit Sphere — API.postman_collection.json')
-OUT = os.path.join(ROOT, 'api-battleground', 'src', 'config', 'endpoints.js')
+# Both apps read the same catalogue, so both are written from the one run. A copy taken by hand
+# is a copy that drifts the first time somebody regenerates and forgets the other.
+OUTS = [
+  os.path.join(ROOT, 'api-battleground', 'src', 'config', 'endpoints.js'),
+  os.path.join(ROOT, 'new-api-tester', 'src', 'config', 'endpoints.js'),
+]
 
 # ---------------------------------------------------------------------------
 # What the collection cannot tell us: read out of the DTOs, the services and
@@ -753,6 +758,9 @@ export const CASE_COUNT = ALL_ENDPOINTS.reduce(
   0,
 );''')
 
-open(OUT, 'w').write('\n'.join(out) + '\n')
-print('wrote', OUT)
+text = '\n'.join(out) + '\n'
+for path in OUTS:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, 'w').write(text)
+    print('wrote', path)
 print('endpoints:', len(flat_ids))

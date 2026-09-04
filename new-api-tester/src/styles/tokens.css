@@ -26,6 +26,8 @@
   /* status (reserved — never reused as a data series) */
   --good: #0c8f5c;
   --good-bg: #e6f7f0;
+  --warn: #a86400;
+  --warn-bg: #fff4e2;
   --bad: #d81f4a;
   --bad-bg: #ffecf1;
 
@@ -71,6 +73,8 @@
 
   --good: #3ddc97;
   --good-bg: #163226;
+  --warn: #f5b955;
+  --warn-bg: #33240f;
   --bad: #ff6b8b;
   --bad-bg: #351a22;
 
