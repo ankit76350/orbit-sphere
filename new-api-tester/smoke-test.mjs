@@ -57,8 +57,8 @@ const at = (path) => renderToString(
 const ROUTES = [
   // Schools is built, so it should show its own screen and not the placeholder.
   ['/platform-core/schools', ['Platform', 'Core', 'Schools', 'Add a school', '/platform/schools']],
-  ['/platform-plans/catalogue', ['Platform', 'Plans', 'Plan catalogue', '9 endpoints']],
-  ['/platform-plans/subscriptions', ['Subscriptions', '3 endpoints']],
+  ['/platform-plans/catalogue', ['Platform', 'Plans', 'Plan catalogue', 'New draft']],
+  ['/platform-plans/subscriptions', ['Subscriptions', 'No school picked']],
   // Built, and with no school chosen it says so rather than firing a call that cannot work.
   ['/school-core/profile', ['School', 'Profile', 'No school chosen']],
   ['/school-core/academic-years', ['Academic years', 'No school chosen']],

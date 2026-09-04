@@ -1,4 +1,7 @@
 import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
+import Catalogue from './pages/platform/plans/Catalogue.jsx'
+import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
+import Subscriptions from './pages/platform/plans/Subscriptions.jsx'
 import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
 import Schools from './pages/platform/core/Schools.jsx'
 import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
@@ -53,8 +56,23 @@ export const SURFACES = [
         label: 'Plans',
         icon: Package,
         submodules: [
-          { id: 'catalogue', label: 'Plan catalogue', endpoints: 9, group: 'Plans / Plan catalogue' },
-          { id: 'subscriptions', label: 'Subscriptions', endpoints: 3, group: 'Plans / Subscriptions' },
+          {
+            id: 'catalogue',
+            label: 'Plan catalogue',
+            endpoints: 9,
+            group: 'Plans / Plan catalogue',
+            screen: Catalogue,
+            // The API names a plan by code AND version, so the address carries both,
+            // joined with `@` to stay one route parameter.
+            detail: { param: 'id', screen: PlanDetail },
+          },
+          {
+            id: 'subscriptions',
+            label: 'Subscriptions',
+            endpoints: 3,
+            group: 'Plans / Subscriptions',
+            screen: Subscriptions,
+          },
         ],
       },
     ],

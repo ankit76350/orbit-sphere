@@ -526,3 +526,75 @@ button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--
   .picker-label { display: none; }
   .picker-trigger { max-width: 150px; }
 }
+
+/* ── Plan cards ───────────────────────────────────────────── */
+/* The catalogue is cards, not rows. A plan is a thing you compare against other plans — price
+   against limits against what is included — and comparing reads down a card far better than
+   across a table row, where the price and the feature count end up columns apart. */
+.plan-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.plan-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px 14px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-card); box-shadow: var(--shadow-card);
+  text-align: left;
+}
+.plan-card:hover { border-color: var(--brand); }
+/* A plan a school could buy today is the one that matters, so it is the one marked. */
+.plan-card[data-sellable='true'] { border-left: 3px solid var(--good); }
+.plan-card[data-status='RETIRED'] { opacity: 0.72; }
+
+.plan-card-head { display: flex; align-items: flex-start; gap: 8px; }
+.plan-card-code {
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.02em; color: var(--ink-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.plan-card-version {
+  flex-shrink: 0; padding: 1px 6px; border-radius: 999px;
+  background: var(--surface-sunken); color: var(--ink-2);
+  font-size: 9.5px; font-weight: 700;
+}
+.plan-card-name { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+
+.plan-card-price { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.plan-card-amount { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+.plan-card-cycle {
+  font-size: 10px; font-weight: 700; text-transform: lowercase; letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+.plan-card-badges { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+.plan-card-facts {
+  display: flex; flex-direction: column; gap: 4px;
+  padding-top: 10px; border-top: 1px solid var(--line);
+  font-size: 11.5px; color: var(--ink-muted);
+}
+.plan-card-fact { display: flex; align-items: center; gap: 6px; }
+.plan-card-fact strong { color: var(--ink-2); font-weight: 600; }
+
+.plan-card-foot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: auto; padding-top: 4px;
+}
+/* Why a plan is not sellable, in words. `sellable` is three facts at once, so a bare false
+   leaves you guessing which of them is missing. */
+.plan-card-why { font-size: 11px; color: var(--warn); }
+
+/* ── Feature rows ─────────────────────────────────────────── */
+.divide > :not(:first-child) { border-top: 1px solid var(--line); }
+.feature-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+.feature-main { min-width: 0; flex: 1 1 auto; }
+.feature-name { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.feature-desc {
+  display: block; margin-top: 1px; font-size: 11px; color: var(--ink-muted);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.feature-tick { color: var(--good); flex-shrink: 0; }
+.feature-cross { color: var(--ink-muted); flex-shrink: 0; opacity: 0.5; }
+.feature-check { width: 15px; height: 15px; accent-color: var(--brand); flex-shrink: 0; }
+.feature-limit { width: 96px; flex-shrink: 0; }
+.feature-metric { flex-shrink: 0; font-size: 11px; min-width: 74px; }

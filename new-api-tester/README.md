@@ -148,7 +148,11 @@ They live at `src/pages/{surface}/{module}/`, so a file's path says which caller
 src/pages/
   platform/core/Schools.jsx            ← built: 3 endpoints
   platform/core/SchoolDetail.jsx       ← built: 5
-  platform/plans/                      ← Plan catalogue (9), Subscriptions (3)
+  platform/plans/Catalogue.jsx         ← built: 2
+  platform/plans/PlanDetail.jsx        ← built: 7
+  platform/plans/Subscriptions.jsx     ← built: 3
+  platform/plans/features.js           ← the 24 FeatureCodes, mirrored
+  platform/plans/planFacts.js          ← what both plan screens need
   school/core/Profile.jsx              ← built: 5
   school/core/AcademicYears.jsx        ← built: 3
   school/core/AcademicYearDetail.jsx   ← built: 15
@@ -156,7 +160,7 @@ src/pages/
   school/plans/                        ← Subscription (2)
 ```
 
-**Core is done: 31 of the 45 endpoints.** What is left is Plans.
+**43 of the 45 endpoints.** What is left is the school's own view of its subscription.
 
 A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,
 so the navigation stays complete while the screens are filled in one at a time.
@@ -292,6 +296,51 @@ Two writes are deliberately destructive and say so — `PUT` replaces the whole 
 `DELETE ?type=` removes every entry of that kind across the year. Both are marked danger, and
 neither is the default action of anything.
 
+### Platform › Plans › Plan catalogue
+
+**Cards, not rows.** A plan is a thing you compare against other plans — price against limits
+against what is included — and that reads down a card far better than across a table row, where
+the price and the feature count end up columns apart. It is also what a catalogue looks like
+everywhere else, which is worth something on a screen meant to be read quickly.
+
+**One card per version, not per plan.** `PREMIUM v1` and `v2` are two documents with two prices
+and a school is on exactly one of them, so collapsing them would hide the thing somebody opened
+the catalogue to see.
+
+**`sellable` is three facts at once** — published, on the public list, inside its selling window
+— so every card that cannot be sold says *which* one is missing rather than showing a bare
+`false`. That reason has one definition, in `planFacts.js`, used by both plan screens: two
+screens disagreeing about why a plan is unsellable would be worse than neither saying.
+
+A version's own page is `/platform-plans/catalogue/PREMIUM@2` — code and version, because that is
+how every plan URL names a plan. They are joined with `@` so it stays one route parameter.
+
+**A draft and a published plan are almost different screens**, and that is the API's doing:
+publishing is a one-way door. A school can be on the plan within the minute, so editing what they
+bought afterwards is what the whole group is arranged to prevent — `PATCH` and the feature `PUT`
+both refuse anything that is not a draft, there is no unpublish, and retiring is not a way back.
+So a draft gets the edit form and the 24-row feature checklist; a published one gets a frozen list
+and only two actions. Offering the edit controls on a published plan would be four buttons whose
+only outcome is `409`.
+
+The features are **one `PUT` for the whole list**, not a switch per row — a plan priced against
+half a feature list is the state that single write exists to make impossible. A limit is only
+offered on a feature that has something to count; the other fifteen say "nothing to count",
+because sending one a limit is `400 FEATURE_NOT_MEASURABLE`.
+
+### Platform › Plans › Subscriptions
+
+**Here the school is an argument, not a mode.** These three endpoints name it in the URL, so it
+belongs to the screen — unlike the school surface, where the tenant is a header and "Acting as"
+follows you between screens. `SchoolPicker` is the same component in both places; keeping the
+distinction in the callers means neither can read the other's choice by accident.
+
+The read decides which half you see: a school that already pays gets its subscription, one with
+none gets the create. `404 SUBSCRIPTION_NOT_FOUND` is that second state rather than a failure.
+Activating a trial addresses it as `current`, because a subscription number is
+`SUB/2026/09/000001` and the slashes cannot go in a path.
+
 ## What comes next
 
-**Plans**, both surfaces: Plan catalogue (9), Subscriptions (3), and a school's own view (2).
+**School › Plans › Subscription** (2) — the school's own view of what it is paying for,
+deliberately narrower than the platform's read of the same subscription.
