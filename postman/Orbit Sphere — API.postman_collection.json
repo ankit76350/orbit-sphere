@@ -2,7 +2,7 @@
  "info": {
   "_postman_id": "12cbb6ae-c176-4b1d-ba65-09b1668ec5dc",
   "name": "Orbit Sphere — API",
-  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 11 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 12 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
   "_exporter_id": "47336508",
   "_collection_link": "https://go.postman.co/collection/47336508-12cbb6ae-c176-4b1d-ba65-09b1668ec5dc?source=collection_link"
@@ -2447,6 +2447,63 @@
            "  }",
            "});",
            "pm.collectionVariables.set('subscriptionNo', b.subscriptionNo);"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Activate Subscription",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/subscriptions/{no}/activate\n//  Platform surface. Needs {{schoolId}} and a subscription that is on TRIAL.\n//  Make one with Create Subscription, sending \"trial\": true.\n// ===========================================================================\n//\n//  THIS IS ONE STATUS CHANGE AND NOTHING ELSE. Same plan, same price, same\n//  limits. The plan, the price and the limits are deliberately NOT in the\n//  request body, so they cannot be changed here by accident.\n//\n//  THE CLOCK STARTS AGAIN. The trial is finished, so a fresh paid period\n//  begins rather than the trial's dates being kept. It runs for one of\n//  whatever cycle the subscription was sold on — read from the SUBSCRIPTION,\n//  not the plan, because the cycle was copied onto it when it was sold and\n//  that is the contract.\n//\n//  USE current AS THE NUMBER. A real one is SUB/2026/09/000001 and the\n//  slashes end the path segment. Encoding them as %2F does not help:\n//    GET /platform/plans/AB%2FCD/versions/1\n//    -> 400 Invalid URI: [The encoded slash character is not allowed]\n//  That is Tomcat, before Spring routes anything.\n//\n// ---------------------------------------------------------------------------\n//\n// 01  THE ORDINARY CASE — NO BODY AT ALL           -> 200 OK\n//     Send nothing. Or {} as it stands above.\n//     OUT: status \"ACTIVE\", currentPeriodStart now, currentPeriodEnd one\n//          billing cycle later, nextStep \"Now paying, from ... to ...\".\n// ---------------------------------------------------------------------------\n//\n// 02  WITH A REASON, FOR THE HISTORY ROW           -> 200 OK\n// {\n//   \"reason\": \"Signed the annual contract on 3 September.\"\n// }\n//     The reason lands on the subscription_history row, not on the\n//     subscription. See case 08.\n// ---------------------------------------------------------------------------\n//\n// 03  BACKDATED, BECAUSE THE DEAL WAS AGREED LAST WEEK  -> 200 OK\n// {\n//   \"currentPeriodStart\": \"2026-09-01T00:00:00Z\",\n//   \"reason\": \"Backdated to the date they signed.\"\n// }\n//     currentPeriodEnd is worked out from the start, so a yearly plan now\n//     runs to 2027-09-01.\n// ---------------------------------------------------------------------------\n//\n// 04  BOTH DATES SPELLED OUT                       -> 200 OK\n// {\n//   \"currentPeriodStart\": \"2026-09-01T00:00:00Z\",\n//   \"currentPeriodEnd\": \"2027-03-31T23:59:59Z\"\n// }\n//     A short first period, to line the school up with the April billing run.\n// ---------------------------------------------------------------------------\n//\n// 05  A PERIOD THAT RUNS BACKWARDS                 -> 400 Bad Request\n// {\n//   \"currentPeriodStart\": \"2026-09-01T00:00:00Z\",\n//   \"currentPeriodEnd\": \"2026-08-01T00:00:00Z\"\n// }\n//     OUT: { \"code\": \"INVALID_BILLING_PERIOD\" }\n// ---------------------------------------------------------------------------\n//\n// 06  ACTIVATING SOMETHING THAT IS NOT A TRIAL     -> 409 Conflict\n//     Run case 01 twice. The second time:\n//     OUT: { \"code\": \"SUBSCRIPTION_NOT_TRIAL\",\n//            \"message\": \"SUB/2026/09/000001 is ACTIVE, and only a TRIAL can\n//                        be activated. It is already paying, so there is\n//                        nothing to do.\" }\n//     A 409 rather than a quiet 200 on purpose: the second call is a\n//     different intention from the first, usually somebody who does not know\n//     it already happened, and a 200 would hide that.\n//     The advice changes with the status — PAST_DUE says take the payment,\n//     SUSPENDED says lift the suspension, CANCELLED and EXPIRED say create a\n//     new subscription. None of those states are reachable yet: the\n//     endpoints that set them are #15 to #26 and are not built.\n// ---------------------------------------------------------------------------\n//\n// 07  A SCHOOL OR A NUMBER THAT DOES NOT EXIST     -> 404 Not Found\n//     SCHOOL_NOT_FOUND, or SUBSCRIPTION_NOT_FOUND when the school has no\n//     subscription at all. Ask for a school that has none and the message\n//     tells you to create one first.\n// ---------------------------------------------------------------------------\n//\n// 08  WHAT LANDS IN THE DATABASE\n//     From mongosh, after case 02:\n//       db.school_subscriptions.findOne({schoolId: \"...\"})\n//         -> status ACTIVE, currentPeriodStart and currentPeriodEnd both\n//            moved. planDefinitionDocsId, contractedPrice, currencyCode,\n//            maxStudentsOverride, autoRenew and current all unchanged.\n//       db.subscription_history.find({schoolSubscriptionDocsId: \"...\"})\n//         -> now TWO rows. The first from Create Subscription\n//            (TRIAL_STARTED, previousStatus null), and a second:\n//            eventType ACTIVATED, previousStatus TRIAL, newStatus ACTIVE,\n//            source ADMIN_PORTAL, reason the one you sent,\n//            performedByDocsId null because nobody is signed in yet,\n//            effectiveAt the period start — which is when it took effect,\n//            not when the row was written. createdAt is the write time.\n//\n//     NO NUMBER IS TAKEN. Unlike Create Subscription this touches no\n//     number_sequences row: the subscription already has its number.\n// ---------------------------------------------------------------------------\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions/current/activate",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions",
+          "current",
+          "activate"
+         ]
+        },
+        "description": "**POST** `/platform/schools/{id}/subscriptions/{no}/activate` — turns a trial into a paying subscription.\n\nFor when the school has tried it and agreed to buy. Nothing about what they are buying changes:\nsame plan, same price, same limits, same `autoRenew`. All that changes is that they are paying\nnow, and a fresh paid period starts.\n\n### Use `current` as the number\n\nA real subscription number is `SUB/2026/09/000001`. The slashes end the path segment, so it\ncannot be written in a URL, and `%2F` is refused by Tomcat with a 400 before Spring sees it. A\nschool has exactly one current subscription, so `current` names it without ambiguity.\n\n### The body is optional — all of it\n\nSend nothing and the paid period starts now and runs for one billing cycle, read from the\nsubscription rather than the plan because the cycle was frozen onto it when it was sold.\n\n### Only a TRIAL can be activated\n\nAnything else is a `409` that says what to do instead, and the advice differs by status.\n\n### The plan is not re-checked\n\nIf the plan was retired mid-trial the school still gets to buy it. Retiring takes a plan off the\nmenu for new schools and changes nothing for a school already on it.\n\n### The eight test cases are in the request body as comments\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is paying now', () => pm.expect(b.status).to.eql('ACTIVE'));",
+           "pm.test('it is still the live subscription', () => pm.expect(b.current).to.be.true);",
+           "pm.test('the period runs forwards', () =>",
+           "  pm.expect(new Date(b.currentPeriodEnd)).to.be.greaterThan(new Date(b.currentPeriodStart)));",
+           "// The whole point of this endpoint is that nothing else about the deal moves.",
+           "pm.test('the plan did not change', () =>",
+           "  pm.expect(b.planCode).to.eql(pm.collectionVariables.get('planCode')));",
+           "pm.test('it says what happened next', () =>",
+           "  pm.expect(b.nextStep).to.include('Now paying'));"
           ]
          }
         }

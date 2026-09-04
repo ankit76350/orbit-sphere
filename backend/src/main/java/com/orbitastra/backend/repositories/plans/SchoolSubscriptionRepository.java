@@ -18,6 +18,16 @@ public interface SchoolSubscriptionRepository extends MongoRepository<SchoolSubs
     Optional<SchoolSubscription> findBySchoolIdAndCurrentIsTrue(String schoolId);
 
     /**
+     * One school's subscription, by the number printed on it.
+     *
+     * <p>The school id is in the query as well as the number, so a caller who guesses another
+     * school's subscription number gets nothing back rather than somebody else's record.
+     * Subscription numbers are only unique within a school, so this pair is what identifies one.
+     */
+    Optional<SchoolSubscription> findBySchoolIdAndSubscriptionNo(String schoolId,
+            String subscriptionNo);
+
+    /**
      * How many schools are on one plan version.
      *
      * <p>Backed by {@code subscription_plan_version_idx}. A plan version is its own document, so

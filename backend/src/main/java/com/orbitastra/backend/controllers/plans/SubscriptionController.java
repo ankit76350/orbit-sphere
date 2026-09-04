@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.services.plans.SubscriptionService;
@@ -59,5 +60,25 @@ public class SubscriptionController {
                 .created(URI.create("/platform/schools/" + schoolId + "/subscriptions/"
                         + response.subscriptionNo()))
                 .body(response);
+    }
+        /**
+         * Endpoint #14 — converts a trial into a paid subscription.
+         *
+         * <p>Use {@code current} as the subscription number. The plan, price, and limits remain unchanged;
+         * a new paid billing period starts.
+         *
+         * <p>The body is optional. If omitted, the paid period starts now for one billing cycle.
+         * Dates or a reason can be provided for non-standard activation.
+         *
+         * <p>Only a TRIAL can be activated; otherwise returns {@code 409 SUBSCRIPTION_NOT_TRIAL}.
+        */
+    @PostMapping("/{subscriptionNo}/activate")
+    public ResponseEntity<SubscriptionResponse> activate(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody(required = false) SubscriptionActivateRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.activateSubscription(schoolId, subscriptionNo, request));
     }
 }

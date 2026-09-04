@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
@@ -54,6 +55,22 @@ public class SubscriptionService {
 
     /** Written on every history row this service creates. */
     private static final String SOURCE_ADMIN_PORTAL = "ADMIN_PORTAL";
+
+    /**
+     * What to put in the URL instead of a subscription number, to mean "the one this school is
+     * on now".
+     *
+     * <p><b>This exists because a subscription number cannot go in a URL.</b> The house format
+     * is {@code SUB/2026/09/000001} — it has slashes in it, and a slash ends a path segment, so
+     * {@code .../subscriptions/SUB/2026/09/000001/activate} is not the address of anything.
+     * Writing them as {@code %2F} does not help either: Tomcat rejects an encoded slash in a
+     * path with a 400 before Spring ever sees it.
+     *
+     * <p>So the word {@code current} is used instead, and it is not a workaround so much as the
+     * honest name for what is being asked. A school has exactly one current subscription — a
+     * unique index makes sure of it — so there was never a choice to make here.
+     */
+    private static final String CURRENT_SUBSCRIPTION = "current";
 
     private final SchoolRepository schools;
     private final PlanDefinitionRepository plans;
@@ -179,6 +196,84 @@ public class SubscriptionService {
                 savedSubscription, trial));
     }
 
+    //! endpoint 14 — a trial becomes a paying subscription ----------------------------
+
+        /**
+         ** #14 — converts a trial into a paid subscription.
+         *
+         * <p>Plan, price, and limits remain unchanged; the trial ends and a fresh paid period starts.
+         *
+         * <p>Only TRIAL subscriptions can be activated. ACTIVE, CANCELLED, or EXPIRED subscriptions
+         * are rejected with an appropriate response.
+         *
+         * <p>The plan is not revalidated, so a retired plan can still be activated for an existing trial.
+         *
+         * <p>Subscription and history are updated in one transaction.
+        */
+    @Transactional
+    public SubscriptionResponse activateSubscription(String schoolId, String subscriptionNo,
+            SubscriptionActivateRequest request) {
+
+        SubscriptionActivateRequest asked = request == null
+                ? SubscriptionActivateRequest.empty()
+                : request;
+
+        //! step 1 - the school has to exist
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        //! step 2 - find the subscription. "current" means the one the school is on now, which
+        //! is how it is normally addressed, because a real subscription number has slashes in
+        //! it and will not fit in a URL. The school id is in the lookup either way, so one
+        //! school cannot reach another school's subscription by guessing its number.
+        SchoolSubscription subscription = findSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - it has to be a trial. Anything else is refused, with advice that fits.
+        requireTrial(subscription);
+
+        //! step 4 - work out the paid period. It starts now unless the caller said otherwise,
+        //! and runs for one of whatever cycle this subscription was sold on.
+        Instant periodStart = asked.currentPeriodStart() == null
+                ? Instant.now()
+                : asked.currentPeriodStart();
+        Instant periodEnd = resolvePeriodEnd(asked.currentPeriodEnd(), periodStart,
+                subscription.getBillingCycle(), school.getDefaultTimeZone());
+
+        //! step 5 - save the change
+        SubscriptionStatus previousStatus = subscription.getStatus();
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setCurrentPeriodStart(periodStart);
+        subscription.setCurrentPeriodEnd(periodEnd);
+
+        // TODO: update subscription
+        SchoolSubscription saved = subscriptions.save(subscription);
+
+        //! step 6 - write down that it happened, in this same transaction
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.ACTIVATED)
+                .previousStatus(previousStatus)
+                .newStatus(SubscriptionStatus.ACTIVE)
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason(asked.reason())
+                .performedByDocsId(null)
+                .effectiveAt(periodStart)
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 7 - the plan is only read so the response can name it and show the limits
+        PlanDefinition plan = plans.findById(saved.getPlanDefinitionDocsId())
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "The plan this subscription points at no longer exists."));
+
+        return SubscriptionResponse.fromSubscription(saved, plan, activatedNextStep(school, saved));
+    }
+
     //* ---------------------------------------------------------------------------------
 
     /**
@@ -286,6 +381,73 @@ public class SubscriptionService {
         } catch (java.time.DateTimeException unreadable) {
             return ZoneOffset.UTC;
         }
+    }
+
+    /**
+     * The subscription named in the URL, or the school's current one.
+     *
+     * <p>See {@link #CURRENT_SUBSCRIPTION} for why the word is needed: a subscription number has
+     * slashes in it and cannot be written in a path.
+     */
+    private SchoolSubscription findSubscription(School school, String schoolId,
+            String subscriptionNo) {
+
+        if (CURRENT_SUBSCRIPTION.equalsIgnoreCase(subscriptionNo)) {
+            return subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId)
+                    .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                            "'" + school.getSchoolName() + "' has no subscription yet. Create "
+                                    + "one first."));
+        }
+
+        return subscriptions.findBySchoolIdAndSubscriptionNo(schoolId, subscriptionNo)
+                .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                        "'" + school.getSchoolName() + "' has no subscription numbered '"
+                                + subscriptionNo + "'. A subscription number contains slashes "
+                                + "and cannot be written in a URL — use 'current'."));
+    }
+
+    /**
+     * Refuses anything that is not a trial, and says what to do instead.
+     *
+     * <p>The advice differs by status because the way out differs: an ACTIVE subscription needs
+     * nothing doing, a cancelled or expired one needs a new subscription, and a suspended one
+     * needs the suspension lifted first. One message for all four would send three of them to
+     * the wrong place.
+     */
+    private void requireTrial(SchoolSubscription subscription) {
+        if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
+            return;
+        }
+
+        String advice = switch (subscription.getStatus()) {
+            case ACTIVE -> " It is already paying, so there is nothing to do.";
+            case PAST_DUE -> " It is already paying but has an unpaid bill. Take the payment "
+                    + "rather than activating it again.";
+            case SUSPENDED -> " Lift the suspension first.";
+            case CANCELLED, EXPIRED -> " A finished subscription cannot be restarted. Create a "
+                    + "new subscription for this school instead.";
+            default -> "";
+        };
+
+        throw ApiException.conflict("SUBSCRIPTION_NOT_TRIAL",
+                subscription.getSubscriptionNo() + " is " + subscription.getStatus()
+                        + ", and only a TRIAL can be activated." + advice);
+    }
+
+    /** What the caller should know after a trial has been turned into a paying subscription. */
+    private String activatedNextStep(School school, SchoolSubscription subscription) {
+        String base = "Now paying, from " + subscription.getCurrentPeriodStart() + " to "
+                + subscription.getCurrentPeriodEnd() + ".";
+
+        String activation = switch (school.getStatus()) {
+            case PROVISIONING, TRIAL -> " The school itself is still " + school.getStatus()
+                    + " — activating the subscription does not activate the school.";
+            case SUSPENDED -> " The school itself is still SUSPENDED — paying does not lift a "
+                    + "suspension.";
+            default -> "";
+        };
+
+        return base + activation + " No invoice has been raised: that is a separate step.";
     }
 
     /** An override that lowers nothing and raises nothing is not an override. */

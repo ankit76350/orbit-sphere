@@ -191,7 +191,7 @@ stores an **array of reasons per date**, and the requests are shaped around that
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
 
-## Subscriptions: #13 closes core's activation gap
+## Subscriptions: #13 closes core's activation gap, #14 turns a trial into a sale
 
 `POST /platform/schools/{id}/subscriptions` is what makes a school a paying customer. Before it,
 **Activate School** always answered `"subscriptionStatus": "NONE"` with a note saying activation
@@ -203,15 +203,28 @@ Activate School.**
 
 - **Two fields is the ordinary request** — the plan's code and version. Price, currency, cycle and
   the period end all come from the plan.
-- **One subscription per school.** A second is a `409`; nothing yet changes or cancels one, so a
-  test school is on its first plan for good.
-- **Numbering is per school**, so every school's first subscription is `SUB/2026/000001`.
+- **One subscription per school.** A second is a `409`. Nothing cancels one or changes its plan
+  yet, so a test school stays on its first plan.
+- **Numbering is per school**, so every school's first subscription is `SUB/2026/09/000001`.
 
-## Plan catalogue: a draft is all you can make so far
+**Activate Subscription (#14)** turns a `TRIAL` into a paying `ACTIVE` one. Create the
+subscription with `"trial": true` first, or there is nothing to activate — activating an already
+paying one is a `409 SUBSCRIPTION_NOT_TRIAL`.
 
-`POST /platform/plans/drafts` is the only plans endpoint built. It always creates a **`DRAFT` at
-version 1 that is not publicly available** — `status`, `planVersion` and `publiclyAvailable` are
-not on the request, so sending them does nothing.
+**Its URL says `current`, not a subscription number.** A number is `SUB/2026/09/000001`; the
+slashes end the path segment, and writing them as `%2F` gets `400 Invalid URI: [The encoded slash
+character is not allowed]` from Tomcat before Spring routes anything. A school has exactly one
+current subscription, so `current` names it without ambiguity.
+
+**The body is optional, all of it.** Send nothing and the paid period starts now and runs one
+billing cycle. It changes the status and the period and nothing else — the plan, price and limits
+are not on the request, so they cannot move by accident.
+
+## Plan catalogue: nine endpoints, and #5 is the one that is missing
+
+`POST /platform/plans/drafts` always creates a **`DRAFT` at version 1 that is not publicly
+available** — `status`, `planVersion` and `publiclyAvailable` are not on the request, so sending
+them does nothing. Everything except #5, a new version of a published plan, is built.
 
 Two things that will bite while testing:
 
@@ -221,8 +234,8 @@ availability afterwards — which is why Retire is last in the folder.
 
 **List Plan Versions (#9) will show one version per plan** until #5 is built — nothing in the API
 creates a second version. Its `schoolsOnThisVersion` is 0 everywhere for the same kind of reason:
-#13 (create a subscription) is not built. The response's `note` says so rather than leaving a
-column of zeroes to be misread.
+nothing had created a subscription when it was written. #13 does now, so the count moves once a
+school is put on a version.
 
 **List Plans (#8) is the broader read.** Every parameter is optional, and the saved request sends
 `page` and `size` with the rest present but **disabled**, so you can tick one on rather than

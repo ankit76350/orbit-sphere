@@ -1,7 +1,8 @@
 # controllers/plans — API plan
 
-**Ten of 71 are built — #1 to #4, #6 to #10, and #13.** The entire plan catalogue except
-versioning, plus the first subscription.
+**Eleven of 71 are built — #1 to #4, #6 to #10, #13 and #14.** The entire plan catalogue
+except versioning, plus giving a school its first subscription and turning that trial into a
+paying one.
 
 **#13 closes the gap `core` has been announcing.** `activateSchool` was written to require an
 active subscription, found that nothing could create one, and settled for a soft check that says
@@ -122,7 +123,7 @@ file.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | 13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| 14 | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| 14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | 15 | [`POST /platform/schools/{id}/subscriptions/{no}/extend-trial`](#e15) | Push the trial end date out. A sales decision, so only an operator can do it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
@@ -394,7 +395,7 @@ below are still a plan.
 | `subscriptionNo` | String, required | **`SUB/2026/09/000001`** — prefix `SUB/{YYYY}/{MM}/`, six digits zero-padded, allocated by `NumberSequenceService` and never chosen by the caller. (The model's `// Example:` comment still shows `SUB/2026/000001`, from before the house format took a month — the service is what writes, and it writes the month.) |
 | `planDefinitionDocsId` | String, required | **The `_id` of an `ACTIVE` plan version.** A `DRAFT` or `RETIRED` plan is refused. |
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
-| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). The rest — `PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED` — arrive with #14–26, none of which are built, so today a subscription can only be created and never moved. |
+| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). #14 moves **`TRIAL` → `ACTIVE`** and is the only move that exists today. The rest — `PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED` — arrive with #15–26, none of which are built. |
 | `billingCycle` | BillingCycle, required | **Copied from the plan.** Same five values. |
 | `currentPeriodStart` | Instant, required | **Any instant** — the request's, or now. |
 | `currentPeriodEnd` | Instant, required | **Start plus one billing cycle**, worked out in the **school's own time zone** and not in UTC: `Instant` has no calendar, so `plus(1, YEARS)` throws outright. A caller-supplied end is accepted if it is after the start. |
@@ -416,7 +417,7 @@ new row, because a history you can edit is not a history.
 | Field | Type | What can be in it |
 |---|---|---|
 | `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
-| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written today (#13). The other eight — `ACTIVATED` `PLAN_CHANGED` `RENEWED` `PAYMENT_PAST_DUE` `SUSPENDED` `RESUMED` `CANCELLED` `EXPIRED` — belong to endpoints that are not built. |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #14. The other seven — `PLAN_CHANGED` `RENEWED` `PAYMENT_PAST_DUE` `SUSPENDED` `RESUMED` `CANCELLED` `EXPIRED` — belong to endpoints that are not built. |
 | `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
 | `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
@@ -1079,11 +1080,80 @@ would be inventing a contract term.
   met; tightening it is a deliberate change to `core` and has not been made.
 
 <a id="e14"></a>
-**14 · `POST /platform/schools/{id}/subscriptions/{no}/activate`**
+**14 · `POST /platform/schools/{id}/subscriptions/{no}/activate`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`
+- [`schools`](../../models/core/School.java) — *reads*: `schoolName`, `status`, `defaultTimeZone` — the zone does the calendar arithmetic, the status only shapes the `nextStep` sentence
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`; `billingCycle` — how long the paid period runs
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`, `currentPeriodStart`, `currentPeriodEnd`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `ACTIVATED`, `previousStatus` = `TRIAL`, `newStatus` = `ACTIVE`, `source`, `performedByDocsId`, `effectiveAt`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `ACTIVATED`, `previousStatus` = `TRIAL`, `newStatus` = `ACTIVE`, `newPlanDefinitionDocsId`, `source` = `ADMIN_PORTAL`, `reason`, `effectiveAt` = the period start
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: only so the response can name the plan and show the limits in force
+
+### The whole endpoint is one status change
+
+Nothing about what the school is buying moves: same plan, same price, same limits, same
+`autoRenew`. The plan, the price and the limits are deliberately **not** in the request body, so
+they cannot be changed here by accident — that is a different endpoint.
+
+**The clock starts again.** The trial period is finished, so a fresh paid period begins rather
+than the trial's dates being kept. It starts now unless the caller says otherwise and runs for
+one of whatever cycle the subscription was sold on — read from the **subscription**, not the
+plan, because the cycle was copied onto it when it was sold and that is the contract.
+
+**The body is optional, all of it.** `POST` with nothing at all is the ordinary case: the trial
+ended, they bought, start now. `currentPeriodStart`, `currentPeriodEnd` and `reason` are there
+for the deal that is not ordinary.
+
+### The plan is not checked again, on purpose
+
+#13 refuses a plan that is not sellable. This does not re-run that check, and the difference
+matters: if the plan was retired while the school was on trial, they still get to buy it.
+Retiring takes a plan off the menu for **new** schools and changes nothing for a school already
+on it — that is exactly what #6 says it does. Refusing here would strand a school that did
+everything right.
+
+### What #14 refuses
+
+| Case | Code |
+|---|---|
+| no such school | `404 SCHOOL_NOT_FOUND` |
+| no subscription with that number **on that school**, or none at all | `404 SUBSCRIPTION_NOT_FOUND` |
+| it is not a `TRIAL` | `409 SUBSCRIPTION_NOT_TRIAL` |
+| `currentPeriodEnd` on or before the start | `400 INVALID_BILLING_PERIOD` |
+| a `CUSTOM` cycle with no `currentPeriodEnd` | `400 BILLING_PERIOD_END_REQUIRED` |
+
+### Address it as `current`, because a subscription number will not fit in a URL
+
+The house format is `SUB/2026/09/000001`. A slash ends a path segment, so
+`.../subscriptions/SUB/2026/09/000001/activate` is not the address of anything. After
+`subscriptions/` the route expects two segments, `{no}` and `activate`; the number alone supplies
+four, so five arrive and nothing matches. It 404s. Percent-encoding does not rescue it either:
+
+```
+GET /platform/plans/AB%2FCD/versions/1
+-> 400  Invalid URI: [The encoded slash character is not allowed]   (Tomcat, before Spring)
+```
+
+So `{no}` takes the word **`current`**, which is the honest name for what is being asked anyway:
+a school has exactly one current subscription and a unique partial index makes sure of it, so
+there is nothing to disambiguate. A number that happens to have no slashes in it still works, and
+the `404` for one that does says why.
+
+**This affects every later endpoint that names a subscription in its path** — #15 through #26 all
+have `{no}` in them. Either they all use `current`, or `subscriptionNo` stops containing slashes.
+That is a decision about the number format, not about this endpoint.
+
+**The school id is in the lookup, not just the URL.** Subscription numbers are only unique
+within a school, so the pair is what identifies one — and a caller who guesses another school's
+number gets a `404` rather than somebody else's record.
+
+**`SUBSCRIPTION_NOT_TRIAL` says what to do instead**, and the advice differs by status because
+the way out differs: an `ACTIVE` one needs nothing doing, `PAST_DUE` needs the payment taking,
+`SUSPENDED` needs the suspension lifting, and `CANCELLED` or `EXPIRED` needs a new subscription.
+One message for all five would send four of them to the wrong place.
+
+**Activating twice is a `409`, not a quiet `200`.** This is a one-way door in the same sense
+publish is: the second call is a different intention from the first — usually somebody who does
+not know it already happened — and answering `200` would hide that.
 
 <a id="e15"></a>
 **15 · `POST /platform/schools/{id}/subscriptions/{no}/extend-trial`**
