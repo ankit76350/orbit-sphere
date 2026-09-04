@@ -2,7 +2,7 @@
  "info": {
   "_postman_id": "12cbb6ae-c176-4b1d-ba65-09b1668ec5dc",
   "name": "Orbit Sphere — API",
-  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 12 of 28 planned write endpoints.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 12 of 28 planned write endpoints, plus the subscription read.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
   "_exporter_id": "47336508",
   "_collection_link": "https://go.postman.co/collection/47336508-12cbb6ae-c176-4b1d-ba65-09b1668ec5dc?source=collection_link"
@@ -2504,6 +2504,51 @@
            "  pm.expect(b.planCode).to.eql(pm.collectionVariables.get('planCode')));",
            "pm.test('it says what happened next', () =>",
            "  pm.expect(b.nextStep).to.include('Now paying'));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Subscription",
+       "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscription",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscription"
+         ]
+        },
+        "description": "**GET** `/platform/schools/{id}/subscription` — what this school is on right now.\n\nThe whole of it: the plan and its features, the price they actually pay against the plan's list\nprice, the status, and when the period ends.\n\n### Singular, because a school has one\n\n`/subscriptions` is the collection you post to; `/subscription` is the one they are on. A unique\npartial index makes sure there is only ever one, so there is nothing to page through.\n\n### The features are listed, not counted\n\nThe plan list reports a count, because feature rows on every row of a page is noise. This is one\nschool, and *what has this school paid for* is the question it answers.\n\n### Three things it works out for you\n\n- `daysRemaining` — how long is left in the period.\n- `periodEnded` — the end has passed while the status still says the school is paying. Real\n  today: nothing renews or expires a subscription yet, so a period just lapses.\n- `planRetired` — the plan has been taken off the menu. Allowed; the school keeps it.\n\n`note` says any of that in a sentence.\n\n### Two 404s, not one\n\n`SCHOOL_NOT_FOUND` and `SUBSCRIPTION_NOT_FOUND` are different problems and get different answers.\n\n### The five test cases are in this description — Postman sends no body on a GET\n\n---\n\n**01  A SCHOOL ON A PAID SUBSCRIPTION  -> 200 OK**\nRun Create Subscription first. Returns `status` ACTIVE, `daysRemaining` counting down,\n`periodEnded` false, `note` null, and `features` listing what the plan grants.\n\n**02  A SCHOOL ON A TRIAL  -> 200 OK**\nCreate one with `\"trial\": true`. `status` TRIAL, and `note` says activating it is what turns it\ninto a paying subscription. Run Activate Subscription and call this again: `status` ACTIVE and\nthat part of the note is gone.\n\n**03  A NEGOTIATED DEAL  -> 200 OK**\nCreate with `contractedPrice` below the plan's, and `maxStudentsOverride` above it.\n`hasDiscount` true, `contractedPrice` and `planListPrice` both present and different,\n`maxStudents` shows the override with `hasLimitOverrides` true.\n\n**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**\n`{ \"code\": \"SUBSCRIPTION_NOT_FOUND\", \"message\": \"'<school>' has no subscription. Create one\nfirst.\" }`\nA school id that does not exist gives `SCHOOL_NOT_FOUND` instead — that is the whole reason\nthere are two codes.\n\n**05  A LAPSED PERIOD  -> 200 OK**\nCreate with `currentPeriodEnd` in the past, then call this. `periodEnded` true while `status`\nstill says ACTIVE, `daysRemaining` negative, and `note` explains that nothing marks a\nsubscription expired yet so it has to be read as lapsed. This is the case a screen trusting\n`status` alone would get wrong.\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it is the school we asked for', () =>",
+           "  pm.expect(b.schoolId).to.eql(pm.collectionVariables.get('schoolId')));",
+           "pm.test('it is the live subscription', () => pm.expect(b.current).to.be.true);",
+           "// The point of this endpoint over the create response: the features are listed.",
+           "pm.test('the features are listed, not counted', () => {",
+           "  pm.expect(b.features).to.be.an('array');",
+           "  pm.expect(b.features.length).to.eql(b.featureCount);",
+           "});",
+           "pm.test('it works out how long is left', () =>",
+           "  pm.expect(b.daysRemaining).to.be.a('number'));",
+           "// periodEnded must agree with the dates, or the flag is worse than not having it.",
+           "pm.test('periodEnded agrees with the period', () =>",
+           "  pm.expect(b.periodEnded).to.eql(new Date(b.currentPeriodEnd) <= new Date()));"
           ]
          }
         }

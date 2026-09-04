@@ -220,6 +220,17 @@ current subscription, so `current` names it without ambiguity.
 billing cycle. It changes the status and the period and nothing else — the plan, price and limits
 are not on the request, so they cannot move by accident.
 
+**Get Subscription (#27)** reads it all back: the plan and its **features listed rather than
+counted**, the price paid against the plan's list price, the status, and when the period ends.
+Its URL is **singular** — `/subscription` is the one they are on, `/subscriptions` is the
+collection you post to.
+
+It works out three things so no caller has to: `daysRemaining`, `planRetired`, and `periodEnded`
+— the period's end has passed while the status still says the school is paying. That last one is
+real today rather than hypothetical, because nothing renews a subscription or marks one expired
+yet, so a period just lapses and the status stays put. A screen trusting `status` alone would
+show a school as paying months after it ran out.
+
 ## Plan catalogue: nine endpoints, and #5 is the one that is missing
 
 `POST /platform/plans/drafts` always creates a **`DRAFT` at version 1 that is not publicly

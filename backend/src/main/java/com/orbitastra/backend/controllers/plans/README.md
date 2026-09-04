@@ -1,8 +1,8 @@
 # controllers/plans — API plan
 
-**Eleven of 71 are built — #1 to #4, #6 to #10, #13 and #14.** The entire plan catalogue
-except versioning, plus giving a school its first subscription and turning that trial into a
-paying one.
+**Twelve of 71 are built — #1 to #4, #6 to #10, #13, #14 and #27.** The entire plan catalogue
+except versioning, plus giving a school its first subscription, turning that trial into a paying
+one, and reading back what a school is on.
 
 **#13 closes the gap `core` has been announcing.** `activateSchool` was written to require an
 active subscription, found that nothing could create one, and settled for a soft check that says
@@ -141,7 +141,7 @@ file.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 27 | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 28 | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | 29 | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | 30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -1232,10 +1232,55 @@ not know it already happened — and answering `200` would hide that.
 ## The subscription — platform reads  ·  27–32
 
 <a id="e27"></a>
-**27 · `GET /platform/schools/{id}/subscription`**
+**27 · `GET /platform/schools/{id}/subscription`** — built
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: every field, found by `schoolId` and `current` = true
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `planCode`, `maxStudents`, `maxUsers`, `features`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `name`, `status`, `listPrice`, `maxStudents`, `maxUsers`, `features`
+- [`schools`](../../models/core/School.java) — *reads*: `schoolName` — **only when there is no subscription**, to decide which `404` to give
+
+### Singular, because a school has one
+
+`/subscriptions` is the collection you post to; `/subscription` is the one they are on. A unique
+partial index makes sure there is only ever one, so there is nothing to page through and nothing
+to identify — which is also why this endpoint needs no `{no}` and so is not caught by the URL
+problem [#14](#e14) ran into.
+
+### The features are included here
+
+The plan list reports a `featureCount`, because a few dozen feature rows on every row of a page
+is noise. This is one school, and *what has this school actually paid for* is the question it
+exists to answer, so the rows are the answer.
+
+### Three things it works out, because every caller would otherwise do the same sum
+
+| Field | What it says |
+|---|---|
+| `daysRemaining` | How long is left in the period. Counting days between two instants in a browser is where time zones go wrong. |
+| `periodEnded` | The period's end has passed while the status still says the school is paying. |
+| `planRetired` | The plan this school is on has been taken off the menu. Allowed and normal — see [#6](#e6) — but it is why the plan is not on the public list. |
+
+**`periodEnded` is not hypothetical.** Nothing renews a subscription or marks one expired yet —
+#21 and #26 are not built — so a period simply lapses and the status stays as it was. A screen
+reading `status` alone would show a school as paying months after its period ran out. `note` says
+so in a sentence as well.
+
+`contractedPrice` and `planListPrice` are both reported, with `hasDiscount` when they differ: the
+gap between them is the discount, and a discount is the thing somebody rings up about. The limits
+work the same way — `maxStudents` is the ceiling in force, `maxStudentsOverride` says whether it
+was negotiated.
+
+### What #27 refuses
+
+| Case | Code |
+|---|---|
+| no such school | `404 SCHOOL_NOT_FOUND` |
+| the school exists but has no subscription | `404 SUBSCRIPTION_NOT_FOUND` |
+| the plan the subscription points at is gone | `404 PLAN_NOT_FOUND` |
+
+**Two 404s, not one.** The happy path is two reads — the subscription, then its plan. Only when
+there is no subscription is the school looked up, to say which of the two problems it is: told
+just "not found", somebody checks the subscription when the school id was wrong all along. That
+read costs nothing on the path that succeeds.
 
 <a id="e28"></a>
 **28 · `GET /platform/schools/{id}/subscriptions`**

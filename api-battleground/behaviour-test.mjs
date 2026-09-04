@@ -475,8 +475,8 @@ check('shows the number the backend allocated',
 check('and says what to do next',
   view.container.textContent.includes('subscriptionStatus ACTIVE'));
 // There is no GET for a subscription, so the screen must not imply it could reload this.
-check('says plainly that it cannot read the subscription back',
-  view.container.textContent.includes('no endpoint to read a subscription back'),
+check('says plainly that it does not read the subscription back',
+  view.container.textContent.includes('does not read the subscription back yet'),
   view.container.textContent.slice(-400));
 await view.unmount();
 

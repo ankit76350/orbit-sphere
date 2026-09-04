@@ -5,12 +5,15 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
@@ -278,6 +281,46 @@ public class SubscriptionService {
         return SubscriptionResponse.fromSubscription(saved, plan, activatedNextStep(school, saved));
     }
 
+    //! endpoint 27 — what one school is on right now ----------------------------------
+
+    /**
+     * #27 — the whole of one school's current subscription.
+     *
+     * <p>The platform read. Everything about what a school is on: the plan and its features, the
+     * price they actually pay against the plan's list price, the status, and when the period
+     * ends.
+     *
+     * <p><b>Two reads on the way through, and a third only when something is wrong.</b> The happy
+     * path is the subscription and then the plan it points at. If there is no subscription, the
+     * school is looked up before answering, because "no such school" and "that school has no
+     * subscription" are different problems and a single 404 for both sends people looking in the
+     * wrong place. That read costs nothing on the path that succeeds.
+     *
+     * <p><b>It reports a lapsed period rather than hiding it.</b> Nothing renews a subscription
+     * or marks one expired yet — #21 and #26 are not built — so a period can run out while the
+     * status still says the school is paying. The response says so in {@code periodEnded} and in
+     * {@code note}, because a screen trusting {@code status} alone would show a school as live
+     * months after its period ended.
+     */
+    public SubscriptionDetailResponse getSubscription(String schoolId) {
+
+        //! step 1 - the school's one current subscription
+        // TODO: read subscription
+        SchoolSubscription subscription = schoolSubscription
+                .findBySchoolIdAndCurrentIsTrue(schoolId)
+                .orElseThrow(() -> noSubscription(schoolId));
+
+        //! step 2 - the plan it points at, for the name, the limits and the features
+        // TODO: read plan
+        PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "The plan " + subscription.getSubscriptionNo() + " points at no longer "
+                                + "exists."));
+
+        return SubscriptionDetailResponse.fromSubscription(subscription, plan,
+                subscriptionNote(subscription, plan));
+    }
+
     //* ---------------------------------------------------------------------------------
 
     /**
@@ -386,6 +429,59 @@ public class SubscriptionService {
         } catch (java.time.DateTimeException unreadable) {
             return ZoneOffset.UTC;
         }
+    }
+
+    /**
+     * The 404 for a school with no subscription, once we know which 404 it is.
+     *
+     * <p>Only called when nothing was found, so the extra read is off the path that succeeds. It
+     * is worth the trip: told only "not found", somebody checks the subscription code when the
+     * school id was wrong all along.
+     */
+    private ApiException noSubscription(String schoolId) {
+        // TODO: read school
+        School school = schools.findById(schoolId).orElse(null);
+
+        if (school == null) {
+            return ApiException.notFound("SCHOOL_NOT_FOUND",
+                    "No school found with id '" + schoolId + "'.");
+        }
+
+        return ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                "'" + school.getSchoolName() + "' has no subscription. Create one first.");
+    }
+
+    /**
+     * Anything about this subscription worth saying out loud.
+     *
+     * <p>Each of these is a state the module can genuinely be in today, and each one would
+     * otherwise be read wrongly off a single field.
+     */
+    private String subscriptionNote(SchoolSubscription subscription, PlanDefinition plan) {
+        List<String> notes = new ArrayList<>();
+
+        Instant end = subscription.getCurrentPeriodEnd();
+        boolean live = subscription.getStatus() == SubscriptionStatus.ACTIVE
+                || subscription.getStatus() == SubscriptionStatus.TRIAL;
+
+        if (end != null && !end.isAfter(Instant.now()) && live) {
+            notes.add("The period ended on " + end + " but the status still says "
+                    + subscription.getStatus() + ". Nothing renews a subscription or marks one "
+                    + "expired yet, so this has to be read as lapsed rather than paying.");
+        }
+
+        if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
+            notes.add("This is a trial. Activating it is what turns it into a paying "
+                    + "subscription.");
+        }
+
+        if (plan.getStatus() == PlanStatus.RETIRED) {
+            notes.add("'" + plan.getPlanCode() + "' version " + plan.getPlanVersion()
+                    + " has been retired. This school keeps it — retiring only stops new sales "
+                    + "— but it is no longer on the menu.");
+        }
+
+        return notes.isEmpty() ? null : String.join(" ", notes);
     }
 
     /**

@@ -111,12 +111,12 @@ would overrule one. A `CUSTOM` billing cycle is the exception: it has no length 
 the form asks for the period end up front instead of letting you find out via
 `400 BILLING_PERIOD_END_REQUIRED`.
 
-**It cannot read a subscription back, and says so.** The reads are #27–38 and none are built, so
-the tab shows what it just created and loses it when you leave. That is stated on screen: a blank
-panel meaning "nothing here" and a blank panel meaning "no endpoint to ask" are different
-problems, and guessing between them is how somebody tries to create a second subscription for a
-school that already has one. Today the way to find that out is the refusal —
-`409 SUBSCRIPTION_ALREADY_EXISTS` — which the tab shows with what it means.
+**It does not read a subscription back yet, and says so.** `GET /platform/schools/{id}/subscription`
+(#27) is built, but this tab does not call it — so it shows what it just created and loses it when
+you leave. That is stated on screen: a blank panel meaning "nothing here" and a blank panel meaning
+"nothing asked" are different problems, and guessing between them is how somebody tries to create a
+second subscription for a school that already has one. Until #27 is wired in, the way to find that
+out is the refusal — `409 SUBSCRIPTION_ALREADY_EXISTS` — which the tab shows with what it means.
 
 ### Settings
 

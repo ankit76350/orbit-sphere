@@ -6,12 +6,12 @@
  * nothing could create one, and settled for a soft check that announces the gap in every
  * response. Create one here and that response stops apologising.
  *
- * THERE IS NO WAY TO READ A SUBSCRIPTION BACK. Endpoints #27–38 are the reads and none of them
- * are built, so this screen cannot open a school and show you what it is on — it can only show
- * what it created, and only until the page is reloaded. That is stated on the screen rather than
- * worked around, because a blank panel that means "nothing to show" and a blank panel that means
- * "no endpoint to ask" are different problems, and guessing which one you are looking at is how
- * somebody creates a second subscription for a school that already has one.
+ * THIS SCREEN DOES NOT READ A SUBSCRIPTION BACK YET. `GET /platform/schools/{id}/subscription`
+ * (#27) exists now, but this tab does not call it — so it can still only show what it created,
+ * and only until the page is reloaded. That is stated on the screen rather than worked around,
+ * because a blank panel that means "nothing to show" and a blank panel that means "nothing asked"
+ * are different problems, and guessing which one you are looking at is how somebody creates a
+ * second subscription for a school that already has one. Wiring #27 up is what removes the note.
  *
  * THE PLAN IS PICKED, NOT TYPED. The list comes from `GET /platform/plans`, so the only plans
  * offered are ones that exist, and a plan that cannot be sold today is shown with the reason it
@@ -222,9 +222,10 @@ export default function SchoolSubscriptionTab({ school }) {
 
         <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
           <AlertTriangle size={14} className="mt-px shrink-0 text-amber-600" />
-          Shown from the response to the call just made. There is no endpoint to read a
-          subscription back yet — #27–38 are not built — so leaving this tab loses it from the
-          screen. The subscription itself is saved.
+          Shown from the response to the call just made. This tab does not read the subscription
+          back yet, so leaving it loses it from the screen. The subscription itself is saved, and
+          <code className="font-mono">GET /platform/schools/{'{id}'}/subscription</code> can fetch
+          it once this screen is wired to call it.
         </p>
       </div>
     );
@@ -470,9 +471,10 @@ export default function SchoolSubscriptionTab({ school }) {
       <p className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-500 shadow-sm">
         <Info size={14} className="mt-px shrink-0 text-slate-400" />
         <span>
-          Creating is all this tab can do. The reads — what a school is on, its history, its
-          invoices — are #27–38 and are not built, so there is nothing to show a school that
-          already has one. Until then, a second attempt is how you find out:{' '}
+          Creating is all this tab does today. The read exists —{' '}
+          <code className="font-mono">GET /platform/schools/{'{id}'}/subscription</code> — but this
+          screen does not call it yet, so there is nothing shown for a school that already has one.
+          Until it is wired up, a second attempt is how you find out:{' '}
           <code className="font-mono">409 SUBSCRIPTION_ALREADY_EXISTS</code>.
         </span>
       </p>
