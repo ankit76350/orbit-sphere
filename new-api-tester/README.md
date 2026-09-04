@@ -156,11 +156,12 @@ src/pages/
   school/core/Profile.jsx              ← built: 5
   school/core/AcademicYears.jsx        ← built: 3
   school/core/AcademicYearDetail.jsx   ← built: 15
-  school/core/NoSchoolChosen.jsx       ← what the school surface shows with no tenant
-  school/plans/                        ← Subscription (2)
+  school/NoSchoolChosen.jsx            ← what the school surface shows with no tenant
+  school/plans/Subscription.jsx        ← built: 2
 ```
 
-**43 of the 45 endpoints.** What is left is the school's own view of its subscription.
+**All 45 endpoints are reachable from a screen**, and `npm test` asserts it — an endpoint no
+screen names is one nothing here can exercise.
 
 A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,
 so the navigation stays complete while the screens are filled in one at a time.
@@ -340,7 +341,42 @@ none gets the create. `404 SUBSCRIPTION_NOT_FOUND` is that second state rather t
 Activating a trial addresses it as `current`, because a subscription number is
 `SUB/2026/09/000001` and the slashes cannot go in a path.
 
+### School › Plans › Subscription
+
+Two reads answering different questions, so two cards: `/subscription` is the bill,
+`/subscription/entitlements` is what the rest of the product asks before letting the school use
+anything.
+
+**It is deliberately less than the platform sees.** The platform's read of the same subscription
+carries the plan's list price, the gateway's customer reference and the negotiated limit
+overrides. None are here, and that is why the API has two response types rather than sharing one:
+a school on a negotiated price would be shown a number it is not paying, the gateway's id for
+them is ours to hold, and "your limit was negotiated up from 2000" is a commercial conversation
+rather than a bill.
+
+**So the screen checks those five absences against the live response** and reports any that
+appear, in red. A privacy rule nobody verifies is a privacy rule until the day it is not.
+
+**Read `allowed`, not `includedInPlan`.** The first is whether the school may use it right now —
+the plan saying yes *and* the subscription granting anything; the second is only what the plan
+says. When they differ the row says "in the plan, but not available", because that difference is
+the entire reason no module may read the plan's features directly. On a lapsed subscription the
+card leads with **Nothing is allowed** and the API's own reason, and the count reads `0 of 2`
+even though both features are in the plan.
+
+Its `note` is the school's, not the platform's: *"The current period ended on … Talk to us to
+carry on."* The platform's note on the same subscription explains that nothing marks a
+subscription expired yet — true, useful internally, and not something to tell a customer.
+
 ## What comes next
 
-**School › Plans › Subscription** (2) — the school's own view of what it is paying for,
-deliberately narrower than the platform's read of the same subscription.
+Every endpoint that exists has a screen. The next thing is not more integration but the two gaps
+the work turned up:
+
+- **An error boundary around the routed page.** A single bad field reference currently blanks the
+  whole app rather than one card — which is exactly what happened when a detail page read `.name`
+  off null.
+- **`jsdom`, so interaction can be tested here.** The committed test renders first paint only;
+  everything involving a click — the school picker opening, filtering and selecting — was
+  verified with a throwaway script borrowing the sibling project's jsdom, which is not something
+  to rely on.

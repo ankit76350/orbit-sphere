@@ -1,8 +1,11 @@
 import { Building2 } from 'lucide-react'
-import { Card, Empty } from '../../../components/ui/Kit.jsx'
+import { Card, Empty } from '../../components/ui/Kit.jsx'
 
 /**
  * What every school-surface screen shows when nobody has said which school.
+ *
+ * One level up from the modules because it belongs to the SURFACE: Core and Plans both need it,
+ * and neither owns it.
  *
  * The alternative is sending the call anyway and rendering `400 TENANT_NOT_RESOLVED`, which
  * reads as a bug in the screen rather than as a thing the person has not done yet. This says

@@ -3,7 +3,7 @@ import { Check, Image, Languages, MapPin, RefreshCw, User } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
-import NoSchoolChosen from './NoSchoolChosen.jsx'
+import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * School / Core — profile. The five endpoints a school uses to edit itself.

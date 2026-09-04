@@ -2,6 +2,7 @@ import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
 import Subscriptions from './pages/platform/plans/Subscriptions.jsx'
+import MySubscription from './pages/school/plans/Subscription.jsx'
 import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
 import Schools from './pages/platform/core/Schools.jsx'
 import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
@@ -116,6 +117,7 @@ export const SURFACES = [
             label: 'Subscription',
             endpoints: 2,
             group: "Plans / Subscription — the school's own view",
+            screen: MySubscription,
           },
         ],
       },

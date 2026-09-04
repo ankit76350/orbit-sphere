@@ -5,7 +5,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import { detailPath } from '../../../paths.js'
-import NoSchoolChosen from './NoSchoolChosen.jsx'
+import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * School / Core — academic years, the list. Three of the group's eighteen endpoints.

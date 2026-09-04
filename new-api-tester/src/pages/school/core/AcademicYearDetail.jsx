@@ -8,7 +8,7 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { screenPath } from '../../../paths.js'
-import NoSchoolChosen from './NoSchoolChosen.jsx'
+import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * One academic year, at its own address: /school-core/academic-years/{name}

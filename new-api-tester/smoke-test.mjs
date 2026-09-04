@@ -13,7 +13,8 @@ import React from 'react'
 import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { rolldown } from 'rolldown'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
@@ -62,7 +63,7 @@ const ROUTES = [
   // Built, and with no school chosen it says so rather than firing a call that cannot work.
   ['/school-core/profile', ['School', 'Profile', 'No school chosen']],
   ['/school-core/academic-years', ['Academic years', 'No school chosen']],
-  ['/school-plans/subscription', ['Subscription', '2 endpoint']],
+  ['/school-plans/subscription', ['Subscription', 'No school chosen']],
   // Opening a row is its own address. First paint is the read, because renderToString does not
   // run effects — which is the point: the page reads the school itself rather than being handed
   // a row from a list that may already be stale.
@@ -171,8 +172,12 @@ const withSchool = [
   '/school-core/profile',
   '/school-core/academic-years',
   '/school-core/academic-years/2026-2027',
+  '/school-plans/subscription',
   '/platform-core/schools',
   '/platform-core/schools/6a95000000000000000000aa',
+  '/platform-plans/catalogue',
+  '/platform-plans/catalogue/PREMIUM@2',
+  '/platform-plans/subscriptions',
 ]
 for (const path of withSchool) {
   try {
@@ -214,6 +219,34 @@ for (const [label, ok] of detailChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
+
+// Every endpoint in the generated catalogue should be reachable from some screen. A tag or a
+// call naming one that no screen holds is dead weight; an endpoint no screen names is untested.
+console.log('\nEndpoint coverage')
+const catalogue = readFileSync('src/config/endpoints.js', 'utf8')
+const allIds = [...catalogue.matchAll(/\bid:\s*"([a-z][a-z0-9-]+)",\s*\n\s*name:/g)].map((m) => m[1])
+/** Every .js and .jsx under src, except the generated catalogue itself. */
+function sourceFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) return sourceFiles(path)
+    if (!/\.jsx?$/.test(entry.name) || path.includes('config/endpoints')) return []
+    return [path]
+  })
+}
+
+// An id is counted as reached if it appears as a quoted string anywhere — which covers a literal
+// `call('x')`, an `id="x"` on a tag, and the lookup tables that hold `endpoint: 'x'` and are
+// called with a variable. Under-counting those was how a first version of this check reported
+// eleven false misses.
+const sources = sourceFiles('src').map((f) => readFileSync(f, 'utf8')).join('\n')
+const unreached = allIds.filter(
+  (id) => !sources.includes(`'${id}'`) && !sources.includes(`"${id}"`),
+)
+console.log(unreached.length === 0
+  ? `  ok     all ${allIds.length} endpoints are reachable from a screen`
+  : `  MISS   ${unreached.length} unreachable: ${unreached.join(', ')}`)
+if (unreached.length) fail++
 
 console.log('\nNavigation')
 const html = at('/platform-plans/subscriptions')
