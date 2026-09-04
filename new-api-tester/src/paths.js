@@ -27,3 +27,18 @@ export const screenPath = (surfaceId, moduleId, submoduleId) =>
 /** One row of a submodule, addressed by its own id. */
 export const detailPath = (surfaceId, moduleId, submoduleId, id) =>
   `${screenPath(surfaceId, moduleId, submoduleId)}/${id}`
+
+/**
+ * Which surface an address is on, from the address alone.
+ *
+ * Here rather than in screens.js because that file imports every page, and the top bar needs
+ * this — importing screens.js from a component in the shell is how the last cycle formed.
+ * The first segment is `surface-module`, so the surface is everything before the hyphen.
+ *
+ * Returns null for an address that is on neither, like the not-found page.
+ */
+export function surfaceOf(pathname) {
+  const slug = String(pathname).split('/')[1] ?? ''
+  const surface = slug.split('-')[0]
+  return surface === 'platform' || surface === 'school' ? surface : null
+}

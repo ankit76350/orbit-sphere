@@ -40,8 +40,13 @@ looks live and is not costs more than the space it fills.
 ## What was kept
 
 **The shell**, which is the reason for using this template at all: `Layout` (sidebar + sticky
-topbar + routed page), `Sidebar` (collapse rail, mobile drawer, active pill), `Topbar` (search and
-the theme switch), and the theme — light and dark, `tokens.css` plus a `ThemeProvider`.
+topbar + routed page), `Sidebar` (collapse rail, mobile drawer, active pill), `Topbar`, and the
+theme — light and dark, `tokens.css` plus a `ThemeProvider`.
+
+**The top bar holds only what does something.** The template's notifications bell, messages icon,
+language flag and invented signed-in user all went early. Its search box went later, for the same
+reason: it said "Search endpoints" and searched nothing. The two screens that genuinely filter a
+list keep their own search next to the list, which is where a search belongs.
 
 **Three UI primitives** — `Meter`, `Segmented`, `Select`. Nothing renders them today; they are
 kept because a request builder wants all three within the first screen.
@@ -248,6 +253,13 @@ screen is how somebody ends up testing the wrong tenant without noticing. It is 
 between reloads, and `call()` attaches it to every school-surface request — filled in centrally,
 because a screen that forgot would get a `400 TENANT_NOT_RESOLVED` that reads as its own bug, and
 one that passed the wrong school would be worse: it would answer, about the wrong tenant.
+
+**It only appears on the school surface.** No platform endpoint reads that header — they all name
+their school in the URL — so on a platform screen it was a control that changed nothing, and
+worse, one that implied the screen in front of you was scoped to it. `surfaceOf()` in `paths.js`
+answers which surface an address is on, from the address alone; it lives there rather than in
+`screens.js` because that file imports every page, and importing it from the shell is how the
+last import cycle formed.
 
 **The picker is a real popover, not a `<datalist>`.** It was a datalist first, and with
 eighty-odd schools the browser drew an unstyled list down most of the window — no search of its

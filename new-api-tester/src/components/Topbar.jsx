@@ -1,5 +1,7 @@
-import { Menu, Moon, Search, Sun } from 'lucide-react'
+import { Menu, Moon, Sun } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { useTheme } from '../theme/themeContext.js'
+import { surfaceOf } from '../paths.js'
 import ActingAs from './ActingAs.jsx'
 
 /**
@@ -11,13 +13,20 @@ import ActingAs from './ActingAs.jsx'
  * name and a role on screen would be a claim about somebody who does not exist. A control that
  * looks live and is not costs more than the space it fills.
  *
- * WHAT BELONGS HERE IS REAL STATE. `ActingAs` is the first of it: which school the school
- * surface is acting as, which is a mode rather than a page's setting and has to be visible from
- * every screen that depends on it. Which backend, and how many calls have failed, belong here
- * too and are not built yet.
+ * THE SEARCH BOX WENT FOR THE SAME REASON. It said "Search endpoints" and searched nothing. The
+ * two screens that do have a search have their own, next to the list it filters, which is where
+ * a search belongs — filtering something you can see.
+ *
+ * `ActingAs` ONLY SHOWS ON THE SCHOOL SURFACE. It names the tenant for the `X-School-Subdomain`
+ * header, and no platform endpoint reads that header: they all name their school in the URL. On
+ * a platform screen it was a control that changed nothing, and worse, one that implied the
+ * screen in front of you was scoped to it. The platform's subscription screen has its own school
+ * picker, because there the school is an argument to the call rather than a mode.
  */
 export default function Topbar({ onMenuClick }) {
   const { theme, toggleTheme } = useTheme()
+  const { pathname } = useLocation()
+  const onSchoolSurface = surfaceOf(pathname) === 'school'
 
   return (
     <header className="topbar">
@@ -25,13 +34,8 @@ export default function Topbar({ onMenuClick }) {
         <Menu size={20} />
       </button>
 
-      <div className="search">
-        <Search size={16} className="search-icon" aria-hidden="true" />
-        <input className="search-input" type="search" placeholder="Search endpoints" aria-label="Search endpoints" />
-      </div>
-
       <div className="topbar-actions">
-        <ActingAs />
+        {onSchoolSurface ? <ActingAs /> : null}
         <button
           type="button"
           className="theme-toggle"

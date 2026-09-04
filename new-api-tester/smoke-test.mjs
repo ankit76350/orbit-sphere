@@ -222,6 +222,31 @@ for (const [label, ok] of detailChecks) {
 
 // Every endpoint in the generated catalogue should be reachable from some screen. A tag or a
 // call naming one that no screen holds is dead weight; an endpoint no screen names is untested.
+// The tenant header is a school-surface thing: no platform endpoint reads it, they all name
+// their school in the URL. So "Acting as" on a platform screen was a control that changed
+// nothing — and worse, one that implied the screen was scoped to it.
+console.log('\nThe top bar')
+const platform = at('/platform-core/schools')
+const school = at('/school-core/profile')
+const barChecks = [
+  ['Acting as is offered on the school surface', school.includes('Acting as')],
+  ['and is absent on the platform surface', !platform.includes('Acting as')],
+  // The platform's subscription screen keeps its own picker: there the school is an argument to
+  // the call, not a mode, so removing it would break the screen.
+  ['the platform subscription screen keeps its own picker',
+    at('/platform-plans/subscriptions').includes('picker-trigger')],
+  // The header search searched nothing. The two screens that do have one keep it next to the
+  // list it filters.
+  ['the header has no dead search box', !platform.includes('Search endpoints')],
+  ['but the lists that filter still have theirs',
+    platform.includes('Search name or subdomain')
+      && at('/platform-plans/catalogue').includes('Search name or code')],
+]
+for (const [label, ok] of barChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nEndpoint coverage')
 const catalogue = readFileSync('src/config/endpoints.js', 'utf8')
 const allIds = [...catalogue.matchAll(/\bid:\s*"([a-z][a-z0-9-]+)",\s*\n\s*name:/g)].map((m) => m[1])
