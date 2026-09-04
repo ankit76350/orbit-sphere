@@ -1,8 +1,26 @@
-import { NavLink } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { GROUPS } from '../screens.js'
+import { NavLink, useLocation } from 'react-router-dom'
+import { MODULE_LINKS, SURFACES } from '../screens.js'
 
+/**
+ * The side panel: which surface, and which module inside it.
+ *
+ * TWO SECTIONS, BECAUSE THE SURFACE IS THE BIGGEST QUESTION. `Platform` is an operator from
+ * outside the tenant; `School` is a school acting on itself. It decides what a caller is allowed
+ * to see — the school's own subscription read deliberately withholds the plan's list price and
+ * the gateway's customer reference — so mixing the two in one list would put the endpoint that
+ * must not leak next to the one it must not leak from.
+ *
+ * A MODULE'S SUBMODULES ARE NOT HERE. They are a navbar in the body, where a row of labels reads
+ * at a glance; the same list indented a third level in a narrow column does not. See ModuleNav.
+ *
+ * The active row is matched on the module, not the exact path, because the address carries a
+ * submodule the panel does not know or care about.
+ */
 export default function Sidebar({ collapsed, onToggle }) {
+  const { pathname } = useLocation()
+  const currentSlug = pathname.split('/')[1]
+
   return (
     <aside className="sidebar" data-collapsed={collapsed || undefined}>
       <div className="sidebar-inner">
@@ -29,20 +47,20 @@ export default function Sidebar({ collapsed, onToggle }) {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
-          {GROUPS.map((group) => (
-            <div className="nav-section" key={group.title}>
-              <p className="nav-section-title">{group.title}</p>
+          {SURFACES.map((surface) => (
+            <div className="nav-section" key={surface.id}>
+              <p className="nav-section-title" title={surface.note}>{surface.label}</p>
               <ul>
-                {group.items.map(({ label, to, icon: Icon, endpoints }) => (
-                  <li key={to}>
+                {MODULE_LINKS.filter((one) => one.surfaceId === surface.id).map((one) => (
+                  <li key={one.slug}>
                     <NavLink
-                      to={to}
-                      className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
-                      title={collapsed ? label : undefined}
+                      to={one.to}
+                      className={`nav-item${one.slug === currentSlug ? ' is-active' : ''}`}
+                      title={collapsed ? one.label : undefined}
                     >
-                      <Icon size={17} strokeWidth={1.9} className="nav-icon" aria-hidden="true" />
-                      <span className="nav-label">{label}</span>
-                      {endpoints ? <span className="nav-badge">{endpoints}</span> : null}
+                      <one.icon size={17} strokeWidth={1.9} className="nav-icon" aria-hidden="true" />
+                      <span className="nav-label">{one.label}</span>
+                      <span className="nav-badge">{one.endpoints}</span>
                     </NavLink>
                   </li>
                 ))}

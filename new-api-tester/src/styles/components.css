@@ -137,7 +137,31 @@
   font-size: 11.5px; font-weight: 600; color: var(--ink-muted);
 }
 .segmented-item:hover { color: var(--ink); }
-.segmented-item[data-active] { background: var(--brand); color: #fff; box-shadow: 0 3px 10px rgba(244, 112, 15, 0.3); }
+.segmented-item[data-active],
+.segmented-item.is-on { background: var(--brand); color: #fff; box-shadow: 0 3px 10px rgba(244, 112, 15, 0.3); }
+.segmented-item.is-on .module-nav-count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+/* ── Module navbar ────────────────────────────────────────── */
+/* The submodules of whichever module the side panel is on, plus a line saying which surface
+   and module that is — Platform › Plans and School › Plans are different endpoints. */
+.module-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line);
+}
+.module-nav-where {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+}
+.module-nav-surface {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.module-nav-count {
+  margin-left: 6px; padding: 1px 5px; border-radius: 999px;
+  background: var(--surface); color: var(--ink-muted);
+  font-size: 10px; font-weight: 700;
+}
 
 .ghost-btn {
   display: inline-flex; align-items: center; gap: 6px;

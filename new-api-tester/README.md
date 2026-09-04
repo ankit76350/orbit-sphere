@@ -5,7 +5,10 @@ dashboard template with the crypto dashboard taken out — the layout, the sideb
 a few UI primitives kept, and everything that was about wallets and coins removed.
 
 ```bash
-cd new-api-tester && npm install && npm run dev    # http://localhost:1400
+cd new-api-tester && npm install
+npm run dev     # http://localhost:1400
+npm test        # renders every route headlessly
+npm run lint
 ```
 
 **Nothing calls the API yet.** Every route renders a placeholder. What is here is the frame the
@@ -48,31 +51,61 @@ kept because a request builder wants all three within the first screen.
 `search-sm`. The first list screen needs a table, a pager and a card header, and the styling for
 them is already written and themed.
 
-## The navigation follows the API's own groups
+## Navigation is three levels, each where it fits
 
-`SCREENS` in `src/screens.js` is the single list of routes; `App.jsx` builds the router from it
-and `Sidebar.jsx` builds the nav from the same list, so a nav item cannot point at a route that
-does not exist. It lives in its own module rather than beside the sidebar because fast refresh
-only works when a component file exports nothing but components. The six entries are the six
-groups the built endpoints fall into, with a badge counting how many are waiting:
+**1 — the side panel, top level: which surface.** `Platform` is an operator from outside the
+tenant, naming the school in the URL. `School` is a school acting on itself, naming nothing
+because the tenant comes from the header. This is the most important split in the API — it is
+what decides which fields a caller may see — so it is the outermost thing on screen. Mixing the
+two in one list would put the endpoint that must not leak next to the one it must not leak from.
 
-| Screen | Endpoints built |
-|---|---|
-| Core → Schools | 8 |
-| Core → School profile | 5 |
-| Core → Academic years | 18 |
-| Plans → Plan catalogue | 9 |
-| Plans → Subscriptions | 3 |
-| Plans → A school's own view | 2 |
+**2 — the side panel, inside a section: which module.** `Core` is schools and their academic
+years, `Plans` is what we sell. The badge counts the endpoints built under that module.
 
-Following the API's grouping rather than inventing one means a screen is always about **one
-surface** of one module. That is why the platform's subscription endpoints and the school's own
-two reads are separate rows rather than a single "Subscriptions" screen: they answer to different
-callers, and one of them must never show what the other does — the school's read deliberately
-withholds the plan's list price, the gateway's customer reference and the negotiated limits.
+**3 — a navbar in the body: which submodule.** The six groups the built endpoints fall into. It
+sits in the content column because that is where a row of labels reads at a glance; the same
+list as a third level of indent in a 15rem column does not, and it makes two things look
+selected at once. Above the row it names where you are — `PLATFORM › Plans`. That matters more
+here than in most apps: `Platform › Plans › Subscriptions` and `School › Plans › Subscription`
+are different endpoints with deliberately different answers, and that line is the only thing
+telling the two screens apart.
 
-The counts add up to the 45 endpoints in the generated catalogue. Recount them there rather than
-trusting the badges if they start to look stale.
+| Surface | Module | Submodules | Endpoints |
+|---|---|---|---|
+| Platform | Core | Schools | 8 |
+| Platform | Plans | Plan catalogue, Subscriptions | 12 |
+| School | Core | Profile, Academic years | 23 |
+| School | Plans | Subscription | 2 |
+
+That is 45, the number in the generated catalogue. Recount them there rather than trusting the
+badges if they start to look stale.
+
+### One list, and the router is built from it
+
+`SURFACES` in `src/screens.js` is the only place the structure is written down. `Sidebar` builds
+the sections from it, `ModuleNav` builds the submodule row from it, and `App` builds the router
+from it — so a nav item pointing at an address with no screen is not something to remember to
+check, it cannot be written down. It lives in its own module rather than beside a component
+because fast refresh only works when a component file exports nothing but components.
+
+### Why an address is `/platform-plans/catalogue` and not `/platform/plans/catalogue`
+
+Because the dev server proxies `^/platform($|/)` and `^/schools($|/)` to the backend. A route
+under `/platform/` would never reach the router: the proxy would send it to the API and Spring
+would answer 404. Joining the surface and module with a hyphen cannot match either anchor, now
+or when a new API group appears — and it happens to give one URL segment per level of
+navigation, so the side panel picks the first and the body navbar picks the second.
+
+## Tests
+
+`npm test` renders all seven addresses through `StaticRouter` and checks the words that prove the
+right screen answered, then checks five things about the navigation: both surfaces present, the
+current module marked active, the navbar showing this module's submodules **and not another
+module's**, and the surface named. It bundles with rolldown, which Vite already ships here, so
+there is nothing to install.
+
+It exists because this project had no harness at all and the failures it catches are the quiet
+kind — a route that resolves to the wrong screen still renders a page that looks fine.
 
 ## The dev server
 

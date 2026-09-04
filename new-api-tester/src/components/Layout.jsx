@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import ModuleNav from './ModuleNav.jsx'
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
 
@@ -30,7 +31,10 @@ export default function Layout({ children }) {
       ) : null}
       <div className="main">
         <Topbar onMenuClick={() => setDrawer({ open: true, path: pathname })} />
-        <main>{children}</main>
+        <main>
+          <ModuleNav />
+          {children}
+        </main>
       </div>
     </div>
   )

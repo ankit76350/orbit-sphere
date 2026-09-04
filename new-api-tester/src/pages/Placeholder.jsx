@@ -1,12 +1,13 @@
 import { Construction } from 'lucide-react'
 
 /**
- * What every route shows until its screen is built.
+ * What every screen shows until it is built.
  *
- * It says which screen is missing and how many endpoints are waiting for it, rather than a bare
- * "coming soon" — the number is the useful part when deciding what to build next.
+ * It names the endpoint group waiting for it and how many endpoints that is, because that is the
+ * useful part when choosing what to build next — and the group name is the exact string to look
+ * up in the generated catalogue.
  */
-export default function Placeholder({ title, endpoints }) {
+export default function Placeholder({ title, surface, module, group, endpoints }) {
   return (
     <div className="page">
       <div className="page-head">
@@ -16,10 +17,10 @@ export default function Placeholder({ title, endpoints }) {
         <Construction size={26} aria-hidden="true" />
         <h2 className="card-title">{title} is not built yet</h2>
         <p className="placeholder-text">
-          {endpoints
-            ? `${endpoints} endpoint${endpoints === 1 ? '' : 's'} are built on the backend and `
-              + 'have no controls here yet. This route exists so the navigation, active states '
-              + 'and layout work end to end while the screens are filled in.'
+          {group
+            ? `${endpoints} endpoint${endpoints === 1 ? '' : 's'} are built on the backend under `
+              + `"${group}" and have no controls here yet. This screen acts as the `
+              + `${surface.toLowerCase()} surface of ${module}.`
             : 'No screen answers this address.'}
         </p>
       </section>
