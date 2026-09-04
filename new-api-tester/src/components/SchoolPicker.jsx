@@ -8,8 +8,9 @@ import { useApi } from '../api/apiContext.js'
  * TWO SCREENS NEED THIS FOR DIFFERENT REASONS, which is why it is a component rather than part
  * of one of them:
  *
- *   - On the SCHOOL surface it is a MODE. "Acting as" — everything under `School` asks what this
- *     one school sees, and the answer is remembered between screens and reloads.
+ *   - On the SCHOOL surface it is a MODE: everything under `School` asks what this one school
+ *     sees, and the answer is remembered between screens and reloads. Labelled just "School",
+ *     because that is what is being chosen.
  *   - On the PLATFORM surface it is an ARGUMENT. The subscription endpoints name a school in the
  *     URL, so it is a parameter of the call and belongs to the screen, not to the session.
  *
@@ -31,6 +32,8 @@ export default function SchoolPicker({
   /** What the value is: 'subdomain' for the school surface, 'id' for platform URLs. */
   as = 'subdomain',
   placeholder = 'no school',
+  /** What it does, for the hover. A one-word label needs somewhere to explain itself. */
+  title,
 }) {
   const { call } = useApi()
   const [open, setOpen] = useState(false)
@@ -106,6 +109,7 @@ export default function SchoolPicker({
         className="picker-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        title={title}
         onClick={() => { setOpen(!open); if (!open) load(false) }}
       >
         <Building2 size={13} className="picker-icon" aria-hidden="true" />

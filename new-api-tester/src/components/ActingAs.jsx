@@ -17,6 +17,11 @@ import SchoolPicker from './SchoolPicker.jsx'
  * The dropdown itself is SchoolPicker, which the platform's subscription screen also uses — but
  * there the school is an argument to a call rather than a mode. Keeping the distinction in the
  * callers means neither can read the other's choice by accident.
+ *
+ * IT IS LABELLED "SCHOOL", NOT "ACTING AS". The file keeps the name because that is what the
+ * thing IS — the school every school-surface call is made as — but "acting as" is our word for
+ * it, not a word anybody reads off a screen and understands. The label says what is being
+ * chosen; the hover says what choosing it does.
  */
 export default function ActingAs() {
   const { chooseSchool } = useApi()
@@ -24,11 +29,12 @@ export default function ActingAs() {
 
   return (
     <SchoolPicker
-      label="Acting as"
+      label="School"
       as="subdomain"
       value={actingSubdomain}
       onChange={chooseSchool}
-      placeholder="no school"
+      placeholder="none chosen"
+      title="Which school every School endpoint reads and writes. Sent as the tenant header."
     />
   )
 }

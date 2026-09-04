@@ -18,8 +18,8 @@ export default function NoSchoolChosen({ what }) {
         title="No school chosen"
         description={
           `${what} is a school-surface read: the tenant comes from a header, not the URL, so `
-          + 'there is no "current" school until you pick one. Set "Acting as" in the top bar to '
-          + "a school's subdomain."
+          + 'there is no "current" school until you pick one. Choose one from the School '
+          + 'picker in the top bar.'
         }
         action={<Building2 size={22} aria-hidden="true" />}
       />

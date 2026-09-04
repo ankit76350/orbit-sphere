@@ -12,7 +12,7 @@ import { METRIC_LABEL } from './features.js'
  *
  * THE SCHOOL IS AN ARGUMENT HERE, NOT A MODE. These endpoints name the school in the URL, so it
  * is a parameter of the call and belongs to this screen — unlike the school surface, where the
- * tenant is a header and "Acting as" in the top bar is a mode that follows you between screens.
+ * tenant is a header and the top bar's School picker is a mode that follows you between screens.
  * The same picker, used for a different thing on purpose.
  *
  * THE READ DECIDES WHICH HALF YOU SEE. A school that already pays gets its subscription; one

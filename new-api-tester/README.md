@@ -247,8 +247,8 @@ The school surface never names a school in the URL — the tenant comes from the
 `X-School-Subdomain` header, which stands in for a session until there is sign-in. So
 `GET /schools/current/profile` is meaningless until somebody says which school "current" is.
 
-**"Acting as" in the top bar is that answer**, and it is there because it is a mode rather than a
-page's setting: everything under `School` asks "what does THIS school see", and re-picking it per
+**The School picker in the top bar is that answer**, and it is there because it is a mode
+rather than a page's setting: everything under `School` asks "what does THIS school see", and re-picking it per
 screen is how somebody ends up testing the wrong tenant without noticing. It is remembered
 between reloads, and `call()` attaches it to every school-surface request — filled in centrally,
 because a screen that forgot would get a `400 TENANT_NOT_RESOLVED` that reads as its own bug, and
@@ -344,8 +344,8 @@ because sending one a limit is `400 FEATURE_NOT_MEASURABLE`.
 ### Platform › Plans › Subscriptions
 
 **Here the school is an argument, not a mode.** These three endpoints name it in the URL, so it
-belongs to the screen — unlike the school surface, where the tenant is a header and "Acting as"
-follows you between screens. `SchoolPicker` is the same component in both places; keeping the
+belongs to the screen — unlike the school surface, where the tenant is a header and the top
+bar's choice follows you between screens. `SchoolPicker` is the same component in both places; keeping the
 distinction in the callers means neither can read the other's choice by accident.
 
 The read decides which half you see: a school that already pays gets its subscription, one with

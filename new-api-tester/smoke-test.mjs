@@ -141,11 +141,11 @@ console.log('\nThe school surface without a school')
 const profile = at('/school-core/profile')
 const surfaceChecks = [
   ['it says no school is chosen', profile.includes('No school chosen')],
-  ['it says where to set one', profile.includes('Acting as')],
+  ['it says where to set one', profile.includes('top bar')],
   // Sending anyway would render 400 TENANT_NOT_RESOLVED, which reads as a broken screen.
   ['it does not pretend to have read a profile', !profile.includes('what this school can change')],
   ['the top bar offers the picker', profile.includes('picker-trigger')],
-  ['the trigger says no school is set', profile.includes('no school')],
+  ['the trigger says none is chosen yet', profile.includes('none chosen')],
   // Closed until asked for: the school list is a request, and drawing the popover on every
   // page would mean making that request on every page.
   ['the dropdown is shut until it is opened', !profile.includes('picker-pop')],
@@ -229,8 +229,12 @@ console.log('\nThe top bar')
 const platform = at('/platform-core/schools')
 const school = at('/school-core/profile')
 const barChecks = [
-  ['Acting as is offered on the school surface', school.includes('Acting as')],
-  ['and is absent on the platform surface', !platform.includes('Acting as')],
+  // Labelled "School", not "Acting as": the latter is our word for it, not one anybody reads
+  // off a screen and understands.
+  ['the picker is offered on the school surface', school.includes('picker-trigger')],
+  ['it is labelled with a school word, not jargon',
+    school.includes('>School<') && !school.includes('Acting as')],
+  ['and it is absent on the platform surface', !platform.includes('picker-trigger')],
   // The platform's subscription screen keeps its own picker: there the school is an argument to
   // the call, not a mode, so removing it would break the screen.
   ['the platform subscription screen keeps its own picker',
