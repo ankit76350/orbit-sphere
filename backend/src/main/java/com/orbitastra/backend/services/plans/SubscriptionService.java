@@ -73,8 +73,8 @@ public class SubscriptionService {
     private static final String CURRENT_SUBSCRIPTION = "current";
 
     private final SchoolRepository schools;
-    private final PlanDefinitionRepository plans;
-    private final SchoolSubscriptionRepository subscriptions;
+    private final PlanDefinitionRepository planDefinition;
+    private final SchoolSubscriptionRepository schoolSubscription;
     private final SubscriptionHistoryRepository history;
     private final NumberSequenceService numberSequences;
     private final PlanValidator planValidator;
@@ -119,8 +119,8 @@ public class SubscriptionService {
 
         //! step 2 - one current subscription per school. The unique partial index enforces it,
         //! but a duplicate-key error tells the caller nothing about what to do instead.
-        // TODO: read subscription
-        subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId).ifPresent(existing -> {
+        // TODO: read school subscription
+        schoolSubscription.findBySchoolIdAndCurrentIsTrue(schoolId).ifPresent(existing -> {
             throw ApiException.conflict("SUBSCRIPTION_ALREADY_EXISTS",
                     "'" + school.getSchoolName() + "' is already on " + existing.getSubscriptionNo()
                             + ". Change the plan on that subscription rather than creating a "
@@ -174,8 +174,8 @@ public class SubscriptionService {
                 .current(true)
                 .build();
 
-        // TODO: insert subscription
-        SchoolSubscription savedSubscription = subscriptions.save(subscription);
+        // TODO: insert school subscription
+        SchoolSubscription savedSubscription = schoolSubscription.save(subscription);
 
         //! step 7 - its first history row, in this same transaction
         SubscriptionHistory subscriptionHistory = SubscriptionHistory.builder()
@@ -249,8 +249,8 @@ public class SubscriptionService {
         subscription.setCurrentPeriodStart(periodStart);
         subscription.setCurrentPeriodEnd(periodEnd);
 
-        // TODO: update subscription
-        SchoolSubscription saved = subscriptions.save(subscription);
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
 
         //! step 6 - write down that it happened, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
@@ -271,7 +271,7 @@ public class SubscriptionService {
 
         //! step 7 - the plan is only read so the response can name it and show the limits
         // TODO: read plan
-        PlanDefinition plan = plans.findById(saved.getPlanDefinitionDocsId())
+        PlanDefinition plan = planDefinition.findById(saved.getPlanDefinitionDocsId())
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
                         "The plan this subscription points at no longer exists."));
 
@@ -294,7 +294,7 @@ public class SubscriptionService {
     private PlanDefinition loadSellablePlan(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
         // TODO: read plan
-        PlanDefinition plan = plans.findByPlanCodeAndPlanVersion(planCode, version)
+        PlanDefinition plan = planDefinition.findByPlanCodeAndPlanVersion(planCode, version)
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
                         "No plan '" + planCode + "' version " + version + " exists."));
 
@@ -398,15 +398,15 @@ public class SubscriptionService {
             String subscriptionNo) {
 
         if (CURRENT_SUBSCRIPTION.equalsIgnoreCase(subscriptionNo)) {
-            // TODO: read subscription
-            return subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId)
+            // TODO: read school subscription
+            return schoolSubscription.findBySchoolIdAndCurrentIsTrue(schoolId)
                     .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                             "'" + school.getSchoolName() + "' has no subscription yet. Create "
                                     + "one first."));
         }
 
-        // TODO: read subscription
-        return subscriptions.findBySchoolIdAndSubscriptionNo(schoolId, subscriptionNo)
+        // TODO: read school subscription
+        return schoolSubscription.findBySchoolIdAndSubscriptionNo(schoolId, subscriptionNo)
                 .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                         "'" + school.getSchoolName() + "' has no subscription numbered '"
                                 + subscriptionNo + "'. A subscription number contains slashes "
