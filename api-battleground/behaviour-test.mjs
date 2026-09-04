@@ -41,7 +41,9 @@ const calls = [];
 let handler = () => ({ status: 200, body: {} });
 
 globalThis.fetch = async (url, options = {}) => {
-  calls.push({ url: String(url), method: options.method || 'GET' });
+  // The body is recorded too: what a form leaves OUT of a request is as much a decision as what
+  // it puts in, and an empty optional that arrives as null overrules a default the API picks.
+  calls.push({ url: String(url), method: options.method || 'GET', body: options.body });
   const { status, body, contentType } = handler(String(url), options);
   const text = body === undefined ? '' : JSON.stringify(body);
   // A dev server whose backend is down answers text/plain with nothing in it — the shape the
@@ -71,7 +73,7 @@ writeFileSync(bundlePath, built.outputFiles[0].text);
 const parts = await import(bundlePath.href);
 rmSync(bundlePath);
 
-const { App, ApiProvider, SchoolSettings, AcademicYearPage } = parts;
+const { App, ApiProvider, SchoolSettings, AcademicYearPage, SchoolSubscriptionTab } = parts;
 
 /** Mounts something, lets its effects settle, and hands back the text on screen. */
 async function mount(element) {
@@ -385,6 +387,115 @@ check('the plan screen names what it read',
   view.container.textContent.slice(0, 400));
 check('and the lifecycle buttons name theirs',
   ['/publish', '/retire'].every((path) => view.container.textContent.includes(path)));
+await view.unmount();
+
+
+// ------------------------------------------------------------------- the subscription tab
+// The one endpoint that turns a school into a paying customer. Two plans are served: one
+// sellable, one still a draft, so the screen has to tell them apart rather than list both the
+// same way.
+console.log('\nThe subscription tab');
+const PLANS = {
+  content: [
+    { planId: 'p1', planCode: 'PREMIUM', planVersion: 2, name: 'Premium', status: 'ACTIVE',
+      billingCycle: 'YEARLY', listPrice: 49999.0, currencyCode: 'INR', maxStudents: 2000,
+      maxUsers: 250, publiclyAvailable: true, sellable: true, featureCount: 4 },
+    { planId: 'p2', planCode: 'BASIC', planVersion: 1, name: 'Basic', status: 'DRAFT',
+      billingCycle: 'MONTHLY', listPrice: 999.0, currencyCode: 'INR', maxStudents: 100,
+      maxUsers: 10, publiclyAvailable: false, sellable: false, featureCount: 0 },
+  ],
+  page: 0, size: 100, totalElements: 2, totalPages: 1,
+};
+
+let created = null;
+handler = (url, options = {}) => {
+  if (url.includes('/subscriptions') && options.method === 'POST') return created;
+  if (url.includes('/platform/plans')) return { status: 200, body: PLANS };
+  return { status: 200, body: {} };
+};
+
+created = { status: 201, body: {
+  subscriptionId: 'sub-1', subscriptionNo: 'SUB/2026/09/000001', schoolId: 'sch-1',
+  planCode: 'PREMIUM', planVersion: 2, planName: 'Premium', status: 'ACTIVE',
+  billingCycle: 'YEARLY', currentPeriodStart: '2026-09-03T00:00:00Z',
+  currentPeriodEnd: '2027-09-03T00:00:00Z', autoRenew: true, contractedPrice: 49999.0,
+  planListPrice: 49999.0, currencyCode: 'INR', maxStudents: 2000, maxUsers: 250,
+  hasLimitOverrides: false, current: true,
+  nextStep: 'Activate the school; it now reports subscriptionStatus ACTIVE.' } };
+
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+
+check('opens by asking the catalogue what can be sold',
+  calls.some((one) => one.url.includes('/platform/plans') && one.url.includes('status=ACTIVE')),
+  JSON.stringify(calls.map((c) => c.url)));
+check('offers the published plan', view.container.textContent.includes('Premium'));
+// A draft is listed rather than hidden, with the reason — an absent row only raises the question.
+check('lists the draft with the reason it cannot be sold',
+  view.container.textContent.includes('Not published yet'), view.container.textContent.slice(0, 400));
+
+// React installs its own value setter on the element, so assigning `select.value` directly is
+// invisible to it. The native setter has to be called through the prototype, and the classes
+// live on the jsdom window rather than on globalThis.
+const pick = (value) => act(async () => {
+  const select = view.container.querySelector('select');
+  const view_ = select.ownerDocument.defaultView;
+  Object.getOwnPropertyDescriptor(view_.HTMLSelectElement.prototype, 'value')
+    .set.call(select, value);
+  select.dispatchEvent(new view_.Event('change', { bubbles: true }));
+});
+const clickCreate = () => act(async () => {
+  [...view.container.querySelectorAll('button')]
+    .find((b) => b.textContent.includes('Create the subscription')).click();
+});
+
+await pick('PREMIUM@2');
+check('picking a plan shows what it costs',
+  view.container.textContent.includes('49,999') || view.container.textContent.includes('49999'),
+  view.container.textContent.slice(0, 500));
+
+await clickCreate();
+await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
+
+const posted = calls.find((one) => one.method === 'POST' && one.url.includes('/subscriptions'));
+check('posts to the school it was opened on',
+  Boolean(posted) && posted.url.includes('/platform/schools/sch-1/subscriptions'),
+  JSON.stringify(calls.map((c) => `${c.method} ${c.url}`)));
+const sent = posted ? JSON.parse(posted.body) : {};
+check('names the plan by code and version, not by id',
+  sent.planCode === 'PREMIUM' && sent.planVersion === 2, JSON.stringify(sent));
+// An empty box means "use the API default". Sending it as null or 0 would overrule one.
+check('leaves every untouched option out of the body',
+  !('contractedPrice' in sent) && !('maxStudentsOverride' in sent)
+    && !('currentPeriodStart' in sent) && !('trial' in sent), JSON.stringify(sent));
+check('does not send autoRenew when it is left on',
+  !('autoRenew' in sent), JSON.stringify(sent));
+
+check('shows the number the backend allocated',
+  view.container.textContent.includes('SUB/2026/09/000001'), view.container.textContent.slice(0, 300));
+check('and says what to do next',
+  view.container.textContent.includes('subscriptionStatus ACTIVE'));
+// There is no GET for a subscription, so the screen must not imply it could reload this.
+check('says plainly that it cannot read the subscription back',
+  view.container.textContent.includes('no endpoint to read a subscription back'),
+  view.container.textContent.slice(-400));
+await view.unmount();
+
+// A school already has one. The 409 is the only way to find that out today, so it has to be
+// legible rather than a bare code.
+console.log('\nThe subscription tab, when the school already has one');
+created = { status: 409, body: {
+  code: 'SUBSCRIPTION_ALREADY_EXISTS',
+  message: 'This school already has a current subscription.' } };
+view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
+await pick('PREMIUM@2');
+await clickCreate();
+await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
+check('shows the refusal code', view.container.textContent.includes('SUBSCRIPTION_ALREADY_EXISTS'));
+check('and explains what it means',
+  view.container.textContent.includes('one current subscription'),
+  view.container.textContent.slice(0, 600));
+check('does not claim a subscription was made',
+  !view.container.textContent.includes('SUB/2026/09/000001'));
 await view.unmount();
 
 console.log(`\nPASS=${pass} FAIL=${fail}`);

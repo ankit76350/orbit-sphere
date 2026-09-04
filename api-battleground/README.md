@@ -90,6 +90,34 @@ The buttons that show depend on where the school is in its life:
 **Finish setting up** reports what it created — 47 numbering sequences, 3 roles — as counts and
 role chips, not a JSON blob.
 
+### Subscription
+
+The tab that makes a school a paying customer: `POST /platform/schools/{id}/subscriptions`. It is
+the piece `core` complains about — `activateSchool` was written to require a subscription, found
+nothing could create one, and settled for a soft check that says so in every response. Create one
+here and that response stops apologising.
+
+**The plan is picked, not typed.** The list is `GET /platform/plans?status=ACTIVE`, so the only
+plans offered are ones that exist. A plan that cannot be sold today is still listed, with the
+reason: "Basic — BASIC v1 (Not published yet)" answers the question an absent row only
+raises, and choosing it warns that the API will refuse with `409 PLAN_NOT_SELLABLE`. `planCode` and
+`planVersion` both come off the chosen row, the way every plan URL names a plan.
+
+Everything past the plan is optional and hidden behind **Set the negotiated terms**: the agreed
+price, the period, per-school limit overrides, the gateway's customer reference, and a reason
+that lands on the first `subscription_history` row. **An empty box is left out of the request
+entirely** rather than sent as `null` — an empty field means "use the API's default", and a null
+would overrule one. A `CUSTOM` billing cycle is the exception: it has no length of its own, so
+the form asks for the period end up front instead of letting you find out via
+`400 BILLING_PERIOD_END_REQUIRED`.
+
+**It cannot read a subscription back, and says so.** The reads are #27–38 and none are built, so
+the tab shows what it just created and loses it when you leave. That is stated on screen: a blank
+panel meaning "nothing here" and a blank panel meaning "no endpoint to ask" are different
+problems, and guessing between them is how somebody tries to create a second subscription for a
+school that already has one. Today the way to find that out is the refusal —
+`409 SUBSCRIPTION_ALREADY_EXISTS` — which the tab shows with what it means.
+
 ### Settings
 
 The forms are filled from `GET /schools/current` — the read that sits behind the four write
@@ -206,8 +234,9 @@ npm run test:behaviour # mounts screens in a real DOM against a stubbed backend
 npm run test:e2e       # walks every screen action against a real backend on 3456
 ```
 
-`test:e2e` covers all 31 endpoints — 59 checks including the refusals the screens are built
-around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
+`test:render` paints 25 screens and states; `test:behaviour` runs 67 checks against a stubbed
+backend. `test:e2e` covers all 31 endpoints — 59 checks including the refusals the screens are
+built around: a duplicate web address, a suspension with no reason, an unconfirmed time-zone change,
 the same kind of holiday twice on one day, shrinking a year past a closed day, and a 404 for a
 year name that does not exist.
 

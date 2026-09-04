@@ -8,6 +8,7 @@ export { default as NewSchoolModal } from './src/pages/NewSchoolModal.jsx';
 export { default as ApiDetailsModal } from './src/components/ApiDetailsModal.jsx';
 export { default as ModulePanel } from './src/components/ModulePanel.jsx';
 export { default as ModuleNav } from './src/components/ModuleNav.jsx';
+export { default as SchoolSubscriptionTab } from './src/pages/SchoolSubscriptionTab.jsx';
 export { default as PlansPage } from './src/pages/PlansPage.jsx';
 export { default as PlanDetail } from './src/pages/PlanDetail.jsx';
 export { default as PlanFeaturesTab } from './src/pages/PlanFeaturesTab.jsx';

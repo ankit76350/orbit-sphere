@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft, CheckCircle2, PauseCircle, PlayCircle, Wrench, Globe, Settings, CalendarDays, Info,
-  RefreshCw,
+  RefreshCw, CreditCard,
 } from 'lucide-react';
 import { useApi } from '../api/apiContext.js';
 import EndpointTag from '../components/EndpointTag.jsx';
@@ -18,6 +18,7 @@ import {
 } from '../components/ui.jsx';
 import SchoolSettings from './SchoolSettings.jsx';
 import AcademicYearPage from './AcademicYearPage.jsx';
+import SchoolSubscriptionTab from './SchoolSubscriptionTab.jsx';
 
 /** What can be done next, given where the school is now. */
 function actionsFor(status) {
@@ -36,6 +37,7 @@ function actionsFor(status) {
 
 export const SCHOOL_TABS = [
   { id: 'overview', label: 'Overview', icon: Info },
+  { id: 'subscription', label: 'Subscription', icon: CreditCard },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'year', label: 'Academic year', icon: CalendarDays },
 ];
@@ -260,6 +262,7 @@ export default function SchoolDetail({ school, onBack, onChanged, tab: controlle
         </div>
       )}
 
+      {tab === 'subscription' && <SchoolSubscriptionTab school={school} />}
       {tab === 'settings' && <SchoolSettings school={school} onChanged={onChanged} />}
       {tab === 'year' && <AcademicYearPage school={school} />}
 

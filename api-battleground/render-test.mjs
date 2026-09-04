@@ -37,6 +37,7 @@ rmSync(bundlePath);
 const {
   App, ApiProvider, SchoolDetail, SchoolSettings, AcademicYearPage, ApiDetailsModal, NewSchoolModal,
   ActivityModal, ModulePanel, ModuleNav, PlansPage, PlanDetail, PlanFeaturesTab, NewPlanModal,
+  SchoolSubscriptionTab,
 } = parts;
 
 const school = {
@@ -150,6 +151,8 @@ const screens = [
     { moduleLabel: 'Plans', screens: [{ id: 'catalogue', label: 'Catalogue' }],
       screenId: 'catalogue', onScreen() {}, openName: 'PREMIUM v2' })),
     ['Catalogue', 'PREMIUM v2']],
+  ['Subscription tab — first paint', wrap(React.createElement(SchoolSubscriptionTab, { school })),
+    ['Give this school a subscription', 'Loading the plans', 'Creating is all this tab can do']],
   ['Plans list — first paint', wrap(React.createElement(PlansPage, { onOpenPlan() {} })),
     ['Plans', 'New plan', 'Search by name or code']],
   ['Plan detail — first paint', wrap(React.createElement(PlanDetail,
