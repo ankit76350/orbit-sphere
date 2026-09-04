@@ -1,8 +1,9 @@
 # controllers/plans — API plan
 
-**Twelve of 71 are built — #1 to #4, #6 to #10, #13, #14 and #27.** The entire plan catalogue
-except versioning, plus giving a school its first subscription, turning that trial into a paying
-one, and reading back what a school is on.
+**Fourteen of 71 are built — #1 to #4, #6 to #10, #13, #14, #27, #33 and #34.** The entire plan
+catalogue except versioning; giving a school its first subscription, turning that trial into a
+paying one, and reading back what a school is on; and the school's own two reads — its billing
+screen, and the entitlement check the rest of the product asks.
 
 **#13 closes the gap `core` has been announcing.** `activateSchool` was written to require an
 active subscription, found that nothing could create one, and settled for a soft check that says
@@ -152,8 +153,8 @@ file.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 33 | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 34 | [`GET /schools/current/subscription/entitlements`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out entitlements they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 33 — **built** | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| 34 — **built** | [`GET /schools/current/subscription/entitlements`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out entitlements they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | 35 | [`GET /schools/current/subscription/usage`](#e35) | How much of each limit the school has used — students, users, whatever a feature counts. Shown next to the limits so a school can see itself getting close. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java), [`students`](../../models/student/Student.java), [`user_accounts`](../../models/identity/UserAccount.java) |
 | 36 | [`GET /schools/current/subscription/history`](#e36) | The school's own view of its plan changes. Shows what happened, but not the operator's internal notes. | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | 37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -1311,16 +1312,120 @@ read costs nothing on the path that succeeds.
 ## The subscription — the school's own view  ·  33–38
 
 <a id="e33"></a>
-**33 · `GET /schools/current/subscription`**
+**33 · `GET /schools/current/subscription`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`. **Not** `billingCustomerReference` — that is ours, not theirs
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `cancelledAt`. **Not** `billingCustomerReference` — that is ours, not theirs
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `description`
 
-<a id="e34"></a>
-**34 · `GET /schools/current/subscription/entitlements`**
+### It is not #27 with a different URL
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`
+[#27](#e27) is the platform read and shows everything. This one is shorter, and the four things
+left out are why there are two response types rather than one shared one:
+
+| Left out | Why |
+|---|---|
+| `planListPrice` | A school on a negotiated price would see a number it is not paying — either a discount somebody then has to explain, or an increase they will ring up about. |
+| `billingCustomerReference` | The payment gateway's id for them. Ours to hold, not theirs to see. |
+| `maxStudentsOverride`, `maxUsersOverride` | "Your limit is 2500" is useful. "Your limit was negotiated up from the plan's 2000" is a commercial conversation, not a billing screen. |
+| `planCode` | The internal family key. A school reads the name. |
+
+`contractedPrice` comes back as **`price`**: from where the school sits there is only one price,
+and "contracted" only means something next to a list price they are not being shown.
+
+### `note` is written for the school, not for us
+
+#27's note explains that nothing marks a subscription expired yet — true, useful internally, and
+not something to tell a customer. This one has its own branches and each says what it means for
+the person paying: *"The current period ended on … Talk to us to carry on."* Nothing here names
+an endpoint or admits what the module cannot do yet.
+
+### It uses `require()`, not `requireUsable()`
+
+A suspended or closed school can still read its own billing screen. Refusing to show it to
+exactly the school that needs to look would be the wrong way round.
+
+### What #33 refuses
+
+| Case | Code |
+|---|---|
+| no tenant header | `400 TENANT_NOT_RESOLVED` |
+| the subdomain matches no school | `404 SCHOOL_NOT_FOUND` |
+| the school has no subscription | `404 SUBSCRIPTION_NOT_FOUND` |
+| the plan the subscription points at is gone | `404 PLAN_NOT_FOUND` |
+
+**There is no `{id}` in the path**, and that is the point. The tenant comes from
+`CurrentSchoolResolver`, so a caller cannot ask about a school it does not belong to — reading
+another school's bill would otherwise be a matter of editing a URL.
+
+<a id="e34"></a>
+**34 · `GET /schools/current/subscription/entitlements`** — built
+
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`
+
+### The logic lives in one class, and that is the whole point
+
+[`EntitlementService`](../../services/plans/EntitlementService.java) is the only place that
+decides what a school may use. **A module that gates a feature calls that service directly**;
+this endpoint is the same method with a URL in front of it. Nothing else may read
+`plan_definitions.features` and decide for itself — two places working it out disagree, and they
+disagree quietly, in the direction of letting a school use what it has not paid for. Transport
+checking *"is TRANSPORT in the features list"* looks right and misses that the subscription was
+cancelled last month.
+
+It is a class of its own rather than another method on `SubscriptionService` so the one place is
+easy to find.
+
+### Read `allowed`, not `includedInPlan`
+
+| Field | Means |
+|---|---|
+| `includedInPlan` | What the plan says. |
+| `allowed` | Whether the school may use it **right now** — the plan saying yes *and* the subscription granting anything at all. |
+
+**`allowed` is false on every feature when the subscription grants nothing**, and that is
+deliberate rather than left to the caller to remember. A caller that reads the feature rows and
+forgets the top-level `active` flag still gets the right answer, because the flag is already
+folded in. Making the safe reading the easy one is the only way a rule like this survives a dozen
+call sites.
+
+Both fields are returned because a screen wants to say *"your plan includes Transport, but your
+subscription has lapsed"* rather than simply hiding it. A gate wants `allowed` and nothing else.
+
+### What counts as granting nothing
+
+| State | Grants? |
+|---|---|
+| `ACTIVE`, `TRIAL` | yes |
+| `PAST_DUE` | **yes, deliberately** — an unpaid invoice is a conversation to have, not a reason to lock a school out of its attendance register mid-morning |
+| `SUSPENDED`, `CANCELLED`, `EXPIRED` | no |
+| period end in the past, whatever the status says | no |
+
+**That last row is not hypothetical.** Nothing renews a subscription or marks one expired yet —
+#21 and #26 are not built — so a period lapses while the status still reads `ACTIVE`. Trusting
+the status alone would keep a school on a plan it stopped paying for, for as long as nobody
+noticed. `reason` says which of these it is, because *"your subscription was cancelled"* and
+*"your period ran out"* lead a school to do different things.
+
+### No usage counts, on purpose
+
+This says what the ceiling is, not how much of it is gone. Counting students and user accounts is
+[#35](#e35), and it is separate because a gate check runs on every request that touches a feature
+— counting rows on each one would be the most expensive query in the product. Callers hold their
+own count and compare it against the limit here.
+
+### What #34 refuses
+
+| Case | Code |
+|---|---|
+| no tenant header | `400 TENANT_NOT_RESOLVED` |
+| the subdomain matches no school | `404 SCHOOL_NOT_FOUND` |
+| the school has no subscription | `404 SUBSCRIPTION_NOT_FOUND` |
+| the plan the subscription points at is gone | `404 PLAN_NOT_FOUND` |
+
+**A school with no subscription is a `404`, not an empty allowance.** It is entitled to nothing
+either way, but an empty feature list would be indistinguishable from a plan that was published
+with no features — and those two need different fixing.
 
 <a id="e35"></a>
 **35 · `GET /schools/current/subscription/usage`**

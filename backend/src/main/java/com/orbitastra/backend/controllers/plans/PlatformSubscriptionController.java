@@ -14,7 +14,7 @@ import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
-import com.orbitastra.backend.services.plans.SubscriptionService;
+import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,9 +39,9 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/platform/schools/{schoolId}")
-public class SubscriptionController {
+public class PlatformSubscriptionController {
 
-    private final SubscriptionService subscriptionService;
+    private final PlatformSubscriptionService subscriptionService;
 
         /**
          * Endpoint #13 — creates a school's first subscription.

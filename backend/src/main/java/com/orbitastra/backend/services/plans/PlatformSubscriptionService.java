@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
+import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
@@ -54,7 +55,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-public class SubscriptionService {
+public class PlatformSubscriptionService {
 
     /** Written on every history row this service creates. */
     private static final String SOURCE_ADMIN_PORTAL = "ADMIN_PORTAL";
@@ -319,6 +320,39 @@ public class SubscriptionService {
 
         return SubscriptionDetailResponse.fromSubscription(subscription, plan,
                 subscriptionNote(subscription, plan));
+    }
+
+    //! endpoint 33 — the school's own billing screen -----------------------------------
+
+    /**
+     * #33 — what the school itself sees: its plan, what it costs, when it renews.
+     *
+     * <p><b>Not #27 with a different URL.</b> #27 is the platform read and shows everything;
+     * this one leaves out the plan's list price, the gateway's customer reference and the
+     * negotiated overrides. A school on a discount being shown a price it is not paying is
+     * either a discount somebody then has to explain or an increase they will ring up about, and
+     * the gateway's id for them is ours to hold. Two response types rather than one shared type
+     * is what keeps that true when somebody adds a field later.
+     *
+     * <p>The school is never named in the URL — it comes from the tenant, so a caller cannot ask
+     * about a school it does not belong to.
+     */
+    public MySubscriptionResponse getMySubscription(School school) {
+
+        //! step 1 - the school's one current subscription
+        // TODO: read subscription
+        SchoolSubscription subscription = schoolSubscription
+                .findBySchoolIdAndCurrentIsTrue(school.getId())
+                .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                        "This school has no subscription."));
+
+        //! step 2 - the plan it is on, for the name and the description
+        // TODO: read plan
+        PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "The plan this subscription points at no longer exists."));
+
+        return MySubscriptionResponse.fromSubscription(subscription, plan);
     }
 
     //* ---------------------------------------------------------------------------------

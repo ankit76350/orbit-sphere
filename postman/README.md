@@ -231,6 +231,29 @@ real today rather than hypothetical, because nothing renews a subscription or ma
 yet, so a period just lapses and the status stays put. A screen trusting `status` alone would
 show a school as paying months after it ran out.
 
+## The school's own view: #33 and #34
+
+`Subscription — the school's own view` holds the two reads a school makes about itself. Both take
+the `X-School-Subdomain` header and **neither has an `{id}` in the path** — the tenant comes from
+`CurrentSchoolResolver`, so a caller cannot ask about a school it does not belong to.
+
+**Get My Subscription (#33)** is the billing screen, and it is deliberately shorter than the
+platform's read of the same subscription (#27): no `planListPrice`, no
+`billingCustomerReference`, no limit overrides, no `planCode`. A school on a negotiated price
+should not be shown a number it is not paying. Its saved tests assert those four are *absent* —
+that is the design, not an accident.
+
+**Get Entitlements (#34)** is the one the rest of the product asks. Read `allowed`, not
+`includedInPlan`: the first is whether it may be used right now, the second is only what the
+plan says. `allowed` is false on every feature when the subscription grants nothing, so a
+caller that forgets the top-level `active` flag still gets the right answer.
+
+**The case worth running by hand** is a subscription whose `currentPeriodEnd` is in the past.
+`status` still reads `ACTIVE` — nothing marks a subscription expired yet — but `active` is false,
+`reason` says the period ended, and every feature comes back `allowed: false` while
+`includedInPlan` stays true. That is the case a module reading the plan's features directly would
+get wrong, which is the whole reason #34 exists.
+
 ## Plan catalogue: nine endpoints, and #5 is the one that is missing
 
 `POST /platform/plans/drafts` always creates a **`DRAFT` at version 1 that is not publicly

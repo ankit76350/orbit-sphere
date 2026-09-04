@@ -2,7 +2,7 @@
  "info": {
   "_postman_id": "12cbb6ae-c176-4b1d-ba65-09b1668ec5dc",
   "name": "Orbit Sphere — API",
-  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 12 of 28 planned write endpoints, plus the subscription read.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 12 of 28 planned write endpoints, plus three subscription reads.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
   "_exporter_id": "47336508",
   "_collection_link": "https://go.postman.co/collection/47336508-12cbb6ae-c176-4b1d-ba65-09b1668ec5dc?source=collection_link"
@@ -2549,6 +2549,115 @@
            "// periodEnded must agree with the dates, or the flag is worse than not having it.",
            "pm.test('periodEnded agrees with the period', () =>",
            "  pm.expect(b.periodEnded).to.eql(new Date(b.currentPeriodEnd) <= new Date()));"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Subscription — the school's own view",
+     "item": [
+      {
+       "name": "Get My Subscription",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/subscription",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "subscription"
+         ]
+        },
+        "description": "**GET** `/schools/current/subscription` — the school's own billing screen.\n\nWhat plan it is on, what it costs, when the period ends, whether it renews.\n\n### There is no `{id}` in the path, and that is the point\n\nThe tenant comes from `CurrentSchoolResolver` — today the `X-School-Subdomain` header, tomorrow\nthe session. A caller cannot ask about a school it does not belong to, because it never names one.\n\n### It is not #27 with a different URL\n\n#27 is the platform read and shows everything. This one leaves out four things on purpose:\n\n- `planListPrice` — a school on a negotiated price would see a number it is not paying.\n- `billingCustomerReference` — the gateway's id for them. Ours, not theirs.\n- the limit overrides — \"your limit is 2500\" is useful; \"negotiated up from 2000\" is a\n  commercial conversation.\n- `planCode` — the internal family key. A school reads the name.\n\n`contractedPrice` comes back as `price`: from where the school sits there is only one price.\n\n### `note` is written for the school\n\nEvery branch says what it means for the person paying, and none of them mention what the module\ncannot do yet. That is deliberately different from #27's note.\n\n### The four test cases\n\n**01  A SCHOOL WITH A SUBSCRIPTION  -> 200 OK**\n`status`, `planName`, `price`, `currencyCode`, the period, and `daysRemaining` counting down.\nConfirm `planListPrice` and `billingCustomerReference` are **absent** — that is the whole design.\n\n**02  NO TENANT HEADER  -> 400 Bad Request**\n`{ \"code\": \"TENANT_NOT_RESOLVED\" }`. Disable the header to see it.\n\n**03  A SUBDOMAIN THAT MATCHES NO SCHOOL  -> 404 Not Found**\n`{ \"code\": \"SCHOOL_NOT_FOUND\" }`.\n\n**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**\n`{ \"code\": \"SUBSCRIPTION_NOT_FOUND\", \"message\": \"This school has no subscription.\" }`\nNote it uses `require()`, not `requireUsable()` — a suspended school can still read its own\nbilling screen, which is exactly when somebody needs to.\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it says what they pay', () => pm.expect(b.price).to.be.a('number'));",
+           "// The four omissions are the design, so assert they are actually omitted.",
+           "pm.test('the plan list price is not exposed to the school', () =>",
+           "  pm.expect(b).to.not.have.property('planListPrice'));",
+           "pm.test('the gateway customer reference is not exposed', () =>",
+           "  pm.expect(b).to.not.have.property('billingCustomerReference'));",
+           "pm.test('the negotiated overrides are not exposed', () => {",
+           "  pm.expect(b).to.not.have.property('maxStudentsOverride');",
+           "  pm.expect(b).to.not.have.property('maxUsersOverride');",
+           "});",
+           "pm.test('the period runs forwards', () =>",
+           "  pm.expect(new Date(b.currentPeriodEnd)).to.be.greaterThan(new Date(b.currentPeriodStart)));"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "name": "Get Entitlements",
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}",
+          "description": "Stand-in for the session. Saved by Create School."
+         }
+        ],
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/subscription/entitlements",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "subscription",
+          "entitlements"
+         ]
+        },
+        "description": "**GET** `/schools/current/subscription/entitlements` — what this school is allowed to use.\n\n**The one the rest of the product asks.** No module may read `plan_definitions.features` and\ndecide for itself whether a school can use something: two places working that out disagree, and\nthey disagree in the direction of letting a school use what it has not paid for.\n\nIn-process callers use `EntitlementService` directly. This endpoint is the same method with a URL\nin front of it.\n\n### Read `allowed`, not `includedInPlan`\n\n- `includedInPlan` — what the plan says.\n- `allowed` — whether it may be used **right now**: the plan saying yes *and* the subscription\n  granting anything at all.\n\n`allowed` is false on every feature when the subscription grants nothing, so a caller that reads\nthe rows and forgets the top-level `active` flag still gets the right answer.\n\n### What grants nothing\n\n`SUSPENDED`, `CANCELLED`, `EXPIRED`, or a period end in the past whatever the status says.\n`PAST_DUE` **does** still grant — an unpaid invoice is a conversation to have, not a reason to\nlock a school out of its attendance register mid-morning. `reason` says which it is.\n\n### No usage counts\n\nThis is the ceiling, not how much is gone. Counting students and users is #35, separate because a\ngate check runs on every request that touches a feature.\n\n### The five test cases\n\n**01  A SCHOOL ON A LIVE SUBSCRIPTION  -> 200 OK**\n`active: true`, `reason: null`, and every included feature `allowed: true`. `maxStudents` and\n`maxUsers` are the ceilings in force — the school's override where it has one.\n\n**02  A SCHOOL ON A TRIAL  -> 200 OK**\n`active: true`. A trial grants everything the plan does; it is a paying question, not an access\nquestion.\n\n**03  A LAPSED PERIOD  -> 200 OK, granting nothing**\nCreate a subscription with `currentPeriodEnd` in the past. `active: false`,\n`reason: \"The subscription period ended on …\"`, and **every** feature `allowed: false` while\n`includedInPlan` stays true. This is the case a module reading the plan directly would get wrong.\n\n**04  A SCHOOL WITH NO SUBSCRIPTION  -> 404 Not Found**\n`{ \"code\": \"SUBSCRIPTION_NOT_FOUND\", \"message\": \"This school has no subscription, so it is not\nentitled to anything.\" }`\nA 404 rather than an empty allowance: entitled to nothing either way, but an empty feature list\nwould be indistinguishable from a plan published with no features.\n\n**05  NO TENANT HEADER / UNKNOWN SUBDOMAIN  -> 400 / 404**\n`TENANT_NOT_RESOLVED` and `SCHOOL_NOT_FOUND`.\n"
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 OK', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('it says whether the subscription grants anything', () =>",
+           "  pm.expect(b.active).to.be.a('boolean'));",
+           "pm.test('the ceilings in force are reported', () => {",
+           "  pm.expect(b.maxStudents).to.be.a('number');",
+           "  pm.expect(b.maxUsers).to.be.a('number');",
+           "});",
+           "pm.test('the feature list matches its own count', () =>",
+           "  pm.expect(b.features.length).to.eql(b.featureCount));",
+           "// The rule the whole endpoint exists to enforce: nothing is allowed when the",
+           "// subscription grants nothing, whatever the plan says.",
+           "pm.test('allowed is never true when the subscription grants nothing', () => {",
+           "  if (!b.active) pm.expect(b.features.every((f) => f.allowed === false)).to.be.true;",
+           "});",
+           "pm.test('allowed never exceeds what the plan includes', () =>",
+           "  pm.expect(b.features.every((f) => !f.allowed || f.includedInPlan)).to.be.true);",
+           "pm.test('a reason is given exactly when it is not active', () =>",
+           "  pm.expect(b.reason === null).to.eql(b.active));"
           ]
          }
         }
