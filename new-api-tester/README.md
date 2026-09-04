@@ -1,74 +1,98 @@
-# Extej — Crypto Dashboard
+# new-api-tester
 
-A React implementation of the Extej "Loans" dashboard: fixed sidebar, sticky topbar,
-promo cards, wallet-balance area chart, allocation donut and a sortable-width wallets
-table. Light and dark themes, responsive to 414px.
+The environment for exercising the Orbit Sphere API by hand. It is the shell of the Extej
+dashboard template with the crypto dashboard taken out — the layout, the sidebar, the theming and
+a few UI primitives kept, and everything that was about wallets and coins removed.
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build
-npm run lint
+cd new-api-tester && npm install && npm run dev    # http://localhost:1400
 ```
 
-## Stack
+**Nothing calls the API yet.** Every route renders a placeholder. What is here is the frame the
+screens will sit in.
 
-Vite + React 19, `react-router-dom` for navigation, `lucide-react` for icons.
-Charts are hand-rolled SVG — no charting dependency — so the crosshair, the
-gapped donut and the theme-aware palettes behave exactly as specified.
+## What was removed, and why
 
-## Structure
+The template was a crypto dashboard. None of that content survives:
 
-```
-src/
-  components/
-    Layout.jsx            app shell: sidebar + topbar + routed page
-    Sidebar.jsx           nav sections, active pill, collapse rail, mobile drawer
-    Topbar.jsx            search, notifications, user, theme switch, locale
-    PromoCard.jsx         the two banner cards
-    WalletBalanceCard.jsx hero figure + range control + chart/table toggle
-    AllocationCard.jsx    donut + paged legend
-    WalletsTable.jsx      holdings table with class filter and search
-    charts/
-      BalanceAreaChart.jsx  area chart, crosshair, keyboard inspection
-      AllocationDonut.jsx   part-to-whole ring with hover detail
-    ui/                   Segmented, Select, Meter, ChangeBadge, AssetMark
-  data/                   assets.js, balance.js  (all mock data lives here)
-  lib/                    format.js (i18n number/date), curve.js (path math)
-  styles/                 tokens.css, base.css, layout.css, components.css
-  theme/                  ThemeProvider, themeContext, palette.js
-```
+| Removed | What it was |
+|---|---|
+| `pages/Loans.jsx` | the demo dashboard |
+| `PromoCard`, `WalletBalanceCard`, `AllocationCard`, `WalletsTable` | its four panels |
+| `charts/BalanceAreaChart`, `charts/AllocationDonut` | hand-rolled SVG charts |
+| `ui/AssetMark`, `ui/ChangeBadge` | a coin glyph and a ±% badge |
+| `data/assets.js`, `data/balance.js` | sample holdings and a price series |
+| `lib/format.js`, `lib/curve.js` | EUR money formatting, chart maths |
+| `public/icons.svg` | an unreferenced sprite |
+| 72 CSS rules | every rule whose only users were the files above |
 
-## Data integrity
+**The top bar lost four controls too.** It shipped a notifications bell, a messages icon, a
+language flag, and a signed-in user reading *"Austin Robertson — Marketing Administrator"*. None
+of them did anything, and the user was invented: this app has no accounts and no sign-in, so a
+name and a role on screen would be a claim about somebody who does not exist. A control that
+looks live and is not costs more than the space it fills.
 
-`src/data/assets.js` stores price and allocation only; **value and holdings are
-derived** (`value = total × alloc%`, `holdings = value / price`), so the table can
-never show figures that contradict each other. Allocations across all 12 assets sum
-to exactly 100, which is what makes the donut a true part-to-whole.
+`components.css` went from 362 lines to 232, and the built stylesheet from 16.6 kB to 11.3 kB.
 
-## Chart decisions worth knowing
+## What was kept
 
-These deviate slightly from the reference image, deliberately:
+**The shell**, which is the reason for using this template at all: `Layout` (sidebar + sticky
+topbar + routed page), `Sidebar` (collapse rail, mobile drawer, active pill), `Topbar` (search and
+the theme switch), and the theme — light and dark, `tokens.css` plus a `ThemeProvider`.
 
-- **Series colors are validated, not sampled.** The reference's amber (`#f7a93b`)
-  falls below 3:1 contrast on white, and its blue and magenta sit adjacent on the
-  ring at ΔE 4.1 under protanopia — effectively the same color to a red-blind
-  reader. Both themes now use steps that pass the lightness band, chroma floor,
-  CVD separation, normal-vision floor and contrast checks. See `theme/palette.js`.
-- **Ring order differs from legend order.** BNB's amber is drawn between ETH's blue
-  and SHARD's magenta so that hard-to-separate pair is never adjacent. Each asset
-  keeps its own fixed color, and the legend keeps the reference's reading order.
-- **A 5th+ asset never gets a generated hue.** The eight small holdings aggregate
-  into a neutral "Other" segment; the legend pager walks through their members.
-- **Dark mode is a selected palette**, re-validated against the dark surface — not
-  an automatic inversion of the light one.
-- **Monotone cubic interpolation** (`lib/curve.js`) instead of a cardinal spline:
-  a cardinal spline overshoots at this series' plateaus and would draw balances
-  the data never had, including below zero.
-- **Every chart has a table view** and the area chart is keyboard-inspectable
-  (focus it, then arrow left/right to move the crosshair).
+**Three UI primitives** — `Meter`, `Segmented`, `Select`. Nothing renders them today; they are
+kept because a request builder wants all three within the first screen.
 
-## Routes
+**Ten CSS classes with no user yet**, for the same reason: `data-table`, `table-scroll`,
+`empty-row`, `pager`, `pager-btn`, `pager-count`, `card-head`, `card-head-tools`, `ghost-btn`,
+`search-sm`. The first list screen needs a table, a pager and a card header, and the styling for
+them is already written and themed.
 
-`/` renders the Loans dashboard. Every other sidebar entry resolves to a
-placeholder so navigation, active states and the shell can be exercised end to end.
+## The navigation follows the API's own groups
+
+`SCREENS` in `src/screens.js` is the single list of routes; `App.jsx` builds the router from it
+and `Sidebar.jsx` builds the nav from the same list, so a nav item cannot point at a route that
+does not exist. It lives in its own module rather than beside the sidebar because fast refresh
+only works when a component file exports nothing but components. The six entries are the six
+groups the built endpoints fall into, with a badge counting how many are waiting:
+
+| Screen | Endpoints built |
+|---|---|
+| Core → Schools | 8 |
+| Core → School profile | 5 |
+| Core → Academic years | 18 |
+| Plans → Plan catalogue | 9 |
+| Plans → Subscriptions | 3 |
+| Plans → A school's own view | 2 |
+
+Following the API's grouping rather than inventing one means a screen is always about **one
+surface** of one module. That is why the platform's subscription endpoints and the school's own
+two reads are separate rows rather than a single "Subscriptions" screen: they answer to different
+callers, and one of them must never show what the other does — the school's read deliberately
+withholds the plan's list price, the gateway's customer reference and the negotiated limits.
+
+The counts add up to the 45 endpoints in the generated catalogue. Recount them there rather than
+trusting the badges if they start to look stale.
+
+## The dev server
+
+**Port 1400**, so this and `../api-battleground` (1300) run side by side. `strictPort` is on:
+starting a second copy fails rather than quietly moving to 1401, because two tabs both loading
+reads in a request log as the app asking twice for everything.
+
+`/platform/**` and `/schools/**` are proxied to the backend on **3456**, anchored to whole path
+segments so a route in this app whose name merely starts with one of those words is not sent to
+the backend by mistake. Going through the proxy means no CORS, and the browser can read every
+response header — which matters, because `Location` is where a newly created id comes back.
+
+## What comes next
+
+The API layer. `../api-battleground` already has the pieces worth taking rather than rewriting:
+
+- **`src/config/endpoints.js`** — 45 endpoints with their paths, required and optional fields,
+  refusal codes and worked examples, generated from the Postman collection by
+  `tools/generate-endpoints.py`. It is generated, so it cannot drift from the collection.
+- **`src/api/`** — the send/inspect layer: environments, the tenant header, timeouts, and a log
+  of every call made.
+
+Whether to copy those across or import them is the first decision to take.
