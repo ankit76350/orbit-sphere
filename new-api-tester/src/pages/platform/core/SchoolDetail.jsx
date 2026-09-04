@@ -246,7 +246,12 @@ export default function SchoolDetail() {
                 </Button>
                 <span className="muted">{action.note}</span>
                 <span className="toolbar-spacer" />
-                <EndpointTag id={action.endpoint} name={action.label} pathParams={{ id }} />
+                <EndpointTag
+                  id={action.endpoint}
+                  name={action.label}
+                  look={action.look}
+                  pathParams={{ id }}
+                />
               </div>
             )
           })}

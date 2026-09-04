@@ -13,6 +13,7 @@ import React from 'react'
 import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { rolldown } from 'rolldown'
+import { readFileSync } from 'node:fs'
 import { detailPath } from './src/paths.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
@@ -98,6 +99,11 @@ const screenChecks = [
   // A tag names the control it belongs to as well as the request. Read on its own — in the
   // response panel, in the log — the method and path say what was sent but not by what.
   ['and which control sends it', schools.includes('endpoint-tag-name')],
+  // The name is a chip like the method, not loose text beside it.
+  ['the name is a chip, like the method',
+    /<span class="endpoint-tag-name"[^>]*>The list, as filtered<\/span>/.test(schools)],
+  // A read is nobody's primary action, so its chip carries no tone.
+  ['a plain read is not toned', /class="endpoint-tag-name">The list/.test(schools)],
   ['the name, method and path are all in one tag',
     /endpoint-tag-name[^]*?The list, as filtered[\s\S]{0,200}?GET[\s\S]{0,200}?\/platform\/schools/.test(schools)],
   ['the paging query is in the tag', schools.includes('page=0') && schools.includes('size=20')],
@@ -121,6 +127,23 @@ for (const [label, ok] of screenChecks) {
 
 // A detail address is one segment deeper, and the side panel and body navbar both read the
 // module off the FIRST segment — so opening a row must not un-highlight anything.
+// A tag's colour has to match the button it belongs to, and the only way that stays true is if
+// both read the SAME value. The detail page's lifecycle rows cannot be rendered here — first
+// paint is the read — so this checks the thing that would break: the pair drifting apart in the
+// source, one hard-coded and the other not.
+console.log('\nA tag matches its button')
+const detailSource = readFileSync('src/pages/platform/core/SchoolDetail.jsx', 'utf8')
+const shared = (detailSource.match(/look=\{action\.look\}/g) || []).length
+const pairChecks = [
+  ['the action button and its tag read one value', shared === 2],
+  // Suspend is the destructive one; if its look were dropped the tag would look routine.
+  ['the destructive action is marked danger', /look: 'danger'/.test(detailSource)],
+]
+for (const [label, ok] of pairChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nA row\'s own address')
 const detail = at('/platform-core/schools/6a95000000000000000000aa')
 const detailChecks = [

@@ -23,10 +23,15 @@ import { useApi, useApiState } from '../api/apiContext.js'
  * nameless — and that fallback is the string to search for in Postman, which is worth having in
  * an app whose whole job is exercising the same requests.
  *
+ * `look` TAKES THE SAME VALUE AS THE BUTTON'S, so the two are the same colour: a red Suspend
+ * button gets a red label, and the pair reads as one control instead of two things that happen
+ * to sit next to each other. Passing it is what stops the tag looking equally weighted next to
+ * every button regardless of what that button does.
+ *
  * The method and path are never typed in here — they come from config/endpoints.js, which is
  * generated from the Postman collection. A tag cannot disagree with the call it describes.
  */
-export default function EndpointTag({ id, name, pathParams, query, showPath = true }) {
+export default function EndpointTag({ id, name, look, pathParams, query, showPath = true }) {
   const { inspect } = useApi()
   const { log } = useApiState()
 
@@ -53,7 +58,7 @@ export default function EndpointTag({ id, name, pathParams, query, showPath = tr
 
   const label = (
     <>
-      <span className="endpoint-tag-name">{shown}</span>
+      <span className="endpoint-tag-name" data-look={look || undefined}>{shown}</span>
       <span className="endpoint-tag-method" data-method={endpoint.method}>{endpoint.method}</span>
       {showPath && <span className="endpoint-tag-path">{full}</span>}
     </>

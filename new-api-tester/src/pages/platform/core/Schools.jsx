@@ -284,7 +284,7 @@ function NewSchool({ open, onClose, onCreated }) {
           <Button onClick={onClose}>Cancel</Button>
           <div className="stack" style={{ gap: 4, alignItems: 'flex-end' }}>
             <Button look="primary" busy={saving} onClick={submit}>Create</Button>
-            <EndpointTag id="create-school" name="Create" />
+            <EndpointTag id="create-school" name="Create" look="primary" />
           </div>
         </>
       }

@@ -412,12 +412,18 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
   .dl { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* The name of the control the tag belongs to, ahead of the method. Not monospace: it is a label
-   somebody wrote, where the method and path are what goes on the wire. */
+/* The name of the control the tag belongs to, as a chip beside the method chip.
+   Not monospace: it is a label somebody wrote, where the method and path are what goes on the
+   wire. `data-look` carries the same value as the button's, so a red button gets a red label and
+   the pair reads as one control rather than two unrelated things sitting next to each other. */
 .endpoint-tag-name {
+  padding: 1px 6px; border-radius: 4px;
   font-family: var(--font-sans, inherit);
-  font-size: 11px; font-weight: 600; color: var(--ink-2);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  background: var(--surface-sunken); color: var(--ink-2);
   white-space: nowrap;
 }
-.endpoint-tag-name::after { content: '·'; margin-left: 6px; color: var(--ink-muted); font-weight: 400; }
+.endpoint-tag-name[data-look='primary'] { background: var(--brand-soft); color: var(--brand); }
+.endpoint-tag-name[data-look='danger'] { background: var(--bad-bg); color: var(--bad); }
 button.endpoint-tag:hover .endpoint-tag-name { color: var(--brand); }
+button.endpoint-tag:hover .endpoint-tag-name[data-look='danger'] { color: var(--bad); }

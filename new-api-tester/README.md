@@ -203,6 +203,15 @@ response panel, in the log — the name is the half that identifies the control.
 the endpoint's own name from the Postman collection, so a tag is never nameless, and that
 fallback is the string to search for in Postman.
 
+**The name is a chip, like the method, and it takes the button's colour.** `look` is passed the
+same value the button gets, so a red Suspend button gets a red label and a brand-coloured Create
+gets a brand one — the pair reads as one control rather than two things that happen to sit next
+to each other. A plain read carries no tone, because it is nobody's primary action.
+
+Both the button and its tag read that value from **one place** (`action.look`), which is what
+keeps them matching; the smoke test asserts it, because a hard-coded tone on one of the two is
+exactly how they would drift.
+
 The path is the **real** request: path parameters filled in and the query string actually being
 sent, so the tag under the list changes as you filter. Click it to reopen that endpoint's last
 call. Until it has made one there is nothing to open, so it renders as plain text rather than a
