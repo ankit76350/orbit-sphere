@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# the smoke test’s temporary bundle
+.smoke-bundle.mjs

@@ -1,5 +1,7 @@
 import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
+import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
 import Schools from './pages/platform/core/Schools.jsx'
+import { moduleSlug, screenPath } from './paths.js'
 
 /**
  * Every screen this app has, in the shape the navigation reads it: surface, then module, then
@@ -36,6 +38,10 @@ export const SURFACES = [
             // A submodule with no `screen` falls back to Placeholder, so the nav stays
             // complete while the screens are filled in one at a time.
             screen: Schools,
+            // Opening a row is its own address, so it can be linked, reloaded and shared. The
+            // list stays selected in both navigations because the module is read off the FIRST
+            // path segment, which a detail address does not change.
+            detail: { param: 'id', screen: SchoolDetail },
           },
         ],
       },
@@ -84,20 +90,13 @@ export const SURFACES = [
 /* ------------------------------------------------------------------------ addresses */
 
 /**
- * A module's address is ONE segment, `surface-module`, and the submodule is the second.
+ * The builders live in paths.js, not here.
  *
- * That is not a style choice. The dev server proxies `^/platform($|/)` and `^/schools($|/)` to
- * the backend, so a route like `/platform/plans/catalogue` would never reach the router — the
- * proxy would send it to the API and the browser would get a 404 from Spring. Joining the two
- * with a hyphen sidesteps it: `/platform-plans/catalogue` cannot match either anchor, now or
- * when a new API group appears.
- *
- * It also happens to map one segment per level of navigation: the side panel picks the first,
- * the navbar in the body picks the second.
+ * This file imports every page, so a page needing to build a link back to its list would import
+ * this file and close a cycle — which threw at module load, not at build. Re-exported so callers
+ * that already have `screens.js` open do not need a second import.
  */
-export const moduleSlug = (surfaceId, moduleId) => `${surfaceId}-${moduleId}`
-export const screenPath = (surfaceId, moduleId, submoduleId) =>
-  `/${moduleSlug(surfaceId, moduleId)}/${submoduleId}`
+export { detailPath, moduleSlug, screenPath } from './paths.js'
 
 /** Every module, flattened, for the side panel. Each one knows where its first screen is. */
 export const MODULE_LINKS = SURFACES.flatMap((surface) =>
@@ -113,15 +112,34 @@ export const MODULE_LINKS = SURFACES.flatMap((surface) =>
   })),
 )
 
-/** Every screen, flattened, for the router. */
+/**
+ * Every address, flattened, for the router.
+ *
+ * A submodule with a `detail` contributes two: the list and one row. Both are built from the
+ * same declaration, so a detail address cannot exist without the list it belongs to.
+ */
 export const ROUTES = SURFACES.flatMap((surface) =>
   surface.modules.flatMap((module) =>
-    module.submodules.map((submodule) => ({
-      path: screenPath(surface.id, module.id, submodule.id),
-      surface,
-      module,
-      submodule,
-    })),
+    module.submodules.flatMap((submodule) => {
+      const list = {
+        path: screenPath(surface.id, module.id, submodule.id),
+        surface,
+        module,
+        submodule,
+        screen: submodule.screen,
+      }
+      if (!submodule.detail) return [list]
+      return [
+        list,
+        {
+          path: `${list.path}/:${submodule.detail.param}`,
+          surface,
+          module,
+          submodule,
+          screen: submodule.detail.screen,
+        },
+      ]
+    }),
   ),
 )
 

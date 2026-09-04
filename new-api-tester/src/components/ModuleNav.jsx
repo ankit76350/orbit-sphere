@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { moduleForPath, screenPath } from '../screens.js'
+import { moduleForPath } from '../screens.js'
+import { screenPath } from '../paths.js'
 
 /**
  * The navbar in the body: the submodules of whichever module the side panel is on.

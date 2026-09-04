@@ -14,13 +14,13 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Navigate to={ROUTES[0].path} replace />} />
-        {ROUTES.map(({ path, surface, module, submodule }) => (
+        {ROUTES.map(({ path, surface, module, submodule, screen: Screen }) => (
           <Route
             key={path}
             path={path}
             element={
-              submodule.screen ? (
-                <submodule.screen />
+              Screen ? (
+                <Screen />
               ) : (
                 <Placeholder
                   title={submodule.label}

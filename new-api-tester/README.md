@@ -155,16 +155,37 @@ src/pages/
 A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,
 so the navigation stays complete while the screens are filled in one at a time.
 
-### Platform › Core › Schools
+### Platform › Core › Schools — two screens, two addresses
 
-The list — search, status filter, sort, paging — then any row opens the whole record, because a
-row is a summary and the full read is a separate endpoint. **The lifecycle buttons depend on
-where the school is:** one being set up gets "Finish setting up" and "Take it live", a live one
-gets "Suspend", a suspended one gets "Let it back in". Offering all five always would mean four
-of them answering `409`, which tells you nothing you could not have been told first.
+`Schools.jsx` is the list: search, status filter, sort, paging, and the create. Three endpoints.
 
-Suspend asks for its reason before sending, because the API requires one — better to ask than to
-send a request you know will be refused.
+`SchoolDetail.jsx` is **one school at its own address**, `/platform-core/schools/{id}`. Five
+endpoints. Opening a row goes there rather than opening a dialog, because a school is a thing you
+work on for a while — read it, set it up, take it live, come back to it — and all of that wants
+an address you can link to, reload and paste to somebody. It also wants room: the record is
+twenty fields and five actions.
+
+**The id comes from the URL, so the page reads the school itself** rather than being handed a row
+from the list. Arriving from a link, a reload and the back button all work the same way, and what
+is on screen is never a stale copy of a row that has since changed.
+
+The record is laid out as labelled values. **The raw JSON is still there, behind a disclosure** —
+this app exists to exercise the API so the payload matters, but it is what the fields were read
+*from*, not the thing to lead with.
+
+**The lifecycle buttons depend on where the school is:** one being set up gets "Finish setting up"
+and "Take it live", a live one gets "Suspend", a suspended one gets "Let it back in". Offering all
+five always would mean four of them answering `409`, which tells you nothing you could not have
+been told first. Suspend asks for its reason before sending, because the API requires one — better
+to ask than to send a request you know will be refused. Changing the web address is offered at
+every status, because an address can be wrong on a school being set up just as easily as on a live
+one; it sends the current subdomain alongside the new one, which is how a stale page is stopped
+from renaming a school somebody else already renamed.
+
+`src/paths.js` holds the address builders, deliberately apart from `screens.js`. That file imports
+every page, so a page building a link back to its list would import it back and close a cycle —
+which is not theoretical: it threw `Cannot access 'screenPath' before initialization` at module
+load, and the bundler was perfectly happy about it.
 
 ### Every control says which endpoint it calls
 

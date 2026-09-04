@@ -13,6 +13,7 @@ import React from 'react'
 import { renderToString } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom'
 import { rolldown } from 'rolldown'
+import { detailPath } from './src/paths.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
 // first renders — so there has to be something to read here.
@@ -60,6 +61,10 @@ const ROUTES = [
   ['/school-core/profile', ['School', 'Profile', '5 endpoints']],
   ['/school-core/academic-years', ['Academic years', '18 endpoints']],
   ['/school-plans/subscription', ['Subscription', '2 endpoint']],
+  // Opening a row is its own address. First paint is the read, because renderToString does not
+  // run effects — which is the point: the page reads the school itself rather than being handed
+  // a row from a list that may already be stale.
+  ['/platform-core/schools/6a95000000000000000000aa', ['Reading the school']],
   ['/nonsense', ['Page not found']],
 ]
 
@@ -96,8 +101,32 @@ const screenChecks = [
   // a button that does nothing.
   ['an uncalled endpoint tag is not a button',
     !/<button[^>]*class="endpoint-tag"/.test(schools)],
+  // A row's link cannot be checked here: renderToString runs no effects, so the list has no
+  // rows yet. What CAN be wrong is the address it would build, so that is what is asserted.
+  ["a row's address is the list's plus the id",
+    detailPath('platform', 'core', 'schools', 'abc') === '/platform-core/schools/abc'],
+  // The lifecycle actions moved to the detail page; the list must not still offer them.
+  ['the list no longer offers the lifecycle actions',
+    !schools.includes('Take it live') && !schools.includes('Finish setting up')],
 ]
 for (const [label, ok] of screenChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// A detail address is one segment deeper, and the side panel and body navbar both read the
+// module off the FIRST segment — so opening a row must not un-highlight anything.
+console.log('\nA row\'s own address')
+const detail = at('/platform-core/schools/6a95000000000000000000aa')
+const detailChecks = [
+  ['the module stays active in the side panel', detail.includes('nav-item is-active')],
+  ['the body navbar is still there', detail.includes('module-nav-surface')],
+  ['and still says Platform', detail.includes('Platform')],
+  ['there is a way back to the list',
+    /<a[^>]*class="back"[^>]*href="\/platform-core\/schools"/.test(detail)
+      || /href="\/platform-core\/schools"[^>]*class="back"/.test(detail)],
+]
+for (const [label, ok] of detailChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

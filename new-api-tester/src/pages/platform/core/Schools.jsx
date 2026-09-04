@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  CheckCircle2, Globe, PauseCircle, PlayCircle, Plus, RefreshCw, Wrench,
-} from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ChevronRight, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import Select from '../../../components/ui/Select.jsx'
+import { detailPath } from '../../../paths.js'
 
 /**
  * Core / School — platform. All eight endpoints of the operator's view of schools.
@@ -15,9 +15,10 @@ import Select from '../../../components/ui/Select.jsx'
  * The school's own edits are the school surface and are a different screen; nothing here can
  * reach them.
  *
- * THE LIFECYCLE BUTTONS DEPEND ON WHERE THE SCHOOL IS. A school being set up gets "Finish
- * setting up" and "Take it live"; a live one gets "Suspend". Offering all five always would mean
- * four of them answering 409, which tells you nothing you could not have been told first.
+ * THIS SCREEN IS THE LIST AND THE CREATE. Opening a row goes to its own address — see
+ * SchoolDetail — rather than a dialog, so a school can be linked to, reloaded and shared, and
+ * everything you do to one has room. Three of the eight endpoints are here; the other five are
+ * on the school's own page, where the thing they act on is what you are looking at.
  *
  * EVERY CONTROL SAYS WHICH ENDPOINT IT CALLS, and the tag is clickable once that endpoint has
  * been used — that is the whole point of this app over a product UI.
@@ -42,28 +43,6 @@ const FILTERS = [
 ]
 
 const SORTS = ['createdAt,desc', 'createdAt,asc', 'name,asc', 'name,desc', 'status,asc']
-
-/** What can be done next, given where the school is now. */
-function actionsFor(status) {
-  switch (status) {
-    case 'PROVISIONING':
-    case 'TRIAL':
-      return ['complete', 'activate']
-    case 'ACTIVE':
-      return ['suspend']
-    case 'SUSPENDED':
-      return ['reactivate']
-    default:
-      return []
-  }
-}
-
-const ACTION = {
-  complete: { label: 'Finish setting up', endpoint: 'complete-provisioning', icon: Wrench },
-  activate: { label: 'Take it live', endpoint: 'activate-school', icon: CheckCircle2, look: 'primary' },
-  suspend: { label: 'Suspend', endpoint: 'suspend-school', icon: PauseCircle, look: 'danger', asks: 'reason', required: true },
-  reactivate: { label: 'Let it back in', endpoint: 'reactivate-school', icon: PlayCircle, asks: 'note' },
-}
 
 /**
  * The query the list sends, from what is on screen.
@@ -98,10 +77,6 @@ export default function Schools() {
   const [loading, setLoading] = useState(true)
   const [problem, setProblem] = useState(null)
 
-  const [open, setOpen] = useState(null)      // the school being looked at, in full
-  const [busy, setBusy] = useState(null)      // which action is running
-  const [asking, setAsking] = useState(null)  // the action waiting for a reason
-  const [answer, setAnswer] = useState('')
   const [creating, setCreating] = useState(false)
 
   const query = listQuery({ search, filter, page, size, sort })
@@ -130,32 +105,6 @@ export default function Schools() {
     const timer = setTimeout(load, search ? 350 : 0)
     return () => clearTimeout(timer)
   }, [load, search])
-
-  const openSchool = async (schoolId) => {
-    // The row is a summary; the whole record is a separate read, which is what #G2 is for.
-    const result = await call('get-school', {
-      label: 'Read one school',
-      pathParams: { id: schoolId },
-    })
-    if (result.ok) setOpen(result.bodyJson)
-  }
-
-  const run = async (school, key, extra) => {
-    const action = ACTION[key]
-    setBusy(key)
-    const result = await call(action.endpoint, {
-      label: action.label,
-      pathParams: { id: school.schoolId },
-      ...(extra ? { body: extra } : {}),
-    })
-    setBusy(null)
-    setAsking(null)
-    setAnswer('')
-    if (result.ok) {
-      await load()
-      await openSchool(school.schoolId)
-    }
-  }
 
   const rows = data?.content ?? []
 
@@ -240,7 +189,14 @@ export default function Schools() {
                       {school.createdAt ? new Date(school.createdAt).toLocaleDateString() : '—'}
                     </td>
                     <td>
-                      <Button onClick={() => openSchool(school.schoolId)}>Open</Button>
+                      {/* A link, not a button: it goes somewhere, so it should be
+                          middle-clickable and copyable like any other address. */}
+                      <Link
+                        className="btn"
+                        to={detailPath('platform', 'core', 'schools', school.schoolId)}
+                      >
+                        Open <ChevronRight size={13} />
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -263,130 +219,12 @@ export default function Schools() {
         ) : null}
       </Card>
 
-      <OneSchool
-        school={open}
-        busy={busy}
-        onClose={() => setOpen(null)}
-        onAction={(key) => {
-          const action = ACTION[key]
-          if (action.asks) setAsking(key)
-          else run(open, key)
-        }}
-      />
-
-      <AskFirst
-        action={asking ? ACTION[asking] : null}
-        value={answer}
-        onChange={setAnswer}
-        busy={Boolean(busy)}
-        onCancel={() => { setAsking(null); setAnswer('') }}
-        onConfirm={() => run(open, asking, { [ACTION[asking].asks]: answer.trim() || undefined })}
-      />
-
       <NewSchool
         open={creating}
         onClose={() => setCreating(false)}
         onCreated={async () => { setCreating(false); await load() }}
       />
     </div>
-  )
-}
-
-/* ------------------------------------------------------------------ one school, in full */
-
-function OneSchool({ school, busy, onClose, onAction }) {
-  if (!school) return null
-  const actions = actionsFor(school.status)
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={school.schoolName}
-      description={`${school.subdomain} · ${school.status}`}
-    >
-      <div className="stack">
-        <div className="resp">
-          <div className="resp-head">
-            <span>the whole record</span>
-            <span className="toolbar-spacer" />
-            <EndpointTag id="get-school" pathParams={{ id: school.schoolId }} />
-          </div>
-          <pre className="resp-body">{JSON.stringify(school, null, 2)}</pre>
-        </div>
-
-        {/* Only what this status allows. The other four would answer 409. */}
-        {actions.length === 0 ? (
-          <p className="muted">
-            Nothing can be done to a {school.status} school from this surface.
-          </p>
-        ) : (
-          <div className="stack">
-            {actions.map((key) => {
-              const action = ACTION[key]
-              return (
-                <div key={key} className="toolbar">
-                  <Button
-                    look={action.look}
-                    icon={action.icon}
-                    busy={busy === key}
-                    onClick={() => onAction(key)}
-                  >
-                    {action.label}
-                  </Button>
-                  <EndpointTag id={action.endpoint} pathParams={{ id: school.schoolId }} />
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        <div className="toolbar">
-          <Button icon={Globe} disabled title="Not wired up yet">Change web address</Button>
-          <EndpointTag id="change-subdomain" pathParams={{ id: school.schoolId }} />
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-/* --------------------------------------------- the actions that need something said first */
-
-function AskFirst({ action, value, onChange, busy, onCancel, onConfirm }) {
-  if (!action) return null
-  const missing = action.required && !value.trim()
-
-  return (
-    <Modal
-      open
-      onClose={onCancel}
-      title={action.label}
-      description={action.required
-        ? 'The API requires a reason, and it is kept on the school.'
-        : 'A note is optional here.'}
-      footer={
-        <>
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button look={action.look || 'primary'} busy={busy} disabled={missing} onClick={onConfirm}>
-            {action.label}
-          </Button>
-        </>
-      }
-    >
-      <Field
-        label={action.asks === 'reason' ? 'Reason' : 'Note'}
-        required={action.required}
-        hint={missing ? undefined : 'Sent as the request body.'}
-        error={missing ? 'The API refuses this without a reason.' : undefined}
-      >
-        <Input
-          value={value}
-          error={missing}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={action.asks === 'reason' ? 'Unpaid invoices since March.' : 'Cleared on 27 August.'}
-        />
-      </Field>
-    </Modal>
   )
 }
 
