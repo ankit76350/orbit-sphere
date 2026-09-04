@@ -143,7 +143,11 @@ export default function SchoolDetail() {
 
   // The way back and the address stay on screen while the read is in flight. A loading state
   // that drops both leaves somebody stuck on a blank page if the read is slow or never answers.
-  if (loading && !school) {
+  //
+  // Guarded on `!school` rather than on `loading`, and after the problem check below would be
+  // wrong too: the effect that starts the read runs after the first render, so there is always
+  // one pass with nothing loaded. `loading && !school` is false on exactly that pass.
+  if (!school && !problem) {
     return (
       <div className="page stack">
         <Link className="back" to={LIST}><ArrowLeft size={13} /> All schools</Link>

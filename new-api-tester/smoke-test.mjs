@@ -158,6 +158,35 @@ for (const [label, ok] of surfaceChecks) {
   if (!ok) fail++
 }
 
+// WITH A SCHOOL CHOSEN, which is the path the checks above never took — they all stopped at
+// "No school chosen" and returned early. That is why a crash on the school-surface detail pages
+// went unnoticed: `loading && !data` was false on the very first render, because the effect that
+// sets `loading` runs after it, so the page fell through its guards and read `.name` off null.
+//
+// Every screen renders twice before it has data — once before the effect, once after it starts —
+// and the first of those is the pass that has to be safe.
+console.log('\nFirst paint with a school chosen')
+memory.set('orbit.tester.actingSubdomain', JSON.stringify('lapse-1788507811'))
+const withSchool = [
+  '/school-core/profile',
+  '/school-core/academic-years',
+  '/school-core/academic-years/2026-2027',
+  '/platform-core/schools',
+  '/platform-core/schools/6a95000000000000000000aa',
+]
+for (const path of withSchool) {
+  try {
+    const html = at(path)
+    const empty = !html.includes('page-title') && !html.includes('muted')
+    console.log(empty ? `  MISS   ${path} rendered nothing` : `  ok     ${path}`)
+    if (empty) fail++
+  } catch (error) {
+    console.log(`  THREW  ${path}: ${error.message}`)
+    fail++
+  }
+}
+memory.delete('orbit.tester.actingSubdomain')
+
 console.log('\nA tag matches its button')
 const detailSource = readFileSync('src/pages/platform/core/SchoolDetail.jsx', 'utf8')
 const shared = (detailSource.match(/look=\{action\.look\}/g) || []).length

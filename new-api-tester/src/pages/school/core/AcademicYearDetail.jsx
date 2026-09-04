@@ -81,15 +81,6 @@ export default function AcademicYearDetail() {
 
   if (!actingSubdomain) return <NoSchoolChosen what="An academic year" />
 
-  if (loading && !year) {
-    return (
-      <div className="page stack">
-        <Link className="back" to={LIST}><ArrowLeft size={13} /> All years</Link>
-        <p className="muted">Reading <span className="mono">{name}</span>…</p>
-      </div>
-    )
-  }
-
   if (problem) {
     return (
       <div className="page stack">
@@ -104,6 +95,18 @@ export default function AcademicYearDetail() {
             <EndpointTag id="get-academic-year" name="The year" pathParams={{ name }} />
           </div>
         </Card>
+      </div>
+    )
+  }
+
+  // GUARD ON THE DATA, NOT ON `loading`. The effect that starts the read runs after the first
+  // render, so there is always one pass with no year yet — and `loading && !year` was false on
+  // exactly that pass, which is how this page used to crash on `year.name`.
+  if (!year) {
+    return (
+      <div className="page stack">
+        <Link className="back" to={LIST}><ArrowLeft size={13} /> All years</Link>
+        <p className="muted">Reading <span className="mono">{name}</span>…</p>
       </div>
     )
   }
