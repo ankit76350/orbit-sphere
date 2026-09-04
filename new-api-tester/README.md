@@ -244,9 +244,21 @@ between reloads, and `call()` attaches it to every school-surface request — fi
 because a screen that forgot would get a `400 TENANT_NOT_RESOLVED` that reads as its own bug, and
 one that passed the wrong school would be worse: it would answer, about the wrong tenant.
 
-Its suggestions come from `GET /platform/schools`, loaded only when the picker is focused. That
-is the one place the two surfaces touch in this app. It is a text input rather than a select, so
-a subdomain outside the first hundred can still be typed.
+**The picker is a real popover, not a `<datalist>`.** It was a datalist first, and with
+eighty-odd schools the browser drew an unstyled list down most of the window — no search of its
+own, no theme, and the school name in grey under a subdomain you could not read. A list that long
+has to be searchable in place, which means owning the dropdown.
+
+So clicking it opens a panel with its own search field, shaped like the one in the top bar: it
+filters on **both** the subdomain and the name, because you may know a school by either, and each
+row shows the subdomain first (it is what goes in the header) with the name and status beside it.
+The current choice is ticked. Escape or a click outside closes it.
+
+The list comes from `GET /platform/schools`, **loaded when the dropdown first opens** rather than
+on mount — most screens never touch this control, and drawing it on every page would mean
+requesting on every page. That call is the one place the two surfaces meet in this app. Typing is
+still allowed: Enter accepts whatever is in the box, so a school outside the loaded hundred is
+still reachable.
 
 With no school chosen, every school-surface screen says so and where to fix it rather than firing
 a call that cannot work.

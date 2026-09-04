@@ -143,7 +143,11 @@ const surfaceChecks = [
   ['it says where to set one', profile.includes('Acting as')],
   // Sending anyway would render 400 TENANT_NOT_RESOLVED, which reads as a broken screen.
   ['it does not pretend to have read a profile', !profile.includes('what this school can change')],
-  ['the top bar offers the picker', profile.includes('acting-input')],
+  ['the top bar offers the picker', profile.includes('picker-trigger')],
+  ['the trigger says no school is set', profile.includes('no school')],
+  // Closed until asked for: the school list is a request, and drawing the popover on every
+  // page would mean making that request on every page.
+  ['the dropdown is shut until it is opened', !profile.includes('picker-pop')],
   // Every school-surface screen has to cope with it, not just the first one.
   ['the years list copes too', at('/school-core/academic-years').includes('No school chosen')],
   ["and so does one year's own address",
