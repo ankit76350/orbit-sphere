@@ -342,6 +342,187 @@ Two things are left out of every entry because they are true of all of them:
 - **The audit fields** — `createdAt`, `updatedAt`, `createdByDocsId`, `updatedByDocsId` and `version` — are filled in by Spring Data on every write. No endpoint sets them by hand.
 - **`schoolId`** is on every document here except `plan_definitions`, and every query must carry it. On the school surface it comes from `CurrentSchoolResolver`; on the platform surface it comes from the `{id}` in the URL.
 
+The entries name the fields. **[What each field can hold](#what-each-field-can-hold)**, below,
+names the values — every enum in full, and for the open ones, what actually gets written.
+
+## What each field can hold
+
+The entries below name the fields; this names the **values**. Stated once here rather than
+repeated across 71 entries, so there is one place to correct when a set changes.
+
+**Where a set is closed, it is an enum and the list is exhaustive** — anything else is a `400`
+naming the field and listing what is accepted. Where it is open (`name`, `reason`, every gateway
+reference) the column says so, because an open set is a thing a reviewer should notice.
+
+A value in **bold** is written by an endpoint that exists today. Everything else is what the
+endpoint will write when it is built — **ten of 71 are built**, so most of the billing tables
+below are still a plan.
+
+### `plan_definitions` — [PlanDefinition](../../models/plans/PlanDefinition.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `planCode` | String, required | Derived from `name`: trimmed, uppercased, every run of non-alphanumerics becomes `_`, leading and trailing `_` dropped — "Premium Plus" → **`PREMIUM_PLUS`**. An explicit code is accepted for when the derived one is taken. **Never changes**: it is the family key joining v1, v2 and v3. |
+| `planVersion` | Integer, required | **`1`** at create. #5 would raise it and #5 is not built, so every row is `1` today. |
+| `name` | String, required | **Open** — free text, and the only field a plan is renamed by. |
+| `description` | String, optional | **Open** — free text, or absent. |
+| `status` | [PlanStatus](../../models/plans/enums/PlanStatus.java), required | **`DRAFT`** (#1) → **`ACTIVE`** (#4) → **`RETIRED`** (#6). One-way in that order: no unpublish, and retiring is not a way back to draft. |
+| `billingCycle` | [BillingCycle](../../models/plans/enums/BillingCycle.java), required | **`MONTHLY`** · **`QUARTERLY`** · **`HALF_YEARLY`** · **`YEARLY`** · **`CUSTOM`** |
+| `listPrice` | BigDecimal, `DECIMAL128`, required | **`0` or more, at most 2 decimal places**, stored at exactly scale 2. `-1` → `400 PRICE_NEGATIVE`; `99.999` → `400 PRICE_TOO_PRECISE` — over-precision is refused, never rounded, because rounding somebody's price for them is how a plan quietly sells at the wrong number. `0` is allowed: a free plan is a real plan. |
+| `currencyCode` | String, required | **Any ISO 4217 code**, trimmed and uppercased — `INR`, `USD`, `AED`. **Not an enum on purpose**: the set is the world's, not ours, and it is checked against `java.util.Currency` instead. Unknown → `409 CURRENCY_INVALID`. |
+| `maxStudents` | Long, required | **`1` or more.** `0` → `400 LIMIT_TOO_LOW`, since a plan nobody can enrol a student on is not a plan. |
+| `maxUsers` | Long, required | **`1` or more**, same rule. |
+| `effectiveFrom` | Instant, optional | **Any instant, or absent.** If absent when #4 publishes, publish fills it with the moment of publishing. Must be strictly before `effectiveUntil` → else `400 INVALID_SELLING_WINDOW`. |
+| `effectiveUntil` | Instant, optional | **Any instant after `effectiveFrom`, or absent** — absent means the plan sells until retired. #6 sets it when retiring. Already in the past at publish → `409 PLAN_WINDOW_ALREADY_CLOSED`. |
+| `publiclyAvailable` | Boolean, required | **`false`** at create (#1); **`true` or `false`** from #7. `false` does not mean unsellable — it means quote-only. |
+| `features` | List, required | **`[]`** at create; #3 replaces the whole list. Rows below. |
+
+### `plan_definitions.features[]` — [PlanFeature](../../models/plans/embedded/PlanFeature.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `featureCode` | [FeatureCode](../../models/plans/enums/FeatureCode.java), required | One of **24**, and each may appear once per plan — a repeat is `400 DUPLICATE_FEATURE`. `STUDENT_MANAGEMENT` `ACADEMICS` `ATTENDANCE` `TIMETABLE` `EXAMINATIONS` `HOMEWORK` `FEE_MANAGEMENT` `PAYROLL` `STAFF_MANAGEMENT` `ADMISSIONS_CRM` `TRANSPORT` `LIBRARY` `HOSTEL` `MESS` `HEALTH` `FRONT_OFFICE` `INVENTORY` `PROCUREMENT` `FACILITIES` `NOTIFICATIONS` `DOCUMENTS` `GALLERY` `FEEDBACK` `STUDENT_LIFE` |
+| `enabled` | Boolean, required | **`true`** or **`false`**. `false` is deliberate, not a deletion: it lists the feature as *not* included so a comparison table can show a cross rather than a gap. |
+| `usageLimit` | Long, optional | **`1` or more, or null.** Null means no numeric cap. `0` with `enabled: true` → `400 FEATURE_LIMIT_ZERO`; negative → `400 FEATURE_LIMIT_NEGATIVE`. A limit on a feature that counts nothing → `400 FEATURE_NOT_MEASURABLE`. |
+| `usageMetric` | [UsageMetric](../../models/plans/enums/UsageMetric.java), optional | **Not accepted from the caller** — copied from the feature and frozen. Null whenever `usageLimit` is null. `ACTIVE_STUDENTS` `ACTIVE_STAFF` `USER_ACCOUNTS` `VEHICLES` `HOSTEL_BEDS` `LIBRARY_TITLES` `STORAGE_MEGABYTES` `SMS_MESSAGES` `EMAIL_MESSAGES` |
+| `overagePolicy` | [OveragePolicy](../../models/plans/enums/OveragePolicy.java), required | **`BLOCK`** (the default) · `WARN` · `ALLOW` · `CHARGE` |
+
+### `school_subscriptions` — [SchoolSubscription](../../models/plans/SchoolSubscription.java)
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `subscriptionNo` | String, required | **`SUB/2026/09/000001`** — prefix `SUB/{YYYY}/{MM}/`, six digits zero-padded, allocated by `NumberSequenceService` and never chosen by the caller. (The model's `// Example:` comment still shows `SUB/2026/000001`, from before the house format took a month — the service is what writes, and it writes the month.) |
+| `planDefinitionDocsId` | String, required | **The `_id` of an `ACTIVE` plan version.** A `DRAFT` or `RETIRED` plan is refused. |
+| `planVersion` | Integer, required | **Copied from the plan**, not sent. |
+| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). The rest — `PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED` — arrive with #14–26, none of which are built, so today a subscription can only be created and never moved. |
+| `billingCycle` | BillingCycle, required | **Copied from the plan.** Same five values. |
+| `currentPeriodStart` | Instant, required | **Any instant** — the request's, or now. |
+| `currentPeriodEnd` | Instant, required | **Start plus one billing cycle**, worked out in the **school's own time zone** and not in UTC: `Instant` has no calendar, so `plus(1, YEARS)` throws outright. A caller-supplied end is accepted if it is after the start. |
+| `autoRenew` | Boolean, required | **`true`** unless the request says otherwise. |
+| `contractedPrice` | BigDecimal, `DECIMAL128`, required | **The plan's `listPrice`, or an override** — same rules: `0` or more, at most 2 decimals. This is what makes a private discount possible without a new plan version. |
+| `currencyCode` | String, required | **The plan's currency, never the caller's.** A subscription priced in a different currency from its plan is a mistake nobody would catch until an invoice went out in the wrong money. |
+| `maxStudentsOverride` | Long, optional | **A number, or null** — null falls back to the plan's `maxStudents`. |
+| `maxUsersOverride` | Long, optional | **A number, or null**, same fallback. |
+| `current` | Boolean, required | **`true`** on create. Exactly one row per school may be `true`; the flag is what makes "the school's subscription" a single document rather than a sort by date. |
+| `billingCustomerReference` | String, optional | **Open** — the gateway's own customer id, e.g. `customer_Qx7B2mR9`, or null until there is one. |
+| `cancelledAt` | Instant, optional | Null until #24 cancels. Not built. |
+| `cancellationReason` | String, optional | **Open** — free text, null until cancelled. Not built. |
+
+### `subscription_history` — [SubscriptionHistory](../../models/plans/SubscriptionHistory.java)
+
+One row per thing that happened. Nothing in this collection is ever updated: a correction is a
+new row, because a history you can edit is not a history.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written today (#13). The other eight — `ACTIVATED` `PLAN_CHANGED` `RENEWED` `PAYMENT_PAST_DUE` `SUSPENDED` `RESUMED` `CANCELLED` `EXPIRED` — belong to endpoints that are not built. |
+| `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
+| `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
+| `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
+| `newStatus` | SubscriptionStatus, required | **`TRIAL`** or **`ACTIVE`** today; any of the six once the lifecycle endpoints exist. |
+| `reason` | String, optional | **Open** — free text from the caller, or null. |
+| `source` | String, required | **`ADMIN_PORTAL`** is the only value written today, from a constant in `SubscriptionService`. **The set is closed in intent but open in the type** — a `String`, not an enum, so a typo would be stored and a later "who did this" report would silently miss the row. The other sources this is meant to distinguish are the school's own portal, the payment gateway's webhook, and the scheduled jobs (#70–71); it should become an enum when the second one appears. |
+| `sourceEventId` | String, optional | **Open** — the id of whatever caused this outside our system, so a row can be traced back to it: a `billing_webhook_events` `providerEventId` for a gateway event, a job run id for #70–71. **Null for anything a person did**, which is every row today, since `ADMIN_PORTAL` is the only source. It is what makes a webhook replay safe to detect — same `sourceEventId`, same event, do not write it twice. |
+| `effectiveAt` | Instant, required | **When the change took effect**, which is not when the row was written: a cancellation agreed today for the end of the period is dated at the end of the period. `createdAt` is the write time and Spring Data fills that. |
+| `performedByDocsId` | String, optional | **Null for anything automated** — and null on every row today, because #13 does not yet resolve the acting account. Otherwise the `_id` of the identity that acted. |
+
+### `subscription_invoices` — [SubscriptionInvoice](../../models/plans/billing/SubscriptionInvoice.java)
+
+Nothing writes this yet — #39–46 are not built. The values below are what those endpoints will write.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `invoiceNo` | String, required | `SINV/2026/09/000001` — the house format `XXX/{YYYY}/{MM}/`, from the same allocator. (The model comment still shows the pre-`{MM}` `SINV/2026/000001`.) |
+| `schoolSubscriptionDocsId` | String, required | The `_id` of the subscription being billed. |
+| `billingPeriodStart` / `billingPeriodEnd` | LocalDate, required | The period the invoice covers — dates, not instants: an invoice is for a period, not a moment. |
+| `issueDate` / `dueDate` | LocalDate, required | `dueDate` on or after `issueDate`. |
+| `status` | [SubscriptionInvoiceStatus](../../models/plans/billing/enums/SubscriptionInvoiceStatus.java), required | `DRAFT` → `ISSUED` → `PARTIALLY_PAID` → `PAID`, with `OVERDUE` when the due date passes unpaid and `VOID` as the only way to undo an issued invoice. |
+| `currencyCode` | String, required | ISO 4217, copied from the subscription. |
+| `subTotal`, `taxAmount`, `totalAmount`, `paidAmount`, `outstandingAmount` | BigDecimal, `DECIMAL128`, required | `0` or more, scale 2. `totalAmount` = `subTotal` + `taxAmount`; `outstandingAmount` = `totalAmount` − `paidAmount`, and reaching `0` is what moves the status to `PAID`. |
+| `gatewayInvoiceReference` | String, optional | **Open** — the gateway's id, or null when the invoice was never sent to one. |
+| `paidAt`, `issuedAt`, `voidedAt` | Instant, optional | Null until each happens; each one is the moment of the status change that names it. |
+| `voidReason` | String, optional | **Open** — free text, required in practice whenever `voidedAt` is set. |
+
+### `subscription_payments` — [SubscriptionPayment](../../models/plans/billing/SubscriptionPayment.java)
+
+Nothing writes this yet — #55–65 are not built.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `paymentNo` | String, required | `SPAY/2026/09/000001`, same house format. (The model comment still shows the pre-`{MM}` `SPAY/2026/000001`.) |
+| `schoolSubscriptionDocsId`, `subscriptionInvoiceDocsId` | String, required | The subscription and the invoice this pays. |
+| `status` | [SubscriptionPaymentStatus](../../models/plans/billing/enums/SubscriptionPaymentStatus.java), required | `PENDING` · `SUCCEEDED` · `FAILED` · `CANCELLED` · `PARTIALLY_REFUNDED` · `REFUNDED` |
+| `paymentMethod` | [SubscriptionPaymentMethod](../../models/plans/billing/enums/SubscriptionPaymentMethod.java), required | `UPI` · `CARD` · `NET_BANKING` · `BANK_TRANSFER` · `DIRECT_DEBIT` · `WALLET` · `CHEQUE` · `CASH` · `OTHER` |
+| `amount` | BigDecimal, `DECIMAL128`, required | Greater than `0`, scale 2. |
+| `currencyCode` | String, required | ISO 4217, and it must match the invoice's. |
+| `gatewayProvider` | String, optional | **Open** — `RAZORPAY` today. Null for a payment taken outside a gateway, which is what `CHEQUE` and `CASH` are for. |
+| `gatewayPaymentReference`, `gatewayOrderReference`, `settlementReference` | String, optional | **Open** — the gateway's own ids, null when there is no gateway. |
+| `receivedAt`, `settledAt` | Instant, optional | Money received, and money actually in the account — days apart, and the pair is the reason both exist. |
+| `failureReason` | String, optional | **Open** — free text, set with `FAILED`. |
+
+### `subscription_payment_attempts` — [PaymentAttempt](../../models/plans/billing/PaymentAttempt.java)
+
+Nothing writes this yet. One row per try, kept even when it fails — a payment that took four
+attempts is a support call, and the four rows are the answer to it.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `subscriptionInvoiceDocsId` | String, required | The invoice being paid. |
+| `subscriptionPaymentDocsId` | String, optional | Null until the attempt succeeds, then the payment it produced. |
+| `attemptNo` | Integer, required | `1` upward, per invoice. |
+| `status` | [PaymentAttemptStatus](../../models/plans/billing/enums/PaymentAttemptStatus.java), required | `INITIATED` → `PROCESSING` → `SUCCEEDED`, with `REQUIRES_ACTION` for 3-D Secure and the like, and `FAILED` / `CANCELLED` as the two ways it ends badly. |
+| `paymentMethod` | SubscriptionPaymentMethod, required | The nine above. |
+| `amount` | BigDecimal, `DECIMAL128`, required | Greater than `0`, scale 2. |
+| `currencyCode` | String, required | ISO 4217. |
+| `gatewayProvider` | String, required | **Open** — `RAZORPAY` today. Required here, unlike on the payment: an attempt only exists because a gateway was called. |
+| `idempotencyKey` | String, required | `subscription-invoice-{id}-attempt-{n}` — **the field that stops a double charge.** Sent to the gateway so a retried request is recognised as the same one rather than taking the money twice. |
+| `gatewayAttemptReference` | String, optional | **Open** — the gateway's id for this try. |
+| `failureCode` | String, optional | **Open, and the gateway's vocabulary, not ours** — `CARD_DECLINED`, `INSUFFICIENT_FUNDS`. Stored verbatim so it can be matched against their documentation. |
+| `failureMessage` | String, optional | **Open** — the gateway's sentence, for a human to read. |
+| `attemptedAt`, `completedAt` | Instant | `attemptedAt` required; `completedAt` null while the attempt is still open. |
+
+### `billing_webhook_events` — [BillingWebhookEvent](../../models/plans/billing/BillingWebhookEvent.java)
+
+Nothing writes this yet — #66–69 are not built.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `gatewayProvider` | String, required | **Open** — `RAZORPAY` today. |
+| `providerEventId` | String, required | **Open** — the gateway's event id, e.g. `evt_R7pw2V6n8`. **Unique per provider**: it is what makes a replayed webhook a no-op instead of a second refund. |
+| `providerEventType` | String, required | **Open, and theirs** — `payment.captured`, `payment.failed`. Not an enum, because the gateway adds event types without asking us. |
+| `processingStatus` | [WebhookProcessingStatus](../../models/plans/billing/enums/WebhookProcessingStatus.java), required | `RECEIVED` (the default, written before anything is trusted) → `VERIFIED` → `PROCESSED`, with `IGNORED` for events we do not act on, `FAILED` for a retryable error, and `DEAD_LETTER` once the retries are exhausted. |
+| `signatureValid` | Boolean, required | `false` until the signature is checked. **The row is written before verification**, so an event with a forged signature is still on record. |
+| `payloadHash` | String, required | `sha256:…` of the raw body. |
+| `encryptedPayload` | String, required | The body, encrypted at rest — a webhook carries payment details, so it is not stored in the clear. |
+| `relatedEntityType` | String, optional | **Open** — `SUBSCRIPTION_PAYMENT`, `SUBSCRIPTION_INVOICE`, or null before the event is matched to anything. |
+| `relatedEntityDocsId` | String, optional | The `_id` of that thing, null until matched. |
+| `processingAttemptCount` | Integer, required | `0` upward; what `DEAD_LETTER` is decided on. |
+| `receivedAt`, `processedAt`, `nextRetryAt` | Instant | `receivedAt` required; the others null until they happen. |
+| `failureCode`, `failureMessage` | String, optional | **Open, and ours here, not the gateway's** — `INVOICE_NOT_FOUND` and a sentence explaining it. |
+
+### `number_sequences` — [NumberSequence](../../models/institution/NumberSequence.java)
+
+Shared with the rest of the platform; the plans module uses three of its types.
+
+| Field | Type | What can be in it |
+|---|---|---|
+| `sequenceType` | [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java), required | 51 values across the whole platform. This module uses **`SUBSCRIPTION`**, and will use `SUBSCRIPTION_INVOICE` and `SUBSCRIPTION_PAYMENT`. |
+| `scopeKey` | String, required | **`GLOBAL`** today, and the partner of `resetPolicy`: that says *how* the scope is worked out, this is the answer. `NEVER` → `GLOBAL`; `ACADEMIC_YEAR` → `2026-2027`; `CALENDAR_YEAR` → `2026`; `MONTHLY` → `2026-09`. **Deliberately not an enum**: `2026-2027` is decided by the calendar, not by us, so an enum would need a new constant every April — and the year that deploy was late, nobody could be admitted. |
+| `prefixTemplate` | String, optional | **`SUB/{YYYY}/{MM}/`** for subscriptions. `{YYYY}` four-digit year, `{YY}` last two, `{MM}` zero-padded month, resolved when the number is made and then **stored on the row**, so numbering cannot change shape mid-run. **It must end in a separator** — `SUB/{YYYY}/{MM}` produces `SUB/2026/09000001`, with the month running into the digits. |
+| `suffixTemplate` | String, optional | **`""`** — nothing uses it yet. |
+| `nextValue` | Long, required | **`1` upward.** Raised by `findAndModify` with `$inc`, never read-add-save: two overlapping callers doing that are handed the same number. |
+| `paddingWidth` | Integer, required | **`6`** — `000001`. A number longer than the padding is not truncated; it just gets longer. |
+| `resetPolicy` | [SequenceResetPolicy](../../models/institution/enums/SequenceResetPolicy.java), required | **`NEVER`** in practice. `CALENDAR_YEAR` · `ACADEMIC_YEAR` · `MONTHLY` are declared but **nothing reads them yet** — no code opens a new scope, so every row is `NEVER` + `GLOBAL`. |
+| `lastResetAt` | Instant, optional | Null. Unused for the same reason. |
+
+### The two collections this module only counts
+
+[`students`](../../models/student/Student.java) and
+[`user_accounts`](../../models/identity/UserAccount.java) appear once each, in #35, and are
+**only ever counted** — `schoolId` plus `status`, to compare a school's usage against its limits.
+No endpoint in this module writes to either.
+
 ## The plan catalogue — writes  ·  1–7
 
 <a id="e1"></a>
