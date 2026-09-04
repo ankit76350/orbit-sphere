@@ -105,17 +105,20 @@ public class SchoolSubscription extends SchoolBase {
         // Optional per-school user limit; null uses PlanDefinition.maxUsers. Example: 300
         private Long maxUsersOverride;
 
-        // Example: "customer_Qx7B2mR9"
-        private String billingCustomerReference;
-
-        // Example: 2027-02-15T10:30:00Z
-        private Instant cancelledAt;
-
-        // Example: "School requested cancellation at the end of the billing period."
-        private String cancellationReason;
-
         // Example: true
         @NotNull
         @Builder.Default
         private Boolean current = true;
+
+        //!
+        // Example: "customer_Qx7B2mR9"
+        private String billingCustomerReference;
+
+        //!
+        // Example: 2027-02-15T10:30:00Z
+        private Instant cancelledAt;
+
+        //!
+        // Example: "School requested cancellation at the end of the billing period."
+        private String cancellationReason;
 }

@@ -56,19 +56,21 @@ public class SubscriptionHistory extends SchoolBase {
     @NotNull
     private SubscriptionEventType eventType;
 
+        // Example: "67aa1202dc3f7d0012345678"
+    private String previousPlanDefinitionDocsId;
+
     // Example: SubscriptionStatus.ACTIVE
     private SubscriptionStatus previousStatus;
+
+        // Example: "67aa21bedc3f7d0055667788"
+    private String newPlanDefinitionDocsId;
 
     // Example: SubscriptionStatus.ACTIVE
     @NotNull
     private SubscriptionStatus newStatus;
 
-    // Example: "67aa1202dc3f7d0012345678"
-    private String previousPlanDefinitionDocsId;
-
-
-    // Example: "67aa21bedc3f7d0055667788"
-    private String newPlanDefinitionDocsId;
+    // Example: "School upgraded from Premium to Enterprise."
+    private String reason;
 
     // Example: "ADMIN_PORTAL"
     @NotBlank
@@ -77,13 +79,10 @@ public class SubscriptionHistory extends SchoolBase {
     // Example: "billing_event_00004519"
     private String sourceEventId;
 
-    // Example: "School upgraded from Premium to Enterprise."
-    private String reason;
-
-    // Links to the acting identity/account; null for automated events. Example: "67aa2b73dc3f7d0099887766"
-    private String performedByDocsId;
-
     // Example: 2026-08-01T00:00:00Z
     @NotNull
     private Instant effectiveAt;
+
+    // Links to the acting identity/account; null for automated events. Example: "67aa2b73dc3f7d0099887766"
+    private String performedByDocsId;
 }
