@@ -11,7 +11,13 @@ import com.orbitastra.backend.models.identity.Role;
  * schoolId alone and returns at most one document. It was one document per role until
  * 2026-09-05 — see Role.
  */
-public interface RoleRepository extends MongoRepository<Role, String> {
+public interface RoleRepository extends MongoRepository<Role, String>, RoleRepositoryCustom {
+    // RoleRepository
+    //         ↓
+    // RoleRepositoryCustom
+    //         ↓
+    // RoleRepositoryImpl
+
 
     /** The school's roles document, or empty when it has never been provisioned. */
     Optional<Role> findBySchoolId(String schoolId);

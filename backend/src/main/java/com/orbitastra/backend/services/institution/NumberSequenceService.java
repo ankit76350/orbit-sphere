@@ -5,11 +5,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
@@ -17,6 +12,7 @@ import com.orbitastra.backend.models.institution.NumberSequence;
 import com.orbitastra.backend.models.institution.embedded.SequenceCounter;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
+import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -33,7 +29,10 @@ public class NumberSequenceService {
 
     public static final String GLOBAL_SCOPE = "GLOBAL";
 
-    private final MongoTemplate mongo;
+    // Every write below goes through the repository. The array operations this needs cannot be
+    // derived query methods, so they live on NumberSequenceRepositoryCustom rather than being
+    // hand-built with MongoTemplate here — data access belongs in the repository layer.
+    private final NumberSequenceRepository numberSequences;
 
     /**
      * Allocates the next number and returns it formatted.
@@ -48,11 +47,8 @@ public class NumberSequenceService {
         // positional operator, and returnNew(false) hands back the document as it was, so the
         // value we read is the one this call owns. Reading the array into Java, adding one and
         // saving it back is how two students get the same admission number.
-        NumberSequence before = mongo.findAndModify(
-                counterQuery(schoolId, type),
-                new Update().inc("counters.$.nextValue", 1),
-                FindAndModifyOptions.options().returnNew(false),
-                NumberSequence.class);
+        NumberSequence before =
+                numberSequences.allocate(schoolId, type, GLOBAL_SCOPE).orElse(null);
 
         SequenceCounter counter = before == null ? null : findCounter(before, type);
         if (counter == null) {
@@ -74,8 +70,7 @@ public class NumberSequenceService {
         // First caller to bring a template writes it onto the counter, so every later number in
         // this run reads the same.
         if ((stored == null || stored.isBlank()) && !prefix.isEmpty()) {
-            mongo.updateFirst(counterQuery(schoolId, type),
-                    new Update().set("counters.$.prefixTemplate", prefix), NumberSequence.class);
+            numberSequences.setCounterPrefix(schoolId, type, GLOBAL_SCOPE, prefix);
         }
 
         int width = counter.getPaddingWidth() == null ? 6 : counter.getPaddingWidth();
@@ -92,44 +87,34 @@ public class NumberSequenceService {
     private void ensureCounter(String schoolId, NumberSequenceType type, String prefixTemplate) {
         ensureDocument(schoolId);
 
-        // GUARDED PUSH. The old shape had a unique index on schoolId + type + scope, which made
-        // a second copy impossible. A unique index cannot do that inside an array, so the
-        // condition lives in the query: push only if no entry for this type and scope is there.
-        //
-        // Two callers racing on a school's first admission both run this; one pushes, the other
-        // matches nothing and does nothing. A modified count of zero is success here, not
-        // failure, which is why it is not checked.
-        Query absent = new Query(Criteria.where("schoolId").is(schoolId)
-                .norOperator(Criteria.where("counters")
-                        .elemMatch(Criteria.where("sequenceType").is(type)
-                                .and("scopeKey").is(GLOBAL_SCOPE))));
-
-        mongo.updateFirst(absent,
-                new Update().push("counters", SequenceCounter.builder()
-                        .sequenceType(type)
-                        .scopeKey(GLOBAL_SCOPE)
-                        .prefixTemplate(prefixTemplate)
-                        .nextValue(1L)
-                        .paddingWidth(6)
-                        .resetPolicy(SequenceResetPolicy.NEVER)
-                        .build()),
-                NumberSequence.class);
+        // The guard is inside addCounterIfAbsent: it pushes only when no entry for this type
+        // and scope is there. Two callers racing on a school's first admission both get here;
+        // one adds it, the other is told it already existed. False is success, not failure,
+        // which is why the answer is not checked.
+        numberSequences.addCounterIfAbsent(schoolId, SequenceCounter.builder()
+                .sequenceType(type)
+                .scopeKey(GLOBAL_SCOPE)
+                .prefixTemplate(prefixTemplate)
+                .nextValue(1L)
+                .paddingWidth(6)
+                .resetPolicy(SequenceResetPolicy.NEVER)
+                .build());
     }
 
     /**
      * Creates the school's counters document if it has none.
      *
-     * <p>An insert rather than an upsert so the auditing hook fills in createdAt and
-     * createdByDocsId; a MongoTemplate update would leave both null. The unique index on
-     * schoolId is what makes the race safe — the loser catches the duplicate and carries on,
-     * because the document it wanted now exists.
+     * <p>A {@code save} rather than an update, so the auditing hook fills in createdAt and
+     * createdByDocsId; an update would leave both null. The unique index on schoolId is what
+     * makes the race safe — the loser catches the duplicate and carries on, because the document
+     * it wanted now exists.
      */
     private void ensureDocument(String schoolId) {
-        if (mongo.exists(schoolQuery(schoolId), NumberSequence.class)) {
+        if (numberSequences.existsBySchoolId(schoolId)) {
             return;
         }
         try {
-            mongo.insert(NumberSequence.builder().schoolId(schoolId).build());
+            numberSequences.save(NumberSequence.builder().schoolId(schoolId).build());
         } catch (DuplicateKeyException raced) {
             // Somebody else created it between the check and the insert. Nothing to do.
         }
@@ -145,21 +130,6 @@ public class NumberSequenceService {
                         && GLOBAL_SCOPE.equals(c.getScopeKey()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    /** The school's document. */
-    private Query schoolQuery(String schoolId) {
-        return new Query(Criteria.where("schoolId").is(schoolId));
-    }
-
-    /**
-     * The school's document AND the one array entry, which is what makes the positional
-     * operator usable: {@code $} refers to the element this query matched.
-     */
-    private Query counterQuery(String schoolId, NumberSequenceType type) {
-        return new Query(Criteria.where("schoolId").is(schoolId)
-                .and("counters").elemMatch(Criteria.where("sequenceType").is(type)
-                        .and("scopeKey").is(GLOBAL_SCOPE)));
     }
 
     private String resolve(String template) {

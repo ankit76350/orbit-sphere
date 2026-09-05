@@ -18,10 +18,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolSummaryResponse;
@@ -138,10 +134,6 @@ public class SchoolPlatformService {
     private final RoleRepository roles;
     private final SchoolSubscriptionRepository subscriptions;
     private final CoreValidator coreValidator;
-
-    // For the two guarded array writes below. A derived repository method cannot express a
-    // $push, and saving the whole document back would overwrite counters a school is using.
-    private final MongoTemplate mongo;
 
     //? endpoint 1 — create the tenant -------------------------------------------------
 
@@ -272,23 +264,19 @@ public class SchoolPlatformService {
         }
 
         if (document.isEmpty()) {
-            // First run for this school: one insert, so the auditing hook fills in createdAt
-            // and createdByDocsId. A MongoTemplate update would leave both null.
+            // First run for this school: a save, so the auditing hook fills in createdAt and
+            // createdByDocsId. An update would leave both null.
             numberSequences.save(NumberSequence.builder()
                     .schoolId(schoolId)
                     .counters(missing)
                     .build());
-        } else {
-            // The document is already there, so add only what it is short of. Pushing the
-            // missing entries leaves every existing counter's nextValue exactly where it was —
-            // saving the whole document back would be the way to reset a school's numbering by
-            // accident.
-            mongo.updateFirst(
-                    new Query(Criteria.where("schoolId").is(schoolId)),
-                    new Update().push("counters").each(missing.toArray()),
-                    NumberSequence.class);
+            return missing.size();
         }
-        return missing.size();
+
+        // The document is already there, so add only what it is short of. Pushing the missing
+        // entries leaves every existing counter's nextValue exactly where it was — saving the
+        // whole document back would be the way to reset a school's numbering by accident.
+        return numberSequences.addCounters(schoolId, missing);
     }
 
         /**
@@ -325,13 +313,9 @@ public class SchoolPlatformService {
                     .schoolId(schoolId)
                     .roles(missing)
                     .build());
-        } else {
-            mongo.updateFirst(
-                    new Query(Criteria.where("schoolId").is(schoolId)),
-                    new Update().push("roles").each(missing.toArray()),
-                    Role.class);
+            return missing.size();
         }
-        return missing.size();
+        return roles.addRoles(schoolId, missing);
     }
 
 
