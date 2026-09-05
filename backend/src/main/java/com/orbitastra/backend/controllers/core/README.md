@@ -1,1428 +1,546 @@
 # controllers/core — API plan
 
-**Twenty of 27 endpoints are built — #1 to #10 and #18 to #27**, plus the two `DELETE`s that
-pair with the calendar endpoints. Phases 1 to 5 are complete; Phase 6 has the four gates and the
-subdomain change.
+**Twenty-two writes and nine reads are built.** What is left is deferred by decision, not waiting
+on anything: #12 until something is encrypted, #13 to #17 until offboarding is actually wanted,
+and #28 and G11 were always marked optional.
 
-**No writes are "next".** Of the seven not built, six are deferred by decision — #12 until
-something is encrypted, #13 to #17 until offboarding is actually wanted — and #28 was always
-optional.
-
-**The reads are done.** Ten `GET` endpoints are inventoried below and **nine are built** — G1
-and G2 on the platform surface, G4 to G10 on the school surface. Attendance, timetables,
-transport and fee due dates can now ask both forms of the question they were blocked on: G9 for
-one date, G10 for a count over a range. **The only one left is G11**, the calendar export, which
-was always marked optional.
-
-**27, not 28.** #11 `account-holder` was dropped on 2026-08-31 and folded into #6 — the reasoning
-is under "10–12" below. Numbering is left alone rather than closed up, because the numbers are
-referenced from the Postman collection, the service banners and half the javadoc in this package. This is the complete inventory of every `POST`,
-`PUT` and `PATCH` the `core` module needs, sequenced so it can be built and reviewed one step at
-a time.
-
-| Controller | Endpoints |
-|---|---|
-| [`SchoolPlatformController`](SchoolPlatformController.java) | #1–5, #10, G1–G2 |
-| [`SchoolProfileController`](SchoolProfileController.java) | #6–9, G4 |
-| [`AcademicYearController`](AcademicYearController.java) | #18–27 + 2 `DELETE`, G5 |
-
-All twenty-two requests are exercised by `postman/Orbit Sphere — API.postman_collection.json`,
-which runs green end to end.
-
-Mirrors [`models/core`](../../models/core), which holds exactly two collections:
-
-| Resource | Model | What it is |
-|---|---|---|
-| School | [`School.java`](../../models/core/School.java) | the tenant root — the only document with no `schoolId` |
-| Academic year | [`AcademicYear.java`](../../models/core/AcademicYear.java) | a named year, and the school's holiday calendar |
-
-The state machines and validation split are not invented here — they are already written in
-[`models/core/README.md`](../../models/core/README.md). These endpoints enforce that file.
-
-**The write plan was scoped to writes**, as asked. The reads are inventoried below and **none
-are built.** Two `DELETE`s appear in the
-inventory because they exist and you should see them, but they are not counted in the totals.
+Mirrors [`models/core`](../../models/core), whose README already describes the two documents, the
+status workflow and the validation split. **These endpoints enforce that file. They do not invent
+new rules.**
 
 ---
 
-# Complete inventory — 27 write endpoints
+## What this module is
 
-**18 POST · 6 PATCH · 3 PUT** (+2 DELETE)
+The tenant itself, and the school's calendar. Everything else in Orbit Sphere hangs off these two
+documents: nothing can exist without a `School` above it, and almost nothing academic means
+anything without knowing which year it belongs to and which days the school is open.
 
-## School — 16
+| Document | Collection | What it holds |
+|---|---|---|
+| [`School`](../../models/core/School.java) | [`schools`](../../models/core/School.java) | the tenant root — the only document in the system with no `schoolId` |
+| [`AcademicYear`](../../models/core/AcademicYear.java) | [`academic_years`](../../models/core/AcademicYear.java) | a named year, and the school's holiday calendar embedded in it |
 
-| # | Method | Path | Phase |
+Three collections owned by other modules are written or read from here, and are linked in the
+tables below where that happens: [`roles`](../../models/identity/Role.java) and
+[`number_sequences`](../../models/institution/NumberSequence.java), both seeded by #2, and
+[`school_subscriptions`](../../models/plans/SchoolSubscription.java), which #3 reads and never
+copies.
+
+## Two surfaces, and why
+
+| Surface | Base path | Who is calling | Tenant comes from |
 |---|---|---|---|
-| 1 | `POST` | `/platform/schools` | 1 — **built** |
-| 2 | `POST` | `/platform/schools/{id}/complete-provisioning` | 1 — **built** |
-| 3 | `POST` | `/platform/schools/{id}/activate` | 2 — **built** |
-| 4 | `POST` | `/platform/schools/{id}/suspend` | 2 — **built** |
-| 5 | `POST` | `/platform/schools/{id}/reactivate` | 2 — **built** |
-| 6 | `PATCH` | `/schools/current/profile` | 3 — **built** |
-| 7 | `PUT` | `/schools/current/address` | 3 — **built** |
-| 8 | `PATCH` | `/schools/current/localization` | 3 — **built** |
-| 9 | `PUT` | `/schools/current/logo` | 3 — **built** |
-| 10 | `PATCH` | `/platform/schools/{id}/subdomain` | 6 — **built** |
-| ~~11~~ | ~~`PATCH`~~ | ~~`/platform/schools/{id}/account-holder`~~ | **dropped — folded into #6** |
-| 12 | `POST` | `/platform/schools/{id}/rotate-encryption-key` | deferred — nothing is encrypted yet |
-| 13 | `POST` | `/platform/schools/{id}/offboard` | 7 — deferred |
-| 14 | `POST` | `/platform/schools/{id}/close` | 7 — deferred |
-| 15 | `POST` | `/platform/schools/{id}/request-deletion` | 7 — deferred |
-| 16 | `POST` | `/platform/schools/{id}/cancel-deletion` | 7 — deferred |
-| 17 | `POST` | `/platform/schools/{id}/confirm-deletion` | 7 — deferred |
+| **Platform** | `/platform/schools` | our operator | the `{id}` in the URL — they are outside the tenant |
+| **School** | `/schools/current` | the school itself | [`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java), never the URL |
 
-## Academic year — 11
-
-All paths below are under `/schools/current/academic-years`.
-
-| # | Method | Path | Phase |
-|---|---|---|---|
-| 18 | `POST` | `/` | 4 — **built** |
-| 19 | `PATCH` | `/{name}/dates` | 4 — **built** |
-| 20 | `PUT` | `/{name}/holidays` | 5 — **built** |
-| 21 | `POST` | `/{name}/holidays` | 5 — **built** |
-| 22 | `PATCH` | `/{name}/holidays/{date}?type=` | 5 — **built** |
-| — | `DELETE` | `/{name}/holidays/{date}?type=` | 5 — **built** |
-| 23 | `POST` | `/{name}/holidays/generate-weekly-off` | 5 — **built** |
-| — | `DELETE` | `/{name}/holidays?type=` | 5 — **built** |
-| 24 | `POST` | `/{name}/enrollment/enable` | 6 — **built** |
-| 25 | `POST` | `/{name}/enrollment/disable` | 6 — **built** |
-| 26 | `POST` | `/{name}/results/lock` | 6 — **built** |
-| 27 | `POST` | `/{name}/results/unlock` | 6 — **built** |
-| 28 | `POST` | `/{name}/clone` | 8 — optional, see below |
+**The school is never named in the URL on its own surface.** A path parameter invites the bug
+where a school admin passes somebody else's id and edits their school. Resolving the tenant
+outside the request path makes that structurally impossible — a caller cannot name a school they
+do not belong to, because they never name one at all. Keep it that way when the header is replaced
+by a session.
 
 ---
 
-# Complete read inventory — 10 GET endpoints
+# The endpoints
 
-**Both platform reads are built — G1 and G2.** This is the same exercise as the write plan:
-name every `GET` the `core` module needs before writing one, so they can be built and reviewed
-one at a time.
+**The numbers are #1 to #28 and G1 to G11, and they are not renumbered.** They are quoted from the
+Postman collection, the service banners and half the javadoc in this package, so closing the gaps
+left by dropped endpoints would break every one of those references. `D1` and `D2` are the two
+`DELETE`s, which the original plan left unnumbered.
 
-**10, not 11.** G3 `subdomain-available` was dropped on 2026-08-31 — the reasoning is under
-"G3" below. As with #11 the number is left alone rather than closed up, so nothing that already
-refers to G4 onwards has to be renumbered.
+## 1. School — the platform surface · [Build order ↓](#build-order)
 
-Numbered `G1`–`G11` so the numbers never collide with the write plan's `#1`–`#28`.
+Provisioning and the tenant lifecycle. The caller is outside the tenant — when #1 runs there is no
+user, staff record, role or session belonging to that school yet — so the school is named in the
+URL and this cannot sit behind the same authentication as everything else.
 
-## Platform surface — 2
-
-The operator's console. Outside any tenant, so the school is named in the URL.
-
-| # | Path | Returns |
-|---|---|---|
-| G1 | `GET /platform/schools` | a page of schools; filter, search, sort — **built** |
-| G2 | `GET /platform/schools/{id}` | one school in full, including lifecycle timestamps and `statusReason` — **built** |
-| ~~G3~~ | ~~`GET /platform/schools/subdomain-available?value=`~~ | **dropped — #1 and #10 already answer this** |
-
-## School surface — 8
-
-The tenant comes from [`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java),
-never from the URL — exactly as on the writes. A caller cannot name a school they do not belong
-to, because they never name one at all.
-
-| # | Path | Returns |
-|---|---|---|
-| G4 | `GET /schools/current` | the school's own profile — the read behind #6 to #9 — **built** |
-| G5 | `GET /schools/current/academic-years` | every year, newest first — **built** |
-| G6 | `GET /schools/current/academic-years/current` | the year containing today, or `404` — **built** |
-| G7 | `GET /schools/current/academic-years/{name}` | one year — **built** |
-| G8 | `GET /schools/current/academic-years/{name}/holidays` | the whole calendar — **built** |
-| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **is the school closed that day, and why** — **built** |
-| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | which days in a range are working days, and how many — **built** |
-| G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | the calendar as a file — optional |
-
-## G1 — `GET /platform/schools` — BUILT
-
-The operator's console. Every parameter is optional, so a bare call returns the newest twenty
-schools — what somebody opening the console usually wants.
-
-| Parameter | Behaviour |
-|---|---|
-| `status` | repeatable; `?status=ACTIVE&status=TRIAL` means either |
-| `search` | partial, case-insensitive, on **school name or subdomain** |
-| `countryCode`, `city` | exact, case-insensitive |
-| `createdFrom`, `createdTo` | ISO instants, inclusive |
-| `page`, `size` | zero-based; 20 by default, 100 maximum |
-| `sort` | `field,direction` — `name`, `schoolName`, `subdomain`, `status`, `createdAt`, `updatedAt` |
-
-Filters combine with AND. Only `status` is OR within itself, because "show me the live ones" is
-one question rather than two requests.
-
-### It runs in the database, not in Java
-
-Filtering, searching, sorting and paging are all on the query
-([`SchoolRepositoryImpl`](../../repositories/core/SchoolRepositoryImpl.java)), so one page of
-documents is read however many tenants exist. Two round trips: the page, and the count behind
-`totalElements`, built from the same criteria so the two cannot disagree.
-
-The filters are dynamic and each is optional, which is why this is a custom repository fragment
-rather than a derived query method — `findByStatusInAndCountryCodeAndCity...` would be one method
-per combination, and a request with no filters would match none of them.
-
-### Four decisions worth keeping
-
-**Bad paging is refused, not clamped.** `size=5000` is a `400`, not a silent 100 rows. A clamped
-page looks exactly like a complete result, which is how somebody comes to believe they have seen
-every school.
-
-**`sort` is an allow-list.** Sorting by whatever string arrives means an unindexed field and a
-collection scan per request — and the *order* of a field leaks it: sorting by
-`encryptionKeyReference` tells you which schools share a key without the value ever being
-returned.
-
-**Every sort ends with `id`.** Without a tiebreaker, rows with equal sort keys come back in
-whatever order the engine picked that time, so paging over a hundred `ACTIVE` schools can show
-one twice and miss another. It appears only in production, only past page one, and never in a
-small test.
-
-**The search term is escaped before it reaches the regex.** Unescaped, `?search=.*` returns every
-school, and a nested-quantifier pattern can hold a database thread on very little input.
-Escaping also gives the caller what they meant: somebody searching `st.` wants a full stop.
-
-### An empty result is `200` with `[]`
-
-`totalElements: 0`, not a `404`. "No school matches" is a successful answer to the question that
-was asked.
-
-### Two things it needed elsewhere
-
-`GET` responses use [`PageResponse`](../../common/web/PageResponse.java) — a generic envelope in
-`common`, not Spring's `Page` serialized directly. Serializing `Page` puts the whole `Pageable`,
-sort orders and `paged` flags into the JSON, where they become a contract nobody chose.
-
-[`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java) also had to learn to
-see the enum inside a `List<SchoolStatus>`. A repeatable enum parameter binds to a list, so the
-required type is `List` and the "Accepted values" half of the message was silently disappearing
-for exactly the parameters most likely to be misspelled.
-
-## G4 — `GET /schools/current` — BUILT
-
-The read behind #6 to #9. It returns
-[`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — the identical
-record those four writes return — so a settings screen loads the form and saves it with one
-shape rather than two that drift apart.
-
-`status` is on it, because a school being told it is `SUSPENDED` is how its own screens explain
-why editing stopped working. `statusReason`, `activatedAt` and `suspendedAt` are not: those are
-the operator's, and they live on G2.
-
-## G5 — `GET /schools/current/academic-years` — BUILT
-
-Every year the school has, newest first, as a plain array.
-
-**Sorted on `startDate`, not `createdAt`.** "Newest" means the year furthest along the calendar,
-not the row that happened to be typed last — a school setting up enters 2025-2026 after
-2026-2027 often enough that the two orders disagree. Sorted in the database
-([`findBySchoolIdOrderByStartDateDesc`](../../repositories/core/AcademicYearRepository.java)),
-because a sort written in the service is a sort the next list endpoint has to remember to copy.
-
-**No page envelope.** A school has a handful of years, so `PageResponse` would be six fields of
-ceremony around four rows. G1 stays the only list here that grows without limit.
-
-**No `nextStep`.** That is a write field, and the record is shared with #18 to #27, so it is
-annotated `@JsonInclude(NON_NULL)` and simply drops out of the JSON on a read rather than coming
-back as `null` on every row. Every write still sets it, so nothing about #18 to #27 changes.
-
-**Every year comes back, whatever its `recordState`.** Nothing writes that field yet, and
-`CoreValidator`'s overlap check does not filter on it either. Hiding rows here would make this
-the only place that did, and the two would then disagree about which years exist — a year
-invisible in the list that still blocks the dates. When soft delete is real, both change
-together.
-
-## G6 — `GET /schools/current/academic-years/current` — BUILT
-
-The year today falls in, in the same
-[`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) G5 returns.
-
-**Worked out from the dates, never stored.** `AcademicYear` has no `current` field on purpose,
-and this is the endpoint that would otherwise have been the excuse to add one. Two sources for
-"which year is it" is two sources that can disagree, and somebody eventually forgets to move the
-flag. This asks the dates, which is the same comparison `AcademicYearResponse.current` already
-makes — so the year G6 returns is always the one G5 marks `current: true`.
-
-Only one year can match, and that is entirely because #18 refuses an overlapping year. The
-repository finder is `findFirst…` rather than a plain `Optional` one anyway: the no-overlap rule
-lives in the application, not in an index, so if two overlapping rows ever did exist a plain
-finder would throw and turn a read into a `500`.
-
-Both ends are inclusive. A year ending today is still the current year; a year that ended
-yesterday is not.
-
-### The `404` is a real answer, and it says which kind
-
-Schools have gaps — the summer between two years, and a school set up but not started. The two
-cases need different things done about them, so they read differently:
-
-| | |
-|---|---|
-| no years at all | `This school has no academic years yet.` |
-| years, none covering today | `No academic year covers 2026-08-31 in this school.` |
-
-Both are `404 NO_CURRENT_ACADEMIC_YEAR`. This is the one read here where `404` is right —
-contrast G9, where "the school is open that day" must be `200` with `closed: false`, because
-there the caller is asking a yes/no question and a `404` collapses "open" and "unknown" into one
-answer.
-
-### A year named `current` is unreachable by name — confirmed
-
-`current` is a literal path segment, so Spring matches it ahead of `/{name}` and G6 needs no
-ordering trick. The flip side is real and was tested: #18 happily creates a year called
-`current`, and `GET /academic-years/current` then answers with G6 rather than that year. Nothing
-breaks today because G7 does not exist yet. **When G7 is built, either reserve the name in #18 or
-accept that one string is unaddressable.**
-
-### Today comes from the server clock
-
-Same as `AcademicYearResponse.current`, the time-zone guard in `SchoolProfileService`, and
-everything else in this package. For a school in a different time zone from the server this is
-wrong for a few hours around midnight.
-
-It was left alone rather than fixed here on purpose. Using the school's `defaultTimeZone` in G6
-alone would mean picking a year against one date and then reporting `current` against another —
-G6 could return a year whose own `current` field said `false`. **The fix is one change
-everywhere or none**: thread the school's zone through `AcademicYearResponse` and every caller
-of `LocalDate.now()` in core, in one go.
-
-## G7 — `GET /schools/current/academic-years/{name}` — BUILT
-
-One year, in the same [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java)
-G5 and G6 return.
-
-**Keyed on the name, not the id**, exactly as the writes are. Every other collection stores
-`academicYear` as this string, so the name is what the whole system already means when it says
-"which year" — and a URL that cannot change is a daily reminder that the thing it names cannot
-either.
-
-It reuses `AcademicYearServiceUtils.loadYear(school, name)`, so a name that is not in this school
-gives the same `404 ACADEMIC_YEAR_NOT_FOUND` the writes give rather than a second wording of the
-same thing. That also means **tenant isolation comes for free**: the lookup is
-`findBySchoolIdAndName`, so asking for another school's year is a `404`, not somebody else's
-data. Tested.
-
-### #18 now refuses a year named `current`
-
-This was the open decision left at the bottom of the G6 section, and building G7 is what forced
-it. `current` is a fixed path segment, so Spring routes it to G6; a year actually called
-`current` could be created and listed and then never opened, edited, or given a holiday.
-
-The name is now rejected at creation with `409 ACADEMIC_YEAR_NAME_RESERVED`, in
-[`CoreValidator.validateAcademicYearName`](../../services/core/helper/CoreValidator.java)
-alongside the reserved-subdomain list, which is the same kind of rule: well-formed, and still not
-allowed.
-
-**Creation is the only chance to catch it.** There is no rename endpoint and there must never be
-one, so a bad name that gets in is stuck forever. The alternative — accept one unaddressable row
-— fails silently: the year looks perfectly normal in G5 and fails only when somebody tries to
-open it.
-
-The check is case-insensitive and trims, because the path match is neither strict about case nor
-going to see the spaces: `Current`, `CURRENT` and `" current "` are all refused.
-
-**Add to that list if another fixed word is ever put under `/academic-years/`.** Today it holds
-exactly one entry.
-
-## G8 — `GET /schools/current/academic-years/{name}/holidays` — BUILT
-
-The whole calendar, in the same
-[`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) that #20 to
-#23 and the two `DELETE`s already return. That record was written to be "what does the calendar
-look like now", which is exactly what a read wants, so G8 adds no shape of its own.
-
-Days come back sorted by date, with both counts and the per-type breakdown the record already
-works out. A year created by #18 has an empty calendar, so `200` with `holidays: []` and
-`closedDayCount: 0` is the normal first answer, not an edge case.
-
-**`changeSummary` drops out**, the same way `nextStep` does on G5 to G7 — annotated
-`@JsonInclude(NON_NULL)` and passed `null` by the read factory. Nothing just happened, so there
-is nothing to summarise. Every calendar write still sets it.
-
-### The two counts are the point of this endpoint
-
-Verified on a real year: 52 generated Sundays, Independence Day, and Diwali landing on one of
-those Sundays gives **`closedDayCount: 53`, `eventCount: 54`**, and
-`countsByType: {WEEKLY_OFF: 52, PUBLIC_HOLIDAY: 1, FESTIVAL: 1}`.
-
-That is the whole reason
-[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) keys on `date` with an array of
-reasons. A caller computing attendance wants 53. A caller asking "how many festivals" wants 1,
-not 0 — the festival did not stop being one by falling on a Sunday. Returning a single number
-would silently be wrong for one of them.
-
-### No filtering, on purpose
-
-No `?type=`, no date range. A full year is about sixty closed days, so there is nothing worth
-paging or narrowing, and every parameter added to a read is one more thing that has to keep
-agreeing with the writes. The questions worth asking about dates are **G9** (is the school closed
-on this day, and why) and **G10** (how many working days in this range) — both answer properly
-rather than handing the caller a list to filter, and G9 in particular must not be reimplemented
-by clients scanning this response.
-
-## G10 — `GET /…/academic-years/{name}/working-days?from=&to=` — BUILT
-
-G9 asked about one date; this is the same question in bulk. Attendance percentages and fee
-proration need the answer for a whole range, not two hundred separate calls — and they need the
-*same* answer as each other, which is the real reason it is one endpoint rather than a loop in
-four services.
-
-Returns [`WorkingDaysResponse`](../../dto/core/academicyear/WorkingDaysResponse.java).
-
-### It returns the days, not just the count
-
-`workingDays` is every open date in the range, each with its `dayOfWeek`:
-
-```json
-{
-  "academicYearName": "2026-2027",
-  "from": "2026-11-02", "to": "2026-11-08",
-  "totalDayCount": 7, "workingDayCount": 6, "closedDayCount": 1,
-  "workingDays": [
-    { "date": "2026-11-02", "dayOfWeek": "MONDAY" },
-    { "date": "2026-11-03", "dayOfWeek": "TUESDAY" },
-    ...
-  ]
-}
-```
-
-A timetable being laid out, a fee schedule spread over teaching days, an attendance register
-opened for a term — all of them need to know *which* days. A bare count would send every one of
-them back to G8 to work the same thing out again, which is how two parts of a system end up
-disagreeing about what a working day is. `dayOfWeek` is on each row so a person can check the
-list without doing calendar arithmetic.
-
-A whole year is about 310 rows of a date and a weekday. Small enough not to need paging, which is
-why G1 is still the only list here that has any.
-
-**`workingDayCount` is the length of that list**, not a separate subtraction, so the number and
-the list cannot drift apart. The counts follow the `<thing>Count` naming
-`HolidayCalendarResponse` already uses.
-
-### Leaving the range off means the whole year
-
-`from` and `to` both default to the year's own dates, so a bare
-`GET /academic-years/2026-2027/working-days` answers "how many working days does this year have"
-— the denominator of every attendance percentage. Same defaulting as #23 on this resource, so the
-two behave alike. `from` alone runs to the end of the year; `to` alone runs from the start.
-
-The range is echoed back on the response either way. A count with no range beside it is a number
-somebody will later divide by the wrong thing.
-
-### It counts days, not reasons
-
-On a year with 52 generated Sundays, Independence Day, and Diwali landing on one of those
-Sundays, G8 reports `closedDayCount: 53` and `eventCount: 54`. **G10 reports
-`closedDayCount: 53`** — the Diwali Sunday is one closed day, not two — and 312 working days out
-of 365.
-
-Getting that wrong would quietly understate attendance on exactly the weeks a school has
-festivals. It is also why there is **no per-type breakdown here**: with several reasons on one
-day the per-type numbers cannot add up to the day count, and this endpoint exists to be divided
-by. Ask G8 if you need the reasons.
-
-`workingDays + closedDays == totalDays` always, and both ends of the range count, so a
-single-day range is one day rather than zero.
-
-### Checked against G9, date for date
-
-The bulk answer has to equal the individual answers or one of them is lying. Ranges were resolved
-both ways — via G10, and by calling G9 once per date — and **the lists matched exactly, not just
-the totals**:
-
-| range | | G10 | matches G9 per-day |
+| # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| Nov 2026 | 30 days | 25 working, 5 closed | same 25 dates |
-| Apr 2026 | 30 days | 26 working, 4 closed | same 26 dates |
-| 2026-11-08 | the Diwali Sunday | 0 working, 1 closed | same |
-| whole year | 365 days | 312 working, 53 closed | list length == `workingDayCount` |
+| #1 | `POST /platform/schools` | **Built.** Create a tenant. This is the first thing that happens for a new customer, and it is the only document in the system with no `schoolId` above it. | [`schools`](../../models/core/School.java) |
+| #2 | `POST /platform/schools/{id}/complete-provisioning` | **Built.** Finish the setup #1 leaves undone: create every missing number sequence and the starting roles. Safe to run twice — it only fills in what is missing. | [`schools`](../../models/core/School.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`roles`](../../models/identity/Role.java) |
+| #3 | `POST /platform/schools/{id}/activate` | **Built.** Take the school live. Refuses unless #2 has actually run, because a school with no `SCHOOL_ADMIN` role or missing sequences fails on first use rather than at activation. | [`schools`](../../models/core/School.java), [`roles`](../../models/identity/Role.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| #4 | `POST /platform/schools/{id}/suspend` | **Built.** Block a school and record why. Only an `ACTIVE` school can be suspended. | [`schools`](../../models/core/School.java) |
+| #5 | `POST /platform/schools/{id}/reactivate` | **Built.** Put a suspended school back. `suspendedAt` and the old reason are kept on purpose, as the record of the last suspension. | [`schools`](../../models/core/School.java) |
+| #10 | `PATCH /platform/schools/{id}/subdomain` | **Built.** Change the label a school answers to. On the platform surface because this is the key that resolves every request to the tenant, not a profile detail. | [`schools`](../../models/core/School.java) |
+| #12 | `POST /platform/schools/{id}/rotate-encryption-key` | **Deferred.** Point the school at a new key. Deferred because nothing is encrypted yet, so there is no key to rotate. | [`schools`](../../models/core/School.java) |
+| #13 | `POST /platform/schools/{id}/offboard` | **Deferred.** Start winding a school down. Deferred until offboarding is actually wanted. | [`schools`](../../models/core/School.java) |
+| #14 | `POST /platform/schools/{id}/close` | **Deferred.** Close a school that has finished offboarding. | [`schools`](../../models/core/School.java) |
+| #15 | `POST /platform/schools/{id}/request-deletion` | **Deferred.** Ask for the school's data to be erased, starting a waiting period. | [`schools`](../../models/core/School.java) |
+| #16 | `POST /platform/schools/{id}/cancel-deletion` | **Deferred.** Change our mind during the waiting period. Not in the model's README — proposed here. | [`schools`](../../models/core/School.java) |
+| #17 | `POST /platform/schools/{id}/confirm-deletion` | **Deferred.** Actually erase the data once the waiting period is over. | [`schools`](../../models/core/School.java) |
 
-Every row's `dayOfWeek` was checked against the date, and no Sunday appeared in the working list
-for a school that closes Sundays.
+## 2. School — the school's own surface · [Build order ↓](#build-order)
 
-**Keep that cross-check if either is ever changed.** Two endpoints answering one question is the
-arrangement that drifts.
+A school editing itself. Nothing here can reach `status`, `subdomain` or `encryptionKeyReference`
+— the methods do not exist and the fields are not on the DTOs.
 
-### How it is worked out
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| #6 | `PATCH /schools/current/profile` | **Built.** The school edits its own name and contact details. Partial: a missing field is left alone, an empty string clears it, an empty body is a 400. | [`schools`](../../models/core/School.java) |
+| #7 | `PUT /schools/current/address` | **Built.** Replace the whole postal address. All-or-nothing on purpose: a patched address can name a city in the wrong state. | [`schools`](../../models/core/School.java) |
+| #8 | `PATCH /schools/current/localization` | **Built.** Set language and time zone. The time zone reinterprets which calendar date every existing attendance record and holiday falls on, so it needs confirming and is refused mid-year. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| #9 | `PUT /schools/current/logo` | **Built.** Replace the logo, or remove it when the URL is blank. https and an allow-listed host only. | [`schools`](../../models/core/School.java) |
+| ~~#11~~ | ~~PATCH /platform/schools/{id}/account-holder~~ | **Dropped.** Dropped on 2026-08-31 and folded into #6. The account holder's name is an ordinary profile field, and a second endpoint for one string is a second thing to keep in step. | [`schools`](../../models/core/School.java) |
 
-The closed dates go into a set, then the range is walked once, keeping every day the set does not
-contain. Walking is unavoidable now that the dates themselves come back, and at 365 iterations
-for the longest possible range it costs nothing.
+## 3. Academic year — writes · [Build order ↓](#build-order)
 
-### A date outside the year is a `400`
+School surface only: a year belongs to one school's calendar and no operator should be setting
+one. **There is no rename and no `DELETE`** — see the two notes below the table.
 
-Both ends go through the same `validateDateWithinYear` G9 uses, so `?from=2020-01-01` is
-`DATE_OUTSIDE_ACADEMIC_YEAR` rather than a count padded with days the year never covered.
-`from` after `to` is `INVALID_DATE_RANGE`, the same code #23 gives.
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| #18 | `POST /schools/current/academic-years` | **Built.** Create a year with an empty calendar. **The name can never change** — every other collection stores it as a string, so a rename would orphan them all silently. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| #19 | `PATCH /schools/current/academic-years/{name}/dates` | **Built.** Move the start or end date. Refused when a closed day would end up outside the new range, because a holiday stored outside its year is invisible to every query that asks about it. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #20 | `PUT /schools/current/academic-years/{name}/holidays` | **Built.** Replace the whole calendar in one go. What a school does when it has the year's holiday list from the board and wants it in as one action. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #21 | `POST /schools/current/academic-years/{name}/holidays` | **Built.** Add one closed day, or add a second reason to a day that is already closed. A Sunday that is also Diwali is one day with two reasons. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #22 | `PATCH /schools/current/academic-years/{name}/holidays/{date}?type=` | **Built.** Rename a reason, change its description, or change its type. The date itself cannot move — remove it and add it back instead. | [`academic_years`](../../models/core/AcademicYear.java) |
+| D1 | `DELETE /schools/current/academic-years/{name}/holidays/{date}?type=` | **Built.** Remove one reason from a day, or the whole day when no type is given. A day that loses its last reason becomes a working day again. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #23 | `POST /schools/current/academic-years/{name}/holidays/generate-weekly-off` | **Built.** Turn "we are closed on Sundays" into the ~52 dated entries the model requires. Not a convenience: every closure has to be a real date, so without this somebody types 52 of them. | [`academic_years`](../../models/core/AcademicYear.java) |
+| D2 | `DELETE /schools/current/academic-years/{name}/holidays?type=` | **Built.** Clear every closure of one type. `type` is required precisely because forgetting it must not wipe a whole calendar. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #24 | `POST /schools/current/academic-years/{name}/enrollment/enable` | **Built.** Open the year to new enrollments. Idempotent — already open comes back 200 saying so. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #25 | `POST /schools/current/academic-years/{name}/enrollment/disable` | **Built.** Close the year to new enrollments. A gate on new writes only — students already enrolled are untouched. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #26 | `POST /schools/current/academic-years/{name}/results/lock` | **Built.** Lock results against further change. What happens when marks are published. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #27 | `POST /schools/current/academic-years/{name}/results/unlock` | **Built.** Unlock results so they can be corrected. **Records nothing about who unlocked, or why** — see the debt noted below. | [`academic_years`](../../models/core/AcademicYear.java) |
+| #28 | `POST /schools/current/academic-years/{name}/clone` | **Optional.** Copy last year's calendar into a new year, so a school does not re-enter it. Convenience only — #18 plus #20 already do it. | [`academic_years`](../../models/core/AcademicYear.java) |
 
-### And nothing here looks at the weekday
+## 4. Reads — platform · [Build order ↓](#build-order)
 
-Same rule as G9, and it matters more here: the result is a single number nobody can eyeball. A
-school that works Sundays gets the right count because every closure is a dated entry.
+The operator's console. G1 is the only list in this module that pages, because it is the only one
+that grows without limit.
 
-## Reads resolve the tenant with `require`, not `requireUsable`
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| G1 | `GET /platform/schools` | **Built.** The operator's school list: filter, search, sort, page. A bare call gives the newest twenty, which is what somebody opening the console usually wants. | [`schools`](../../models/core/School.java) |
+| G2 | `GET /platform/schools/{id}` | **Built.** One school in full for the operator, including the lifecycle fields the school itself never sees. Returns a school at any status — closed and deleted included. | [`schools`](../../models/core/School.java) |
+| ~~G3~~ | ~~GET /platform/schools/subdomain-available?value=~~ | **Dropped.** Dropped on 2026-08-31, having been built the same day. #1 and #10 already answer it with the same codes, so a signup form submits once instead of asking per keystroke. | [`schools`](../../models/core/School.java) |
 
-Both school-surface reads call
-[`CurrentSchoolResolver.require`](../../common/current/CurrentSchoolResolver.java). The writes
-call `requireUsable`, which additionally refuses anything not `ACTIVE`, `TRIAL` or
-`PROVISIONING`.
+## 5. Reads — school surface · [Build order ↓](#build-order)
 
-A suspended school can still read its own profile and its own calendar. Being blocked from
-editing is not the same as being blocked from looking, and `requireUsable` would answer a plain
-`GET` with `409 SCHOOL_NOT_EDITABLE` — which is not true of a read, and is not an answer to the
-question that was asked. It is also the wrong thing to show somebody trying to find out *why*
-their school stopped working.
+All eight resolve the tenant with `require`, not `requireUsable`: a suspended school can still
+read its own profile and calendar. Being blocked from editing is not being blocked from looking,
+and `409 SCHOOL_NOT_EDITABLE` is not a true answer to a `GET`.
 
-Keep the split as the reads are built out: `require` for `GET`, `requireUsable` for anything
-that writes.
-
-## G9 — `GET /…/academic-years/{name}/holidays/{date}` — BUILT
-
-**This is the one the rest of the system was waiting for.** Attendance, timetables, transport and
-fee due dates all ask the same question — is this date a working day — and until now none of them
-could. Every one of them should call this rather than reading the calendar and deciding for
-itself, because the moment two places decide what a working day is, they disagree.
-
-Returns [`DayStatusResponse`](../../dto/core/academicyear/DayStatusResponse.java): the
-`HolidayView` shape plus a `closed` flag, as planned. `events` is named to match
-`HolidayView.events` rather than something like "reasons" — two names for one structure is a
-thing every client then has to know.
-
-Attendance, timetables, transport and fee due dates all ask the same question — **is this date a
-working day** — and none of them can ask it today.
-
-It is also why [`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) was restructured
-on 2026-08-31 to key on `date` with an array of reasons. Before that, a date could appear several
-times in the calendar and this endpoint would have had to scan and not stop at the first match.
-Now it is one lookup returning one entry, and a Sunday that is also Diwali answers with both
-reasons rather than whichever was written first.
-
-### An open day is a `200`, not a `404`
-
-A working day answers `200` with `closed: false` and an empty `events` list. "The school is open"
-is a real answer to the question asked; a `404` would make every caller treat "not found" and
-"open" as the same thing, which is exactly the bug this endpoint exists to prevent. The only
-`404` here is a year that does not exist.
-
-### A date outside the year is a `400`, not "open"
-
-Asking about `2030-01-01` in `2026-2027` is a question about a date that year does not cover.
-Answering `closed: false` would state something untrue in a form the caller would believe, so it
-is `400 DATE_OUTSIDE_ACADEMIC_YEAR`.
-
-That check and the one the calendar writes use both go through one private `isWithinYear` in
-[`CoreValidator`](../../services/core/helper/CoreValidator.java). **The wording differs, the
-answer cannot.** The writes are told "this holiday will not fit"; G9 is told "that day is not
-part of this year" — reusing the holiday wording would have told a caller asking whether the
-school is open that something called 'date' does not fit. If a year's bounds ever stop being
-inclusive, one edit moves both.
-
-### It never looks at the day of the week — tested
-
-**Schools here may run on Sunday and take the weekly off on another day.** The only thing that
-makes a day non-working is a dated entry on the calendar, which is why #23 exists to generate the
-weekly ones. There is no `dayOfWeek` test in the service and there must never be one.
-
-This was checked against a year with the weekly off generated on **Wednesday**:
-
-| date | | answer |
-|---|---|---|
-| 2026-11-08 | Sunday | `closed: false` — the school is open |
-| 2026-11-11 | Wednesday | `closed: true` — Weekly Off **and** Diwali |
-| 2026-11-12 | Thursday | `closed: false` |
-
-An implementation that assumed Sunday would have got the first row exactly backwards.
-
-`dayOfWeek` is on the response so a person can sanity-check the answer. **It is information,
-never input.** `dayOfWeek == SUNDAY` anywhere in a caller is the bug.
-
-### One lookup, both reasons
-
-A Sunday that is also Diwali comes back with both entries rather than whichever was written
-first. That is what
-[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java) keying on `date` with an array
-of reasons buys — before that restructure on 2026-08-31 this endpoint would have had to scan and
-remember not to stop at the first match.
-
-It also tracks the writes correctly: deleting one reason from a two-reason day leaves
-`closed: true` with one left; deleting the second flips the same date to `closed: false`.
-
-**G10 is the same question asked in bulk** — attendance percentages and fee proration need a
-count, not 200 individual lookups. It derives from `AcademicYear.holidays` exactly as this does,
-and the weekday rule above binds it just as hard.
-
-## G2 — `GET /platform/schools/{id}` — BUILT
-
-The row picked out of the G1 list, opened in full. It returns everything on the school plus the
-three lifecycle fields the school itself never sees — `activatedAt`, `suspendedAt` and
-`statusReason` — in [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java),
-the platform variant the table below asked for.
-
-**A school at any status comes back**, closed and deleted included. The operator's console is
-exactly where somebody needs to look at a school that is no longer running and find out why;
-hiding it here would only send them to the database. An id matching nothing is a `404`, the same
-`SCHOOL_NOT_FOUND` the writes give.
-
-No `encryptionKeyReference`, and no `nextStep` — a read did not change anything, so it has
-nothing to say about what happens next.
-
-## ~~G3~~ — `subdomain-available` — dropped
-
-**Dropped on 2026-08-31. It was built, then removed the same day.** The endpoint, its
-`SubdomainAvailabilityResponse` record and the `normalizeSubdomain` helper that existed only to
-serve it are all gone.
-
-**Why it went.** The case for it was that a subdomain is refused for three different reasons —
-shape, reserved word, already taken — and a caller discovers all three only by submitting the
-whole form. That is true, and it is not worth an endpoint. #1 and #10 already answer the same
-question at the same moment with the same precision: they return `SUBDOMAIN_INVALID`,
-`SUBDOMAIN_RESERVED` or `SUBDOMAIN_TAKEN` as a `409` with the offending name in the message. A
-signup screen submits, reads the code, and puts the message next to the field. That is one round
-trip instead of one per keystroke, and one place where the rules live instead of two.
-
-**What it cost to keep.** An unauthenticated endpoint sitting in front of signup whose only job
-is to confirm that a given tenant exists. It was written not to leak anything else, but it is a
-thing that has to keep being true as the record grows, and the whole benefit was saving a caller
-from reading an error code it already has to handle for the taken-during-typing race anyway.
-
-**If a live check is ever wanted again**, the rule stays the same: call
-[`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java), catch the
-`ApiException`, and return the code off it. Do not re-list the shape or the reserved words —
-the day somebody adds a reserved word to `CoreValidator` and not to the copy, the check starts
-promising a name the write then refuses.
-
-## What the reads must not return
-
-**`encryptionKeyReference` never appears on any response, on either surface.** It is a pointer to
-a key. It is already absent from every write response, and a read is the likelier place for it to
-be added by accident.
-
-The platform reads may show lifecycle detail — `status`, `activatedAt`, `suspendedAt`,
-`statusReason` — that the school surface should not. `statusReason` in particular is written for
-the operator ("Non-payment. Third invoice unpaid past 60 days.") and is not a message to show the
-school.
-
-## Shapes already exist for most of these
-
-The writes already return exactly what a read should, so the reads reuse them rather than
-inventing parallel records that drift:
-
-| Read | Response |
-|---|---|
-| G2 | [`SchoolDetailResponse`](../../dto/core/platform/SchoolDetailResponse.java) — **built**, the platform variant carrying the lifecycle fields |
-| G4 | [`SchoolProfileResponse`](../../dto/core/profile/SchoolProfileResponse.java) — **built**, reused unchanged |
-| G5, G6, G7 | [`AcademicYearResponse`](../../dto/core/academicyear/AcademicYearResponse.java) — all three **built**; a read factory passes no `nextStep` |
-| G8 | [`HolidayCalendarResponse`](../../dto/core/academicyear/HolidayCalendarResponse.java) — **built**; a read factory passes no `changeSummary` |
-| G9 | [`DayStatusResponse`](../../dto/core/academicyear/DayStatusResponse.java) — **built**; `HolidayView` plus a `closed` flag |
-
-G10 needed something new and got it: [`WorkingDaysResponse`](../../dto/core/academicyear/WorkingDaysResponse.java) — **built** — a count with the range it covers. G3 needed a record of its own too, which is part of why it was dropped rather than kept.
-
-`nextStep` and `changeSummary` are **write** fields — they say what just happened. A read should
-not carry them.
-
-## Points to settle before building
-
-**Pagination on G1 only** — done. Every other list here is bounded by something real: a school
-has a handful of academic years, a year has about sixty closed days. G1 is the only one that
-grows without limit, so it is the only one that needs a page.
-
-**A literal path segment beats a template in Spring**, so `G6 /academic-years/current` resolves
-ahead of `G7 /academic-years/{name}` without any ordering trick — confirmed now that both are
-built. The other half of it is settled too: a year could once be named `current` and then be
-unreachable, so #18 now refuses that name. See the G7 section above.
-
-**An empty list is `200` with `[]`, never `404`.** "This school has no academic years yet" is a
-successful answer. `404` is for a year, school or date that was named and does not exist.
-
-**`current` is derived from the dates, never stored** — see the note further down on why there is
-no "set current year". G6 computes it the same way `AcademicYearResponse.current` already does.
-
-## Reads that are deliberately not listed
-
-- **Anything under `audit_events`.** The trail is not written yet — #26 and #27 record nothing —
-  so a read of it would return an empty collection and imply a guarantee that does not exist.
-- **A platform read of one school's academic years.** Years are school-surface only, matching the
-  writes: a year belongs to one school's calendar and no operator should be browsing it.
-- **Per-field reads** such as `GET /schools/current/localization`. G4 returns the whole profile;
-  four endpoints returning slices of one small document is four things to keep in step.
-- **Anything on `SchoolSubscription`.** Its own resource, its own controller.
+| # | Method and endpoint | What this API is for | Collections it touches |
+|---|---|---|---|
+| G4 | `GET /schools/current` | **Built.** The school reading its own details — the read behind #6 to #9. Returns the identical record those four return, so one screen loads and saves with one shape. | [`schools`](../../models/core/School.java) |
+| G5 | `GET /schools/current/academic-years` | **Built.** Every year the school has, newest first. Sorted on `startDate`, not `createdAt` — "newest" means furthest along the calendar, not typed most recently. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G6 | `GET /schools/current/academic-years/current` | **Built.** The year today falls in, or a 404 that says which kind of nothing. Worked out from the dates, never stored — a `current` flag would be a second source that can disagree. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G7 | `GET /schools/current/academic-years/{name}` | **Built.** One year by name. Keyed on the name because that is what the whole system means when it says "which year", and the lookup is by school and name, so another school's year is a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G8 | `GET /schools/current/academic-years/{name}/holidays` | **Built.** The whole calendar, sorted by date, with both counts. `closedDayCount` is days; `eventCount` is reasons, and it is larger whenever a weekly off lands on a festival. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **Built.** **Is the school closed that day, and why.** The question attendance, timetables, transport and fee due dates all ask. An open day is a 200 with `closed: false`, never a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | **Built.** Which days in a range are working days, and how many. G9 in bulk — attendance percentages and fee proration need the whole range, not two hundred calls. | [`academic_years`](../../models/core/AcademicYear.java) |
+| G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | **Optional.** The calendar as a file a school can hand to somebody. Optional — G8 already returns it as JSON. | [`academic_years`](../../models/core/AcademicYear.java) |
 
 ---
 
 # Build order
 
-Sequenced by dependency first, then by risk. **Phase 0 is not optional and not skippable.**
+Sequenced by dependency first, then by risk. Phase 0 was the plumbing every endpoint assumes, and
+it is done: the one error shape, the page envelope, the tenant resolver, the auditing hook and the
+Mongo transaction manager.
 
-| Phase | What | Endpoints | |
+| Phase | What it gives you | Endpoints | |
 |---|---|---|---|
-| **0** | Foundations — no endpoints | — | built |
-| **1** | Create a tenant | 1, 2 | built |
-| **2** | Tenant lifecycle | 3, 4, 5 | built |
-| **3** | School self-service edits | 6, 7, 8, 9 | built |
-| **4** | Academic year exists | 18, 19 | built |
-| **5** | The holiday calendar | 20–23 + 2 `DELETE` | built |
-| **6** | Gates and sensitive edits | 10, 24–27 **built**; 12 deferred | part |
-| **7** | Offboarding and deletion | 13–17 | deferred |
-| **8** | Convenience | 28 | |
+| **1** | A tenant exists | #1, #2 | built |
+| **2** | The tenant is usable | #3, #4, #5 | built |
+| **3** | A school can edit itself | #6–#9 | built |
+| **4** | A year exists | #18, #19 | built |
+| **5** | The year has a calendar | #20–#23, D1, D2 | built |
+| **6** | Gates and sensitive edits | #10, #24–#27 built; #12 deferred | part |
+| **7** | The reads | G1, G2, G4–G10 | built |
+| **8** | Offboarding and deletion | #13–#17 | deferred |
+| **9** | Convenience | #28, G11 | |
 
-**Why this order:** nothing exists until phase 1. Phase 2 makes a tenant usable. Phase 3 is the
-first thing a real school touches. Phases 4–5 give the school a calendar, which attendance,
+**Why this order.** Nothing exists until phase 1. Phase 2 makes a tenant usable. Phase 3 is the
+first thing a real school touches. Phases 4 and 5 give the school a calendar, which attendance,
 timetable, transport and fees all read. Phase 6 groups everything needing elevated permission.
-Phase 7 is last because it is rarely used and the most destructive — build it when the rest is
-proven.
-
-## Phase 0 — the plumbing every endpoint assumes
-
-Three pieces. Getting them wrong is expensive to undo. **All three are now built. Idempotency,
-which sits inside 0.3, is not.**
-
-**0.1 — The audit actor sentinel. BUILT.**
-[`AuditedDocument.createdByDocsId`](../../models/base/AuditedDocument.java) is filled
-automatically by `@EnableMongoAuditing`. **Endpoint #1 has no account to attribute anything
-to** — no `UserAccount` exists for that school at all when it runs. So `AuditingConfig` supplies
-an `AuditorAware` returning the `SystemActors.PLATFORM` sentinel, and provisioned rows carry
-`createdByDocsId: "SYSTEM_PLATFORM"`.
-
-Note it currently returns that sentinel for **every** write in the system, because there is no
-authentication to ask. When sessions exist it must return the real `UserAccount` id, and keep
-the sentinel only for genuine platform writes.
-
-Build this properly, because the same mechanism is needed by
-[`feedback`](../../models/feedback/README.md), where anonymous submissions **must** write the
-sentinel `"ANONYMOUS"` instead of a real user id. Get it right once here and anonymity works
-later; assume there is always a user and you will retrofit it in a way that silently
-deanonymises children.
-
-**0.2 — Tenant resolution. BUILT, as a stand-in.**
-[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) is the single place
-every `/schools/current` endpoint learns which school is asking. It reads an
-`X-School-Subdomain` header today and will read the session tomorrow; because it is one class,
-that swap touches nothing else.
-
-**It is not safe yet, and the danger is worth stating plainly: any caller can set that header
-to any school's subdomain, so anybody can edit any school.** Fine on a developer machine,
-unacceptable anywhere reachable. The request reaches it through Spring's request-scoped proxy
-and a thread-local, which is why the services take no request parameter — and why this cannot
-be called from a background thread.
-
-**0.3 — Error contract. BUILT.** `ApiError` is the single response shape. One `ApiException`
-carries its own status through a single `@ExceptionHandler`, replacing the three near-identical
-exception classes that were there first. `409` means "well-formed request, wrong state" against
-`400` for "malformed", and every transition below leans on that distinction.
-**Idempotency is the part still missing** — see #1.
 
 ---
 
-# Start here: two callers, not one
+# The rules that outrank everything else
 
-The most important structural decision in this package, and unfixable later.
+### A year's name can never change, and there is no rename endpoint
 
-|  | Platform surface | School surface |
+Nothing references a year by id. Every other collection stores the year's *name* as a string in
+its own `academicYear` field — `"2026-2027"` **is** the join key across `FeeInvoice`,
+`TransportTrip`, `FeedbackCampaign` and dozens more. A rename would not fail and would not
+cascade: it would leave every stored `"2026-2027"` pointing at a year that no longer answers to
+it, with every row still looking valid. Nobody would notice until a report came back empty. That
+is also why the URL is keyed by name rather than by id.
+
+### There is no `DELETE` on a year either
+
+"Is this year used anywhere?" cannot be a foreign-key check when the references are strings; it is
+a query across every collection carrying an `academicYear` field. Until that is cheap, a year
+created by mistake is hidden through `recordState`, not removed.
+
+### `current` is derived from the dates, never stored
+
+`AcademicYear` has no `current` field on purpose, and there is no "set current year" endpoint. Two
+sources for "which year is it" is two sources that can disagree, and somebody eventually forgets
+to move the flag. G6 works it out from the dates — which is also why #18 refuses overlapping
+years: if two years covered one day, the question would have two answers.
+
+### No closure is ever inferred from the day of the week
+
+Schools here may run on a Sunday and take the weekly off on another day. **Only a dated entry on
+the calendar closes a day**, which is why #23 exists to generate the weekly ones and why G9 and
+G10 contain no weekday test. `dayOfWeek` appears on responses for a person to read. `dayOfWeek ==
+SUNDAY` in a caller is the bug.
+
+### `encryptionKeyReference` never appears on any response, on either surface
+
+It is a pointer to a key. It is already absent from every write response, and a read is the
+likelier place for it to be added by accident. `statusReason` is nearly as sensitive: it is
+written for the operator — "Non-payment. Third invoice unpaid past 60 days." — so it is on G1 and
+G2 only, and never on G4.
+
+### PATCH for a partial edit, PUT where the value is replaced whole
+
+#6 and #8 are `PATCH`: a missing field is left alone, an empty string clears it, an empty body is
+a 400. #7 and #9 are `PUT` because both are all-or-nothing — a patched address can name a city in
+the wrong state, and a logo either exists or does not. Transitions are `POST` to a verb rather
+than `PATCH /status`, because a status field a caller can set to anything is a state machine with
+no guard.
+
+### A read carries no `nextStep` and no `changeSummary`
+
+Those are write fields — they say what just happened. Both are annotated `@JsonInclude(NON_NULL)`
+on the shared response records, so they drop out of the JSON on G5 to G10 rather than coming back
+null on every row.
+
+---
+
+# Things this module deliberately will not have
+
+- **`DELETE` on a School.** A tenant walks the lifecycle to `DELETED` through #13 to #17, which are deferred — so today there is no way to remove one at all. The only `DELETE`s here are on holidays.
+- **Subscription or plan changes.** `SchoolSubscription` is its own resource with its own controller — see [`controllers/plans`](../plans/README.md). #3 reads it and never copies it.
+- **Plan or subscription fields on `School`.** There would then be two answers to "what plan is this school on", and one of them would be stale.
+- **Terms.** [`AcademicTerm`](../../models/academics/structure/AcademicTerm.java) lives in `academics` and gets a controller there.
+- **A stored "current academic year".** Derived from the dates — see above.
+- **Bulk tenant operations.** Suspending forty schools at once is an operational script, not an endpoint.
+- **Notifications.** "Your school has been suspended", "results have been unlocked" — those are messages, and `notification` is designed last by the decision of 2026-08-14. Nothing sends from here, and there is no `notifiedAt` field.
+- **Per-field reads** such as `GET /schools/current/localization`. G4 returns the whole profile; four endpoints returning slices of one small document is four things to keep in step.
+- **Anything under `audit_events`.** The trail is not written yet — #26 and #27 record nothing — so a read of it would return an empty collection and imply a guarantee that does not exist.
+
+---
+
+# Debts and open questions
+
+### There is no authentication on any of this
+
+`/platform/schools` provisions tenants and seeds their roles, unauthenticated — the most valuable
+unauthenticated endpoint an attacker could ask for. `/schools/current` trusts an
+`X-School-Subdomain` header any caller can set to any school's subdomain, which means **anybody
+can edit any school.** Fine on a developer machine, unacceptable anywhere else. When sessions
+exist only [`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) changes; the
+controllers, services and DTOs stay exactly as they are. That is the whole reason it is one class
+rather than a check in each endpoint.
+
+### #27 records nothing about who unlocked results, or why
+
+All four gates are idempotent and flip freely, and none of them writes an audit row. Unlocking
+published results is the most consequential thing in this package, and today it leaves no trace.
+Before results are real, #27 needs a reason on the request and an `AuditEvent` written — which
+needs a writer, not just a repository.
+
+### The server clock decides what "today" is
+
+G6, G10, `AcademicYearResponse.current` and #8's year-in-progress guard all call
+`LocalDate.now()`, which uses the server's zone rather than the school's `defaultTimeZone`. For a
+school in a different zone that is wrong for a few hours around midnight. **It is one change
+everywhere or none** — fixing it in a single place would make an endpoint pick a year against one
+date and then report `current` against another.
+
+### A year could once be named `current`
+
+`current` is a fixed path segment, so Spring matches G6 ahead of G7's `/{name}`. A year actually
+called `current` could be created, listed, and then never opened. #18 now refuses the name through
+`CoreValidator.validateAcademicYearName`. **Add to that list if another fixed word is ever put
+under `/academic-years/`.**
+
+### #12 is a `POST`, not a `PATCH`
+
+Rotating an encryption key is not a field edit, so it is a `POST` to a verb like the other
+transitions. It stays deferred until something is actually encrypted.
+
+---
+
+# Appendix — what every API touches, field by field
+
+The same 41 endpoints, with the fields each one reads and each one writes. Written so that whoever
+changes an endpoint does not have to work this out again from the models, and so a reviewer can
+see at a glance whether a change reaches a field it should not.
+
+Read **updates** as "changes an existing document", **insert** as "writes a new one", and
+**reads** as "looks at it but does not change it".
+
+Three things are left out of every entry because they are true of all of them:
+
+- **The audit fields** — `createdAt`, `updatedAt`, `createdByDocsId`, `updatedByDocsId` and `version` — are filled in by Spring Data on every write. No endpoint sets them by hand.
+- **`schoolId`** is on `academic_years`, `roles`, `number_sequences` and `school_subscriptions`, and every query must carry it. `schools` is the exception: it *is* the tenant, so it has none.
+- **Every `/schools/current` endpoint reads `schools` first**, by `subdomain`, to work out which tenant is calling. It is listed only where the endpoint also cares about a field on the school, such as `status`.
+
+## What each field can hold
+
+The entries below name the fields; this names the **values**. Stated once here rather than
+repeated across 41 entries, so there is one place to correct when a rule changes.
+
+**Where a set is closed, it is an enum and the list is exhaustive** — anything else is a `400`
+naming the field and listing what is accepted. Where it is open (`schoolName`, `statusReason`, a
+holiday's `name`) the column says so, because an open set is a thing a reviewer should notice.
+
+Every value below is written by an endpoint that exists today, except where it says otherwise —
+**all 22 writes and 9 reads in this module are built**, so unlike the plans module this is a
+description of running code rather than a plan.
+
+### `schools` — [School](../../models/core/School.java)
+
+| Field | Type | What can be in it |
 |---|---|---|
-| Base path | `/platform/schools` | `/schools/current` |
-| Who calls it | platform operator | a school's own admin |
-| Auth | platform credentials, **no `schoolId` in the token** | school session + `SCHOOL_SETTINGS` |
-| Create a tenant? | yes | never |
-| Change tenant lifecycle? | yes | never |
-| Manage academic years? | no | yes |
-
-**Creating a school cannot be a school operation.** When endpoint #1 runs there is no user,
-staff record, role or session belonging to that school — they are all created *by* that request.
-The caller is necessarily outside the tenant.
-
-**The school surface uses `current`, never `{id}`.** The tenant comes from the session, never a
-path parameter. `PATCH /schools/{id}/profile` invites the bug where an admin passes somebody
-else's id; `current` makes it structurally impossible. Every school-scoped controller in this
-system should follow that rule.
-
----
-
-# Part 1 — School
-
-## 1. `POST /platform/schools` — BUILT
-
-Creates the `School` row at `PROVISIONING` or `TRIAL`. **That is all it does.**
-
-An earlier version of this plan had it seed a `NumberSequence` for every type and a starting set
-of `Role`s in the same transaction, and create the first `Staff` and `UserAccount` too. All of
-that was removed on 2026-08-21. Two separate reasons, and both are worth keeping written down:
-
-**The staff and account could not work.** `Staff` requires `dateOfBirth` and `gender`, both
-non-null. A platform operator provisioning a school for a client does not know the principal's
-birthday, and inventing one puts a false date into a record payroll and government reporting
-will later treat as fact. The contract signatory and the school's first administrator are also
-not necessarily the same person — a trustee may sign while an IT contractor does the setup. So
-`School.accountHolderName` stays a plain name, and creating the first administrator is its own
-endpoint that asks for what `Staff` actually requires.
-
-**The seeding was removed by decision**, to be settled separately.
-
-### What that leaves undone, and how it fails
-
-A school at `PROVISIONING` currently has no number sequences and no roles. Neither absence
-shows up here; both show up later, to somebody trying to use the school:
-
-| Missing | Fails when |
-|---|---|
-| `NumberSequence` rows | the first student admission asks for a number and finds no counter to increment |
-| `Role` rows | the first `UserAccount` is created and has nothing to point `roleDocsIds` at |
-
-That is exactly what `PROVISIONING` as a starting status is for — *exists, not usable yet*. But
-something must fill both in before #3 `activate` can be allowed to succeed. See #2.
-
-**Accepts:** `schoolName`, `accountHolderName`, `subdomain`, `defaultLocale`,
-`defaultTimeZone`, `countryCode`, and the account holder's contact details.
-
-**Must reject:**
-
-| Field | Why |
-|---|---|
-| `status` | always `PROVISIONING`/`TRIAL` on create — a caller posting `ACTIVE` skipped activation's checks |
-| `encryptionKeyReference` | a KMS pointer the platform derives; a caller who sets it can aim a new tenant at another tenant's key |
-| `activatedAt`, `suspendedAt` | stamped by their transitions, never supplied |
-
-**Idempotency — NOT BUILT.** It should require an `Idempotency-Key` header so a retry after a
-timeout returns the first result rather than provisioning a second tenant. Today it does not:
-the unique index on `subdomain` catches an exact repeat, but a retry differing by one character
-sails through and you find out months later. Needed before this faces a real network.
-
-**Also not built:** any authentication. An unauthenticated endpoint that provisions tenants is
-the most useful thing an attacker could be handed.
-
-## 2. `POST /platform/schools/{id}/complete-provisioning` — BUILT
-
-**Renamed from `retry-provisioning` on 2026-08-27, because its job changed.**
-
-It was a recovery endpoint: #1 was atomic in the database, but its *side effects* were not — a
-KMS key, a DNS record, a storage bucket cannot be rolled back by a transaction, so a school
-could end up with its DNS record made and its key missing. `retry-provisioning` re-ran whatever
-had failed.
-
-Now that #1 writes a single row, there is nothing to fail halfway and nothing to retry. What
-there *is*, is a tenant that is deliberately incomplete — no number sequences, no roles. So this
-endpoint stops meaning *recover from a failure* and starts meaning **finish the setup**:
-
-1. seed a `NumberSequence` for every type, at `scopeKey` `GLOBAL`
-2. seed the starting `Role` set — enough to attach a first administrator to
-
-**Idempotent per step.** Running it twice must not produce a second set of 47 sequences. Check
-what exists and fill the gaps, rather than assuming an empty tenant.
-
-Whether this stays a separate endpoint or folds into whatever creates the first administrator is
-still open. It has to happen somewhere before #3 `activate` can be allowed to succeed, and #3
-should refuse a school that has no roles rather than activating one nobody can log into.
-
-If #1 ever goes back to seeding inline, delete this endpoint rather than leaving it as a no-op.
-
-## 3–5, 13–17. Lifecycle transitions — 3, 4, 5 BUILT · 13–17 DEFERRED
-
-```text
-TRIAL / PROVISIONING -> ACTIVE
-ACTIVE -> SUSPENDED -> ACTIVE
-ACTIVE -> OFFBOARDING -> CLOSED -> DELETION_PENDING -> DELETED
-```
-
-Anything not on that list is a **`409`**, not a `400` — the request is well-formed, the tenant
-is just not in a state where it makes sense.
-
-| # | Endpoint | Requires | Side effects |
-|---|---|---|---|
-| 3 | `activate` | #2 already run — checked. Subscription — **partially**, see below | stamps `activatedAt` on first activation only |
-| 4 | `suspend` | a reason, stored on `School.statusReason` | stamps `suspendedAt`. **Does not yet revoke sessions or stop jobs** |
-| 5 | `reactivate` | — | restores access; does **not** clear `suspendedAt` or `statusReason`, does **not** re-stamp `activatedAt` |
-| ~~13~~ | `offboard` | a reason | starts data export — **deferred** |
-| ~~14~~ | `close` | export complete | tenant no longer reachable — **deferred** |
-| ~~15~~ | `request-deletion` | explicit confirmation | starts the retention clock — **deferred** |
-| ~~16~~ | `cancel-deletion` | — | back to `CLOSED` — **deferred** |
-| ~~17~~ | `confirm-deletion` | second confirmation | irreversible — **deferred** |
-
-### 13 to 17 are deferred, and here is what that leaves true
-
-Deferred on 2026-08-31, by decision — not blocked on anything. The design above stands and is
-what to build from when offboarding is wanted.
-
-**Half the lifecycle has no way to be entered.** Of the eight `SchoolStatus` values, four are now
-unreachable through the API:
-
-| Status | Reached by |
-|---|---|
-| `PROVISIONING` | #1 — every school starts here |
-| `TRIAL` | #1 with `trial: true` |
-| `ACTIVE` | #3, #5 |
-| `SUSPENDED` | #4 |
-| `OFFBOARDING` | nothing |
-| `CLOSED` | nothing |
-| `DELETION_PENDING` | nothing |
-| `DELETED` | nothing |
-
-**So a school cannot currently be got rid of.** There is no close, no delete, and no export.
-`SUSPENDED` is as far as a tenant can be pushed, and #10 already refuses to edit a school at
-`DELETED` or `DELETION_PENDING` — a guard against states nothing can currently produce, which is
-correct and will stop looking odd the day these are built.
-
-**The consequence to remember is the export, not the delete.** #13 starts a data export, and a
-school leaving is entitled to its own records. Until #13 exists, an offboarding school has no
-supported way to take its data with it — that is the gap worth flagging to whoever asks for
-these, not the missing status transition.
-
-### Why transitions are `POST`, not `PATCH /status`
-
-They are not field edits. `suspend` **does things** — kills sessions, stops jobs, records who
-and why. Modelling that as `PATCH {"status": "SUSPENDED"}` says "set a field", and invites
-setting any status from any other, which is how a `DELETED` school comes back to life or an
-un-provisioned one goes live. One endpoint per transition also means each takes only what it
-needs: a suspension needs a reason, an activation does not.
-
-### `activate` reads the subscription rather than copying it
-
-`SchoolStatus` and `SubscriptionStatus` are deliberately separate models, and
-`models/core/README.md` says payment status "must not be stored in SchoolStatus". So #3 checks
-[`SchoolSubscription`](../../models/plans/SchoolSubscription.java) at the moment of activation.
-
-### What #3 to #5 actually enforce, where it differs from this plan
-
-**The subscription check on #3 is deliberately soft, and says so in its own response.** This
-plan requires an active subscription to activate. Nothing in the system creates a subscription
-— there is no endpoint, no service, no repository until one was added for this check — so
-enforcing it strictly would mean **every activation returns 409 and #3 could never be used.**
-
-So it enforces what it can: a subscription that exists and is `CANCELLED` or `EXPIRED` blocks
-activation; `ACTIVE`, `TRIAL`, `PAST_DUE` and `SUSPENDED` all pass. A school with **no**
-subscription row activates, and the response carries:
-
-```json
-"subscriptionStatus": "NONE",
-"subscriptionNote": "No subscription exists for this school. Activation was allowed anyway
-                     because nothing creates subscriptions yet — this check must become a
-                     hard requirement once it does."
-```
-
-Announcing it on every call is the point. A silently skipped check becomes permanent because
-nobody sees it. **Tighten this the day the subscription endpoints exist.**
-
-**#4 required a model change.** `School` had nowhere to store why a school was suspended, so
-requiring a reason would have meant validating a string and discarding it. `statusReason` was
-added to `School` on 2026-08-27, matching the sixteen other models that already carried one —
-`Vendor`, `FacilityResource`, `UserAccount` and the rest. School was the only one without it.
-
-**#4 does not lock anything yet.** It sets a status and a date. Live `AuthSession` rows are not
-revoked and scheduled jobs are not stopped, because neither service exists. **A suspended
-school's users stay logged in until their tokens expire — suspension is currently a flag, not a
-lock.** Wire both in when sessions are built.
-
-**#5 keeps the history on purpose.** `suspendedAt` is not cleared and `activatedAt` is not
-re-stamped, so a school suspended in June and brought back in July still reads as having gone
-live in April, with a suspension on record. It also skips #3's setup and subscription checks: a
-suspended school was already live once, so it passed them, and re-running them would mean a
-school suspended for non-payment could never be let back in as a goodwill gesture — which is
-what reactivation is for.
-
-### `cancel-deletion` is a proposal, not in the model's README
-
-`DELETION_PENDING` is defined as "requested but not yet executed", so the window exists on
-purpose — and a window with no way back means one mis-click destroys a school. Drop #16 if you
-prefer the strictly documented one-way path, but then say out loud that deletion is
-irreversible from the moment it is requested.
-
-## 6–9. School self-service edits — ALL BUILT
-
-| # | Method | Path | Fields |
-|---|---|---|---|
-| 6 | `PATCH` | `/schools/current/profile` | `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress` |
-| 7 | `PUT` | `/schools/current/address` | `addressLine`, `city`, `stateOrProvince`, `postalCode` |
-| 8 | `PATCH` | `/schools/current/localization` | `defaultLocale`, `defaultTimeZone` |
-| 9 | `PUT` | `/schools/current/logo` | replaces `logoUrl` |
-
-All four resolve the tenant through
-[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) and refuse a school
-that is not `ACTIVE`, `TRIAL` or `PROVISIONING` — a closed or suspended tenant should not be
-quietly edited by its own admin while the suspension is being argued about.
-
-### The PATCH convention these needed, which this plan had not settled
-
-A Java record cannot tell *"the caller omitted this field"* from *"the caller sent null"* —
-Jackson gives you null for both. Without a rule, an optional field could **never be cleared**:
-every PATCH that omitted a phone number would look identical to one asking to remove it, and the
-safe reading — leave it alone — would win forever.
-
-So, on #6 and #8:
-
-```
-field omitted, or null   -> leave it exactly as it is
-field is ""              -> clear it (null in the database)
-field has a value        -> replace it
-```
-
-`schoolName` and `defaultLocale` are exceptions: both are `@NotBlank` on the model, so `""`
-there is a `400` rather than a deletion. And a PATCH whose body asks for nothing is a `400`
-`NOTHING_TO_UPDATE`, not a silent `200` — an empty body is almost always a client bug.
-
-**#7 is the opposite, and that is what PUT means.** An omitted field is *cleared*, not kept:
-`PUT {"city": "Mumbai"}` wipes `addressLine`, `stateOrProvince` and `postalCode`. Worth knowing
-before writing a client against it.
-
-### #8 has two guards, not one
-
-The plan said to warn, confirm, and refuse a time-zone change once an academic year is running.
-Both are implemented, and both are needed:
-
-1. `confirmTimeZoneChange: true` must be sent, or `409 TIME_ZONE_CHANGE_NOT_CONFIRMED`.
-2. If an academic year covers today, the change is refused outright —
-   `409 ACADEMIC_YEAR_IN_PROGRESS`.
-
-The flag alone would be theatre; people tick boxes. The second is what actually protects the
-attendance register. `AcademicYearRepository` was added for it, and asks the dates rather than a
-`current` flag — because [`AcademicYear`](../../models/core/AcademicYear.java) deliberately has
-no such flag.
-
-The locale stays editable while a year runs. Only the zone is dangerous.
-
-### #9 takes a URL, and validates more than the plan asked
-
-`https` only, and the host must be on an allow-list held in the service. A school-supplied URL
-is loaded on pages parents open, so an arbitrary one is somebody else's server deciding what
-parents see, and a tracker there is invisible to us. `logoUrl: ""` removes the logo, which is
-why there is no separate `DELETE`.
-
-A file upload would still be better, for the reason the plan gives. There is no storage service
-yet.
-
-### Where `PUT` is right, and where it is not
-
-Only **three** `PUT`s exist in this whole plan, and all three are sub-resources that are
-complete values.
-
-`PUT` means *replace this whole thing*. Correct for an **address** — patching `city` without
-`stateOrProvince` produces a real address for a place that does not exist. Correct for a
-**logo**, and for the **holiday calendar** (#20).
-
-`PUT` is **wrong for either root document.** There must be no `PUT /platform/schools/{id}` and
-no `PUT /academic-years/{name}`. A full replace of a resource holding `status`, `activatedAt`
-and `encryptionKeyReference` hands a caller every field the document defends, and a client
-omitting a field it did not know about will blank it. Partial edits by intent, always.
-
-### `countryCode` is missing from #7 on purpose
-
-Changing a school's country changes which tax rules and identity documents apply —
-`GovernmentIdentityType` holds `AADHAAR` and `APAAR`; `FeeHead.taxRatePercent` means GST.
-Schools do not move countries. Somebody mistyping at signup is the real scenario, and that is a
-platform correction during `PROVISIONING`, not a self-service edit after go-live.
-
-**Recommendation:** editable on the platform surface while `PROVISIONING`/`TRIAL`, immutable
-afterwards.
-
-### `defaultTimeZone` in #8 is the most dangerous field in this package
-
-Every `Instant` is UTC, so changing the zone rewrites nothing — and that is the problem. It
-silently reinterprets every **school-local** decision already made: which calendar date an
-attendance record falls on, whether a holiday covers a day, when a timetable period starts,
-which day a transport trip ran.
-
-A school moving `Asia/Kolkata` → `Asia/Dubai` mid-year has an attendance register that shifts
-under it. Warn, require confirmation, and **refuse outright once an `AcademicYear` is in
-progress.** It is not a settings toggle.
-
-### #9 logo upload
-
-`logoUrl` is a public CDN URL, so this has two shapes: accept a URL the school already hosts,
-or accept a file, store it, return the URL. **Prefer the second** — a school-supplied URL can
-rot, change to something unwanted, or point at a tracker on a page parents load. If you accept
-a URL, require `https` and an allow-listed host.
-
-## 10. `PATCH /platform/schools/{id}/subdomain` — BUILT
-
-The subdomain is the **globally unique key that resolves a request to a tenant** —
-[`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.java) finds a school by it
-on every `/schools/current` call. That is why it is here and not in #6: changing it is not a
-detail edit, it is moving the school's address.
-
-The immediate need is duller than rebranding. `subdomain` was set once at #1 and nothing could
-ever change it, so **a typo at provisioning had no fix but a database edit.**
-
-### The body confirms the current subdomain
-
-`currentSubdomain` must match what the school answers to today, or the request is `409`
-`SUBDOMAIN_CONFIRMATION_MISMATCH`. Nothing reads the value — it exists so that the one endpoint
-that can take a tenant off the air cannot be aimed at the wrong one by a mis-pasted id.
-
-It is the only endpoint in this package with a confirmation field, and that asymmetry is the
-point: every other platform endpoint changes one field of one school, and being wrong is
-recoverable.
-
-### What it refuses
-
-| Case | Code |
-|---|---|
-| id names no school | `404 SCHOOL_NOT_FOUND` |
-| school is `DELETED` or `DELETION_PENDING` | `409 SCHOOL_NOT_EDITABLE` |
-| confirmation does not match | `409 SUBDOMAIN_CONFIRMATION_MISMATCH` |
-| bad shape, or a reserved word | `409 SUBDOMAIN_INVALID` / `SUBDOMAIN_RESERVED` |
-| same as the current one | `409 SUBDOMAIN_UNCHANGED` |
-| already in use | `409 SUBDOMAIN_TAKEN` |
-
-Shape and reserved words come from
-[`CoreValidator.validateSubdomain`](../../services/core/helper/CoreValidator.java), shared with
-#1 — so a label refused at provisioning is refused here, without a second list to keep in step.
-
-**Reserved subdomains** — the list refuses `www`, `api`, `admin`, `app`, `platform`, `status`,
-`mail`, `smtp`, `ftp`, `cdn`, `static`, `assets`, `login`, `auth`, `support`, `help`, `docs`,
-`blog`, `test`, `staging`, `dev` and more. A school that claimed `api` or `login` would receive
-traffic and credentials meant for the platform.
-
-### What it does not do, and the response says so
-
-Nothing invalidates a routing cache, rewrites a stored link, or tells anyone at the school their
-address changed. **The old label is released immediately** — no reservation — so the next school
-to ask can have it, and every bookmark, saved link and stored login pointing at it is simply
-dead. The response's `nextStep` states all of that, because a caller who does not know it will
-find out from the school.
-
-## ~~11.~~ `account-holder` — dropped, folded into #6
-
-`accountHolderName` is a plain `String` on [`School`](../../models/core/School.java). Nothing
-links it to a `UserAccount`, nothing reads it, and nothing is granted by it — changing it grants
-no one anything and revokes nothing. That makes it the same class of edit as `schoolName`, which
-#6 already handles, and a platform-only endpoint for one unreferenced string was ceremony.
-
-It is now a field on #6, refusing `""` the same way `schoolName` does.
-
-**If it ever becomes contractual** — who signed, who gets billed — the fix is to link the field
-to a real account, not to move it back out to its own endpoint. At that point it belongs with
-[`SchoolSubscription`](../../models/plans/SchoolSubscription.java) rather than here.
-
-## 12. `encryption-key` — deferred, and it is not a `PATCH`
-
-`encryptionKeyReference` appears **nowhere in the code** — only on the model and in
-`models/core/README.md`. Nothing encrypts anything yet, so an endpoint to change the key would be
-ceremony around a field no code reads.
-
-It matters later, because the fields waiting on it are the most sensitive in the system:
-
-| Field | Model |
-|---|---|
-| `encryptedIdentityNumber` | `StudentGovernmentIdentity`, `StaffGovernmentIdentity` |
-| `encryptedAccountNumber` | `StaffBankAccount`, `VendorBankAccount` |
-| `encryptedCredentialNumber` | `StaffCredential` |
-| `encryptedSubmitterReference` | `FeedbackSubmission`, `FeedbackReport` |
-| `encryptedPayload` | `BillingWebhookEvent` |
-
-Aadhaar numbers, bank accounts, and the identity behind an anonymous complaint.
-
-**Which is why the planned shape was wrong.** A `PATCH` that swaps the reference and returns
-`200` makes every existing ciphertext unreadable — silently, with every document still looking
-perfectly valid, discovered whenever somebody next opens a student's identity record. Rotation is
-not a field update: it re-encrypts under the new key, or reads old and new through a migration
-window.
-
-So when it is built it is **`POST /platform/schools/{id}/rotate-encryption-key`** with a
-re-encryption step, not a `PATCH` of a string. Build it after something is actually encrypted,
-never before.
-
-Platform-only either way. It must not appear on the school surface at all.
-
----
-
-# Part 2 — Academic year
-
-All on the school surface. There is no platform surface here: a year belongs to one school's
-calendar and no platform operator should be setting one.
-
-## The rule that outranks everything else: there is no rename
-
-**`AcademicYear.name` can never change. Not by `PATCH`, not by anything.**
-
-Other collections do not reference this document by id. They store the **name as a string** in
-their own `academicYear` field — `FeeInvoice`, `TransportTrip`, `FeedbackCampaign`,
-`FacilityInspection` and dozens more. `"2026-2027"` *is* the join key.
-
-Which means **there is no referential integrity to lean on.** A rename does not fail loudly and
-does not cascade; it leaves every one of those strings naming a year that no longer answers to
-it, and every row still looks perfectly valid. You would find out when a fee report came back
-empty.
-
-So:
-
-- No endpoint accepts `name` on update. The field is not in any update DTO.
-- A request containing `name` is a **`400`**, not silently ignored.
-- **The URL is keyed by `name`** — `/academic-years/2026-2027`. Deliberate: it matches how the
-  whole system refers to a year, and a URL that cannot change is a daily reminder that the
-  thing it names cannot either.
-
-## There is also no "set current year"
-
-`AcademicYear` has **no `current` flag** — deliberately. The current year is derived from
-`startDate` and `endDate`. Do not add an endpoint, a field, or a cached "current year" anywhere:
-two sources for "which year is it" is two sources that can disagree, and the dates are already
-authoritative.
-
-This is also why the overlap check in #18 matters so much. Two overlapping years mean a date
-belongs to both, and every "which year is this?" lookup gets two answers.
-
-## 18. `POST /schools/current/academic-years` — BUILT
-
-**Validates:** `name` unique within the school; `startDate` before `endDate`; **no overlap with
-any existing year**; the range is plausible — 30 to 800 days, outside which it is a typo rather
-than a calendar.
-
-**Holidays are not accepted here.** The plan originally allowed supplying them at creation; that
-was removed on 2026-08-31. A year is always created with an empty calendar and filled through
-#20 to #23.
-
-The reason is that one request could otherwise fail for two unrelated things — a bad date range
-or a stray holiday — leaving the caller to work out which, and doubling the create endpoint's
-validation surface for a convenience the calendar endpoints already provide. A `holidays` array
-sent to this endpoint is ignored rather than honoured, because the field is not on the DTO.
-
-**The overlap test is written as "unless one ends before the other starts"**, not as four date
-comparisons. The four-way version is where off-by-one bugs live, and adjacency must stay legal:
-a year ending 03-31 and the next starting 04-01 do not overlap.
-
-**No shape is enforced on `name`.** A school may use `2026-2027`, `2026-27` or `AY2026-27`.
-Imposing one would be this platform deciding something that is not its business; it only has to
-be unique and never change.
-
-**`current` is computed in the response, never stored.** That is the same rule as the model —
-two sources for "which year is it" is two that can disagree — and it is why the overlap check
-matters: two years covering one day would make the flag true for both.
-
-## 19. `PATCH /{name}/dates` — BUILT
-
-Riskier than it looks. Moving a boundary after the year has started orphans data at both ends:
-an attendance record, an invoice or a trip now sits outside the year that owns it.
-
-**`name` is absent from the request**, not optional and not ignored. A request that includes one
-is rejected by the DTO shape itself rather than quietly dropped.
-
-**What it does check:** the new range is still plausible, still does not overlap another year,
-and still contains **every closed day already on the year**. Shrinking past one is a `409`
-`HOLIDAYS_OUTSIDE_NEW_RANGE`, naming the first stranded date and every reason on it — since the
-restructure a date can be closed for more than one, and naming a single holiday would have
-under-reported what the shrink was about to strand.
-
-**What it does not check, and should.** Only holidays. Attendance records, invoices and trips
-reference a year by *name string*, in collections that have no repository yet — so a shrink can
-still orphan those, silently, and nothing anywhere will complain. When those repositories exist,
-this must refuse to move a boundary past the earliest or latest row referencing the year. It is
-recorded in the method's javadoc and in the response's `nextStep`.
-
-## 20–23. The holiday calendar — ALL BUILT
-
-`holidays` is an embedded `List<`[`HolidayDetail`](../../models/core/embedded/HolidayDetail.java)`>`,
-a sub-resource keyed by **date**. Each entry holds the date and a list of
-[`HolidayEvent`](../../models/core/embedded/HolidayEvent.java) — the reasons the school is shut
-that day.
-
-| # | Method | Use |
+| `schoolName` | String, required | **Open** — free text, trimmed, up to 200 characters. #6 refuses an empty string: a school cannot lose its name, so blanking it is `400 SCHOOL_NAME_REQUIRED` rather than a silent clear. |
+| `accountHolderName` | String, required | **Open** — the name on the contract, trimmed. Blanking is `400 ACCOUNT_HOLDER_NAME_REQUIRED`. **#1 caps it at 150 and #6 at 200** — see the note under Debts. It is a plain name, not a link to a person: the signer and the school's first administrator are often not the same. |
+| `subdomain` | String, required, unique | **Normalised first**: trimmed, lowercased, every run of spaces and underscores becomes one `-`, so `"St Marys"` → `st-marys`. Then it must match `^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$` — 1 to 63 characters, no leading or trailing hyphen — else `409 SUBDOMAIN_INVALID`. **44 names are reserved** (`www` `api` `admin` `app` `platform` `mail` `login` `auth` `docs` `test` `staging` `dev` `demo` `billing` `webhooks` and the rest) → `409 SUBDOMAIN_RESERVED`. Already taken → `409 SUBDOMAIN_TAKEN`. Missing → `400 SUBDOMAIN_REQUIRED`. |
+| `logoUrl` | String, optional | **`https://` only** → else `400 LOGO_URL_NOT_HTTPS`, and the host must be one of **four**: `cdn.example.com` `res.cloudinary.com` `s3.amazonaws.com` `storage.googleapis.com` → else `400 LOGO_HOST_NOT_ALLOWED`. Unparseable → `400 LOGO_URL_INVALID`. **Blank removes the logo** rather than failing. A file upload would be better; there is no storage service yet. |
+| `phoneNumber` | String, optional | **Open** — no shape is enforced, up to 30 characters. Blank is stored as null, never as `""`. |
+| `emailAddress` | String, optional | **Lowercased and trimmed.** #1 uses Jakarta `@Email`; #6 uses `^[^@\s]+@[^@\s]+\.[^@\s]{2,}$` → `400 EMAIL_INVALID`. Blank clears it. |
+| `encryptionKeyReference` | String, optional | **Nothing writes it and nothing returns it.** #12 would, and #12 is deferred, so it is null on every row. It must never appear on a response on either surface. |
+| `defaultLocale` | String, required | An IETF language tag — `^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`, so `en`, `en-IN`, `hi-Deva-IN`. Blanking through #8 is `400 LOCALE_REQUIRED`. **#8 caps it at 35 characters and #1 does not cap it at all** — see Debts. |
+| `defaultTimeZone` | String, required | **Any IANA zone id the JVM knows** — checked against `ZoneId.getAvailableZoneIds()`, so `Asia/Kolkata` yes and `Asia/Pune` `409 TIME_ZONE_INVALID`. Changing it needs `confirmTimeZoneChange: true` → else `409 TIME_ZONE_CHANGE_NOT_CONFIRMED`, **and is refused outright while a year is running** → `409 ACADEMIC_YEAR_IN_PROGRESS`, because it reinterprets which date every stored attendance record and holiday falls on. |
+| `addressLine` `city` `stateOrProvince` `postalCode` | String, optional | **Open** — 200, 100, 100 and 20 characters. #7 is a `PUT`, so **an omitted field is cleared, not kept**. |
+| `countryCode` | String, required | **Two letters, uppercased** — `^[A-Za-z]{2}$`, an ISO 3166-1 alpha-2 code. Set by #1 and **never editable afterwards**: it is deliberately absent from #7, because moving a school between countries changes its tax and reporting rules and is not an address edit. |
+| `status` | [SchoolStatus](../../models/core/enums/SchoolStatus.java), required | **`PROVISIONING`** at create, or **`TRIAL`** when the request says `trial: true`. Built moves: **`PROVISIONING`/`TRIAL` → `ACTIVE`** (#3), **`ACTIVE` → `SUSPENDED`** (#4), **`SUSPENDED` → `ACTIVE`** (#5). Refusals are `409 SCHOOL_NOT_ACTIVATABLE`, `SCHOOL_NOT_SUSPENDABLE`, `SCHOOL_NOT_REACTIVATABLE`. The other four — `OFFBOARDING` `CLOSED` `DELETION_PENDING` `DELETED` — **have no endpoint that can reach them**, because #13 to #17 are deferred. |
+| `activatedAt` | Instant, optional | **Set once, on the first activation only.** #3 checks it to tell a first activation from a repeat, so re-activating a school later never overwrites the date it originally went live. |
+| `suspendedAt` | Instant, optional | Set by #4. **Kept on purpose after #5** — with `statusReason`, it is the record of the last suspension. |
+| `statusReason` | String, optional | **Open**, up to 500 characters. Required on #4, optional on #5. Written **for the operator** — "Non-payment. Third invoice unpaid past 60 days." — so it is on G1 and G2 and **never on G4**. |
+
+### `academic_years` — [AcademicYear](../../models/core/AcademicYear.java)
+
+| Field | Type | What can be in it |
 |---|---|---|
-| 20 | `PUT` `/{name}/holidays` | replace the whole calendar — the bulk import case |
-| 21 | `POST` `/{name}/holidays` | add one reason — a bandh, an unexpected closure |
-| 22 | `PATCH` `/{name}/holidays/{date}?type=` | edit one reason on a day |
-| — | `DELETE` `/{name}/holidays/{date}?type=` | remove one reason, or the whole day |
-| 23 | `POST` `/{name}/holidays/generate-weekly-off` | generate a weekday's offs across the year |
-| — | `DELETE` `/{name}/holidays?type=` | clear every entry of one type before regenerating |
+| `name` | String, required, unique per school | **Open** — free text up to 40 characters, trimmed, conventionally `2026-2027`. **It can never change**: there is no rename endpoint and there must never be one, because every other collection stores this string as its `academicYear`. Already used → `409 ACADEMIC_YEAR_NAME_TAKEN`. **`current` is reserved** in any case or padding → `409 ACADEMIC_YEAR_NAME_RESERVED`, because G6 owns that path segment and a year called it could never be opened. |
+| `startDate` `endDate` | LocalDate, required | **ISO `YYYY-MM-DD`** — anything else is `400 INVALID_PARAMETER` from the type-mismatch handler. Start must be strictly before end → `400 INVALID_DATE_RANGE`. The span must be **30 to 800 days inclusive** → `400 IMPLAUSIBLE_DATE_RANGE`; that is a typo guard, not a rule about how schools work. **No overlap with another year of the same school** → `409 ACADEMIC_YEAR_OVERLAP`, and adjacency stays legal: one year ending 03-31 and the next starting 04-01 is fine. #19 also refuses a narrowing that would strand a closed day outside the new range → `409 HOLIDAYS_OUTSIDE_NEW_RANGE`. |
+| `holidays` | List, required | **`[]`** at create — #18 never accepts holidays, the calendar has its own endpoints. Keyed by `date`, one entry per closed day, each carrying one or more reasons. Rows below. |
+| `enrollmentEnabled` | Boolean, required | **`false`** at create; `true` from #24, `false` from #25. A gate on **new** enrollments only — students already enrolled are untouched. Both are idempotent: already in the asked-for state comes back `200` saying so. |
+| `resultsLocked` | Boolean, required | **`false`** at create; `true` from #26, `false` from #27. Idempotent both ways, and **neither records who did it or why** — see Debts. |
+| `recordState` | [RecordState](../../models/base/enums/RecordState.java), required | **`ACTIVE`** always. `INACTIVE` `ARCHIVED` `DELETED` exist on the base class and **nothing in this module writes them**, which is why G5 returns every year rather than filtering: a filter here would be the only one in the codebase, and it would disagree with the overlap check. |
 
-### One date, several reasons
+### `academic_years.holidays[]` — [HolidayDetail](../../models/core/embedded/HolidayDetail.java)
 
-`HolidayDetail` was restructured on 2026-08-31. It used to be a flat row — name, description,
-type, date — one per reason, so a date could appear several times and there was no single answer
-to *is the school open on the 8th*.
+| Field | Type | What can be in it |
+|---|---|---|
+| `date` | LocalDate, required | **ISO, and inside the year** → else `400 HOLIDAY_OUTSIDE_YEAR` on a write, or `400 DATE_OUTSIDE_ACADEMIC_YEAR` on G9 and G10. Both ends of the year are inclusive. **The date cannot be edited** — #22 changes a reason, not the day it falls on; move a holiday by removing it and adding it back. |
+| `events` | List, required, never empty | **One or more reasons.** A day that loses its last reason has its whole entry removed and becomes a working day again — the list is never left empty on a stored day. |
 
-Now the **date is the key** and the reasons hang off it. A Sunday that is also Holi is one closed
-day with two events, not two days sharing a date. Attendance, timetables, transport and fee due
-dates all ask that same question, and it is now one lookup returning one entry rather than a scan
-that must not stop at the first match.
+### `academic_years.holidays[].events[]` — [HolidayEvent](../../models/core/embedded/HolidayEvent.java)
 
-The API is shaped around that, and three consequences run through all six endpoints:
+| Field | Type | What can be in it |
+|---|---|---|
+| `name` | String, required | **Open** — free text up to 120 characters, trimmed. #22 refuses an empty string → `400 HOLIDAY_NAME_REQUIRED`. #23 defaults it to `"Weekly Off"` when the request does not say. |
+| `description` | String, optional | **Open** — up to 300 characters, or absent. Blank is stored as null. |
+| `type` | [HolidayType](../../models/core/enums/HolidayType.java), required | One of **eight**: `WEEKLY_OFF` `PUBLIC_HOLIDAY` `FESTIVAL` `RELIGIOUS` `SCHOOL_EVENT` `VACATION` `EXAM_BREAK` `OTHER`. **Each type may appear at most once on a date** → `409 HOLIDAY_ENTRY_EXISTS` on #21, or `400 DUPLICATE_HOLIDAY_ENTRY` when #20 is sent the same pair twice in one list. That is what makes `?type=` enough to identify one reason on a day that has several — and why omitting it on #22 or D1 is `400 HOLIDAY_TYPE_REQUIRED` when the day has more than one. |
 
-**Requests are flat, storage is grouped.** A caller sends one row per reason, with its date —
-which is what a spreadsheet holds and what a person adding Holi knows. The service groups by
-date. So two rows sharing a date is *not* a duplicate; the same **type** twice on one date is.
-Without this, adding Holi to a Sunday would mean fetching the day, appending to its array and
-sending the whole thing back.
+### Written by this module but owned elsewhere
 
-**`?type=` says which reason.** #22 and the single `DELETE` can no longer be addressed by date
-alone. The parameter is optional when the day has one reason and required when it has more — and
-the error lists what is on that day, so the next request is obvious. Picking the first of two
-would be wrong as often as right, and invisible when it was.
+| Collection | Field | What #2 and #3 put there |
+|---|---|---|
+| [`roles`](../../models/identity/Role.java) | `roleKey` | **Three seeded**: `SCHOOL_ADMIN` (every module, school-wide), `TEACHER` (own classes only), `GUARDIAN` (own child only). #2 creates only what is missing, so running it twice adds nothing. #3 refuses to activate without `SCHOOL_ADMIN` → `409 SETUP_INCOMPLETE`. |
+| `roles` | `systemManaged` `active` | **`true`** on all three. `systemManaged` marks them as ours rather than the school's. |
+| [`number_sequences`](../../models/institution/NumberSequence.java) | `sequenceType` | **One row per value of [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java) — 48 of them.** #3 counts them and refuses to activate if any is missing → `409 SETUP_INCOMPLETE`, because almost every business document takes its human-readable number from one and the failure would otherwise surface to whoever first tries to admit a student. |
+| `number_sequences` | `scopeKey` `nextValue` `paddingWidth` `resetPolicy` | **`"GLOBAL"`, `1`, `6`, `NEVER`** on every seeded row. |
+| [`school_subscriptions`](../../models/plans/SchoolSubscription.java) | `status` `current` | **Read only, never written and never copied onto the school.** #3 warns when there is no subscription and activates anyway, and refuses only when one exists and is `CANCELLED` or `EXPIRED` → `409 SUBSCRIPTION_NOT_ACTIVE`. That leniency is temporary and says so in the response — see [`controllers/plans`](../plans/README.md) #13. |
+## School — the platform surface  ·  #1–#5, #10, #12–#17
 
-**Two counts come back.** `closedDayCount` is how many days the school is shut — what attendance
-and fees care about. `eventCount` is how many reasons are recorded. They differ wherever a day
-carries more than one, and reporting only one number would make a Sunday that is also Holi look
-like either a lost entry or an extra closed day. `countsByType` counts **reasons**, so "how many
-festivals" is not reduced by the ones that landed on a Sunday.
+**#1 · `POST /platform/schools`**
 
-**Validated on all of them:** every date inside the year's own `startDate`–`endDate`, and no two
-entries of the same type on one date.
+- [`schools`](../../models/core/School.java) — *insert*: `schoolName`, `accountHolderName`, `subdomain`, `phoneNumber`, `emailAddress`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `status` = `PROVISIONING` or `TRIAL`
 
-#20 is the legitimate bulk `PUT`: a school publishes next year's calendar in one go from a
-spreadsheet, and sending the complete list makes a half-imported calendar impossible.
+**#2 · `POST /platform/schools/{id}/complete-provisioning`**
 
-### #23 is not a convenience — the model requires it
+- [`schools`](../../models/core/School.java) — *reads*: `status` — a closed or deleted school cannot be provisioned
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *insert*: `schoolId`, `sequenceType`, `scopeKey`, `nextValue`, `paddingWidth`, `resetPolicy` — one row per missing type
+- [`roles`](../../models/identity/Role.java) — *insert*: `schoolId`, `roleKey`, `name`, `description`, `permissions`, `systemManaged`, `active` — for `SCHOOL_ADMIN`, `TEACHER` and `GUARDIAN`
 
-There is **no "weekly off day" field anywhere in this system**, deliberately. Schools in this
-market may run on Sunday with the weekly off on any other day, so every non-working day is a
-**dated** entry with type `WEEKLY_OFF`.
+**#3 · `POST /platform/schools/{id}/activate`**
 
-That is the right model and it has a direct API consequence: a year needs roughly 52 dated
-`WEEKLY_OFF` entries, and nobody is typing those in.
+- [`schools`](../../models/core/School.java) — *reads*: `status` — only `PROVISIONING` or `TRIAL`; `activatedAt` to tell a first activation from a repeat
+- [`roles`](../../models/identity/Role.java) — *reads*: `roleKey` — `SCHOOL_ADMIN` must exist
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *reads*: a count by `schoolId` — every type must be present
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `current` — read, never copied onto the school
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` on the first activation only
 
-So #23 takes a day of the week, optionally a date range, and generates one entry per occurrence.
-**A date that already has a festival still gets its weekly off** — the day ends up with both
-reasons. The school was closed for Diwali *and* it was their weekly off, and a report knowing
-only one of those is wrong about the other. Only a date that already carries a `WEEKLY_OFF` is
-skipped, which is also what makes running it twice safe.
+**#4 · `POST /platform/schools/{id}/suspend`**
 
-Without #23, either somebody enters 52 dates by hand or a developer eventually hardcodes Sunday
-somewhere — the exact assumption the model was designed to prevent. **No service anywhere may
-infer a non-working day from the weekday.**
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `SUSPENDED`, `suspendedAt`, `statusReason`
 
-### The two `DELETE`s are not extras
+**#5 · `POST /platform/schools/{id}/reactivate`**
 
-They were listed uncounted in the original plan; both are now built, because an API that creates
-52 rows in one call and cannot remove them is not finished.
+- [`schools`](../../models/core/School.java) — *reads*: `status` — only `SUSPENDED`
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `statusReason` only when a note is sent
 
-The single `DELETE` removes one reason with `?type=`, or the whole day without it. **Removing the
-last reason removes the day** — a closed day with nothing saying why reads as corruption to
-whoever finds it.
+**#10 · `PATCH /platform/schools/{id}/subdomain`**
 
-The bulk `DELETE` strips one type across the calendar and drops only the days left with nothing.
-A Sunday that was also Holi survives as Holi. Its `type` is **required**: a bulk delete that
-cleared the whole calendar when a query parameter was forgotten would be the most destructive
-accident in this package. That guard needed a `MissingServletRequestParameterException` handler
-in [`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java), or Spring answered
-with its own error page — a stack trace in dev, and nothing resembling the rest of our errors
-anywhere else. A `MethodArgumentTypeMismatchException` handler went in beside it, so a misspelled
-`?type=WEEKLYOFF` comes back naming the accepted values.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain` — the body must confirm the current one, and `status`
+- [`schools`](../../models/core/School.java) — *updates*: `subdomain`
 
-## 24–27. Gates — ALL BUILT
+**#12 · `POST /platform/schools/{id}/rotate-encryption-key`**  ·  deferred
 
-`enrollmentEnabled` and `resultsLocked` are booleans, so `PATCH` would work mechanically. They
-are `POST` actions because both are **gates**: they change what other modules may do — admissions
-may write, examinations may not — rather than editing the year's own data.
+- [`schools`](../../models/core/School.java) — *updates*: `encryptionKeyReference`
 
-All four live in [`AcademicYearService`](../../services/core/AcademicYearService.java) with the
-rest of the year's endpoints; one resource, one service.
+**#13 · `POST /platform/schools/{id}/offboard`**  ·  deferred
 
-| # | What it gates | Body | Idempotent |
-|---|---|---|---|
-| 24 | admissions may write to this year | none | yes |
-| 25 | admissions may not | none | yes |
-| 26 | results are frozen | none | yes |
-| 27 | results are editable again | none | yes |
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `OFFBOARDING`, `statusReason`
 
-**All four are idempotent and flip freely.** A year already in the asked-for state comes back
-`200` saying so. Refusing a retry would only teach callers to read first and then race.
+**#14 · `POST /platform/schools/{id}/close`**  ·  deferred
 
-**The two pairs are independent.** Locking results does not touch enrollment, and vice versa.
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `CLOSED`, `statusReason`
 
-**#25 does not touch students already enrolled.** It is a gate on new writes, not a withdrawal.
+**#15 · `POST /platform/schools/{id}/request-deletion`**  ·  deferred
 
-### #27 is built simple, and that is a debt with a name
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `DELETION_PENDING`, `statusReason`
 
-Unlocking lets somebody change a mark a parent has already seen. As built, **the endpoint records
-nothing about who unlocked, or why** — no reason is asked for, and no trace is left.
+**#16 · `POST /platform/schools/{id}/cancel-deletion`**  ·  deferred
 
-That is a deliberate simplification, not an oversight. There is no authentication, so an audit
-row could not name who acted anyway, and a trail whose every entry says "unknown" is close to
-worthless. What it must gain before results are real is written down here so it does not have to
-be worked out twice:
+- [`schools`](../../models/core/School.java) — *updates*: `status` back to `CLOSED`, `statusReason`
 
-**A required reason on #27**, stored. It is the only part of an audit row a person can read six
-months later and understand — everything else says what happened, and this says why.
+**#17 · `POST /platform/schools/{id}/confirm-deletion`**  ·  deferred
 
-**An audit row on every call, refusals included** — and this is the part with a trap in it. A
-refusal ends in a thrown exception, which rolls the transaction back and would take the evidence
-with it. **A denial recorded inside the transaction that denies it is never written.** It needs
-two write paths: one joining the caller's transaction, so a change and its evidence commit
-together; and one running `REQUIRES_NEW`, so a refusal survives the rollback that caused it.
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `DELETED`, `deletedAt`
 
-**#26 audited too**, though locking is the safe direction. A lock alone is uninteresting; a lock
-and an unlock **together** say how long results were open and who opened them.
+## School — the school's own surface  ·  #6–#9, ~~#11~~
 
-**`action` naming the operation, not the outcome** — `RESULTS_UNLOCK` whether it succeeded or was
-refused, with `outcome` carrying the result — so one query returns every attempt. Two actions
-would mean a search for unlocks quietly missing the failures.
+**#6 · `PATCH /schools/current/profile`**
 
-**And then #27 should stop being idempotent.** It is idempotent today because with no trail a
-no-op is harmless. Once there is one, unlocking a year that is not locked should be a `409`: a
-no-op logged as a successful unlock puts a row in the trail claiming results were opened when
-they never were.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain` — the tenant, and `status` — must be editable
+- [`schools`](../../models/core/School.java) — *updates*: `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress`
 
-### `audit_events` will need a writer, not a repository
+**#7 · `PUT /schools/current/address`**
 
-A `MongoRepository` cannot be insert-only — it arrives with `save`, `delete` and `deleteAll`, and
-`save` silently becomes an update when the id is set.
-[`AuditEvent`](../../models/audit/AuditEvent.java)'s own javadoc asks for an insert-only
-interface, so the writer should call `MongoTemplate.insert`, which fails on a duplicate id rather
-than overwriting. History then cannot be edited even by mistake.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
+- [`schools`](../../models/core/School.java) — *updates*: `addressLine`, `city`, `stateOrProvince`, `postalCode` — an omitted field is cleared. **Not** `countryCode`
 
-### The authorization gap all four announce
+**#8 · `PATCH /schools/current/localization`**
 
-**There is no authorization.** Anybody who can reach these can unlock a year's results. The
-permission model does not exist, so there is nothing to check against — every response says so in
-its `nextStep`, the same way #3 announces its subscription gap, so the hole is visible in every
-response rather than only in this file.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`, `defaultTimeZone`
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — is a year running today
+- [`schools`](../../models/core/School.java) — *updates*: `defaultLocale`, `defaultTimeZone`
 
-## 28. `POST /{name}/clone` — optional, build last or not at all
+**#9 · `PUT /schools/current/logo`**
 
-Creates the next year copying the previous one's calendar. **Its value is limited and you
-should know why before building it:** most Indian school holidays are festivals on lunar dates,
-so Diwali, Holi and Eid all move. Only fixed-date holidays transfer — Republic Day, Independence
-Day, Gandhi Jayanti — plus the weekly-off pattern, which #23 already generates in one call.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
+- [`schools`](../../models/core/School.java) — *updates*: `logoUrl`
 
-Realistically this saves entering three dates. Listed for completeness; I would not build it
-until somebody asks twice.
+**#11 · `PATCH /platform/schools/{id}/account-holder`**  ·  dropped
 
----
+- [`schools`](../../models/core/School.java) — *updates*: would have been `accountHolderName` — #6 does it
 
-# Shared concerns
+## Academic year — writes  ·  #18–#28, D1, D2
 
-## Deleting a year has no cheap answer
+**#18 · `POST /schools/current/academic-years`**
 
-Because references are strings, "is this year used anywhere?" cannot be a foreign-key check. It
-is a query across every collection carrying an `academicYear` field.
+- [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name` — unique per school; `startDate`, `endDate` of every other year — no overlap allowed
+- [`academic_years`](../../models/core/AcademicYear.java) — *insert*: `schoolId`, `name`, `startDate`, `endDate`, `holidays` = empty, `enrollmentEnabled` = false, `resultsLocked` = false
 
-**Recommendation: no hard delete at all.** A year created by mistake and never referenced can be
-removed while nothing points at it; past that, it stays. `RecordState` on
-[`SchoolBase`](../../models/base/SchoolBase.java) already exists for this, and hiding a year is
-not the same as breaking every row that names it.
+**#19 · `PATCH /schools/current/academic-years/{name}/dates`**
 
-## Validation ownership
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` of this and every other year; `holidays` — any `date` that would fall outside
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `startDate`, `endDate`
 
-`models/core/README.md` keeps model annotations thin on purpose and hands these to the API
-layer. Assigned:
+**#20 · `PUT /schools/current/academic-years/{name}/holidays`**
 
-| Validation | Endpoint |
-|---|---|
-| subdomain format, normalization, reserved words | 1, 10 |
-| email lowercased, phone normalized to E.164 | 1, 6 |
-| IETF language tag, IANA zone id | 1, 8 |
-| ISO 3166-1 alpha-2 country | 1 only |
-| `https` and allow-listed host for logo | 9 |
-| allowed `SchoolStatus` transitions | 3, 4, 5 (13–17 deferred) |
-| an active `SchoolSubscription` exists | 3 |
-| academic-year date ordering **and overlap** | 18, 19 |
-| one reason of each type per date, dates inside the year | 20, 21, 22, 23 |
-| authorization for lock/unlock and enrollment | 24–27 — **not built, see above** |
-| text lengths on every free-text field | all |
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — every date must be inside
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — the whole list, each `date` with its `events` of `name`, `description`, `type`
 
-**Query parameters are validated globally, not per endpoint.** A missing required parameter and
-a misspelled enum value are the same two mistakes on every endpoint that takes one, so
-[`GlobalExceptionHandler`](../../common/error/GlobalExceptionHandler.java) answers both in our
-error shape — `MISSING_PARAMETER` and `INVALID_PARAMETER`, the latter listing the accepted
-values. Left to Spring they arrive as its own error page, which in dev carries a full stack
-trace. #22 and the two calendar `DELETE`s are the first endpoints here to take one; they will
-not be the last.
+**#21 · `POST /schools/current/academic-years/{name}/holidays`**
 
-## Deliberately not here
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`, `holidays` — is that `date` already closed for this `type`
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — a new `date` entry, or one more `events` row on an existing one
 
-- **`DELETE` on a School.** A tenant is never removed with `DELETE`; it walks the lifecycle to
-  `DELETED` — through #13 to #17, which are deferred, so **today there is no way to remove one at
-  all.** The only `DELETE`s in this package are on holidays.
-- **Subscription and plan changes.** `SchoolSubscription` is its own resource with its own
-  controller. `School`'s javadoc says plan data is deliberately not embedded.
-- **Terms.** [`AcademicTerm`](../../models/academics/structure/AcademicTerm.java) lives in
-  `academics` and gets a controller there.
-- **A "current academic year" endpoint.** See above — derived from dates, never stored.
-- **Bulk tenant operations.** Suspending forty schools at once is an operational script.
-- **Notifications.** "Your school has been suspended", "results have been unlocked" — messages,
-  and `notification` is designed last by the decision of 2026-08-14. No `notifiedAt` field, and
-  nothing sends from here.
+**#22 · `PATCH /schools/current/academic-years/{name}/holidays/{date}?type=`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` — the `date`, and `type` to pick which reason when a day has several
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: the matching `events` row's `name`, `description`, `type`
+
+**D1 · `DELETE /schools/current/academic-years/{name}/holidays/{date}?type=`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — one `events` row removed, and the `date` entry too once its `events` list is empty
+
+**#23 · `POST /schools/current/academic-years/{name}/holidays/generate-weekly-off`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`, `holidays` — which dates already have a `WEEKLY_OFF`
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — one entry per matching weekday, skipping any that already had one
+
+**D2 · `DELETE /schools/current/academic-years/{name}/holidays?type=`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — every `events` row of that `type` removed, and any `date` left with none
+
+**#24 · `POST /schools/current/academic-years/{name}/enrollment/enable`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `enrollmentEnabled` = true
+
+**#25 · `POST /schools/current/academic-years/{name}/enrollment/disable`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `enrollmentEnabled` = false
+
+**#26 · `POST /schools/current/academic-years/{name}/results/lock`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `resultsLocked` = true
+
+**#27 · `POST /schools/current/academic-years/{name}/results/unlock`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `resultsLocked` = false
+
+**#28 · `POST /schools/current/academic-years/{name}/clone`**  ·  optional
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` of the year being copied
+- [`academic_years`](../../models/core/AcademicYear.java) — *insert*: a new year with `holidays` copied and dates shifted
+
+## Reads — platform  ·  G1, G2, ~~G3~~
+
+**G1 · `GET /platform/schools`**
+
+- [`schools`](../../models/core/School.java) — *reads*: `status`, `schoolName`, `subdomain`, `countryCode`, `city`, `createdAt` — the filters; then `statusReason`, `accountHolderName`, `emailAddress`, `phoneNumber`, `activatedAt`, `suspendedAt`. **Never** `encryptionKeyReference`
+
+**G2 · `GET /platform/schools/{id}`**
+
+- [`schools`](../../models/core/School.java) — *reads*: every field except `encryptionKeyReference`, including `statusReason`, `activatedAt`, `suspendedAt`, `createdAt`, `updatedAt`
+
+**G3 · `GET /platform/schools/subdomain-available?value=`**  ·  dropped
+
+- [`schools`](../../models/core/School.java) — *reads*: would have been `subdomain` — #1 and #10 do it
+
+## Reads — school surface  ·  G4–G11
+
+**G4 · `GET /schools/current`**
+
+- [`schools`](../../models/core/School.java) — *reads*: `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress`, `logoUrl`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `subdomain`, `status`. **Not** `statusReason`, `activatedAt`, `suspendedAt` or `encryptionKeyReference`
+
+**G5 · `GET /schools/current/academic-years`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate`, `enrollmentEnabled`, `resultsLocked`, and a count of `holidays`
+
+**G6 · `GET /schools/current/academic-years/current`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — the lookup; then the same fields as G5
+
+**G7 · `GET /schools/current/academic-years/{name}`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: the same fields as G5, found by `schoolId` and `name`
+
+**G8 · `GET /schools/current/academic-years/{name}/holidays`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` — every `date` with its `events` of `name`, `description`, `type`; plus `startDate`, `endDate`
+
+**G9 · `GET /schools/current/academic-years/{name}/holidays/{date}`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — the date must be inside; `holidays` — one lookup on `date`, returning every `events` row on it
+
+**G10 · `GET /schools/current/academic-years/{name}/working-days?from=&to=`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`; `holidays` — the closed `date` values in range, counted as days and not reasons
+
+**G11 · `GET /schools/current/academic-years/{name}/holidays/export?format=csv`**  ·  optional
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays`, `startDate`, `endDate`, `name`
