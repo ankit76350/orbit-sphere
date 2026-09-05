@@ -1,0 +1,113 @@
+package com.orbitastra.backend.models.institution.embedded;
+
+import java.time.Instant;
+
+import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
+import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * One counter inside a school's NumberSequence document.
+ *
+ * <p>Was its own document until 2026-09-05. Everything below is unchanged; only where it lives
+ * moved. See NumberSequence for what that costs and the rules it puts on the service.
+ *
+ * <p>The identity inside the array is {@code sequenceType + scopeKey}. No index can stop the
+ * same pair being added twice, so the service has to — read the note on
+ * {@code NumberSequence.counters}.
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SequenceCounter {
+
+    // Example: NumberSequenceType.STUDENT_ADMISSION
+    @NotNull
+    private NumberSequenceType sequenceType;
+
+    // Which run of numbering this counter counts, and the partner of resetPolicy below: that
+    // field says HOW the scope is worked out, this one is the answer.
+    //
+    //     resetPolicy NEVER          -> scopeKey "GLOBAL"     one count, forever
+    //     resetPolicy ACADEMIC_YEAR  -> scopeKey "2026-2027"  a fresh count each year
+    //     resetPolicy CALENDAR_YEAR  -> scopeKey "2026"
+    //     resetPolicy MONTHLY        -> scopeKey "2026-09"
+    //
+    // A NEW ENTRY per scope, rather than resetting one entry: the 2026-2027 entry keeps saying
+    // it issued 900 admissions long after 2027-2028 has started at 1. Overwriting nextValue back
+    // to 1 would destroy that, and "how many did we admit last year" is a question somebody
+    // asks.
+    //
+    // THIS IS WHY THE ARRAY GROWS AND NEVER SHRINKS. One entry per type per scope, so a school
+    // on MONTHLY gains twelve entries a year for that type and keeps every one. See the size
+    // note on NumberSequence.
+    //
+    // DELIBERATELY NOT AN ENUM, unlike almost everything else typed in this codebase. "2026-2027"
+    // is data, not a constant: the set of values is decided by the calendar, so an enum would
+    // need a new constant every April and a deploy to go with it — and the year that deploy was
+    // late, no school could admit a student. Compare FeatureCode, which IS an enum because a
+    // plan cannot grant a capability the software does not have, so that set is closed by us.
+    // The test is always: does our code decide the values, or does time?
+    //
+    // Example: "2026-2027" or "GLOBAL"
+    @NotBlank
+    private String scopeKey;
+
+    // What goes in front of the number. The house format is XXX/{YYYY}/{MM}/ — a short code, the
+    // year, the month, and a trailing separator — so every number in the system reads the same
+    // way: SUB/2026/09/000001, ADM/2026/09/000123, RCPT/2026/09/000045.
+    //
+    // {YYYY} the four-digit year, {YY} the last two, {MM} the zero-padded month. Filled in when
+    // the number is made, then STORED on this entry, so a school's numbering cannot change shape
+    // halfway through a run.
+    //
+    // END IT WITH A SEPARATOR. The number is appended straight on, so "ADM/{YYYY}/{MM}" gives
+    // ADM/2026/09000123 with the month running into the digits.
+    //
+    // Example: "ADM/{YYYY}/{MM}/"
+    private String prefixTemplate;
+
+    // Example: ""
+    private String suffixTemplate;
+
+    // The next unused value. Allocation is one atomic $inc on this field through the positional
+    // operator; never read it and write it back in two operations.
+    //
+    // Example: 1
+    @NotNull
+    @Builder.Default
+    private Long nextValue = 1L;
+
+    // Example: 6
+    @NotNull
+    @Builder.Default
+    private Integer paddingWidth = 6;
+
+    // How the scopeKey above is worked out — the kind, where scopeKey is the instance. This is
+    // the enum half of the pair.
+    //
+    // NOTHING READS IT YET. No code resets a sequence or opens a new scope, so every entry is
+    // NEVER + "GLOBAL" in practice. It is the field that says what the intended behaviour is
+    // when somebody comes to build it.
+    //
+    // Example: SequenceResetPolicy.ACADEMIC_YEAR
+    @NotNull
+    @Builder.Default
+    private SequenceResetPolicy resetPolicy = SequenceResetPolicy.NEVER;
+
+    // When this entry's scope last rolled over, so it cannot be done twice in one day.
+    // Unused, like resetPolicy — nothing rolls anything over yet.
+    // Example: 2026-04-01T00:00:00Z
+    private Instant lastResetAt;
+
+    // NO recordState HERE, even though the old document had one through SchoolBase. An embedded
+    // counter is not a record anybody archives or soft-deletes on its own; the container carries
+    // the one recordState for the school's whole set.
+}
