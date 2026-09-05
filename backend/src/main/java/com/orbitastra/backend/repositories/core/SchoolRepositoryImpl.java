@@ -38,12 +38,25 @@ public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
 
     @Override
     public Page<School> search(SchoolSearchRequest request, Pageable pageable) {
-        Query query = new Query(buildCriteria(request));
+        //! step 1 - build the filter from whichever parameters were sent
+        Criteria criteria = buildCriteria(request);
 
-        // The count must not see the skip and limit, so it is taken before they are applied.
-        long total = mongo.count(Query.of(query).limit(-1).skip(-1), School.class);
+        //! step 2 - build the count query. It carries the filter and NOTHING else: given the
+        //! page's skip and limit it would only ever count one page.
+        Query countQuery = new Query(criteria);
 
-        List<School> rows = mongo.find(query.with(pageable), School.class);
+        //! step 3 - build the page query, which is the same filter plus the paging and sorting
+        Query pageQuery = new Query(criteria).with(pageable);
+
+        //! step 4 - run the count, for totalElements
+        // TODO: reading schools (how many match)
+        long total = mongo.count(countQuery, School.class);
+
+        //! step 5 - run the page. Only these rows are ever read, however many tenants exist.
+        // TODO: reading schools (one page of them)
+        List<School> rows = mongo.find(pageQuery, School.class);
+
+        //! step 6 - hand back the rows with the total beside them
         return new PageImpl<>(rows, pageable, total);
     }
 
@@ -54,18 +67,23 @@ public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
      * asked for no filters at all.
      */
     private Criteria buildCriteria(SchoolSearchRequest request) {
+        //! step 1 - start with nothing, and add only the filters that were actually sent
         List<Criteria> filters = new ArrayList<>();
 
+        //! step 2 - status, which is the one field that ORs within itself
         if (request.statuses() != null && !request.statuses().isEmpty()) {
             // OR within the field: "show me the live ones" is one question, not two requests.
             filters.add(Criteria.where("status").in(request.statuses()));
         }
+        //! step 3 - where the school is, matched exactly but ignoring case
         if (hasText(request.countryCode())) {
             filters.add(CriteriaText.exactIgnoreCase("countryCode", request.countryCode().trim()));
         }
         if (hasText(request.city())) {
             filters.add(CriteriaText.exactIgnoreCase("city", request.city().trim()));
         }
+
+        //! step 4 - when it was created, either end optional
         if (request.createdFrom() != null || request.createdTo() != null) {
             Criteria created = Criteria.where("createdAt");
             if (request.createdFrom() != null) {
@@ -76,12 +94,15 @@ public class SchoolRepositoryImpl implements SchoolRepositoryCustom {
             }
             filters.add(created);
         }
+        //! step 5 - the free-text search, across the name and the subdomain
         if (hasText(request.search())) {
             filters.add(new Criteria().orOperator(
                     CriteriaText.containsIgnoreCase("schoolName", request.search()),
                     CriteriaText.containsIgnoreCase("subdomain", request.search())));
         }
 
+        //! step 6 - AND them together. No filters at all means everything, which is the right
+        //! answer to a request that asked for nothing in particular.
         return filters.isEmpty() ? new Criteria() : new Criteria().andOperator(filters);
     }
 

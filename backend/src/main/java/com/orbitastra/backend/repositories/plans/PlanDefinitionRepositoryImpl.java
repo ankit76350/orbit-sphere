@@ -34,38 +34,62 @@ public class PlanDefinitionRepositoryImpl implements PlanDefinitionRepositoryCus
 
     @Override
     public Page<PlanDefinition> search(PlanSearchRequest request, Pageable pageable) {
-        Query query = new Query(buildCriteria(request));
+        //! step 1 - build the filter from whichever parameters were sent
+        Criteria criteria = buildCriteria(request);
 
-        // Taken before the skip and limit are applied, or it would count one page.
-        long total = mongo.count(Query.of(query).limit(-1).skip(-1), PlanDefinition.class);
+        //! step 2 - build the count query. It carries the filter and NOTHING else: given the
+        //! page's skip and limit it would only ever count one page.
+        Query countQuery = new Query(criteria);
 
-        List<PlanDefinition> rows = mongo.find(query.with(pageable), PlanDefinition.class);
+        //! step 3 - build the page query, which is the same filter plus the paging and sorting
+        Query pageQuery = new Query(criteria).with(pageable);
+
+        //! step 4 - run the count, for totalElements
+        // TODO: reading plans (how many match)
+        long total = mongo.count(countQuery, PlanDefinition.class);
+
+        //! step 5 - run the page. Only these rows are read, however many versions exist.
+        // TODO: reading plans (one page of them)
+        List<PlanDefinition> rows = mongo.find(pageQuery, PlanDefinition.class);
+
+        //! step 6 - hand back the rows with the total beside them
         return new PageImpl<>(rows, pageable, total);
     }
 
     /** The filters, combined with AND. An absent one adds nothing, so no filters means all. */
     private Criteria buildCriteria(PlanSearchRequest request) {
+        //! step 1 - start with nothing, and add only the filters that were actually sent
         List<Criteria> filters = new ArrayList<>();
 
+        //! step 2 - status, which ORs within itself
         if (request.statuses() != null && !request.statuses().isEmpty()) {
             filters.add(Criteria.where("status").in(request.statuses()));
         }
+
+        //! step 3 - the plan family, matched exactly
         if (hasText(request.planCode())) {
             // Exact: this is how somebody asks for every version of one plan.
             filters.add(CriteriaText.exactIgnoreCase("planCode", normalizeCode(request.planCode())));
         }
+
+        //! step 4 - the display name, matched loosely
         if (hasText(request.name())) {
             filters.add(CriteriaText.containsIgnoreCase("name", request.name()));
         }
+
+        //! step 5 - public or quote-only
         if (request.publiclyAvailable() != null) {
             filters.add(Criteria.where("publiclyAvailable").is(request.publiclyAvailable()));
         }
+
+        //! step 6 - the free-text search, across the code and the name
         if (hasText(request.search())) {
             filters.add(new Criteria().orOperator(
                     CriteriaText.containsIgnoreCase("planCode", request.search()),
                     CriteriaText.containsIgnoreCase("name", request.search())));
         }
 
+        //! step 7 - AND them together. No filters at all means everything.
         return filters.isEmpty() ? new Criteria() : new Criteria().andOperator(filters);
     }
 

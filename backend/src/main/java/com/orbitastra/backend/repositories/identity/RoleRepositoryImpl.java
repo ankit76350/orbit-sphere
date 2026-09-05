@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
  * in Java and writes it back: {@code save()} on the roles document takes part in the
  * {@code @Version} optimistic locking it inherits, so two admins editing two different roles at
  * once would collide.
+ *
+ * <p>Every method builds its query first and runs it second, so what is being asked for and what
+ * is being done with it can be read apart.
  */
 @RequiredArgsConstructor
 public class RoleRepositoryImpl implements RoleRepositoryCustom {
@@ -27,36 +30,64 @@ public class RoleRepositoryImpl implements RoleRepositoryCustom {
 
     @Override
     public boolean addRoleIfAbsent(String schoolId, RoleDefinition role) {
-        // Push only when no entry with that key exists. Two callers racing on provisioning both
-        // run this; one pushes, the other matches nothing and does nothing.
-        Query absent = new Query(Criteria.where("schoolId").is(schoolId)
+        //! step 1 - build the query: this school, and NO role already holding that key. The
+        //! guard lives here because a unique index cannot protect an array.
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
                 .and("roles.roleKey").ne(role.getRoleKey()));
 
-        return mongo.updateFirst(absent, new Update().push("roles", role), Role.class)
-                .getModifiedCount() > 0;
+        //! step 2 - build the update
+        Update update = new Update().push("roles", role);
+
+        //! step 3 - run it. Two callers racing on provisioning both get here; one matches and
+        //! pushes, the other matches nothing.
+        // TODO: write role (add one if the key is free)
+        long modified = mongo.updateFirst(query, update, Role.class).getModifiedCount();
+
+        //! step 4 - say whether this call was the one that added it
+        return modified > 0;
     }
 
     @Override
     public int addRoles(String schoolId, List<RoleDefinition> roles) {
+        //! step 1 - nothing to add means no write at all
         if (roles == null || roles.isEmpty()) {
             return 0;
         }
-        mongo.updateFirst(school(schoolId),
-                new Update().push("roles").each(roles.toArray()),
-                Role.class);
+
+        //! step 2 - build the query
+        Query query = school(schoolId);
+
+        //! step 3 - build the update. A push rather than saving the document back, because a
+        //! full save would put every existing role's permissions back to whatever was read —
+        //! and a school may have edited them.
+        Update update = new Update().push("roles").each(roles.toArray());
+
+        //! step 4 - run it
+        // TODO: write roles (add the missing ones)
+        mongo.updateFirst(query, update, Role.class);
+
+        //! step 5 - report how many went in
         return roles.size();
     }
 
     @Override
     public boolean setRoleActive(String schoolId, String roleKey, boolean active) {
-        // The array element is matched in the query, so $ points at that one role.
-        Query one = new Query(Criteria.where("schoolId").is(schoolId)
+        //! step 1 - build the query, matching the one array entry so $ points at that role
+        Query query = new Query(Criteria.where("schoolId").is(schoolId)
                 .and("roles.roleKey").is(roleKey));
 
-        return mongo.updateFirst(one, new Update().set("roles.$.active", active), Role.class)
-                .getModifiedCount() > 0;
+        //! step 2 - build the update, which touches that entry and no other
+        Update update = new Update().set("roles.$.active", active);
+
+        //! step 3 - run it
+        // TODO: write role (switch one on or off)
+        long modified = mongo.updateFirst(query, update, Role.class).getModifiedCount();
+
+        //! step 4 - false means no role of that key, or it was already in that state
+        return modified > 0;
     }
 
+    /** Builds the query for the school's one document. Runs nothing. */
     private Query school(String schoolId) {
         return new Query(Criteria.where("schoolId").is(schoolId));
     }
