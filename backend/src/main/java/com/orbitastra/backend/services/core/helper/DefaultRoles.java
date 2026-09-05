@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import com.orbitastra.backend.models.identity.Role;
+import com.orbitastra.backend.models.identity.embedded.RoleDefinition;
 import com.orbitastra.backend.models.identity.embedded.RolePermission;
 import com.orbitastra.backend.models.identity.enums.AppModule;
 import com.orbitastra.backend.models.identity.enums.DataScope;
@@ -35,11 +35,10 @@ public final class DefaultRoles {
     }
 
     /** Role key -> the role, for one school. Keys are what the seeder checks for. */
-    public static List<Role> forSchool(String schoolId) {
-        List<Role> roles = new ArrayList<>();
+    public static List<RoleDefinition> forSchool() {
+        List<RoleDefinition> roles = new ArrayList<>();
 
-        roles.add(Role.builder()
-                .schoolId(schoolId)
+        roles.add(RoleDefinition.builder()
                 .roleKey("SCHOOL_ADMIN")
                 .name("School Administrator")
                 .description("Full access to every module. The role the first account holds.")
@@ -50,8 +49,7 @@ public final class DefaultRoles {
                 .active(true)
                 .build());
 
-        roles.add(Role.builder()
-                .schoolId(schoolId)
+        roles.add(RoleDefinition.builder()
                 .roleKey("TEACHER")
                 .name("Teacher")
                 .description("Own classes: attendance, homework, marks. No fees, no staff pay.")
@@ -68,8 +66,7 @@ public final class DefaultRoles {
                 .active(true)
                 .build());
 
-        roles.add(Role.builder()
-                .schoolId(schoolId)
+        roles.add(RoleDefinition.builder()
                 .roleKey("GUARDIAN")
                 .name("Parent or Guardian")
                 .description("Their own child only. Deliberately read-mostly.")

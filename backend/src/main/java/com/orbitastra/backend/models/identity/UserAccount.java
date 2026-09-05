@@ -32,7 +32,7 @@ import lombok.experimental.SuperBuilder;
  * <p>One person gets one account, which the unique index enforces. A parent with
  * three children at the school still signs in once.
  *
- * <p>{@code roleDocsIds} is what the person may do. A person may hold more than
+ * <p>{@code roleKeys} is what the person may do. A person may hold more than
  * one role at a time, such as a teacher who is also a hostel warden, and what
  * they may do is everything their roles allow added together. Roles only ever
  * grant; none of them takes a permission away from another. An empty list means
@@ -71,8 +71,8 @@ import lombok.experimental.SuperBuilder;
  * time against this field is how that is done.
  *
  * <p>The service checks that at least one of email or phone is present, that the
- * person named actually exists in the school, that every role in
- * {@code roleDocsIds} belongs to the same school and is active, that the last
+ * person named actually exists in the school, that every key in
+ * {@code roleKeys} names a role the school has and that the role is active, that the last
  * account able to manage user access is never suspended or stripped of that role,
  * and that a password is checked against the school's password rules before it is
  * hashed.
@@ -98,7 +98,7 @@ import lombok.experimental.SuperBuilder;
                 def = "{'schoolId': 1, 'status': 1, 'personType': 1}"),
         @CompoundIndex(
                 name = "school_account_role_idx",
-                def = "{'schoolId': 1, 'roleDocsIds': 1, 'status': 1}")
+                def = "{'schoolId': 1, 'roleKeys': 1, 'status': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -116,13 +116,20 @@ public class UserAccount extends SchoolBase {
     @NotBlank
     private String personDocsId;
 
-    // Links to Role.id, one for each role this person holds. What they may do is
-    // everything their roles allow added together, so holding more roles can only
-    // ever allow more, never less. Empty means the person may sign in and do
-    // nothing, which is what a new account starts as.
-    // Example: ["67b11224dc3f7d0022334455"]
+    // The roleKey of each role this person holds. What they may do is everything
+    // their roles allow added together, so holding more roles can only ever allow
+    // more, never less. Empty means the person may sign in and do nothing, which is
+    // what a new account starts as.
+    //
+    // KEYS, NOT IDS, since 2026-09-05. Roles became entries in one document per
+    // school and an embedded entry has no _id, so there is nothing for a *DocsId to
+    // point at. roleKey was already unique per school, so nothing was given up --
+    // and a list of "SCHOOL_ADMIN" reads in a shell where a list of ObjectIds does
+    // not. Resolve them against Role.roles[].roleKey.
+    //
+    // Example: ["SCHOOL_ADMIN", "TEACHER"]
     @Builder.Default
-    private List<String> roleDocsIds = new ArrayList<>();
+    private List<String> roleKeys = new ArrayList<>();
 
     // Email tidied to lower case with spaces trimmed, used to find the account
     // at sign-in. Null when the person signs in by phone.

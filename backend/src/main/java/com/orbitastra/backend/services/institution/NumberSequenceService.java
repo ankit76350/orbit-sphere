@@ -14,158 +14,159 @@ import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.models.institution.NumberSequence;
+import com.orbitastra.backend.models.institution.embedded.SequenceCounter;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * Hands out the human-readable numbers documents carry — {@code SUB/2026/000001},
- * {@code ADM/2026/000123}, an invoice number, a receipt number.
+ * Hands out the next human-readable business number for one school.
  *
- * <p>The first thing in this codebase to read a {@link NumberSequence}. Every module needs one
- * eventually, so it is built once here rather than in whichever service happened to need it
- * first.
- *
- * <h2>Why the increment must be a database operation</h2>
- *
- * <p>The obvious version — read the row, add one, save it — hands the <b>same number to two
- * callers</b> the moment two requests overlap. Both read 41, both write 42, and two subscriptions
- * are called SUB/2026/000041. The unique index would catch it on a good day and let it through on
- * a bad one, because the index is on {@code subscriptionNo} per school and the collision is
- * silent when the two are in different schools.
- *
- * <p>So the increment is a single {@code findAndModify}: Mongo applies the {@code $inc} and hands
- * back the document as it was, atomically, and no two callers can see the same value. It is the
- * one operation here that cannot be written any other way.
- *
- * <h2>Where the number comes from</h2>
- *
- * <p>{@code nextValue} on the row is <b>the number to hand out next</b>, not the last one used.
- * The row seeded by provisioning starts at 1, so the first number allocated is 1.
+ * <p>Rewritten on 2026-09-05 when every counter moved into one document per school. The three
+ * rules the new shape puts on this class are written out on
+ * {@link NumberSequence}; what follows is how they are met.
  */
 @Service
 @RequiredArgsConstructor
 public class NumberSequenceService {
 
-    /** Every sequence a school has is scoped {@code GLOBAL} unless something needs otherwise. */
     public static final String GLOBAL_SCOPE = "GLOBAL";
 
     private final MongoTemplate mongo;
 
     /**
-     * The next number for one school and one kind of document.
+     * Allocates the next number and returns it formatted.
      *
-     * @param schoolId the school the number belongs to — numbering restarts per school, which is
-     *                 why two schools can both have a SUB/2026/000001
-     * @param type     which counter
-     * @param prefixTemplate used only when the row has none of its own. Placeholders:
-     *                 {@code {YYYY}} the four-digit year, {@code {YY}} the last two,
-     *                 {@code {MM}} the two-digit month. Example: "SUB/{YYYY}/{MM}/"
-     *                 <p><b>End it with a separator.</b> The number is appended straight on, so
-     *                 "SUB/{YYYY}/{MM}" produces SUB/2026/09000001 with the month running into
-     *                 the digits, where "SUB/{YYYY}/{MM}/" produces SUB/2026/09/000001.
-     * @return the formatted number, ready to store
+     * <p>Makes sure the school's document and the counter exist, then increments in one atomic
+     * step and formats what the counter said before the increment.
      */
     public String next(String schoolId, NumberSequenceType type, String prefixTemplate) {
-        //! step 1 - make sure there is a row to increment. Provisioning seeds one for every type
-        //! a school needs, but a type added to the enum later has no row on schools provisioned
-        //! before it — this is what stops that being a 500.
-        ensureRow(schoolId, type, prefixTemplate);
+        ensureCounter(schoolId, type, prefixTemplate);
 
-        //! step 2 - take a number, atomically. returnNew(false) hands back the row as it WAS, so
-        //! the value read is the one being allocated and the stored nextValue has already moved
-        //! on. Two callers can never be given the same one.
-        // TODO: read and update number sequence
+        // ONE atomic step. The array element is matched in the query and incremented through the
+        // positional operator, and returnNew(false) hands back the document as it was, so the
+        // value we read is the one this call owns. Reading the array into Java, adding one and
+        // saving it back is how two students get the same admission number.
         NumberSequence before = mongo.findAndModify(
-                query(schoolId, type),
-                new Update().inc("nextValue", 1),
+                counterQuery(schoolId, type),
+                new Update().inc("counters.$.nextValue", 1),
                 FindAndModifyOptions.options().returnNew(false),
                 NumberSequence.class);
 
-        if (before == null) {
-            // The row was there a line ago. Something deleted it mid-request, and guessing a
-            // number is worse than failing.
+        SequenceCounter counter = before == null ? null : findCounter(before, type);
+        if (counter == null) {
+            // ensureCounter just ran, so this means somebody removed it in between, or the
+            // school's document is gone.
             throw ApiException.conflict("NUMBER_SEQUENCE_MISSING",
                     "The " + type + " number sequence for this school could not be read.");
         }
 
-        //! step 3 - format it
-        long value = before.getNextValue() == null ? 1L : before.getNextValue();
+        long value = counter.getNextValue() == null ? 1L : counter.getNextValue();
 
-        String stored = before.getPrefixTemplate();
+        // The template stored on the counter wins, so a school's numbering cannot change shape
+        // half way through a run just because a caller passed something different.
+        String stored = counter.getPrefixTemplate();
         String prefix = stored != null && !stored.isBlank()
                 ? stored
                 : (prefixTemplate == null ? "" : prefixTemplate);
 
-        //! step 4 - remember the template on the row the first time it is used.
-        //! Provisioning seeds these rows with no template, so without this the format of every
-        //! number would depend on each caller passing the same string — and the day one of them
-        //! passes a different one, a school's numbering changes shape halfway through.
+        // First caller to bring a template writes it onto the counter, so every later number in
+        // this run reads the same.
         if ((stored == null || stored.isBlank()) && !prefix.isEmpty()) {
-            // TODO: update number sequence
-            mongo.updateFirst(query(schoolId, type),
-                    new Update().set("prefixTemplate", prefix), NumberSequence.class);
+            mongo.updateFirst(counterQuery(schoolId, type),
+                    new Update().set("counters.$.prefixTemplate", prefix), NumberSequence.class);
         }
-        int width = before.getPaddingWidth() == null ? 6 : before.getPaddingWidth();
-        String suffix = before.getSuffixTemplate() == null ? "" : before.getSuffixTemplate();
 
+        int width = counter.getPaddingWidth() == null ? 6 : counter.getPaddingWidth();
+        String suffix = counter.getSuffixTemplate() == null ? "" : counter.getSuffixTemplate();
 
         return resolve(prefix) + pad(value, width) + resolve(suffix);
     }
 
     /**
-     * Creates the row if it is missing, and does nothing if it is not.
+     * Makes sure the school has a counters document and that this counter is in it.
      *
-     * <p>A duplicate key here means another request created it first, which is the good outcome
-     * — the number itself is allocated by the increment that follows, and that is safe however
-     * many callers arrive at once.
+     * <p>Two steps, because the array cannot be pushed to before the document exists.
      */
-    private void ensureRow(String schoolId, NumberSequenceType type, String prefixTemplate) {
-        // TODO: check number sequence exists
-        if (mongo.exists(query(schoolId, type), NumberSequence.class)) {
+    private void ensureCounter(String schoolId, NumberSequenceType type, String prefixTemplate) {
+        ensureDocument(schoolId);
+
+        // GUARDED PUSH. The old shape had a unique index on schoolId + type + scope, which made
+        // a second copy impossible. A unique index cannot do that inside an array, so the
+        // condition lives in the query: push only if no entry for this type and scope is there.
+        //
+        // Two callers racing on a school's first admission both run this; one pushes, the other
+        // matches nothing and does nothing. A modified count of zero is success here, not
+        // failure, which is why it is not checked.
+        Query absent = new Query(Criteria.where("schoolId").is(schoolId)
+                .norOperator(Criteria.where("counters")
+                        .elemMatch(Criteria.where("sequenceType").is(type)
+                                .and("scopeKey").is(GLOBAL_SCOPE))));
+
+        mongo.updateFirst(absent,
+                new Update().push("counters", SequenceCounter.builder()
+                        .sequenceType(type)
+                        .scopeKey(GLOBAL_SCOPE)
+                        .prefixTemplate(prefixTemplate)
+                        .nextValue(1L)
+                        .paddingWidth(6)
+                        .resetPolicy(SequenceResetPolicy.NEVER)
+                        .build()),
+                NumberSequence.class);
+    }
+
+    /**
+     * Creates the school's counters document if it has none.
+     *
+     * <p>An insert rather than an upsert so the auditing hook fills in createdAt and
+     * createdByDocsId; a MongoTemplate update would leave both null. The unique index on
+     * schoolId is what makes the race safe — the loser catches the duplicate and carries on,
+     * because the document it wanted now exists.
+     */
+    private void ensureDocument(String schoolId) {
+        if (mongo.exists(schoolQuery(schoolId), NumberSequence.class)) {
             return;
         }
-        NumberSequence row = NumberSequence.builder()
-                .schoolId(schoolId)
-                .sequenceType(type)
-                .scopeKey(GLOBAL_SCOPE)
-                .prefixTemplate(prefixTemplate)
-                .nextValue(1L)
-                .paddingWidth(6)
-                .resetPolicy(SequenceResetPolicy.NEVER)
-                .build();
-
         try {
-            // TODO: insert number sequence
-            mongo.insert(row);
+            mongo.insert(NumberSequence.builder().schoolId(schoolId).build());
         } catch (DuplicateKeyException raced) {
             // Somebody else created it between the check and the insert. Nothing to do.
         }
     }
 
-    private Query query(String schoolId, NumberSequenceType type) {
-        return new Query(Criteria.where("schoolId").is(schoolId)
-                .and("sequenceType").is(type)
-                .and("scopeKey").is(GLOBAL_SCOPE));
+    /** Finds the counter inside a document that was read back. */
+    private SequenceCounter findCounter(NumberSequence document, NumberSequenceType type) {
+        if (document.getCounters() == null) {
+            return null;
+        }
+        return document.getCounters().stream()
+                .filter(c -> c.getSequenceType() == type
+                        && GLOBAL_SCOPE.equals(c.getScopeKey()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** The school's document. */
+    private Query schoolQuery(String schoolId) {
+        return new Query(Criteria.where("schoolId").is(schoolId));
     }
 
     /**
-     * Fills in the date placeholders.
-     *
-     * <p><b>UTC, not the school's time zone.</b> A number is an identifier, not a date: it has to
-     * be stable and it has to be the same wherever it is read. Using the school's zone would mean
-     * a subscription created at 11pm on 31 December in Kolkata is numbered 2027 while the row it
-     * sits next to says 2026.
+     * The school's document AND the one array entry, which is what makes the positional
+     * operator usable: {@code $} refers to the element this query matched.
      */
+    private Query counterQuery(String schoolId, NumberSequenceType type) {
+        return new Query(Criteria.where("schoolId").is(schoolId)
+                .and("counters").elemMatch(Criteria.where("sequenceType").is(type)
+                        .and("scopeKey").is(GLOBAL_SCOPE)));
+    }
+
     private String resolve(String template) {
         if (template == null || template.isEmpty()) {
             return "";
         }
         ZonedDateTime now = ZonedDateTime.ofInstant(Instant.now(), ZoneOffset.UTC);
-
-        // {MM} is zero-padded, so September is 09 and the numbers of one year sort in order as
-        // text. An unpadded 9 would sort after 10.
         return template
                 .replace("{YYYY}", String.valueOf(now.getYear()))
                 .replace("{YY}", String.format("%02d", now.getYear() % 100))

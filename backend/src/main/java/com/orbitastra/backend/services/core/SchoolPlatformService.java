@@ -18,6 +18,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
 import com.orbitastra.backend.dto.core.platform.SchoolSummaryResponse;
@@ -33,7 +37,9 @@ import com.orbitastra.backend.dto.core.platform.SchoolSubdomainResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
+import com.orbitastra.backend.models.identity.embedded.RoleDefinition;
 import com.orbitastra.backend.models.institution.NumberSequence;
+import com.orbitastra.backend.models.institution.embedded.SequenceCounter;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
@@ -133,6 +139,10 @@ public class SchoolPlatformService {
     private final SchoolSubscriptionRepository subscriptions;
     private final CoreValidator coreValidator;
 
+    // For the two guarded array writes below. A derived repository method cannot express a
+    // $push, and saving the whole document back would overwrite counters a school is using.
+    private final MongoTemplate mongo;
+
     //? endpoint 1 — create the tenant -------------------------------------------------
 
     @Transactional
@@ -205,16 +215,18 @@ public class SchoolPlatformService {
         int sequencesPresent = NumberSequenceType.values().length - sequencesCreated;
 
         //! step 4 - save the missing roles
-        List<Role> wanted = DefaultRoles.forSchool(schoolId);
+        List<RoleDefinition> wanted = DefaultRoles.forSchool();
         int rolesCreated = seedMissingRoles(schoolId, wanted);
         int rolesPresent = wanted.size() - rolesCreated;
 
         // step 5 - read back what the school ended up with
         // Read from the database, not from `wanted`: a school may hold roles nobody here
         // created, and readyToActivate is about what exists rather than what we just added.
-        // TODO: read roles
-        List<String> roleKeys = roles.findBySchoolId(schoolId).stream()
-                .map(Role::getRoleKey)
+        List<String> roleKeys = roles.findBySchoolId(schoolId)
+                .map(Role::getRoles)
+                .orElseGet(List::of)
+                .stream()
+                .map(RoleDefinition::getRoleKey)
                 .sorted()
                 .collect(Collectors.toList());
 
@@ -228,20 +240,23 @@ public class SchoolPlatformService {
          ** <p>Uses GLOBAL scope and skips existing sequences.
          */
     private int seedMissingNumberSequences(String schoolId) {
-        //! step 1 - read what the school already has
-        // TODO: read number sequences
-        Set<NumberSequenceType> existing = numberSequences.findBySchoolId(schoolId).stream()
-                .map(NumberSequence::getSequenceType)
+        //! step 1 - read the school's one counters document, if it has one yet
+        Optional<NumberSequence> document = numberSequences.findBySchoolId(schoolId);
+
+        Set<NumberSequenceType> existing = document
+                .map(NumberSequence::getCounters)
+                .orElseGet(List::of)
+                .stream()
+                .map(SequenceCounter::getSequenceType)
                 .collect(Collectors.toSet());
 
-        //! step 2 - build a document for every type that is missing
-        List<NumberSequence> missing = new ArrayList<>();
+        //! step 2 - build a counter for every type that is missing
+        List<SequenceCounter> missing = new ArrayList<>();
         for (NumberSequenceType type : NumberSequenceType.values()) {
             if (existing.contains(type)) {
                 continue;
             }
-            missing.add(NumberSequence.builder()
-                    .schoolId(schoolId)
+            missing.add(SequenceCounter.builder()
                     .sequenceType(type)
                     .scopeKey(NumberSequenceService.GLOBAL_SCOPE)
                     .nextValue(1L)
@@ -250,14 +265,30 @@ public class SchoolPlatformService {
                     .build());
         }
 
-        //! step 3 - save them, and return how many were saved
+        //! step 3 - write them, and return how many were written
         // Nothing missing means no write at all, which is what makes a repeat call free.
         if (missing.isEmpty()) {
             return 0;
         }
 
-        // TODO: insert number sequences
-        return numberSequences.saveAll(missing).size();
+        if (document.isEmpty()) {
+            // First run for this school: one insert, so the auditing hook fills in createdAt
+            // and createdByDocsId. A MongoTemplate update would leave both null.
+            numberSequences.save(NumberSequence.builder()
+                    .schoolId(schoolId)
+                    .counters(missing)
+                    .build());
+        } else {
+            // The document is already there, so add only what it is short of. Pushing the
+            // missing entries leaves every existing counter's nextValue exactly where it was —
+            // saving the whole document back would be the way to reset a school's numbering by
+            // accident.
+            mongo.updateFirst(
+                    new Query(Criteria.where("schoolId").is(schoolId)),
+                    new Update().push("counters").each(missing.toArray()),
+                    NumberSequence.class);
+        }
+        return missing.size();
     }
 
         /**
@@ -265,26 +296,42 @@ public class SchoolPlatformService {
          *
          ** <p>Matches roles by roleKey and keeps existing roles unchanged.
          */
-    private int seedMissingRoles(String schoolId, List<Role> wanted) {
-        //! step 1 - read the role keys the school already has
-        // TODO: read roles
-        Set<String> existingKeys = roles.findBySchoolId(schoolId).stream()
-                .map(Role::getRoleKey)
+    private int seedMissingRoles(String schoolId, List<RoleDefinition> wanted) {
+        //! step 1 - read the school's one roles document, if it has one yet
+        Optional<Role> document = roles.findBySchoolId(schoolId);
+
+        Set<String> existingKeys = document
+                .map(Role::getRoles)
+                .orElseGet(List::of)
+                .stream()
+                .map(RoleDefinition::getRoleKey)
                 .collect(Collectors.toSet());
 
         //! step 2 - keep only the defaults that are not there yet
-        List<Role> missing = wanted.stream()
+        List<RoleDefinition> missing = wanted.stream()
                 .filter(role -> !existingKeys.contains(role.getRoleKey()))
                 .collect(Collectors.toList());
 
-        //! step 3 - save them, and return how many were saved
-        // An existing role is never touched, only skipped.
+        //! step 3 - write them, and return how many were written
+        // An existing role is never touched, only skipped. That matters more here than for the
+        // counters: a school may have edited SCHOOL_ADMIN's permissions, and re-running
+        // provisioning must not put our defaults back over the top of that.
         if (missing.isEmpty()) {
             return 0;
         }
 
-        // TODO: insert roles
-        return roles.saveAll(missing).size();
+        if (document.isEmpty()) {
+            roles.save(Role.builder()
+                    .schoolId(schoolId)
+                    .roles(missing)
+                    .build());
+        } else {
+            mongo.updateFirst(
+                    new Query(Criteria.where("schoolId").is(schoolId)),
+                    new Update().push("roles").each(missing.toArray()),
+                    Role.class);
+        }
+        return missing.size();
     }
 
 
@@ -316,13 +363,18 @@ public class SchoolPlatformService {
         // Without a SCHOOL_ADMIN role the first administrator account has nothing to hold, and
         // without the number sequences the first admission has no number to take. Activating
         // either way produces a live school that fails on first use.
-        // TODO: check role exists
-        if (!roles.existsBySchoolIdAndRoleKey(schoolId, "SCHOOL_ADMIN")) {
+        if (!roles.existsBySchoolIdAndRolesRoleKey(schoolId, "SCHOOL_ADMIN")) {
             throw ApiException.conflict("SETUP_INCOMPLETE",
                     "This school has no SCHOOL_ADMIN role. Run complete-provisioning first.");
         }
-        // TODO: count number sequences
-        long sequenceCount = numberSequences.countBySchoolId(schoolId);
+
+        // Counts the entries in the school's one document, not documents. countBySchoolId used
+        // to be the check and now only ever answers 0 or 1, which would pass this every time a
+        // document existed at all however empty its array was.
+        long sequenceCount = numberSequences.findBySchoolId(schoolId)
+                .map(NumberSequence::getCounters)
+                .orElseGet(List::of)
+                .size();
         if (sequenceCount < NumberSequenceType.values().length) {
             throw ApiException.conflict("SETUP_INCOMPLETE",
                     "This school has " + sequenceCount + " of "
