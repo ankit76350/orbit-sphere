@@ -63,6 +63,10 @@ The compound indexes enforce:
 
 Generates human-readable, school-scoped numbers without duplicate allocation.
 
+**One document per school, restructured 2026-09-05.** It was one document per counter, so a
+provisioned school held 48 of them. Now the school has a single document holding a `counters`
+array, and each entry is one counter. The counter fields did not change — only where they live.
+
 ```text
 ADMISSION_INQUIRY     -> INQ/2026/000001
 ADMISSION_APPLICATION -> APP/2026/000001
@@ -71,9 +75,17 @@ STUDENT_ADMISSION     -> ADM/2026/000001
 FEE_INVOICE           -> INV/2026/000001
 ```
 
+### The document
+
 | Field | Meaning and mapping |
 |---|---|
-| `schoolId` | Inherited link to `School.id`. |
+| `schoolId` | Inherited link to `School.id`. **Unique** — one document per school. |
+| `counters` | Every counter the school has, as `SequenceCounter` entries. Empty until the first number is issued. |
+
+### `counters[]` — SequenceCounter
+
+| Field | Meaning and mapping |
+|---|---|
 | `sequenceType` | Business number being generated. |
 | `scopeKey` | Counter scope such as `GLOBAL`, `2026`, `2026-2027`, or `2026-07`. |
 | `prefixTemplate` | Text/token template before the number. |
@@ -83,16 +95,45 @@ FEE_INVOICE           -> INV/2026/000001
 | `resetPolicy` | Never, calendar-year, academic-year, or monthly reset behavior. |
 | `lastResetAt` | UTC time of the last executed reset. |
 
-The unique identity is:
+The identity of a counter inside the array is:
 
 ```text
-schoolId + sequenceType + scopeKey
+sequenceType + scopeKey
 ```
 
-Allocation must use one atomic MongoDB `findAndModify` operation with `$inc`.
-The operation returns the previous `nextValue` as the allocated value while
-persisting the incremented counter. Reading and updating in separate calls can
-issue the same number to concurrent requests.
+### What the database can no longer enforce
+
+The old unique index on `schoolId + sequenceType + scopeKey` is gone, and **no index can
+replace it**: Mongo de-duplicates the identical keys one document generates, so a unique
+multikey index accepts two identical array entries. Adding a counter therefore has to be a
+guarded write, with the condition in the query:
+
+```text
+updateOne(
+  { schoolId: X, counters: { $not: { $elemMatch: { sequenceType: T, scopeKey: S } } } },
+  { $push: { counters: { ... } } })
+```
+
+A matched count of zero means somebody else added it first, which is success.
+
+### Allocation
+
+Still one atomic `findAndModify` with `$inc`, now through the positional operator because the
+counter is an array element:
+
+```text
+findAndModify(
+  { schoolId: X, counters: { $elemMatch: { sequenceType: T, scopeKey: S } } },
+  { $inc: { "counters.$.nextValue": 1 } },
+  returnNew: false)
+```
+
+It returns the document as it was, so the previous `nextValue` is the allocated value. Reading
+the array into the application, adding one and saving the document back issues the same number
+twice — and a full `save()` also enters the `@Version` optimistic locking the document
+inherits, so two allocations at once would collide.
+
+`NumberSequenceRepositoryCustom` owns both operations. Nothing else may write this collection.
 
 Stored business numbers such as `applicationNo`, `offerNo`, and `invoiceNo`
 remain immutable after allocation.

@@ -22,7 +22,9 @@ Staff / Guardian / Student        (the person, already exists)
         |
 UserAccount   (the login — one per person)
         |
-        +--> roleDocsIds[]  ------------> Role
+        +--> roleKeys[]  ---------------> Role  (one document per school)
+        |                                   +--> roles[]  RoleDefinition
+        |                                         roleKey + name + permissions
         |                                   +--> RolePermission[]
         |                                         module + actions + scope
         |
@@ -34,10 +36,19 @@ UserAccount   (the login — one per person)
 | Collection | Purpose |
 |---|---|
 | `user_accounts` | One person's login, and the roles they hold. Never a person on its own — always points at a Staff, Guardian or Student. |
-| `roles` | A named job and everything somebody doing it may do. |
+| `roles` | **One document per school**, holding every named job that school has and everything somebody doing it may do. |
 | `auth_sessions` | One person signed in on one device. |
 
-`RolePermission` is embedded in `Role` and has no collection of its own.
+`RoleDefinition` and `RolePermission` are both embedded in `Role` and have no collection of
+their own.
+
+**One document per school, restructured 2026-09-05.** Each role was its own document until
+then. The role fields did not change; they moved into a `roles` array on a single document per
+school, which the unique index on `schoolId` enforces.
+
+**An embedded role has no `_id`, so accounts hold `roleKeys`, not ids.** That is why
+`UserAccount.roleDocsIds` became `UserAccount.roleKeys` on the same day. `roleKey` was already
+unique per school, and it reads in a database shell where an ObjectId does not.
 
 ## How a permission check works
 
@@ -46,7 +57,8 @@ Somebody clicks "Approve" on a concession request:
 ```text
 1. Read the session          -> which UserAccount?
 2. Account status ACTIVE?    -> no: stop
-3. Load the Roles named in account.roleDocsIds
+3. Load the school's roles document, and take the entries
+      whose roleKey is in account.roleKeys
 4. Add all their RolePermission lines together
 5. Is there a line for FEES_CONCESSIONS containing APPROVE?
       no: stop
@@ -73,11 +85,18 @@ list forces all of them into the same few names. `systemManaged` protects the
 roles the platform ships with, so a school cannot delete its way out of having an
 administrator.
 
-**Roles are a plain list on the account, not their own collection of grant
+**Roles are a plain list of keys on the account, not their own collection of grant
 records.** A separate `user_role_assignments` collection was designed and then
-dropped on purpose. The list keeps a permission check to a single read of the
-account, and the account document alone says everything about what somebody may
-do.
+dropped on purpose. The list keeps a permission check to one read of the account
+and one of the school's roles document, and the account alone says everything
+about what somebody may do.
+
+**Adding a role needs a guarded `$push`, because no index can protect an array.** The old unique
+index on `schoolId + roleKey` is gone and cannot be replaced — Mongo de-duplicates the identical
+keys one document generates. The condition lives in the query instead:
+`{ schoolId: X, "roles.roleKey": { $ne: K } }`. Editing one role uses the positional operator,
+never `save()`, which would enter the document's `@Version` optimistic locking and make two
+admins editing two different roles collide. `RoleRepositoryCustom` owns both.
 
 What that gives up is a per-role history. `updatedByDocsId` on the account still
 says who last changed it, but not who added one particular role, when, or why. A
@@ -153,10 +172,10 @@ An earlier design, deleted on 2026-08-21: `User`, `Role`, `RolePermission`,
 
 | Old | New | Why |
 |---|---|---|
-| `User.role` (one enum value) | `UserAccount.roleDocsIds[]` | one person can be both a teacher and a hostel warden |
-| `Role` (fixed enum) | `Role` collection | schools name their own jobs |
+| `User.role` (one enum value) | `UserAccount.roleKeys[]` | one person can be both a teacher and a hostel warden |
+| `Role` (fixed enum) | `Role` collection, one document per school | schools name their own jobs |
 | `AccessLevel` (NONE/VIEW/OWN/FULL) | `PermissionAction` + `DataScope` | VIEW/OWN/FULL mixed "what may I do" with "how much may I see", and could not express APPROVE at all |
-| `RolePermissionMapping` (role → permissions) | `Role.permissions[]` | the permissions belong to the role; a second collection added a join for nothing |
+| `RolePermissionMapping` (role → permissions) | `Role.roles[].permissions[]` | the permissions belong to the role; a second collection added a join for nothing |
 | `User.referenceDocsId` (untyped) | `personType` + `personDocsId` | the old field was a bare id with a comment saying it might be a staff, student, parent or driver |
 | nothing | `AuthSession` | there was no way to sign somebody out |
 
@@ -180,11 +199,11 @@ service and DTO layer.
 
 **Roles**
 
-7. Every id in `roleDocsIds` must name a role in the same school that is
+7. Every key in `roleKeys` must name a role in the same school that is
    `active` at the time it is added.
 8. Nobody adds a role to their own account.
 9. A `systemManaged` role is never edited or deleted.
-10. A role still named by any account's `roleDocsIds` is never deleted.
+10. A role still named by any account's `roleKeys` is never deleted.
 11. A role's permission list must not have two lines for the same module.
 12. Where two of a person's roles say different things about one module, the
     wider one wins. Roles only ever add permissions; nothing takes one away.

@@ -507,9 +507,14 @@ Nothing writes this yet — #66–69 are not built.
 
 Shared with the rest of the platform; the plans module uses three of its types.
 
+**One document per school holding a `counters` array**, restructured 2026-09-05. The fields
+below are on the array entries, not the document. Allocation is a `findAndModify` with `$inc`
+through the positional operator, owned by `NumberSequenceRepositoryCustom` — nothing in this
+module writes the collection directly.
+
 | Field | Type | What can be in it |
 |---|---|---|
-| `sequenceType` | [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java), required | 51 values across the whole platform. This module uses **`SUBSCRIPTION`**, and will use `SUBSCRIPTION_INVOICE` and `SUBSCRIPTION_PAYMENT`. |
+| `counters[].sequenceType` | [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java), required | 48 values across the whole platform. This module uses **`SUBSCRIPTION`**, and will use `SUBSCRIPTION_INVOICE` and `SUBSCRIPTION_PAYMENT`. |
 | `scopeKey` | String, required | **`GLOBAL`** today, and the partner of `resetPolicy`: that says *how* the scope is worked out, this is the answer. `NEVER` → `GLOBAL`; `ACADEMIC_YEAR` → `2026-2027`; `CALENDAR_YEAR` → `2026`; `MONTHLY` → `2026-09`. **Deliberately not an enum**: `2026-2027` is decided by the calendar, not by us, so an enum would need a new constant every April — and the year that deploy was late, nobody could be admitted. |
 | `prefixTemplate` | String, optional | **`SUB/{YYYY}/{MM}/`** for subscriptions. `{YYYY}` four-digit year, `{YY}` last two, `{MM}` zero-padded month, resolved when the number is made and then **stored on the row**, so numbering cannot change shape mid-run. **It must end in a separator** — `SUB/{YYYY}/{MM}` produces `SUB/2026/09000001`, with the month running into the digits. |
 | `suffixTemplate` | String, optional | **`""`** — nothing uses it yet. |
@@ -994,7 +999,7 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 <a id="e13"></a>
 **[13](#t13) · `POST /platform/schools/{id}/subscriptions`** — built
 
-- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `subscriptionNo`
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — to get the `subscriptionNo`, through the positional operator
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
 

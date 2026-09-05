@@ -345,10 +345,10 @@ description of running code rather than a plan.
 
 | Collection | Field | What #2 and #3 put there |
 |---|---|---|
-| [`roles`](../../models/identity/Role.java) | `roleKey` | **Three seeded**: `SCHOOL_ADMIN` (every module, school-wide), `TEACHER` (own classes only), `GUARDIAN` (own child only). #2 creates only what is missing, so running it twice adds nothing. #3 refuses to activate without `SCHOOL_ADMIN` → `409 SETUP_INCOMPLETE`. |
-| `roles` | `systemManaged` `active` | **`true`** on all three. `systemManaged` marks them as ours rather than the school's. |
-| [`number_sequences`](../../models/institution/NumberSequence.java) | `sequenceType` | **One row per value of [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java) — 48 of them.** #3 counts them and refuses to activate if any is missing → `409 SETUP_INCOMPLETE`, because almost every business document takes its human-readable number from one and the failure would otherwise surface to whoever first tries to admit a student. |
-| `number_sequences` | `scopeKey` `nextValue` `paddingWidth` `resetPolicy` | **`"GLOBAL"`, `1`, `6`, `NEVER`** on every seeded row. |
+| [`roles`](../../models/identity/Role.java) | `roles[].roleKey` | **Three seeded**: `SCHOOL_ADMIN` (every module, school-wide), `TEACHER` (own classes only), `GUARDIAN` (own child only). #2 creates only what is missing, so running it twice adds nothing. #3 refuses to activate without `SCHOOL_ADMIN` → `409 SETUP_INCOMPLETE`. |
+| `roles` | `roles[].systemManaged` `roles[].active` | **`true`** on all three. `systemManaged` marks them as ours rather than the school's. |
+| [`number_sequences`](../../models/institution/NumberSequence.java) | `counters[].sequenceType` | **One array entry per value of [NumberSequenceType](../../models/institution/enums/NumberSequenceType.java) — 48 of them, in one document.** #3 counts the entries and refuses to activate if any is missing → `409 SETUP_INCOMPLETE`, because almost every business document takes its human-readable number from one and the failure would otherwise surface to whoever first tries to admit a student. |
+| `number_sequences` | `counters[]` `scopeKey` `nextValue` `paddingWidth` `resetPolicy` | **`"GLOBAL"`, `1`, `6`, `NEVER`** on every seeded entry. |
 | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) | `status` `current` | **Read only, never written and never copied onto the school.** #3 warns when there is no subscription and activates anyway, and refuses only when one exists and is `CANCELLED` or `EXPIRED` → `409 SUBSCRIPTION_NOT_ACTIVE`. That leniency is temporary and says so in the response — see [`controllers/plans`](../plans/README.md) #13. |
 ## School — the platform surface  ·  #1–#5, #10, #12–#17
 
@@ -361,15 +361,17 @@ description of running code rather than a plan.
 **[#2](#t2) · `POST /platform/schools/{id}/complete-provisioning`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status` — a closed or deleted school cannot be provisioned
-- [`number_sequences`](../../models/institution/NumberSequence.java) — *insert*: `schoolId`, `sequenceType`, `scopeKey`, `nextValue`, `paddingWidth`, `resetPolicy` — one row per missing type
-- [`roles`](../../models/identity/Role.java) — *insert*: `schoolId`, `roleKey`, `name`, `description`, `permissions`, `systemManaged`, `active` — for `SCHOOL_ADMIN`, `TEACHER` and `GUARDIAN`
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *reads*: `counters` — which `sequenceType` values the school already has
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *insert or updates*: the school's one document, with a `counters` entry per missing type — each carrying `sequenceType`, `scopeKey`, `nextValue`, `paddingWidth`, `resetPolicy`. An insert on the first run so the auditing hook fills in `createdAt`; a `$push` afterwards, because saving the document back would reset every counter the school is already using
+- [`roles`](../../models/identity/Role.java) — *reads*: `roles` — which `roleKey` values the school already has
+- [`roles`](../../models/identity/Role.java) — *insert or updates*: the school's one document, with a `roles` entry per missing default — each carrying `roleKey`, `name`, `description`, `permissions`, `systemManaged`, `active`, for `SCHOOL_ADMIN`, `TEACHER` and `GUARDIAN`. A `$push` when the document exists, so a school's edited permissions are never overwritten
 
 <a id="e3"></a>
 **[#3](#t3) · `POST /platform/schools/{id}/activate`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status` — only `PROVISIONING` or `TRIAL`; `activatedAt` to tell a first activation from a repeat
-- [`roles`](../../models/identity/Role.java) — *reads*: `roleKey` — `SCHOOL_ADMIN` must exist
-- [`number_sequences`](../../models/institution/NumberSequence.java) — *reads*: a count by `schoolId` — every type must be present
+- [`roles`](../../models/identity/Role.java) — *reads*: `roles.roleKey` — `SCHOOL_ADMIN` must be in the array
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *reads*: `counters` — **its length**, not a document count. `countBySchoolId` only ever answers 0 or 1 now, so it would pass however empty the array was
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `current` — read, never copied onto the school
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` on the first activation only
 
