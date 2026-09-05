@@ -88,23 +88,23 @@ around: you edit a draft, and after that you make a new version instead.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 1 — **built** | [`POST /platform/plans/drafts`](#e1) | Make a new plan. It starts as `DRAFT`, so nobody can buy it while we are still deciding the price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 2 — **built** | [`PATCH /platform/plans/{code}/versions/{version}`](#e2) | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 3 — **built** | [`PUT /platform/plans/{code}/versions/{version}/features`](#e3) | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 4 — **built** | [`POST /platform/plans/{code}/versions/{version}/publish`](#e4) | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 5 — **deferred** | [`POST /platform/plans/{code}/versions/{version}/new-version`](#e5) | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 6 — **built** | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 7 — **built** | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t1"></a>1 — **built** | [`POST /platform/plans/drafts`](#e1) | Make a new plan. It starts as `DRAFT`, so nobody can buy it while we are still deciding the price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t2"></a>2 — **built** | [`PATCH /platform/plans/{code}/versions/{version}`](#e2) | Fix the details of a plan that is still a draft — name, price, limits. Refused once the plan is published, because schools have already bought it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t3"></a>3 — **built** | [`PUT /platform/plans/{code}/versions/{version}/features`](#e3) | Set the whole feature list of a draft plan in one go. Replacing the list is safer than editing one feature at a time, because a half-edited feature list is a plan nobody can price. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t4"></a>4 — **built** | [`POST /platform/plans/{code}/versions/{version}/publish`](#e4) | Turn a draft into a real plan schools can buy. From here the plan can never be edited again. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t5"></a>5 — **deferred** | [`POST /platform/plans/{code}/versions/{version}/new-version`](#e5) | Copy a published plan into a new draft version, so we can change the price. The old version stays exactly as it was for the schools already on it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t6"></a>6 — **built** | [`POST /platform/plans/{code}/versions/{version}/retire`](#e6) | Stop selling a plan. Schools already on it keep it and keep working; new schools just cannot pick it. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t7"></a>7 — **built** | [`PATCH /platform/plans/{code}/versions/{version}/availability`](#e7) | Say whether a plan shows on the public list or is only offered privately in a quote. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 
 ## 2. The plan catalogue — reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 8 — **built** | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 9 — **built** | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 10 — **built** | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 12 | [`GET /schools/current/plans/{code}/versions/{version}/comparison`](#e12) | What would change if this school moved to that plan: the price difference, and any limit that would drop below what the school is already using. Stops a school upgrading into a plan that immediately blocks it. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t8"></a>8 — **built** | [`GET /platform/plans`](#e8) | The operator's list of every plan, filtered by status or code. This is the screen somebody opens to see what we sell. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t9"></a>9 — **built** | [`GET /platform/plans/{code}/versions`](#e9) | Every version of one plan, newest first. Shows how the price changed over time and which version each school is on. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t10"></a>10 — **built** | [`GET /platform/plans/{code}/versions/{version}`](#e10) | One plan version in full, with all its features. | [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t11"></a>11 | [`GET /schools/current/plans`](#e11) | The plans **this school** is allowed to move to — published, still on sale, and public. The school's own upgrade screen reads this. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t12"></a>12 | [`GET /schools/current/plans/{code}/versions/{version}/comparison`](#e12) | What would change if this school moved to that plan: the price difference, and any limit that would drop below what the school is already using. Stops a school upgrading into a plan that immediately blocks it. | [`plan_definitions`](../../models/plans/PlanDefinition.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
 ## 3. The subscription lifecycle — writes (platform) · [Build order ↓](#build-order)
 
@@ -123,42 +123,42 @@ file.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| 14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 15 | [`POST /platform/schools/{id}/subscriptions/{no}/extend-trial`](#e15) | Push the trial end date out. A sales decision, so only an operator can do it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| 18 | [`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`](#e18) | Mark that the bill was not paid on time. The school keeps working — this is the warning stage before anything is switched off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Separate from #18 so nobody is cut off the day after a due date. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 20 | [`POST /platform/schools/{id}/subscriptions/{no}/resume`](#e20) | Switch the school back on after it pays. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 21 | [`POST /platform/schools/{id}/subscriptions/{no}/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 23 | [`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`](#e23) | Turn automatic renewal on or off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 24 | [`PATCH /platform/schools/{id}/subscriptions/{no}/overrides`](#e24) | Give one school a bigger student or user limit than its plan normally allows, because that is what was negotiated. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 25 | [`PATCH /platform/schools/{id}/subscriptions/{no}/price`](#e25) | Change the agreed price for this one school without changing the plan everybody else is on. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 26 | [`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`](#e26) | Save the payment provider's customer id against the school, so future charges can be raised against it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t14"></a>14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t15"></a>15 | [`POST /platform/schools/{id}/subscriptions/{no}/extend-trial`](#e15) | Push the trial end date out. A sales decision, so only an operator can do it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t18"></a>18 | [`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`](#e18) | Mark that the bill was not paid on time. The school keeps working — this is the warning stage before anything is switched off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Separate from #18 so nobody is cut off the day after a due date. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t20"></a>20 | [`POST /platform/schools/{id}/subscriptions/{no}/resume`](#e20) | Switch the school back on after it pays. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t21"></a>21 | [`POST /platform/schools/{id}/subscriptions/{no}/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t23"></a>23 | [`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`](#e23) | Turn automatic renewal on or off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t24"></a>24 | [`PATCH /platform/schools/{id}/subscriptions/{no}/overrides`](#e24) | Give one school a bigger student or user limit than its plan normally allows, because that is what was negotiated. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t25"></a>25 | [`PATCH /platform/schools/{id}/subscriptions/{no}/price`](#e25) | Change the agreed price for this one school without changing the plan everybody else is on. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t26"></a>26 | [`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`](#e26) | Save the payment provider's customer id against the school, so future charges can be raised against it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
 ## 4. The subscription — reads (platform) · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 28 | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 29 | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 32 | [`GET /platform/subscriptions/at-risk`](#e32) | Everything past due, suspended, or ending soon with auto-renew off. The list somebody works through on a Monday morning. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t27"></a>27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t28"></a>28 | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t29"></a>29 | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t30"></a>30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t31"></a>31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t32"></a>32 | [`GET /platform/subscriptions/at-risk`](#e32) | Everything past due, suspended, or ending soon with auto-renew off. The list somebody works through on a Monday morning. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
 ## 5. The subscription — the school's own view · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 33 — **built** | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 34 — **built** | [`GET /schools/current/subscription/entitlements`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out entitlements they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| 35 | [`GET /schools/current/subscription/usage`](#e35) | How much of each limit the school has used — students, users, whatever a feature counts. Shown next to the limits so a school can see itself getting close. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java), [`students`](../../models/student/Student.java), [`user_accounts`](../../models/identity/UserAccount.java) |
-| 36 | [`GET /schools/current/subscription/history`](#e36) | The school's own view of its plan changes. Shows what happened, but not the operator's internal notes. | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 38 | [`POST /schools/current/subscription/cancel-request`](#e38) | The school asks to cancel. It **requests** — it does not cancel. Cancelling is #21, and it stays with the operator so somebody talks to the school first. | **none — no model holds a cancellation request yet.** See the note at the end of this file. |
+| <a id="t33"></a>33 — **built** | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t34"></a>34 — **built** | [`GET /schools/current/subscription/entitlements`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out entitlements they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t35"></a>35 | [`GET /schools/current/subscription/usage`](#e35) | How much of each limit the school has used — students, users, whatever a feature counts. Shown next to the limits so a school can see itself getting close. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java), [`students`](../../models/student/Student.java), [`user_accounts`](../../models/identity/UserAccount.java) |
+| <a id="t36"></a>36 | [`GET /schools/current/subscription/history`](#e36) | The school's own view of its plan changes. Shows what happened, but not the operator's internal notes. | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t37"></a>37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t38"></a>38 | [`POST /schools/current/subscription/cancel-request`](#e38) | The school asks to cancel. It **requests** — it does not cancel. Cancelling is #21, and it stays with the operator so somebody talks to the school first. | **none — no model holds a cancellation request yet.** See the note at the end of this file. |
 
 ## 6. Invoices — writes (platform) · [Build order ↓](#build-order)
 
@@ -168,62 +168,62 @@ endpoint below keeps both true or fails.** An issued invoice is never deleted or
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 39 | [`POST /platform/schools/{id}/subscription/invoices`](#e39) | Raise a bill for one billing period. Created as a draft so the amounts can be checked before the school sees it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| 40 | [`PATCH /platform/schools/{id}/subscription/invoices/{no}`](#e40) | Correct a draft invoice before it is sent. Refused once it is issued. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 41 | [`POST /platform/schools/{id}/subscription/invoices/{no}/issue`](#e41) | Send the bill to the school. After this the amounts are fixed, and the only way to undo it is #42. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 42 | [`POST /platform/schools/{id}/subscription/invoices/{no}/void`](#e42) | Cancel a bill that should not have been sent, with a reason. The invoice stays in the records — it is marked void, never deleted, because a missing invoice number is a hole somebody has to explain. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 43 | [`PATCH /platform/schools/{id}/subscription/invoices/{no}/due-date`](#e43) | Give a school more time to pay. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 44 | [`POST /platform/schools/{id}/subscription/invoices/{no}/record-payment`](#e44) | Write down money that came in outside the gateway — a bank transfer, a cheque, cash. Without this, any school not paying online can never be marked paid. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 45 | [`POST /platform/schools/{id}/subscription/invoices/{no}/remind`](#e45) | Send the school a reminder that the bill is unpaid. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 46 | [`POST /platform/schools/{id}/subscription/invoices/{no}/write-off`](#e46) | Accept that a bill will never be paid and close it, with a reason. Keeps the outstanding list honest instead of full of debts nobody is chasing. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t39"></a>39 | [`POST /platform/schools/{id}/subscription/invoices`](#e39) | Raise a bill for one billing period. Created as a draft so the amounts can be checked before the school sees it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t40"></a>40 | [`PATCH /platform/schools/{id}/subscription/invoices/{no}`](#e40) | Correct a draft invoice before it is sent. Refused once it is issued. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t41"></a>41 | [`POST /platform/schools/{id}/subscription/invoices/{no}/issue`](#e41) | Send the bill to the school. After this the amounts are fixed, and the only way to undo it is #42. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t42"></a>42 | [`POST /platform/schools/{id}/subscription/invoices/{no}/void`](#e42) | Cancel a bill that should not have been sent, with a reason. The invoice stays in the records — it is marked void, never deleted, because a missing invoice number is a hole somebody has to explain. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t43"></a>43 | [`PATCH /platform/schools/{id}/subscription/invoices/{no}/due-date`](#e43) | Give a school more time to pay. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t44"></a>44 | [`POST /platform/schools/{id}/subscription/invoices/{no}/record-payment`](#e44) | Write down money that came in outside the gateway — a bank transfer, a cheque, cash. Without this, any school not paying online can never be marked paid. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t45"></a>45 | [`POST /platform/schools/{id}/subscription/invoices/{no}/remind`](#e45) | Send the school a reminder that the bill is unpaid. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t46"></a>46 | [`POST /platform/schools/{id}/subscription/invoices/{no}/write-off`](#e46) | Accept that a bill will never be paid and close it, with a reason. Keeps the outstanding list honest instead of full of debts nobody is chasing. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
 ## 7. Invoices — the school's own view · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 47 | [`GET /schools/current/subscription/invoices`](#e47) | Every bill we have sent this school, newest first. Drafts are hidden — the school should not see a bill we have not sent. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 48 | [`GET /schools/current/subscription/invoices/{no}`](#e48) | One bill in full, with what is still owed on it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 49 | [`GET /schools/current/subscription/invoices/{no}/pdf`](#e49) | The bill as a file the school can download, keep and give to its accountant. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 50 | [`GET /schools/current/subscription/outstanding`](#e50) | One number: how much this school owes right now. What a banner at the top of the screen shows. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t47"></a>47 | [`GET /schools/current/subscription/invoices`](#e47) | Every bill we have sent this school, newest first. Drafts are hidden — the school should not see a bill we have not sent. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t48"></a>48 | [`GET /schools/current/subscription/invoices/{no}`](#e48) | One bill in full, with what is still owed on it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t49"></a>49 | [`GET /schools/current/subscription/invoices/{no}/pdf`](#e49) | The bill as a file the school can download, keep and give to its accountant. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t50"></a>50 | [`GET /schools/current/subscription/outstanding`](#e50) | One number: how much this school owes right now. What a banner at the top of the screen shows. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
 ## 8. Invoices — reads (platform) · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 51 | [`GET /platform/schools/{id}/subscription/invoices`](#e51) | Every invoice for one school, drafts included. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 52 | [`GET /platform/invoices`](#e52) | Invoices across every school, filtered by status and due date. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 53 | [`GET /platform/invoices/overdue`](#e53) | Everything unpaid and past its due date. The collections list. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 54 | [`GET /platform/invoices/{no}`](#e54) | One invoice in full, with its payments and every attempt at paying it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
+| <a id="t51"></a>51 | [`GET /platform/schools/{id}/subscription/invoices`](#e51) | Every invoice for one school, drafts included. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t52"></a>52 | [`GET /platform/invoices`](#e52) | Invoices across every school, filtered by status and due date. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t53"></a>53 | [`GET /platform/invoices/overdue`](#e53) | Everything unpaid and past its due date. The collections list. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t54"></a>54 | [`GET /platform/invoices/{no}`](#e54) | One invoice in full, with its payments and every attempt at paying it. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
 
 ## 9. Paying — the school · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 55 | [`POST /schools/current/subscription/invoices/{no}/pay`](#e55) | Start paying a bill. Creates the attempt record and hands back whatever the gateway needs to show the school a payment page. | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 56 | [`GET /schools/current/subscription/payments/{no}`](#e56) | Check whether a payment went through. The page the school lands back on after paying asks this. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
-| 57 | [`GET /schools/current/subscription/payments`](#e57) | Every payment this school has made. Its receipt list. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
-| 58 | [`GET /schools/current/subscription/payments/{no}/receipt`](#e58) | A receipt for one payment, as a file. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
-| 59 | [`POST /schools/current/subscription/payment-method`](#e59) | Save a card or set up a UPI mandate so renewals can charge automatically instead of somebody paying by hand every month. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| 60 | [`DELETE /schools/current/subscription/payment-method`](#e60) | Remove the saved payment method. Auto-renew has to be dealt with at the same time, or the next renewal fails silently. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t55"></a>55 | [`POST /schools/current/subscription/invoices/{no}/pay`](#e55) | Start paying a bill. Creates the attempt record and hands back whatever the gateway needs to show the school a payment page. | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t56"></a>56 | [`GET /schools/current/subscription/payments/{no}`](#e56) | Check whether a payment went through. The page the school lands back on after paying asks this. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
+| <a id="t57"></a>57 | [`GET /schools/current/subscription/payments`](#e57) | Every payment this school has made. Its receipt list. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
+| <a id="t58"></a>58 | [`GET /schools/current/subscription/payments/{no}/receipt`](#e58) | A receipt for one payment, as a file. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
+| <a id="t59"></a>59 | [`POST /schools/current/subscription/payment-method`](#e59) | Save a card or set up a UPI mandate so renewals can charge automatically instead of somebody paying by hand every month. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t60"></a>60 | [`DELETE /schools/current/subscription/payment-method`](#e60) | Remove the saved payment method. Auto-renew has to be dealt with at the same time, or the next renewal fails silently. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
 ## 10. Payments — platform · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 61 | [`GET /platform/schools/{id}/subscription/payments`](#e61) | Every payment from one school. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
-| 62 | [`GET /platform/invoices/{no}/attempts`](#e62) | Every try at paying one bill, failures included, with what the gateway said went wrong. This is the screen for "the school says they paid and it did not work". | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
-| 63 | [`POST /platform/schools/{id}/subscription/payments/{no}/refund`](#e63) | Give money back, in full or in part. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
-| 64 | [`POST /platform/schools/{id}/subscription/payments/{no}/reconcile`](#e64) | Match a payment to the money the bank actually settled, and mark it settled. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
-| 65 | [`POST /platform/schools/{id}/subscription/payments/{no}/retry`](#e65) | Try a failed automatic charge again. | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
+| <a id="t61"></a>61 | [`GET /platform/schools/{id}/subscription/payments`](#e61) | Every payment from one school. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
+| <a id="t62"></a>62 | [`GET /platform/invoices/{no}/attempts`](#e62) | Every try at paying one bill, failures included, with what the gateway said went wrong. This is the screen for "the school says they paid and it did not work". | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) |
+| <a id="t63"></a>63 | [`POST /platform/schools/{id}/subscription/payments/{no}/refund`](#e63) | Give money back, in full or in part. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
+| <a id="t64"></a>64 | [`POST /platform/schools/{id}/subscription/payments/{no}/reconcile`](#e64) | Match a payment to the money the bank actually settled, and mark it settled. | [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
+| <a id="t65"></a>65 | [`POST /platform/schools/{id}/subscription/payments/{no}/retry`](#e65) | Try a failed automatic charge again. | [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) |
 
 ## 11. The payment provider talking to us · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 66 | [`POST /billing/webhooks/{provider}`](#e66) | Where the payment provider tells us a payment succeeded or failed. It checks the signature, saves the event exactly as it arrived, and only then applies it. **The same event arriving twice must change nothing the second time**, which is what the unique `provider + providerEventId` index is for. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| 67 | [`GET /platform/billing/webhooks`](#e67) | Every event the provider sent us, and whether we managed to process it. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) |
-| 68 | [`GET /platform/billing/webhooks/{id}`](#e68) | One event in full, including what went wrong if it failed. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) |
-| 69 | [`POST /platform/billing/webhooks/{id}/replay`](#e69) | Process a failed event again after the bug is fixed. The raw payload was saved for exactly this. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t66"></a>66 | [`POST /billing/webhooks/{provider}`](#e66) | Where the payment provider tells us a payment succeeded or failed. It checks the signature, saves the event exactly as it arrived, and only then applies it. **The same event arriving twice must change nothing the second time**, which is what the unique `provider + providerEventId` index is for. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t67"></a>67 | [`GET /platform/billing/webhooks`](#e67) | Every event the provider sent us, and whether we managed to process it. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) |
+| <a id="t68"></a>68 | [`GET /platform/billing/webhooks/{id}`](#e68) | One event in full, including what went wrong if it failed. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) |
+| <a id="t69"></a>69 | [`POST /platform/billing/webhooks/{id}/replay`](#e69) | Process a failed event again after the bug is fixed. The raw payload was saved for exactly this. | [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java), [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 
 ## 12. The jobs that run on their own · [Build order ↓](#build-order)
 
@@ -232,8 +232,8 @@ they can be run by hand when something needs fixing, and so they can be tested.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| 70 | [`POST /platform/billing/jobs/renew-due`](#e70) | Find every subscription whose period ends today, raise the next invoice, and charge the saved payment method. The job that keeps the money coming in. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| 71 | [`POST /platform/billing/jobs/age-overdue`](#e71) | Find bills that are past their due date and move those subscriptions to past due, then to suspended once the grace period runs out. The job that stops schools using the product for free forever. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t70"></a>70 | [`POST /platform/billing/jobs/renew-due`](#e70) | Find every subscription whose period ends today, raise the next invoice, and charge the saved payment method. The job that keeps the money coming in. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t71"></a>71 | [`POST /platform/billing/jobs/age-overdue`](#e71) | Find bills that are past their due date and move those subscriptions to past due, then to suspended once the grace period runs out. The job that stops schools using the product for free forever. | [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 
 ---
 
@@ -528,7 +528,7 @@ No endpoint in this module writes to either.
 ## The plan catalogue — writes  ·  1–7
 
 <a id="e1"></a>
-**1 · `POST /platform/plans/drafts`** — built
+**[1](#t1) · `POST /platform/plans/drafts`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode`, `planVersion` = 1, `name`, `description`, `status` = `DRAFT`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`, `publiclyAvailable` = false, `features` = `[]`
 
@@ -548,13 +548,13 @@ No endpoint in this module writes to either.
   nobody can price" that #3 exists to prevent.
 
 <a id="e2"></a>
-**2 · `PATCH /platform/plans/{code}/versions/{version}`** — built
+**[2](#t2) · `PATCH /platform/plans/{code}/versions/{version}`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status` — must be `DRAFT` or the edit is refused
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`
 
 <a id="e3"></a>
-**3 · `PUT /platform/plans/{code}/versions/{version}/features`** — built
+**[3](#t3) · `PUT /platform/plans/{code}/versions/{version}/features`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `features` — the whole list is replaced
@@ -629,7 +629,7 @@ an error count; as an object it validates like every other endpoint, and a bad r
 same reason.
 
 <a id="e4"></a>
-**4 · `POST /platform/plans/{code}/versions/{version}/publish`** — built
+**[4](#t4) · `POST /platform/plans/{code}/versions/{version}/publish`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `features`, `effectiveUntil`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `ACTIVE`, `effectiveFrom` if it was empty
@@ -673,7 +673,7 @@ scheduled launch works: the plan becomes `ACTIVE` immediately and `sellable` onl
 opens. The response's `nextStep` names the date when that is the case.
 
 <a id="e5"></a>
-**5 · `POST /platform/plans/{code}/versions/{version}/new-version`** — DEFERRED
+**[5](#t5) · `POST /platform/plans/{code}/versions/{version}/new-version`** — DEFERRED
 
 Deferred on 2026-09-03, by decision. The design below stands and is what to build from.
 
@@ -711,7 +711,7 @@ and leaves no link between the old price and the new one.
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode` — the same, `planVersion` — one higher, `status` = `DRAFT`, and `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` copied from the old `version`
 
 <a id="e6"></a>
-**6 · `POST /platform/plans/{code}/versions/{version}/retire`** — built
+**[6](#t6) · `POST /platform/plans/{code}/versions/{version}/retire`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `RETIRED`, `effectiveUntil`
 - **Nothing else.** No subscription, no invoice, no school is touched.
@@ -768,7 +768,7 @@ It belongs to #7. Touching it here would make no difference anyway: every list o
 filters on `ACTIVE` first, so a retired plan is off the pricing page whatever that flag says.
 
 <a id="e7"></a>
-**7 · `PATCH /platform/plans/{code}/versions/{version}/availability`** — built
+**[7](#t7) · `PATCH /platform/plans/{code}/versions/{version}/availability`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `publiclyAvailable`
 
@@ -825,7 +825,7 @@ plan. A forgotten field would pull a plan off the pricing page and report succes
 ## The plan catalogue — reads  ·  8–12
 
 <a id="e8"></a>
-**8 · `GET /platform/plans`** — built
+**[8](#t8) · `GET /platform/plans`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`, `status`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil`
 
@@ -880,7 +880,7 @@ one that quietly does not. `?search=.*` returns nothing, because the term is mat
 `totalElements: 0`, not a `404`. "No plan matches" is a successful answer.
 
 <a id="e9"></a>
-**9 · `GET /platform/plans/{code}/versions`** — built
+**[9](#t9) · `GET /platform/plans/{code}/versions`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `status`, `listPrice`, `effectiveFrom`, `effectiveUntil`, `createdAt`
 
@@ -937,7 +937,7 @@ question was "which plans match this", and "none" is an answer.
 The `note` and the null price change are the only parts visible without inserting a v2 directly.
 
 <a id="e10"></a>
-**10 · `GET /platform/plans/{code}/versions/{version}`** — built
+**[10](#t10) · `GET /platform/plans/{code}/versions/{version}`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: every field, `features` included
 
@@ -978,13 +978,13 @@ version is usually asking whether it can be retired. It costs one indexed count.
 until #13 exists, and the `note` says to read it as *unknown* rather than *nobody*.
 
 <a id="e11"></a>
-**11 · `GET /schools/current/plans`**
+**[11](#t11) · `GET /schools/current/plans`**
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil` — the filter; then `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `planDefinitionDocsId`, `planVersion` — to mark the plan the school is already on
 
 <a id="e12"></a>
-**12 · `GET /schools/current/plans/{code}/versions/{version}/comparison`**
+**[12](#t12) · `GET /schools/current/plans/{code}/versions/{version}/comparison`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `maxStudentsOverride`, `maxUsersOverride`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `features` — of both the `current` and the target `version`
@@ -992,7 +992,7 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 ## The subscription lifecycle — writes  ·  13–26
 
 <a id="e13"></a>
-**13 · `POST /platform/schools/{id}/subscriptions`** — built
+**[13](#t13) · `POST /platform/schools/{id}/subscriptions`** — built
 
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `subscriptionNo`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
@@ -1081,7 +1081,7 @@ would be inventing a contract term.
   met; tightening it is a deliberate change to `core` and has not been made.
 
 <a id="e14"></a>
-**14 · `POST /platform/schools/{id}/subscriptions/{no}/activate`** — built
+**[14](#t14) · `POST /platform/schools/{id}/subscriptions/{no}/activate`** — built
 
 - [`schools`](../../models/core/School.java) — *reads*: `schoolName`, `status`, `defaultTimeZone` — the zone does the calendar arithmetic, the status only shapes the `nextStep` sentence
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`; `billingCycle` — how long the paid period runs
@@ -1157,21 +1157,21 @@ publish is: the second call is a different intention from the first — usually 
 not know it already happened — and answering `200` would hide that.
 
 <a id="e15"></a>
-**15 · `POST /platform/schools/{id}/subscriptions/{no}/extend-trial`**
+**[15](#t15) · `POST /platform/schools/{id}/subscriptions/{no}/extend-trial`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status` — must be `TRIAL`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodEnd`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: **nothing today** — no `eventType` describes it. See the note above.
 
 <a id="e16"></a>
-**16 · `POST /platform/schools/{id}/subscriptions/{no}/change-plan`**
+**[16](#t16) · `POST /platform/schools/{id}/subscriptions/{no}/change-plan`**
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `planVersion`, `listPrice`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers` — of the target `version`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `currencyCode`, `billingCycle`, and `currentPeriodStart`, `currentPeriodEnd` if the period restarts
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus`, `newStatus`, `reason`, `performedByDocsId`, `effectiveAt`
 
 <a id="e17"></a>
-**17 · `POST /platform/schools/{id}/subscriptions/{no}/renew`**
+**[17](#t17) · `POST /platform/schools/{id}/subscriptions/{no}/renew`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd`, `billingCycle`, `contractedPrice`, `autoRenew`
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodStart`, `currentPeriodEnd` — moved to the next period
@@ -1180,60 +1180,60 @@ not know it already happened — and answering `200` would hide that.
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `previousStatus`, `newStatus`, `source`, `effectiveAt`
 
 <a id="e18"></a>
-**18 · `POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`**
+**[18](#t18) · `POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `PAST_DUE`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PAYMENT_PAST_DUE`, `previousStatus` = `ACTIVE`, `newStatus` = `PAST_DUE`, `reason`, `effectiveAt`
 
 <a id="e19"></a>
-**19 · `POST /platform/schools/{id}/subscriptions/{no}/suspend`**
+**[19](#t19) · `POST /platform/schools/{id}/subscriptions/{no}/suspend`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `SUSPENDED`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `SUSPENDED`, `previousStatus`, `newStatus` = `SUSPENDED`, `reason`, `performedByDocsId`, `effectiveAt`
 
 <a id="e20"></a>
-**20 · `POST /platform/schools/{id}/subscriptions/{no}/resume`**
+**[20](#t20) · `POST /platform/schools/{id}/subscriptions/{no}/resume`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, `previousStatus`, `newStatus` = `ACTIVE`, `reason`, `effectiveAt`
 
 <a id="e21"></a>
-**21 · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**
+**[21](#t21) · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `cancelledAt`, `cancellationReason`, `autoRenew` = false
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `CANCELLED`, `previousStatus`, `newStatus` = `CANCELLED`, `reason`, `performedByDocsId`, `effectiveAt`
 
 <a id="e22"></a>
-**22 · `POST /platform/schools/{id}/subscriptions/{no}/expire`**
+**[22](#t22) · `POST /platform/schools/{id}/subscriptions/{no}/expire`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd` — must already have passed
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `EXPIRED`, `current` = false
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `EXPIRED`, `previousStatus`, `newStatus` = `EXPIRED`, `source`, `effectiveAt`
 
 <a id="e23"></a>
-**23 · `PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`**
+**[23](#t23) · `PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `autoRenew`
 
 <a id="e24"></a>
-**24 · `PATCH /platform/schools/{id}/subscriptions/{no}/overrides`**
+**[24](#t24) · `PATCH /platform/schools/{id}/subscriptions/{no}/overrides`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `maxStudentsOverride`, `maxUsersOverride` — either may be set back to null to fall through to the plan's own limits
 
 <a id="e25"></a>
-**25 · `PATCH /platform/schools/{id}/subscriptions/{no}/price`**
+**[25](#t25) · `PATCH /platform/schools/{id}/subscriptions/{no}/price`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `contractedPrice`, `currencyCode`
 
 <a id="e26"></a>
-**26 · `PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`**
+**[26](#t26) · `PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference`
 
 ## The subscription — platform reads  ·  27–32
 
 <a id="e27"></a>
-**27 · `GET /platform/schools/{id}/subscription`** — built
+**[27](#t27) · `GET /platform/schools/{id}/subscription`** — built
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: every field, found by `schoolId` and `current` = true
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `name`, `status`, `listPrice`, `maxStudents`, `maxUsers`, `features`
@@ -1284,27 +1284,27 @@ just "not found", somebody checks the subscription when the school id was wrong 
 read costs nothing on the path that succeeds.
 
 <a id="e28"></a>
-**28 · `GET /platform/schools/{id}/subscriptions`**
+**[28](#t28) · `GET /platform/schools/{id}/subscriptions`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `current`, `cancelledAt`, `cancellationReason`
 
 <a id="e29"></a>
-**29 · `GET /platform/schools/{id}/subscriptions/{no}/history`**
+**[29](#t29) · `GET /platform/schools/{id}/subscriptions/{no}/history`**
 
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: every field — `eventType`, `previousStatus`, `newStatus`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `source`, `sourceEventId`, `reason`, `performedByDocsId`, `effectiveAt`
 
 <a id="e30"></a>
-**30 · `GET /platform/subscriptions`**
+**[30](#t30) · `GET /platform/subscriptions`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `schoolId`, `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `autoRenew`, `current`
 
 <a id="e31"></a>
-**31 · `GET /platform/subscriptions/renewals-due`**
+**[31](#t31) · `GET /platform/subscriptions/renewals-due`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd` — the filter; plus `status`, `autoRenew`, `contractedPrice`, `current`
 
 <a id="e32"></a>
-**32 · `GET /platform/subscriptions/at-risk`**
+**[32](#t32) · `GET /platform/subscriptions/at-risk`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `currentPeriodEnd`, `autoRenew`, `current`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status`, `dueDate`, `outstandingAmount`
@@ -1312,7 +1312,7 @@ read costs nothing on the path that succeeds.
 ## The subscription — the school's own view  ·  33–38
 
 <a id="e33"></a>
-**33 · `GET /schools/current/subscription`** — built
+**[33](#t33) · `GET /schools/current/subscription`** — built
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `cancelledAt`. **Not** `billingCustomerReference` — that is ours, not theirs
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `description`
@@ -1358,7 +1358,7 @@ exactly the school that needs to look would be the wrong way round.
 another school's bill would otherwise be a matter of editing a URL.
 
 <a id="e34"></a>
-**34 · `GET /schools/current/subscription/entitlements`** — built
+**[34](#t34) · `GET /schools/current/subscription/entitlements`** — built
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`
@@ -1429,7 +1429,7 @@ either way, but an empty feature list would be indistinguishable from a plan tha
 with no features — and those two need different fixing.
 
 <a id="e35"></a>
-**35 · `GET /schools/current/subscription/usage`**
+**[35](#t35) · `GET /schools/current/subscription/usage`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `maxStudentsOverride`, `maxUsersOverride`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `maxStudents`, `maxUsers`, `features`
@@ -1437,54 +1437,54 @@ with no features — and those two need different fixing.
 - [`user_accounts`](../../models/identity/UserAccount.java) — *reads*: a count by `schoolId` and `status`
 
 <a id="e36"></a>
-**36 · `GET /schools/current/subscription/history`**
+**[36](#t36) · `GET /schools/current/subscription/history`**
 
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: `eventType`, `previousStatus`, `newStatus`, `effectiveAt`. **Not** `reason` or `performedByDocsId` — those are the operator's internal notes
 
 <a id="e37"></a>
-**37 · `PATCH /schools/current/subscription/auto-renew`**
+**[37](#t37) · `PATCH /schools/current/subscription/auto-renew`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `autoRenew` — and nothing else the school could reach
 
 <a id="e38"></a>
-**38 · `POST /schools/current/subscription/cancel-request`**
+**[38](#t38) · `POST /schools/current/subscription/cancel-request`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `currentPeriodEnd` — to tell the school what it would lose and when
 
 ## Invoices — writes  ·  39–46
 
 <a id="e39"></a>
-**39 · `POST /platform/schools/{id}/subscription/invoices`**
+**[39](#t39) · `POST /platform/schools/{id}/subscription/invoices`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `contractedPrice`, `currencyCode`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *insert*: `invoiceNo`, `schoolSubscriptionDocsId`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status` = `DRAFT`, `currencyCode`, `subTotal`, `taxAmount`, `totalAmount` = `subTotal` + `taxAmount`, `paidAmount` = 0, `outstandingAmount` = `totalAmount`
 
 <a id="e40"></a>
-**40 · `PATCH /platform/schools/{id}/subscription/invoices/{no}`**
+**[40](#t40) · `PATCH /platform/schools/{id}/subscription/invoices/{no}`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status` — must be `DRAFT`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `billingPeriodStart`, `billingPeriodEnd`, `dueDate`, `subTotal`, `taxAmount`, and `totalAmount` and `outstandingAmount` recalculated from them
 
 <a id="e41"></a>
-**41 · `POST /platform/schools/{id}/subscription/invoices/{no}/issue`**
+**[41](#t41) · `POST /platform/schools/{id}/subscription/invoices/{no}/issue`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status` — must be `DRAFT`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `ISSUED`, `issuedAt`, `issueDate`
 
 <a id="e42"></a>
-**42 · `POST /platform/schools/{id}/subscription/invoices/{no}/void`**
+**[42](#t42) · `POST /platform/schools/{id}/subscription/invoices/{no}/void`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `paidAmount` — a bill with money against it cannot simply be voided
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `VOID`, `voidedAt`, `voidReason`, `outstandingAmount` = 0
 
 <a id="e43"></a>
-**43 · `PATCH /platform/schools/{id}/subscription/invoices/{no}/due-date`**
+**[43](#t43) · `PATCH /platform/schools/{id}/subscription/invoices/{no}/due-date`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `dueDate`, and `status` back from `OVERDUE` if the new date is in the future
 
 <a id="e44"></a>
-**44 · `POST /platform/schools/{id}/subscription/invoices/{no}/record-payment`**
+**[44](#t44) · `POST /platform/schools/{id}/subscription/invoices/{no}/record-payment`**
 
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `paymentNo`
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *insert*: `paymentNo`, `schoolSubscriptionDocsId`, `subscriptionInvoiceDocsId`, `status` = `SUCCEEDED`, `paymentMethod`, `amount`, `currencyCode`, `receivedAt`. `gatewayProvider` stays null — no gateway was involved
@@ -1493,56 +1493,56 @@ with no features — and those two need different fixing.
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, only when the `status` above changed
 
 <a id="e45"></a>
-**45 · `POST /platform/schools/{id}/subscription/invoices/{no}/remind`**
+**[45](#t45) · `POST /platform/schools/{id}/subscription/invoices/{no}/remind`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `invoiceNo`, `dueDate`, `outstandingAmount`, `currencyCode`, `status` — nothing is written
 
 <a id="e46"></a>
-**46 · `POST /platform/schools/{id}/subscription/invoices/{no}/write-off`**
+**[46](#t46) · `POST /platform/schools/{id}/subscription/invoices/{no}/write-off`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `VOID`, `voidedAt`, `voidReason`, `outstandingAmount` = 0 — **there is no `WRITTEN_OFF` `status`; see the note above**
 
 ## Invoices — the school's own view  ·  47–50
 
 <a id="e47"></a>
-**47 · `GET /schools/current/subscription/invoices`**
+**[47](#t47) · `GET /schools/current/subscription/invoices`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `invoiceNo`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status`, `currencyCode`, `totalAmount`, `paidAmount`, `outstandingAmount`. Rows with `status` = `DRAFT` are left out
 
 <a id="e48"></a>
-**48 · `GET /schools/current/subscription/invoices/{no}`**
+**[48](#t48) · `GET /schools/current/subscription/invoices/{no}`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: as above plus `taxAmount`, `subTotal`, `paidAt`, `voidedAt`, `voidReason`
 
 <a id="e49"></a>
-**49 · `GET /schools/current/subscription/invoices/{no}/pdf`**
+**[49](#t49) · `GET /schools/current/subscription/invoices/{no}/pdf`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field that appears on the printed bill
 
 <a id="e50"></a>
-**50 · `GET /schools/current/subscription/outstanding`**
+**[50](#t50) · `GET /schools/current/subscription/outstanding`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `outstandingAmount` summed, plus `status`, `dueDate` and `currencyCode` to work out what is overdue
 
 ## Invoices — platform reads  ·  51–54
 
 <a id="e51"></a>
-**51 · `GET /platform/schools/{id}/subscription/invoices`**
+**[51](#t51) · `GET /platform/schools/{id}/subscription/invoices`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field, drafts included
 
 <a id="e52"></a>
-**52 · `GET /platform/invoices`**
+**[52](#t52) · `GET /platform/invoices`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `schoolId`, `invoiceNo`, `status`, `issueDate`, `dueDate`, `currencyCode`, `totalAmount`, `paidAmount`, `outstandingAmount`
 
 <a id="e53"></a>
-**53 · `GET /platform/invoices/overdue`**
+**[53](#t53) · `GET /platform/invoices/overdue`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `dueDate` and `status` — the filter; plus `outstandingAmount`, `schoolId`, `invoiceNo`
 
 <a id="e54"></a>
-**54 · `GET /platform/invoices/{no}`**
+**[54](#t54) · `GET /platform/invoices/{no}`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: every field
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `status`, `paymentMethod`, `amount`, `receivedAt`
@@ -1551,63 +1551,63 @@ with no features — and those two need different fixing.
 ## Paying — the school  ·  55–60
 
 <a id="e55"></a>
-**55 · `POST /schools/current/subscription/invoices/{no}/pay`**
+**[55](#t55) · `POST /schools/current/subscription/invoices/{no}/pay`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `status`, `outstandingAmount`, `currencyCode` — you cannot pay a draft, a void or a settled bill
 - [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `attemptNo` — the highest so far, to number this one
 - [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *insert*: `subscriptionInvoiceDocsId`, `attemptNo`, `status` = `INITIATED`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `idempotencyKey`, `attemptedAt`
 
 <a id="e56"></a>
-**56 · `GET /schools/current/subscription/payments/{no}`**
+**[56](#t56) · `GET /schools/current/subscription/payments/{no}`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `status`, `amount`, `currencyCode`, `receivedAt`, `failureReason`
 - [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `status`, `failureCode`, `failureMessage`
 
 <a id="e57"></a>
-**57 · `GET /schools/current/subscription/payments`**
+**[57](#t57) · `GET /schools/current/subscription/payments`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `status`, `paymentMethod`, `amount`, `currencyCode`, `receivedAt`, `subscriptionInvoiceDocsId`
 
 <a id="e58"></a>
-**58 · `GET /schools/current/subscription/payments/{no}/receipt`**
+**[58](#t58) · `GET /schools/current/subscription/payments/{no}/receipt`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: `paymentNo`, `amount`, `currencyCode`, `paymentMethod`, `receivedAt`, `subscriptionInvoiceDocsId`
 
 <a id="e59"></a>
-**59 · `POST /schools/current/subscription/payment-method`**
+**[59](#t59) · `POST /schools/current/subscription/payment-method`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference` — the card itself never touches us, only the provider's reference to it
 
 <a id="e60"></a>
-**60 · `DELETE /schools/current/subscription/payment-method`**
+**[60](#t60) · `DELETE /schools/current/subscription/payment-method`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference` = null, and `autoRenew` = false, because a renewal with nothing to charge fails silently
 
 ## Payments — platform  ·  61–65
 
 <a id="e61"></a>
-**61 · `GET /platform/schools/{id}/subscription/payments`**
+**[61](#t61) · `GET /platform/schools/{id}/subscription/payments`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *reads*: every field, gateway references included
 
 <a id="e62"></a>
-**62 · `GET /platform/invoices/{no}/attempts`**
+**[62](#t62) · `GET /platform/invoices/{no}/attempts`**
 
 - [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *reads*: `attemptNo`, `status`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `gatewayAttemptReference`, `idempotencyKey`, `failureCode`, `failureMessage`, `attemptedAt`, `completedAt`
 
 <a id="e63"></a>
-**63 · `POST /platform/schools/{id}/subscription/payments/{no}/refund`**
+**[63](#t63) · `POST /platform/schools/{id}/subscription/payments/{no}/refund`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `status` = `REFUNDED` or `PARTIALLY_REFUNDED`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `paidAmount`, `outstandingAmount`, `status`, `paidAt` cleared if the bill is no longer fully paid
 
 <a id="e64"></a>
-**64 · `POST /platform/schools/{id}/subscription/payments/{no}/reconcile`**
+**[64](#t64) · `POST /platform/schools/{id}/subscription/payments/{no}/reconcile`**
 
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `settlementReference`, `settledAt`
 
 <a id="e65"></a>
-**65 · `POST /platform/schools/{id}/subscription/payments/{no}/retry`**
+**[65](#t65) · `POST /platform/schools/{id}/subscription/payments/{no}/retry`**
 
 - [`subscription_payment_attempts`](../../models/plans/billing/PaymentAttempt.java) — *insert*: `attemptNo` — one higher, a **new** `idempotencyKey`, `status` = `INITIATED`, `paymentMethod`, `amount`, `currencyCode`, `gatewayProvider`, `attemptedAt`
 - [`subscription_payments`](../../models/plans/billing/SubscriptionPayment.java) — *updates*: `status` — back to `PENDING` while the retry runs
@@ -1615,7 +1615,7 @@ with no features — and those two need different fixing.
 ## The payment provider talking to us  ·  66–69
 
 <a id="e66"></a>
-**66 · `POST /billing/webhooks/{provider}`**
+**[66](#t66) · `POST /billing/webhooks/{provider}`**
 
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *insert*: `gatewayProvider`, `providerEventId`, `providerEventType`, `processingStatus` = `RECEIVED`, `signatureValid`, `payloadHash`, `encryptedPayload`, `receivedAt`, `processingAttemptCount` = 0
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *updates*: `processingStatus` through `VERIFIED` to `PROCESSED`, `relatedEntityType`, `relatedEntityDocsId`, `processedAt` — or `failureCode`, `failureMessage` and `nextRetryAt` when it goes wrong
@@ -1625,17 +1625,17 @@ with no features — and those two need different fixing.
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType`, `source` = the provider, `sourceEventId` = `providerEventId`, `newStatus`, `effectiveAt`
 
 <a id="e67"></a>
-**67 · `GET /platform/billing/webhooks`**
+**[67](#t67) · `GET /platform/billing/webhooks`**
 
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: `gatewayProvider`, `providerEventId`, `providerEventType`, `processingStatus`, `signatureValid`, `receivedAt`, `processedAt`, `processingAttemptCount`, `nextRetryAt`. **Never** `encryptedPayload`
 
 <a id="e68"></a>
-**68 · `GET /platform/billing/webhooks/{id}`**
+**[68](#t68) · `GET /platform/billing/webhooks/{id}`**
 
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: as above plus `relatedEntityType`, `relatedEntityDocsId`, `payloadHash`, `failureCode`, `failureMessage`. Still not `encryptedPayload`
 
 <a id="e69"></a>
-**69 · `POST /platform/billing/webhooks/{id}/replay`**
+**[69](#t69) · `POST /platform/billing/webhooks/{id}/replay`**
 
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *reads*: `encryptedPayload` — the only thing that decrypts it
 - [`billing_webhook_events`](../../models/plans/billing/BillingWebhookEvent.java) — *updates*: `processingStatus`, `processingAttemptCount`, `processedAt`, `nextRetryAt`, `failureCode`, `failureMessage`
@@ -1647,7 +1647,7 @@ with no features — and those two need different fixing.
 ## The jobs  ·  70–71
 
 <a id="e70"></a>
-**70 · `POST /platform/billing/jobs/renew-due`**
+**[70](#t70) · `POST /platform/billing/jobs/renew-due`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd`, `autoRenew`, `status`, `current` — the ones due today
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodStart`, `currentPeriodEnd`
@@ -1657,7 +1657,7 @@ with no features — and those two need different fixing.
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `source` = the job, `effectiveAt`
 
 <a id="e71"></a>
-**71 · `POST /platform/billing/jobs/age-overdue`**
+**[71](#t71) · `POST /platform/billing/jobs/age-overdue`**
 
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *reads*: `dueDate`, `status`, `outstandingAmount`
 - [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *updates*: `status` = `OVERDUE`

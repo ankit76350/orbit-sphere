@@ -57,18 +57,18 @@ URL and this cannot sit behind the same authentication as everything else.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| #1 | `POST /platform/schools` | **Built.** Create a tenant. This is the first thing that happens for a new customer, and it is the only document in the system with no `schoolId` above it. | [`schools`](../../models/core/School.java) |
-| #2 | `POST /platform/schools/{id}/complete-provisioning` | **Built.** Finish the setup #1 leaves undone: create every missing number sequence and the starting roles. Safe to run twice — it only fills in what is missing. | [`schools`](../../models/core/School.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`roles`](../../models/identity/Role.java) |
-| #3 | `POST /platform/schools/{id}/activate` | **Built.** Take the school live. Refuses unless #2 has actually run, because a school with no `SCHOOL_ADMIN` role or missing sequences fails on first use rather than at activation. | [`schools`](../../models/core/School.java), [`roles`](../../models/identity/Role.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| #4 | `POST /platform/schools/{id}/suspend` | **Built.** Block a school and record why. Only an `ACTIVE` school can be suspended. | [`schools`](../../models/core/School.java) |
-| #5 | `POST /platform/schools/{id}/reactivate` | **Built.** Put a suspended school back. `suspendedAt` and the old reason are kept on purpose, as the record of the last suspension. | [`schools`](../../models/core/School.java) |
-| #10 | `PATCH /platform/schools/{id}/subdomain` | **Built.** Change the label a school answers to. On the platform surface because this is the key that resolves every request to the tenant, not a profile detail. | [`schools`](../../models/core/School.java) |
-| #12 | `POST /platform/schools/{id}/rotate-encryption-key` | **Deferred.** Point the school at a new key. Deferred because nothing is encrypted yet, so there is no key to rotate. | [`schools`](../../models/core/School.java) |
-| #13 | `POST /platform/schools/{id}/offboard` | **Deferred.** Start winding a school down. Deferred until offboarding is actually wanted. | [`schools`](../../models/core/School.java) |
-| #14 | `POST /platform/schools/{id}/close` | **Deferred.** Close a school that has finished offboarding. | [`schools`](../../models/core/School.java) |
-| #15 | `POST /platform/schools/{id}/request-deletion` | **Deferred.** Ask for the school's data to be erased, starting a waiting period. | [`schools`](../../models/core/School.java) |
-| #16 | `POST /platform/schools/{id}/cancel-deletion` | **Deferred.** Change our mind during the waiting period. Not in the model's README — proposed here. | [`schools`](../../models/core/School.java) |
-| #17 | `POST /platform/schools/{id}/confirm-deletion` | **Deferred.** Actually erase the data once the waiting period is over. | [`schools`](../../models/core/School.java) |
+| <a id="t1"></a>#1 | [`POST /platform/schools`](#e1) | **Built.** Create a tenant. This is the first thing that happens for a new customer, and it is the only document in the system with no `schoolId` above it. | [`schools`](../../models/core/School.java) |
+| <a id="t2"></a>#2 | [`POST /platform/schools/{id}/complete-provisioning`](#e2) | **Built.** Finish the setup #1 leaves undone: create every missing number sequence and the starting roles. Safe to run twice — it only fills in what is missing. | [`schools`](../../models/core/School.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`roles`](../../models/identity/Role.java) |
+| <a id="t3"></a>#3 | [`POST /platform/schools/{id}/activate`](#e3) | **Built.** Take the school live. Refuses unless #2 has actually run, because a school with no `SCHOOL_ADMIN` role or missing sequences fails on first use rather than at activation. | [`schools`](../../models/core/School.java), [`roles`](../../models/identity/Role.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t4"></a>#4 | [`POST /platform/schools/{id}/suspend`](#e4) | **Built.** Block a school and record why. Only an `ACTIVE` school can be suspended. | [`schools`](../../models/core/School.java) |
+| <a id="t5"></a>#5 | [`POST /platform/schools/{id}/reactivate`](#e5) | **Built.** Put a suspended school back. `suspendedAt` and the old reason are kept on purpose, as the record of the last suspension. | [`schools`](../../models/core/School.java) |
+| <a id="t10"></a>#10 | [`PATCH /platform/schools/{id}/subdomain`](#e10) | **Built.** Change the label a school answers to. On the platform surface because this is the key that resolves every request to the tenant, not a profile detail. | [`schools`](../../models/core/School.java) |
+| <a id="t12"></a>#12 | [`POST /platform/schools/{id}/rotate-encryption-key`](#e12) | **Deferred.** Point the school at a new key. Deferred because nothing is encrypted yet, so there is no key to rotate. | [`schools`](../../models/core/School.java) |
+| <a id="t13"></a>#13 | [`POST /platform/schools/{id}/offboard`](#e13) | **Deferred.** Start winding a school down. Deferred until offboarding is actually wanted. | [`schools`](../../models/core/School.java) |
+| <a id="t14"></a>#14 | [`POST /platform/schools/{id}/close`](#e14) | **Deferred.** Close a school that has finished offboarding. | [`schools`](../../models/core/School.java) |
+| <a id="t15"></a>#15 | [`POST /platform/schools/{id}/request-deletion`](#e15) | **Deferred.** Ask for the school's data to be erased, starting a waiting period. | [`schools`](../../models/core/School.java) |
+| <a id="t16"></a>#16 | [`POST /platform/schools/{id}/cancel-deletion`](#e16) | **Deferred.** Change our mind during the waiting period. Not in the model's README — proposed here. | [`schools`](../../models/core/School.java) |
+| <a id="t17"></a>#17 | [`POST /platform/schools/{id}/confirm-deletion`](#e17) | **Deferred.** Actually erase the data once the waiting period is over. | [`schools`](../../models/core/School.java) |
 
 ## 2. School — the school's own surface · [Build order ↓](#build-order)
 
@@ -77,11 +77,11 @@ A school editing itself. Nothing here can reach `status`, `subdomain` or `encryp
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| #6 | `PATCH /schools/current/profile` | **Built.** The school edits its own name and contact details. Partial: a missing field is left alone, an empty string clears it, an empty body is a 400. | [`schools`](../../models/core/School.java) |
-| #7 | `PUT /schools/current/address` | **Built.** Replace the whole postal address. All-or-nothing on purpose: a patched address can name a city in the wrong state. | [`schools`](../../models/core/School.java) |
-| #8 | `PATCH /schools/current/localization` | **Built.** Set language and time zone. The time zone reinterprets which calendar date every existing attendance record and holiday falls on, so it needs confirming and is refused mid-year. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
-| #9 | `PUT /schools/current/logo` | **Built.** Replace the logo, or remove it when the URL is blank. https and an allow-listed host only. | [`schools`](../../models/core/School.java) |
-| ~~#11~~ | ~~PATCH /platform/schools/{id}/account-holder~~ | **Dropped.** Dropped on 2026-08-31 and folded into #6. The account holder's name is an ordinary profile field, and a second endpoint for one string is a second thing to keep in step. | [`schools`](../../models/core/School.java) |
+| <a id="t6"></a>#6 | [`PATCH /schools/current/profile`](#e6) | **Built.** The school edits its own name and contact details. Partial: a missing field is left alone, an empty string clears it, an empty body is a 400. | [`schools`](../../models/core/School.java) |
+| <a id="t7"></a>#7 | [`PUT /schools/current/address`](#e7) | **Built.** Replace the whole postal address. All-or-nothing on purpose: a patched address can name a city in the wrong state. | [`schools`](../../models/core/School.java) |
+| <a id="t8"></a>#8 | [`PATCH /schools/current/localization`](#e8) | **Built.** Set language and time zone. The time zone reinterprets which calendar date every existing attendance record and holiday falls on, so it needs confirming and is refused mid-year. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t9"></a>#9 | [`PUT /schools/current/logo`](#e9) | **Built.** Replace the logo, or remove it when the URL is blank. https and an allow-listed host only. | [`schools`](../../models/core/School.java) |
+| <a id="t11"></a>~~#11~~ | [~~PATCH /platform/schools/{id}/account-holder~~](#e11) | **Dropped.** Dropped on 2026-08-31 and folded into #6. The account holder's name is an ordinary profile field, and a second endpoint for one string is a second thing to keep in step. | [`schools`](../../models/core/School.java) |
 
 ## 3. Academic year — writes · [Build order ↓](#build-order)
 
@@ -90,19 +90,19 @@ one. **There is no rename and no `DELETE`** — see the two notes below the tabl
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| #18 | `POST /schools/current/academic-years` | **Built.** Create a year with an empty calendar. **The name can never change** — every other collection stores it as a string, so a rename would orphan them all silently. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
-| #19 | `PATCH /schools/current/academic-years/{name}/dates` | **Built.** Move the start or end date. Refused when a closed day would end up outside the new range, because a holiday stored outside its year is invisible to every query that asks about it. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #20 | `PUT /schools/current/academic-years/{name}/holidays` | **Built.** Replace the whole calendar in one go. What a school does when it has the year's holiday list from the board and wants it in as one action. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #21 | `POST /schools/current/academic-years/{name}/holidays` | **Built.** Add one closed day, or add a second reason to a day that is already closed. A Sunday that is also Diwali is one day with two reasons. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #22 | `PATCH /schools/current/academic-years/{name}/holidays/{date}?type=` | **Built.** Rename a reason, change its description, or change its type. The date itself cannot move — remove it and add it back instead. | [`academic_years`](../../models/core/AcademicYear.java) |
-| D1 | `DELETE /schools/current/academic-years/{name}/holidays/{date}?type=` | **Built.** Remove one reason from a day, or the whole day when no type is given. A day that loses its last reason becomes a working day again. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #23 | `POST /schools/current/academic-years/{name}/holidays/generate-weekly-off` | **Built.** Turn "we are closed on Sundays" into the ~52 dated entries the model requires. Not a convenience: every closure has to be a real date, so without this somebody types 52 of them. | [`academic_years`](../../models/core/AcademicYear.java) |
-| D2 | `DELETE /schools/current/academic-years/{name}/holidays?type=` | **Built.** Clear every closure of one type. `type` is required precisely because forgetting it must not wipe a whole calendar. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #24 | `POST /schools/current/academic-years/{name}/enrollment/enable` | **Built.** Open the year to new enrollments. Idempotent — already open comes back 200 saying so. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #25 | `POST /schools/current/academic-years/{name}/enrollment/disable` | **Built.** Close the year to new enrollments. A gate on new writes only — students already enrolled are untouched. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #26 | `POST /schools/current/academic-years/{name}/results/lock` | **Built.** Lock results against further change. What happens when marks are published. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #27 | `POST /schools/current/academic-years/{name}/results/unlock` | **Built.** Unlock results so they can be corrected. **Records nothing about who unlocked, or why** — see the debt noted below. | [`academic_years`](../../models/core/AcademicYear.java) |
-| #28 | `POST /schools/current/academic-years/{name}/clone` | **Optional.** Copy last year's calendar into a new year, so a school does not re-enter it. Convenience only — #18 plus #20 already do it. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t18"></a>#18 | [`POST /schools/current/academic-years`](#e18) | **Built.** Create a year with an empty calendar. **The name can never change** — every other collection stores it as a string, so a rename would orphan them all silently. | [`schools`](../../models/core/School.java), [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t19"></a>#19 | [`PATCH /schools/current/academic-years/{name}/dates`](#e19) | **Built.** Move the start or end date. Refused when a closed day would end up outside the new range, because a holiday stored outside its year is invisible to every query that asks about it. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t20"></a>#20 | [`PUT /schools/current/academic-years/{name}/holidays`](#e20) | **Built.** Replace the whole calendar in one go. What a school does when it has the year's holiday list from the board and wants it in as one action. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t21"></a>#21 | [`POST /schools/current/academic-years/{name}/holidays`](#e21) | **Built.** Add one closed day, or add a second reason to a day that is already closed. A Sunday that is also Diwali is one day with two reasons. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t22"></a>#22 | [`PATCH /schools/current/academic-years/{name}/holidays/{date}?type=`](#e22) | **Built.** Rename a reason, change its description, or change its type. The date itself cannot move — remove it and add it back instead. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="td1"></a>D1 | [`DELETE /schools/current/academic-years/{name}/holidays/{date}?type=`](#ed1) | **Built.** Remove one reason from a day, or the whole day when no type is given. A day that loses its last reason becomes a working day again. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t23"></a>#23 | [`POST /schools/current/academic-years/{name}/holidays/generate-weekly-off`](#e23) | **Built.** Turn "we are closed on Sundays" into the ~52 dated entries the model requires. Not a convenience: every closure has to be a real date, so without this somebody types 52 of them. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="td2"></a>D2 | [`DELETE /schools/current/academic-years/{name}/holidays?type=`](#ed2) | **Built.** Clear every closure of one type. `type` is required precisely because forgetting it must not wipe a whole calendar. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t24"></a>#24 | [`POST /schools/current/academic-years/{name}/enrollment/enable`](#e24) | **Built.** Open the year to new enrollments. Idempotent — already open comes back 200 saying so. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t25"></a>#25 | [`POST /schools/current/academic-years/{name}/enrollment/disable`](#e25) | **Built.** Close the year to new enrollments. A gate on new writes only — students already enrolled are untouched. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t26"></a>#26 | [`POST /schools/current/academic-years/{name}/results/lock`](#e26) | **Built.** Lock results against further change. What happens when marks are published. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t27"></a>#27 | [`POST /schools/current/academic-years/{name}/results/unlock`](#e27) | **Built.** Unlock results so they can be corrected. **Records nothing about who unlocked, or why** — see the debt noted below. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t28"></a>#28 | [`POST /schools/current/academic-years/{name}/clone`](#e28) | **Optional.** Copy last year's calendar into a new year, so a school does not re-enter it. Convenience only — #18 plus #20 already do it. | [`academic_years`](../../models/core/AcademicYear.java) |
 
 ## 4. Reads — platform · [Build order ↓](#build-order)
 
@@ -111,9 +111,9 @@ that grows without limit.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| G1 | `GET /platform/schools` | **Built.** The operator's school list: filter, search, sort, page. A bare call gives the newest twenty, which is what somebody opening the console usually wants. | [`schools`](../../models/core/School.java) |
-| G2 | `GET /platform/schools/{id}` | **Built.** One school in full for the operator, including the lifecycle fields the school itself never sees. Returns a school at any status — closed and deleted included. | [`schools`](../../models/core/School.java) |
-| ~~G3~~ | ~~GET /platform/schools/subdomain-available?value=~~ | **Dropped.** Dropped on 2026-08-31, having been built the same day. #1 and #10 already answer it with the same codes, so a signup form submits once instead of asking per keystroke. | [`schools`](../../models/core/School.java) |
+| <a id="tg1"></a>G1 | [`GET /platform/schools`](#eg1) | **Built.** The operator's school list: filter, search, sort, page. A bare call gives the newest twenty, which is what somebody opening the console usually wants. | [`schools`](../../models/core/School.java) |
+| <a id="tg2"></a>G2 | [`GET /platform/schools/{id}`](#eg2) | **Built.** One school in full for the operator, including the lifecycle fields the school itself never sees. Returns a school at any status — closed and deleted included. | [`schools`](../../models/core/School.java) |
+| <a id="tg3"></a>~~G3~~ | [~~GET /platform/schools/subdomain-available?value=~~](#eg3) | **Dropped.** Dropped on 2026-08-31, having been built the same day. #1 and #10 already answer it with the same codes, so a signup form submits once instead of asking per keystroke. | [`schools`](../../models/core/School.java) |
 
 ## 5. Reads — school surface · [Build order ↓](#build-order)
 
@@ -123,14 +123,14 @@ and `409 SCHOOL_NOT_EDITABLE` is not a true answer to a `GET`.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| G4 | `GET /schools/current` | **Built.** The school reading its own details — the read behind #6 to #9. Returns the identical record those four return, so one screen loads and saves with one shape. | [`schools`](../../models/core/School.java) |
-| G5 | `GET /schools/current/academic-years` | **Built.** Every year the school has, newest first. Sorted on `startDate`, not `createdAt` — "newest" means furthest along the calendar, not typed most recently. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G6 | `GET /schools/current/academic-years/current` | **Built.** The year today falls in, or a 404 that says which kind of nothing. Worked out from the dates, never stored — a `current` flag would be a second source that can disagree. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G7 | `GET /schools/current/academic-years/{name}` | **Built.** One year by name. Keyed on the name because that is what the whole system means when it says "which year", and the lookup is by school and name, so another school's year is a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G8 | `GET /schools/current/academic-years/{name}/holidays` | **Built.** The whole calendar, sorted by date, with both counts. `closedDayCount` is days; `eventCount` is reasons, and it is larger whenever a weekly off lands on a festival. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G9 | `GET /schools/current/academic-years/{name}/holidays/{date}` | **Built.** **Is the school closed that day, and why.** The question attendance, timetables, transport and fee due dates all ask. An open day is a 200 with `closed: false`, never a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G10 | `GET /schools/current/academic-years/{name}/working-days?from=&to=` | **Built.** Which days in a range are working days, and how many. G9 in bulk — attendance percentages and fee proration need the whole range, not two hundred calls. | [`academic_years`](../../models/core/AcademicYear.java) |
-| G11 | `GET /schools/current/academic-years/{name}/holidays/export?format=csv` | **Optional.** The calendar as a file a school can hand to somebody. Optional — G8 already returns it as JSON. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg4"></a>G4 | [`GET /schools/current`](#eg4) | **Built.** The school reading its own details — the read behind #6 to #9. Returns the identical record those four return, so one screen loads and saves with one shape. | [`schools`](../../models/core/School.java) |
+| <a id="tg5"></a>G5 | [`GET /schools/current/academic-years`](#eg5) | **Built.** Every year the school has, newest first. Sorted on `startDate`, not `createdAt` — "newest" means furthest along the calendar, not typed most recently. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg6"></a>G6 | [`GET /schools/current/academic-years/current`](#eg6) | **Built.** The year today falls in, or a 404 that says which kind of nothing. Worked out from the dates, never stored — a `current` flag would be a second source that can disagree. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg7"></a>G7 | [`GET /schools/current/academic-years/{name}`](#eg7) | **Built.** One year by name. Keyed on the name because that is what the whole system means when it says "which year", and the lookup is by school and name, so another school's year is a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg8"></a>G8 | [`GET /schools/current/academic-years/{name}/holidays`](#eg8) | **Built.** The whole calendar, sorted by date, with both counts. `closedDayCount` is days; `eventCount` is reasons, and it is larger whenever a weekly off lands on a festival. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg9"></a>G9 | [`GET /schools/current/academic-years/{name}/holidays/{date}`](#eg9) | **Built.** **Is the school closed that day, and why.** The question attendance, timetables, transport and fee due dates all ask. An open day is a 200 with `closed: false`, never a 404. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg10"></a>G10 | [`GET /schools/current/academic-years/{name}/working-days?from=&to=`](#eg10) | **Built.** Which days in a range are working days, and how many. G9 in bulk — attendance percentages and fee proration need the whole range, not two hundred calls. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="tg11"></a>G11 | [`GET /schools/current/academic-years/{name}/holidays/export?format=csv`](#eg11) | **Optional.** The calendar as a file a school can hand to somebody. Optional — G8 already returns it as JSON. | [`academic_years`](../../models/core/AcademicYear.java) |
 
 ---
 
@@ -352,17 +352,20 @@ description of running code rather than a plan.
 | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) | `status` `current` | **Read only, never written and never copied onto the school.** #3 warns when there is no subscription and activates anyway, and refuses only when one exists and is `CANCELLED` or `EXPIRED` → `409 SUBSCRIPTION_NOT_ACTIVE`. That leniency is temporary and says so in the response — see [`controllers/plans`](../plans/README.md) #13. |
 ## School — the platform surface  ·  #1–#5, #10, #12–#17
 
-**#1 · `POST /platform/schools`**
+<a id="e1"></a>
+**[#1](#t1) · `POST /platform/schools`**
 
 - [`schools`](../../models/core/School.java) — *insert*: `schoolName`, `accountHolderName`, `subdomain`, `phoneNumber`, `emailAddress`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `status` = `PROVISIONING` or `TRIAL`
 
-**#2 · `POST /platform/schools/{id}/complete-provisioning`**
+<a id="e2"></a>
+**[#2](#t2) · `POST /platform/schools/{id}/complete-provisioning`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status` — a closed or deleted school cannot be provisioned
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *insert*: `schoolId`, `sequenceType`, `scopeKey`, `nextValue`, `paddingWidth`, `resetPolicy` — one row per missing type
 - [`roles`](../../models/identity/Role.java) — *insert*: `schoolId`, `roleKey`, `name`, `description`, `permissions`, `systemManaged`, `active` — for `SCHOOL_ADMIN`, `TEACHER` and `GUARDIAN`
 
-**#3 · `POST /platform/schools/{id}/activate`**
+<a id="e3"></a>
+**[#3](#t3) · `POST /platform/schools/{id}/activate`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status` — only `PROVISIONING` or `TRIAL`; `activatedAt` to tell a first activation from a repeat
 - [`roles`](../../models/identity/Role.java) — *reads*: `roleKey` — `SCHOOL_ADMIN` must exist
@@ -370,177 +373,215 @@ description of running code rather than a plan.
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `current` — read, never copied onto the school
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` on the first activation only
 
-**#4 · `POST /platform/schools/{id}/suspend`**
+<a id="e4"></a>
+**[#4](#t4) · `POST /platform/schools/{id}/suspend`**
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `SUSPENDED`, `suspendedAt`, `statusReason`
 
-**#5 · `POST /platform/schools/{id}/reactivate`**
+<a id="e5"></a>
+**[#5](#t5) · `POST /platform/schools/{id}/reactivate`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status` — only `SUSPENDED`
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `statusReason` only when a note is sent
 
-**#10 · `PATCH /platform/schools/{id}/subdomain`**
+<a id="e10"></a>
+**[#10](#t10) · `PATCH /platform/schools/{id}/subdomain`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain` — the body must confirm the current one, and `status`
 - [`schools`](../../models/core/School.java) — *updates*: `subdomain`
 
-**#12 · `POST /platform/schools/{id}/rotate-encryption-key`**  ·  deferred
+<a id="e12"></a>
+**[#12](#t12) · `POST /platform/schools/{id}/rotate-encryption-key`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `encryptionKeyReference`
 
-**#13 · `POST /platform/schools/{id}/offboard`**  ·  deferred
+<a id="e13"></a>
+**[#13](#t13) · `POST /platform/schools/{id}/offboard`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `OFFBOARDING`, `statusReason`
 
-**#14 · `POST /platform/schools/{id}/close`**  ·  deferred
+<a id="e14"></a>
+**[#14](#t14) · `POST /platform/schools/{id}/close`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `CLOSED`, `statusReason`
 
-**#15 · `POST /platform/schools/{id}/request-deletion`**  ·  deferred
+<a id="e15"></a>
+**[#15](#t15) · `POST /platform/schools/{id}/request-deletion`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `DELETION_PENDING`, `statusReason`
 
-**#16 · `POST /platform/schools/{id}/cancel-deletion`**  ·  deferred
+<a id="e16"></a>
+**[#16](#t16) · `POST /platform/schools/{id}/cancel-deletion`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` back to `CLOSED`, `statusReason`
 
-**#17 · `POST /platform/schools/{id}/confirm-deletion`**  ·  deferred
+<a id="e17"></a>
+**[#17](#t17) · `POST /platform/schools/{id}/confirm-deletion`**  ·  deferred
 
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `DELETED`, `deletedAt`
 
 ## School — the school's own surface  ·  #6–#9, ~~#11~~
 
-**#6 · `PATCH /schools/current/profile`**
+<a id="e6"></a>
+**[#6](#t6) · `PATCH /schools/current/profile`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain` — the tenant, and `status` — must be editable
 - [`schools`](../../models/core/School.java) — *updates*: `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress`
 
-**#7 · `PUT /schools/current/address`**
+<a id="e7"></a>
+**[#7](#t7) · `PUT /schools/current/address`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
 - [`schools`](../../models/core/School.java) — *updates*: `addressLine`, `city`, `stateOrProvince`, `postalCode` — an omitted field is cleared. **Not** `countryCode`
 
-**#8 · `PATCH /schools/current/localization`**
+<a id="e8"></a>
+**[#8](#t8) · `PATCH /schools/current/localization`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`, `defaultTimeZone`
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — is a year running today
 - [`schools`](../../models/core/School.java) — *updates*: `defaultLocale`, `defaultTimeZone`
 
-**#9 · `PUT /schools/current/logo`**
+<a id="e9"></a>
+**[#9](#t9) · `PUT /schools/current/logo`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
 - [`schools`](../../models/core/School.java) — *updates*: `logoUrl`
 
-**#11 · `PATCH /platform/schools/{id}/account-holder`**  ·  dropped
+<a id="e11"></a>
+**[#11](#t11) · `PATCH /platform/schools/{id}/account-holder`**  ·  dropped
 
 - [`schools`](../../models/core/School.java) — *updates*: would have been `accountHolderName` — #6 does it
 
 ## Academic year — writes  ·  #18–#28, D1, D2
 
-**#18 · `POST /schools/current/academic-years`**
+<a id="e18"></a>
+**[#18](#t18) · `POST /schools/current/academic-years`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `subdomain`, `status`
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name` — unique per school; `startDate`, `endDate` of every other year — no overlap allowed
 - [`academic_years`](../../models/core/AcademicYear.java) — *insert*: `schoolId`, `name`, `startDate`, `endDate`, `holidays` = empty, `enrollmentEnabled` = false, `resultsLocked` = false
 
-**#19 · `PATCH /schools/current/academic-years/{name}/dates`**
+<a id="e19"></a>
+**[#19](#t19) · `PATCH /schools/current/academic-years/{name}/dates`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` of this and every other year; `holidays` — any `date` that would fall outside
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `startDate`, `endDate`
 
-**#20 · `PUT /schools/current/academic-years/{name}/holidays`**
+<a id="e20"></a>
+**[#20](#t20) · `PUT /schools/current/academic-years/{name}/holidays`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — every date must be inside
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — the whole list, each `date` with its `events` of `name`, `description`, `type`
 
-**#21 · `POST /schools/current/academic-years/{name}/holidays`**
+<a id="e21"></a>
+**[#21](#t21) · `POST /schools/current/academic-years/{name}/holidays`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`, `holidays` — is that `date` already closed for this `type`
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — a new `date` entry, or one more `events` row on an existing one
 
-**#22 · `PATCH /schools/current/academic-years/{name}/holidays/{date}?type=`**
+<a id="e22"></a>
+**[#22](#t22) · `PATCH /schools/current/academic-years/{name}/holidays/{date}?type=`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` — the `date`, and `type` to pick which reason when a day has several
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: the matching `events` row's `name`, `description`, `type`
 
-**D1 · `DELETE /schools/current/academic-years/{name}/holidays/{date}?type=`**
+<a id="ed1"></a>
+**[D1](#td1) · `DELETE /schools/current/academic-years/{name}/holidays/{date}?type=`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — one `events` row removed, and the `date` entry too once its `events` list is empty
 
-**#23 · `POST /schools/current/academic-years/{name}/holidays/generate-weekly-off`**
+<a id="e23"></a>
+**[#23](#t23) · `POST /schools/current/academic-years/{name}/holidays/generate-weekly-off`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`, `holidays` — which dates already have a `WEEKLY_OFF`
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — one entry per matching weekday, skipping any that already had one
 
-**D2 · `DELETE /schools/current/academic-years/{name}/holidays?type=`**
+<a id="ed2"></a>
+**[D2](#td2) · `DELETE /schools/current/academic-years/{name}/holidays?type=`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `holidays` — every `events` row of that `type` removed, and any `date` left with none
 
-**#24 · `POST /schools/current/academic-years/{name}/enrollment/enable`**
+<a id="e24"></a>
+**[#24](#t24) · `POST /schools/current/academic-years/{name}/enrollment/enable`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `enrollmentEnabled` = true
 
-**#25 · `POST /schools/current/academic-years/{name}/enrollment/disable`**
+<a id="e25"></a>
+**[#25](#t25) · `POST /schools/current/academic-years/{name}/enrollment/disable`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `enrollmentEnabled` = false
 
-**#26 · `POST /schools/current/academic-years/{name}/results/lock`**
+<a id="e26"></a>
+**[#26](#t26) · `POST /schools/current/academic-years/{name}/results/lock`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `resultsLocked` = true
 
-**#27 · `POST /schools/current/academic-years/{name}/results/unlock`**
+<a id="e27"></a>
+**[#27](#t27) · `POST /schools/current/academic-years/{name}/results/unlock`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `resultsLocked` = false
 
-**#28 · `POST /schools/current/academic-years/{name}/clone`**  ·  optional
+<a id="e28"></a>
+**[#28](#t28) · `POST /schools/current/academic-years/{name}/clone`**  ·  optional
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` of the year being copied
 - [`academic_years`](../../models/core/AcademicYear.java) — *insert*: a new year with `holidays` copied and dates shifted
 
 ## Reads — platform  ·  G1, G2, ~~G3~~
 
-**G1 · `GET /platform/schools`**
+<a id="eg1"></a>
+**[G1](#tg1) · `GET /platform/schools`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `status`, `schoolName`, `subdomain`, `countryCode`, `city`, `createdAt` — the filters; then `statusReason`, `accountHolderName`, `emailAddress`, `phoneNumber`, `activatedAt`, `suspendedAt`. **Never** `encryptionKeyReference`
 
-**G2 · `GET /platform/schools/{id}`**
+<a id="eg2"></a>
+**[G2](#tg2) · `GET /platform/schools/{id}`**
 
 - [`schools`](../../models/core/School.java) — *reads*: every field except `encryptionKeyReference`, including `statusReason`, `activatedAt`, `suspendedAt`, `createdAt`, `updatedAt`
 
-**G3 · `GET /platform/schools/subdomain-available?value=`**  ·  dropped
+<a id="eg3"></a>
+**[G3](#tg3) · `GET /platform/schools/subdomain-available?value=`**  ·  dropped
 
 - [`schools`](../../models/core/School.java) — *reads*: would have been `subdomain` — #1 and #10 do it
 
 ## Reads — school surface  ·  G4–G11
 
-**G4 · `GET /schools/current`**
+<a id="eg4"></a>
+**[G4](#tg4) · `GET /schools/current`**
 
 - [`schools`](../../models/core/School.java) — *reads*: `schoolName`, `accountHolderName`, `phoneNumber`, `emailAddress`, `logoUrl`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `subdomain`, `status`. **Not** `statusReason`, `activatedAt`, `suspendedAt` or `encryptionKeyReference`
 
-**G5 · `GET /schools/current/academic-years`**
+<a id="eg5"></a>
+**[G5](#tg5) · `GET /schools/current/academic-years`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `name`, `startDate`, `endDate`, `enrollmentEnabled`, `resultsLocked`, and a count of `holidays`
 
-**G6 · `GET /schools/current/academic-years/current`**
+<a id="eg6"></a>
+**[G6](#tg6) · `GET /schools/current/academic-years/current`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — the lookup; then the same fields as G5
 
-**G7 · `GET /schools/current/academic-years/{name}`**
+<a id="eg7"></a>
+**[G7](#tg7) · `GET /schools/current/academic-years/{name}`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: the same fields as G5, found by `schoolId` and `name`
 
-**G8 · `GET /schools/current/academic-years/{name}/holidays`**
+<a id="eg8"></a>
+**[G8](#tg8) · `GET /schools/current/academic-years/{name}/holidays`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays` — every `date` with its `events` of `name`, `description`, `type`; plus `startDate`, `endDate`
 
-**G9 · `GET /schools/current/academic-years/{name}/holidays/{date}`**
+<a id="eg9"></a>
+**[G9](#tg9) · `GET /schools/current/academic-years/{name}/holidays/{date}`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — the date must be inside; `holidays` — one lookup on `date`, returning every `events` row on it
 
-**G10 · `GET /schools/current/academic-years/{name}/working-days?from=&to=`**
+<a id="eg10"></a>
+**[G10](#tg10) · `GET /schools/current/academic-years/{name}/working-days?from=&to=`**
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`; `holidays` — the closed `date` values in range, counted as days and not reasons
 
-**G11 · `GET /schools/current/academic-years/{name}/holidays/export?format=csv`**  ·  optional
+<a id="eg11"></a>
+**[G11](#tg11) · `GET /schools/current/academic-years/{name}/holidays/export?format=csv`**  ·  optional
 
 - [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `holidays`, `startDate`, `endDate`, `name`
