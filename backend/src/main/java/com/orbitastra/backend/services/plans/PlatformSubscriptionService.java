@@ -432,9 +432,12 @@ public class PlatformSubscriptionService {
      * {@code 409 SCHOOL_NOT_PLAN_CHANGEABLE}: selling a different plan to a school that is
      * leaving, and taking it ACTIVE on the way, would reverse a wind-down as a side effect.
      *
-     * <p>Note that this un-suspends, where a sale does not — see
-     * {@code takeSchoolActiveOnPlanChange} for why the two differ. The response always says what
-     * happened to the school's status, so it is never a silent change.
+     * <p>Note that this un-suspends, where a sale does not: #13 leaves a SUSPENDED school
+     * suspended, on the argument that lifting a suspension is a decision rather than a side
+     * effect of buying a plan. Here it is the opposite — a suspension is ordinarily for
+     * non-payment, and a school being moved onto a new plan has generally sorted that out, so
+     * leaving it locked out would bill it for something it cannot reach. The response always
+     * says what happened to the school's status, so it is never a silent change.
      */
     @Transactional
     public SubscriptionDetailResponse changePlan(String schoolId, String subscriptionNo,
@@ -449,7 +452,26 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
-        refuseWhenSchoolIsBeingWoundDown(school);
+        //! An allow-list, not a deny-list: the three running states are named and everything
+        //! else is refused, so a status added to SchoolStatus later cannot quietly become one
+        //! in which plans may be changed. A conflict rather than a 400 — nothing about the
+        //! request is malformed, and the same request against a running school would work.
+        //!
+        //! OFFBOARDING is refused HERE and accepted by #13 and #14. A school being wound down
+        //! still has a subscription that may need correcting, and refusing to edit one would
+        //! leave a wrong record un-fixable — but moving it onto a DIFFERENT plan sells to a
+        //! customer who is leaving, and step 14 takes the school ACTIVE as it goes, which would
+        //! reverse the wind-down as a side effect.
+        boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
+                || school.getStatus() == SchoolStatus.ACTIVE
+                || school.getStatus() == SchoolStatus.SUSPENDED;
+
+        if (!schoolIsStillRunning) {
+            throw ApiException.conflict("SCHOOL_NOT_PLAN_CHANGEABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + ", so its plan "
+                            + "cannot be changed. Only a PROVISIONING, ACTIVE or SUSPENDED "
+                            + "school can be moved to another plan.");
+        }
 
         //! step 2 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
@@ -592,10 +614,47 @@ public class PlatformSubscriptionService {
         history.save(historyEntry);
 
         //! step 14 - the school itself goes ACTIVE. A plan change is a school paying for
-        //! something, so whichever of the three running states it was in, it comes out of this
-        //! able to be used. See the helper for what that means for a SUSPENDED one.
-        //TODO: chnges school status TO ACTIVE
-        String schoolNote = takeSchoolActiveOnPlanChange(school);
+        //! something, and a school that is paying should be able to use what it pays for, so
+        //! whichever of the three running states it was in, it comes out of this ACTIVE.
+        //!
+        //! This deliberately UN-SUSPENDS, where #13 deliberately does not: buying a plan is not
+        //! a reason to lift a suspension, but a suspension is ordinarily for non-payment and a
+        //! school being moved onto a new plan has generally sorted that out — leaving it locked
+        //! out would bill it for something it cannot reach. The note says so, so it is never
+        //! silent.
+        //!
+        //! It does NOT re-run the provisioning checks, unlike #13. A PROVISIONING school
+        //! reaching here already has a subscription, so #13 has run them and either activated
+        //! the school or said why not; refusing again would block a plan change over an
+        //! onboarding task that has nothing to do with the plan. The note reports an unfinished
+        //! setup instead, so putting such a school live is visible rather than silent.
+        SchoolStatus schoolStatusBefore = school.getStatus();
+        String schoolNote;
+
+        if (schoolStatusBefore == SchoolStatus.ACTIVE) {
+            schoolNote = "The school was already ACTIVE and stays that way.";
+        } else {
+            boolean firstActivation = school.getActivatedAt() == null;
+            school.setStatus(SchoolStatus.ACTIVE);
+            if (firstActivation) {
+                school.setActivatedAt(Instant.now());
+            }
+
+            // TODO: update school — status to ACTIVE
+            schools.save(school);
+
+            if (schoolStatusBefore == SchoolStatus.SUSPENDED) {
+                schoolNote = "The school was SUSPENDED and is now ACTIVE — the plan change "
+                        + "lifted it, so check that whatever the suspension was for has "
+                        + "actually been resolved.";
+            } else {
+                String notReady = schoolPlatform.whyNotReadyToActivate(school.getId());
+                schoolNote = notReady == null
+                        ? "The school was PROVISIONING and is now ACTIVE."
+                        : "The school was PROVISIONING and is now ACTIVE, but its setup is not "
+                                + "finished: " + notReady;
+            }
+        }
 
         //! step 15 - the note is assembled here rather than by one helper calling another: what
         //! the move did, what it deliberately did not do to the money, what happened to the
@@ -634,7 +693,7 @@ public class PlatformSubscriptionService {
      * {@code note}, because a screen trusting {@code status} alone would show a school as live
      * months after its period ended.
      */
-        public SubscriptionDetailResponse getSubscription(String schoolId) {
+    public SubscriptionDetailResponse getSubscription(String schoolId) {
 
         //! step 1 - the school's current subscription
         // TODO: read subscription
@@ -1153,104 +1212,6 @@ public class PlatformSubscriptionService {
                     label + " must be at least 1 when it is sent. Received: " + value
                             + ". Omit it to use the plan's own limit.");
         }
-    }
-
-    /**
-     * Refuses a plan change for a school that is being wound down.
-     *
-     * <p><b>An allow-list, not a deny-list.</b> The three running states are named and everything
-     * else is refused, so a status added to {@code SchoolStatus} later cannot quietly become a
-     * state in which plans may be changed — it has to be added here deliberately.
-     *
-     * <pre>
-     * PROVISIONING, ACTIVE, SUSPENDED     -> allowed, and the school comes out ACTIVE
-     * OFFBOARDING, CLOSED,
-     * DELETION_PENDING, DELETED           -> refused
-     * </pre>
-     *
-     * <p><b>Why OFFBOARDING is refused here and nowhere else.</b> #13 and #14 both accept it:
-     * a school being wound down still has a subscription that may need correcting, and refusing
-     * to edit one would leave a wrong record un-fixable. But moving such a school onto a
-     * <i>different</i> plan sells to a customer who is leaving, and this endpoint takes the school
-     * ACTIVE as it goes — which would silently reverse the wind-down. The other four states are
-     * refused for the plainer reason that the school is closed, going or gone.
-     *
-     * <p>A conflict rather than a 400: nothing about the request is malformed, and the same
-     * request against a running school would work.
-     *
-     * Used by:
-     * - changePlan()
-     */
-    private void refuseWhenSchoolIsBeingWoundDown(School school) {
-        SchoolStatus status = school.getStatus();
-
-        boolean stillRunning = status == SchoolStatus.PROVISIONING
-                || status == SchoolStatus.ACTIVE
-                || status == SchoolStatus.SUSPENDED;
-
-        if (!stillRunning) {
-            throw ApiException.conflict("SCHOOL_NOT_PLAN_CHANGEABLE",
-                    "'" + school.getSchoolName() + "' is " + status + ", so its plan cannot be "
-                            + "changed. Only a PROVISIONING, ACTIVE or SUSPENDED school can be "
-                            + "moved to another plan.");
-        }
-    }
-
-    /**
-     * Takes the school ACTIVE as part of a plan change, whichever running state it was in.
-     *
-     * <p>The school reaching here is PROVISIONING, ACTIVE or SUSPENDED — step 1 refused the rest
-     * — and all three come out ACTIVE. A plan change is a school paying for something, and a
-     * school that is paying should be able to use what it pays for.
-     *
-     * <p><b>This deliberately un-suspends, which the sale path deliberately does not.</b>
-     * {@code activateSchoolIfSetupComplete} leaves a SUSPENDED school suspended, on the argument
-     * that lifting a suspension is a decision rather than a side effect of buying a plan. Here it
-     * is the opposite by instruction: a suspension is ordinarily for non-payment, and a school
-     * moving onto a new plan is a school that has sorted that out, so leaving it locked out would
-     * be billing it for something it cannot reach. The response says the suspension was lifted
-     * rather than letting it be noticed later.
-     *
-     * <p><b>It does not check whether the school is ready to be live</b>, unlike the sale path.
-     * A PROVISIONING school reaching a plan change already has a subscription, so #13 has already
-     * run those checks and either activated it or said why not; refusing again here would block a
-     * plan change over a provisioning step that has nothing to do with the plan. What it does
-     * instead is report an incomplete setup in the note, so putting such a school live is visible
-     * in the response rather than silent.
-     *
-     * @return a sentence for the response saying what happened to the school's own status
-     *
-     * Used by:
-     * - changePlan()
-     */
-    private String takeSchoolActiveOnPlanChange(School school) {
-        SchoolStatus previousStatus = school.getStatus();
-
-        if (previousStatus == SchoolStatus.ACTIVE) {
-            return "The school was already ACTIVE and stays that way.";
-        }
-
-        boolean firstActivation = school.getActivatedAt() == null;
-        school.setStatus(SchoolStatus.ACTIVE);
-        if (firstActivation) {
-            school.setActivatedAt(Instant.now());
-        }
-
-        // TODO: update school
-        schools.save(school);
-
-        if (previousStatus == SchoolStatus.SUSPENDED) {
-            return "The school was SUSPENDED and is now ACTIVE — the plan change lifted it, so "
-                    + "check that whatever the suspension was for has actually been resolved.";
-        }
-
-        // PROVISIONING. Setup may still be incomplete; say so rather than let it be found out.
-        String notReady = schoolPlatform.whyNotReadyToActivate(school.getId());
-        if (notReady != null) {
-            return "The school was PROVISIONING and is now ACTIVE, but its setup is not finished: "
-                    + notReady;
-        }
-        return "The school was PROVISIONING and is now ACTIVE.";
     }
 
     /**
