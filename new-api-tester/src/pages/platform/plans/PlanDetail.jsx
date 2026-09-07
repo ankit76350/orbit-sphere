@@ -8,6 +8,7 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { screenPath } from '../../../paths.js'
+import { endOfDay, startOfDay, toDateInput, todayInput } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { FEATURES, METRIC_LABEL, OVERAGE_POLICIES } from './features.js'
 import { BILLING_CYCLES, STATUS_TONE, whyNotSellable } from './planFacts.js'
@@ -722,33 +723,6 @@ function Confirm({ action, busy, onCancel, onGo }) {
       </div>
     </Modal>
   )
-}
-
-/** An instant from the API as the yyyy-MM-dd a date input wants. */
-function toDateInput(instant) {
-  const at = new Date(instant)
-  return Number.isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 10)
-}
-
-/** Today, in the same shape, so the form's default matches the API's. */
-function todayInput() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-/** The start of a chosen day. "On sale from the 1st" includes the whole 1st. */
-function startOfDay(value) {
-  return value ? `${value}T00:00:00Z` : null
-}
-
-/**
- * The end of a chosen day, or null for blank.
- *
- * END OF DAY, NOT MIDNIGHT. "Stops being sold on 31 March" means the 31st is the last day it can
- * be sold, and midnight on the 31st would cut it off before that day started — the plan would
- * close a day earlier than whoever typed it expected.
- */
-function endOfDay(value) {
-  return value ? `${value}T23:59:59Z` : null
 }
 
 /* -------------------------------------------------------------------------- the versions */

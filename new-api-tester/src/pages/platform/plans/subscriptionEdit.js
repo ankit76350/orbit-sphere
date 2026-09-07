@@ -1,3 +1,5 @@
+import { endOfDay, startOfDay, toDateInput } from '../../../lib/dates.js'
+
 /**
  * What a PATCH to `/platform/schools/{id}/subscriptions/{no}` should carry.
  *
@@ -19,15 +21,17 @@ export const storedForm = (subscription) => ({
   status: subscription.status,
   planKey: `${subscription.planCode}@${subscription.planVersion}`,
   billingCycle: subscription.billingCycle,
-  currentPeriodStart: asText(subscription.currentPeriodStart),
-  currentPeriodEnd: asText(subscription.currentPeriodEnd),
+  // The three date fields are held as yyyy-MM-dd, because that is what a date input — and the
+  // calendar it opens — works in. They go back out as instants; see patchBody.
+  currentPeriodStart: toDateInput(subscription.currentPeriodStart),
+  currentPeriodEnd: toDateInput(subscription.currentPeriodEnd),
   autoRenew: Boolean(subscription.autoRenew),
   contractedPrice: asText(subscription.contractedPrice),
   currencyCode: asText(subscription.currencyCode),
   billingCustomerReference: asText(subscription.billingCustomerReference),
   maxStudentsOverride: asText(subscription.maxStudentsOverride),
   maxUsersOverride: asText(subscription.maxUsersOverride),
-  cancelledAt: asText(subscription.cancelledAt),
+  cancelledAt: toDateInput(subscription.cancelledAt),
   cancellationReason: asText(subscription.cancellationReason),
 })
 
@@ -46,10 +50,17 @@ export function patchBody(form, stored) {
   if (form.billingCycle !== stored.billingCycle) out.billingCycle = form.billingCycle
   if (form.autoRenew !== stored.autoRenew) out.autoRenew = form.autoRenew
 
-  for (const field of ['currentPeriodStart', 'currentPeriodEnd']) {
-    // These two are @NotNull on the model, so an emptied box is not a way to clear them — it is
-    // a box the caller has not finished filling in, and sending "" would be a 400.
-    if (form[field].trim() && form[field] !== stored[field]) out[field] = form[field].trim()
+  // A picked day becomes an instant. The period START is the beginning of that day and the END
+  // is the last second of it: "runs to 31 March" means the 31st is included, and midnight on the
+  // 31st would end the period before that day began.
+  //
+  // These two are @NotNull on the model, so an emptied box is not a way to clear them — it is a
+  // box somebody has not finished filling in, and sending null would be a 400.
+  if (form.currentPeriodStart && form.currentPeriodStart !== stored.currentPeriodStart) {
+    out.currentPeriodStart = startOfDay(form.currentPeriodStart)
+  }
+  if (form.currentPeriodEnd && form.currentPeriodEnd !== stored.currentPeriodEnd) {
+    out.currentPeriodEnd = endOfDay(form.currentPeriodEnd)
   }
 
   if (form.contractedPrice.trim() && form.contractedPrice !== stored.contractedPrice) {
@@ -76,7 +87,8 @@ export function patchBody(form, stored) {
   if (form.cancelledAt !== stored.cancelledAt
       || form.cancellationReason !== stored.cancellationReason) {
     out.cancellation = {
-      cancelledAt: form.cancelledAt.trim() || null,
+      // Blank is a removal here, unlike the period dates: this one is nullable on the model.
+      cancelledAt: startOfDay(form.cancelledAt),
       cancellationReason: form.cancellationReason.trim() || null,
     }
   }

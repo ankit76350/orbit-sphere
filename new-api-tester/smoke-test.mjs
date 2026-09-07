@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
 import { changedFields, patchBody, storedForm } from './src/pages/platform/plans/subscriptionEdit.js'
+import { endOfDay, startOfDay, toDateInput } from './src/lib/dates.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
 // first renders — so there has to be something to read here.
@@ -238,8 +239,15 @@ const publishChecks = [
     planSource.includes('effectiveFrom: startOfDay(from)')
       && planSource.includes('effectiveUntil: endOfDay(until)')],
   // "Stops being sold on the 31st" has to include the 31st. Midnight would cut it a day early.
-  ['the end date is the END of that day', planSource.includes('T23:59:59Z')],
-  ['the start date is the start of it', planSource.includes('T00:00:00Z')],
+  // Checked against the helper itself, not a string in this screen: the rule moved to lib/dates
+  // when a second form needed it, and a check that reads the wrong file passes for the wrong
+  // reason. Both of these did, until they were pointed here.
+  ['the end date is the END of that day', endOfDay('2027-03-31') === '2027-03-31T23:59:59Z'],
+  ['the start date is the start of it', startOfDay('2026-04-01') === '2026-04-01T00:00:00Z'],
+  ['and blank stays blank rather than becoming a date',
+    endOfDay('') === null && startOfDay('') === null],
+  ['an instant comes back as the day it falls on',
+    toDateInput('2027-03-31T23:59:59Z') === '2027-03-31' && toDateInput(null) === ''],
   // The form's blank has to mean what the API's absent means, or the two disagree.
   ['the start defaults to today, as the API does', planSource.includes('todayInput()')],
 ]
@@ -326,6 +334,38 @@ for (const [label, ok] of trialChecks) {
 // "leave it alone" — a form that posted every box would send twelve fields to change one, and the
 // history row it writes would then say twelve fields were edited. This is that rule as a table:
 // what the boxes hold against what is stored, and the body it comes to.
+// A form of thirteen boxes with no order to it is a form where somebody fills in the cancellation
+// date of a subscription they were only trying to reprice. So it is sectioned, the boxes that
+// only apply sometimes only appear then, and the dates are calendars rather than typed instants.
+console.log('\nThe edit form says what to fill in, and when')
+const editSource = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+const formChecks = [
+  ['the boxes are grouped under headings',
+    (editSource.match(/className="field-split"/g) || []).length >= 5],
+  // The cancellation belongs to a cancelled subscription — offered when one is being made, and
+  // kept while one is stored, so a recorded cancellation can still be corrected or removed.
+  ['the cancellation appears for a cancellation, not always',
+    /const showCancellation = form\.status === 'CANCELLED'\s*\n\s*\|\| Boolean\(subscription\.cancelledAt\)/
+      .test(editSource)],
+  ['and the boxes are behind it', /\{showCancellation \? \(/.test(editSource)],
+  // Three dates, three calendars: the period's two ends and the cancellation.
+  ['every date is a calendar, not a typed instant',
+    (editSource.match(/type="date"/g) || []).length === 3
+      && !editSource.includes('An ISO instant')],
+  ['each status says what choosing it means', editSource.includes('const STATUS_MEANS')],
+  ['the box marks the one it is on now', editSource.includes("' — as it stands'")],
+  // Both refusals are worked out from the boxes: a refused request loses the other twelve
+  // boxes somebody just filled in.
+  ['a backwards period is caught before it is sent', editSource.includes('periodBackwards')],
+  ['so is an override of zero', editSource.includes('zeroOverride')],
+  ['and the send button refuses to send either',
+    editSource.includes('disabled={nothingChanged || periodBackwards || zeroOverride}')],
+]
+for (const [label, ok] of formChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nAn edit sends only what moved')
 const STORED_SUB = {
   subscriptionNo: 'SUB/2026/09/000001', planCode: 'PREMIUM', planVersion: 1,
@@ -353,9 +393,17 @@ const editCases = [
   // The period dates are @NotNull on the model: an emptied box is an unfinished one, not a
   // request to clear them, and sending "" would be a 400.
   ['emptying a period date sends nothing', same(edited({ currentPeriodEnd: '' }), {})],
-  ['moving a period date sends it',
-    same(edited({ currentPeriodEnd: '2027-12-31T23:59:59Z' }),
+  // A picked day, not an instant: the box is a calendar, and the day it gives is widened to the
+  // whole of it — the start from its first second, the end to its last.
+  ['a picked end day is sent as the END of that day',
+    same(edited({ currentPeriodEnd: '2027-12-31' }),
          { currentPeriodEnd: '2027-12-31T23:59:59Z' })],
+  ['a picked start day is sent as the start of it',
+    same(edited({ currentPeriodStart: '2026-05-01' }),
+         { currentPeriodStart: '2026-05-01T00:00:00Z' })],
+  ['an untouched date sends nothing, whatever time it is stored at',
+    same(edited({}), {}) && storedForm({ ...STORED_SUB,
+      currentPeriodEnd: '2027-03-31T07:29:29.533Z' }).currentPeriodEnd === '2027-03-31'],
   // A block is all-or-nothing: sent means "replace both", so an emptied box inside it is a
   // removal. That is the only way to take an override away.
   ['emptying one override sends the whole block, with a null in it',
@@ -367,6 +415,9 @@ const editCases = [
   ['a cancellation is a block too',
     same(edited({ cancellationReason: 'Left mid-year.' }),
          { cancellation: { cancelledAt: null, cancellationReason: 'Left mid-year.' } })],
+  ['a cancellation date is a picked day as well',
+    same(edited({ cancelledAt: '2026-06-30' }),
+         { cancellation: { cancelledAt: '2026-06-30T00:00:00Z', cancellationReason: null } })],
   ['the plan goes as a code and a version, not a key',
     same(edited({ planKey: 'STARTER_PLAN@2' }),
          { plan: { planCode: 'STARTER_PLAN', planVersion: 2 } })],
@@ -381,10 +432,10 @@ const editCases = [
     ['subscriptionNo', 'current', 'schoolId'].every((field) => !Object.keys(
       edited({ status: 'SUSPENDED', autoRenew: false, contractedPrice: '1', currencyCode: 'USD',
                billingCustomerReference: 'x', maxStudentsOverride: '9', maxUsersOverride: '9',
-               cancelledAt: '2026-01-01T00:00:00Z', cancellationReason: 'x',
+               cancelledAt: '2026-01-01', cancellationReason: 'x',
                planKey: 'OTHER@3', billingCycle: 'MONTHLY',
-               currentPeriodStart: '2026-05-01T00:00:00Z',
-               currentPeriodEnd: '2027-05-01T00:00:00Z' })).includes(field))],
+               currentPeriodStart: '2026-05-01',
+               currentPeriodEnd: '2027-05-01' })).includes(field))],
 ]
 for (const [label, ok] of editCases) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)

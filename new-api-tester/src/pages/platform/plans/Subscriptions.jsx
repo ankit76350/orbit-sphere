@@ -4,10 +4,11 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { readableInstant } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
-import { changedFields, patchBody, storedForm } from './subscriptionEdit.js'
+import { asText, changedFields, patchBody, storedForm } from './subscriptionEdit.js'
 
 /**
  * Platform / Plans — subscriptions. What one school is paying for, and how it comes to be.
@@ -419,6 +420,22 @@ const SUBSCRIPTION_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANC
 const BILLING_CYCLES = ['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']
 
 /**
+ * What choosing each one means, under the box that chooses it.
+ *
+ * The six names are not self-explanatory — PAST_DUE and SUSPENDED are a warning and a
+ * cut-off, and which one somebody wants depends on whether the school should still be able to
+ * work today. Saying so here is cheaper than finding out from a school that cannot log in.
+ */
+const STATUS_MEANS = {
+  TRIAL: 'Evaluating. The period end is the trial end, and activating it is what turns it into a paying subscription.',
+  ACTIVE: 'Paying, and the product is available.',
+  PAST_DUE: 'A bill is overdue. The school keeps working — this is the warning stage, not the cut-off.',
+  SUSPENDED: 'Access blocked over an unpaid bill. This one stops the school working.',
+  CANCELLED: 'Will not renew. Fill in the cancellation below.',
+  EXPIRED: 'The last paid period ended and nothing renewed it.',
+}
+
+/**
  * Editing what a school is contracted to — the one endpoint that used to be five.
  *
  * <p>PREFILLED, AND ONLY THE DIFFERENCE IS SENT. The endpoint reads an absent field as "leave it
@@ -495,6 +512,20 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
   const changed = changedFields(body)
   const nothingChanged = changed.length === 0
 
+  // The cancellation boxes are for a cancelled subscription: offered when one is being made, and
+  // kept while one is stored, because correcting or removing a recorded cancellation is the other
+  // reason somebody opens this.
+  const showCancellation = form.status === 'CANCELLED'
+    || Boolean(subscription.cancelledAt)
+    || Boolean(subscription.cancellationReason)
+
+  // Both refusals the API would answer with, worked out from the boxes so the answer arrives
+  // before the round trip that would empty the form.
+  const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
+    && form.currentPeriodEnd < form.currentPeriodStart
+  const zeroOverride = [form.maxStudentsOverride, form.maxUsersOverride]
+    .some((value) => value.trim() !== '' && Number(value) < 1)
+
   const submit = async () => {
     setRefused(null)
     setSaving(true)
@@ -512,6 +543,10 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
   }
 
   const movedTo = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === form.planKey)
+  // Whether the plan it is on now is one of the ones offered. When it is not — retired, or off
+  // the public list — the box needs an option of its own or it would show somebody else's plan.
+  const onOfferedPlan = (plans ?? [])
+    .some((one) => `${one.planCode}@${one.planVersion}` === stored.planKey)
 
   return (
     <Modal
@@ -522,7 +557,12 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button look="primary" busy={saving} disabled={nothingChanged} onClick={submit}>
+          <Button
+            look="primary"
+            busy={saving}
+            disabled={nothingChanged || periodBackwards || zeroOverride}
+            onClick={submit}
+          >
             {nothingChanged ? 'Nothing changed yet' : `Send ${plural(changed.length, 'change')}`}
           </Button>
           <EndpointTag
@@ -544,34 +584,84 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
           </div>
         ) : null}
 
-        <Field label="Status" hint="No transition rules apply here — this is the override, not the lifecycle endpoints.">
+        {/* Every section says what it is for, and the two that only apply sometimes say when.
+            A form of thirteen boxes with no order to it is a form where somebody fills in the
+            cancellation date of a subscription they were only trying to reprice. */}
+        <div className="field-split">Status</div>
+
+        <Field
+          label="Status"
+          hint={STATUS_MEANS[form.status]}
+        >
           <span className="select" style={{ width: '100%' }}>
             <select className="select-input" style={{ width: '100%' }}
               value={form.status} onChange={set('status')}>
-              {SUBSCRIPTION_STATUSES.map((one) => <option key={one} value={one}>{one}</option>)}
+              {SUBSCRIPTION_STATUSES.map((one) => (
+                <option key={one} value={one}>
+                  {one}{one === stored.status ? ' — as it stands' : ''}
+                </option>
+              ))}
             </select>
           </span>
         </Field>
 
-        {/* Said out loud because it is the one consequence of this form that the server applies
-            on its own, and a screen that hid it would look like it had lost the data. */}
-        {form.status === 'CANCELLED' && stored.status !== 'CANCELLED' && !form.cancelledAt.trim() ? (
-          <p className="banner" data-tone="warn">
-            <strong>cancelledAt will be stamped for you.</strong> A cancellation that cannot
-            answer “when” is not a record of anything. Fill it in below to backdate it instead.
-          </p>
+        {/* The cancellation only exists for a cancelled subscription, so the two boxes only
+            appear for one — and they stay visible while one is stored, because correcting or
+            removing a cancellation already recorded is the other reason to be here. */}
+        {showCancellation ? (
+          <>
+            <div className="field-split">
+              {form.status === 'CANCELLED' && stored.status !== 'CANCELLED'
+                ? 'The cancellation — fill these in, or let the API stamp today'
+                : 'The cancellation'}
+            </div>
+
+            {form.status === 'CANCELLED' && !form.cancelledAt ? (
+              <p className="banner" data-tone="warn">
+                <strong>Leave the date blank and the API stamps today.</strong> A cancellation
+                that cannot answer “when” is not a record of anything. Pick a date to backdate it
+                to when the school actually left.
+              </p>
+            ) : null}
+
+            <div className="field-grid">
+              <Field
+                label="Cancelled on"
+                hint={subscription.cancelledAt
+                  ? `Stored as ${readableInstant(subscription.cancelledAt)}. Clear the box to remove it.`
+                  : 'Blank stamps today, on a status move to CANCELLED.'}
+              >
+                <Input type="date" value={form.cancelledAt} onChange={set('cancelledAt')} />
+              </Field>
+              <Field
+                label="Why it was cancelled"
+                hint="Clear the box to remove it. This one is stored on the subscription, unlike the reason at the bottom."
+              >
+                <Input
+                  value={form.cancellationReason}
+                  onChange={set('cancellationReason')}
+                  placeholder="School closed at the end of the year."
+                />
+              </Field>
+            </div>
+          </>
         ) : null}
+
+        {/* Shown only when it is about to happen, since it is the one thing this form does that
+            was not typed into it. */}
         {stored.status === 'CANCELLED' && form.status !== 'CANCELLED' ? (
           <p className="banner" data-tone="warn">
-            <strong>The cancellation will be cleared.</strong> A live subscription carrying a
-            cancellation date says two contradictory things at once.
+            <strong>The cancellation will be cleared.</strong> Both the date and the reason go: a
+            live subscription carrying a cancellation date says two contradictory things at once.
           </p>
         ) : null}
+
+        <div className="field-split">The plan — what they are entitled to</div>
 
         <Field
           label="Plan"
           hint={movedTo
-            ? `${money(movedTo.listPrice, movedTo.currencyCode)} ${movedTo.billingCycle.toLowerCase()} list price — which this does NOT copy onto the subscription.`
+            ? `Lists at ${money(movedTo.listPrice, movedTo.currencyCode)} ${movedTo.billingCycle.toLowerCase()} — which this does NOT copy onto the subscription.`
             : 'Only published plans are offered. A draft or retired one answers 409.'}
         >
           <span className="select" style={{ width: '100%' }}>
@@ -579,14 +669,15 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
               value={form.planKey} onChange={set('planKey')}>
               {/* The plan it is on now is offered even when it is retired or off the public
                   list, or the box would show the wrong plan on open. */}
-              {!movedTo ? (
+              {!onOfferedPlan ? (
                 <option value={stored.planKey}>
-                  {subscription.planCode} v{subscription.planVersion} (on it now)
+                  {subscription.planCode} v{subscription.planVersion} — as it stands
                 </option>
               ) : null}
               {(plans ?? []).map((one) => (
                 <option key={`${one.planCode}@${one.planVersion}`} value={`${one.planCode}@${one.planVersion}`}>
                   {one.name} — {one.planCode} v{one.planVersion}
+                  {`${one.planCode}@${one.planVersion}` === stored.planKey ? ' — as it stands' : ''}
                   {sellability(one).label ? ` (${sellability(one).label})` : ''}
                 </option>
               ))}
@@ -597,67 +688,128 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
         {form.planKey !== stored.planKey ? (
           <p className="banner" data-tone="warn">
             <strong>Nothing follows the plan.</strong> The price, cycle and currency stay as they
-            are unless you change them here too — a school on a negotiated price keeps it. Change
-            them in the same request if they should move.
+            are unless you change them below too — a school on a negotiated price keeps the price
+            it negotiated. Change them in this same request if they should move.
           </p>
         ) : null}
 
+        <div className="field-split">What they pay</div>
+
         <div className="field-grid">
-          <Field label="Agreed price">
+          <Field
+            label="Agreed price"
+            hint={subscription.hasDiscount
+              ? `The plan lists ${money(subscription.planListPrice, subscription.currencyCode)}.`
+              : 'Zero is allowed — a free deal is a deal. Negative is refused.'}
+          >
             <Input type="number" min="0" step="0.01"
               value={form.contractedPrice} onChange={set('contractedPrice')} />
           </Field>
-          <Field label="Currency" hint="ISO 4217. Normalised to upper case by the API.">
-            <Input value={form.currencyCode} onChange={set('currencyCode')} />
+          <Field label="Currency" hint="ISO 4217. Lower case is fine — the API normalises it.">
+            <Input value={form.currencyCode} onChange={set('currencyCode')} placeholder="INR" />
           </Field>
-          <Field label="Billing cycle" hint="Only the cadence. The period dates are not recalculated from it.">
+          <Field
+            label="Billing cycle"
+            hint="Only the cadence. The period dates below are not recalculated from it."
+          >
             <span className="select" style={{ width: '100%' }}>
               <select className="select-input" style={{ width: '100%' }}
                 value={form.billingCycle} onChange={set('billingCycle')}>
-                {BILLING_CYCLES.map((one) => <option key={one} value={one}>{one}</option>)}
+                {BILLING_CYCLES.map((one) => (
+                  <option key={one} value={one}>
+                    {one}{one === stored.billingCycle ? ' — as it stands' : ''}
+                  </option>
+                ))}
               </select>
             </span>
           </Field>
-          <Field label="Billing customer reference" hint="Empty the box to clear it — that sends &quot;&quot;.">
+          <Field
+            label="Billing customer reference"
+            hint="The payment provider's customer id. Clear the box to remove it."
+          >
             <Input value={form.billingCustomerReference}
-              onChange={set('billingCustomerReference')} />
-          </Field>
-          <Field label="Period start" hint="An ISO instant. Cannot be cleared.">
-            <Input className="mono" value={form.currentPeriodStart}
-              onChange={set('currentPeriodStart')} />
-          </Field>
-          <Field label="Period end" hint="Push this out to extend a trial — that is all extend-trial did.">
-            <Input className="mono" value={form.currentPeriodEnd}
-              onChange={set('currentPeriodEnd')} />
-          </Field>
-          <Field label="Student limit override" hint="Empty removes it and falls back to the plan's own limit.">
-            <Input type="number" min="1" value={form.maxStudentsOverride}
-              onChange={set('maxStudentsOverride')} />
-          </Field>
-          <Field label="User limit override" hint="Empty removes it. Zero is refused — an override that permits nothing is not a limit.">
-            <Input type="number" min="1" value={form.maxUsersOverride}
-              onChange={set('maxUsersOverride')} />
-          </Field>
-          <Field label="Cancelled at" hint="An ISO instant. Empty removes it.">
-            <Input className="mono" value={form.cancelledAt} onChange={set('cancelledAt')} />
-          </Field>
-          <Field label="Cancellation reason" hint="Empty removes it.">
-            <Input value={form.cancellationReason} onChange={set('cancellationReason')} />
+              onChange={set('billingCustomerReference')} placeholder="cus_Qx7B2mR9" />
           </Field>
         </div>
+
+        <div className="field-split">The period they have paid for</div>
+
+        <div className="field-grid">
+          <Field
+            label="Period starts on"
+            hint={`Stored as ${readableInstant(subscription.currentPeriodStart)}. A picked day is sent from its start.`}
+          >
+            <Input type="date" value={form.currentPeriodStart}
+              onChange={set('currentPeriodStart')} />
+          </Field>
+          <Field
+            label="Period ends on"
+            hint="Push this out to extend a trial — that is all extend-trial ever did. The chosen day is included."
+          >
+            <Input type="date" value={form.currentPeriodEnd} onChange={set('currentPeriodEnd')} />
+          </Field>
+        </div>
+
+        {/* Caught here as well as by the API, because a refused request loses the other twelve
+            boxes somebody has just filled in. */}
+        {periodBackwards ? (
+          <p className="banner" data-tone="bad">
+            <strong>That period runs backwards.</strong> The end has to come after the start, so
+            this would be refused with <code className="mono">400 INVALID_BILLING_PERIOD</code>.
+          </p>
+        ) : null}
 
         <label className="feature-row" style={{ cursor: 'pointer' }}>
           <input type="checkbox" className="feature-check"
             checked={form.autoRenew} onChange={set('autoRenew')} />
           <span className="feature-main">
-            <span className="feature-name">Renew it automatically</span>
+            <span className="feature-name">Renew it automatically at the end of the period</span>
             <span className="feature-desc">
-              Nothing renews a subscription yet, so today this only records the intention.
+              Nothing renews a subscription yet, so today this records the intention and no more.
             </span>
           </span>
         </label>
 
-        <Field label="Why" hint="Goes on the history row next to the list of fields that moved. Alone, it changes nothing and is not sent.">
+        <div className="field-split">Negotiated limits — leave blank to use the plan's own</div>
+
+        <div className="field-grid">
+          <Field
+            label="Student limit"
+            hint={subscription.maxStudentsOverride == null
+              ? `Blank, so the plan's ${subscription.maxStudents} applies.`
+              : `Negotiated up from the plan. Clear the box to drop back to the plan's own limit.`}
+          >
+            <Input type="number" min="1" value={form.maxStudentsOverride}
+              onChange={set('maxStudentsOverride')}
+              placeholder={asText(subscription.maxStudents)} />
+          </Field>
+          <Field
+            label="User limit"
+            hint={subscription.maxUsersOverride == null
+              ? `Blank, so the plan's ${subscription.maxUsers} applies.`
+              : `Negotiated up from the plan. Clear the box to drop back to the plan's own limit.`}
+          >
+            <Input type="number" min="1" value={form.maxUsersOverride}
+              onChange={set('maxUsersOverride')}
+              placeholder={asText(subscription.maxUsers)} />
+          </Field>
+        </div>
+
+        {/* Zero is the one number a limit box must not carry, and the API refuses it — said here
+            so it is not a round trip to find out. */}
+        {zeroOverride ? (
+          <p className="banner" data-tone="bad">
+            <strong>An override of 0 is refused.</strong> A limit that permits nothing is not one
+            anybody negotiated — clear the box instead to fall back to the plan's own limit.
+          </p>
+        ) : null}
+
+        <div className="field-split">For the record</div>
+
+        <Field
+          label="Why"
+          hint="Goes on the history row next to the list of fields that moved. On its own it changes nothing, so it is not sent on its own."
+        >
           <Input value={form.reason} onChange={set('reason')}
             placeholder="Renegotiated at renewal — 20% partner discount." />
         </Field>
