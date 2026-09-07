@@ -35,3 +35,42 @@ export function whyNotSellable(plan) {
   if (plan.publiclyAvailable === false) return 'Off the public list — quote only'
   return 'Not sellable'
 }
+
+/**
+ * Whether this endpoint would actually sell the plan, and what to call it if not.
+ *
+ * `sellable` on the response is NOT the answer here, and the difference matters. It requires
+ * `publiclyAvailable`, but creating a subscription deliberately does not check that field —
+ * PlatformSubscriptionService says so in as many words: "a plan that is published but off the
+ * public list is exactly a private quote, and this endpoint is how a private quote gets sold."
+ *
+ * So a private plan reads `sellable: false` and sells perfectly well. Labelling it "not sellable"
+ * in the one dialog whose job is selling would talk somebody out of a plan the API would have
+ * accepted.
+ *
+ * What genuinely stops a sale is the status and the selling window, which is exactly what #13
+ * checks and refuses with `409 PLAN_NOT_SELLABLE`.
+ */
+export function sellability(plan) {
+  if (plan.status === 'DRAFT') {
+    return { canSell: false, label: 'draft — publish it first' }
+  }
+  if (plan.status === 'RETIRED') {
+    return { canSell: false, label: 'retired — cannot be sold again' }
+  }
+
+  const now = Date.now()
+  if (plan.effectiveFrom && now < Date.parse(plan.effectiveFrom)) {
+    return { canSell: false, label: `not on sale until ${plan.effectiveFrom.slice(0, 10)}` }
+  }
+  if (plan.effectiveUntil && now > Date.parse(plan.effectiveUntil)) {
+    return { canSell: false, label: `stopped selling ${plan.effectiveUntil.slice(0, 10)}` }
+  }
+
+  // Published, in its window, just not advertised. Sellable — privately.
+  if (!plan.publiclyAvailable) {
+    return { canSell: true, label: 'quote only — not on the public list', private: true }
+  }
+
+  return { canSell: true, label: null }
+}

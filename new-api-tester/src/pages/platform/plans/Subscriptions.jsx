@@ -6,6 +6,7 @@ import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
+import { sellability } from './planFacts.js'
 
 /**
  * Platform / Plans — subscriptions. What one school is paying for, and how it comes to be.
@@ -346,6 +347,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   }, [open, plans])
 
   const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
+  const chosenSellability = chosen ? sellability(chosen) : null
 
   const submit = async () => {
     setRefused(null)
@@ -422,12 +424,32 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
                   value={`${one.planCode}@${one.planVersion}`}
                 >
                   {one.name} — {one.planCode} v{one.planVersion}
-                  {one.sellable ? '' : ' (not sellable today)'}
+                  {/* What the API would actually do, not `sellable` — which is false for a
+                      private plan this endpoint sells happily. See sellability(). */}
+                  {sellability(one).label ? ` (${sellability(one).label})` : ''}
                 </option>
               ))}
             </select>
           </span>
         </Field>
+
+        {/* Said again under the field, because the option text is one line and the difference
+            between "private" and "refused" decides whether to bother trying. */}
+        {chosenSellability?.label ? (
+          <p className="banner" data-tone={chosenSellability.canSell ? 'warn' : 'bad'}>
+            {chosenSellability.canSell ? (
+              <span>
+                <strong>Not on the public list.</strong> This endpoint sells it anyway — that is
+                what a private quote is.
+              </span>
+            ) : (
+              <span>
+                <strong>This one cannot be sold.</strong> {chosenSellability.label} — sending it
+                answers <code className="mono">409 PLAN_NOT_SELLABLE</code>.
+              </span>
+            )}
+          </p>
+        ) : null}
 
         <Field
           label="Agreed price"

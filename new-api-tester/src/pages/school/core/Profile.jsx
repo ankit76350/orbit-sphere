@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Image, Languages, MapPin, RefreshCw, User } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  AlertTriangle, Check, ChevronRight, CreditCard, Image, Languages, MapPin, RefreshCw, User,
+} from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
+import { money, plural } from '../../../lib/money.js'
+import { screenPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
@@ -28,6 +33,128 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * holidays are already anchored to the old zone, and the API refuses the change unless
  * `confirmTimeZoneChange` is sent — so the screen asks rather than retrying blind.
  */
+
+/**
+ * What this school is paying for, read at the bottom of its profile.
+ *
+ * A SUMMARY, NOT A SECOND COPY of the subscription screen. Everything a school can be told about
+ * its subscription is on School › Plans › Subscription — the entitlements, the feature list, what
+ * is withheld from it. Repeating that here would be two screens to keep in step for one answer.
+ * What belongs here is the one line somebody opening a profile actually wants: what are they on,
+ * and is it live.
+ *
+ * A 404 IS AN ANSWER, NOT A FAILURE. A school with no subscription is a normal state — every
+ * school starts that way — so it says so and points at where to fix it, rather than rendering
+ * an error next to a profile that loaded perfectly well.
+ */
+function CurrentSubscription({ subscription, none, loading }) {
+  if (loading && !subscription && !none) {
+    return <p className="muted">Reading the subscription…</p>
+  }
+
+  if (none) {
+    return (
+      <Card
+        title="What this school is paying for"
+        action={<EndpointTag id="get-my-subscription" name="The subscription" />}
+      >
+        <p className="banner" data-tone="warn">
+          <CreditCard size={14} />
+          <span>
+            <strong>No subscription.</strong> Which is why activation on the core module
+            complains. One is created on the platform surface — Platform › Plans ›
+            Subscriptions.
+          </span>
+        </p>
+      </Card>
+    )
+  }
+
+  if (!subscription) {
+    return (
+      <Card
+        title="What this school is paying for"
+        action={<EndpointTag id="get-my-subscription" name="The subscription" />}
+      >
+        <p className="muted">
+          The subscription could not be read. The profile above loaded, so this is about that
+          endpoint rather than the school.
+        </p>
+      </Card>
+    )
+  }
+
+  const s = subscription
+
+  return (
+    <Card
+      title="What this school is paying for"
+      description={`${s.planName} · version ${s.planVersion}`}
+      action={
+        <div className="btn-row">
+          <Link className="btn" to={screenPath('school', 'plans', 'subscription')}>
+            The full view <ChevronRight size={13} />
+          </Link>
+          <EndpointTag id="get-my-subscription" name="The subscription" />
+        </div>
+      }
+    >
+      <dl className="dl">
+        <div>
+          <span className="dl-term">Status</span>
+          <span className="dl-value">
+            <Badge tone={s.status === 'ACTIVE' ? 'good' : s.status === 'TRIAL' ? 'warn' : 'bad'}>
+              {s.status}
+            </Badge>
+            {s.periodEnded ? <Badge tone="bad">period ended</Badge> : null}
+          </span>
+        </div>
+        <div>
+          <span className="dl-term">Price</span>
+          <span className="dl-value">
+            {money(s.price, s.currencyCode)}{' '}
+            <span className="muted">{s.billingCycle?.toLowerCase().replace('_', ' ')}</span>
+          </span>
+        </div>
+        <div>
+          <span className="dl-term">Number</span>
+          <span className="dl-value mono">{s.subscriptionNo}</span>
+        </div>
+        <div>
+          <span className="dl-term">Period ends</span>
+          <span className="dl-value">
+            {s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString() : null}
+          </span>
+        </div>
+        <div>
+          <span className="dl-term">Days left</span>
+          <span className="dl-value">
+            {/* From the API. Counting days between two instants in a browser is where time
+                zones go wrong, and every screen would do the same sum. */}
+            {s.daysRemaining == null
+              ? '—'
+              : s.daysRemaining >= 0
+                ? plural(s.daysRemaining, 'day')
+                : `ended ${plural(Math.abs(s.daysRemaining), 'day')} ago`}
+          </span>
+        </div>
+        <div>
+          <span className="dl-term">Renews</span>
+          <span className="dl-value">{s.autoRenew ? 'Automatically' : 'No — it ends'}</span>
+        </div>
+      </dl>
+
+      {/* The API's own sentence, written for the school. Shown as it comes rather than
+          re-derived, so this card cannot disagree with the subscription screen. */}
+      {s.note ? (
+        <p className="banner" data-tone="warn" style={{ marginTop: 14 }}>
+          <AlertTriangle size={14} />
+          {s.note}
+        </p>
+      ) : null}
+    </Card>
+  )
+}
 
 /** One editable section: which endpoint it sends, and the fields it owns. */
 const SECTIONS = [
@@ -88,6 +215,11 @@ export default function Profile() {
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState(null)
   const [draft, setDraft] = useState({})
+  // What the school is paying for. Read here as well as on School › Plans › Subscription,
+  // because "who is this school" and "what are they on" are the two things you want together
+  // when you open one — and it is a single extra read, in parallel with the profile.
+  const [subscription, setSubscription] = useState(null)
+  const [noSubscription, setNoSubscription] = useState(false)
   const [saving, setSaving] = useState(null)
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
@@ -95,11 +227,22 @@ export default function Profile() {
   const load = useCallback(async () => {
     if (!actingSubdomain) {
       setProfile(null)
+      setSubscription(null)
       return
     }
     setLoading(true)
-    const result = await call('get-profile', { label: 'Read the profile' })
+    // In parallel: the subscription does not depend on the profile, and waiting for one before
+    // starting the other would double the time to first paint for no reason.
+    const [result, sub] = await Promise.all([
+      call('get-profile', { label: 'Read the profile' }),
+      call('get-my-subscription', { label: 'What this school is paying for' }),
+    ])
     setLoading(false)
+
+    // A school with no subscription answers 404 here, and that is an answer rather than a
+    // failure — so it is kept apart from `problem`, which is what stops the page rendering.
+    setSubscription(sub.ok ? sub.bodyJson : null)
+    setNoSubscription(!sub.ok && sub.bodyJson?.code === 'SUBSCRIPTION_NOT_FOUND')
     if (result.ok) {
       setProfile(result.bodyJson)
       setDraft(result.bodyJson)
@@ -279,6 +422,8 @@ export default function Profile() {
         </summary>
         <pre className="resp-body">{JSON.stringify(profile, null, 2)}</pre>
       </details>
+
+      <CurrentSubscription subscription={subscription} none={noSubscription} loading={loading} />
     </div>
   )
 }

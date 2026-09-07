@@ -16,6 +16,7 @@ import { rolldown } from 'rolldown'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
+import { sellability } from './src/pages/platform/plans/planFacts.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
 // first renders — so there has to be something to read here.
@@ -281,6 +282,63 @@ const boundaryChecks = [
     readFileSync('src/components/ScreenBoundary.jsx', 'utf8').includes('componentDidCatch')],
 ]
 for (const [label, ok] of boundaryChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// `sellable` on the response is NOT whether this endpoint will sell it, and the subscription
+// dialog is the one place that difference costs something. It requires publiclyAvailable, but
+// creating a subscription deliberately does not check that field — so a private plan reads
+// sellable:false and sells perfectly well. Verified against the backend: publiclyAvailable
+// false, sellable false, subscription created.
+// The profile answers "who is this school"; the subscription answers "what are they on". Both
+// are what you want when you open a school, so the profile reads the subscription too — one
+// extra call, in parallel, summarised rather than duplicating the subscription screen.
+console.log('\nThe profile also reads the subscription')
+const profileSource = readFileSync('src/pages/school/core/Profile.jsx', 'utf8')
+const bottomChecks = [
+  ['it reads the subscription as well', profileSource.includes("call('get-my-subscription'")],
+  // Serially would double the time to first paint for no reason: neither read needs the other.
+  ['both reads go out in parallel', profileSource.includes('Promise.all')],
+  ['and it is a summary, not a second copy',
+    profileSource.includes("screenPath('school', 'plans', 'subscription')")
+      // The entitlements belong to the subscription screen; repeating them here is two screens
+      // to keep in step for one answer.
+      && !profileSource.includes("'get-entitlements'")],
+  // A school with no subscription is a normal state, not a failed read.
+  ['no subscription is an answer, not an error',
+    profileSource.includes("=== 'SUBSCRIPTION_NOT_FOUND'")],
+]
+for (const [label, ok] of bottomChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nPrivate is not unsellable')
+const sell = [
+  ['on the public list: nothing to say',
+    sellability({ status: 'ACTIVE', publiclyAvailable: true }).canSell === true
+      && sellability({ status: 'ACTIVE', publiclyAvailable: true }).label === null],
+  // The one this fixes: it used to read "not sellable today".
+  ['off the list: sellable, and called a quote',
+    sellability({ status: 'ACTIVE', publiclyAvailable: false }).canSell === true
+      && /quote only/.test(sellability({ status: 'ACTIVE', publiclyAvailable: false }).label)],
+  ['a draft: genuinely refused',
+    sellability({ status: 'DRAFT', publiclyAvailable: true }).canSell === false],
+  ['retired: genuinely refused',
+    sellability({ status: 'RETIRED', publiclyAvailable: true }).canSell === false],
+  ['before its window: refused, with the date',
+    sellability({ status: 'ACTIVE', publiclyAvailable: true, effectiveFrom: '2030-01-01T00:00:00Z' })
+      .label.includes('2030-01-01')],
+  ['after its window: refused, with the date',
+    sellability({ status: 'ACTIVE', publiclyAvailable: true, effectiveUntil: '2020-01-01T00:00:00Z' })
+      .label.includes('2020-01-01')],
+  // The dialog must not go back to reading the flag it cannot trust.
+  ['the dialog no longer labels from `sellable`',
+    !readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+      .includes("one.sellable ? '' :")],
+]
+for (const [label, ok] of sell) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
