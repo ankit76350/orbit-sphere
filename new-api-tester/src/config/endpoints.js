@@ -91,7 +91,7 @@ existing year**.
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 409, code: "ACADEMIC_YEAR_NAME_TAKEN", when: "Duplicate name" },
         { status: 409, code: "ACADEMIC_YEAR_OVERLAP", when: "Overlapping dates" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -243,7 +243,7 @@ in collections with no repository yet — so a shrink can still orphan those sil
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 409, code: "HOLIDAYS_OUTSIDE_NEW_RANGE", when: "Shrink past an existing holiday" },
         { status: 409, code: "ACADEMIC_YEAR_OVERLAP", when: "Shrink or grow into another year" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -409,7 +409,7 @@ Generated weekly offs included. That is what replace means, and it is why #21 ex
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -563,7 +563,7 @@ has one is refused — that is a repeat, not a second reason.
         { status: 404, code: "—", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 409, code: "HOLIDAY_ENTRY_EXISTS", when: "The same type twice on one day" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -716,7 +716,7 @@ different names.
         { status: 404, code: "HOLIDAY_NOT_FOUND", when: "A date that is not closed" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 409, code: "HOLIDAY_ENTRY_EXISTS", when: "Retype into a type the day already has" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -911,7 +911,7 @@ Postman sends no body on a DELETE, so they live here rather than in a body block
         { status: 404, code: "HOLIDAY_ENTRY_NOT_FOUND", when: "A type that is not on that day" },
         { status: 404, code: "HOLIDAY_NOT_FOUND", when: "A date that is not closed" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1042,7 +1042,7 @@ whole design refuses to make.
         { status: 400, code: "—", when: "No dayofweek" },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1212,7 +1212,7 @@ Postman sends no body on a DELETE, so they live here:
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1399,7 +1399,7 @@ Idempotent, and flips freely in both directions: it is a switch, not a lifecycle
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "—", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1478,7 +1478,7 @@ independent of the enrollment gates.
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No tenant header" },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1575,7 +1575,7 @@ included.** The design is kept in \`controllers/core/README.md\`.
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "—", when: "Unknown year name" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -1650,7 +1650,7 @@ A school with no years yet is \`200\` with \`[]\`, never a \`404\`.
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1698,7 +1698,7 @@ This fixed path segment wins over \`/{name}\`, so Create Academic Year refuses a
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1743,7 +1743,7 @@ The lookup is by school **and** name, so **asking for another school's year is a
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1792,7 +1792,7 @@ No \`?type=\`, no date range. A full year is about sixty closed days. The questi
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1849,7 +1849,7 @@ A working day answers \`200\` with \`closed: false\` and an empty \`events\` lis
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1917,7 +1917,7 @@ A Sunday that is also Diwali is **one** closed day. Overcounting it would quietl
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -1997,7 +1997,7 @@ School surface: the tenant comes from \`X-School-Subdomain\`, never from the URL
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "No tenant header — delete x-school-subdomain" },
         { status: 400, code: "ACCOUNT_HOLDER_NAME_REQUIRED", when: "Try to clear the account holder" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "Unknown tenant — set the header to \"nope\"" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -2133,7 +2133,7 @@ School surface: the tenant comes from \`X-School-Subdomain\`, never from the URL
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -2225,7 +2225,7 @@ The locale stays editable at all times — only the zone is dangerous.
         { status: 409, code: "TIME_ZONE_CHANGE_NOT_CONFIRMED", when: "Time zone without confirmation" },
         { status: 409, code: "ACADEMIC_YEAR_IN_PROGRESS", when: "Time zone while a year is running" },
         { status: 409, code: "TIME_ZONE_INVALID", when: "Unknown zone" },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -2331,7 +2331,7 @@ but there is no storage service yet.
         { status: 400, code: "LOGO_URL_NOT_HTTPS", when: "Http instead of https" },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [
         {
@@ -2418,7 +2418,7 @@ Needs \`X-School-Subdomain\`. Resolved with \`require\`, not \`requireUsable\`, 
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -2435,11 +2435,11 @@ const GROUP_CORE_SCHOOL_PLATFORM = {
       method: "POST",
       path: "/platform/schools",
       status: 'live',
-      summary: "Makes the school row at PROVISIONING or TRIAL. That is all it does.",
+      summary: "Makes the school row at PROVISIONING. That is all it does.",
       schoolSurface: false,
       docs: `**POST** \`/platform/schools\` — provision a new tenant.
 
-Creates the \`School\` row at \`PROVISIONING\` (or \`TRIAL\`). It does **not** create a user, so the
+Creates the \`School\` row at \`PROVISIONING\` — the only starting state there is. It does **not** create a user, so the
 school cannot be logged into yet — that is what \`nextStep\` in the response says.
 
 ### Required — 6 fields
@@ -2456,7 +2456,7 @@ school cannot be logged into yet — that is what \`nextStep\` in the response s
 ### Optional
 
 \`phoneNumber\` (30) · \`emailAddress\` (valid, 254) · \`addressLine\` (200) · \`city\` (100) ·
-\`stateOrProvince\` (100) · \`postalCode\` (20) · \`trial\` (bool)
+\`stateOrProvince\` (100) · \`postalCode\` (20)
 
 ### Refused if sent
 
@@ -2470,7 +2470,7 @@ defends.
 |---|---|---|
 | 01 | Full payload | 201 |
 | 02 | Minimum payload | 201 |
-| 03 | Trial tenant | 201, \`status: TRIAL\` |
+| 03 | No starting-state choice | 201, \`status: PROVISIONING\` |
 | 04 | Subdomain normalisation | 201, \`Norm_Check 12\` → \`norm-check-12\` |
 | 05 | Duplicate subdomain | 409 \`SUBDOMAIN_TAKEN\` |
 | 06 | Reserved subdomain | 409 \`SUBDOMAIN_RESERVED\` |
@@ -2499,8 +2499,7 @@ defends.
   "addressLine": "12, MG Road",
   "city": "Pune",
   "stateOrProvince": "Maharashtra",
-  "postalCode": "411001",
-  "trial": false
+  "postalCode": "411001"
 }`,
       successStatus: 201,
       successNote: "Also sends a Location header: /platform/schools/{schoolId}",
@@ -2544,20 +2543,14 @@ defends.
         },
         {
           id: "03",
-          name: "TRIAL TENANT",
+          name: "THERE IS NO STARTING-STATE CHOICE",
           expect: "201 Created",
-          notes: `OUT: status is "TRIAL" instead of "PROVISIONING".
-    Those are the only two legal starting states; a caller cannot ask
-    for ACTIVE, because that would skip the subscription check.`,
-          body: `{
-  "schoolName": "Trial School",
-  "accountHolderName": "Ankit Kumar",
-  "subdomain": "trial-{{$timestamp}}",
-  "defaultLocale": "en-IN",
-  "defaultTimeZone": "Asia/Kolkata",
-  "countryCode": "IN",
-  "trial": true
-}`,
+          notes: `Every school starts at PROVISIONING. A caller cannot ask for ACTIVE,
+    because that would skip the subscription check, and there is no TRIAL
+    any more — a trial belongs to the SUBSCRIPTION, where it has a plan
+    and a period behind it. Send "trial": true here and it is ignored
+    like any other unknown field.`,
+          body: null,
         },
         {
           id: "04",
@@ -2686,10 +2679,17 @@ visible at creation; both show up later, to whoever tries to use the school:
 
 | Missing | Fails when |
 |---|---|
-| \`NumberSequence\` rows | the first student admission asks for a number and finds no counter |
-| \`Role\` rows | the first \`UserAccount\` is created and has nothing to point \`roleDocsIds\` at |
+| \`number_sequences\` counters | the first student admission asks for a number and finds no counter |
+| \`roles\` entries | the first \`UserAccount\` is created and has nothing to point \`roleKeys\` at |
 
 This closes both gaps, and must run before the school can be activated.
+
+### One document each, not fifty-one
+
+Restructured 2026-09-05. A provisioned school used to hold 48 \`number_sequences\` documents and
+3 \`roles\` documents. It now holds **one of each**: a \`number_sequences\` document with a
+\`counters\` array of 48 entries, and a \`roles\` document with a \`roles\` array of 3. The response
+counts below are unchanged — they count entries, not documents.
 
 ### Request
 
@@ -2697,21 +2697,23 @@ No body. \`{{schoolId}}\` in the path — saved automatically by **Create School
 
 ### Idempotent
 
-Reads what exists and inserts only the gaps. Safe to send repeatedly; safe to send when you
-do not know what state the school is in. That is the point of it.
+Reads what exists and adds only the gaps, with a \`$push\` rather than saving the document back —
+so a counter already part-way through its numbering keeps its \`nextValue\`, and a role whose
+permissions the school has edited is never overwritten by our defaults. Safe to send repeatedly;
+safe to send when you do not know what state the school is in. That is the point of it.
 
 ### Responses
 
 | Case | Status | Code |
 |---|---|---|
-| Fresh school | \`200\` | — 47 sequences, 3 roles created |
+| Fresh school | \`200\` | — 48 sequences, 3 roles created |
 | Sent again | \`200\` | — 0 created, everything already present |
 | Partial repair | \`200\` | — only the gaps created |
 | Unknown id | \`404\` | \`SCHOOL_NOT_FOUND\` |
 | Offboarding / closed / deleted | \`409\` | \`SCHOOL_NOT_PROVISIONABLE\` |
 
-\`readyToActivate\` answers the operator's real question: every sequence type has a row and
-\`SCHOOL_ADMIN\` exists.
+\`readyToActivate\` answers the operator's real question: every sequence type has an entry and
+\`SCHOOL_ADMIN\` is in the roles array.
 
 ### The five test cases are in the request body as comments
 `,
@@ -2816,11 +2818,15 @@ do not know what state the school is in. That is the point of it.
       method: "POST",
       path: "/platform/schools/{id}/activate",
       status: 'live',
-      summary: "Takes the school live. PROVISIONING or TRIAL to ACTIVE. Refuses a second call.",
+      summary: "Takes the school live. PROVISIONING to ACTIVE. Refuses a second call. A provisioned school is activated by its subscription too.",
       schoolSurface: false,
       docs: `**POST** \`/platform/schools/{id}/activate\` — takes the school live.
 
-\`PROVISIONING\` or \`TRIAL\` → \`ACTIVE\`. Anything else is a \`409\`.
+\`PROVISIONING\` → \`ACTIVE\`. Anything else is a \`409\`.
+
+**A school does not always need this call.** Create Subscription activates a \`PROVISIONING\`
+school whose provisioning is finished, because a subscription is the last thing such a school is
+waiting for. This endpoint stays for the school that is activated before it is sold to.
 
 ### Request
 
@@ -2843,9 +2849,9 @@ and never rewritten, so a school suspended and brought back keeps its original g
 
 | Case | Status | Code |
 |---|---|---|
-| Provisioned school, or TRIAL | \`200\` | — \`ACTIVE\`, \`activatedAt\` set |
+| Provisioned school | \`200\` | — \`ACTIVE\`, \`activatedAt\` set |
 | No SCHOOL_ADMIN role | \`409\` | \`SETUP_INCOMPLETE\` |
-| Missing number sequences | \`409\` | \`SETUP_INCOMPLETE\` (with the count) |
+| Missing number sequences | \`409\` | \`SETUP_INCOMPLETE\` (with the count of \`counters\` entries, not documents) |
 | Already ACTIVE, or SUSPENDED | \`409\` | \`SCHOOL_NOT_ACTIVATABLE\` |
 | Subscription CANCELLED / EXPIRED | \`409\` | \`SUBSCRIPTION_NOT_ACTIVE\` |
 | No subscription at all | \`200\` | — allowed, and \`subscriptionNote\` says why |
@@ -2925,7 +2931,7 @@ and never rewritten, so a school suspended and brought back keeps its original g
           expect: "409 Conflict",
           notes: `OUT: { "code": "SCHOOL_NOT_ACTIVATABLE",
            "message": "A school at status ACTIVE cannot be activated. Only
-                       PROVISIONING and TRIAL can. A suspended school is
+                       PROVISIONING can. A suspended school is
                        reactivated, not activated." }
 
     NOT idempotent, unlike Complete Provisioning. This one refuses, because
@@ -2935,11 +2941,15 @@ and never rewritten, so a school suspended and brought back keeps its original g
         },
         {
           id: "05",
-          name: "TRIAL SCHOOL",
-          expect: "200 OK",
-          notes: `Create with "trial": true, complete provisioning, then send this.
-    TRIAL and PROVISIONING are both allowed starting states.
-    OUT: status: "ACTIVE", firstActivation: true`,
+          name: "A SCHOOL ITS SUBSCRIPTION ALREADY ACTIVATED",
+          expect: "409 Conflict",
+          notes: `Create School, Complete Provisioning, then Create Subscription — and
+    skip this endpoint. The school is ACTIVE already: a provisioned school
+    waiting only on a subscription is activated by the sale.
+    OUT: { "code": "SCHOOL_NOT_ACTIVATABLE" }, same as case 04.
+
+    There is no TRIAL starting state. A trial belongs to the SUBSCRIPTION,
+    where it has a plan and a period behind it.`,
           body: null,
         },
         {
@@ -3452,7 +3462,7 @@ Every parameter is optional. A bare call returns the newest twenty.
 
 | Parameter | Meaning |
 |---|---|
-| \`status\` | repeatable — \`?status=ACTIVE&status=TRIAL\` means either |
+| \`status\` | repeatable — \`?status=ACTIVE&status=SUSPENDED\` means either |
 | \`search\` | partial, case-insensitive, on **school name or subdomain** |
 | \`countryCode\`, \`city\` | exact, case-insensitive |
 | \`createdFrom\`, \`createdTo\` | ISO instants, inclusive |
@@ -3486,7 +3496,7 @@ Postman sends no body on a GET, so they live here:
     ?status=ACTIVE
 
 04  SEVERAL STATUSES — repeat the parameter               -> 200 OK
-    ?status=ACTIVE&status=TRIAL
+    ?status=ACTIVE&status=SUSPENDED
     OR within the field: "show me the live ones" is one question.
 
 05  FILTER BY COUNTRY AND CITY                            -> 200 OK
@@ -3541,7 +3551,7 @@ Postman sends no body on a GET, so they live here:
     ?status=NOPE
     OUT: { "code": "INVALID_PARAMETER",
            "message": "'NOPE' is not a valid value for 'status'.
-                       Accepted values: TRIAL, PROVISIONING, ACTIVE, ..." }
+                       Accepted values: PROVISIONING, ACTIVE, SUSPENDED, ..." }
 
 15  REGEX INJECTION IS NOT POSSIBLE                       -> 200 OK
     ?search=.*
@@ -3610,10 +3620,10 @@ from every other response in this package.
           id: "04",
           name: "SEVERAL STATUSES — repeat the parameter",
           expect: "200 OK",
-          notes: `?status=ACTIVE&status=TRIAL
+          notes: `?status=ACTIVE&status=SUSPENDED
     OR within the field: "show me the live ones" is one question.`,
           body: null,
-          queryParams: [{ key: "status", value: "ACTIVE", enabled: true }, { key: "status", value: "TRIAL", enabled: true }],
+          queryParams: [{ key: "status", value: "ACTIVE", enabled: true }, { key: "status", value: "SUSPENDED", enabled: true }],
         },
         {
           id: "05",
@@ -3713,7 +3723,7 @@ from every other response in this package.
           notes: `?status=NOPE
     OUT: { "code": "INVALID_PARAMETER",
            "message": "'NOPE' is not a valid value for 'status'.
-                       Accepted values: TRIAL, PROVISIONING, ACTIVE, ..." }`,
+                       Accepted values: PROVISIONING, ACTIVE, SUSPENDED, ..." }`,
           body: null,
           queryParams: [{ key: "status", value: "NOPE", enabled: true }],
         },
@@ -5751,7 +5761,7 @@ const GROUP_PLANS_SUBSCRIPTIONS = {
       method: "POST",
       path: "/platform/schools/{id}/subscriptions",
       status: 'live',
-      summary: "Makes a school a paying customer. Closes the gap core activation complains about.",
+      summary: "Makes a school a paying customer, and takes a fully provisioned school from PROVISIONING to ACTIVE.",
       schoolSurface: false,
       docs: `**POST** \`/platform/schools/{id}/subscriptions\` — gives a school its first subscription.
 
@@ -5765,10 +5775,15 @@ settled for a soft check that announces the gap in every response. Create one fi
 The plan already knows the price, the currency, the cycle and therefore when the first period
 ends. Everything else exists for a negotiated deal — a discount, a raised limit, a trial.
 
-### Three documents, one transaction
+### Three writes, one transaction
 
-The subscription, its first \`subscription_history\` row, and the \`number_sequences\` row it took
-\`subscriptionNo\` from. A subscription with no history row is a customer nobody can explain.
+The subscription, its first \`subscription_history\` row, and an \`$inc\` on the school's
+\`number_sequences\` document to take \`subscriptionNo\` from its \`SUBSCRIPTION\` counter. A
+subscription with no history row is a customer nobody can explain.
+
+The counter is an entry in one document per school since 2026-09-05, so the allocation is a
+\`findAndModify\` with \`$inc\` through the positional operator — still one atomic step, still
+returning the value before the increment.
 
 ### The plan must be sellable
 
@@ -5795,6 +5810,12 @@ A second is a \`409\` telling you to change the plan on the existing one.
 
  Create a subscription first and the same call now reports
  "subscriptionStatus": "ACTIVE" with no note.
+
+ IT ALSO WORKS THE OTHER WAY ROUND. A school still PROVISIONING with
+ everything else already in place is waiting only on a subscription, so
+ this endpoint activates it — see cases 12 to 14. The setup gates are not
+ skipped: no SCHOOL_ADMIN role or missing number sequences leaves the
+ school PROVISIONING, and the subscription is still created.
 
  TWO FIELDS IS THE ORDINARY REQUEST. The plan already knows the price, the
  currency, the billing cycle and therefore when the first period ends. The
@@ -5985,6 +6006,55 @@ A second is a \`409\` telling you to change the plan on the existing one.
 
     NUMBERING IS PER SCHOOL. Two schools both get SUB/2026/09/000001, which
     is correct: subscriptionNo is unique per school, not globally.`,
+          body: null,
+        },
+        {
+          id: "12",
+          name: "A PROVISIONING SCHOOL GOES LIVE",
+          expect: "201 Created",
+          notes: `A school that has had complete-provisioning run on it, so it has its
+    SCHOOL_ADMIN role and all its number sequences, but was never
+    activated. Send case 01 against it.
+    OUT: the subscription as usual, and nextStep ends with
+         "The school is now ACTIVE — a subscription was the last thing it
+          needed."
+    Then GET /platform/schools/{{schoolId}}:
+         status "ACTIVE", activatedAt stamped.
+
+    activatedAt is set only the FIRST time, so a school that is suspended
+    and later resubscribes keeps the date it originally went live.`,
+          body: null,
+        },
+        {
+          id: "13",
+          name: "A SCHOOL WHOSE SETUP IS NOT FINISHED",
+          expect: "201 Created",
+          notes: `A school created by POST /platform/schools with complete-provisioning
+    NOT yet run. Send case 01 against it.
+    OUT: the subscription IS created — activation never fails the sale —
+         and nextStep carries the actual reason:
+         "The school is still PROVISIONING: This school has no SCHOOL_ADMIN
+          role. Run complete-provisioning first."
+    A school missing sequences instead reads "This school has 3 of 12
+    number sequences. Run complete-provisioning first."
+    Then GET /platform/schools/{{schoolId}}: still PROVISIONING,
+    activatedAt null.
+
+    The check is the same one #3 in core uses — whyNotReadyToActivate in
+    SchoolPlatformService — so the two endpoints cannot disagree about what
+    "ready" means. Activating a school without these produces a live school
+    that fails on first use.`,
+          body: null,
+        },
+        {
+          id: "14",
+          name: "A SCHOOL THAT IS ALREADY LIVE, OR SUSPENDED",
+          expect: "201 Created",
+          notes: `Anything other than PROVISIONING is left alone.
+    OUT: nextStep says "The school itself is SUSPENDED, which a
+         subscription does not change."
+    Reinstating a suspended school is #5 in core; buying something is not
+    an appeal.`,
           body: null,
         },
       ],
@@ -6311,7 +6381,7 @@ billing screen, which is exactly when somebody needs to.
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },
@@ -6389,7 +6459,7 @@ would be indistinguishable from a plan published with no features.
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
-        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
       ],
       examples: [],
     },

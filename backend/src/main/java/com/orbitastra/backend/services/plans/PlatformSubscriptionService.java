@@ -31,6 +31,7 @@ import com.orbitastra.backend.repositories.core.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
 import com.orbitastra.backend.repositories.plans.SubscriptionHistoryRepository;
+import com.orbitastra.backend.services.core.SchoolPlatformService;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 import com.orbitastra.backend.services.plans.helper.PlanValidator;
 
@@ -82,6 +83,16 @@ public class PlatformSubscriptionService {
     private final SubscriptionHistoryRepository history;
     private final NumberSequenceService numberSequences;
     private final PlanValidator planValidator;
+
+    /**
+     * Only for the two setup gates and nothing else.
+     *
+     * <p>A subscription takes a school live, and going live has conditions that belong to core: a
+     * SCHOOL_ADMIN role and the number sequences. Asking core rather than re-checking them here
+     * means one implementation — two copies of "is this school ready" is how the two come to
+     * disagree, and the wrong copy is the one that lets a broken school go live.
+     */
+    private final SchoolPlatformService schoolPlatform;
 
     //! endpoint 13 — a school's first subscription -------------------------------------
 
@@ -198,8 +209,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(subscriptionHistory);
 
-        return SubscriptionResponse.fromSubscription(savedSubscription, plan, nextStepFor(school,
-                savedSubscription, trial));
+        //! step 8 - a school that was only waiting on a subscription can go live now
+        String activation = activateIfReady(school);
+
+        return SubscriptionResponse.fromSubscription(savedSubscription, plan,
+                nextStepFor(savedSubscription, trial, activation));
     }
 
     //! endpoint 14 — a trial becomes a paying subscription ----------------------------
@@ -597,21 +611,53 @@ public class PlatformSubscriptionService {
     }
 
     /**
-     * What the caller should know next — including, where it applies, that this school is now
-     * one {@code activateSchool} will accept without complaint.
+     * Takes the school live, if a subscription was the only thing it was waiting for.
+     *
+     * <p><b>Why this happens here at all.</b> A school with no subscription is a school nobody is
+     * paying for, and the last step of onboarding was always "now activate it" — a second call
+     * that could only ever succeed or say the setup was incomplete. Doing it here removes the
+     * step without removing the checks.
+     *
+     * <p><b>The setup checks are NOT skipped.</b> Without a SCHOOL_ADMIN role and the number
+     * sequences a live school fails on first use — core refuses activation over exactly this, and
+     * so does this. The difference is that this does not fail the request: the subscription is
+     * valid whether or not the school is ready to go live, and throwing here would roll back a
+     * perfectly good subscription over a provisioning step. So it reports instead.
+     *
+     * <p><b>Only PROVISIONING moves.</b> A school already ACTIVE is left alone, and a SUSPENDED
+     * one is certainly not quietly un-suspended by somebody buying a plan — that is what
+     * reactivate is for, and it is a decision rather than a side effect.
+     *
+     * @return a sentence for the response saying what happened to the school's own status
      */
-    private String nextStepFor(School school, SchoolSubscription subscription, boolean trial) {
+    private String activateIfReady(School school) {
+        if (school.getStatus() != SchoolStatus.PROVISIONING) {
+            return " The school itself is " + school.getStatus()
+                    + ", which a subscription does not change.";
+        }
+
+        String notReady = schoolPlatform.whyNotReadyToActivate(school.getId());
+        if (notReady != null) {
+            return " The school is still PROVISIONING: " + notReady;
+        }
+
+        boolean firstActivation = school.getActivatedAt() == null;
+        school.setStatus(SchoolStatus.ACTIVE);
+        if (firstActivation) {
+            school.setActivatedAt(Instant.now());
+        }
+
+        // TODO: update school
+        schools.save(school);
+
+        return " The school is now ACTIVE — a subscription was the last thing it needed.";
+    }
+
+    /** What the caller should know next, including what just happened to the school. */
+    private String nextStepFor(SchoolSubscription subscription, boolean trial, String activation) {
         String base = trial
                 ? "Trial started, running to " + subscription.getCurrentPeriodEnd() + "."
                 : "Subscribed, and billed from " + subscription.getCurrentPeriodStart() + ".";
-
-        String activation = switch (school.getStatus()) {
-            case PROVISIONING -> " The school can now be activated, and this is the "
-                    + "subscription its activation check was written to look for.";
-            case SUSPENDED -> " The school itself is still SUSPENDED — a subscription does not "
-                    + "reactivate it.";
-            default -> "";
-        };
 
         return base + activation + " No invoice has been raised: that is a separate step.";
     }

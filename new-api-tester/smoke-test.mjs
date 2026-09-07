@@ -317,6 +317,29 @@ for (const [label, ok] of trialChecks) {
   if (!ok) fail++
 }
 
+// Creating a subscription can be the last thing a PROVISIONING school needs, so the sale takes it
+// to ACTIVE. That happens on the server, and nothing else on the screen would mention it — the
+// screen re-reads rather than rendering the 201, and the school is not part of the re-read. So the
+// 201's nextStep is the one thing kept, and the school is fetched beside it.
+console.log('\nA sale can take the school live, and the screen says so')
+const subsSource = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+const saleChecks = [
+  ['the create response is handed back, not dropped', subsSource.includes('await onCreated(result.bodyJson)')],
+  ['its nextStep is kept', subsSource.includes('nextStep: created?.nextStep')],
+  // Whether the sale activated the school depends on setup this screen cannot see, so the status
+  // has to be the server's answer.
+  ['the school status is re-read, not assumed', subsSource.includes("call('get-school'")],
+  ['the note distinguishes live from still-provisioning',
+    subsSource.includes("aftermath.status === 'ACTIVE'") && subsSource.includes("aftermath.status === 'PROVISIONING'")],
+  // The note is about one sale; carrying it to the next school would be a lie about that school.
+  ['and it is cleared when another school is picked',
+    /onChange=\{\([^)]*\) => \{[\s\S]{0,200}setAftermath\(null\)/.test(subsSource)],
+]
+for (const [label, ok] of saleChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe profile also reads the subscription')
 const profileSource = readFileSync('src/pages/school/core/Profile.jsx', 'utf8')
 const bottomChecks = [

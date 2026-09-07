@@ -231,6 +231,45 @@ public class SchoolPlatformService {
          *
          ** <p>Uses GLOBAL scope and skips existing sequences.
          */
+    /**
+     * Why this school is not ready to go live, or null when it is.
+     *
+     * <p><b>Two things have to exist first, and neither is optional.</b> Without a SCHOOL_ADMIN
+     * role the first administrator account has nothing to hold; without the number sequences the
+     * first admission has no number to take. Activating either way produces a live school that
+     * fails on first use — one that looks fine on every screen until somebody tries to do the
+     * first real thing with it.
+     *
+     * <p><b>It returns a reason rather than throwing</b>, because it now has two callers who
+     * want different things from the same answer. Activation (#3) turns it into a refusal: that
+     * is somebody asking to go live and being told no. Creating a subscription takes a school
+     * live as a side effect and must NOT fail over this — the subscription is valid either way —
+     * so it reads the reason and reports it instead.
+     */
+    public String whyNotReadyToActivate(String schoolId) {
+        // TODO: check role exists
+        if (!roles.existsBySchoolIdAndRolesRoleKey(schoolId, "SCHOOL_ADMIN")) {
+            return "This school has no SCHOOL_ADMIN role. Run complete-provisioning first.";
+        }
+
+        // Counts the entries in the school's one document, not documents. countBySchoolId used
+        // to be the check and now only ever answers 0 or 1, which would pass this every time a
+        // document existed at all however empty its array was.
+        // TODO: read number sequences
+        long sequenceCount = numberSequences.findBySchoolId(schoolId)
+                .map(NumberSequence::getCounters)
+                .orElseGet(List::of)
+                .size();
+
+        if (sequenceCount < NumberSequenceType.values().length) {
+            return "This school has " + sequenceCount + " of "
+                    + NumberSequenceType.values().length + " number sequences. Run "
+                    + "complete-provisioning first.";
+        }
+
+        return null;
+    }
+
     private int seedMissingNumberSequences(String schoolId) {
         //! step 1 - read the school's one counters document, if it has one yet
         Optional<NumberSequence> document = numberSequences.findBySchoolId(schoolId);
@@ -334,35 +373,18 @@ public class SchoolPlatformService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
-        //! step 2 - only TRIAL and PROVISIONING may go live
+        //! step 2 - only PROVISIONING may go live
         if (school.getStatus() != SchoolStatus.PROVISIONING) {
             throw ApiException.conflict("SCHOOL_NOT_ACTIVATABLE",
                     "A school at status " + school.getStatus() + " cannot be activated. Only "
-                            + "PROVISIONING and TRIAL can. A suspended school is reactivated, "
-                            + "not activated.");
+                            + "PROVISIONING can. A suspended school is reactivated, not "
+                            + "activated.");
         }
 
         //! step 3 - refuse a school nobody could log into
-        // Without a SCHOOL_ADMIN role the first administrator account has nothing to hold, and
-        // without the number sequences the first admission has no number to take. Activating
-        // either way produces a live school that fails on first use.
-        if (!roles.existsBySchoolIdAndRolesRoleKey(schoolId, "SCHOOL_ADMIN")) {
-            throw ApiException.conflict("SETUP_INCOMPLETE",
-                    "This school has no SCHOOL_ADMIN role. Run complete-provisioning first.");
-        }
-
-        // Counts the entries in the school's one document, not documents. countBySchoolId used
-        // to be the check and now only ever answers 0 or 1, which would pass this every time a
-        // document existed at all however empty its array was.
-        long sequenceCount = numberSequences.findBySchoolId(schoolId)
-                .map(NumberSequence::getCounters)
-                .orElseGet(List::of)
-                .size();
-        if (sequenceCount < NumberSequenceType.values().length) {
-            throw ApiException.conflict("SETUP_INCOMPLETE",
-                    "This school has " + sequenceCount + " of "
-                            + NumberSequenceType.values().length + " number sequences. Run "
-                            + "complete-provisioning first.");
+        String notReady = whyNotReadyToActivate(schoolId);
+        if (notReady != null) {
+            throw ApiException.conflict("SETUP_INCOMPLETE", notReady);
         }
 
         //! step 4 - check the subscription, where there is one to check

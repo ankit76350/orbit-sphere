@@ -24,6 +24,13 @@ import { sellability } from './planFacts.js'
  * WHAT IS ON SCREEN COMES FROM THE READ, NOT FROM THE CREATE. After creating one this re-reads
  * rather than rendering the 201, so there is one source of truth and the features come with it —
  * the create response does not carry them.
+ *
+ * THE ONE THING KEPT FROM THE 201 IS `nextStep`, because creating a subscription can also take
+ * the SCHOOL from PROVISIONING to ACTIVE, and nothing else on this screen would say so. When it
+ * does not — a school whose provisioning is unfinished is left alone — `nextStep` carries the
+ * missing piece, and that is the sentence somebody needs to read. So the note is shown, and the
+ * school is re-read beside it so the status is the server's answer rather than this screen's
+ * guess at it.
  */
 
 const STATUS_TONE = {
@@ -42,6 +49,8 @@ export default function Subscriptions() {
   const [problem, setProblem] = useState(null)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Kept from the 201 only: what creating the subscription did to the school itself.
+  const [aftermath, setAftermath] = useState(null)
 
   const load = useCallback(async () => {
     if (!schoolId) {
@@ -99,7 +108,11 @@ export default function Subscriptions() {
           as="id"
           value={schoolId}
           placeholder="pick a school"
-          onChange={(id, picked) => { setSchoolId(id); setSchool(picked ?? null) }}
+          onChange={(id, picked) => {
+            setSchoolId(id)
+            setSchool(picked ?? null)
+            setAftermath(null)
+          }}
         />
         {schoolId ? (
           <>
@@ -108,6 +121,8 @@ export default function Subscriptions() {
           </>
         ) : null}
       </div>
+
+      {aftermath ? <WhatTheSaleDid aftermath={aftermath} onDismiss={() => setAftermath(null)} /> : null}
 
       {!schoolId ? (
         <Card>
@@ -159,9 +174,64 @@ export default function Subscriptions() {
         open={creating}
         schoolId={schoolId}
         onClose={() => setCreating(false)}
-        onCreated={async () => { setCreating(false); await load() }}
+        onCreated={async (created) => {
+          setCreating(false)
+          // The school's status is read back rather than assumed: whether the sale activated it
+          // depends on setup this screen cannot see.
+          const after = await call('get-school', {
+            label: 'What the sale did to the school',
+            pathParams: { id: schoolId },
+          })
+          setAftermath({
+            schoolId,
+            nextStep: created?.nextStep ?? null,
+            status: after.ok ? after.bodyJson?.status : null,
+            activatedAt: after.ok ? after.bodyJson?.activatedAt : null,
+          })
+          if (after.ok) { setSchool(after.bodyJson) }
+          await load()
+        }}
       />
     </div>
+  )
+}
+
+/* ------------------------------------------------ what creating the subscription did to the school */
+
+/**
+ * The school half of a sale. `nextStep` is the server's own sentence, so it is shown as written
+ * rather than reworded here — it says which of the three things happened, and when the school was
+ * left alone it says what is missing.
+ */
+function WhatTheSaleDid({ aftermath, onDismiss }) {
+  const wentLive = aftermath.status === 'ACTIVE'
+  const stuck = aftermath.status === 'PROVISIONING'
+  return (
+    <Card
+      title={
+        wentLive ? 'Sold, and the school is live'
+          : stuck ? 'Sold, but the school is still PROVISIONING'
+            : 'Sold'
+      }
+      description="Creating a subscription can be the last thing a school needs to go live."
+      action={<EndpointTag id="get-school" name="What the sale did to the school" pathParams={{ id: aftermath.schoolId }} />}
+    >
+      <div className="stack">
+        <div className="toolbar">
+          {aftermath.status ? (
+            <Badge tone={wentLive ? 'good' : stuck ? 'warn' : undefined}>
+              school {aftermath.status}
+            </Badge>
+          ) : null}
+          {aftermath.activatedAt ? (
+            <span className="muted">live since {new Date(aftermath.activatedAt).toLocaleString()}</span>
+          ) : null}
+          <span className="toolbar-spacer" />
+          <Button onClick={onDismiss}>Dismiss</Button>
+        </div>
+        {aftermath.nextStep ? <p className="muted">{aftermath.nextStep}</p> : null}
+      </div>
+    </Card>
   )
 }
 
@@ -365,7 +435,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
       setPicked('')
       setPrice('')
       setTrial(false)
-      await onCreated()
+      await onCreated(result.bodyJson)
       return
     }
     setRefused(result.bodyJson || { message: `The server answered ${result.status}.` })

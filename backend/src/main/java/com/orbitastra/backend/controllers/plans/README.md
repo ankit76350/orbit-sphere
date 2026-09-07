@@ -123,7 +123,7 @@ file.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t15"></a>15 | [`POST /platform/schools/{id}/subscriptions/{no}/extend-trial`](#e15) | Push the trial end date out. A sales decision, so only an operator can do it. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
@@ -1002,6 +1002,7 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — to get the `subscriptionNo`, through the positional operator
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` — **only** when the school was `PROVISIONING` and its setup is otherwise complete
 
 ### Two fields is the ordinary request
 
@@ -1076,14 +1077,40 @@ things had to be right:
 A `CUSTOM` cycle has no length, so `currentPeriodEnd` is **required** there. Guessing a month
 would be inventing a contract term.
 
+### A school waiting only on a subscription goes live here
+
+`PROVISIONING` is the state a school sits in while its setup is being finished, and the last
+thing missing is usually the subscription. So step 8 of this endpoint tries to activate the
+school, and the response says what happened either way.
+
+**The setup gates are not skipped.** `activateSchool` refuses a school with no `SCHOOL_ADMIN`
+role or an incomplete set of number sequences, and its own comment explains why: activating
+anyway "produces a live school that fails on first use". That check is now
+[`whyNotReadyToActivate`](../../services/core/SchoolPlatformService.java) — one implementation,
+two callers, so #3 and #13 can never disagree about what "ready" means.
+
+**Activation never fails the subscription.** The three outcomes are all reported in `nextStep`,
+none of them an error:
+
+| The school was | What happens |
+|---|---|
+| `PROVISIONING`, setup complete | `status` becomes `ACTIVE`, `activatedAt` is stamped if this is the first time — *"a subscription was the last thing it needed"* |
+| `PROVISIONING`, setup incomplete | left alone, and `nextStep` carries the actual reason — the missing role, or how many sequences of how many exist |
+| anything else | left alone — *"the school itself is SUSPENDED, which a subscription does not change"*. Reinstating a suspended school is #5's job, and buying something is not an appeal |
+
+`activatedAt` is stamped only on the first activation, so a school that is suspended and later
+resubscribes keeps the date it originally went live.
+
 ### What is not done, and is not pretended
 
 - **`performedByDocsId` on the history row is null.** Nobody is signed in — see
   `CurrentSchoolResolver`. A sentinel there would read as a real account.
 - **No invoice is raised.** That is a separate endpoint, and the response says so.
 - **The activation check is still soft.** #3 in `core` still lets a school go live with no
-  subscription, and still says so in `subscriptionNote`. The condition that note waits for is now
-  met; tightening it is a deliberate change to `core` and has not been made.
+  subscription, and still says so in `subscriptionNote`. #13 approaches the same gap from the
+  other side — a school that only needed a subscription is activated *here* — but that does not
+  stop #3 activating a school that has none. Tightening #3 is a deliberate change to `core` and
+  has not been made.
 
 <a id="e14"></a>
 **[14](#t14) · `POST /platform/schools/{id}/subscriptions/{no}/activate`** — built

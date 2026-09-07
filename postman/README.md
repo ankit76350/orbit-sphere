@@ -198,8 +198,11 @@ stores an **array of reasons per date**, and the requests are shaped around that
 was allowed anyway because nothing could create one. Create a subscription first and the same
 call reports `ACTIVE`.
 
-Order: **Create School → Complete Provisioning → (a published plan) → Create Subscription →
-Activate School.**
+Order: **Create School → Complete Provisioning → (a published plan) → Create Subscription.**
+**Activate School is no longer a step** — a school still `PROVISIONING` with its provisioning
+finished is waiting only on a subscription, so Create Subscription activates it and says so in
+`nextStep`. Run it against a school whose provisioning is *not* finished and the subscription is
+still created, the school stays `PROVISIONING`, and `nextStep` names what is missing.
 
 - **Two fields is the ordinary request** — the plan's code and version. Price, currency, cycle and
   the period end all come from the plan.

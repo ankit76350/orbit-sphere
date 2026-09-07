@@ -29,7 +29,7 @@ OUTS = [
 # ---------------------------------------------------------------------------
 CURATED = {
   'Create School': dict(
-    summary='Makes the school row at PROVISIONING or TRIAL. That is all it does.',
+    summary='Makes the school row at PROVISIONING. That is all it does.',
     required=['schoolName','accountHolderName','subdomain','defaultLocale','defaultTimeZone','countryCode'],
     optional=['phoneNumber','emailAddress','addressLine','city','stateOrProvince','postalCode','trial'],
     responseFields=['schoolId','schoolName','subdomain','status','createdAt','nextStep'],
@@ -44,7 +44,7 @@ CURATED = {
     captures=[('schoolId','schoolId'),('createdSubdomain','subdomain')],
   ),
   'Activate School': dict(
-    summary='Takes the school live. PROVISIONING or TRIAL to ACTIVE. Refuses a second call.',
+    summary='Takes the school live. PROVISIONING to ACTIVE. Refuses a second call. A provisioned school is activated by its subscription too.',
     responseFields=['schoolId','subdomain','status','activatedAt','firstActivation','subscriptionStatus','subscriptionNote','nextStep'],
     successStatus=200,
     captures=[('schoolId','schoolId'),('createdSubdomain','subdomain')],
@@ -266,7 +266,7 @@ CURATED = {
     successStatus=200,
   ),
   'Create Subscription': dict(
-    summary='Makes a school a paying customer. Closes the gap core activation complains about.',
+    summary='Makes a school a paying customer, and takes a fully provisioned school from PROVISIONING to ACTIVE.',
     required=['planCode','planVersion'],
     optional=['trial','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','maxStudentsOverride','maxUsersOverride','billingCustomerReference','reason'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
@@ -308,7 +308,7 @@ CURATED = {
 TENANT_ERRORS = [
   (400,'TENANT_NOT_RESOLVED','The X-School-Subdomain header is missing or blank.'),
   (404,'SCHOOL_NOT_FOUND','No school has that subdomain.'),
-  (409,'SCHOOL_NOT_EDITABLE','The school is past PROVISIONING, TRIAL or ACTIVE and cannot be edited.'),
+  (409,'SCHOOL_NOT_EDITABLE','The school is past PROVISIONING or ACTIVE and cannot be edited.'),
 ]
 
 STATUS_WORDS = {
