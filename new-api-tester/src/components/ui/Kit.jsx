@@ -27,9 +27,11 @@ export function Badge({ tone, children, title }) {
   return <span className="badge" data-tone={tone || undefined} title={title}>{children}</span>
 }
 
-export function Field({ label, required, hint, error, children }) {
+export function Field({ label, required, hint, error, children, wide }) {
   return (
-    <label className="field">
+    // `wide` makes the field take the whole row of a .field-grid, for a value that reads badly
+    // in half of one — a street address wraps after three words otherwise.
+    <label className={wide ? 'field field-wide' : 'field'}>
       <span className="field-label">
         {label}
         {required ? <span> *</span> : null}

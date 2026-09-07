@@ -304,6 +304,19 @@
 .field-error { display: block; margin-top: 4px; font-size: 11px; color: var(--bad); font-weight: 600; }
 .field-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* A field that takes the whole row. A street address in half a row wraps after three words. */
+.field-grid > .field-wide { grid-column: 1 / -1; }
+
+/* Names the group of fields below it, so a long form does not read as one flat list. */
+.field-split {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 -4px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted);
+}
+.field-split::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+
 /* ── Endpoint tag ─────────────────────────────────────────── */
 /* The label under a control saying which endpoint it calls. This app exists to exercise the
    API, so a button that does not say what it sends is only half a control. */

@@ -234,6 +234,10 @@ const NEW_SCHOOL = {
   schoolName: '', accountHolderName: '', subdomain: '',
   defaultLocale: 'en-IN', defaultTimeZone: 'Asia/Kolkata', countryCode: 'IN',
   emailAddress: '', phoneNumber: '',
+  // Optional, and all four go in the same request. #1 accepts them; before this the form did
+  // not ask, so every school created here arrived with no address and needed PUT /address
+  // afterwards just to say where it is.
+  addressLine: '', city: '', stateOrProvince: '', postalCode: '',
 }
 
 function NewSchool({ open, onClose, onCreated }) {
@@ -323,6 +327,25 @@ function NewSchool({ open, onClose, onCreated }) {
           </Field>
           <Field label="Phone" error={errors.phoneNumber}>
             <Input value={form.phoneNumber} error={errors.phoneNumber} onChange={set('phoneNumber')} />
+          </Field>
+        </div>
+
+        {/* Optional, and separated so the eight fields above still read as the ones that
+            matter. Same labels as the school's own address form, so the two agree. */}
+        <div className="field-split">Address — optional</div>
+
+        <div className="field-grid">
+          <Field label="Address" error={errors.addressLine} wide>
+            <Input value={form.addressLine} error={errors.addressLine} onChange={set('addressLine')} />
+          </Field>
+          <Field label="City" error={errors.city}>
+            <Input value={form.city} error={errors.city} onChange={set('city')} />
+          </Field>
+          <Field label="State" error={errors.stateOrProvince}>
+            <Input value={form.stateOrProvince} error={errors.stateOrProvince} onChange={set('stateOrProvince')} />
+          </Field>
+          <Field label="Postcode" error={errors.postalCode}>
+            <Input value={form.postalCode} error={errors.postalCode} onChange={set('postalCode')} />
           </Field>
         </div>
       </div>
