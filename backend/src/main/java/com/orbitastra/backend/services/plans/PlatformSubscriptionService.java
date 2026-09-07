@@ -146,8 +146,7 @@ public class PlatformSubscriptionService {
         });
 
         //! step 3 - the plan has to be one we can actually sell today
-        //? 1 method use
-        //TODO: read the plan 
+            //TODO: read the plan 
         PlanDefinition plan = loadSellablePlan(request.planCode(), request.planVersion());
 
         //! step 4 - work out the terms: the plan's, unless the caller overrode them
@@ -155,17 +154,17 @@ public class PlatformSubscriptionService {
         //! a billing period is a pair of dates somebody reads, and "your year runs from the 7th"
         //! is what they expect to see rather than "from 12:47 on the 7th".
         Instant periodStart = request.currentPeriodStart() == null
-                ? startOfToday(school.getDefaultTimeZone())
+                ? startOfTodayInSchoolZone(school.getDefaultTimeZone())
                 : request.currentPeriodStart();
-        Instant periodEnd = resolvePeriodEnd(request.currentPeriodEnd(), periodStart,
+        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(), periodStart,
                 plan.getBillingCycle());
 
         BigDecimal contractedPrice = request.contractedPrice() == null
                 ? plan.getListPrice()
                 : planValidator.validatePrice("contractedPrice", request.contractedPrice());
 
-        validateOverride("maxStudentsOverride", request.maxStudentsOverride());
-        validateOverride("maxUsersOverride", request.maxUsersOverride());
+        validateCapacityOverrideOnCreate("maxStudentsOverride", request.maxStudentsOverride());
+        validateCapacityOverrideOnCreate("maxUsersOverride", request.maxUsersOverride());
 
         //! The capacity is written onto the subscription either way, copied from the plan when
         //! the caller named no figure of their own. So the document says what this school may
@@ -229,10 +228,10 @@ public class PlatformSubscriptionService {
         history.save(subscriptionHistory);
 
         //! step 8 - a school that was only waiting on a subscription can go live now
-        String activation = activateIfReady(school);
+        String activation = activateSchoolIfSetupComplete(school);
 
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
-                nextStepFor(savedSubscription, trial, activation));
+                describeCreateOutcome(savedSubscription, trial, activation));
     }
 
     //! endpoint 14 — editing what a school is contracted to ---------------------------
@@ -297,17 +296,17 @@ public class PlatformSubscriptionService {
         }
 
         //! step 3 - the subscription named in the URL, or the one they are on now
-        SchoolSubscription subscription = findSubscription(school, schoolId, subscriptionNo);
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
 
         //! step 4 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
         SubscriptionStatus previousStatus = subscription.getStatus();
-        List<String> changed = applyEdit(subscription, request);
+        List<String> changed = applySubscriptionEdits(subscription, request);
 
         if (changed.isEmpty()) {
             // TODO: read plan
-            PlanDefinition unchangedPlan = loadPlanBehind(subscription);
+            PlanDefinition unchangedPlan = loadPlanBehindSubscription(subscription);
             return SubscriptionDetailResponse.fromSubscription(subscription, unchangedPlan,
                     "Nothing changed: every field sent already held that value. No history row "
                             + "was written.");
@@ -333,14 +332,14 @@ public class PlatformSubscriptionService {
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
-                .eventType(eventTypeFor(previousStatus, saved.getStatus()))
+                .eventType(chooseHistoryEventType(previousStatus, saved.getStatus()))
                 .previousStatus(previousStatus)
                 .newStatus(saved.getStatus())
                 // The plan cannot move here, so there is no previous plan to record — both ids
                 // are the one it is still on. #16 is what writes a plan change.
                 .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
                 .source(SOURCE_ADMIN_PORTAL)
-                .reason(auditReason(changed, request.reason()))
+                .reason(buildHistoryReason(changed, request.reason()))
                 .performedByDocsId(null)
                 .effectiveAt(Instant.now())
                 .build();
@@ -350,10 +349,23 @@ public class PlatformSubscriptionService {
 
         //! step 8 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
-        PlanDefinition plan = loadPlanBehind(saved);
+        PlanDefinition plan = loadPlanBehindSubscription(saved);
+
+        //! step 9 - the note is two answers joined here rather than by one helper calling the
+        //! other: what this edit did, and anything standing about the subscription that a
+        //! reader needs whether or not it was edited.
+        List<String> note = new ArrayList<>();
+        note.add(describeEditOutcome(saved, plan, changed));
+
+        String standing = describeSubscriptionState(saved, plan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        note.add("No invoice has been raised or credited: that is a separate step.");
 
         return SubscriptionDetailResponse.fromSubscription(saved, plan,
-                editedNote(saved, plan, changed));
+                String.join(" ", note));
     }
 
     //! endpoint 27 — what one school is on right now ----------------------------------
@@ -396,16 +408,12 @@ public class PlatformSubscriptionService {
                 });
 
         //! step 2 - the plan it points at, for the name, limits and features
-        // TODO: read plan
-        PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
-                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
-                        "The plan " + subscription.getSubscriptionNo()
-                                + " points at no longer exists."));
+        PlanDefinition plan = loadPlanBehindSubscription(subscription);
 
         return SubscriptionDetailResponse.fromSubscription(
                 subscription,
                 plan,
-                subscriptionNote(subscription, plan));
+                describeSubscriptionState(subscription, plan));
         }
 
     //! endpoint 33 — the school's own billing screen -----------------------------------
@@ -443,8 +451,10 @@ public class PlatformSubscriptionService {
 
     //* ---------------------------------------------------------------------------------
 
-    //! 1. createSubscription
-    /** The plan version a school can be assigned to today; drafts and retired plans are rejected, while private quotes remain valid. */
+    /** The plan version a school can be assigned to today; drafts and retired plans are rejected, while private quotes remain valid.      *
+     * Used by:
+     * - createSubscription()
+     */
     private PlanDefinition loadSellablePlan(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
         // TODO: read plan
@@ -480,9 +490,11 @@ public class PlatformSubscriptionService {
         return plan;
     }
 
-    //! 1. createSubscription
-    /** Derives the first billing period end date from the plan cycle using fixed-day periods; CUSTOM requires the caller to specify it. */
-    private Instant resolvePeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle) {
+    /** Derives the first billing period end date from the plan cycle using fixed-day periods; CUSTOM requires the caller to specify it.      *
+     * Used by:
+     * - createSubscription()
+     */
+    private Instant calculateSubscriptionPeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle) {
 
         if (requested != null) {
             if (!requested.isAfter(periodStart)) {
@@ -508,9 +520,11 @@ public class PlatformSubscriptionService {
         return periodStart.plus(days, ChronoUnit.DAYS);
     }
 
-        //! 1. createSubscription
-        /** Returns today's start in the school's timezone, falling back to UTC if unavailable. */
-        private Instant startOfToday(String schoolTimeZone) {
+            /** Returns today's start in the school's timezone, falling back to UTC if unavailable.      *
+     * Used by:
+     * - createSubscription()
+     */
+        private Instant startOfTodayInSchoolZone(String schoolTimeZone) {
         ZoneId zone;
         try {
                 zone = (schoolTimeZone == null || schoolTimeZone.isBlank())
@@ -528,10 +542,12 @@ public class PlatformSubscriptionService {
      *
      * <p>Each of these is a state the module can genuinely be in today, and each one would
      * otherwise be read wrongly off a single field.
+     *
+     * Used by:
+     * - updateSubscription()
+     * - getSubscription()
      */
-    //!. getSubscription(
-    //! editedNote(
-    private String subscriptionNote(SchoolSubscription subscription, PlanDefinition plan) {
+    private String describeSubscriptionState(SchoolSubscription subscription, PlanDefinition plan) {
         List<String> notes = new ArrayList<>();
 
         Instant end = subscription.getCurrentPeriodEnd();
@@ -564,8 +580,11 @@ public class PlatformSubscriptionService {
      *
      * <p>See {@link #CURRENT_SUBSCRIPTION} for why the word is needed: a subscription number has
      * slashes in it and cannot be written in a path.
+          *
+     * Used by:
+     * - updateSubscription()
      */
-    private SchoolSubscription findSubscription(School school, String schoolId,
+    private SchoolSubscription findSchoolSubscription(School school, String schoolId,
             String subscriptionNo) {
 
         if (CURRENT_SUBSCRIPTION.equalsIgnoreCase(subscriptionNo)) {
@@ -597,8 +616,11 @@ public class PlatformSubscriptionService {
      * <p><b>{@code reasonForChanges} is not in the list.</b> It is written by the caller on every
      * edit, so it always "changed" — reporting it would put "reasonForChanges" in every history
      * row's field list and in every response note, next to the reason itself.
+          *
+     * Used by:
+     * - updateSubscription()
      */
-    private List<String> applyEdit(SchoolSubscription subscription,
+    private List<String> applySubscriptionEdits(SchoolSubscription subscription,
             SubscriptionUpdateRequest request) {
 
         List<String> changed = new ArrayList<>();
@@ -632,20 +654,43 @@ public class PlatformSubscriptionService {
             changed.add("autoRenew");
         }
 
-        //! the two overrides. Zero means "take it away", because a flat nullable field cannot
-        //! tell an omission from an explicit null — see the request.
+        //! the two capacity ceilings. ZERO MEANS "TAKE IT AWAY": the fields are flat, and
+        //! Jackson hands over null both for a field that was omitted and for one sent as null,
+        //! so "leave this alone" and "remove this" would arrive identical. Zero can carry the
+        //! removal because it cannot mean anything else — nobody negotiates a ceiling of no
+        //! students. A negative number is a typo, not an instruction.
         if (request.maxStudentsOverride() != null) {
-            Long asked = overrideOrRemoval("maxStudentsOverride", request.maxStudentsOverride());
-            if (!Objects.equals(asked, subscription.getMaxStudentsOverride())) {
-                subscription.setMaxStudentsOverride(asked);
+            if (request.maxStudentsOverride() < 0) {
+                throw ApiException.badRequest("LIMIT_TOO_LOW",
+                        "maxStudentsOverride cannot be negative. Received: "
+                                + request.maxStudentsOverride() + ". Send 0 to remove the "
+                                + "override and use the plan's own limit, or omit it to leave "
+                                + "the override as it is.");
+            }
+            Long ceiling = request.maxStudentsOverride() == 0
+                    ? null
+                    : request.maxStudentsOverride();
+
+            if (!Objects.equals(ceiling, subscription.getMaxStudentsOverride())) {
+                subscription.setMaxStudentsOverride(ceiling);
                 changed.add("maxStudentsOverride");
             }
         }
 
         if (request.maxUsersOverride() != null) {
-            Long asked = overrideOrRemoval("maxUsersOverride", request.maxUsersOverride());
-            if (!Objects.equals(asked, subscription.getMaxUsersOverride())) {
-                subscription.setMaxUsersOverride(asked);
+            if (request.maxUsersOverride() < 0) {
+                throw ApiException.badRequest("LIMIT_TOO_LOW",
+                        "maxUsersOverride cannot be negative. Received: "
+                                + request.maxUsersOverride() + ". Send 0 to remove the override "
+                                + "and use the plan's own limit, or omit it to leave the "
+                                + "override as it is.");
+            }
+            Long ceiling = request.maxUsersOverride() == 0
+                    ? null
+                    : request.maxUsersOverride();
+
+            if (!Objects.equals(ceiling, subscription.getMaxUsersOverride())) {
+                subscription.setMaxUsersOverride(ceiling);
                 changed.add("maxUsersOverride");
             }
         }
@@ -664,8 +709,11 @@ public class PlatformSubscriptionService {
      * <p>The status types are the same ones the lifecycle endpoints will write, so a suspension
      * recorded through this endpoint and one recorded through #19 read identically in the
      * history — which is what somebody asking "when was this school suspended" needs.
+          *
+     * Used by:
+     * - updateSubscription()
      */
-    private SubscriptionEventType eventTypeFor(SubscriptionStatus previousStatus,
+    private SubscriptionEventType chooseHistoryEventType(SubscriptionStatus previousStatus,
             SubscriptionStatus newStatus) {
 
         if (newStatus == previousStatus) {
@@ -693,8 +741,11 @@ public class PlatformSubscriptionService {
      *
      * <p>The blank branch is kept although {@code @NotBlank} makes it unreachable from #14: the
      * lifecycle endpoints will share this method, and not all of them will take a reason.
+          *
+     * Used by:
+     * - updateSubscription()
      */
-    private String auditReason(List<String> changed, String callerReason) {
+    private String buildHistoryReason(List<String> changed, String callerReason) {
         String fields = "Edited " + String.join(", ", changed) + ".";
 
         return callerReason == null || callerReason.isBlank()
@@ -702,8 +753,12 @@ public class PlatformSubscriptionService {
                 : fields + " " + callerReason.trim();
     }
 
-    /** The plan a subscription points at, which must exist for the response to be complete. */
-    private PlanDefinition loadPlanBehind(SchoolSubscription subscription) {
+    /** The plan a subscription points at, which must exist for the response to be complete.      *
+     * Used by:
+     * - updateSubscription()
+     * - getSubscription()
+     */
+    private PlanDefinition loadPlanBehindSubscription(SchoolSubscription subscription) {
         // TODO: read plan
         return planDefinition.findById(subscription.getPlanDefinitionDocsId())
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
@@ -712,14 +767,21 @@ public class PlatformSubscriptionService {
     }
 
     /**
-     * What the caller should know after an edit.
+     * What this edit did, and anything it has left inconsistent.
      *
-     * <p>Says what moved, then anything the edit has left inconsistent. A cycle that no longer
-     * matches the plan's is reported rather than corrected — billing a school monthly on a plan
-     * that bills yearly is a real arrangement, and rewriting it would undo a deliberate change —
-     * but left unsaid it would be found on an invoice instead.
+     * <p>A cycle that no longer matches the plan's is reported rather than corrected — billing a
+     * school monthly on a plan that bills yearly is a real arrangement, and rewriting it would
+     * undo a deliberate change — but left unsaid it would be found on an invoice instead.
+     *
+     * <p><b>It says nothing about the subscription's standing state</b> — a lapsed period, a
+     * trial, a retired plan. That is {@link #describeSubscriptionState}, and
+     * {@code updateSubscription} joins the two: a helper calling the other helper would bury half
+     * the sentence somewhere a reader would not look for it.
+     *
+     * Used by:
+     * - updateSubscription()
      */
-    private String editedNote(SchoolSubscription subscription, PlanDefinition plan,
+    private String describeEditOutcome(SchoolSubscription subscription, PlanDefinition plan,
             List<String> changed) {
 
         List<String> notes = new ArrayList<>();
@@ -737,13 +799,6 @@ public class PlatformSubscriptionService {
             notes.add("This is not the school's current subscription.");
         }
 
-        String standing = subscriptionNote(subscription, plan);
-        if (standing != null) {
-            notes.add(standing);
-        }
-
-        notes.add("No invoice has been raised or credited: that is a separate step.");
-
         return String.join(" ", notes);
     }
 
@@ -752,36 +807,16 @@ public class PlatformSubscriptionService {
      *
      * <p>Used by #13, where there is nothing to remove yet: a subscription being created has no
      * override to take away, so zero there is a mistake like any other.
+          *
+     * Used by:
+     * - createSubscription()
      */
-    private void validateOverride(String label, Long value) {
+    private void validateCapacityOverrideOnCreate(String label, Long value) {
         if (value != null && value < 1) {
             throw ApiException.badRequest("LIMIT_TOO_LOW",
                     label + " must be at least 1 when it is sent. Received: " + value
                             + ". Omit it to use the plan's own limit.");
         }
-    }
-
-    /**
-     * What an override on #14 means: a ceiling, or zero for "remove it".
-     *
-     * <p><b>Zero is the removal because nothing else can be.</b> The fields are flat, and Jackson
-     * hands over {@code null} both for a field that was omitted and for one sent as {@code null}
-     * — so "leave this alone" and "take this away" arrive identical, and one of them needs
-     * another way to be said. Zero is available for it: a school permitted no students at all is
-     * not a limit anybody negotiated, which is exactly why #13 refuses it.
-     *
-     * <p>Negative is still refused. It is a typo, not an instruction.
-     *
-     * @return the ceiling to store, or null to fall back to the plan's own limit
-     */
-    private Long overrideOrRemoval(String label, Long value) {
-        if (value < 0) {
-            throw ApiException.badRequest("LIMIT_TOO_LOW",
-                    label + " cannot be negative. Received: " + value + ". Send 0 to remove the "
-                            + "override and use the plan's own limit, or omit it to leave the "
-                            + "override as it is.");
-        }
-        return value == 0 ? null : value;
     }
 
     /**
@@ -803,8 +838,11 @@ public class PlatformSubscriptionService {
      * reactivate is for, and it is a decision rather than a side effect.
      *
      * @return a sentence for the response saying what happened to the school's own status
+          *
+     * Used by:
+     * - createSubscription()
      */
-    private String activateIfReady(School school) {
+    private String activateSchoolIfSetupComplete(School school) {
         if (school.getStatus() != SchoolStatus.PROVISIONING) {
             return " The school itself is " + school.getStatus()
                     + ", which a subscription does not change.";
@@ -827,8 +865,11 @@ public class PlatformSubscriptionService {
         return " The school is now ACTIVE — a subscription was the last thing it needed.";
     }
 
-    /** What the caller should know next, including what just happened to the school. */
-    private String nextStepFor(SchoolSubscription subscription, boolean trial, String activation) {
+    /** What the caller should know next, including what just happened to the school.      *
+     * Used by:
+     * - createSubscription()
+     */
+    private String describeCreateOutcome(SchoolSubscription subscription, boolean trial, String activation) {
         String base = trial
                 ? "Trial started, running to " + subscription.getCurrentPeriodEnd() + "."
                 : "Subscribed, and billed from " + subscription.getCurrentPeriodStart() + ".";
