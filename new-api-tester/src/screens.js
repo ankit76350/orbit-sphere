@@ -23,7 +23,7 @@ import { moduleSlug, screenPath } from './paths.js'
  *   2. MODULE — `core` is schools and their academic years, `plans` is what we sell.
  *   3. SUBMODULE — the six groups the built endpoints actually fall into.
  *
- * The counts add up to the 45 endpoints in `api-battleground/src/config/endpoints.js`, which is
+ * The counts add up to the 46 endpoints in `api-battleground/src/config/endpoints.js`, which is
  * generated from the Postman collection. Recount them there rather than trusting these badges.
  */
 export const SURFACES = [

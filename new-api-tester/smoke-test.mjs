@@ -17,6 +17,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
+import { changedFields, patchBody, storedForm } from './src/pages/platform/plans/subscriptionEdit.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
 // first renders — so there has to be something to read here.
@@ -321,6 +322,75 @@ for (const [label, ok] of trialChecks) {
 // to ACTIVE. That happens on the server, and nothing else on the screen would mention it — the
 // screen re-reads rather than rendering the 201, and the school is not part of the re-read. So the
 // 201's nextStep is the one thing kept, and the school is fetched beside it.
+// Editing a subscription sends only what moved, because the endpoint reads an absent field as
+// "leave it alone" — a form that posted every box would send twelve fields to change one, and the
+// history row it writes would then say twelve fields were edited. This is that rule as a table:
+// what the boxes hold against what is stored, and the body it comes to.
+console.log('\nAn edit sends only what moved')
+const STORED_SUB = {
+  subscriptionNo: 'SUB/2026/09/000001', planCode: 'PREMIUM', planVersion: 1,
+  status: 'ACTIVE', billingCycle: 'YEARLY',
+  currentPeriodStart: '2026-04-01T00:00:00Z', currentPeriodEnd: '2027-03-31T23:59:59Z',
+  autoRenew: true, contractedPrice: 49999.0, currencyCode: 'INR',
+  billingCustomerReference: 'cus_Qx7B2mR9', maxStudentsOverride: 2500, maxUsersOverride: 300,
+  cancelledAt: null, cancellationReason: null,
+}
+const baseline = storedForm(STORED_SUB)
+const edited = (changes) => patchBody({ ...baseline, reason: '', ...changes }, baseline)
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
+const editCases = [
+  ['nothing touched sends nothing', same(edited({}), {})],
+  // The reason explains an edit; alone it is not one, and sending it alone would be a 400.
+  ['a reason alone sends nothing', same(edited({ reason: 'because' }), {})],
+  ['a reason rides along with a real change',
+    same(edited({ autoRenew: false, reason: 'because' }), { autoRenew: false, reason: 'because' })],
+  ['one field sends one field',
+    same(edited({ contractedPrice: '39999.5' }), { contractedPrice: 39999.5 })],
+  // "" is how this endpoint clears a string, and the only field where it means anything.
+  ['emptying the billing reference sends ""',
+    same(edited({ billingCustomerReference: '' }), { billingCustomerReference: '' })],
+  // The period dates are @NotNull on the model: an emptied box is an unfinished one, not a
+  // request to clear them, and sending "" would be a 400.
+  ['emptying a period date sends nothing', same(edited({ currentPeriodEnd: '' }), {})],
+  ['moving a period date sends it',
+    same(edited({ currentPeriodEnd: '2027-12-31T23:59:59Z' }),
+         { currentPeriodEnd: '2027-12-31T23:59:59Z' })],
+  // A block is all-or-nothing: sent means "replace both", so an emptied box inside it is a
+  // removal. That is the only way to take an override away.
+  ['emptying one override sends the whole block, with a null in it',
+    same(edited({ maxStudentsOverride: '' }),
+         { limitOverrides: { maxStudentsOverride: null, maxUsersOverride: 300 } })],
+  ['changing one override still sends both',
+    same(edited({ maxStudentsOverride: '4000' }),
+         { limitOverrides: { maxStudentsOverride: 4000, maxUsersOverride: 300 } })],
+  ['a cancellation is a block too',
+    same(edited({ cancellationReason: 'Left mid-year.' }),
+         { cancellation: { cancelledAt: null, cancellationReason: 'Left mid-year.' } })],
+  ['the plan goes as a code and a version, not a key',
+    same(edited({ planKey: 'STARTER_PLAN@2' }),
+         { plan: { planCode: 'STARTER_PLAN', planVersion: 2 } })],
+  ['several fields at once go together',
+    same(edited({ status: 'PAST_DUE', autoRenew: false, currencyCode: 'USD' }),
+         { status: 'PAST_DUE', autoRenew: false, currencyCode: 'USD' })],
+  // What the button counts, and what the preview lists.
+  ['the reason is not counted as a change',
+    changedFields({ autoRenew: false, reason: 'because' }).length === 1],
+  // Nothing here may reach the three fields the endpoint refuses to edit.
+  ['no edit can reach subscriptionNo, current or schoolId',
+    ['subscriptionNo', 'current', 'schoolId'].every((field) => !Object.keys(
+      edited({ status: 'SUSPENDED', autoRenew: false, contractedPrice: '1', currencyCode: 'USD',
+               billingCustomerReference: 'x', maxStudentsOverride: '9', maxUsersOverride: '9',
+               cancelledAt: '2026-01-01T00:00:00Z', cancellationReason: 'x',
+               planKey: 'OTHER@3', billingCycle: 'MONTHLY',
+               currentPeriodStart: '2026-05-01T00:00:00Z',
+               currentPeriodEnd: '2027-05-01T00:00:00Z' })).includes(field))],
+]
+for (const [label, ok] of editCases) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nA sale can take the school live, and the screen says so')
 const subsSource = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
 const saleChecks = [

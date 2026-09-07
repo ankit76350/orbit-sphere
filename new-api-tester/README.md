@@ -129,7 +129,7 @@ Ported from `../api-battleground` rather than rewritten, because it was already 
 
 | | |
 |---|---|
-| `src/config/endpoints.js` | 45 endpoints — paths, required and optional fields, refusal codes, worked examples |
+| `src/config/endpoints.js` | 46 endpoints — paths, required and optional fields, refusal codes, worked examples |
 | `src/config/environments.js` | which backend, and the timeout |
 | `src/lib/httpClient.js` | building a request and sending it |
 | `src/lib/store.js` | the chosen environment, remembered in this browser |
@@ -165,7 +165,7 @@ src/pages/
   school/plans/Subscription.jsx        ← built: 2
 ```
 
-**All 45 endpoints are reachable from a screen**, and `npm test` asserts it — an endpoint no
+**All 46 endpoints are reachable from a screen**, and `npm test` asserts it — an endpoint no
 screen names is one nothing here can exercise.
 
 A submodule in `screens.js` with a `screen` renders it; one without falls back to `Placeholder`,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, CreditCard, Pencil, Play, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -7,6 +7,7 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
+import { changedFields, patchBody, storedForm } from './subscriptionEdit.js'
 
 /**
  * Platform / Plans — subscriptions. What one school is paying for, and how it comes to be.
@@ -409,6 +410,277 @@ function TheSubscription({ subscription, schoolId, busy, onActivate, onEdit }) {
         <pre className="resp-body">{JSON.stringify(s, null, 2)}</pre>
       </details>
     </>
+  )
+}
+
+/* ------------------------------------------------------------------------ edit the terms */
+
+const SUBSCRIPTION_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED', 'EXPIRED']
+const BILLING_CYCLES = ['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']
+
+/**
+ * Editing what a school is contracted to — the one endpoint that used to be five.
+ *
+ * <p>PREFILLED, AND ONLY THE DIFFERENCE IS SENT. The endpoint reads an absent field as "leave it
+ * alone", so a form that posted every box would send twelve fields to change one, and the history
+ * row would say twelve fields were edited. So the form starts from what is stored and each box is
+ * compared against it — which is also what makes the body preview below worth reading.
+ *
+ * <p>THE BODY IS SHOWN BEFORE IT IS SENT. This is an API testing environment, and the interesting
+ * part of this endpoint is which fields a given edit does and does not include: emptying the
+ * billing reference sends `""`, emptying one limit sends a block with a null in it, and touching
+ * nothing sends nothing at all.
+ */
+function EditSubscription({ open, schoolId, subscription, onClose, onSaved }) {
+  const { call } = useApi()
+  const [plans, setPlans] = useState(null)
+
+  useEffect(() => {
+    if (!open || plans) return
+    let alive = true
+    call('list-plans', {
+      label: 'Plans this school could be moved to',
+      query: { status: 'ACTIVE', page: 0, size: 100 },
+    }).then((result) => {
+      if (alive) setPlans(result.ok ? (result.bodyJson?.content ?? []) : [])
+    })
+    return () => { alive = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, plans])
+
+  // Nothing to edit until there is a subscription. Returning null rather than an empty modal
+  // also means the form below MOUNTS on open — which is what lets its state start from the
+  // stored values instead of being filled in by an effect a render later.
+  if (!open || !subscription) return null
+
+  return (
+    <EditForm
+      schoolId={schoolId}
+      subscription={subscription}
+      plans={plans}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  )
+}
+
+/**
+ * The form. Separate from the shell above so that opening the modal mounts it, and its state can
+ * be initialised from the subscription at first render.
+ *
+ * <p>An effect that copies props into state is a render where the boxes are empty, and it was
+ * exactly that render this app has crashed on three times. Here it would also have meant the
+ * body preview briefly claiming the edit was empty.
+ */
+function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
+  const { call } = useApi()
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  // What the boxes start at, and what the diff is taken against.
+  const stored = useMemo(() => storedForm(subscription), [subscription])
+
+  const [form, setForm] = useState(() => ({ ...stored, reason: '' }))
+
+  const set = (field) => (event) => {
+    const target = event.target
+    setForm((current) => ({
+      ...current,
+      [field]: target.type === 'checkbox' ? target.checked : target.value,
+    }))
+  }
+
+  const body = useMemo(() => patchBody(form, stored), [form, stored])
+
+  const changed = changedFields(body)
+  const nothingChanged = changed.length === 0
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const result = await call('edit-subscription', {
+      label: 'Edit the terms',
+      pathParams: { id: schoolId, subscriptionNo: 'current' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      await onSaved(result.bodyJson)
+      return
+    }
+    setRefused(result.bodyJson || { message: `The server answered ${result.status}.` })
+  }
+
+  const movedTo = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === form.planKey)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit the terms"
+      description="Every field is optional. Only what you change is sent — the endpoint reads an absent field as “leave it alone”."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button look="primary" busy={saving} disabled={nothingChanged} onClick={submit}>
+            {nothingChanged ? 'Nothing changed yet' : `Send ${plural(changed.length, 'change')}`}
+          </Button>
+          <EndpointTag
+            id="edit-subscription"
+            name="Send the changes"
+            look="primary"
+            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+          />
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code || 'Refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <Field label="Status" hint="No transition rules apply here — this is the override, not the lifecycle endpoints.">
+          <span className="select" style={{ width: '100%' }}>
+            <select className="select-input" style={{ width: '100%' }}
+              value={form.status} onChange={set('status')}>
+              {SUBSCRIPTION_STATUSES.map((one) => <option key={one} value={one}>{one}</option>)}
+            </select>
+          </span>
+        </Field>
+
+        {/* Said out loud because it is the one consequence of this form that the server applies
+            on its own, and a screen that hid it would look like it had lost the data. */}
+        {form.status === 'CANCELLED' && stored.status !== 'CANCELLED' && !form.cancelledAt.trim() ? (
+          <p className="banner" data-tone="warn">
+            <strong>cancelledAt will be stamped for you.</strong> A cancellation that cannot
+            answer “when” is not a record of anything. Fill it in below to backdate it instead.
+          </p>
+        ) : null}
+        {stored.status === 'CANCELLED' && form.status !== 'CANCELLED' ? (
+          <p className="banner" data-tone="warn">
+            <strong>The cancellation will be cleared.</strong> A live subscription carrying a
+            cancellation date says two contradictory things at once.
+          </p>
+        ) : null}
+
+        <Field
+          label="Plan"
+          hint={movedTo
+            ? `${money(movedTo.listPrice, movedTo.currencyCode)} ${movedTo.billingCycle.toLowerCase()} list price — which this does NOT copy onto the subscription.`
+            : 'Only published plans are offered. A draft or retired one answers 409.'}
+        >
+          <span className="select" style={{ width: '100%' }}>
+            <select className="select-input" style={{ width: '100%' }}
+              value={form.planKey} onChange={set('planKey')}>
+              {/* The plan it is on now is offered even when it is retired or off the public
+                  list, or the box would show the wrong plan on open. */}
+              {!movedTo ? (
+                <option value={stored.planKey}>
+                  {subscription.planCode} v{subscription.planVersion} (on it now)
+                </option>
+              ) : null}
+              {(plans ?? []).map((one) => (
+                <option key={`${one.planCode}@${one.planVersion}`} value={`${one.planCode}@${one.planVersion}`}>
+                  {one.name} — {one.planCode} v{one.planVersion}
+                  {sellability(one).label ? ` (${sellability(one).label})` : ''}
+                </option>
+              ))}
+            </select>
+          </span>
+        </Field>
+
+        {form.planKey !== stored.planKey ? (
+          <p className="banner" data-tone="warn">
+            <strong>Nothing follows the plan.</strong> The price, cycle and currency stay as they
+            are unless you change them here too — a school on a negotiated price keeps it. Change
+            them in the same request if they should move.
+          </p>
+        ) : null}
+
+        <div className="field-grid">
+          <Field label="Agreed price">
+            <Input type="number" min="0" step="0.01"
+              value={form.contractedPrice} onChange={set('contractedPrice')} />
+          </Field>
+          <Field label="Currency" hint="ISO 4217. Normalised to upper case by the API.">
+            <Input value={form.currencyCode} onChange={set('currencyCode')} />
+          </Field>
+          <Field label="Billing cycle" hint="Only the cadence. The period dates are not recalculated from it.">
+            <span className="select" style={{ width: '100%' }}>
+              <select className="select-input" style={{ width: '100%' }}
+                value={form.billingCycle} onChange={set('billingCycle')}>
+                {BILLING_CYCLES.map((one) => <option key={one} value={one}>{one}</option>)}
+              </select>
+            </span>
+          </Field>
+          <Field label="Billing customer reference" hint="Empty the box to clear it — that sends &quot;&quot;.">
+            <Input value={form.billingCustomerReference}
+              onChange={set('billingCustomerReference')} />
+          </Field>
+          <Field label="Period start" hint="An ISO instant. Cannot be cleared.">
+            <Input className="mono" value={form.currentPeriodStart}
+              onChange={set('currentPeriodStart')} />
+          </Field>
+          <Field label="Period end" hint="Push this out to extend a trial — that is all extend-trial did.">
+            <Input className="mono" value={form.currentPeriodEnd}
+              onChange={set('currentPeriodEnd')} />
+          </Field>
+          <Field label="Student limit override" hint="Empty removes it and falls back to the plan's own limit.">
+            <Input type="number" min="1" value={form.maxStudentsOverride}
+              onChange={set('maxStudentsOverride')} />
+          </Field>
+          <Field label="User limit override" hint="Empty removes it. Zero is refused — an override that permits nothing is not a limit.">
+            <Input type="number" min="1" value={form.maxUsersOverride}
+              onChange={set('maxUsersOverride')} />
+          </Field>
+          <Field label="Cancelled at" hint="An ISO instant. Empty removes it.">
+            <Input className="mono" value={form.cancelledAt} onChange={set('cancelledAt')} />
+          </Field>
+          <Field label="Cancellation reason" hint="Empty removes it.">
+            <Input value={form.cancellationReason} onChange={set('cancellationReason')} />
+          </Field>
+        </div>
+
+        <label className="feature-row" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" className="feature-check"
+            checked={form.autoRenew} onChange={set('autoRenew')} />
+          <span className="feature-main">
+            <span className="feature-name">Renew it automatically</span>
+            <span className="feature-desc">
+              Nothing renews a subscription yet, so today this only records the intention.
+            </span>
+          </span>
+        </label>
+
+        <Field label="Why" hint="Goes on the history row next to the list of fields that moved. Alone, it changes nothing and is not sent.">
+          <Input value={form.reason} onChange={set('reason')}
+            placeholder="Renegotiated at renewal — 20% partner discount." />
+        </Field>
+
+        {/* The point of the screen: which fields this edit actually includes. */}
+        <details className="raw" open>
+          <summary>
+            What will be sent
+            <span className="toolbar-spacer" />
+            <span className="muted">
+              {nothingChanged ? 'nothing yet' : plural(changed.length, 'field')}
+            </span>
+          </summary>
+          <pre className="resp-body">
+            {nothingChanged
+              ? 'An empty PATCH is refused with 400 NO_CHANGES_REQUESTED, so there is nothing to '
+                + 'send until a box changes. Resending a value it already holds is a 200 that '
+                + 'says nothing changed.'
+              : JSON.stringify(body, null, 2)}
+          </pre>
+        </details>
+      </div>
+    </Modal>
   )
 }
 
