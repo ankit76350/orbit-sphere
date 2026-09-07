@@ -162,10 +162,11 @@ would overrule one. A `CUSTOM` billing cycle is the exception: it has no length 
 the form asks for the period end up front instead of letting you find out via
 `400 BILLING_PERIOD_END_REQUIRED`.
 
-**Activating a trial is not here yet.** `POST …/subscriptions/{no}/activate` (#15) is built but
-no screen calls it, so a trial shown on this tab cannot be turned into a paying subscription from
-the UI. `409 SUBSCRIPTION_ALREADY_EXISTS` is still shown with what it means, for the case where
-two people create at once.
+**There is nothing here for turning a trial into a sale.** There was an endpoint for it, #15,
+and it was withdrawn on 2026-09-07 — a trial becomes a paying subscription by editing its status
+through #14, which this app has no screen for either. Use `new-api-tester` for that.
+`409 SUBSCRIPTION_ALREADY_EXISTS` is still shown with what it means, for the case where two
+people create at once.
 
 ### Settings
 

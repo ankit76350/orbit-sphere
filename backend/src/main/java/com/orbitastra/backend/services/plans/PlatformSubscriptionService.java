@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
 import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
@@ -216,86 +215,6 @@ public class PlatformSubscriptionService {
 
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
                 nextStepFor(savedSubscription, trial, activation));
-    }
-
-    //! endpoint 15 — a trial becomes a paying subscription ----------------------------
-
-        /**
-         ** #15 — converts a trial into a paid subscription.
-         *
-         * <p>Plan, price, and limits remain unchanged; the trial ends and a fresh paid period starts.
-         *
-         * <p>Only TRIAL subscriptions can be activated. ACTIVE, CANCELLED, or EXPIRED subscriptions
-         * are rejected with an appropriate response.
-         *
-         * <p>The plan is not revalidated, so a retired plan can still be activated for an existing trial.
-         *
-         * <p>Subscription and history are updated in one transaction.
-        */
-    @Transactional
-    public SubscriptionResponse activateSubscription(String schoolId, String subscriptionNo,
-            SubscriptionActivateRequest request) {
-
-        SubscriptionActivateRequest asked = request == null
-                ? SubscriptionActivateRequest.empty()
-                : request;
-
-        //! step 1 - the school has to exist
-        // TODO: read school
-        School school = schools.findById(schoolId)
-                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
-                        "No school found with id '" + schoolId + "'."));
-
-        //! step 2 - find the subscription. "current" means the one the school is on now, which
-        //! is how it is normally addressed, because a real subscription number has slashes in
-        //! it and will not fit in a URL. The school id is in the lookup either way, so one
-        //! school cannot reach another school's subscription by guessing its number.
-        SchoolSubscription subscription = findSubscription(school, schoolId, subscriptionNo);
-
-        //! step 3 - it has to be a trial. Anything else is refused, with advice that fits.
-        requireTrial(subscription);
-
-        //! step 4 - work out the paid period. It starts now unless the caller said otherwise,
-        //! and runs for one of whatever cycle this subscription was sold on.
-        Instant periodStart = asked.currentPeriodStart() == null
-                ? Instant.now()
-                : asked.currentPeriodStart();
-        Instant periodEnd = resolvePeriodEnd(asked.currentPeriodEnd(), periodStart,
-                subscription.getBillingCycle(), school.getDefaultTimeZone());
-
-        //! step 5 - save the change
-        SubscriptionStatus previousStatus = subscription.getStatus();
-        subscription.setStatus(SubscriptionStatus.ACTIVE);
-        subscription.setCurrentPeriodStart(periodStart);
-        subscription.setCurrentPeriodEnd(periodEnd);
-
-        // TODO: update school subscription
-        SchoolSubscription saved = schoolSubscription.save(subscription);
-
-        //! step 6 - write down that it happened, in this same transaction
-        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
-                .schoolId(schoolId)
-                .schoolSubscriptionDocsId(saved.getId())
-                .eventType(SubscriptionEventType.ACTIVATED)
-                .previousStatus(previousStatus)
-                .newStatus(SubscriptionStatus.ACTIVE)
-                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
-                .source(SOURCE_ADMIN_PORTAL)
-                .reason(asked.reason())
-                .performedByDocsId(null)
-                .effectiveAt(periodStart)
-                .build();
-
-        // TODO: insert history
-        history.save(historyEntry);
-
-        //! step 7 - the plan is only read so the response can name it and show the limits
-        // TODO: read plan
-        PlanDefinition plan = planDefinition.findById(saved.getPlanDefinitionDocsId())
-                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
-                        "The plan this subscription points at no longer exists."));
-
-        return SubscriptionResponse.fromSubscription(saved, plan, activatedNextStep(school, saved));
     }
 
     //! endpoint 14 — editing what a school is contracted to ---------------------------
@@ -642,8 +561,9 @@ public class PlatformSubscriptionService {
         }
 
         if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
-            notes.add("This is a trial. Activating it is what turns it into a paying "
-                    + "subscription.");
+            notes.add("This is a trial. It becomes a paying subscription either by setting its "
+                    + "status through #14, or — when the school is buying a different plan from "
+                    + "the one it tried — by selling it a new subscription.");
         }
 
         if (plan.getStatus() == PlanStatus.RETIRED) {
@@ -681,54 +601,10 @@ public class PlatformSubscriptionService {
     }
 
     /**
-     * Refuses anything that is not a trial, and says what to do instead.
-     *
-     * <p>The advice differs by status because the way out differs: an ACTIVE subscription needs
-     * nothing doing, a cancelled or expired one needs a new subscription, and a suspended one
-     * needs the suspension lifted first. One message for all four would send three of them to
-     * the wrong place.
-     */
-    private void requireTrial(SchoolSubscription subscription) {
-        if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
-            return;
-        }
-
-        String advice = switch (subscription.getStatus()) {
-            case ACTIVE -> " It is already paying, so there is nothing to do.";
-            case PAST_DUE -> " It is already paying but has an unpaid bill. Take the payment "
-                    + "rather than activating it again.";
-            case SUSPENDED -> " Lift the suspension first.";
-            case CANCELLED, EXPIRED -> " A finished subscription cannot be restarted. Create a "
-                    + "new subscription for this school instead.";
-            default -> "";
-        };
-
-        throw ApiException.conflict("SUBSCRIPTION_NOT_TRIAL",
-                subscription.getSubscriptionNo() + " is " + subscription.getStatus()
-                        + ", and only a TRIAL can be activated." + advice);
-    }
-
-    /** What the caller should know after a trial has been turned into a paying subscription. */
-    private String activatedNextStep(School school, SchoolSubscription subscription) {
-        String base = "Now paying, from " + subscription.getCurrentPeriodStart() + " to "
-                + subscription.getCurrentPeriodEnd() + ".";
-
-        String activation = switch (school.getStatus()) {
-            case PROVISIONING -> " The school itself is still " + school.getStatus()
-                    + " — activating the subscription does not activate the school.";
-            case SUSPENDED -> " The school itself is still SUSPENDED — paying does not lift a "
-                    + "suspension.";
-            default -> "";
-        };
-
-        return base + activation + " No invoice has been raised: that is a separate step.";
-    }
-
-    /**
      * Writes the request onto the subscription, and returns the fields that actually moved.
      *
      * <p><b>"Changed" means different from what was stored.</b> A caller who resends the current
-     * price has not edited anything, and recording that they did would fill the audit trail with
+     * cycle has not edited anything, and recording that they did would fill the audit trail with
      * rows that explain nothing. So every field is compared before it is set.
      *
      * <p>{@code Objects.equals} throughout, because every field here is nullable — an override

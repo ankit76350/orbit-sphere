@@ -92,7 +92,7 @@ public class SchoolSubscription extends SchoolBase {
         // Example: true
         @NotNull
         @Builder.Default
-        private Boolean autoRenew = true;
+        private Boolean autoRenew = false;
 
         // Example: 45000.00
         @NotNull
@@ -118,24 +118,6 @@ public class SchoolSubscription extends SchoolBase {
         // Example: "customer_Qx7B2mR9"
         private String billingCustomerReference;
 
-        /**
-         * Why this subscription was last changed. Written by #14 on every edit.
-         *
-         * <p>Example: "Renegotiated at renewal — 20% partner discount."
-         *
-         * <p><b>The reason for the most recent change, not a history of them.</b> Every edit
-         * overwrites it — a reason left standing from an earlier edit would attribute the wrong
-         * explanation to the current state. #14 requires a reason, so an edited subscription
-         * always carries one; null here means nothing has ever edited it.
-         *
-         * <p>The trail of all of them is {@code subscription_history}: one row per change, with
-         * its own reason and the list of fields that moved. This field is what a screen showing
-         * the subscription can put beside it without a second query.
-         *
-         * <p>Replaced {@code cancelledAt} and {@code cancellationReason} on 2026-09-07. The
-         * cancellation date duplicated the history row's {@code effectiveAt} on the
-         * {@code CANCELLED} event, and a reason that existed only for cancellations left every
-         * other kind of change unexplained on the document.
-         */
+        //collect during update
         private String reasonForChanges;
 }

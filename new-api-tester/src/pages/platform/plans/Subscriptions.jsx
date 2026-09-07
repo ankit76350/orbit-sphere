@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, CreditCard, Pencil, Play, Plus, RefreshCw } from 'lucide-react'
+import { CheckCircle2, CreditCard, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
@@ -50,7 +50,6 @@ export default function Subscriptions() {
   const [reading, setReading] = useState(false)
   const [problem, setProblem] = useState(null)
   const [creating, setCreating] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
@@ -85,18 +84,6 @@ export default function Subscriptions() {
   useEffect(() => {
     load()
   }, [load])
-
-  const activate = async () => {
-    setBusy(true)
-    // `current` rather than the number: a subscription number is SUB/2026/09/000001 and the
-    // slashes end the path segment, so it cannot be written in a URL. The API takes the word.
-    await call('activate-subscription', {
-      label: 'Activate the trial',
-      pathParams: { id: schoolId, subscriptionNo: 'current' },
-    })
-    setBusy(false)
-    await load()
-  }
 
   return (
     <div className="page stack">
@@ -150,8 +137,6 @@ export default function Subscriptions() {
         <TheSubscription
           subscription={subscription}
           schoolId={schoolId}
-          busy={busy}
-          onActivate={activate}
           onEdit={() => setEditing(true)}
         />
       ) : (
@@ -249,7 +234,7 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 
 /* -------------------------------------------------------------- what the school is on */
 
-function TheSubscription({ subscription, schoolId, busy, onActivate, onEdit }) {
+function TheSubscription({ subscription, schoolId, onEdit }) {
   const s = subscription
   return (
     <>
@@ -341,22 +326,16 @@ function TheSubscription({ subscription, schoolId, busy, onActivate, onEdit }) {
             ) : null}
           </dl>
 
+          {/* There was an Activate endpoint for exactly this, and it was withdrawn: whether a
+              subscription is a trial is decided when it is sold, and moving it on is an edit
+              like any other. Said here so the absence of a button reads as a decision. */}
           {s.status === 'TRIAL' ? (
-            <div className="toolbar">
-              <Button look="primary" icon={Play} busy={busy} onClick={onActivate}>
-                Turn the trial into a paying subscription
-              </Button>
-              <span className="muted">
-                Same plan, price and limits. Only the status and the period move.
-              </span>
-              <span className="toolbar-spacer" />
-              <EndpointTag
-                id="activate-subscription"
-                name="Activate the trial"
-                look="primary"
-                pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-              />
-            </div>
+            <p className="banner" data-tone="warn">
+              <strong>This is a trial.</strong> It becomes a paying subscription by editing its
+              status to <code className="mono">ACTIVE</code> below. If the school is buying a
+              different plan from the one it tried, that is a new subscription rather than an
+              edit — <code className="mono">#16</code>, not built yet.
+            </p>
           ) : null}
 
           {/* Editing is not a trial-only action, and not a lifecycle one either: it is how a

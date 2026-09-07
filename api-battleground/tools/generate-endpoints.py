@@ -273,25 +273,6 @@ CURATED = {
     successStatus=201,
     captures=[('subscriptionNo','subscriptionNo')],
   ),
-  'Activate Subscription': dict(
-    summary='Turns a trial into a paying subscription. The plan, price and limits do not move.',
-    required=[],
-    optional=['currentPeriodStart','currentPeriodEnd','reason'],
-    responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
-    successStatus=200,
-  ),
-  'Edit Subscription': dict(
-    summary='Edits when a subscription runs, what state it is in and how much it may use. No money: the price is #25, the plan #16.',
-    # The one field that must be sent. Every other field here changes something a school is
-    # paying for, so an unexplained edit is refused before the service sees it.
-    required=['reason'],
-    # All flat. The two overrides take 0 to mean "remove it", since an omitted field and an
-    # explicit null are the same value to Jackson and one of them had to mean something else.
-    optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
-              'maxStudentsOverride','maxUsersOverride'],
-    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
-    successStatus=200,
-  ),
   'Get Subscription': dict(
     summary='What one school is on right now: the plan and its features, the price, the status, the period.',
     required=[],

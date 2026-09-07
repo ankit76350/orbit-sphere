@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
@@ -35,8 +34,8 @@ import lombok.RequiredArgsConstructor;
  * sense with both.
  *
  * <p><b>A school may not reach any of this.</b> Looking at its own subscription is #33 on the
- * school surface; creating one, changing its price, moving its dates and raising its limits are
- * all here, so there is no request a school can send that does them.
+ * school surface; creating one, moving its dates and raising its limits are all here, so there
+ * is no request a school can send that does them.
  */
 @RestController
 @RequiredArgsConstructor
@@ -65,27 +64,6 @@ public class PlatformSubscriptionController {
                         + response.subscriptionNo()))
                 .body(response);
     }
-        /**
-         * Endpoint #15 — converts a trial into a paid subscription.
-         *
-         * <p>Use {@code current} as the subscription number. The plan, price, and limits remain unchanged;
-         * a new paid billing period starts.
-         *
-         * <p>The body is optional. If omitted, the paid period starts now for one billing cycle.
-         * Dates or a reason can be provided for non-standard activation.
-         *
-         * <p>Only a TRIAL can be activated; otherwise returns {@code 409 SUBSCRIPTION_NOT_TRIAL}.
-        */
-    @PostMapping("/subscriptions/{subscriptionNo}/activate")
-    public ResponseEntity<SubscriptionResponse> activate(
-            @PathVariable String schoolId,
-            @PathVariable String subscriptionNo,
-            @Valid @RequestBody(required = false) SubscriptionActivateRequest request) {
-
-        return ResponseEntity.ok(
-                subscriptionService.activateSubscription(schoolId, subscriptionNo, request));
-    }
-
     /**
      * Endpoint #14 — edits the terms of one subscription.
      *

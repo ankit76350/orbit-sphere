@@ -191,7 +191,7 @@ stores an **array of reasons per date**, and the requests are shaped around that
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
 
-## Subscriptions: #13 closes core's activation gap, #15 turns a trial into a sale
+## Subscriptions: #13 closes core's activation gap, #14 edits what it sold
 
 `POST /platform/schools/{id}/subscriptions` is what makes a school a paying customer. Before it,
 **Activate School** always answered `"subscriptionStatus": "NONE"` with a note saying activation
@@ -210,14 +210,17 @@ still created, the school stays `PROVISIONING`, and `nextStep` names what is mis
   yet, so a test school stays on its first plan.
 - **Numbering is per school**, so every school's first subscription is `SUB/2026/09/000001`.
 
-**Activate Subscription (#15)** turns a `TRIAL` into a paying `ACTIVE` one. Create the
-subscription with `"trial": true` first, or there is nothing to activate — activating an already
-paying one is a `409 SUBSCRIPTION_NOT_TRIAL`.
+**There is no Activate Subscription request any more.** #15 was built and then withdrawn on
+2026-09-07: whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold, from
+`"trial": true` on Create Subscription, and a trial that later starts paying is either a status
+edit through #14 or — when the school is buying a different plan from the one it tried — a new
+subscription. Three ways to say "this school is paying now" was two too many.
 
 **Edit Subscription (#14)** edits when a subscription runs, what state it is in, and how much of
-the product it may use: `status`, `billingCycle`, both period dates, `autoRenew`, the two capacity
-overrides and the cancellation. It replaced extend-trial — pushing a trial's end date out is
-`currentPeriodEnd` on it — and took in #23 and #24 with it, so those two are not being built.
+the product it may use: `status`, `billingCycle`, both period dates, `autoRenew` and the two
+capacity overrides. It replaced extend-trial — pushing a trial's end date out is
+`currentPeriodEnd` on it — took in #23 and #24, and absorbed what #15 used to do:
+`{"status": "ACTIVE", "reason": …}` is how a trial becomes a paying subscription.
 
 - **Nothing about the money.** The price and currency stay on #25, the billing customer on #26,
   the plan on #16. Which means **nothing built can change a price** after Create Subscription set
