@@ -136,8 +136,11 @@ public class SchoolPlatformService {
     private final CoreValidator coreValidator;
 
     //? endpoint 1 — create the tenant -------------------------------------------------
+//! Endpoint 1 — provision a new tenant --------------------------------------------
 
     @Transactional
+
+
     public SchoolCreateResponse createNewSchool(SchoolCreateRequest request) {
         //! validating subdomain
         String subdomain = coreValidator.validateSubdomain(request.subdomain());
@@ -178,6 +181,7 @@ public class SchoolPlatformService {
     }
 
     //? endpoint 2 — finish the setup --------------------------------------------------
+//! Endpoint 2 — seed its roles and number sequences -------------------------------
 
         /**
          * Completes tenant setup with missing sequences and roles.
@@ -187,6 +191,8 @@ public class SchoolPlatformService {
          * <p>Works for all statuses except end-of-life statuses.
          */
     @Transactional
+
+
     public CompleteProvisioningResponse completeProvisioning(String schoolId) {
         // step 1 - find the school, or 404
         // TODO: read school
@@ -225,6 +231,7 @@ public class SchoolPlatformService {
         return CompleteProvisioningResponse.fromSchool(
                 school, sequencesCreated, sequencesPresent, rolesCreated, rolesPresent, roleKeys);
     }
+//! Shared check — why this school cannot go live yet ------------------------------
 
         /**
          ** Creates missing number sequences for all types.
@@ -270,12 +277,16 @@ public class SchoolPlatformService {
         return null;
     }
     //? endpoint 3 — activate the school -----------------------------------------------
+//! Endpoint 3 — take the school live ----------------------------------------------
+
         /**
          * Activates a school from TRIAL or PROVISIONING.
          *
          * <p>Rejects other statuses and records the activation date.
          */
     @Transactional
+
+
     public SchoolActivateResponse activateSchool(String schoolId) {
         //! step 1 - find the school, or 404
         // TODO: read school
@@ -322,7 +333,11 @@ public class SchoolPlatformService {
     //? endpoint 4 — suspend -----------------------------------------------------------
 
     // Suspends an ACTIVE school by changing its status to SUSPENDED and storing the reason and time.
+//! Endpoint 4 — stop the school working, with a reason ----------------------------
+
     @Transactional
+
+
     public SchoolStatusResponse suspendSchool(String schoolId, String reason) {
         //! step 1 - find the school, or 404
         // TODO: read school
@@ -355,12 +370,15 @@ public class SchoolPlatformService {
     }
 
     //? endpoint 5 — reactivate --------------------------------------------------------
+//! Endpoint 5 — put a suspended school back ---------------------------------------
 
    /**
      * Reactivates a suspended school by changing its status from SUSPENDED to ACTIVE.
      * Keeps the original activation and suspension history, and updates the status reason only when a new note is provided.
     */
     @Transactional
+
+
     public SchoolStatusResponse reactivateSchool(String schoolId, String note) {
         //! step 1 - find the school, or 404
         // TODO: read school
@@ -391,6 +409,8 @@ public class SchoolPlatformService {
     }
 
     //? endpoint 10 — change the subdomain ---------------------------------------------
+//! Endpoint 10 — rename the tenant key --------------------------------------------
+
     /**
      * #10 — changes the tenant label a school answers to.
      *
@@ -406,6 +426,8 @@ public class SchoolPlatformService {
      * who does not know that will find out from the school.
      */
     @Transactional
+
+
     public SchoolSubdomainResponse changeSubdomain(String schoolId, SchoolSubdomainRequest request) {
         //! step 1 - find the school, or 404
         // TODO: read school
@@ -458,6 +480,8 @@ public class SchoolPlatformService {
     }
 
     //? endpoint G1 — list the schools -------------------------------------------------
+//! Endpoint G1 — the operator's school list ---------------------------------------
+
         /**
          * Lists schools with search, filters, sorting, and pagination.
          * Returns the latest schools by default.
@@ -530,6 +554,7 @@ public class SchoolPlatformService {
                 schoolPage,
                 SchoolSummaryResponse::fromSchool);
         }
+//! Endpoint G2 — one school in full -----------------------------------------------
 
     /**
      * G2 — reads one school in full for the operator.

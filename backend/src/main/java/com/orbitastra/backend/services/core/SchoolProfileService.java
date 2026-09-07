@@ -48,6 +48,7 @@ public class SchoolProfileService {
     private final CoreValidator coreValidator;
 
     //? G4 — read the school's own profile ---------------------------------------------
+//! Endpoint G4 — what the school sees about itself --------------------------------
 
     /**
      * G4 — the school reading its own details. The read behind #6 to #9.
@@ -80,7 +81,11 @@ public class SchoolProfileService {
     // Rejects empty updates.
     // Updates only provided fields.
     // Saves the updated school.
+//! Endpoint 6 — the school edits its own details ----------------------------------
+
     @Transactional
+
+
     public SchoolProfileResponse updateProfile(SchoolProfileUpdateRequest request) {
         // get the current schhool details from the login user
         //! step 1 - who is asking, and may they edit
@@ -132,11 +137,14 @@ public class SchoolProfileService {
     }
 
     //? endpoint 7 — the postal address ------------------------------------------------
+//! Endpoint 7 — replace the address as one unit -----------------------------------
 
     /**
      * Replaces the school's complete postal address.
     */
     @Transactional
+
+
     public SchoolProfileResponse replaceAddress(SchoolAddressRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
@@ -159,7 +167,11 @@ public class SchoolProfileService {
     //? step 3 - update locale
     //? step 4 - validate and update time zone
     //? step 5 - save changes
+//! Endpoint 8 — locale, and the time zone behind every date -----------------------
+
     @Transactional
+
+
     public SchoolProfileResponse updateLocalization(SchoolLocalizationRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
@@ -217,11 +229,14 @@ public class SchoolProfileService {
     }
 
     //? endpoint 9 — the logo ----------------------------------------------------------
+//! Endpoint 9 — store the logo URL ------------------------------------------------
 
     /**
     * Replaces or removes the school's logo.
     */
     @Transactional
+
+
     public SchoolProfileResponse replaceLogo(SchoolLogoRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();

@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PlanValidator {
 
-    //! plan code — used by endpoints 1 and 2 -------------------------------------------------
+    //! plan code — used by endpoints 1 and 2 ------------------------------------------
 
     /** Uppercase letters, digits and single inner underscores. No leading or trailing one. */
     private static final Pattern PLAN_CODE_SHAPE =
@@ -201,7 +201,7 @@ public class PlanValidator {
         return normalized;
     }
 
-    //! limits and windows — used by endpoints 1 and 2 ----------------------------------------
+    //! limits and windows — used by endpoints 1 and 2 ---------------------------------
 
     /**
      * A plan's student or user ceiling.

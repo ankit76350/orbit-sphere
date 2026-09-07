@@ -78,7 +78,7 @@ public class AcademicYearServiceUtils {
                         "No academic year called '" + name + "' in this school."));
     }
 
-    //! ensureList — used by endpoints 21, 23 and both DELETEs -------------------------
+    //! mutableHolidayList — used by endpoints 21, 23 and both DELETEs -----------------
 
     /**
      * The holiday list, created if the document has none.
@@ -97,7 +97,7 @@ public class AcademicYearServiceUtils {
         return year.getHolidays();
     }
 
-    //! sizeOf — used by endpoints 20 and 23 -------------------------------------------
+    //! countClosedDays — used by endpoints 20 and 23 ----------------------------------
 
     /**
      * How many days the school is closed. Not the same number as the reasons for it.
@@ -109,7 +109,7 @@ public class AcademicYearServiceUtils {
         return year.getHolidays() == null ? 0 : year.getHolidays().size();
     }
 
-    //! eventCount — used by endpoint 23 -----------------------------------------------
+    //! countEventsInYear — used by endpoint 23 ----------------------------------------
 
     /**
      * How many reasons are recorded, which is larger whenever a day carries more than one.
@@ -127,7 +127,7 @@ public class AcademicYearServiceUtils {
         return year.getHolidays().stream().mapToInt(d -> d.getEvents().size()).sum();
     }
 
-    //! findDay — used by endpoints 21, 22 and DELETE one day --------------------------
+    //! findDayInCalendar — used by endpoints 21, 22 and DELETE one day ----------------
 
     /**
      * The one entry for a date, if the school is closed that day. A date appears at most once.
@@ -145,7 +145,7 @@ public class AcademicYearServiceUtils {
                 .findFirst();
     }
 
-    //! hasType — used by endpoints 20 to 23 -------------------------------------------
+    //! dayHasEventOfType — used by endpoints 20 to 23 ---------------------------------
 
     /**
      * Whether a day already carries a reason of this type. One day never holds two.
@@ -159,7 +159,7 @@ public class AcademicYearServiceUtils {
         return day.getEvents().stream().anyMatch(e -> e.getType() == type);
     }
 
-    //! resolveEvent — used by endpoint 22 and DELETE one day --------------------------
+    //! requireEventOfType — used by endpoint 22 and DELETE one day --------------------
 
     /**
      * Which reason on a day an edit or a delete is aimed at.
@@ -198,7 +198,7 @@ public class AcademicYearServiceUtils {
                                 + reasons + "."));
     }
 
-    //! describe — used by endpoint 19 and DELETE one day ------------------------------
+    //! describeEventsOnDay — used by endpoint 19 and DELETE one day -------------------
 
     /**
      * A day's reasons in one readable phrase, for error and change messages.

@@ -96,8 +96,7 @@ public class PlatformSubscriptionService {
      * disagree, and the wrong copy is the one that lets a broken school go live.
      */
     private final SchoolPlatformService schoolPlatform;
-
-    //! endpoint 13 — a school's first subscription -------------------------------------
+//! Endpoint 13 — a school's first subscription ------------------------------------
 
     /**
      * #13 — puts a school on a plan. What makes a school a paying customer.
@@ -118,6 +117,8 @@ public class PlatformSubscriptionService {
      * Premium v1", and the fields exist for the deal that is not ordinary.
      */
     @Transactional
+
+
     public SubscriptionResponse createSubscription(String schoolId,
             SubscriptionCreateRequest request) {
 
@@ -233,8 +234,7 @@ public class PlatformSubscriptionService {
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
                 describeCreateOutcome(savedSubscription, trial, activation));
     }
-
-    //! endpoint 14 — editing what a school is contracted to ---------------------------
+//! Endpoint 14 — edit what a school is contracted to ------------------------------
 
     /**
      * #14 — edits any of the terms of one subscription.
@@ -269,6 +269,8 @@ public class PlatformSubscriptionService {
      * in December" answerable at all — every field here is something somebody is paying for.
      */
     @Transactional
+
+
     public SubscriptionDetailResponse updateSubscription(String schoolId, String subscriptionNo,
             SubscriptionUpdateRequest request) {
 
@@ -367,8 +369,7 @@ public class PlatformSubscriptionService {
         return SubscriptionDetailResponse.fromSubscription(saved, plan,
                 String.join(" ", note));
     }
-
-    //! endpoint 27 — what one school is on right now ----------------------------------
+//! Endpoint 27 — what one school is on right now ----------------------------------
 
     /**
      * #27 — the whole of one school's current subscription.
@@ -415,8 +416,7 @@ public class PlatformSubscriptionService {
                 plan,
                 describeSubscriptionState(subscription, plan));
         }
-
-    //! endpoint 33 — the school's own billing screen -----------------------------------
+//! Endpoint 33 — the school's own billing screen ----------------------------------
 
     /**
      * #33 — what the school itself sees: its plan, what it costs, when it renews.

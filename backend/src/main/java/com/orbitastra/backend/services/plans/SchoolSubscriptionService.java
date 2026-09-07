@@ -51,6 +51,7 @@ public class SchoolSubscriptionService {
 
     private final SchoolSubscriptionRepository schoolSubscription;
     private final PlanDefinitionRepository planDefinition;
+//! Endpoint 34 — what this school may use right now -------------------------------
 
     /**
      * #34 — what this school may use right now.

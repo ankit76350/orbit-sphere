@@ -70,6 +70,8 @@ public class AcademicYearService {
     //? G5 — list the school's years ----------------------------------------------------
 
     // let all acadmic year for the year
+//! Endpoint G5 — every year, newest first -----------------------------------------
+
     public List<AcademicYearResponse> listAcademicYears() {
         School school = currentSchool.require();
 
@@ -82,6 +84,8 @@ public class AcademicYearService {
     //? G6 — the year running today -----------------------------------------------------
 
     // the current acadmic year running 
+//! Endpoint G6 — the year containing today ----------------------------------------
+
     public AcademicYearResponse getCurrentAcademicYear() {
         School school = currentSchool.require();
         LocalDate today = LocalDate.now();
@@ -99,6 +103,7 @@ public class AcademicYearService {
     }
 
     //? G7 — read one year by name -------------------------------------------------------
+//! Endpoint G7 — one year by name -------------------------------------------------
 
     public AcademicYearResponse getAcademicYear(String name) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
@@ -108,6 +113,8 @@ public class AcademicYearService {
 
     //? G8 — read a year's whole calendar -------------------------------------------------
     // using acadmic year name reading whole calender...
+//! Endpoint G8 — the whole calendar, grouped by day -------------------------------
+
     public HolidayCalendarResponse getHolidayCalendar(String name) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
@@ -115,6 +122,8 @@ public class AcademicYearService {
     }
 
     //? G9 — is the school closed or open on one date ---------------------------------------------
+//! Endpoint G9 — is the school open on this day, and why not ----------------------
+
     
     public DayStatusResponse getDayStatus(String name, LocalDate date) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
@@ -127,6 +136,8 @@ public class AcademicYearService {
     }
 
     //? G10 — count working days in a range ------------------------------------------------
+//! Endpoint G10 — working days in a range -----------------------------------------
+
     public WorkingDaysResponse countWorkingDays(String name, LocalDate from, LocalDate to) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
@@ -165,6 +176,7 @@ public class AcademicYearService {
     }
 
     //? endpoint 18 — create a year ----------------------------------------------------
+//! Endpoint 18 — create a year ----------------------------------------------------
 
     /**
      * Creates an academic year with an empty calendar.
@@ -178,6 +190,8 @@ public class AcademicYearService {
      * response tells the caller to go and fill it in.
      */
     @Transactional
+
+
     public AcademicYearResponse createAcademicYear(AcademicYearCreateRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
@@ -225,6 +239,7 @@ public class AcademicYearService {
     }
 
     //? endpoint 19 — move the boundaries ----------------------------------------------
+//! Endpoint 19 — move a year's dates ----------------------------------------------
 
     /**
      * Moves a year's start or end date.
@@ -243,6 +258,8 @@ public class AcademicYearService {
      * complain.
      */
     @Transactional
+
+
     public AcademicYearResponse updateDates(String name, AcademicYearDatesRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
@@ -295,6 +312,7 @@ public class AcademicYearService {
     }
 
     //? endpoint 20 — replace the whole calendar ---------------------------------------
+//! Endpoint 20 — replace the whole holiday calendar -------------------------------
 
     /**
      * #20 — replaces the whole calendar.
@@ -313,6 +331,8 @@ public class AcademicYearService {
      * duplicated row rather than a second reason.
      */
     @Transactional
+
+
     public HolidayCalendarResponse replaceCalendar(String name, List<HolidayRequest> requests) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -349,6 +369,8 @@ public class AcademicYearService {
     }
 
     //? endpoint 21 — add one reason to a day ------------------------------------------
+//! Endpoint 21 — add one holiday --------------------------------------------------
+
     /**
      * #21 — adds one reason to one day.
      *
@@ -362,6 +384,8 @@ public class AcademicYearService {
      * already has one is a repeated request or a mistake, never a second reason.
      */
     @Transactional
+
+
     public HolidayCalendarResponse addHoliday(String name, HolidayRequest request) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -399,6 +423,8 @@ public class AcademicYearService {
     }
 
     //? endpoint 22 — edit one reason on a day -----------------------------------------
+//! Endpoint 22 — edit one holiday on a day ----------------------------------------
+
     /**
      * #22 — edits one reason on one day.
      *
@@ -410,6 +436,8 @@ public class AcademicYearService {
      * the day has several, because picking one for the caller would be wrong half the time.
      */
     @Transactional
+
+
     public HolidayCalendarResponse updateHoliday(String name, LocalDate date, HolidayType type,
             HolidayUpdateRequest request) {
 
@@ -460,6 +488,8 @@ public class AcademicYearService {
     }
 
     //? endpoint DELETE — remove a reason, or the whole day ----------------------------
+//! Endpoint D1 — remove one day, or one event on it -------------------------------
+
     /**
      * Removes one reason from a day, or the whole day.
      *
@@ -474,6 +504,8 @@ public class AcademicYearService {
      * <p>A date with nothing on it is a 404, not a silent 200.
      */
     @Transactional
+
+
     public HolidayCalendarResponse removeHoliday(String name, LocalDate date, HolidayType type) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -509,6 +541,8 @@ public class AcademicYearService {
     }
 
     //? endpoint 23 — generate a weekday's offs across the year ------------------------
+//! Endpoint 23 — generate the recurring weekly off --------------------------------
+
     /**
      * #23 — generates one weekday's non-working days across the year.
      *
@@ -527,6 +561,8 @@ public class AcademicYearService {
      * That is also what makes running this twice safe: the second run generates nothing.
      */
     @Transactional
+
+
     public WeeklyOffGenerateResponse generateWeeklyOff(String name, GenerateWeeklyOffRequest request) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -593,6 +629,8 @@ public class AcademicYearService {
     }
 
     //? endpoint DELETE — remove every reason of one type ------------------------------
+//! Endpoint D2 — remove every holiday of one type ---------------------------------
+
     /**
      * Removes every reason of one type across the calendar. The companion to #23.
      *
@@ -607,6 +645,8 @@ public class AcademicYearService {
      * parameter was forgotten would be the most destructive accident in this package.
      */
     @Transactional
+
+
     public HolidayCalendarResponse removeHolidaysByType(String name, HolidayType type) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -634,6 +674,8 @@ public class AcademicYearService {
     }
 
     //? endpoint 24 — open the year to enrollments -------------------------------------
+//! Endpoint 24 — open admissions for the year -------------------------------------
+
     /**
      * #24 — opens the year to new enrollments.
      *
@@ -642,6 +684,8 @@ public class AcademicYearService {
      * check first and race.
      */
     @Transactional
+
+
     public AcademicYearResponse enableEnrollment(String name) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -663,6 +707,8 @@ public class AcademicYearService {
     }
 
     //? endpoint 25 — close the year to enrollments ------------------------------------
+//! Endpoint 25 — close admissions -------------------------------------------------
+
     /**
      * #25 — closes the year to new enrollments.
      *
@@ -670,6 +716,8 @@ public class AcademicYearService {
      * withdrawal: anything already in the year stays exactly as it is.
      */
     @Transactional
+
+
     public AcademicYearResponse disableEnrollment(String name) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -693,12 +741,16 @@ public class AcademicYearService {
     }
 
     //? endpoint 26 — freeze the year's results ----------------------------------------
+//! Endpoint 26 — freeze the marks -------------------------------------------------
+
     /**
      * #26 — locks results against further change. What happens when marks are published.
      *
      * <p>Idempotent, like the enrollment gates.
      */
     @Transactional
+
+
     public AcademicYearResponse lockResults(String name) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);
@@ -721,11 +773,15 @@ public class AcademicYearService {
     }
 
     //? endpoint 27 — reopen the year's results ----------------------------------------
+//! Endpoint 27 — let marks be edited again ----------------------------------------
+
         /**
          * Unlocks results for an academic year so marks can be corrected.
          * Safe to call when results are already unlocked.
         */
     @Transactional
+
+
     public AcademicYearResponse unlockResults(String name) {
         //! step 1 - find the year
         AcademicYear year = yearUtils.loadYear(name);

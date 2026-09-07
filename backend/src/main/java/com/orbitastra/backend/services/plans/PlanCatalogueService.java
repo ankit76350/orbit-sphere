@@ -94,8 +94,7 @@ public class PlanCatalogueService {
     private final PlanDefinitionRepository plans;
     private final SchoolSubscriptionRepository subscriptions;
     private final PlanValidator planValidator;
-
-    //! endpoint 1 — create a draft plan -----------------------------------------------
+//! Endpoint 1 — create a draft plan -----------------------------------------------
 
         /**
          * Creates a new plan as a draft.
@@ -113,6 +112,8 @@ public class PlanCatalogueService {
          * <p>Endpoint: {@code POST /platform/plans/drafts}
          */
     @Transactional
+
+
     public PlanResponse createDraft(PlanCreateRequest request) {
         //! step 1 - normalize and check everything the caller sent
         // Normally nothing was sent, and the code comes from the name.
@@ -158,8 +159,8 @@ public class PlanCatalogueService {
                 "Draft created. Nobody can buy it yet: set its features, then publish it. "
                         + "While it is a DRAFT everything about it can still be changed.");
     }
+//! Endpoint 2 — edit a draft ------------------------------------------------------
 
-    //! endpoint 2 — edit a draft ------------------------------------------------------
         /**
          * Updates the details of a draft plan.
          *
@@ -174,6 +175,8 @@ public class PlanCatalogueService {
          * <p>The start and end dates are updated together.
          */
     @Transactional
+
+
     public PlanResponse updateDraft(String code, Integer version, PlanDraftUpdateRequest request) {
         //! step 1 - refuse a request that asks for nothing. Before the lookup, because a 404 for
         //! an empty PATCH would send the caller looking for the wrong problem.
@@ -236,9 +239,8 @@ public class PlanCatalogueService {
                 "Draft updated. It is still a DRAFT, so nobody can buy it and everything about "
                         + "it can still be changed. Publish it when the price is settled.");
     }
+//! Endpoint 3 — set a draft's features --------------------------------------------
 
-
-    //! endpoint 3 — set a draft's features --------------------------------------------
     /**
      * #3 — replaces the whole feature list of a draft.
      *
@@ -255,6 +257,8 @@ public class PlanCatalogueService {
      * a published plan would silently change what somebody already bought. Same refusal as #2.
      */
     @Transactional
+
+
     public PlanFeatureListResponse replaceFeatures(String code, Integer version,
             List<PlanFeatureRequest> requests) {
 
@@ -293,9 +297,8 @@ public class PlanCatalogueService {
                 "Replaced the feature list: " + before + " out, " + replacement.size()
                         + " in. Still a DRAFT, so it can be replaced again before publishing.");
     }
+//! Endpoint 4 — publish a draft ---------------------------------------------------
 
-
-    //! endpoint 4 — publish a draft ---------------------------------------------------
     /**
      * #4 — turns a draft into a plan schools can buy.
      *
@@ -315,6 +318,8 @@ public class PlanCatalogueService {
      * decision, so the two are separate endpoints.
      */
     @Transactional
+
+
     public PlanResponse publish(String code, Integer version, PlanPublishRequest request) {
         PlanPublishRequest asked = request == null ? PlanPublishRequest.empty() : request;
         //! step 1 - find the plan, or 404
@@ -387,9 +392,8 @@ public class PlanCatalogueService {
 
         return PlanResponse.fromPlan(savedPlan, nextStep);
     }
+//! Endpoint 6 — retire a plan -----------------------------------------------------
 
-
-    //! endpoint 6 — retire a plan -----------------------------------------------------
         /**
          * #6 — retires a plan from the catalogue.
          *
@@ -401,6 +405,8 @@ public class PlanCatalogueService {
          * <p>{@code publiclyAvailable} is managed by #7.
          */
     @Transactional
+
+
     public PlanResponse retire(String code, Integer version) {
         //! step 1 - find the plan, or 404
         PlanDefinition plan = loadPlanVersion(code, version);
@@ -434,9 +440,8 @@ public class PlanCatalogueService {
                         + "ALREADY on it keep it, at the price and features they were sold, and "
                         + "nothing about their subscription has changed.");
     }
+//! Endpoint 7 — list it publicly, or not ------------------------------------------
 
-
-    //! endpoint 7 — list it publicly, or not ------------------------------------------
     /**
      * #7 — says whether a plan shows on the public list.
      *
@@ -461,6 +466,8 @@ public class PlanCatalogueService {
      * is no reason to stop somebody doing it.
      */
     @Transactional
+
+
     public PlanResponse setAvailability(String code, Integer version,
             PlanAvailabilityRequest request) {
 
@@ -500,9 +507,7 @@ public class PlanCatalogueService {
         return PlanResponse.fromPlan(savedPlan,
                 (wanted ? "Now on the public list. " : off) + sellabilityNote(savedPlan));
     }
-
-
-    //! endpoint 8 — list the catalogue ------------------------------------------------
+//! Endpoint 8 — list the catalogue ------------------------------------------------
 
         /**
          ** 8 — lists plans with optional filters, sorting, and pagination.
@@ -567,9 +572,8 @@ public class PlanCatalogueService {
 
         return PageResponse.from(plansPage, PlanSummaryResponse::fromPlan);
         }
+//! Endpoint 9 — one plan's version history ----------------------------------------
 
-
-    //! endpoint 9 — one plan's version history ----------------------------------------
     /**
      * #9 — every version of one plan, newest first.
      *
@@ -616,9 +620,8 @@ public class PlanCatalogueService {
 
         return PlanVersionHistoryResponse.fromVersions(versions, schoolCounts, note);
     }
+//! Endpoint 10 — one version in full ----------------------------------------------
 
-
-    //! endpoint 10 — one version in full ----------------------------------------------
     /**
      * #10 — one plan version, everything about it, features included.
      *
