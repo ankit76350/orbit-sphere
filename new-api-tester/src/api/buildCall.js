@@ -9,7 +9,7 @@
 import { findEndpoint } from '../config/endpoints.js';
 import { buildRequest } from '../lib/httpClient.js';
 
-/** Turns { status: ['ACTIVE','TRIAL'], page: 0 } into the rows the request builder wants. */
+/** Turns { status: ['ACTIVE','SUSPENDED'], page: 0 } into the rows the request builder wants. */
 export function toQueryRows(query) {
   const rows = [];
   Object.entries(query || {}).forEach(([key, value]) => {

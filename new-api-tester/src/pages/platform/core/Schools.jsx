@@ -26,7 +26,6 @@ import { detailPath } from '../../../paths.js'
 
 const STATUS_TONE = {
   ACTIVE: 'good',
-  TRIAL: 'warn',
   PROVISIONING: 'warn',
   SUSPENDED: 'bad',
   CLOSED: 'grey',
@@ -37,7 +36,6 @@ const STATUS_TONE = {
 const FILTERS = [
   { id: 'all', label: 'All', statuses: [] },
   { id: 'live', label: 'Live', statuses: ['ACTIVE'] },
-  { id: 'trial', label: 'Trial', statuses: ['TRIAL'] },
   { id: 'setup', label: 'Being set up', statuses: ['PROVISIONING'] },
   { id: 'suspended', label: 'Suspended', statuses: ['SUSPENDED'] },
 ]

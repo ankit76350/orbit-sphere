@@ -26,7 +26,6 @@ import { screenPath } from '../../../paths.js'
 
 const STATUS_TONE = {
   ACTIVE: 'good',
-  TRIAL: 'warn',
   PROVISIONING: 'warn',
   SUSPENDED: 'bad',
   CLOSED: 'grey',
@@ -38,7 +37,6 @@ const STATUS_TONE = {
 function actionsFor(status) {
   switch (status) {
     case 'PROVISIONING':
-    case 'TRIAL':
       return ['complete', 'activate']
     case 'ACTIVE':
       return ['suspend']

@@ -26,12 +26,11 @@ import jakarta.validation.constraints.Size;
  * <p>Being a separate type from the model is what makes that refusal real. Binding the request
  * straight onto School would accept all four silently.
  *
- * <p>{@code trial} decides between the two legal starting states. It is a boolean rather than
- * taking a SchoolStatus for the same reason: a boolean cannot express ACTIVE.
- *
- * <p>The account holder is the person on the contract, and only their name is taken. **No staff
- * record is created here** — see SchoolProvisioningService for why that turned out to be the
- * right call.
+ * <p><b>There is no starting-state choice.</b> Every school starts at PROVISIONING. A school
+ * once started at TRIAL instead, chosen by a {@code trial} flag on this request — but nothing in
+ * the codebase ever treated the two differently, so it was a second word for one state. A trial
+ * is a property of what a school PAYS for and lives on the subscription instead, where it has a
+ * plan and a period behind it.
  */
 public record SchoolCreateRequest(
 
@@ -62,19 +61,9 @@ public record SchoolCreateRequest(
         @Size(max = 200) String addressLine,
         @Size(max = 100) String city,
         @Size(max = 100) String stateOrProvince,
-        @Size(max = 20) String postalCode,
-
-        /**
-         * True starts the tenant at TRIAL instead of PROVISIONING.
-         *
-         * <p>A boxed Boolean, not a primitive. Jackson maps an absent JSON field to null, and
-         * null into a primitive {@code boolean} is a hard parse failure — so omitting an
-         * optional flag returned a 400 with a stack trace instead of defaulting to false.
-         * Every optional scalar in a request record has to be boxed for this reason.
-         */
-        Boolean trial) {
+        @Size(max = 20) String postalCode) {
 
     public SchoolStatus initialStatus() {
-        return Boolean.TRUE.equals(trial) ? SchoolStatus.TRIAL : SchoolStatus.PROVISIONING;
+        return SchoolStatus.PROVISIONING;
     }
 }

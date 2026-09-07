@@ -7,10 +7,15 @@ package com.orbitastra.backend.models.core.enums;
  * school-owned business documents.
  */
 public enum SchoolStatus {
-    /** School is using a trial onboarding path. */
-    TRIAL,
-
-    /** Tenant resources and configuration are being prepared. */
+    /**
+     * Tenant resources and configuration are being prepared. Where every school starts.
+     *
+     * <p>There is no separate trial state. A trial is a property of what a school is PAYING for,
+     * not of the school itself — it lives on the subscription as {@code SubscriptionStatus.TRIAL},
+     * which has a plan and a period behind it. A school-level TRIAL existed here once and never
+     * behaved differently from PROVISIONING anywhere in the codebase: the same three checks
+     * accepted both, so it was a second word for one state.
+     */
     PROVISIONING,
 
     /** Tenant is available for normal use. */

@@ -310,7 +310,7 @@ description of running code rather than a plan.
 | `defaultTimeZone` | String, required | **Any IANA zone id the JVM knows** — checked against `ZoneId.getAvailableZoneIds()`, so `Asia/Kolkata` yes and `Asia/Pune` `409 TIME_ZONE_INVALID`. Changing it needs `confirmTimeZoneChange: true` → else `409 TIME_ZONE_CHANGE_NOT_CONFIRMED`, **and is refused outright while a year is running** → `409 ACADEMIC_YEAR_IN_PROGRESS`, because it reinterprets which date every stored attendance record and holiday falls on. |
 | `addressLine` `city` `stateOrProvince` `postalCode` | String, optional | **Open** — 200, 100, 100 and 20 characters. #7 is a `PUT`, so **an omitted field is cleared, not kept**. |
 | `countryCode` | String, required | **Two letters, uppercased** — `^[A-Za-z]{2}$`, an ISO 3166-1 alpha-2 code. Set by #1 and **never editable afterwards**: it is deliberately absent from #7, because moving a school between countries changes its tax and reporting rules and is not an address edit. |
-| `status` | [SchoolStatus](../../models/core/enums/SchoolStatus.java), required | **`PROVISIONING`** at create, or **`TRIAL`** when the request says `trial: true`. Built moves: **`PROVISIONING`/`TRIAL` → `ACTIVE`** (#3), **`ACTIVE` → `SUSPENDED`** (#4), **`SUSPENDED` → `ACTIVE`** (#5). Refusals are `409 SCHOOL_NOT_ACTIVATABLE`, `SCHOOL_NOT_SUSPENDABLE`, `SCHOOL_NOT_REACTIVATABLE`. The other four — `OFFBOARDING` `CLOSED` `DELETION_PENDING` `DELETED` — **have no endpoint that can reach them**, because #13 to #17 are deferred. |
+| `status` | [SchoolStatus](../../models/core/enums/SchoolStatus.java), required | **`PROVISIONING`** at create — the only starting state. Built moves: **`PROVISIONING` → `ACTIVE`** (#3), **`ACTIVE` → `SUSPENDED`** (#4), **`SUSPENDED` → `ACTIVE`** (#5). Refusals are `409 SCHOOL_NOT_ACTIVATABLE`, `SCHOOL_NOT_SUSPENDABLE`, `SCHOOL_NOT_REACTIVATABLE`. The other four — `OFFBOARDING` `CLOSED` `DELETION_PENDING` `DELETED` — **have no endpoint that can reach them**, because #13 to #17 are deferred. |
 | `activatedAt` | Instant, optional | **Set once, on the first activation only.** #3 checks it to tell a first activation from a repeat, so re-activating a school later never overwrites the date it originally went live. |
 | `suspendedAt` | Instant, optional | Set by #4. **Kept on purpose after #5** — with `statusReason`, it is the record of the last suspension. |
 | `statusReason` | String, optional | **Open**, up to 500 characters. Required on #4, optional on #5. Written **for the operator** — "Non-payment. Third invoice unpaid past 60 days." — so it is on G1 and G2 and **never on G4**. |
@@ -355,7 +355,7 @@ description of running code rather than a plan.
 <a id="e1"></a>
 **[#1](#t1) · `POST /platform/schools`**
 
-- [`schools`](../../models/core/School.java) — *insert*: `schoolName`, `accountHolderName`, `subdomain`, `phoneNumber`, `emailAddress`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `status` = `PROVISIONING` or `TRIAL`
+- [`schools`](../../models/core/School.java) — *insert*: `schoolName`, `accountHolderName`, `subdomain`, `phoneNumber`, `emailAddress`, `defaultLocale`, `defaultTimeZone`, `addressLine`, `city`, `stateOrProvince`, `postalCode`, `countryCode`, `status` = `PROVISIONING`
 
 <a id="e2"></a>
 **[#2](#t2) · `POST /platform/schools/{id}/complete-provisioning`**
@@ -369,7 +369,7 @@ description of running code rather than a plan.
 <a id="e3"></a>
 **[#3](#t3) · `POST /platform/schools/{id}/activate`**
 
-- [`schools`](../../models/core/School.java) — *reads*: `status` — only `PROVISIONING` or `TRIAL`; `activatedAt` to tell a first activation from a repeat
+- [`schools`](../../models/core/School.java) — *reads*: `status` — only `PROVISIONING`; `activatedAt` to tell a first activation from a repeat
 - [`roles`](../../models/identity/Role.java) — *reads*: `roles.roleKey` — `SCHOOL_ADMIN` must be in the array
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *reads*: `counters` — **its length**, not a document count. `countBySchoolId` only ever answers 0 or 1 now, so it would pass however empty the array was
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `current` — read, never copied onto the school

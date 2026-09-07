@@ -67,9 +67,8 @@ public class CurrentSchoolResolver {
      */
     public School requireUsable() {
         School school = require();
-        //! only edit if they are in ACTIVE , TRIAL or PROVISIONING state
+        //! only edit if they are in ACTIVE , PROVISIONING state
         if (school.getStatus() != SchoolStatus.ACTIVE
-                && school.getStatus() != SchoolStatus.TRIAL
                 && school.getStatus() != SchoolStatus.PROVISIONING) {
             throw ApiException.conflict("SCHOOL_NOT_EDITABLE",
                     "This school is " + school.getStatus() + " and cannot be edited.");

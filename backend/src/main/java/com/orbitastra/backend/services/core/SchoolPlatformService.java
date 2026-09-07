@@ -335,8 +335,7 @@ public class SchoolPlatformService {
                         "No school found with id '" + schoolId + "'."));
 
         //! step 2 - only TRIAL and PROVISIONING may go live
-        if (school.getStatus() != SchoolStatus.PROVISIONING
-                && school.getStatus() != SchoolStatus.TRIAL) {
+        if (school.getStatus() != SchoolStatus.PROVISIONING) {
             throw ApiException.conflict("SCHOOL_NOT_ACTIVATABLE",
                     "A school at status " + school.getStatus() + " cannot be activated. Only "
                             + "PROVISIONING and TRIAL can. A suspended school is reactivated, "

@@ -577,7 +577,7 @@ public class PlatformSubscriptionService {
                 + subscription.getCurrentPeriodEnd() + ".";
 
         String activation = switch (school.getStatus()) {
-            case PROVISIONING, TRIAL -> " The school itself is still " + school.getStatus()
+            case PROVISIONING -> " The school itself is still " + school.getStatus()
                     + " — activating the subscription does not activate the school.";
             case SUSPENDED -> " The school itself is still SUSPENDED — paying does not lift a "
                     + "suspension.";
@@ -606,7 +606,7 @@ public class PlatformSubscriptionService {
                 : "Subscribed, and billed from " + subscription.getCurrentPeriodStart() + ".";
 
         String activation = switch (school.getStatus()) {
-            case PROVISIONING, TRIAL -> " The school can now be activated, and this is the "
+            case PROVISIONING -> " The school can now be activated, and this is the "
                     + "subscription its activation check was written to look for.";
             case SUSPENDED -> " The school itself is still SUSPENDED — a subscription does not "
                     + "reactivate it.";

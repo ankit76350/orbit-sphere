@@ -294,6 +294,29 @@ for (const [label, ok] of boundaryChecks) {
 // The profile answers "who is this school"; the subscription answers "what are they on". Both
 // are what you want when you open a school, so the profile reads the subscription too — one
 // extra call, in parallel, summarised rather than duplicating the subscription screen.
+// A school has no trial state. It had one, and nothing in the codebase ever treated it
+// differently from PROVISIONING — the same three checks accepted both, so it was a second word
+// for one state. A trial belongs to the SUBSCRIPTION, where it has a plan and a period behind it.
+console.log('\nA school has no trial state')
+const schoolsSource = readFileSync('src/pages/platform/core/Schools.jsx', 'utf8')
+const schoolDetailSource = readFileSync('src/pages/platform/core/SchoolDetail.jsx', 'utf8')
+const trialChecks = [
+  ['the school list has no trial filter', !schoolsSource.includes("statuses: ['TRIAL']")],
+  ['nor a tone for a trial school', !schoolsSource.includes("TRIAL: 'warn'")],
+  ['the school page does not offer trial actions', !schoolDetailSource.includes("case 'TRIAL'")],
+  ['and PROVISIONING is the only pre-live state',
+    /case 'PROVISIONING':\s*\n\s*return \['complete', 'activate'\]/.test(schoolDetailSource)],
+  // The subscription's own trial is a different enum and has to survive all of this.
+  ['a subscription can still be a trial',
+    readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8').includes("s.status === 'TRIAL'")],
+  ['and the school surface still shows one',
+    readFileSync('src/pages/school/plans/Subscription.jsx', 'utf8').includes("TRIAL: 'warn'")],
+]
+for (const [label, ok] of trialChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe profile also reads the subscription')
 const profileSource = readFileSync('src/pages/school/core/Profile.jsx', 'utf8')
 const bottomChecks = [
