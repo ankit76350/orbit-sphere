@@ -128,7 +128,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
-| <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
 | <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -2103,6 +2103,7 @@ than it tidies.
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: a new row for the plan being moved **onto** — `subscriptionNo` (its own, from the sequence), `planDefinitionDocsId`, `planVersion`, `status` and `billingCustomerReference` carried over, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `reasonForChanges`, `current` = true
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — the new row needs a `subscriptionNo` of its own, because a unique index forbids two rows of one school sharing one
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: one row against the **new** subscription — `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus` and `newStatus` = the status, unchanged, `source`, `reason` = both plans, both subscription numbers and the caller's words, `performedByDocsId`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *reads* `status`, `schoolName`, `defaultTimeZone`; *updates* `status` = `ACTIVE` and `activatedAt` (first time only). See [the school's own status](#e16-school-status) — this is the one write outside `school_subscriptions`
 - **No invoice.** `subscription_invoices` is not touched, because nothing writes to it yet
 
 ### Request and response
@@ -2155,7 +2156,11 @@ than it tidies.
 409 PLAN_UNCHANGED               — already on that version
 409 PLAN_NOT_SELLABLE            — a draft or retired target
 409 SUBSCRIPTION_NOT_CHANGEABLE  — cancelled or expired
+409 SCHOOL_NOT_PLAN_CHANGEABLE   — the school is being wound down
 400 BILLING_PERIOD_END_REQUIRED  — a CUSTOM target, no end
+400 LIMIT_TOO_LOW                — a ceiling sent as 0
+404 SCHOOL_NOT_FOUND             — no such school
+404 SUBSCRIPTION_NOT_FOUND       — the school has none
 </pre></td>
 </tr>
 </table>
@@ -2183,6 +2188,50 @@ made, and the billing period restarts with it.**
 
 Deferring a change is #17's territory, if it is ever wanted: renewal is the moment a period ends,
 which is the only moment a deferred change could take effect.
+
+<a id="e16-school-status"></a>
+
+### It moves the school's own status, and refuses a school being wound down
+
+The only write this endpoint makes outside `school_subscriptions`. A school that is paying for a
+plan should be able to use what it pays for, so a plan change leaves the school `ACTIVE` — and a
+school that is being shut down cannot change plan at all.
+
+| School status | Plan change | The school afterwards |
+|---|---|---|
+| `PROVISIONING` | allowed | `ACTIVE`, and `activatedAt` stamped if it was never set |
+| `ACTIVE` | allowed | `ACTIVE` — unchanged |
+| `SUSPENDED` | allowed | `ACTIVE` — **the suspension is lifted** |
+| `OFFBOARDING` | `409 SCHOOL_NOT_PLAN_CHANGEABLE` | untouched |
+| `CLOSED` | `409 SCHOOL_NOT_PLAN_CHANGEABLE` | untouched |
+| `DELETION_PENDING` | `409 SCHOOL_NOT_PLAN_CHANGEABLE` | untouched |
+| `DELETED` | `409 SCHOOL_NOT_PLAN_CHANGEABLE` | untouched |
+
+Written as an **allow-list** of the three running states, so a status added to `SchoolStatus`
+later is refused until somebody decides it should be allowed, rather than silently permitted.
+
+**Two things worth knowing, because they are not what the neighbouring endpoints do.**
+
+**It un-suspends, where a sale does not.** #13 leaves a `SUSPENDED` school suspended, on the
+argument that lifting a suspension is a decision rather than a side effect of buying a plan. Here
+it is the opposite: a suspension is ordinarily for non-payment, and a school being moved onto a
+new plan has generally sorted that out — leaving it locked out would bill it for something it
+cannot reach. The `note` always says the suspension was lifted, so it is never silent.
+
+**`OFFBOARDING` is refused here and accepted everywhere else.** #13 and #14 both allow it: a
+school being wound down still has a subscription that may need correcting, and refusing to *edit*
+one would leave a wrong record un-fixable. But moving that school onto a *different* plan sells to
+a customer who is leaving, and this endpoint takes the school `ACTIVE` as it goes — which would
+reverse the wind-down as a side effect of a plan change.
+
+**It does not re-run the provisioning checks**, unlike #13. A `PROVISIONING` school reaching a
+plan change already has a subscription, so #13 has already run those checks and either activated
+it or said why not; refusing again here would block a plan change over a setup step that has
+nothing to do with the plan. Instead the `note` reports the incomplete setup, so putting such a
+school live is visible in the response:
+
+> The school was PROVISIONING and is now ACTIVE, but its setup is not finished: This school has
+> no SCHOOL_ADMIN role. Run complete-provisioning first.
 
 ### Two rows, not one edited row
 
