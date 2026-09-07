@@ -489,6 +489,38 @@ for (const [label, ok] of autofillChecks) {
   if (!ok) fail++
 }
 
+// The sale form got the same treatment, and the two ceiling boxes it never offered at all —
+// #13 has accepted maxStudentsOverride and maxUsersOverride since the sale started copying the
+// plan's limits onto the subscription, but there was no way to negotiate one at the point of sale.
+console.log('\nThe sale form fills in from the plan too')
+const newStart = subsSourceFull.indexOf('function NewSubscription(')
+const newSource = subsSourceFull.slice(newStart)
+const saleFillChecks = [
+  ['the select fills the boxes',
+    newSource.includes('onChange={(event) => choosePlan(event.target.value)}')],
+  ['all three figures come from the plan',
+    /const choosePlan[\s\S]{0,600}setPrice\(plan \? String\(plan\.listPrice\)/.test(newSource)
+      && /const choosePlan[\s\S]{0,600}setMaxStudents\(plan \? String\(plan\.maxStudents\)/
+        .test(newSource)
+      && /const choosePlan[\s\S]{0,600}setMaxUsers\(plan \? String\(plan\.maxUsers\)/
+        .test(newSource)],
+  ['a ceiling can now be negotiated at the point of sale',
+    newSource.includes('body.maxStudentsOverride = Number(maxStudents)')
+      && newSource.includes('body.maxUsersOverride = Number(maxUsers)')],
+  ['an emptied box still means "copy the plan\'s"',
+    newSource.includes('if (maxStudents.trim())') && newSource.includes('if (maxUsers.trim())')],
+  ['a fresh sale starts from a clean form',
+    /setPicked\(''\)[\s\S]{0,120}setMaxStudents\(''\)[\s\S]{0,60}setMaxUsers\(''\)/
+      .test(newSource)],
+  // The activate endpoint was removed on 2026-09-07: a trial that starts paying is #16.
+  ['the trial checkbox no longer promises an activate call',
+    !newSource.includes('activating it later') && newSource.includes('there is no activate endpoint')],
+]
+for (const [label, ok] of saleFillChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A CUSTOM cycle has no length, so the API cannot derive a period end and refuses the sale
 // without one. The form has to ask, or the only way to find out is a 400 with a filled-in form.
 //
@@ -507,9 +539,13 @@ const customChecks = [
   ['the form asks for an end date, and only for CUSTOM',
     subsSourceFull.includes("chosen?.billingCycle === 'CUSTOM'")
       && /\{needsPeriodEnd \? \(/.test(subsSourceFull)],
+  // Matched as one clause of the button's guard rather than as the whole expression, so adding
+  // another reason to refuse the sale does not read as removing this one.
   ['it will not let the sale go without one',
-    subsSourceFull.includes('disabled={!chosen || (needsPeriodEnd && !periodEnd)}')
+    /disabled=\{[^}]*needsPeriodEnd && !periodEnd/.test(subsSourceFull)
       && subsSourceFull.includes("'Set the end date first'")],
+  ['and not with a ceiling of nothing',
+    /disabled=\{[^}]*zeroCeiling/.test(subsSourceFull)],
   ['the chosen day is sent as the end of it', subsSourceFull.includes('endOfDay(periodEnd)')],
   ['and only for CUSTOM — no other cycle gets an end sent',
     subsSourceFull.includes('if (needsPeriodEnd) body.currentPeriodEnd')],

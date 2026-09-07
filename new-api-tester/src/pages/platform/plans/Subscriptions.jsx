@@ -1091,6 +1091,8 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const [picked, setPicked] = useState('')
   const [trial, setTrial] = useState(false)
   const [price, setPrice] = useState('')
+  const [maxStudents, setMaxStudents] = useState('')
+  const [maxUsers, setMaxUsers] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1111,6 +1113,30 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
   const chosenSellability = chosen ? sellability(chosen) : null
 
+  /**
+   * Choosing a plan fills the three negotiable boxes with that plan's own figures.
+   *
+   * The same as the plan-change modal, and for the same reason: a placeholder cannot be read back
+   * or adjusted, and somebody deciding whether to negotiate a price needs to see the number they
+   * are negotiating away from. Switching plan re-fills them, because the figures belong to the
+   * plan rather than to the form.
+   *
+   * #13 treats a figure equal to the plan's exactly as it treats an absent one, so filling them
+   * in changes what the request carries and not what the sale does.
+   */
+  const choosePlan = (key) => {
+    setPicked(key)
+    const plan = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === key)
+    setPrice(plan ? String(plan.listPrice) : '')
+    setMaxStudents(plan ? String(plan.maxStudents) : '')
+    setMaxUsers(plan ? String(plan.maxUsers) : '')
+  }
+
+  // Zero is refused on a sale — a school sold no students is not a ceiling anybody agreed — so
+  // it is caught here rather than after a round trip that empties the form.
+  const zeroCeiling = [maxStudents, maxUsers]
+    .some((value) => value.trim() !== '' && Number(value) < 1)
+
   // A CUSTOM cycle has no length, so there is nothing for the API to derive and it refuses the
   // sale with BILLING_PERIOD_END_REQUIRED. The date is asked for here instead of being found out
   // from a 400.
@@ -1129,6 +1155,11 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     if (trial) body.trial = true
     // An empty box means "charge the plan's list price". Sending 0 would mean free.
     if (price.trim()) body.contractedPrice = Number(price)
+    // Both ceilings the same way: an empty box means "copy the plan's own", which is what the
+    // API does with an absent field. Filled in from the plan, so ordinarily these carry the
+    // plan's figures and a negotiated sale is somebody typing over one of them.
+    if (maxStudents.trim()) body.maxStudentsOverride = Number(maxStudents)
+    if (maxUsers.trim()) body.maxUsersOverride = Number(maxUsers)
     // Only for a CUSTOM cycle: every other cycle derives its own end, and sending one would
     // override a length the plan already implies. The chosen day is included, so end of it.
     if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
@@ -1140,6 +1171,8 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     if (result.ok) {
       setPicked('')
       setPrice('')
+      setMaxStudents('')
+      setMaxUsers('')
       setTrial(false)
       setPeriodEnd('')
       await onCreated(result.bodyJson)
@@ -1160,7 +1193,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={!chosen || (needsPeriodEnd && !periodEnd)}
+            disabled={!chosen || (needsPeriodEnd && !periodEnd) || zeroCeiling}
             onClick={submit}
           >
             {needsPeriodEnd && !periodEnd ? 'Set the end date first' : 'Create it'}
@@ -1198,7 +1231,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
               className="select-input"
               style={{ width: '100%' }}
               value={picked}
-              onChange={(event) => setPicked(event.target.value)}
+              onChange={(event) => choosePlan(event.target.value)}
             >
               <option value="">{plans ? 'Choose a plan…' : 'Loading the plans…'}</option>
               {(plans ?? []).map((one) => (
@@ -1259,19 +1292,57 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
           </>
         ) : null}
 
-        <Field
-          label="Agreed price"
-          hint={chosen
-            ? `Blank charges the list price, ${money(chosen.listPrice, chosen.currencyCode)}.`
-            : "Blank charges the plan's list price."}
-        >
-          <Input
-            type="number" min="0" step="0.01"
-            value={price}
-            placeholder={chosen ? String(chosen.listPrice) : ''}
-            onChange={(event) => setPrice(event.target.value)}
-          />
-        </Field>
+        <div className="field-split">
+          Negotiated terms — filled from the plan, change what was agreed
+        </div>
+
+        <div className="field-row">
+          <Field
+            label="Agreed price"
+            hint={chosen
+              ? `The plan's list price. Change it to sell at something else; clearing it charges ${money(chosen.listPrice, chosen.currencyCode)} just the same.`
+              : 'Choose a plan and this fills in.'}
+          >
+            <Input
+              type="number" min="0" step="0.01"
+              value={price}
+              placeholder={chosen ? String(chosen.listPrice) : ''}
+              onChange={(event) => setPrice(event.target.value)}
+            />
+          </Field>
+
+          <Field
+            label="Student limit"
+            hint={chosen ? "The plan's own ceiling. Raise it to negotiate one." : 'Choose a plan and this fills in.'}
+          >
+            <Input
+              type="number" min="1"
+              value={maxStudents}
+              placeholder={chosen ? String(chosen.maxStudents) : ''}
+              onChange={(event) => setMaxStudents(event.target.value)}
+            />
+          </Field>
+
+          <Field
+            label="User limit"
+            hint={chosen ? "The plan's own ceiling. Raise it to negotiate one." : 'Choose a plan and this fills in.'}
+          >
+            <Input
+              type="number" min="1"
+              value={maxUsers}
+              placeholder={chosen ? String(chosen.maxUsers) : ''}
+              onChange={(event) => setMaxUsers(event.target.value)}
+            />
+          </Field>
+        </div>
+
+        {/* A ceiling of nothing is a typo, and the API says so. Said here first. */}
+        {zeroCeiling ? (
+          <p className="banner" data-tone="bad">
+            <strong>A ceiling has to be at least 1.</strong> Zero means nothing on a sale — clear
+            the box to take the plan&apos;s own figure instead.
+          </p>
+        ) : null}
 
         <label className="feature-row" style={{ cursor: 'pointer' }}>
           <input
@@ -1283,8 +1354,8 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
           <span className="feature-main">
             <span className="feature-name">Start it as a trial</span>
             <span className="feature-desc">
-              Opens TRIAL instead of ACTIVE. Everything else is the same, and activating it later
-              is one call.
+              Opens TRIAL instead of ACTIVE. Everything else is the same. A trial that starts
+              paying is a plan change, not an activation — there is no activate endpoint.
             </span>
           </span>
         </label>
