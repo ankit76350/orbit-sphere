@@ -6296,12 +6296,13 @@ running backwards (\`400 INVALID_BILLING_PERIOD\`).
 |---|---|
 | omitted, or \`null\` | leave it exactly as it is |
 | a value | replace it |
-| a block omitted | leave both of its fields alone |
-| a block sent | replace both; \`null\` inside means "no value" |
+| \`0\`, on either override | remove it, and fall back to the plan's own limit |
 
-\`limitOverrides\` is nested because its two fields are nullable on the model and so can be cleared
-— "omitted" has to be told apart from "cleared". Everything else is \`@NotNull\` and cannot be
-cleared at all, so those stay flat, which is what lets a trial's end date move on its own.
+Every field is flat. Jackson cannot tell an omitted field from one sent as \`null\`, which costs
+nothing for the five \`@NotNull\` fields — they cannot be cleared at all — but would collapse "leave
+this alone" and "take this away" for the two nullable overrides. So **zero is the removal**: a
+school permitted no students is not a ceiling anybody negotiated, which is why Create Subscription
+refuses zero. A negative override is a \`400 LIMIT_TOO_LOW\`.
 
 ### Nothing changed is not an error, nothing asked for is
 
@@ -6322,9 +6323,9 @@ refused before the service sees it.
  absence means is in the description above; the cases below are what the
  endpoint actually does with them.
 
- THE EDITABLE FIELDS ARE SEVEN: status, billingCycle, currentPeriodStart,
- currentPeriodEnd, autoRenew, limitOverrides{maxStudentsOverride,
- maxUsersOverride} — plus \`reason\`, which is REQUIRED, is stored on the
+ THE EDITABLE FIELDS ARE SEVEN, all flat: status, billingCycle,
+ currentPeriodStart, currentPeriodEnd, autoRenew, maxStudentsOverride,
+ maxUsersOverride — plus \`reason\`, which is REQUIRED, is stored on the
  subscription as reasonForChanges AND written to the history row.
 
  NOT EDITABLE HERE: contractedPrice and currencyCode (#25),
@@ -6338,7 +6339,7 @@ refused before the service sees it.
  ANSWERS THE WHOLE SUBSCRIPTION BACK, the same shape as Get Subscription,
  so there is no second call to see what it now says. \`note\` says what moved.`,
       requiredFields: ["reason"],
-      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides"],
+      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "maxStudentsOverride", "maxUsersOverride"],
       pathParams: [
         { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
       ],
@@ -6357,7 +6358,6 @@ refused before the service sees it.
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "Ask for nothing" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
-        { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
         { status: 400, code: "NO_CHANGES_REQUESTED", when: "A reason on its own" },
       ],
       examples: [
@@ -6439,29 +6439,42 @@ refused before the service sees it.
           notes: `OUT: maxStudents 2500, hasLimitOverrides true. The response reports the
          limit IN FORCE, so no caller works out which one applies.`,
           body: `{
-  "limitOverrides": { "maxStudentsOverride": 2500, "maxUsersOverride": 300 }
+  "maxStudentsOverride": 2500,
+  "maxUsersOverride": 300,
+  "reason": "Negotiated up at renewal."
 }`,
         },
         {
           id: "07",
-          name: "TAKE ONE OVERRIDE AWAY",
+          name: "RAISE ONE, LEAVE THE OTHER",
           expect: "200 OK",
-          notes: `OUT: maxStudentsOverride null and maxStudents back to the PLAN's limit;
-         the users override untouched at 300.
-    NULL INSIDE A BLOCK IS A REMOVAL. Omitting the block leaves both alone
-    — that is the whole reason these two are nested.`,
+          notes: `OUT: the students override moves; the users override is untouched.
+    Omitting a field leaves it. There is no way to say "leave it" and
+    "clear it" with the same absent value, which is what case 08 is about.`,
           body: `{
-  "limitOverrides": { "maxStudentsOverride": null, "maxUsersOverride": 300 }
+  "maxStudentsOverride": 4000,
+  "reason": "More intake than expected."
 }`,
         },
         {
           id: "08",
-          name: "AN OVERRIDE OF ZERO",
-          expect: "400 Bad Request",
-          notes: `OUT: { "code": "LIMIT_TOO_LOW" }
-    An override that permits nothing is not a limit anybody negotiated.`,
+          name: "TAKE ONE OVERRIDE AWAY",
+          expect: "200 OK",
+          notes: `ZERO IS THE REMOVAL. OUT: maxStudentsOverride null, and maxStudents
+    back to the PLAN's own limit. The users override is untouched.
+
+    Why zero: Jackson hands the server null both for a field that was
+    omitted and for one sent as null, so "leave this alone" and "take this
+    away" arrive identical. Zero is free to mean the second because it
+    cannot mean anything else — a school permitted no students is not a
+    ceiling anybody negotiated, which is why Create Subscription refuses 0.
+
+    A NEGATIVE OVERRIDE IS STILL REFUSED:
+      { "maxUsersOverride": -5 }  ->  400 LIMIT_TOO_LOW
+    That is a typo, not an instruction.`,
           body: `{
-  "limitOverrides": { "maxStudentsOverride": 0, "maxUsersOverride": null }
+  "maxStudentsOverride": 0,
+  "reason": "Back to the plan's own limit."
 }`,
         },
         {
@@ -6545,7 +6558,8 @@ refused before the service sees it.
   "currentPeriodStart": "2026-04-01T00:00:00Z",
   "currentPeriodEnd": "2027-03-31T23:59:59Z",
   "autoRenew": false,
-  "limitOverrides": { "maxStudentsOverride": 4000, "maxUsersOverride": 400 },
+  "maxStudentsOverride": 4000,
+  "maxUsersOverride": 400,
   "reason": "Contract renegotiated, invoice overdue."
 }`,
         },

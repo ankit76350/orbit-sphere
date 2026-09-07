@@ -511,8 +511,9 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
   // before the round trip that would empty the form.
   const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
     && form.currentPeriodEnd < form.currentPeriodStart
-  const zeroOverride = [form.maxStudentsOverride, form.maxUsersOverride]
-    .some((value) => value.trim() !== '' && Number(value) < 1)
+  // Zero is legal now — it is how an override is removed — so only a negative is a refusal.
+  const negativeOverride = [form.maxStudentsOverride, form.maxUsersOverride]
+    .some((value) => value.trim() !== '' && Number(value) < 0)
   // The API requires it — @NotBlank, so whitespace does not count. Asked for only once there is
   // something to explain: a reason demanded before any box has moved reads as a nag.
   const reasonMissing = !nothingChanged && !form.reason.trim()
@@ -545,7 +546,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={nothingChanged || reasonMissing || periodBackwards || zeroOverride}
+            disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride}
             onClick={submit}
           >
             {nothingChanged
@@ -664,16 +665,16 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </span>
         </label>
 
-        <div className="field-split">Negotiated limits — leave blank to use the plan's own</div>
+        <div className="field-split">Negotiated limits — blank means the plan's own</div>
 
         <div className="field-grid">
           <Field
             label="Student limit"
             hint={subscription.maxStudentsOverride == null
               ? `Blank, so the plan's ${subscription.maxStudents} applies.`
-              : `Negotiated up from the plan. Clear the box to drop back to the plan's own limit.`}
+              : "Negotiated. Empty the box to remove it — sent as 0, which is how the API says \u201cuse the plan's own limit\u201d."}
           >
-            <Input type="number" min="1" value={form.maxStudentsOverride}
+            <Input type="number" min="0" value={form.maxStudentsOverride}
               onChange={set('maxStudentsOverride')}
               placeholder={asText(subscription.maxStudents)} />
           </Field>
@@ -681,20 +682,20 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             label="User limit"
             hint={subscription.maxUsersOverride == null
               ? `Blank, so the plan's ${subscription.maxUsers} applies.`
-              : `Negotiated up from the plan. Clear the box to drop back to the plan's own limit.`}
+              : 'Negotiated. Empty the box to remove it — sent as 0.'}
           >
-            <Input type="number" min="1" value={form.maxUsersOverride}
+            <Input type="number" min="0" value={form.maxUsersOverride}
               onChange={set('maxUsersOverride')}
               placeholder={asText(subscription.maxUsers)} />
           </Field>
         </div>
 
-        {/* Zero is the one number a limit box must not carry, and the API refuses it — said here
-            so it is not a round trip to find out. */}
-        {zeroOverride ? (
+        {/* Said here so it is not a round trip to find out. */}
+        {negativeOverride ? (
           <p className="banner" data-tone="bad">
-            <strong>An override of 0 is refused.</strong> A limit that permits nothing is not one
-            anybody negotiated — clear the box instead to fall back to the plan's own limit.
+            <strong>A negative override is refused.</strong> Empty the box to remove the override
+            and fall back to the plan's own limit — that is sent as <code className="mono">0</code>,
+            which is how this endpoint says it.
           </p>
         ) : null}
 

@@ -397,9 +397,12 @@ const formChecks = [
   // Both refusals are worked out from the boxes: a refused request loses the other twelve
   // boxes somebody just filled in.
   ['a backwards period is caught before it is sent', editSource.includes('periodBackwards')],
-  ['so is an override of zero', editSource.includes('zeroOverride')],
+  // Zero is legal now — it is how an override is removed — so only a negative is a refusal.
+  ['a negative override is caught, and zero is not',
+    editSource.includes('negativeOverride') && !editSource.includes('zeroOverride')
+      && editSource.includes("min=\"0\"")],
   ['and the send button refuses all three',
-    editSource.includes('disabled={nothingChanged || reasonMissing || periodBackwards || zeroOverride}')],
+    editSource.includes('disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride}')],
 ]
 for (const [label, ok] of formChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -457,14 +460,19 @@ const editCases = [
   ['an untouched date sends nothing, whatever time it is stored at',
     same(edited({}), {}) && storedForm({ ...STORED_SUB,
       currentPeriodEnd: '2027-03-31T07:29:29.533Z' }).currentPeriodEnd === '2027-03-31'],
-  // A block is all-or-nothing: sent means "replace both", so an emptied box inside it is a
-  // removal. That is the only way to take an override away.
-  ['emptying one override sends the whole block, with a null in it',
-    same(edited({ maxStudentsOverride: '' }),
-         { limitOverrides: { maxStudentsOverride: null, maxUsersOverride: 300 } })],
-  ['changing one override still sends both',
-    same(edited({ maxStudentsOverride: '4000' }),
-         { limitOverrides: { maxStudentsOverride: 4000, maxUsersOverride: 300 } })],
+  // The overrides are flat, and each goes on its own — so raising one leaves the other alone.
+  ['changing one override sends only that one',
+    same(edited({ maxStudentsOverride: '4000' }), { maxStudentsOverride: 4000 })],
+  // Emptying a box is how an override is removed, and the API spells that 0: an omitted field
+  // and an explicit null are the same value to Jackson, so zero carries the removal.
+  ['emptying one override sends 0 for it, and nothing for the other',
+    same(edited({ maxStudentsOverride: '' }), { maxStudentsOverride: 0 })],
+  ['both at once send two fields, not a block',
+    same(edited({ maxStudentsOverride: '200', maxUsersOverride: '400' }),
+         { maxStudentsOverride: 200, maxUsersOverride: 400 })],
+  // Nothing should reconstruct the shape that was flattened away.
+  ['no edit sends a limitOverrides block any more',
+    !Object.keys(edited({ maxStudentsOverride: '1', maxUsersOverride: '2' })).includes('limitOverrides')],
   // The reason is stored by the API as reasonForChanges, but it is not itself a change: alone it
   // would be a 400, and on a no-op edit there is nothing to explain.
   ['a reason alone is never sent', same(edited({ reason: 'because' }), {})],

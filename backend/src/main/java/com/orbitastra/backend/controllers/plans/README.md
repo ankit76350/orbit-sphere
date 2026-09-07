@@ -1165,6 +1165,7 @@ One thing is still refused, because there is no reading of it that is not a mist
 |---|---|
 | no `reason`, or a blank one | `400 VALIDATION_FAILED` |
 | a period left running backwards, checked against whichever end did **not** move | `400 INVALID_BILLING_PERIOD` |
+| a negative override | `400 LIMIT_TOO_LOW` — zero is the removal, negative is a typo |
 
 ### Absent, null and cleared
 
@@ -1174,14 +1175,15 @@ Absent and null are the same value to Jackson, so every field has a defined abse
 |---|---|
 | omitted, or `null` | leave it exactly as it is |
 | a value | replace it |
-| a block omitted | leave both of its fields alone |
-| a block sent | replace both; `null` inside means "no value" |
+| `0`, on either override | remove it, and fall back to the plan's own limit |
 
-**Why one field is nested.** `maxStudentsOverride` and `maxUsersOverride` are nullable on the
-model, so they can be cleared, and "omitted" has to be told apart from "cleared" — a block is the
-only way to say it. Everything else is `@NotNull` and cannot be cleared at all, so there is
-nothing to disambiguate and those stay flat. That is also what lets a trial's end date move on
-its own.
+**Every field is flat, and the two overrides pay a small price for it.** Jackson cannot tell a
+field that was omitted from one sent as `null` — both arrive as `null`. For the five `@NotNull`
+fields that costs nothing, because they cannot be cleared at all. For the two nullable overrides
+it would collapse "leave this alone" and "take this away" into one request, so **zero carries the
+removal**: a school permitted no students is not a ceiling anybody negotiated, which is precisely
+why #13 refuses zero on create. A negative number is still refused here — that is a typo, not an
+instruction.
 
 ### `reason` is required, and lands in two places
 

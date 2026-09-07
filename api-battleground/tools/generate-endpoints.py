@@ -285,11 +285,10 @@ CURATED = {
     # The one field that must be sent. Every other field here changes something a school is
     # paying for, so an unexplained edit is refused before the service sees it.
     required=['reason'],
-    # limitOverrides is passed through as written: it holds two fields, because a null inside it
-    # means "remove this" and an omitted block means "leave it". Flattening it here would lose
-    # the distinction the endpoint is built on.
+    # All flat. The two overrides take 0 to mean "remove it", since an omitted field and an
+    # explicit null are the same value to Jackson and one of them had to mean something else.
     optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
-              'limitOverrides'],
+              'maxStudentsOverride','maxUsersOverride'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
     successStatus=200,
   ),

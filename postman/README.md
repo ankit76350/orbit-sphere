@@ -226,9 +226,10 @@ overrides and the cancellation. It replaced extend-trial — pushing a trial's e
   subscription as `reasonForChanges` as well as on the history row — every field this endpoint
   edits is something a school is paying for, so an unexplained change is one nobody can answer
   for later. Blank counts as missing.
-- **Absent means unchanged.** `limitOverrides` is nested so that `null` inside can mean "remove
-  this" rather than "leave it". The period dates are `@NotNull` on the model, so they cannot be
-  cleared at all — which is what lets a trial's end date move on its own.
+- **Absent means unchanged**, and every field is flat. The two overrides take **`0` to mean
+  "remove it"** — Jackson cannot tell an omitted field from an explicit `null`, so zero is what
+  says "use the plan's own limit". Negative is a `400`. The period dates are `@NotNull` on the
+  model and cannot be cleared at all, which is what lets a trial's end date move on its own.
 - **Nothing changed is a 200 that says so**, with no history row and no new reason stored. An
   *empty* body is a `400 VALIDATION_FAILED` naming `reason`; `NO_CHANGES_REQUESTED` is what you
   get when a reason *was* given and no editable field was.

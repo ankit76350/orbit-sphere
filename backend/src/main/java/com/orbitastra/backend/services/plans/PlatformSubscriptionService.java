@@ -772,20 +772,20 @@ public class PlatformSubscriptionService {
             changed.add("autoRenew");
         }
 
-        //! the two blocks. Sent means "replace both", so a null inside is a removal rather than
-        //! an omission — which is the whole reason they are nested.
-        if (request.limitOverrides() != null) {
-            Long students = request.limitOverrides().maxStudentsOverride();
-            Long users = request.limitOverrides().maxUsersOverride();
-            validateOverride("maxStudentsOverride", students);
-            validateOverride("maxUsersOverride", users);
-
-            if (!Objects.equals(students, subscription.getMaxStudentsOverride())) {
-                subscription.setMaxStudentsOverride(students);
+        //! the two overrides. Zero means "take it away", because a flat nullable field cannot
+        //! tell an omission from an explicit null — see the request.
+        if (request.maxStudentsOverride() != null) {
+            Long asked = overrideOrRemoval("maxStudentsOverride", request.maxStudentsOverride());
+            if (!Objects.equals(asked, subscription.getMaxStudentsOverride())) {
+                subscription.setMaxStudentsOverride(asked);
                 changed.add("maxStudentsOverride");
             }
-            if (!Objects.equals(users, subscription.getMaxUsersOverride())) {
-                subscription.setMaxUsersOverride(users);
+        }
+
+        if (request.maxUsersOverride() != null) {
+            Long asked = overrideOrRemoval("maxUsersOverride", request.maxUsersOverride());
+            if (!Objects.equals(asked, subscription.getMaxUsersOverride())) {
+                subscription.setMaxUsersOverride(asked);
                 changed.add("maxUsersOverride");
             }
         }
@@ -887,13 +887,41 @@ public class PlatformSubscriptionService {
         return String.join(" ", notes);
     }
 
-    /** An override that lowers nothing and raises nothing is not an override. */
+    /**
+     * An override that lowers nothing and raises nothing is not an override.
+     *
+     * <p>Used by #13, where there is nothing to remove yet: a subscription being created has no
+     * override to take away, so zero there is a mistake like any other.
+     */
     private void validateOverride(String label, Long value) {
         if (value != null && value < 1) {
             throw ApiException.badRequest("LIMIT_TOO_LOW",
                     label + " must be at least 1 when it is sent. Received: " + value
                             + ". Omit it to use the plan's own limit.");
         }
+    }
+
+    /**
+     * What an override on #14 means: a ceiling, or zero for "remove it".
+     *
+     * <p><b>Zero is the removal because nothing else can be.</b> The fields are flat, and Jackson
+     * hands over {@code null} both for a field that was omitted and for one sent as {@code null}
+     * — so "leave this alone" and "take this away" arrive identical, and one of them needs
+     * another way to be said. Zero is available for it: a school permitted no students at all is
+     * not a limit anybody negotiated, which is exactly why #13 refuses it.
+     *
+     * <p>Negative is still refused. It is a typo, not an instruction.
+     *
+     * @return the ceiling to store, or null to fall back to the plan's own limit
+     */
+    private Long overrideOrRemoval(String label, Long value) {
+        if (value < 0) {
+            throw ApiException.badRequest("LIMIT_TOO_LOW",
+                    label + " cannot be negative. Received: " + value + ". Send 0 to remove the "
+                            + "override and use the plan's own limit, or omit it to leave the "
+                            + "override as it is.");
+        }
+        return value == 0 ? null : value;
     }
 
     /**

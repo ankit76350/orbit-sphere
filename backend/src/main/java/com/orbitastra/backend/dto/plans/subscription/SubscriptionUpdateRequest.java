@@ -31,18 +31,19 @@ import jakarta.validation.constraints.Size;
  * <pre>
  * field omitted, or null   -> leave it exactly as it is
  * field has a value        -> replace it
- * a nested block omitted   -> leave both of its fields alone
- * a nested block sent      -> replace both; null inside means "no value"
+ * an override sent as 0    -> remove it, and fall back to the plan's own limit
  * </pre>
  *
  * <p>{@code reason} is the exception: it is not optional, and it is not one of the fields being
  * edited. See its own note.
  *
- * <p><b>Why one field is nested.</b> The two capacity overrides are nullable on the model, so
- * they can be cleared, and "omitted" has to be told apart from "cleared" — a block is the only
- * way to say it. Everything else here is {@code @NotNull} on the model and cannot be cleared at
- * all, so there is nothing to disambiguate and those stay flat — which is also what lets a
- * trial's end date be moved on its own.
+ * <p><b>Every field here is flat, and the two overrides pay a small price for it.</b> Jackson
+ * cannot tell a field that was omitted from one sent as {@code null} — both arrive as
+ * {@code null} — so for the two nullable fields, "leave it alone" and "take it away" would be the
+ * same request. Zero carries the second meaning instead, which works because zero cannot mean
+ * anything else: nobody negotiates a ceiling of no students. The rest of the fields are
+ * {@code @NotNull} on the model and cannot be cleared at all, so the question never arises for
+ * them.
  *
  * <h2>What is deliberately absent</h2>
  *
@@ -115,14 +116,28 @@ public record SubscriptionUpdateRequest(
         Boolean autoRenew,
 
         /**
-         * The negotiated capacity, replaced as a pair.
+         * A negotiated student ceiling for this one school. Example: 2500
          *
-         * <p>Omit the block to leave both alone. Send it to replace both, and send {@code null}
-         * inside for either one to remove that override and fall back to the plan's own limit —
-         * which is the only way to say "take this override away", since omitting the field is
-         * how you say "leave it".
+         * <p>Omitted leaves whatever is there. A number replaces it.
+         *
+         * <p><b>Zero removes it</b>, so the school falls back to the plan's own
+         * {@code maxStudents}. That needs saying because it is the one thing a flat, nullable
+         * field cannot say for itself: Jackson hands over {@code null} both for a field that was
+         * omitted and for one sent as {@code null}, so "leave it alone" and "take it away" arrive
+         * identical. Zero is free to mean the second because it cannot mean anything else — a
+         * school permitted zero students is not a limit anybody negotiated.
+         *
+         * <p>A negative number is still refused. It is a typo, not an instruction.
          */
-        @Valid LimitOverrides limitOverrides,
+        Long maxStudentsOverride,
+
+        /**
+         * A negotiated user ceiling for this one school. Example: 300
+         *
+         * <p>Same three rules: omitted leaves it, a number replaces it, zero removes it and falls
+         * back to the plan's own {@code maxUsers}.
+         */
+        Long maxUsersOverride,
 
         /**
          * Why. <b>Required.</b> Example: "Renegotiated at renewal — 20% partner discount."
@@ -147,18 +162,10 @@ public record SubscriptionUpdateRequest(
          */
         @NotBlank @Size(max = 500) String reason) {
 
-    /**
-     * The pair. A null field inside means "no override", not "leave it alone".
-     *
-     * <p>Both are a count of things, so zero is not a limit anybody negotiated — an override that
-     * permits nothing is refused rather than stored.
-     */
-    public record LimitOverrides(Long maxStudentsOverride, Long maxUsersOverride) {
-    }
-
     /** True when the caller asked for nothing at all — answered with a 400, not a silent 200. */
     public boolean isEmpty() {
         return status == null && billingCycle == null && currentPeriodStart == null
-                && currentPeriodEnd == null && autoRenew == null && limitOverrides == null;
+                && currentPeriodEnd == null && autoRenew == null && maxStudentsOverride == null
+                && maxUsersOverride == null;
     }
 }

@@ -38,9 +38,10 @@ export const storedForm = (subscription) => ({
 /**
  * The body: what differs from what is stored, and nothing else.
  *
- * The two blocks are all-or-nothing on purpose — the endpoint reads a sent block as "replace
- * both", so if either half moved both halves go, and an emptied box becomes a null inside the
- * block rather than a missing key. That is how an override is removed.
+ * Every field goes on its own, including the two overrides — so raising the student ceiling sends
+ * one field and leaves the user ceiling untouched. An emptied override box is the exception worth
+ * knowing: it becomes a 0, which is how this endpoint says "remove the override and use the
+ * plan's own limit".
  */
 export function patchBody(form, stored) {
   if (!form || !stored) return {}
@@ -63,14 +64,13 @@ export function patchBody(form, stored) {
     out.currentPeriodEnd = endOfDay(form.currentPeriodEnd)
   }
 
-  if (form.maxStudentsOverride !== stored.maxStudentsOverride
-      || form.maxUsersOverride !== stored.maxUsersOverride) {
-    out.limitOverrides = {
-      maxStudentsOverride: form.maxStudentsOverride.trim()
-        ? Number(form.maxStudentsOverride) : null,
-      maxUsersOverride: form.maxUsersOverride.trim()
-        ? Number(form.maxUsersOverride) : null,
-    }
+  // The two overrides are flat, and each goes on its own — leaving one box alone leaves that
+  // override alone. Emptying a box is how somebody says "take this override away", and the API
+  // spells that 0: an omitted field and an explicit null are the same value to Jackson, so zero
+  // is what carries the removal.
+  for (const field of ['maxStudentsOverride', 'maxUsersOverride']) {
+    if (form[field] === stored[field]) continue
+    out[field] = form[field].trim() ? Number(form[field]) : 0
   }
 
   // Never part of the diff, though it IS stored: the API writes it to reasonForChanges on the
