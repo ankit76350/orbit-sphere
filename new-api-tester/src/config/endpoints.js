@@ -6440,6 +6440,19 @@ refused before the service sees it.
 plan that is, and with it the entitlements, the price and the billing cycle. Two endpoints, because
 "push the trial out a fortnight" and "move them to Enterprise" are not the same request.
 
+### It writes two rows, and does not edit one
+
+The row the school is leaving is **closed** — \`current\` becomes false and its \`currentPeriodEnd\`
+is trimmed to the day of the change, because that is the period it actually served. Its status is
+NOT touched: it was superseded, not expired and not cancelled.
+
+A **new row is inserted** for the plan it moves onto, with a \`subscriptionNo\` of its own from the
+number sequence. So \`school_subscriptions\` holds one row per plan period, and exactly one has
+\`current = true\` — which is the row every read answers with.
+
+The old row is closed *before* the new one is inserted, because the unique partial index on
+\`{schoolId, current}\` permits one current row per school.
+
 ### The change is immediate
 
 There is no timing field. A subscription holds **one** plan, not a current one and a pending one,
@@ -6527,7 +6540,10 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
           name: "THE ORDINARY UPGRADE",
           expect: "200 OK",
           notes: `The body above, on a school currently on STARTER_PLAN.
-    OUT: planCode PREMIUM, contractedPrice 49999 (the new plan's list),
+    OUT: A NEW subscriptionNo — the response is the row the school moved
+         ONTO, not the one it left. The old row is still in the
+         collection with current=false.
+         planCode PREMIUM, contractedPrice 49999 (the new plan's list),
          billingCycle and currencyCode from the new plan,
          maxStudents/maxUsers 2000/250 — PREMIUM's own, because the
          request named no ceilings,
@@ -6663,6 +6679,14 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
                        subscription for this school instead." }
 
 09  WHAT LANDS IN THE DATABASE
+    TWO ROWS PER CHANGE. From mongosh, after a sale and two changes:
+      db.school_subscriptions.find({schoolId: "..."}).sort({createdAt:1})
+        -> SUB/2026/09/000001 STARTER_PLAN current false  (closed)
+           SUB/2026/09/000002 PREMIUM      current false  (closed)
+           SUB/2026/09/000003 STARTER_PLAN current TRUE   (live)
+      Exactly one current=true, always. A closed row keeps its status:
+      superseded is not expired and not cancelled.
+
     From mongosh:
       db.subscription_history.find({schoolSubscriptionDocsId: "..."})
                              .sort({createdAt: 1})

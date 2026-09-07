@@ -31,9 +31,20 @@ import lombok.experimental.SuperBuilder;
  * overrides are stored here because one school can negotiate terms different
  * from the public plan defaults.
  *
- * <p>Exactly one document per school may have {@code current = true}. The
- * current subscription is found by {@code schoolId + current}; subscription
- * fields are deliberately not duplicated in School.
+ * <p><b>One document per plan period, not per school.</b> Exactly one may have
+ * {@code current = true}, and that is the row the school is on; the rest are
+ * the plan periods it has been through. #16 is what makes a second: it closes
+ * the row being left ({@code current = false}, period trimmed to the day of
+ * the change) and inserts a new one with its own {@code subscriptionNo}.
+ *
+ * <p>So every read of "the school's subscription" goes through
+ * {@code schoolId + current}, never through "the one row for this school".
+ * Subscription fields are deliberately not duplicated in School.
+ *
+ * <p>A closed row keeps its {@code status}. It did not expire and it was not
+ * cancelled — it was superseded, and writing either of those words would put
+ * something false in the record. {@code current} is the field that says which
+ * row is live.
  *
  * <p>The document holds what is true now. What happened to get here — every
  * status move, every edit, with its own reason and timestamp — is

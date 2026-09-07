@@ -886,10 +886,21 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
         {/* Said before anything is chosen, because both facts change what somebody decides. */}
         <p className="banner" data-tone="warn">
           <strong>Immediate, and no money moves.</strong> The plan changes when you send this and
-          the period restarts today on the new plan&apos;s cycle — there is no way to defer it,
-          because a subscription holds one plan rather than a current and a pending one. The school
-          is part-way through a period it paid for and <em>nothing is charged, credited or
-          refunded</em>: nothing raises invoices yet.
+          the period restarts today on the new plan&apos;s cycle. The school is part-way through a
+          period it paid for and <em>nothing is charged, credited or refunded</em>: nothing raises
+          invoices yet.
+        </p>
+
+        {/* The shape of the write, because the response comes back with a different
+            subscriptionNo and that reads like a bug until you know why. */}
+        <p className="banner">
+          <span>
+            <strong>This closes {subscription.subscriptionNo} and opens a new one.</strong> The row
+            the school is on now is kept as history with{' '}
+            <code className="mono">current: false</code>, and the plan it moves to gets a row of
+            its own with a new number — one row per plan period. Every read still answers with the
+            live one.
+          </span>
         </p>
 
         <Field

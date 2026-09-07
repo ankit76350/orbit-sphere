@@ -433,7 +433,7 @@ below are still a plan.
 | `currencyCode` | String, required | **The plan's currency, never the caller's.** A subscription priced in a different currency from its plan is a mistake nobody would catch until an invoice went out in the wrong money. |
 | `maxStudentsOverride` | Long, optional | **A number.** #13 always writes one, copying the plan's `maxStudents` when the sale named none, so the subscription answers "what may this school use" on its own. Null means fall back to the plan and is what #14 stores when an override is removed — no longer the ordinary state of a new subscription. |
 | `maxUsersOverride` | Long, optional | **A number**, same as `maxStudentsOverride`: copied from the plan's `maxUsers` on create unless the sale named one. |
-| `current` | Boolean, required | **`true`** on create. Exactly one row per school may be `true`; the flag is what makes "the school's subscription" a single document rather than a sort by date. |
+| `current` | Boolean, required | **`true`** on create, and on the row #16 opens. Exactly one row per school may be `true`; the flag is what makes "the school's subscription" a single document rather than a sort by date. **`false`** on a row #16 has closed — one row per plan period, so a school that has changed plan twice has three rows. |
 | `billingCustomerReference` | String, optional | **Open** — the gateway's own customer id, e.g. `customer_Qx7B2mR9`, or null until there is one. |
 | `reasonForChanges` | String, optional | Free text, max 500. **Written by #14 from its `reason`, on every edit, overwritten each time.** That request field is **required**, so an edited subscription always carries one — null here means nothing has ever edited it. Replaced `cancelledAt` and `cancellationReason` (2026-09-07): the date duplicated the `CANCELLED` history row's `effectiveAt`, and a cancellation-only reason left every other change unexplained. |
 
@@ -2099,8 +2099,10 @@ than it tidies.
 **[16](#t16) · `POST /platform/schools/{id}/subscriptions/current/change-plan`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: the plan being **left**, for its price and limits, so the response can name what it moved from and tell a negotiated ceiling from a plan-standard one; and the plan being **moved to**, for `status`, `effectiveFrom`, `effectiveUntil`, `listPrice`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers`
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `currencyCode`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `reasonForChanges`, and `maxStudentsOverride` / `maxUsersOverride` **only where they were not negotiated**
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus` and `newStatus` = the status, unchanged, `source`, `reason` = both plans, the money decision and the caller's words, `performedByDocsId`, `effectiveAt`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates* the row being **left**: `current` = false, `currentPeriodEnd` = the day of the change, `reasonForChanges`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: a new row for the plan being moved **onto** — `subscriptionNo` (its own, from the sequence), `planDefinitionDocsId`, `planVersion`, `status` and `billingCustomerReference` carried over, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `reasonForChanges`, `current` = true
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — the new row needs a `subscriptionNo` of its own, because a unique index forbids two rows of one school sharing one
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: one row against the **new** subscription — `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus` and `newStatus` = the status, unchanged, `source`, `reason` = both plans, both subscription numbers and the caller's words, `performedByDocsId`, `effectiveAt`
 - **No invoice.** `subscription_invoices` is not touched, because nothing writes to it yet
 
 ### Request and response
@@ -2182,6 +2184,42 @@ made, and the billing period restarts with it.**
 Deferring a change is #17's territory, if it is ever wanted: renewal is the moment a period ends,
 which is the only moment a deferred change could take effect.
 
+### Two rows, not one edited row
+
+**The row being left is closed rather than rewritten.** `current` becomes false, and its
+`currentPeriodEnd` is trimmed to the day of the change — that is the period it actually served,
+and leaving the old end date would claim the school was on that plan for months it was not. Its
+**status is not touched**: it did not expire and it was not cancelled, it was *superseded*, and
+writing either of the other two words would put something false in the record.
+
+**A new row is inserted** for the plan the school moves onto, with a `subscriptionNo` of its own
+from the number sequence — two rows of one school cannot share a number, because a unique index on
+`{schoolId, subscriptionNo}` says so, and an invoice pointing at a number matching two records
+would be unanswerable.
+
+**The order of the two writes matters.** The old row is closed *before* the new one is inserted:
+the unique partial index on `{schoolId, current}` permits one current row per school, so inserting
+first would collide with a row still claiming to be current.
+
+So `school_subscriptions` holds **one row per plan period**. Verified on the running server, after
+a sale and two changes:
+
+| `subscriptionNo` | plan | `current` | period |
+|---|---|---|---|
+| SUB/2026/09/000001 | STARTER_PLAN | false | 06 Sep → 06 Sep |
+| SUB/2026/09/000002 | PREMIUM | false | 06 Sep → 06 Sep |
+| SUB/2026/09/000003 | STARTER_PLAN | **true** | 06 Sep → 06 Sep 2027 |
+
+Every read of "the school's subscription" therefore goes through
+`findBySchoolIdAndCurrentIsTrue`, never through "the row for this school" — confirmed for #14,
+#27, #33 and #34, all of which answer with `SUB/2026/09/000003` above. #13 still refuses a second
+sale with `SUBSCRIPTION_ALREADY_EXISTS`, naming the current row.
+
+**What carries across to the new row**, beyond the plan and the negotiated terms: `status`, so a
+suspended school stays suspended and a trial stays a trial; `billingCustomerReference`, because
+the payment provider's handle belongs to the school rather than to the plan it is on; and
+`autoRenew` unless the request names it.
+
 ### What follows the plan, and what survives it
 
 | | |
@@ -2229,6 +2267,10 @@ apply a term agreed for one plan to a different one.
   trial out a fortnight" and "move them to Enterprise" are not the same request.
 - **Move a finished subscription.** Cancelled or expired is `409 SUBSCRIPTION_NOT_CHANGEABLE`:
   there is nothing to move, and the school needs a new subscription.
+- **Leave two current rows.** The old one is closed first, and the unique partial index on
+  `{schoolId, current}` is the backstop — though that index is **not built on the dev database**
+  yet, so today the write order in the code is the only thing enforcing it. Worth running the
+  index sync before it matters.
 
 <a id="e17"></a>
 **[17](#t17) · `POST /platform/schools/{id}/subscriptions/{no}/renew`**

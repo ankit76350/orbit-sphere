@@ -380,6 +380,19 @@ public class PlatformSubscriptionService {
      * what it costs and how often it is billed. Keeping them apart is what stops "push the trial
      * out a fortnight" and "move them to Enterprise" looking like the same request.
      *
+     * <p><b>It writes two rows, and does not edit one.</b> The row the school is leaving is
+     * closed — {@code current = false}, and its period trimmed to today, because that is the
+     * period it actually served — and a new row is inserted for the plan it moves onto, with a
+     * {@code subscriptionNo} of its own. So {@code school_subscriptions} keeps one row per plan
+     * period rather than one row per school, and "what was this school on in March" is answerable
+     * from the collection instead of only from the history.
+     *
+     * <p>The old row's <b>status is not touched</b>. It did not expire and it was not cancelled —
+     * it was superseded, and writing either of the other two words would put something false in
+     * the record. {@code current} is the field that says which row is live, which is why every
+     * read of "the school's subscription" goes through
+     * {@code findBySchoolIdAndCurrentIsTrue}.
+     *
      * <p><b>It takes effect immediately, and there is no option not to.</b> A subscription holds
      * one plan, not a current one and a pending one, so a change scheduled for the next period
      * would have nowhere to live — and moving the pointer now while calling it next period would
@@ -484,33 +497,70 @@ public class PlatformSubscriptionService {
         Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
                 periodStart, newPlan.getBillingCycle());
 
-        //! step 9 - move it
+        //! step 9 - close the row the school is leaving. It stops being the current one, and
+        //! its period is trimmed to today because that is the period it actually served —
+        //! leaving the old end date would say the school was on that plan for months it was not.
+        //!
+        //! Its status is deliberately NOT touched. It did not expire and it was not cancelled;
+        //! it was superseded, and inventing one of the other two would put a wrong word in the
+        //! record. `current = false` is what says it is history.
         String previousPlanId = subscription.getPlanDefinitionDocsId();
+        String previousSubscriptionNo = subscription.getSubscriptionNo();
 
-        subscription.setPlanDefinitionDocsId(newPlan.getId());
-        subscription.setPlanVersion(newPlan.getPlanVersion());
-        subscription.setContractedPrice(newPrice);
-        subscription.setCurrencyCode(newPlan.getCurrencyCode());
-        subscription.setBillingCycle(newPlan.getBillingCycle());
-        subscription.setMaxStudentsOverride(newMaxStudents);
-        subscription.setMaxUsersOverride(newMaxUsers);
-        subscription.setCurrentPeriodStart(periodStart);
-        subscription.setCurrentPeriodEnd(periodEnd);
-        subscription.setReasonForChanges(request.reason().trim());
+        subscription.setCurrent(false);
+        subscription.setCurrentPeriodEnd(periodStart);
+        subscription.setReasonForChanges("Superseded by a plan change to '"
+                + newPlan.getPlanCode() + "' version " + newPlan.getPlanVersion() + ". "
+                + request.reason().trim());
 
-        // The only field on this request whose absence means "leave it alone" rather than "take
-        // the new plan's": a plan has no opinion about renewal, and a school that turned it off
-        // has not changed its mind by moving plan.
-        if (request.autoRenew() != null) {
-            subscription.setAutoRenew(request.autoRenew());
-        }
-
+        //! step 10 - written BEFORE the new row is inserted, and that order matters: the unique
+        //! partial index on {schoolId, current} allows one current row per school, so inserting
+        //! the new one first would collide with the old one still claiming to be current.
         // TODO: update school subscription
-        SchoolSubscription saved = schoolSubscription.save(subscription);
+        schoolSubscription.save(subscription);
 
-        //! step 10 - one history row, carrying both plan ids and both decisions. The decisions
-        //! go in the reason because the history document has no field for them; when invoicing
-        //! exists and they start moving money, that is the field to add.
+        //! step 11 - a number of its own. Two rows for one school cannot share a subscriptionNo:
+        //! a unique index on {schoolId, subscriptionNo} says so, and an invoice pointing at a
+        //! number that matches two records would be unanswerable.
+        String subscriptionNumber = numberSequences.next(schoolId, NumberSequenceType.SUBSCRIPTION,
+                "SUB/{YYYY}/{MM}/");
+
+        //! step 12 - build the row the school moves onto. What carries across is only what a
+        //! subscription needs to be a subscription; everything negotiable came from the request
+        //! or the new plan in steps 6 and 7.
+        SchoolSubscription moved = SchoolSubscription.builder()
+                .schoolId(schoolId)
+                .subscriptionNo(subscriptionNumber)
+                .planDefinitionDocsId(newPlan.getId())
+                .planVersion(newPlan.getPlanVersion())
+                // The state the school was in carries over: a suspended school that changes plan
+                // is still suspended, and a trial that changes plan is still a trial.
+                .status(subscription.getStatus())
+                .billingCycle(newPlan.getBillingCycle())
+                .currentPeriodStart(periodStart)
+                .currentPeriodEnd(periodEnd)
+                // Absent on the request means the school's existing instruction, not the plan's:
+                // a plan has no opinion about renewal.
+                .autoRenew(request.autoRenew() == null
+                        ? subscription.getAutoRenew()
+                        : request.autoRenew())
+                .contractedPrice(newPrice)
+                .currencyCode(newPlan.getCurrencyCode())
+                .maxStudentsOverride(newMaxStudents)
+                .maxUsersOverride(newMaxUsers)
+                // The payment provider's handle belongs to the school, not to the plan it is on.
+                .billingCustomerReference(subscription.getBillingCustomerReference())
+                .reasonForChanges(request.reason().trim())
+                .current(true)
+                .build();
+
+        // TODO: insert school subscription
+        SchoolSubscription saved = schoolSubscription.save(moved);
+
+        //! step 13 - one history row, against the row the school moved ONTO, carrying both plan
+        //! ids so the move reads in one line. The old subscriptionNo goes in the reason because
+        //! the history document has no field for it, and without it the two rows are only
+        //! findable by knowing to query on schoolId.
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -522,8 +572,9 @@ public class PlatformSubscriptionService {
                 .source(SOURCE_ADMIN_PORTAL)
                 .reason("Moved from '" + previousPlan.getPlanCode() + "' version "
                         + previousPlan.getPlanVersion() + " to '" + newPlan.getPlanCode()
-                        + "' version " + newPlan.getPlanVersion()
-                        + ", immediately. " + request.reason().trim())
+                        + "' version " + newPlan.getPlanVersion() + ", immediately. "
+                        + previousSubscriptionNo + " was closed and "
+                        + saved.getSubscriptionNo() + " opened. " + request.reason().trim())
                 .performedByDocsId(null)
                 .effectiveAt(periodStart)
                 .build();
@@ -531,11 +582,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 11 - the note is assembled here rather than by one helper calling another: what
+        //! step 14 - the note is assembled here rather than by one helper calling another: what
         //! the move did, what it deliberately did not do to the money, and anything standing
         //! about the subscription a reader needs either way.
         List<String> note = new ArrayList<>();
-        note.add(describePlanMove(previousPlan, newPlan, saved));
+        note.add(describePlanMove(previousPlan, newPlan, saved, previousSubscriptionNo));
 
         String standing = describeSubscriptionState(saved, newPlan);
         if (standing != null) {
@@ -975,8 +1026,9 @@ public class PlatformSubscriptionService {
      * <p>Three things a caller needs and cannot read off the response's fields:
      *
      * <ul>
-     * <li><b>Which plan it came from.</b> The response carries only the plan it is on now, so
-     * without this the reader cannot tell an upgrade from a downgrade.</li>
+     * <li><b>Which plan it came from, and which row.</b> The response is the NEW row, so
+     * without this the reader cannot tell an upgrade from a downgrade, nor find the closed row
+     * the school was on before.</li>
      * <li><b>That no money moved.</b> The school is part-way through a period it paid for, and
      * this endpoint charges, credits and refunds nothing — because nothing in this codebase
      * raises an invoice. Saying so is the difference between a plan moved and a payment somebody
@@ -995,7 +1047,7 @@ public class PlatformSubscriptionService {
      * - changePlan()
      */
     private String describePlanMove(PlanDefinition previousPlan, PlanDefinition newPlan,
-            SchoolSubscription saved) {
+            SchoolSubscription saved, String previousSubscriptionNo) {
 
         String direction = newPlan.getListPrice().compareTo(previousPlan.getListPrice()) > 0
                 ? "Upgraded"
@@ -1026,9 +1078,10 @@ public class PlatformSubscriptionService {
 
         return direction + " from '" + previousPlan.getPlanCode() + "' version "
                 + previousPlan.getPlanVersion() + " to '" + newPlan.getPlanCode() + "' version "
-                + newPlan.getPlanVersion() + ". The period restarts today and runs to "
-                + saved.getCurrentPeriodEnd() + " on the new plan's " + saved.getBillingCycle()
-                + " cycle. " + money + ceiling + downgrade;
+                + newPlan.getPlanVersion() + ". " + previousSubscriptionNo + " is closed and kept "
+                + "as history; this school is now on " + saved.getSubscriptionNo()
+                + ", running from today to " + saved.getCurrentPeriodEnd() + " on the new plan's "
+                + saved.getBillingCycle() + " cycle. " + money + ceiling + downgrade;
     }
 
     /**
