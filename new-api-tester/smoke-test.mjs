@@ -225,6 +225,66 @@ for (const [label, ok] of detailChecks) {
 // The tenant header is a school-surface thing: no platform endpoint reads it, they all name
 // their school in the URL. So "Acting as" on a platform screen was a control that changed
 // nothing — and worse, one that implied the screen was scoped to it.
+// Publishing is a one-way door, so the selling window it goes out with is permanent. The dialog
+// has to ask for both dates rather than letting somebody publish a window nobody looked at.
+console.log('\nPublishing asks for the selling window')
+const planSource = readFileSync('src/pages/platform/plans/PlanDetail.jsx', 'utf8')
+const publishChecks = [
+  ['publish asks, retire does not',
+    (planSource.match(/asksWindow: true/g) || []).length === 1],
+  ['it asks for both dates',
+    planSource.includes('effectiveFrom: startOfDay(from)')
+      && planSource.includes('effectiveUntil: endOfDay(until)')],
+  // "Stops being sold on the 31st" has to include the 31st. Midnight would cut it a day early.
+  ['the end date is the END of that day', planSource.includes('T23:59:59Z')],
+  ['the start date is the start of it', planSource.includes('T00:00:00Z')],
+  // The form's blank has to mean what the API's absent means, or the two disagree.
+  ['the start defaults to today, as the API does', planSource.includes('todayInput()')],
+]
+for (const [label, ok] of publishChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// THE BUG THIS CATCHES. Confirm used to render always and bail out after its hooks; an edit lost
+// that early return and every plan page crashed on `action.title`. First paint never reaches the
+// dialog, so no render check here could see it — what CAN be checked is the shape that makes the
+// mistake impossible: mounted only when there is something to confirm.
+console.log('\nDialogs are mounted, not guarded')
+const guardChecks = [
+  ['the confirm dialog is mounted conditionally',
+    /\{confirming \? \(\s*<Confirm/.test(planSource)],
+  ['so it never reads a null action', !planSource.includes('action?.title')],
+  // Same shape, same reason, in the other screen that had this bug.
+  ['the holiday editor is mounted conditionally too',
+    /\{editing \? \(\s*<EditHoliday/.test(
+      readFileSync('src/pages/school/core/AcademicYearDetail.jsx', 'utf8'))],
+]
+for (const [label, ok] of guardChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// A screen that throws should cost one screen, not the whole app. Three crashes so far took the
+// shell down with them and left only a console message.
+console.log('\nA screen that throws is contained')
+const layoutSource = readFileSync('src/components/Layout.jsx', 'utf8')
+const boundaryChecks = [
+  ['the routed page sits inside a boundary', layoutSource.includes('<ScreenBoundary')],
+  // Keyed on the route, or one throw leaves the panel up for every screen visited afterwards.
+  ['the boundary is keyed on the route', layoutSource.includes('<ScreenBoundary key={pathname}>')],
+  // The shell has to stay outside it, or a broken screen takes the navigation with it.
+  ['the side panel and navbar stay outside it',
+    layoutSource.indexOf('<Sidebar') < layoutSource.indexOf('<ScreenBoundary')
+      && layoutSource.indexOf('<ModuleNav') < layoutSource.indexOf('<ScreenBoundary')],
+  ['it reports the error rather than swallowing it',
+    readFileSync('src/components/ScreenBoundary.jsx', 'utf8').includes('componentDidCatch')],
+]
+for (const [label, ok] of boundaryChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe top bar')
 const platform = at('/platform-core/schools')
 const school = at('/school-core/profile')

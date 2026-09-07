@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import ModuleNav from './ModuleNav.jsx'
 import ResponseModal from './ResponseModal.jsx'
+import ScreenBoundary from './ScreenBoundary.jsx'
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
 
@@ -34,7 +35,10 @@ export default function Layout({ children }) {
         <Topbar onMenuClick={() => setDrawer({ open: true, path: pathname })} />
         <main>
           <ModuleNav />
-          {children}
+          {/* Keyed on the route, so navigating away from a screen that threw clears the error
+              instead of leaving the panel up for everything visited afterwards. The nav and the
+              side panel sit outside it and keep working. */}
+          <ScreenBoundary key={pathname}>{children}</ScreenBoundary>
         </main>
         {/* In the shell, so a call made anywhere can be inspected and no screen has to
             remember to render it. */}

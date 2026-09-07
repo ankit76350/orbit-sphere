@@ -222,12 +222,26 @@ export default function PlanDetail() {
         <pre className="resp-body">{JSON.stringify(plan, null, 2)}</pre>
       </details>
 
-      <Confirm
-        action={confirming}
-        busy={Boolean(busy)}
-        onCancel={() => setConfirming(null)}
-        onGo={() => run(confirming.key, confirming.endpoint, { label: confirming.label })}
-      />
+      {/* Keyed on the action, so opening a different one remounts the form rather than the
+          form having to notice its prop changed. */}
+      {/* Only mounted when there IS something to confirm. A component that renders with
+          `action` null and guards after its hooks is one careless edit from a crash — this shape
+          cannot be broken that way, because there is nothing to guard. Keyed per action so
+          opening a different one remounts the form with the right values. */}
+      {confirming ? (
+        <Confirm
+          key={confirming.key}
+          action={confirming}
+          busy={Boolean(busy)}
+          onCancel={() => setConfirming(null)}
+          onGo={(body) => run(confirming.key, confirming.endpoint, {
+            label: confirming.label,
+            // The publish dialog collects a selling window; retire collects nothing, so it
+            // sends no body at all rather than an empty one.
+            ...(body ? { body } : {}),
+          })}
+        />
+      ) : null}
     </div>
   )
 }
@@ -538,6 +552,10 @@ function Lifecycle({ plan, path, busy, onRun, onConfirm }) {
                 title: 'Publish this plan',
                 body: 'From then on nothing about it can change — no price, no features, no '
                   + 'unpublish. A school can be on it within the minute.',
+                // The last moment the selling window can be set, so it is asked for here.
+                asksWindow: true,
+                effectiveFrom: plan.effectiveFrom,
+                effectiveUntil: plan.effectiveUntil,
               })}
             >
               Publish it
@@ -603,8 +621,41 @@ function Lifecycle({ plan, path, busy, onRun, onConfirm }) {
   )
 }
 
+/**
+ * The confirmation for the two one-way doors, and for publish it asks one question.
+ *
+ * WHY PUBLISH ASKS FOR AN END DATE. It is the last moment anybody can set one. Publishing cannot
+ * be undone and a published version cannot be edited, so a plan that goes out with the wrong
+ * selling window is wrong for the life of that version and the only fix is a whole new one.
+ * Asking here costs a field; not asking costs a version.
+ *
+ * BLANK IS A REAL ANSWER, NOT A SKIP. Most plans have no end date — they sell until somebody
+ * retires them — so leaving it empty sends an explicit null and the dialog says that is what will
+ * happen. It is pre-filled with whatever the draft already had, so clearing it is a decision
+ * somebody can see themselves making rather than a value silently dropped.
+ */
+/**
+ * The confirmation for the two one-way doors, and for publish it asks one question.
+ *
+ * ONLY MOUNTED WHEN THERE IS SOMETHING TO CONFIRM, so `action` is never null in here and needs
+ * no guard. It used to render always and bail out after its hooks, which crashed the whole page
+ * the moment that early return went missing in an edit — the caller decides now.
+ */
 function Confirm({ action, busy, onCancel, onGo }) {
-  if (!action) return null
+  // Initialised straight from the action, not synced to it in an effect. The caller gives this
+  // component a key per action, so opening a different one remounts with the right values in a
+  // single render instead of showing the previous one's for a frame.
+  //
+  // `from` falls back to today, which is what the API does with an absent value — so the form
+  // and the API agree rather than the form implying a blank means something else.
+  const [from, setFrom] = useState(
+    action.effectiveFrom ? toDateInput(action.effectiveFrom) : todayInput(),
+  )
+  const [until, setUntil] = useState(
+    action.effectiveUntil ? toDateInput(action.effectiveUntil) : '',
+  )
+  const asksWindow = action.asksWindow
+
   return (
     <Modal
       open
@@ -616,16 +667,88 @@ function Confirm({ action, busy, onCancel, onGo }) {
           <Button
             look={action.key === 'retire' ? 'danger' : 'primary'}
             busy={busy}
-            onClick={onGo}
+            onClick={() => onGo(asksWindow
+              ? { effectiveFrom: startOfDay(from), effectiveUntil: endOfDay(until) }
+              : undefined)}
           >
             {action.label}
           </Button>
         </>
       }
     >
-      <p className="muted">{action.body}</p>
+      <div className="stack">
+        <p className="muted">{action.body}</p>
+
+        {asksWindow ? (
+          <>
+            <div className="field-grid">
+              <Field
+                label="Goes on sale on"
+                hint={from === todayInput()
+                  ? 'Today. Nothing can be sold on it before this.'
+                  : 'A future date schedules it — published, but not yet sellable.'}
+              >
+                <Input
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Stops being sold on"
+                hint={until
+                  ? 'The last day a school can be put on this plan.'
+                  : 'Blank means it sells until somebody retires it.'}
+              >
+                <Input
+                  type="date"
+                  value={until}
+                  onChange={(event) => setUntil(event.target.value)}
+                />
+              </Field>
+            </div>
+
+            {/* Says exactly what is about to be sent. Blank is a real answer here, not a skip —
+                and since none of it can be changed after publishing, it is worth reading back
+                rather than leaving somebody to infer it from two empty inputs. */}
+            <p className="banner" data-tone={until ? 'good' : undefined}>
+              {from === todayInput() ? 'On sale from today' : `On sale from ${from}`}
+              {until ? `, until ${until}.` : ', with no end date — it sells until retired.'}
+              {' '}None of this can be changed after publishing.
+            </p>
+          </>
+        ) : null}
+      </div>
     </Modal>
   )
+}
+
+/** An instant from the API as the yyyy-MM-dd a date input wants. */
+function toDateInput(instant) {
+  const at = new Date(instant)
+  return Number.isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 10)
+}
+
+/** Today, in the same shape, so the form's default matches the API's. */
+function todayInput() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/** The start of a chosen day. "On sale from the 1st" includes the whole 1st. */
+function startOfDay(value) {
+  return value ? `${value}T00:00:00Z` : null
+}
+
+/**
+ * The end of a chosen day, or null for blank.
+ *
+ * END OF DAY, NOT MIDNIGHT. "Stops being sold on 31 March" means the 31st is the last day it can
+ * be sold, and midnight on the 31st would cut it off before that day started — the plan would
+ * close a day earlier than whoever typed it expected.
+ */
+function endOfDay(value) {
+  return value ? `${value}T23:59:59Z` : null
 }
 
 /* -------------------------------------------------------------------------- the versions */

@@ -23,6 +23,7 @@ import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureListResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureRequest;
+import com.orbitastra.backend.dto.plans.catalogue.PlanPublishRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
@@ -314,7 +315,8 @@ public class PlanCatalogueService {
      * decision, so the two are separate endpoints.
      */
     @Transactional
-    public PlanResponse publish(String code, Integer version) {
+    public PlanResponse publish(String code, Integer version, PlanPublishRequest request) {
+        PlanPublishRequest asked = request == null ? PlanPublishRequest.empty() : request;
         //! step 1 - find the plan, or 404
         PlanDefinition plan = loadPlan(code, version);
 
@@ -339,6 +341,16 @@ public class PlanCatalogueService {
 
         //! step 4 - and neither is one that can never be sold
         Instant now = Instant.now();
+
+        //! step 4 - the selling window is decided here, not inherited from the draft
+        //!
+        //! Both absences mean something definite: no effectiveFrom means now, no effectiveUntil
+        //! means never. Set BEFORE the checks below, so they test what is about to be published
+        //! rather than what the draft happened to be holding. Publishing is a one-way door, so
+        //! this is the last chance anybody has to get the window right.
+        plan.setEffectiveFrom(asked.effectiveFrom() == null ? now : asked.effectiveFrom());
+        plan.setEffectiveUntil(asked.effectiveUntil());
+
         if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
             throw ApiException.conflict("PLAN_WINDOW_ALREADY_CLOSED",
                     "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " stops "
@@ -348,17 +360,22 @@ public class PlanCatalogueService {
 
         //! step 5 - go live. An effectiveFrom already set is kept, so a launch date chosen while
         //! it was a draft still stands; an empty one means "from now".
-        boolean scheduled = plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now);
-        if (plan.getEffectiveFrom() == null) {
-            plan.setEffectiveFrom(now);
-        }
+        //! step 5 - and it cannot close before it opens
+        planValidator.validateSellingWindow(plan.getEffectiveFrom(), plan.getEffectiveUntil());
+
+        boolean scheduled = plan.getEffectiveFrom().isAfter(now);
         plan.setStatus(PlanStatus.ACTIVE);
 
         // TODO: update plan
         PlanDefinition savedPlan = plans.save(plan);
 
         //! step 6 - say plainly what just became true, and what has not
+        String window = savedPlan.getEffectiveUntil() == null
+                ? "It has no end date, so it sells until somebody retires it. "
+                : "It stops being sold on " + savedPlan.getEffectiveUntil() + ". ";
+
         String nextStep = "Published, and now permanent: this version can never be edited again. "
+                + window
                 + (scheduled
                         ? "It goes on sale on " + savedPlan.getEffectiveFrom() + ". "
                         : "")

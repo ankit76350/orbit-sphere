@@ -21,6 +21,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanAvailabilityRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDetailResponse;
+import com.orbitastra.backend.dto.plans.catalogue.PlanPublishRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanSummaryResponse;
@@ -140,9 +141,10 @@ public class PlanController {
     @PostMapping("/{code}/versions/{version}/publish")
     public ResponseEntity<PlanResponse> publish(
             @PathVariable String code,
-            @PathVariable Integer version) {
+            @PathVariable Integer version,
+            @Valid @RequestBody(required = false) PlanPublishRequest request) {
 
-        return ResponseEntity.ok(planCatalogueService.publish(code, version));
+        return ResponseEntity.ok(planCatalogueService.publish(code, version, request));
     }
 
     /**
