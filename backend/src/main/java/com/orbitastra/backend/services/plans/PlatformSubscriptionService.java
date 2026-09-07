@@ -303,10 +303,14 @@ public class PlatformSubscriptionService {
     /**
      * #15 — edits any of the terms of one subscription.
      *
-     * <p><b>This is where extend-trial went, and where #23 to #26 belong.</b> Five endpoints for
-     * five columns of one document meant five sets of rules, and a correction that touched two
-     * fields was two requests, two writes and two history rows for one decision. One PATCH, one
+     * <p><b>This is where extend-trial went, along with #23 and #24.</b> Three endpoints for
+     * three columns of one document meant three sets of rules, and a correction that touched two
+     * of them was two requests, two writes and two history rows for one decision. One PATCH, one
      * transaction, one history row saying what moved.
+     *
+     * <p><b>Nothing about the money is here.</b> The price and currency are #25, the billing
+     * customer is #26, the plan is #16 — see the request for why. What is here is when the
+     * subscription runs, what state it is in, and how much of the product it may use.
      *
      * <p><b>It applies no transition rules, on purpose.</b> The lifecycle endpoints each know one
      * transition and what it implies — renewing raises an invoice, cancelling decides what
@@ -314,9 +318,8 @@ public class PlatformSubscriptionService {
      * when a subscription is already wrong and no ordinary transition describes the fix. It is
      * not how a subscription should ordinarily be renewed or cancelled.
      *
-     * <p><b>Two things are still not negotiable.</b> A plan that cannot be sold cannot be moved
-     * to, and a billing period cannot be made to run backwards — the first because a draft's
-     * price is not settled, the second because there is no reading of it that is not a mistake.
+     * <p><b>One thing is still not negotiable.</b> A billing period cannot be made to run
+     * backwards, because there is no reading of that which is not a mistake.
      *
      * <p><b>Nothing is written when nothing changed.</b> A request that sets every field to what
      * it already holds answers 200 and says so, with no history row: an audit trail whose rows
@@ -352,19 +355,11 @@ public class PlatformSubscriptionService {
         //! step 3 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSubscription(school, schoolId, subscriptionNo);
 
-        //! step 4 - work out the new plan first, if the caller is moving them. Done before
-        //! anything is applied so a refused plan changes nothing at all.
-        PlanDefinition newPlan = null;
-        if (request.plan() != null) {
-            newPlan = loadSellablePlan(request.plan().planCode(), request.plan().planVersion());
-        }
-
-        //! step 5 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! step 4 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
         SubscriptionStatus previousStatus = subscription.getStatus();
-        String previousPlanId = subscription.getPlanDefinitionDocsId();
-        List<String> changed = applyEdit(subscription, request, newPlan);
+        List<String> changed = applyEdit(subscription, request);
 
         if (changed.isEmpty()) {
             // TODO: read plan
@@ -374,7 +369,7 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 6 - the period has to still make sense after the edit, whichever end moved
+        //! step 5 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -385,14 +380,15 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 7 - one history row for the whole edit, in this same transaction
+        //! step 6 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
-                .eventType(eventTypeFor(previousStatus, saved.getStatus(), newPlan))
+                .eventType(eventTypeFor(previousStatus, saved.getStatus()))
                 .previousStatus(previousStatus)
                 .newStatus(saved.getStatus())
-                .previousPlanDefinitionDocsId(previousPlanId)
+                // The plan cannot move here, so there is no previous plan to record — both ids
+                // are the one it is still on. #16 is what writes a plan change.
                 .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
                 .source(SOURCE_ADMIN_PORTAL)
                 .reason(auditReason(changed, request.reason()))
@@ -403,8 +399,7 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 8 - the plan is read back so the response carries the features and limits of
-        //! whatever plan the subscription now points at
+        //! step 7 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehind(saved);
 
@@ -724,22 +719,14 @@ public class PlatformSubscriptionService {
      * price has not edited anything, and recording that they did would fill the audit trail with
      * rows that explain nothing. So every field is compared before it is set.
      *
-     * <p>The comparisons are the ones the types need: {@code compareTo} for the price, because
-     * {@code BigDecimal.equals} calls 39999.5 and 39999.50 different numbers and nobody means
-     * that; {@code Objects.equals} everywhere else, since every field here is nullable.
+     * <p>{@code Objects.equals} throughout, because every field here is nullable — an override
+     * that is not set and a cancellation that never happened are both null, and both have to
+     * compare equal to themselves.
      */
     private List<String> applyEdit(SchoolSubscription subscription,
-            SubscriptionUpdateRequest request, PlanDefinition newPlan) {
+            SubscriptionUpdateRequest request) {
 
         List<String> changed = new ArrayList<>();
-
-        //! the plan pointer. Validated already — this only moves it.
-        if (newPlan != null && (!newPlan.getId().equals(subscription.getPlanDefinitionDocsId())
-                || !newPlan.getPlanVersion().equals(subscription.getPlanVersion()))) {
-            subscription.setPlanDefinitionDocsId(newPlan.getId());
-            subscription.setPlanVersion(newPlan.getPlanVersion());
-            changed.add("plan");
-        }
 
         if (request.status() != null && request.status() != subscription.getStatus()) {
             subscription.setStatus(request.status());
@@ -768,37 +755,6 @@ public class PlatformSubscriptionService {
                 && !request.autoRenew().equals(subscription.getAutoRenew())) {
             subscription.setAutoRenew(request.autoRenew());
             changed.add("autoRenew");
-        }
-
-        if (request.contractedPrice() != null) {
-            BigDecimal price = planValidator.validatePrice("contractedPrice",
-                    request.contractedPrice());
-            // compareTo, not equals: 39999.5 and 39999.50 are the same money and a different
-            // scale, and equals says they are different values.
-            if (subscription.getContractedPrice() == null
-                    || subscription.getContractedPrice().compareTo(price) != 0) {
-                subscription.setContractedPrice(price);
-                changed.add("contractedPrice");
-            }
-        }
-
-        if (request.currencyCode() != null) {
-            String currency = planValidator.validateCurrencyCode(request.currencyCode());
-            if (!currency.equals(subscription.getCurrencyCode())) {
-                subscription.setCurrencyCode(currency);
-                changed.add("currencyCode");
-            }
-        }
-
-        if (request.billingCustomerReference() != null) {
-            // "" is how a string field is cleared here, per the request's own contract.
-            String reference = request.billingCustomerReference().isBlank()
-                    ? null
-                    : request.billingCustomerReference().trim();
-            if (!Objects.equals(reference, subscription.getBillingCustomerReference())) {
-                subscription.setBillingCustomerReference(reference);
-                changed.add("billingCustomerReference");
-            }
         }
 
         //! the two blocks. Sent means "replace both", so a null inside is a removal rather than
@@ -886,19 +842,16 @@ public class PlatformSubscriptionService {
      * Which event this edit was.
      *
      * <p>An edit can move several things at once, and the row records one type, so it records the
-     * most consequential: moving a school to another plan changes what they get, a status move
-     * changes whether they get it at all, and everything else is terms.
+     * most consequential: a status move changes whether the school gets the product at all, and
+     * everything else is terms. {@code PLAN_CHANGED} is not written here — this endpoint cannot
+     * move the plan, and #16 is what does.
      *
      * <p>The status types are the same ones the lifecycle endpoints will write, so a suspension
      * recorded through this endpoint and one recorded through #19 read identically in the
      * history — which is what somebody asking "when was this school suspended" needs.
      */
     private SubscriptionEventType eventTypeFor(SubscriptionStatus previousStatus,
-            SubscriptionStatus newStatus, PlanDefinition newPlan) {
-
-        if (newPlan != null) {
-            return SubscriptionEventType.PLAN_CHANGED;
-        }
+            SubscriptionStatus newStatus) {
 
         if (newStatus == previousStatus) {
             return SubscriptionEventType.TERMS_CHANGED;
@@ -943,10 +896,10 @@ public class PlatformSubscriptionService {
     /**
      * What the caller should know after an edit.
      *
-     * <p>Says what moved, then anything the edit has left inconsistent. The mismatches are
-     * reported rather than corrected: a subscription priced in a different currency from its plan
-     * is a real thing an operator may be mid-way through fixing, and silently rewriting it would
-     * undo half of a deliberate change. Left unsaid, it would be found on an invoice instead.
+     * <p>Says what moved, then anything the edit has left inconsistent. A cycle that no longer
+     * matches the plan's is reported rather than corrected — billing a school monthly on a plan
+     * that bills yearly is a real arrangement, and rewriting it would undo a deliberate change —
+     * but left unsaid it would be found on an invoice instead.
      */
     private String editedNote(SchoolSubscription subscription, PlanDefinition plan,
             List<String> changed) {
@@ -954,12 +907,9 @@ public class PlatformSubscriptionService {
         List<String> notes = new ArrayList<>();
         notes.add("Edited " + String.join(", ", changed) + ".");
 
-        if (!plan.getCurrencyCode().equals(subscription.getCurrencyCode())) {
-            notes.add("This subscription is priced in " + subscription.getCurrencyCode()
-                    + " but '" + plan.getPlanCode() + "' version " + plan.getPlanVersion()
-                    + " lists in " + plan.getCurrencyCode() + ".");
-        }
-
+        // Only the cycle. A currency mismatch is neither caused nor fixable here now that the
+        // currency is #25's, so pointing it out on an edit that could not have done it would
+        // send somebody looking for a field this endpoint does not have.
         if (plan.getBillingCycle() != subscription.getBillingCycle()) {
             notes.add("It bills " + subscription.getBillingCycle() + " while the plan bills "
                     + plan.getBillingCycle() + ".");

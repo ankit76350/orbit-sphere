@@ -214,19 +214,22 @@ still created, the school stays `PROVISIONING`, and `nextStep` names what is mis
 subscription with `"trial": true` first, or there is nothing to activate — activating an already
 paying one is a `409 SUBSCRIPTION_NOT_TRIAL`.
 
-**Edit Subscription (#15)** edits any of the terms: status, plan, price, currency, cycle, period
-dates, capacity overrides, auto-renewal, the billing reference, the cancellation. It replaced
-extend-trial — pushing a trial's end date out is `currentPeriodEnd` on it — and supersedes the
-four single-field PATCHes that were #23 to #26, so those are not being built.
+**Edit Subscription (#15)** edits when a subscription runs, what state it is in, and how much of
+the product it may use: `status`, `billingCycle`, both period dates, `autoRenew`, the two capacity
+overrides and the cancellation. It replaced extend-trial — pushing a trial's end date out is
+`currentPeriodEnd` on it — and took in #23 and #24 with it, so those two are not being built.
 
-- **Absent means unchanged.** `""` clears `billingCustomerReference`; `limitOverrides` and
-  `cancellation` are nested so that `null` inside can mean "remove this" rather than "leave it".
+- **Nothing about the money.** The price and currency stay on #25, the billing customer on #26,
+  the plan on #16. Which means **nothing built can change a price** after Create Subscription set
+  it: #25 is not built, and #15 will not do it.
+- **Absent means unchanged.** `limitOverrides` and `cancellation` are nested so that `null` inside
+  can mean "remove this" rather than "leave it". The period dates are `@NotNull` on the model, so
+  they cannot be cleared at all — which is what lets a trial's end date move on its own.
 - **Nothing changed is a 200 that says so**, with no history row. An *empty* body is a `400
   NO_CHANGES_REQUESTED`, so a misspelled field name does not look like a successful edit.
 - **One history row per edit**, whatever moved, with the field list on it. `TERMS_CHANGED` was
-  added to the enum for the case where neither the status nor the plan moved.
-- **Nothing follows the plan.** Moving a school to another plan keeps its price, cycle and
-  currency; the response names anything that no longer matches.
+  added to the enum for the case where the status did not move; `PLAN_CHANGED` is never written
+  here, because this endpoint cannot move the plan.
 
 **Its URL says `current`, not a subscription number.** A number is `SUB/2026/09/000001`; the
 slashes end the path segment, and writing them as `%2F` gets `400 Invalid URI: [The encoded slash

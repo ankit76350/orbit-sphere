@@ -6235,15 +6235,25 @@ menu for new schools and changes nothing for a school already on it.
       method: "PATCH",
       path: "/platform/schools/{id}/subscriptions/current",
       status: 'live',
-      summary: "Edits any of the terms of one subscription. Replaced extend-trial and the four single-field PATCHes.",
+      summary: "Edits when a subscription runs, what state it is in and how much it may use. No money: the price is #25, the plan #16.",
       schoolSurface: false,
       docs: `**PATCH** \`/platform/schools/{id}/subscriptions/{no}\` — edits the terms of one subscription.
 
-**One endpoint where there were five.** extend-trial moved \`currentPeriodEnd\`. #23 moved
-\`autoRenew\`, #24 the two capacity overrides, #25 the price, #26 the billing reference. Five
-endpoints editing five columns of one document meant five sets of rules to keep in step, and a
-correction touching two fields was two requests, two writes and two history rows for one
-decision. Pushing a trial's end date out is now \`currentPeriodEnd\` on this request.
+**When it runs, what state it is in, how much of the product it may use.** The status, the
+billing cycle, both period dates, auto-renewal, the two capacity overrides and the cancellation —
+three endpoints' worth of single-column edits in one request. extend-trial moved
+\`currentPeriodEnd\`, #23 moved \`autoRenew\`, #24 the two overrides; three sets of rules to keep in
+step, and a correction touching two of them was two writes and two history rows for one decision.
+
+### Nothing about the money
+
+\`contractedPrice\` and \`currencyCode\` are **#25**, \`billingCustomerReference\` is **#26**, the plan
+is **#16**. Changing a price changes what gets invoiced, and a currency changes what money it is
+invoiced in — commercial decisions with a paper trail of their own. Behind the same request as
+"push the trial out a fortnight", repricing a school would look like an administrative tidy-up.
+
+A consequence worth knowing: **nothing built can change a price after Create Subscription set
+it.** #25 is not built and this will not do it.
 
 ### Use \`current\` as the number
 
@@ -6257,15 +6267,13 @@ what it is told — which is what is needed when a subscription is already wrong
 transition describes the fix. It is not how a subscription should ordinarily be renewed or
 cancelled.
 
-Two things are still refused: a plan that cannot be sold today (\`409 PLAN_NOT_SELLABLE\`), and a
-period left running backwards (\`400 INVALID_BILLING_PERIOD\`).
+One thing is still refused: a period left running backwards (\`400 INVALID_BILLING_PERIOD\`).
 
 ### Absent, null and cleared
 
 | Sent | Means |
 |---|---|
 | omitted, or \`null\` | leave it exactly as it is |
-| \`""\` | clear it — \`billingCustomerReference\` only |
 | a value | replace it |
 | a block omitted | leave both of its fields alone |
 | a block sent | replace both; \`null\` inside means "no value" |
@@ -6281,7 +6289,7 @@ A request that restates what is already stored answers \`200\` saying so, and wr
 row. An **empty** request is \`400 NO_CHANGES_REQUESTED\` — answering 200 to it would tell a caller
 who misspelled a field name that their edit worked.
 
-### The fifteen test cases are in the request body as comments
+### The twelve test cases are in the request body as comments
 `,
       bodyNotes: `Platform surface. Needs {{schoolId}} and a subscription — run Create
  Subscription first.
@@ -6290,9 +6298,18 @@ who misspelled a field name that their edit worked.
  absence means is in the description above; the cases below are what the
  endpoint actually does with them.
 
+ THE EDITABLE FIELDS ARE: status, billingCycle, currentPeriodStart,
+ currentPeriodEnd, autoRenew, limitOverrides{maxStudentsOverride,
+ maxUsersOverride}, cancellation{cancelledAt, cancellationReason} — plus
+ \`reason\`, which goes on the history row and not on the subscription.
+
+ NOT EDITABLE HERE: contractedPrice and currencyCode (#25),
+ billingCustomerReference (#26), the plan (#16), subscriptionNo, current
+ and schoolId. Sending them is ignored like any other unknown field.
+
  ANSWERS THE WHOLE SUBSCRIPTION BACK, the same shape as Get Subscription,
  so there is no second call to see what it now says. \`note\` says what moved.`,
-      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "contractedPrice", "currencyCode", "billingCustomerReference", "limitOverrides", "cancellation", "plan", "reason"],
+      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides", "cancellation", "reason"],
       pathParams: [
         { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
       ],
@@ -6302,8 +6319,8 @@ who misspelled a field name that their edit worked.
       ],
       bodyAllowed: true,
       body: `{
-  "contractedPrice": 39999.50,
-  "reason": "Renegotiated at renewal \\u2014 20% partner discount."
+  "currentPeriodEnd": "2027-12-31T23:59:59Z",
+  "reason": "Trial extended three months."
 }`,
       successStatus: 200,
       responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "cancelledAt", "cancellationReason", "billingCustomerReference", "note"],
@@ -6316,12 +6333,11 @@ who misspelled a field name that their edit worked.
       examples: [
         {
           id: "01",
-          name: "THE ORDINARY EDIT",
+          name: "PUSH A TRIAL'S END DATE OUT",
           expect: "200 OK",
-          notes: `The body above.
-    OUT: contractedPrice 39999.50, hasDiscount true, planListPrice
-         unchanged — the plan everybody else is on did not move.
-         note: "Edited contractedPrice. ..."`,
+          notes: `The body above. THIS IS WHAT EXTEND-TRIAL DID, and nothing else moves.
+    OUT: currentPeriodEnd 2027-12-31, daysRemaining recounted from it.
+         note: "Edited currentPeriodEnd. ..."`,
           body: null,
         },
         {
@@ -6339,28 +6355,17 @@ who misspelled a field name that their edit worked.
           id: "03",
           name: "SEND WHAT IS ALREADY STORED",
           expect: "200 OK",
-          notes: `Case 01 twice.
+          notes: `On a subscription whose autoRenew is already true.
     OUT: note: "Nothing changed: every field sent already held that value.
                 No history row was written."
     "Changed" means different from what was stored, not "was mentioned in
-    the request". 39999.5 and 39999.50 are the same money — the price is
-    compared with compareTo, because BigDecimal.equals calls them
-    different numbers.`,
-          body: null,
-        },
-        {
-          id: "04",
-          name: "PUSH A TRIAL'S END DATE OUT",
-          expect: "200 OK",
-          notes: `THIS IS WHAT EXTEND-TRIAL DID. Nothing else changes.
-    OUT: daysRemaining recounted from the new date.`,
+    the request".`,
           body: `{
-  "currentPeriodEnd": "2027-12-31T23:59:59Z",
-  "reason": "Trial extended three months."
+  "autoRenew": true
 }`,
         },
         {
-          id: "05",
+          id: "04",
           name: "A PERIOD THAT RUNS BACKWARDS",
           expect: "400 Bad Request",
           notes: `OUT: { "code": "INVALID_BILLING_PERIOD",
@@ -6371,6 +6376,19 @@ who misspelled a field name that their edit worked.
     edited past the other.`,
           body: `{
   "currentPeriodEnd": "2020-01-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "05",
+          name: "MOVE BOTH ENDS AT ONCE",
+          expect: "200 OK",
+          notes: `The dates are NOT recalculated from billingCycle, and changing the
+    cycle does not move them: an edit that silently moved the period end
+    would change what the school is billed for while looking like a change
+    of cadence.`,
+          body: `{
+  "currentPeriodStart": "2026-04-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z"
 }`,
         },
         {
@@ -6407,16 +6425,6 @@ who misspelled a field name that their edit worked.
         },
         {
           id: "09",
-          name: "CLEAR THE BILLING REFERENCE",
-          expect: "200 OK",
-          notes: `OUT: billingCustomerReference null. "" clears a string field; omitting
-         it leaves it. Send "cus_Qx7B2mR9" to set it.`,
-          body: `{
-  "billingCustomerReference": ""
-}`,
-        },
-        {
-          id: "10",
           name: "CANCEL IT",
           expect: "200 OK",
           notes: `OUT: status CANCELLED and cancelledAt STAMPED although the request did
@@ -6429,7 +6437,7 @@ who misspelled a field name that their edit worked.
 }`,
         },
         {
-          id: "11",
+          id: "10",
           name: "BACKDATE A CANCELLATION",
           expect: "200 OK",
           notes: `OUT: cancelledAt 2026-06-30, not now. An explicit instruction beats the
@@ -6443,83 +6451,58 @@ who misspelled a field name that their edit worked.
 }`,
         },
         {
-          id: "12",
+          id: "11",
           name: "PUT A CANCELLED SUBSCRIPTION BACK",
           expect: "200 OK",
           notes: `OUT: cancelledAt AND cancellationReason both cleared. An ACTIVE
          subscription carrying a cancellation date says two contradictory
          things at once.
-    History: eventType ACTIVATED — or RESUMED, if it was SUSPENDED.`,
+    History: eventType ACTIVATED — or RESUMED, if it was SUSPENDED.
+
+    NO TRANSITION RULES APPLY. All six statuses are accepted from any
+    other, because this is the override for a subscription that is already
+    wrong. Suspending properly is #19, resuming is #20.`,
           body: `{
   "status": "ACTIVE"
 }`,
         },
         {
-          id: "13",
-          name: "MOVE THE SCHOOL TO ANOTHER PLAN",
-          expect: "200 OK",
-          notes: `OUT: planCode and planVersion moved; contractedPrice, billingCycle and
-         currencyCode ALL UNCHANGED. Nothing follows the plan — a school
-         on a negotiated price moved to the next version of its plan keeps
-         the price it negotiated.
-         note names anything that no longer matches: "priced in USD but
-         'STARTER_PLAN' version 1 lists in INR", "bills MONTHLY while the
-         plan bills YEARLY". Reported, not corrected.
-    History: eventType PLAN_CHANGED, with previous and new plan ids.
-
-    A DRAFT or RETIRED plan is 409 PLAN_NOT_SELLABLE, and the refusal
-    changes NOTHING ELSE in the same request — send autoRenew alongside a
-    bad plan and autoRenew is untouched.
-
-    This is not #16: proration, and what happens to money already paid for
-    the period, belong there.`,
-          body: `{
-  "plan": { "planCode": "STARTER_PLAN", "planVersion": 1 }
-}`,
-        },
-        {
-          id: "14",
+          id: "12",
           name: "EVERYTHING AT ONCE, ONE HISTORY ROW",
           expect: "200 OK",
-          notes: `OUT: currencyCode normalised to INR. ONE history row for the whole
-         edit, because it was one decision.
-    A bad currency is 409 CURRENCY_INVALID.
+          notes: `OUT: ONE history row for the whole edit, because it was one decision.
+         note names the cycle now disagreeing with the plan's — reported,
+         not corrected: billing a school monthly on a yearly plan is a real
+         arrangement, and rewriting it would undo a deliberate change.
 
-15  WHAT LANDS IN THE DATABASE
-    From mongosh, after a few edits:
+    From mongosh afterwards:
       db.subscription_history.find({schoolSubscriptionDocsId: "..."})
                              .sort({createdAt: 1})
-        -> TERMS_CHANGED  TRIAL     -> TRIAL     | Edited contractedPrice.
-                                                   Partner discount.
+        -> TERMS_CHANGED  TRIAL     -> TRIAL     | Edited currentPeriodEnd.
+                                                   Trial extended three
+                                                   months.
            CANCELLED      TRIAL     -> CANCELLED | Edited status,
                                                    cancelledAt. ...
            RESUMED        SUSPENDED -> ACTIVE    | Edited status.
-           PLAN_CHANGED   ACTIVE    -> ACTIVE    | Edited plan.
 
     TERMS_CHANGED was added for this endpoint — the enum had only status
     moves, so an edit either went unrecorded or borrowed a type that says
     something untrue. A status move made here writes the type that names
     it, so a suspension recorded through this endpoint and one recorded
-    through #19 read identically.
+    through #19 read identically. PLAN_CHANGED is never written here: this
+    endpoint cannot move the plan.
 
     THE reason ON THE ROW IS THE FIELD LIST PLUS THE CALLER'S WORDS,
-    always. Months later "the price changed" is the question and "which
+    always. Months later "the dates changed" is the question and "which
     fields moved" is the answer; "renegotiated" alone does not say what.
 
-    NO ROW AT ALL when nothing changed (case 03).
-
-    WHAT IT WILL NOT EDIT: subscriptionNo (the number the sequence handed
-    out, pointed at by invoices and history), current (owned by the unique
-    partial index) and schoolId (in the URL).`,
+    NO ROW AT ALL when nothing changed (case 03).`,
           body: `{
   "status": "PAST_DUE",
   "billingCycle": "MONTHLY",
   "currentPeriodStart": "2026-04-01T00:00:00Z",
   "currentPeriodEnd": "2027-03-31T23:59:59Z",
   "autoRenew": false,
-  "contractedPrice": 1234.00,
-  "currencyCode": "inr",
-  "billingCustomerReference": "cus_Qx7B2mR9",
   "limitOverrides": { "maxStudentsOverride": 4000, "maxUsersOverride": 400 },
   "reason": "Contract renegotiated, invoice overdue."
 }`,

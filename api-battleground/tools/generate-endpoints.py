@@ -281,14 +281,13 @@ CURATED = {
     successStatus=200,
   ),
   'Edit Subscription': dict(
-    summary='Edits any of the terms of one subscription. Replaced extend-trial and the four single-field PATCHes.',
+    summary='Edits when a subscription runs, what state it is in and how much it may use. No money: the price is #25, the plan #16.',
     required=[],
     # Nested blocks are passed through as written: limitOverrides and cancellation each hold two
     # fields, because a null inside them means "remove this" and an omitted block means "leave
     # it". Flattening them here would lose the distinction the endpoint is built on.
     optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
-              'contractedPrice','currencyCode','billingCustomerReference','limitOverrides',
-              'cancellation','plan','reason'],
+              'limitOverrides','cancellation','reason'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','cancelledAt','cancellationReason','billingCustomerReference','note'],
     successStatus=200,
   ),

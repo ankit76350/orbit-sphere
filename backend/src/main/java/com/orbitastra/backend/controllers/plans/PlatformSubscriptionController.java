@@ -91,9 +91,14 @@ public class PlatformSubscriptionController {
      *
      * <p>Use {@code current} as the subscription number for the one the school is on now.
      *
-     * <p><b>One PATCH for every editable field</b>, because they were five endpoints editing five
-     * columns of the same document. Pushing a trial's end date out — which used to be
-     * extend-trial — is {@code currentPeriodEnd} here.
+     * <p><b>When it runs, what state it is in, how much of the product it may use.</b> The status,
+     * the billing cycle, both period dates, auto-renewal, the two capacity overrides and the
+     * cancellation — three endpoints' worth of single-column edits (extend-trial, #23 and #24) in
+     * one request. Pushing a trial's end date out is {@code currentPeriodEnd} here.
+     *
+     * <p><b>Nothing about the money.</b> The price and currency stay on #25, the billing customer
+     * on #26 and the plan on #16, because changing what a school pays has invoice consequences
+     * that should not ride along with a change of dates.
      *
      * <p>Every field is optional and absent means unchanged. The request documents what each
      * field's absence means, and which two are nested so that "remove this" can be told apart

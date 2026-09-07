@@ -125,7 +125,7 @@ file.
 |---|---|---|---|
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| <a id="t15"></a>15 — **built** | [`PATCH /platform/schools/{id}/subscriptions/{no}`](#e15) | Edit any of the terms of one subscription: status, plan, price, currency, cycle, period dates, capacity overrides, auto-renewal, the billing reference, the cancellation. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 to #26. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t15"></a>15 — **built** | [`PATCH /platform/schools/{id}/subscriptions/{no}`](#e15) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides, the cancellation. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>18 | [`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`](#e18) | Mark that the bill was not paid on time. The school keeps working — this is the warning stage before anything is switched off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -135,8 +135,8 @@ file.
 | <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t23"></a>~~23~~ **superseded by [#15](#t15)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`~~ | Turn automatic renewal on or off. **#15 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t24"></a>~~24~~ **superseded by [#15](#t15)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/overrides`~~ | Give one school a bigger student or user limit than its plan normally allows, because that is what was negotiated. **#15 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| <a id="t25"></a>~~25~~ **superseded by [#15](#t15)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/price`~~ | Change the agreed price for this one school without changing the plan everybody else is on. **#15 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
-| <a id="t26"></a>~~26~~ **superseded by [#15](#t15)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`~~ | Save the payment provider's customer id against the school, so future charges can be raised against it. **#15 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t25"></a>25 | [`PATCH /platform/schools/{id}/subscriptions/{no}/price`](#e25) | Change the agreed price for this one school without changing the plan everybody else is on. **#15 deliberately cannot**: what a school pays gets invoiced, so it keeps its own endpoint. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t26"></a>26 | [`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`](#e26) | Save the payment provider's customer id against the school, so future charges can be raised against it. **#15 deliberately cannot**: it is a payment-provider handle, and it belongs with the money. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 
 ## 4. The subscription — reads (platform) · [Build order ↓](#build-order)
 
@@ -317,12 +317,18 @@ status move, so nothing described extend-trial (#15) or the four term edits (#23
 changed what a school pays or what it may use, and would have changed it leaving no trace of who
 did it or why.
 
-The answer turned out to be one endpoint rather than five event types. Those five were five
-endpoints editing five columns of one document, so they became **#15**, and the enum gained one
-constant, **`TERMS_CHANGED`**, for an edit where neither the status nor the plan moved. A status
-move made through #15 still writes the type that names it — a suspension recorded there and one
-recorded through #19 read identically in the history, which is what "when was this school
-suspended" needs.
+The answer turned out to be one endpoint rather than five event types — for three of the five.
+extend-trial, #23 and #24 were three endpoints editing three columns of one document, so they
+became **#15**, and the enum gained one constant, **`TERMS_CHANGED`**, for an edit where the
+status did not move. A status move made through #15 still writes the type that names it — a
+suspension recorded there and one recorded through #19 read identically in the history, which is
+what "when was this school suspended" needs.
+
+**#25 and #26 kept their own endpoints, decided 2026-09-07.** Both write money: what a school is
+charged, and the provider handle it is charged against. Neither is a term somebody adjusts while
+moving a date, and an edit that could reprice a school while looking like an administrative
+change is the one worth making a caller ask for separately. Their history rows are still
+unmodelled — `TERMS_CHANGED` fits both when they are built.
 
 Adding a constant is safe in a way removing one is not: an unrecognised stored value fails the
 whole query it appears in, not the single row.
@@ -422,7 +428,7 @@ new row, because a history you can edit is not a history.
 | Field | Type | What can be in it |
 |---|---|---|
 | `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
-| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #14. **#15 writes any of eight**: `TERMS_CHANGED` when neither the status nor the plan moved, `PLAN_CHANGED` when the plan did, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. Only **`RENEWED`** belongs to an endpoint that is not built (#17). |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #14. **#15 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** and **`RENEWED`** belong to endpoints that are not built (#16 and #17). |
 | `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
 | `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
@@ -1195,17 +1201,32 @@ not know it already happened — and answering `200` would hide that.
 <a id="e15"></a>
 **[15](#t15) · `PATCH /platform/schools/{id}/subscriptions/{no}`** — built
 
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `effectiveFrom`, `effectiveUntil`, `planVersion`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers`, `features` — only when `plan` is sent, to check it can be sold; and once at the end to build the response
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: any of `status`, `planDefinitionDocsId`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `billingCustomerReference`, `cancelledAt`, `cancellationReason`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` (see below), `previousStatus`, `newStatus`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `source`, `reason` = the fields that moved plus the caller's words, `performedByDocsId`, `effectiveAt` — **and nothing at all when nothing changed**
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `billingCycle`, `maxStudents`, `maxUsers`, `features` — once, at the end, to build the response
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: any of `status`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `maxStudentsOverride`, `maxUsersOverride`, `cancelledAt`, `cancellationReason`
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` (see below), `previousStatus`, `newStatus`, `newPlanDefinitionDocsId`, `source`, `reason` = the fields that moved plus the caller's words, `performedByDocsId`, `effectiveAt` — **and nothing at all when nothing changed**
 
-### One endpoint where there were five
+### One endpoint where there were three
 
-extend-trial moved `currentPeriodEnd`. #23 moved `autoRenew`, #24 the two overrides, #25 the
-price, #26 the billing reference. Five endpoints editing five columns of one document meant five
-sets of rules to keep in step, and a correction touching two fields was two requests, two writes
-and two history rows for one decision. Pushing a trial's end date out is now `currentPeriodEnd`
-on this request.
+extend-trial moved `currentPeriodEnd`, #23 moved `autoRenew` and #24 the two overrides. Three
+endpoints editing three columns of one document meant three sets of rules to keep in step, and a
+correction touching two of them was two requests, two writes and two history rows for one
+decision. Pushing a trial's end date out is now `currentPeriodEnd` on this request.
+
+### Nothing about the money is here
+
+**What it edits:** when the subscription runs (both period dates, the billing cycle), what state
+it is in (`status`, and the cancellation that goes with it), and how much of the product it may
+use (the two capacity overrides, `autoRenew`).
+
+**What it will not:** `contractedPrice` and `currencyCode` are [#25](#e25),
+`billingCustomerReference` is [#26](#e26), and the plan is [#16](#e16). Changing a price changes
+what gets invoiced; changing a currency changes what money it is invoiced in. Those are
+commercial decisions with a paper trail of their own, and an edit that could reprice a school
+while looking like a change of dates is the one worth making a caller ask for separately.
+
+A consequence worth knowing: **there is no built endpoint that can change a price after #13 has
+set it.** #25 is not built, and #15 will not do it. A subscription sold at the wrong price has to
+be corrected in the database until #25 exists.
 
 ### It applies no transition rules, deliberately
 
@@ -1214,14 +1235,11 @@ raises an invoice, cancelling decides what happens to money already paid. This w
 told, which is what is needed when a subscription is already wrong and no ordinary transition
 describes the fix. It is not how a subscription should ordinarily be renewed or cancelled.
 
-Two things are still refused, because there is no reading of either that is not a mistake:
+One thing is still refused, because there is no reading of it that is not a mistake:
 
 | Refused | Code |
 |---|---|
-| moving to a plan that cannot be sold today — a draft's price is not settled, a retired plan is off the menu | `409 PLAN_NOT_SELLABLE` |
 | a period left running backwards, checked against whichever end did **not** move | `400 INVALID_BILLING_PERIOD` |
-
-A published plan that is not publicly available is allowed — that is a private quote.
 
 ### Absent, null and cleared
 
@@ -1230,7 +1248,6 @@ Absent and null are the same value to Jackson, so every field has a defined abse
 | Sent | Means |
 |---|---|
 | omitted, or `null` | leave it exactly as it is |
-| `""` | clear it — `billingCustomerReference` only |
 | a value | replace it |
 | a block omitted | leave both of its fields alone |
 | a block sent | replace both; `null` inside means "no value" |
@@ -1252,17 +1269,12 @@ Because the alternative is a document that contradicts itself:
 Neither overrides a `cancellation` block the caller sent: an explicit instruction beats an
 inferred one, which is how a cancellation gets backdated to the real leaving date.
 
-### Nothing follows the plan automatically
+### A cycle that no longer matches the plan is reported, not corrected
 
-Moving the school to another plan or version moves the pointer. The price, cycle and currency
-stay as they are unless the request also changes them — a school on a negotiated price moved to
-the next version of its plan should keep the price it negotiated, and guessing which of the two
-the caller meant would be wrong half the time. The response names anything that no longer
-matches: priced in `USD` while the plan lists `INR`, or billing `MONTHLY` while the plan bills
-`YEARLY`. Reported, not corrected, because an operator may be mid-way through a deliberate
-change and rewriting half of it would be worse than saying so.
-
-This is not #16. Proration, and what happens to money already paid for the period, belong there.
+`billingCycle` is editable, so an edit can leave a school billing `MONTHLY` on a plan that bills
+`YEARLY`. That is a real arrangement rather than a mistake, so the response says so and leaves it
+— rewriting it would undo a deliberate change, and saying nothing would leave it to be found on
+an invoice.
 
 ### "Changed" means different from what was stored
 
@@ -1273,9 +1285,6 @@ read. A request that asks for **nothing at all** is a different thing and is ref
 NO_CHANGES_REQUESTED`: answering 200 to it would tell a caller who misspelled a field name that
 their edit worked.
 
-The price is compared with `compareTo`. `BigDecimal.equals` calls 39999.5 and 39999.50 different
-numbers, and nobody means that.
-
 ### Which event type one edit writes
 
 One row per edit, whatever moved, so a single decision is a single row. It records the most
@@ -1283,10 +1292,12 @@ consequential thing that happened:
 
 | What moved | `eventType` |
 |---|---|
-| the plan | `PLAN_CHANGED` |
 | the status, to `ACTIVE` from `SUSPENDED` | `RESUMED` |
 | the status, otherwise | `TRIAL_STARTED`, `ACTIVATED`, `PAYMENT_PAST_DUE`, `SUSPENDED`, `CANCELLED`, `EXPIRED` |
-| neither | `TERMS_CHANGED` — added for this endpoint |
+| nothing but terms | `TERMS_CHANGED` — added for this endpoint |
+
+`PLAN_CHANGED` is never written here: this endpoint cannot move the plan, and [#16](#e16) is what
+does.
 
 The `reason` on the row is the field list plus the caller's words, always: months later "the
 price changed" is the question and "which fields moved" is the answer, and a reason of
@@ -1369,22 +1380,23 @@ edit. Kept in the list so the number still resolves, and so it is clear this was
 than forgotten.
 
 <a id="e25"></a>
-**[~~25~~](#t25) · ~~`PATCH /platform/schools/{id}/subscriptions/{no}/price`~~** — superseded by [#15](#e15)
+**[25](#t25) · `PATCH /platform/schools/{id}/subscriptions/{no}/price`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `contractedPrice`, `currencyCode`
 
-Every field above is editable through [#15](#e15), which writes one history row for the whole
-edit. Kept in the list so the number still resolves, and so it is clear this was decided rather
-than forgotten.
+**[#15](#e15) deliberately cannot do this.** What a school pays is what gets invoiced, and a
+currency decides what money the invoice is in. Behind the same request as "push the trial out a
+fortnight", repricing a school would look like an administrative tidy-up — so it stays a request
+somebody has to make on purpose.
 
 <a id="e26"></a>
-**[~~26~~](#t26) · ~~`PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`~~** — superseded by [#15](#e15)
+**[26](#t26) · `PATCH /platform/schools/{id}/subscriptions/{no}/billing-customer`**
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `billingCustomerReference`
 
-Every field above is editable through [#15](#e15), which writes one history row for the whole
-edit. Kept in the list so the number still resolves, and so it is clear this was decided rather
-than forgotten.
+**[#15](#e15) deliberately cannot do this.** It is the payment provider's handle for this school
+— the thing future charges are raised against — so it belongs with the money rather than with
+the dates.
 
 ## The subscription — platform reads  ·  27–32
 

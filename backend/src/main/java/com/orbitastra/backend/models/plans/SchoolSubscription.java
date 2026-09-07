@@ -114,7 +114,7 @@ public class SchoolSubscription extends SchoolBase {
         // Example: "customer_Qx7B2mR9"
         private String billingCustomerReference;
 
-        //! added when status chnages to can
+        //! added when status chnages to CANCELLED
         // Example: 2027-02-15T10:30:00Z
         private Instant cancelledAt;
 

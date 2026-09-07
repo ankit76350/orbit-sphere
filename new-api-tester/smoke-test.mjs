@@ -353,6 +353,14 @@ const formChecks = [
     (editSource.match(/type="date"/g) || []).length === 3
       && !editSource.includes('An ISO instant')],
   ['each status says what choosing it means', editSource.includes('const STATUS_MEANS')],
+  // The plan and the money have their own endpoints (#16, #25, #26). No boxes for them, and the
+  // form says so rather than leaving it to be noticed.
+  ['there is no box for the plan or the money',
+    !editSource.includes("set('contractedPrice')") && !editSource.includes("set('currencyCode')")
+      && !editSource.includes("set('billingCustomerReference')")
+      && !editSource.includes("set('planKey')")],
+  ['and the form says where they went',
+    editSource.includes('The plan and the money are not editable here')],
   ['the box marks the one it is on now', editSource.includes("' — as it stands'")],
   // Both refusals are worked out from the boxes: a refused request loses the other twelve
   // boxes somebody just filled in.
@@ -371,13 +379,20 @@ const STORED_SUB = {
   subscriptionNo: 'SUB/2026/09/000001', planCode: 'PREMIUM', planVersion: 1,
   status: 'ACTIVE', billingCycle: 'YEARLY',
   currentPeriodStart: '2026-04-01T00:00:00Z', currentPeriodEnd: '2027-03-31T23:59:59Z',
+  // Left on the fixture on purpose: the endpoint cannot edit these, so they have to survive a
+  // round through storedForm/patchBody untouched rather than merely be missing from the test.
   autoRenew: true, contractedPrice: 49999.0, currencyCode: 'INR',
   billingCustomerReference: 'cus_Qx7B2mR9', maxStudentsOverride: 2500, maxUsersOverride: 300,
   cancelledAt: null, cancellationReason: null,
 }
 const baseline = storedForm(STORED_SUB)
 const edited = (changes) => patchBody({ ...baseline, reason: '', ...changes }, baseline)
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+// Key order is not part of a JSON body's meaning, so it must not be part of the comparison —
+// expecting the same fields in a different order would fail for a reason nobody cares about.
+const sorted = (value) => (value === null || typeof value !== 'object' || Array.isArray(value)
+  ? value
+  : Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])])))
+const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b))
 
 const editCases = [
   ['nothing touched sends nothing', same(edited({}), {})],
@@ -385,11 +400,18 @@ const editCases = [
   ['a reason alone sends nothing', same(edited({ reason: 'because' }), {})],
   ['a reason rides along with a real change',
     same(edited({ autoRenew: false, reason: 'because' }), { autoRenew: false, reason: 'because' })],
-  ['one field sends one field',
-    same(edited({ contractedPrice: '39999.5' }), { contractedPrice: 39999.5 })],
-  // "" is how this endpoint clears a string, and the only field where it means anything.
-  ['emptying the billing reference sends ""',
-    same(edited({ billingCustomerReference: '' }), { billingCustomerReference: '' })],
+  ['one field sends one field', same(edited({ autoRenew: false }), { autoRenew: false })],
+  // The money and the plan are #25, #26 and #16. Nothing in the form can reach them, so nothing
+  // in the body can either — a box that reappeared by accident would show up here.
+  ['no edit can reach the price, the currency, the reference or the plan',
+    ['contractedPrice', 'currencyCode', 'billingCustomerReference', 'plan'].every((field) =>
+      !Object.keys(edited({ status: 'SUSPENDED', billingCycle: 'MONTHLY', autoRenew: false,
+        currentPeriodStart: '2026-05-01', currentPeriodEnd: '2027-05-01',
+        maxStudentsOverride: '9', maxUsersOverride: '9',
+        cancelledAt: '2026-01-01', cancellationReason: 'x' })).includes(field))],
+  ['and the form has no box for any of them',
+    ['contractedPrice', 'currencyCode', 'billingCustomerReference'].every((field) =>
+      !baseline[field] && !Object.keys(baseline).includes(field))],
   // The period dates are @NotNull on the model: an emptied box is an unfinished one, not a
   // request to clear them, and sending "" would be a 400.
   ['emptying a period date sends nothing', same(edited({ currentPeriodEnd: '' }), {})],
@@ -418,22 +440,18 @@ const editCases = [
   ['a cancellation date is a picked day as well',
     same(edited({ cancelledAt: '2026-06-30' }),
          { cancellation: { cancelledAt: '2026-06-30T00:00:00Z', cancellationReason: null } })],
-  ['the plan goes as a code and a version, not a key',
-    same(edited({ planKey: 'STARTER_PLAN@2' }),
-         { plan: { planCode: 'STARTER_PLAN', planVersion: 2 } })],
   ['several fields at once go together',
-    same(edited({ status: 'PAST_DUE', autoRenew: false, currencyCode: 'USD' }),
-         { status: 'PAST_DUE', autoRenew: false, currencyCode: 'USD' })],
+    same(edited({ status: 'PAST_DUE', autoRenew: false, billingCycle: 'MONTHLY' }),
+         { status: 'PAST_DUE', autoRenew: false, billingCycle: 'MONTHLY' })],
   // What the button counts, and what the preview lists.
   ['the reason is not counted as a change',
     changedFields({ autoRenew: false, reason: 'because' }).length === 1],
   // Nothing here may reach the three fields the endpoint refuses to edit.
   ['no edit can reach subscriptionNo, current or schoolId',
     ['subscriptionNo', 'current', 'schoolId'].every((field) => !Object.keys(
-      edited({ status: 'SUSPENDED', autoRenew: false, contractedPrice: '1', currencyCode: 'USD',
-               billingCustomerReference: 'x', maxStudentsOverride: '9', maxUsersOverride: '9',
+      edited({ status: 'SUSPENDED', autoRenew: false, billingCycle: 'MONTHLY',
+               maxStudentsOverride: '9', maxUsersOverride: '9',
                cancelledAt: '2026-01-01', cancellationReason: 'x',
-               planKey: 'OTHER@3', billingCycle: 'MONTHLY',
                currentPeriodStart: '2026-05-01',
                currentPeriodEnd: '2027-05-01' })).includes(field))],
 ]

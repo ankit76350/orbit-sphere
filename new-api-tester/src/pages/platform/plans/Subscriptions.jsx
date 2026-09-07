@@ -449,32 +449,18 @@ const STATUS_MEANS = {
  * nothing sends nothing at all.
  */
 function EditSubscription({ open, schoolId, subscription, onClose, onSaved }) {
-  const { call } = useApi()
-  const [plans, setPlans] = useState(null)
-
-  useEffect(() => {
-    if (!open || plans) return
-    let alive = true
-    call('list-plans', {
-      label: 'Plans this school could be moved to',
-      query: { status: 'ACTIVE', page: 0, size: 100 },
-    }).then((result) => {
-      if (alive) setPlans(result.ok ? (result.bodyJson?.content ?? []) : [])
-    })
-    return () => { alive = false }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, plans])
-
   // Nothing to edit until there is a subscription. Returning null rather than an empty modal
   // also means the form below MOUNTS on open — which is what lets its state start from the
   // stored values instead of being filled in by an effect a render later.
+  //
+  // No plan list is loaded either: the plan cannot be changed here (#16), so there is nothing to
+  // choose from and nothing to fetch.
   if (!open || !subscription) return null
 
   return (
     <EditForm
       schoolId={schoolId}
       subscription={subscription}
-      plans={plans}
       onClose={onClose}
       onSaved={onSaved}
     />
@@ -489,7 +475,7 @@ function EditSubscription({ open, schoolId, subscription, onClose, onSaved }) {
  * exactly that render this app has crashed on three times. Here it would also have meant the
  * body preview briefly claiming the edit was empty.
  */
-function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
+function EditForm({ schoolId, subscription, onClose, onSaved }) {
   const { call } = useApi()
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -542,18 +528,12 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
     setRefused(result.bodyJson || { message: `The server answered ${result.status}.` })
   }
 
-  const movedTo = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === form.planKey)
-  // Whether the plan it is on now is one of the ones offered. When it is not — retired, or off
-  // the public list — the box needs an option of its own or it would show somebody else's plan.
-  const onOfferedPlan = (plans ?? [])
-    .some((one) => `${one.planCode}@${one.planVersion}` === stored.planKey)
-
   return (
     <Modal
       open
       onClose={onClose}
       title="Edit the terms"
-      description="Every field is optional. Only what you change is sent — the endpoint reads an absent field as “leave it alone”."
+      description="When it runs, what state it is in, how much it may use. Only what you change is sent — the endpoint reads an absent field as “leave it alone”."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -656,81 +636,21 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
           </p>
         ) : null}
 
-        <div className="field-split">The plan — what they are entitled to</div>
-
-        <Field
-          label="Plan"
-          hint={movedTo
-            ? `Lists at ${money(movedTo.listPrice, movedTo.currencyCode)} ${movedTo.billingCycle.toLowerCase()} — which this does NOT copy onto the subscription.`
-            : 'Only published plans are offered. A draft or retired one answers 409.'}
-        >
-          <span className="select" style={{ width: '100%' }}>
-            <select className="select-input" style={{ width: '100%' }}
-              value={form.planKey} onChange={set('planKey')}>
-              {/* The plan it is on now is offered even when it is retired or off the public
-                  list, or the box would show the wrong plan on open. */}
-              {!onOfferedPlan ? (
-                <option value={stored.planKey}>
-                  {subscription.planCode} v{subscription.planVersion} — as it stands
-                </option>
-              ) : null}
-              {(plans ?? []).map((one) => (
-                <option key={`${one.planCode}@${one.planVersion}`} value={`${one.planCode}@${one.planVersion}`}>
-                  {one.name} — {one.planCode} v{one.planVersion}
-                  {`${one.planCode}@${one.planVersion}` === stored.planKey ? ' — as it stands' : ''}
-                  {sellability(one).label ? ` (${sellability(one).label})` : ''}
-                </option>
-              ))}
-            </select>
+        {/* What this endpoint cannot touch, said once rather than left to be discovered by a
+            box that is not there. Each has its own endpoint because it moves money. */}
+        <p className="banner">
+          <span>
+            <strong>The plan and the money are not editable here.</strong>{' '}
+            {subscription.planCode} v{subscription.planVersion} at{' '}
+            {money(subscription.contractedPrice, subscription.currencyCode)}
+            {subscription.hasDiscount
+              ? ` (the plan lists ${money(subscription.planListPrice, subscription.currencyCode)})`
+              : ''}
+            . Repricing is <code className="mono">#25</code>, the billing customer{' '}
+            <code className="mono">#26</code>, changing the plan{' '}
+            <code className="mono">#16</code> — none of them built yet.
           </span>
-        </Field>
-
-        {form.planKey !== stored.planKey ? (
-          <p className="banner" data-tone="warn">
-            <strong>Nothing follows the plan.</strong> The price, cycle and currency stay as they
-            are unless you change them below too — a school on a negotiated price keeps the price
-            it negotiated. Change them in this same request if they should move.
-          </p>
-        ) : null}
-
-        <div className="field-split">What they pay</div>
-
-        <div className="field-grid">
-          <Field
-            label="Agreed price"
-            hint={subscription.hasDiscount
-              ? `The plan lists ${money(subscription.planListPrice, subscription.currencyCode)}.`
-              : 'Zero is allowed — a free deal is a deal. Negative is refused.'}
-          >
-            <Input type="number" min="0" step="0.01"
-              value={form.contractedPrice} onChange={set('contractedPrice')} />
-          </Field>
-          <Field label="Currency" hint="ISO 4217. Lower case is fine — the API normalises it.">
-            <Input value={form.currencyCode} onChange={set('currencyCode')} placeholder="INR" />
-          </Field>
-          <Field
-            label="Billing cycle"
-            hint="Only the cadence. The period dates below are not recalculated from it."
-          >
-            <span className="select" style={{ width: '100%' }}>
-              <select className="select-input" style={{ width: '100%' }}
-                value={form.billingCycle} onChange={set('billingCycle')}>
-                {BILLING_CYCLES.map((one) => (
-                  <option key={one} value={one}>
-                    {one}{one === stored.billingCycle ? ' — as it stands' : ''}
-                  </option>
-                ))}
-              </select>
-            </span>
-          </Field>
-          <Field
-            label="Billing customer reference"
-            hint="The payment provider's customer id. Clear the box to remove it."
-          >
-            <Input value={form.billingCustomerReference}
-              onChange={set('billingCustomerReference')} placeholder="cus_Qx7B2mR9" />
-          </Field>
-        </div>
+        </p>
 
         <div className="field-split">The period they have paid for</div>
 
@@ -747,6 +667,22 @@ function EditForm({ schoolId, subscription, plans, onClose, onSaved }) {
             hint="Push this out to extend a trial — that is all extend-trial ever did. The chosen day is included."
           >
             <Input type="date" value={form.currentPeriodEnd} onChange={set('currentPeriodEnd')} />
+          </Field>
+          <Field
+            label="Billing cycle"
+            wide
+            hint="Only the cadence. The dates above are NOT recalculated from it — an edit that moved the period end would change what the school is billed for while looking like a change of cadence."
+          >
+            <span className="select" style={{ width: '100%' }}>
+              <select className="select-input" style={{ width: '100%' }}
+                value={form.billingCycle} onChange={set('billingCycle')}>
+                {BILLING_CYCLES.map((one) => (
+                  <option key={one} value={one}>
+                    {one}{one === stored.billingCycle ? ' — as it stands' : ''}
+                  </option>
+                ))}
+              </select>
+            </span>
           </Field>
         </div>
 

@@ -1,25 +1,21 @@
 package com.orbitastra.backend.dto.plans.subscription;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
  * Edits what a school is contracted to. Endpoint #15.
  *
- * <p><b>This replaced extend-trial.</b> That endpoint moved one date, and four others
- * (#23 to #26) each moved one other field, so five endpoints existed to edit five columns of the
- * same document — five sets of rules to keep in step, and no way to correct two fields at once
- * without two writes and two history rows for one decision. This edits any of them, in one
- * transaction, with one history row. Pushing a trial end date out is now
- * {@code currentPeriodEnd} on this request.
+ * <p><b>This replaced extend-trial</b>, and took in #23 (auto-renew) and #24 (limit overrides)
+ * with it — three endpoints that each moved one column of the same document, with three sets of
+ * rules to keep in step and no way to correct two of them at once without two writes and two
+ * history rows for one decision. One PATCH, one transaction, one history row. Pushing a trial end
+ * date out is now {@code currentPeriodEnd} on this request.
  *
  * <p><b>It is the operator's override, not the ordinary path.</b> The lifecycle endpoints (#17 to
  * #22) each know one transition and its rules — renewing raises an invoice, suspending has a
@@ -33,7 +29,6 @@ import jakarta.validation.constraints.Size;
  *
  * <pre>
  * field omitted, or null   -> leave it exactly as it is
- * field is ""              -> clear it (billingCustomerReference only)
  * field has a value        -> replace it
  * a nested block omitted   -> leave both of its fields alone
  * a nested block sent      -> replace both; null inside means "no value"
@@ -47,6 +42,15 @@ import jakarta.validation.constraints.Size;
  * what lets a trial's end date be moved on its own.
  *
  * <h2>What is deliberately absent</h2>
+ *
+ * <p><b>Nothing that decides what the school pays.</b> {@code contractedPrice} and
+ * {@code currencyCode} are #25; {@code billingCustomerReference} is #26; the plan is #16.
+ * Changing a price changes what gets invoiced, and changing a currency changes what money it is
+ * invoiced in — commercial decisions with a paper trail of their own. Behind the same request as
+ * "push the trial out a fortnight", repricing a school would look like an administrative tidy-up.
+ *
+ * <p>So this endpoint covers <b>when</b> a subscription runs, <b>what state</b> it is in, and
+ * <b>how much of the product</b> it may use. Nothing about the money.
  *
  * <p>{@code subscriptionNo} is the number the sequence handed out and the way this subscription
  * is addressed. Editing it would renumber a record that invoices and history rows already point
@@ -106,22 +110,6 @@ public record SubscriptionUpdateRequest(
         /** Example: false */
         Boolean autoRenew,
 
-        /** Example: 39999.50. Zero is allowed — a free deal is a deal; negative is not. */
-        BigDecimal contractedPrice,
-
-        /**
-         * ISO 4217. Example: "INR"
-         *
-         * <p>Editable here, unlike on #13 where it always comes from the plan, because a
-         * subscription whose currency is already wrong has to be correctable. The response says
-         * so when the result no longer matches the plan's currency rather than leaving it to be
-         * found on an invoice.
-         */
-        @Size(max = 3) String currencyCode,
-
-        /** Send "" to remove it. Example: "cus_Qx7B2mR9" */
-        @Size(max = 120) String billingCustomerReference,
-
         /**
          * The negotiated capacity, replaced as a pair.
          *
@@ -145,24 +133,6 @@ public record SubscriptionUpdateRequest(
         @Valid Cancellation cancellation,
 
         /**
-         * Moves the school onto a different plan or version.
-         *
-         * <p><b>Nothing follows the plan automatically.</b> The price, cycle and currency stay
-         * exactly as they are unless this request also changes them — because a school on a
-         * negotiated price that got moved to the next version of its plan should keep the price
-         * it negotiated, and guessing which of the two the caller meant would be wrong half the
-         * time. The response names anything that no longer matches the new plan.
-         *
-         * <p>The plan still has to be one that can be sold today: a draft's price is not settled
-         * and a retired plan was taken off the menu. A published plan that is not publicly
-         * available is fine — that is a private quote.
-         *
-         * <p>This is not #16. Proration, and deciding what happens to money already paid for the
-         * period, belong there; this moves the pointer.
-         */
-        @Valid PlanMove plan,
-
-        /**
          * Why, for the history row. Example: "Renegotiated at renewal — 20% partner discount."
          *
          * <p>Not stored on the subscription. It goes on the audit row next to the list of fields
@@ -183,15 +153,10 @@ public record SubscriptionUpdateRequest(
     public record Cancellation(Instant cancelledAt, @Size(max = 500) String cancellationReason) {
     }
 
-    /** Both together, because half a plan reference addresses nothing. */
-    public record PlanMove(@NotBlank String planCode, @NotNull Integer planVersion) {
-    }
-
     /** True when the caller asked for nothing at all — answered with a 400, not a silent 200. */
     public boolean isEmpty() {
         return status == null && billingCycle == null && currentPeriodStart == null
-                && currentPeriodEnd == null && autoRenew == null && contractedPrice == null
-                && currencyCode == null && billingCustomerReference == null
-                && limitOverrides == null && cancellation == null && plan == null;
+                && currentPeriodEnd == null && autoRenew == null && limitOverrides == null
+                && cancellation == null;
     }
 }
