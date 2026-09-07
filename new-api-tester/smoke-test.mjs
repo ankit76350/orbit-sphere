@@ -437,6 +437,58 @@ for (const [label, ok] of limitChecks) {
   if (!ok) fail++
 }
 
+// Choosing a plan on the change-plan modal fills the three negotiable boxes with that plan's
+// figures, rather than showing them as placeholders nobody can read back or edit. Scoped to
+// ChangePlan the same way the edit form is, so the other modals' boxes cannot answer for it.
+console.log('\nChoosing a plan fills in what that plan charges')
+const changeStart = subsSourceFull.indexOf('function ChangePlan(')
+const changeEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index)
+  .filter((i) => i > changeStart))
+const changeSource = subsSourceFull.slice(changeStart, changeEnd)
+const autofillChecks = [
+  ['the select fills the boxes rather than only recording the choice',
+    changeSource.includes('onChange={(event) => choosePlan(event.target.value)}')
+      && !changeSource.includes('onChange={(event) => setPicked(event.target.value)}')],
+  ['it fills all three negotiable figures',
+    /const choosePlan[\s\S]{0,600}setPrice\(plan \? String\(plan\.listPrice\)/.test(changeSource)
+      && /const choosePlan[\s\S]{0,600}setMaxStudents\(plan \? String\(plan\.maxStudents\)/
+        .test(changeSource)
+      && /const choosePlan[\s\S]{0,600}setMaxUsers\(plan \? String\(plan\.maxUsers\)/
+        .test(changeSource)],
+  ['clearing the plan empties them again',
+    (changeSource.match(/plan \? String\([^)]+\) : ''/g) || []).length === 3],
+  // The figures are the plan's, so they must be re-read when the plan changes. A handler that
+  // only filled an empty box would leave the old plan's price sitting under a new plan's name.
+  ['switching plan re-fills them', !/if \(!price\)|price === '' \?/.test(changeSource)],
+  // The placeholders stay, but they are now the fallback for a box somebody emptied rather than
+  // the only way to see the figure — so each box has to bind its value to the state choosePlan
+  // writes, or the fill would be invisible and the placeholder would be back to being the display.
+  ['each box shows the filled figure as its value',
+    changeSource.includes('value={price}') && changeSource.includes('value={maxStudents}')
+      && changeSource.includes('value={maxUsers}')],
+  // The hints used to say "blank takes the plan's" — true then, wrong now the box is filled.
+  ['the hints describe a filled box',
+    !changeSource.includes("Blank takes the plan's")
+      && changeSource.includes('filled from the plan')],
+  // The warning for a negotiated school keyed on the boxes being blank, which they never are
+  // now. It has to key on their still holding the plan's figures instead, or it never shows.
+  ['the negotiated-ceiling warning still fires',
+    changeSource.includes('const untouchedFromPlan')
+      && changeSource.includes('untouchedFromPlan && subscription.hasLimitOverrides')
+      && !changeSource.includes("subscription.hasLimitOverrides && !maxStudents.trim()")],
+  ['a negotiated price is warned about too',
+    changeSource.includes('untouchedFromPlan && paysNegotiatedPrice')],
+  // hasDiscount is not a field on SubscriptionResponse; the two prices are.
+  ['the price warning compares the two prices the API does send',
+    !changeSource.includes('subscription.hasDiscount')
+      && /paysNegotiatedPrice[\s\S]{0,300}subscription\.planListPrice/.test(changeSource)],
+]
+for (const [label, ok] of autofillChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A CUSTOM cycle has no length, so the API cannot derive a period end and refuses the sale
 // without one. The form has to ask, or the only way to find out is a 400 with a filled-in form.
 //

@@ -813,6 +813,36 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
   const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'
   const cycleDays = chosen ? DAYS_PER_CYCLE[chosen.billingCycle] : undefined
 
+  /**
+   * Choosing a plan fills the three negotiable boxes with that plan's own figures.
+   *
+   * Pre-filled rather than left blank with a placeholder, because a placeholder cannot be read
+   * back: somebody deciding whether to negotiate needs to see the number they are deciding
+   * against, and somebody adjusting it needs something to adjust. Switching plan re-fills them,
+   * since the figures belong to the plan rather than to the form.
+   *
+   * The API treats a figure equal to the plan's exactly as it treats an absent one, so filling
+   * them in changes nothing about what the request does.
+   */
+  const choosePlan = (key) => {
+    setPicked(key)
+    const plan = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === key)
+    setPrice(plan ? String(plan.listPrice) : '')
+    setMaxStudents(plan ? String(plan.maxStudents) : '')
+    setMaxUsers(plan ? String(plan.maxUsers) : '')
+  }
+
+  // Whether this school pays something other than its current plan's list price. Worked out
+  // here rather than read off the response, which reports the two prices and no verdict on them.
+  const paysNegotiatedPrice = subscription.planListPrice != null
+    && Number(subscription.contractedPrice) !== Number(subscription.planListPrice)
+
+  // True while the three boxes still hold the plan's own figures — nobody has negotiated yet.
+  const untouchedFromPlan = Boolean(chosen)
+    && price === String(chosen.listPrice)
+    && maxStudents === String(chosen.maxStudents)
+    && maxUsers === String(chosen.maxUsers)
+
   // Zero is refused by the API on a plan change — there is nothing to remove — so it is caught
   // here rather than after a round trip that empties the form.
   const zeroCeiling = [maxStudents, maxUsers]
@@ -914,7 +944,7 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
         >
           <span className="select" style={{ width: '100%' }}>
             <select className="select-input" style={{ width: '100%' }}
-              value={picked} onChange={(event) => setPicked(event.target.value)}>
+              value={picked} onChange={(event) => choosePlan(event.target.value)}>
               <option value="">{plans ? 'Choose a plan…' : 'Loading the plans…'}</option>
               {(plans ?? [])
                 // The version it is already on is left out: sending it is 409 PLAN_UNCHANGED.
@@ -964,15 +994,15 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
             against a particular plan, so a move means they are agreed again. Blank means the new
             plan's own figure, which is why each box shows what that would be. */}
         <div className="field-split">
-          Negotiated terms — blank takes the new plan&apos;s own figure
+          Negotiated terms — filled from the plan, change what was agreed
         </div>
 
         <div className="field-grid">
           <Field
             label="Agreed price"
             hint={chosen
-              ? `Blank charges ${money(chosen.listPrice, chosen.currencyCode)}, the new plan's list price.`
-              : "Blank charges the new plan's list price."}
+              ? `The plan's list price. Change it to sell at something else; clearing it charges ${money(chosen.listPrice, chosen.currencyCode)} just the same.`
+              : 'Choose a plan and this fills in.'}
           >
             <Input type="number" min="0" step="0.01" value={price}
               onChange={(event) => setPrice(event.target.value)}
@@ -980,7 +1010,7 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
           </Field>
           <Field
             label="Student limit"
-            hint={chosen ? `Blank takes the plan's ${chosen.maxStudents}.` : "Blank takes the plan's own."}
+            hint={chosen ? `The plan's own ceiling. Raise it to negotiate one.` : 'Choose a plan and this fills in.'}
           >
             <Input type="number" min="1" value={maxStudents}
               onChange={(event) => setMaxStudents(event.target.value)}
@@ -988,7 +1018,7 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
           </Field>
           <Field
             label="User limit"
-            hint={chosen ? `Blank takes the plan's ${chosen.maxUsers}.` : "Blank takes the plan's own."}
+            hint={chosen ? `The plan's own ceiling. Raise it to negotiate one.` : 'Choose a plan and this fills in.'}
           >
             <Input type="number" min="1" value={maxUsers}
               onChange={(event) => setMaxUsers(event.target.value)}
@@ -996,13 +1026,23 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
           </Field>
         </div>
 
-        {/* The one thing somebody moving a negotiated school has to be told before they send it. */}
-        {chosen && subscription.hasLimitOverrides && !maxStudents.trim() && !maxUsers.trim() ? (
+        {/* The one thing somebody moving a negotiated school has to be told before they send it.
+            Keyed on the boxes still holding the plan's figures, not on their being blank — they
+            are filled in now, so "blank" would never be true and the warning never show. */}
+        {untouchedFromPlan && subscription.hasLimitOverrides ? (
           <p className="banner" data-tone="warn">
-            <strong>This school&apos;s ceilings are negotiated, and they will not carry over.</strong>{' '}
+            <strong>This school has negotiated ceilings, and these are the plan&apos;s.</strong>{' '}
             It is on {subscription.maxStudents} students and {subscription.maxUsers} users now;
-            leaving the boxes blank puts it on {chosen.maxStudents} and {chosen.maxUsers}, the new
-            plan&apos;s own. Retype them to keep the arrangement.
+            sending it as filled in puts it on {chosen.maxStudents} and {chosen.maxUsers}. Change
+            the boxes to keep the arrangement.
+          </p>
+        ) : null}
+        {untouchedFromPlan && paysNegotiatedPrice ? (
+          <p className="banner" data-tone="warn">
+            <strong>This school pays a negotiated price, and this is the plan&apos;s.</strong>{' '}
+            It pays {money(subscription.contractedPrice, subscription.currencyCode)} against a list
+            price of {money(subscription.planListPrice, subscription.currencyCode)}. Change the
+            price box to continue a discount on the new plan.
           </p>
         ) : null}
 
