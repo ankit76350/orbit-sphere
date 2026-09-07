@@ -52,6 +52,10 @@ const WITHHELD = [
   ['maxStudentsOverride', 'that a limit was negotiated is a commercial conversation'],
   ['maxUsersOverride', 'the same'],
   ['planCode', 'the internal family key. A school reads the name'],
+  // Added 2026-09-07 with the field itself: #15 writes an operator's note here — "invoice
+  // overdue", "renegotiated at renewal" — and handing that to the school turns an internal note
+  // into a statement to a customer.
+  ['reasonForChanges', "an operator's note on the last edit — written for our records, not theirs"],
 ]
 
 const when = (value) => (value ? new Date(value).toLocaleDateString() : null)
@@ -188,12 +192,6 @@ export default function Subscription() {
               <span className="dl-term">Renews automatically</span>
               <span className="dl-value">{bill.autoRenew ? 'Yes' : 'No — it ends'}</span>
             </div>
-            {bill.cancelledAt ? (
-              <div>
-                <span className="dl-term">Cancelled</span>
-                <span className="dl-value">{when(bill.cancelledAt)}</span>
-              </div>
-            ) : null}
           </dl>
 
           {/* CHECKED, NOT CLAIMED. If one of these ever starts coming through, this panel says

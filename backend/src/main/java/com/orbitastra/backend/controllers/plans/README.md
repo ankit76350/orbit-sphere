@@ -125,7 +125,7 @@ file.
 |---|---|---|---|
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`POST /platform/schools/{id}/subscriptions/{no}/activate`](#e14) | Move a trial to a paying subscription once the school has agreed to buy. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| <a id="t15"></a>15 — **built** | [`PATCH /platform/schools/{id}/subscriptions/{no}`](#e15) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides, the cancellation. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t15"></a>15 — **built** | [`PATCH /platform/schools/{id}/subscriptions/{no}`](#e15) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides — recording why in `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>18 | [`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`](#e18) | Mark that the bill was not paid on time. The school keeps working — this is the warning stage before anything is switched off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -417,8 +417,7 @@ below are still a plan.
 | `maxUsersOverride` | Long, optional | **A number, or null**, same fallback. |
 | `current` | Boolean, required | **`true`** on create. Exactly one row per school may be `true`; the flag is what makes "the school's subscription" a single document rather than a sort by date. |
 | `billingCustomerReference` | String, optional | **Open** — the gateway's own customer id, e.g. `customer_Qx7B2mR9`, or null until there is one. |
-| `cancelledAt` | Instant, optional | Null until #24 cancels. Not built. |
-| `cancellationReason` | String, optional | **Open** — free text, null until cancelled. Not built. |
+| `reasonForChanges` | String, optional | Free text, max 500. **Written by #15 from its `reason`, on every edit, overwritten each time** — including with null when no reason was given, since a reason left over from an earlier edit would explain the wrong change. Null on a subscription nobody has edited. Replaced `cancelledAt` and `cancellationReason` (2026-09-07): the date duplicated the `CANCELLED` history row's `effectiveAt`, and a cancellation-only reason left every other change unexplained. |
 
 ### `subscription_history` — [SubscriptionHistory](../../models/plans/SubscriptionHistory.java)
 
@@ -1202,7 +1201,7 @@ not know it already happened — and answering `200` would hide that.
 **[15](#t15) · `PATCH /platform/schools/{id}/subscriptions/{no}`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `billingCycle`, `maxStudents`, `maxUsers`, `features` — once, at the end, to build the response
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: any of `status`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `maxStudentsOverride`, `maxUsersOverride`, `cancelledAt`, `cancellationReason`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: any of `status`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `maxStudentsOverride`, `maxUsersOverride` — **and `reasonForChanges` on every edit**, from the request's `reason`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` (see below), `previousStatus`, `newStatus`, `newPlanDefinitionDocsId`, `source`, `reason` = the fields that moved plus the caller's words, `performedByDocsId`, `effectiveAt` — **and nothing at all when nothing changed**
 
 ### One endpoint where there were three
@@ -1252,22 +1251,36 @@ Absent and null are the same value to Jackson, so every field has a defined abse
 | a block omitted | leave both of its fields alone |
 | a block sent | replace both; `null` inside means "no value" |
 
-**Why two fields are nested and two are not.** `maxStudentsOverride`, `maxUsersOverride`,
-`cancelledAt` and `cancellationReason` are nullable on the model, so they can be cleared, and
-"omitted" has to be told apart from "cleared" — a block is the only way to say it.
-`currentPeriodStart` and `currentPeriodEnd` are `@NotNull` and cannot be cleared at all, so
-there is nothing to disambiguate and they stay flat. That is also what lets a trial's end date
-move on its own.
+**Why one field is nested.** `maxStudentsOverride` and `maxUsersOverride` are nullable on the
+model, so they can be cleared, and "omitted" has to be told apart from "cleared" — a block is the
+only way to say it. Everything else is `@NotNull` and cannot be cleared at all, so there is
+nothing to disambiguate and those stay flat. That is also what lets a trial's end date move on
+its own.
 
-### Two consequences follow a status move on their own
+### The reason lands in two places
 
-Because the alternative is a document that contradicts itself:
+`reason` goes onto the subscription as **`reasonForChanges`** and onto the history row next to the
+list of fields that moved. The document keeps the latest; history keeps all of them. So "why does
+this school's period end in December" is answerable from the document a screen already has, and
+"why did it move three times" is answerable from history.
 
-- moving **to** `CANCELLED` stamps `cancelledAt` if the request did not — a cancellation that cannot answer "when" is not a record of anything
-- moving **away from** `CANCELLED` clears `cancelledAt` and `cancellationReason` — an ACTIVE subscription cancelled on a date says two things at once
+**Every edit overwrites it, including with null.** Sending no reason says "this change has no
+recorded reason", not "keep the last one" — a reason left standing from an earlier edit would
+attribute the wrong explanation to the current state.
 
-Neither overrides a `cancellation` block the caller sent: an explicit instruction beats an
-inferred one, which is how a cancellation gets backdated to the real leaving date.
+**A reason on its own changes nothing.** It is not in `isEmpty()`, so a request carrying only a
+reason is `400 NO_CHANGES_REQUESTED`, and a request whose fields all already held their values
+stores no reason either. An explanation for an edit that did not happen is not worth keeping.
+
+**`reasonForChanges` is not in the changed-fields list**, though it moves on every edit — it would
+otherwise appear in every history row's field list and every response note, sitting next to the
+reason itself.
+
+### A status move stamps nothing
+
+Moving to `CANCELLED` records no date on the document. When a subscription was cancelled is the
+`effectiveAt` of its `CANCELLED` history row, which this endpoint writes anyway; a second copy on
+the document could only ever come to disagree with it.
 
 ### A cycle that no longer matches the plan is reported, not corrected
 
@@ -1351,7 +1364,7 @@ SUBSCRIPTION_NOT_EDITABLE` — there is nothing left to be right about.
 <a id="e21"></a>
 **[21](#t21) · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `cancelledAt`, `cancellationReason`, `autoRenew` = false
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `reasonForChanges`, `autoRenew` = false — **no `cancelledAt`**: when it happened is the history row's `effectiveAt`
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `CANCELLED`, `previousStatus`, `newStatus` = `CANCELLED`, `reason`, `performedByDocsId`, `effectiveAt`
 
 <a id="e22"></a>
@@ -1454,7 +1467,7 @@ read costs nothing on the path that succeeds.
 <a id="e28"></a>
 **[28](#t28) · `GET /platform/schools/{id}/subscriptions`**
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `current`, `cancelledAt`, `cancellationReason`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `current`, `reasonForChanges`
 
 <a id="e29"></a>
 **[29](#t29) · `GET /platform/schools/{id}/subscriptions/{no}/history`**
@@ -1482,7 +1495,7 @@ read costs nothing on the path that succeeds.
 <a id="e33"></a>
 **[33](#t33) · `GET /schools/current/subscription`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `cancelledAt`. **Not** `billingCustomerReference` — that is ours, not theirs
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`. **Not** `billingCustomerReference` or `reasonForChanges` — a payment-gateway id and an operator's internal note are both ours, not theirs
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `description`
 
 ### It is not #27 with a different URL

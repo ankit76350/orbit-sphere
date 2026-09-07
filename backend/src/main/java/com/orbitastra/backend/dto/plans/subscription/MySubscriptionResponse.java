@@ -25,6 +25,9 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
  *   <li><b>No overrides.</b> "Your limit is 2500" is useful; "your limit was negotiated up from
  *       the plan's 2000" is a commercial conversation, not a billing screen.</li>
  *   <li><b>No {@code planCode}.</b> It is the internal family key. A school reads the name.</li>
+ *   <li><b>No {@code reasonForChanges}.</b> An operator's note about why they last edited this
+ *       subscription — "renegotiated at renewal", "invoice overdue" — written for our records.
+ *       Handing it to the school turns an internal note into a statement to a customer.</li>
  * </ul>
  *
  * <p><b>{@code note} is written for a school to read, not for us.</b> #27's version of it
@@ -50,7 +53,6 @@ public record MySubscriptionResponse(
         boolean periodEnded,
         Boolean autoRenew,
 
-        Instant cancelledAt,
         String note) {
 
     public static MySubscriptionResponse fromSubscription(SchoolSubscription subscription,
@@ -78,7 +80,6 @@ public record MySubscriptionResponse(
                 daysLeft,
                 ended,
                 subscription.getAutoRenew(),
-                subscription.getCancelledAt(),
                 noteFor(subscription, ended));
     }
 

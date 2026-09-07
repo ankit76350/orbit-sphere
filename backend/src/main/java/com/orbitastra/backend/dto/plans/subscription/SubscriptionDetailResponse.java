@@ -80,9 +80,8 @@ public record SubscriptionDetailResponse(
         int featureCount,
         List<PlanFeatureView> features,
 
-        // the ending, where there is one
-        Instant cancelledAt,
-        String cancellationReason,
+        // why it looks the way it does, from the last edit that touched it
+        String reasonForChanges,
 
         String billingCustomerReference,
         String note) {
@@ -149,8 +148,7 @@ public record SubscriptionDetailResponse(
                         || subscription.getMaxUsersOverride() != null,
                 features.size(),
                 features,
-                subscription.getCancelledAt(),
-                subscription.getCancellationReason(),
+                subscription.getReasonForChanges(),
                 subscription.getBillingCustomerReference(),
                 note);
     }

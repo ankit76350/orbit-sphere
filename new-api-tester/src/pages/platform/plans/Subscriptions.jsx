@@ -330,6 +330,15 @@ function TheSubscription({ subscription, schoolId, busy, onActivate, onEdit }) {
                 {s.hasLimitOverrides ? <Badge tone="brand">negotiated</Badge> : null}
               </span>
             </div>
+            {/* Why it looks the way it does, from the last edit. Only shown when there is one:
+                an empty row would suggest the field means "never edited", when in fact an edit
+                with no reason given clears it. */}
+            {s.reasonForChanges ? (
+              <div>
+                <span className="dl-term">Last changed because</span>
+                <span className="dl-value">{s.reasonForChanges}</span>
+              </div>
+            ) : null}
           </dl>
 
           {s.status === 'TRIAL' ? (
@@ -431,7 +440,7 @@ const STATUS_MEANS = {
   ACTIVE: 'Paying, and the product is available.',
   PAST_DUE: 'A bill is overdue. The school keeps working — this is the warning stage, not the cut-off.',
   SUSPENDED: 'Access blocked over an unpaid bill. This one stops the school working.',
-  CANCELLED: 'Will not renew. Fill in the cancellation below.',
+  CANCELLED: 'Will not renew. When it happened is the history row this writes — no date is stored on the subscription.',
   EXPIRED: 'The last paid period ended and nothing renewed it.',
 }
 
@@ -497,13 +506,6 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
 
   const changed = changedFields(body)
   const nothingChanged = changed.length === 0
-
-  // The cancellation boxes are for a cancelled subscription: offered when one is being made, and
-  // kept while one is stored, because correcting or removing a recorded cancellation is the other
-  // reason somebody opens this.
-  const showCancellation = form.status === 'CANCELLED'
-    || Boolean(subscription.cancelledAt)
-    || Boolean(subscription.cancellationReason)
 
   // Both refusals the API would answer with, worked out from the boxes so the answer arrives
   // before the round trip that would empty the form.
@@ -584,57 +586,6 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             </select>
           </span>
         </Field>
-
-        {/* The cancellation only exists for a cancelled subscription, so the two boxes only
-            appear for one — and they stay visible while one is stored, because correcting or
-            removing a cancellation already recorded is the other reason to be here. */}
-        {showCancellation ? (
-          <>
-            <div className="field-split">
-              {form.status === 'CANCELLED' && stored.status !== 'CANCELLED'
-                ? 'The cancellation — fill these in, or let the API stamp today'
-                : 'The cancellation'}
-            </div>
-
-            {form.status === 'CANCELLED' && !form.cancelledAt ? (
-              <p className="banner" data-tone="warn">
-                <strong>Leave the date blank and the API stamps today.</strong> A cancellation
-                that cannot answer “when” is not a record of anything. Pick a date to backdate it
-                to when the school actually left.
-              </p>
-            ) : null}
-
-            <div className="field-grid">
-              <Field
-                label="Cancelled on"
-                hint={subscription.cancelledAt
-                  ? `Stored as ${readableInstant(subscription.cancelledAt)}. Clear the box to remove it.`
-                  : 'Blank stamps today, on a status move to CANCELLED.'}
-              >
-                <Input type="date" value={form.cancelledAt} onChange={set('cancelledAt')} />
-              </Field>
-              <Field
-                label="Why it was cancelled"
-                hint="Clear the box to remove it. This one is stored on the subscription, unlike the reason at the bottom."
-              >
-                <Input
-                  value={form.cancellationReason}
-                  onChange={set('cancellationReason')}
-                  placeholder="School closed at the end of the year."
-                />
-              </Field>
-            </div>
-          </>
-        ) : null}
-
-        {/* Shown only when it is about to happen, since it is the one thing this form does that
-            was not typed into it. */}
-        {stored.status === 'CANCELLED' && form.status !== 'CANCELLED' ? (
-          <p className="banner" data-tone="warn">
-            <strong>The cancellation will be cleared.</strong> Both the date and the reason go: a
-            live subscription carrying a cancellation date says two contradictory things at once.
-          </p>
-        ) : null}
 
         {/* What this endpoint cannot touch, said once rather than left to be discovered by a
             box that is not there. Each has its own endpoint because it moves money. */}
@@ -740,15 +691,25 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </p>
         ) : null}
 
-        <div className="field-split">For the record</div>
+        <div className="field-split">Why — stored on the subscription, and on the history row</div>
 
         <Field
-          label="Why"
-          hint="Goes on the history row next to the list of fields that moved. On its own it changes nothing, so it is not sent on its own."
+          label="Reason for these changes"
+          hint="Saved as reasonForChanges, and written to the history row beside the list of fields that moved. On its own it changes nothing, so it is not sent on its own."
         >
           <Input value={form.reason} onChange={set('reason')}
             placeholder="Renegotiated at renewal — 20% partner discount." />
         </Field>
+
+        {/* The one thing about this box somebody has to know before leaving it empty. */}
+        {subscription.reasonForChanges && !form.reason.trim() ? (
+          <p className="banner" data-tone="warn">
+            <strong>Leaving this empty clears the reason already stored.</strong> It currently
+            reads “{subscription.reasonForChanges}”. Every edit overwrites it, because a reason
+            left over from an earlier change would explain the wrong one — the full trail stays in
+            the history.
+          </p>
+        ) : null}
 
         {/* The point of the screen: which fields this edit actually includes. */}
         <details className="raw" open>

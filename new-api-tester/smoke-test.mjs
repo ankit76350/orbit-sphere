@@ -337,20 +337,48 @@ for (const [label, ok] of trialChecks) {
 // A form of thirteen boxes with no order to it is a form where somebody fills in the cancellation
 // date of a subscription they were only trying to reprice. So it is sectioned, the boxes that
 // only apply sometimes only appear then, and the dates are calendars rather than typed instants.
+// The school surface is a different response type from the platform one, and the fields left out
+// are the reason there are two. The screen checks the live response against its own list and
+// reports a leak in red — so the list has to actually contain everything that is withheld, or the
+// check passes while the leak goes unmentioned.
+console.log('\nThe school is not shown what is ours')
+const schoolBillSource = readFileSync('src/pages/school/plans/Subscription.jsx', 'utf8')
+const withheldChecks = [
+  ['the negotiated price is withheld', schoolBillSource.includes("'planListPrice'")],
+  ['the gateway id is withheld', schoolBillSource.includes("'billingCustomerReference'")],
+  ['both overrides are withheld',
+    schoolBillSource.includes("'maxStudentsOverride'") && schoolBillSource.includes("'maxUsersOverride'")],
+  ['the internal plan code is withheld', schoolBillSource.includes("'planCode'")],
+  // Added with the field: #15 writes an operator's note here, and handing it to the school turns
+  // an internal note into a statement to a customer.
+  ["and so is the operator's note on the last edit",
+    schoolBillSource.includes("'reasonForChanges'")],
+  // The field it used to show is gone from the model entirely.
+  ['nothing reads the removed cancellation fields',
+    !schoolBillSource.includes('cancelledAt') && !schoolBillSource.includes('cancellationReason')],
+]
+for (const [label, ok] of withheldChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe edit form says what to fill in, and when')
 const editSource = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
 const formChecks = [
   ['the boxes are grouped under headings',
-    (editSource.match(/className="field-split"/g) || []).length >= 5],
-  // The cancellation belongs to a cancelled subscription — offered when one is being made, and
-  // kept while one is stored, so a recorded cancellation can still be corrected or removed.
-  ['the cancellation appears for a cancellation, not always',
-    /const showCancellation = form\.status === 'CANCELLED'\s*\n\s*\|\| Boolean\(subscription\.cancelledAt\)/
-      .test(editSource)],
-  ['and the boxes are behind it', /\{showCancellation \? \(/.test(editSource)],
-  // Three dates, three calendars: the period's two ends and the cancellation.
+    (editSource.match(/className="field-split"/g) || []).length >= 4],
+  // cancelledAt and cancellationReason left the model on 2026-09-07. Nothing should offer to
+  // edit them, and nothing should read them back.
+  ['there is no cancellation to edit any more',
+    !editSource.includes('showCancellation') && !editSource.includes('cancelledAt')
+      && !editSource.includes('cancellationReason')],
+  // The reason is stored on the subscription now, not only logged, and every edit overwrites it.
+  ['the reason says it is stored', editSource.includes('Saved as reasonForChanges')],
+  ['and warns before clearing one that exists',
+    editSource.includes('Leaving this empty clears the reason already stored')],
+  // Two dates, two calendars: the period's two ends.
   ['every date is a calendar, not a typed instant',
-    (editSource.match(/type="date"/g) || []).length === 3
+    (editSource.match(/type="date"/g) || []).length === 2
       && !editSource.includes('An ISO instant')],
   ['each status says what choosing it means', editSource.includes('const STATUS_MEANS')],
   // The plan and the money have their own endpoints (#16, #25, #26). No boxes for them, and the
@@ -383,7 +411,7 @@ const STORED_SUB = {
   // round through storedForm/patchBody untouched rather than merely be missing from the test.
   autoRenew: true, contractedPrice: 49999.0, currencyCode: 'INR',
   billingCustomerReference: 'cus_Qx7B2mR9', maxStudentsOverride: 2500, maxUsersOverride: 300,
-  cancelledAt: null, cancellationReason: null,
+  reasonForChanges: 'Renegotiated at renewal.',
 }
 const baseline = storedForm(STORED_SUB)
 const edited = (changes) => patchBody({ ...baseline, reason: '', ...changes }, baseline)
@@ -407,8 +435,7 @@ const editCases = [
     ['contractedPrice', 'currencyCode', 'billingCustomerReference', 'plan'].every((field) =>
       !Object.keys(edited({ status: 'SUSPENDED', billingCycle: 'MONTHLY', autoRenew: false,
         currentPeriodStart: '2026-05-01', currentPeriodEnd: '2027-05-01',
-        maxStudentsOverride: '9', maxUsersOverride: '9',
-        cancelledAt: '2026-01-01', cancellationReason: 'x' })).includes(field))],
+        maxStudentsOverride: '9', maxUsersOverride: '9' })).includes(field))],
   ['and the form has no box for any of them',
     ['contractedPrice', 'currencyCode', 'billingCustomerReference'].every((field) =>
       !baseline[field] && !Object.keys(baseline).includes(field))],
@@ -434,12 +461,12 @@ const editCases = [
   ['changing one override still sends both',
     same(edited({ maxStudentsOverride: '4000' }),
          { limitOverrides: { maxStudentsOverride: 4000, maxUsersOverride: 300 } })],
-  ['a cancellation is a block too',
-    same(edited({ cancellationReason: 'Left mid-year.' }),
-         { cancellation: { cancelledAt: null, cancellationReason: 'Left mid-year.' } })],
-  ['a cancellation date is a picked day as well',
-    same(edited({ cancelledAt: '2026-06-30' }),
-         { cancellation: { cancelledAt: '2026-06-30T00:00:00Z', cancellationReason: null } })],
+  // The reason is stored by the API as reasonForChanges, but it is not itself a change: alone it
+  // would be a 400, and on a no-op edit there is nothing to explain.
+  ['a reason alone is never sent', same(edited({ reason: 'because' }), {})],
+  ['no edit can send a cancellation any more',
+    ['cancellation', 'cancelledAt', 'cancellationReason'].every((field) =>
+      !Object.keys(edited({ status: 'CANCELLED', autoRenew: false })).includes(field))],
   ['several fields at once go together',
     same(edited({ status: 'PAST_DUE', autoRenew: false, billingCycle: 'MONTHLY' }),
          { status: 'PAST_DUE', autoRenew: false, billingCycle: 'MONTHLY' })],
@@ -451,7 +478,6 @@ const editCases = [
     ['subscriptionNo', 'current', 'schoolId'].every((field) => !Object.keys(
       edited({ status: 'SUSPENDED', autoRenew: false, billingCycle: 'MONTHLY',
                maxStudentsOverride: '9', maxUsersOverride: '9',
-               cancelledAt: '2026-01-01', cancellationReason: 'x',
                currentPeriodStart: '2026-05-01',
                currentPeriodEnd: '2027-05-01' })).includes(field))],
 ]

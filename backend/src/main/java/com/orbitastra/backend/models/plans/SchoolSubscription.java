@@ -34,6 +34,10 @@ import lombok.experimental.SuperBuilder;
  * <p>Exactly one document per school may have {@code current = true}. The
  * current subscription is found by {@code schoolId + current}; subscription
  * fields are deliberately not duplicated in School.
+ *
+ * <p>The document holds what is true now. What happened to get here — every
+ * status move, every edit, with its own reason and timestamp — is
+ * {@code subscription_history}, one row per event.
  */
 @Document(collection = "school_subscriptions")
 @CompoundIndexes({
@@ -114,11 +118,24 @@ public class SchoolSubscription extends SchoolBase {
         // Example: "customer_Qx7B2mR9"
         private String billingCustomerReference;
 
-        //! added when status chnages to CANCELLED
-        // Example: 2027-02-15T10:30:00Z
-        private Instant cancelledAt;
-
-        //!
-        // Example: "School requested cancellation at the end of the billing period."
-        private String cancellationReason;
+        /**
+         * Why this subscription was last changed. Written by #15 on every edit.
+         *
+         * <p>Example: "Renegotiated at renewal — 20% partner discount."
+         *
+         * <p><b>The reason for the most recent change, not a history of them.</b> Every edit
+         * overwrites it, including with null when the caller gave no reason — a reason left
+         * standing from an earlier edit would attribute the wrong explanation to the current
+         * state, which is worse than having none.
+         *
+         * <p>The trail of all of them is {@code subscription_history}: one row per change, with
+         * its own reason and the list of fields that moved. This field is what a screen showing
+         * the subscription can put beside it without a second query.
+         *
+         * <p>Replaced {@code cancelledAt} and {@code cancellationReason} on 2026-09-07. The
+         * cancellation date duplicated the history row's {@code effectiveAt} on the
+         * {@code CANCELLED} event, and a reason that existed only for cancellations left every
+         * other kind of change unexplained on the document.
+         */
+        private String reasonForChanges;
 }

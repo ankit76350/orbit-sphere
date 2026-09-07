@@ -433,7 +433,7 @@ const A_SUBSCRIPTION = { status: 200, body: {
       description: 'Routes, vehicles, tracking', enabled: false, usageLimit: null,
       usageMetric: null, overagePolicy: 'BLOCK' },
   ],
-  cancelledAt: null, cancellationReason: null, billingCustomerReference: null, note: null } };
+  reasonForChanges: null, billingCustomerReference: null, note: null } };
 
 // What the school's own two reads answer (#33 and #34). Separate from the platform read above,
 // because the whole point of the pair is that they say less than it does.
@@ -442,7 +442,7 @@ const SCHOOL_VIEW = { status: 200, body: {
   planDescription: 'Everything a growing school needs.', planVersion: 2,
   billingCycle: 'YEARLY', price: 44999.0, currencyCode: 'INR',
   currentPeriodStart: '2026-09-03T00:00:00Z', currentPeriodEnd: '2027-09-03T00:00:00Z',
-  daysRemaining: 365, periodEnded: false, autoRenew: true, cancelledAt: null, note: null } };
+  daysRemaining: 365, periodEnded: false, autoRenew: true, note: null } };
 
 const ENTITLEMENTS = { status: 200, body: {
   active: true, reason: null, subscriptionNo: 'SUB/2026/09/000001', status: 'ACTIVE',

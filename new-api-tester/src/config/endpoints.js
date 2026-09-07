@@ -6239,11 +6239,26 @@ menu for new schools and changes nothing for a school already on it.
       schoolSurface: false,
       docs: `**PATCH** \`/platform/schools/{id}/subscriptions/{no}\` — edits the terms of one subscription.
 
-**When it runs, what state it is in, how much of the product it may use.** The status, the
-billing cycle, both period dates, auto-renewal, the two capacity overrides and the cancellation —
-three endpoints' worth of single-column edits in one request. extend-trial moved
-\`currentPeriodEnd\`, #23 moved \`autoRenew\`, #24 the two overrides; three sets of rules to keep in
-step, and a correction touching two of them was two writes and two history rows for one decision.
+**When it runs, what state it is in, how much of the product it may use.** Seven fields:
+\`status\`, \`billingCycle\`, \`currentPeriodStart\`, \`currentPeriodEnd\`, \`autoRenew\`,
+\`maxStudentsOverride\`, \`maxUsersOverride\` — three endpoints' worth of single-column edits in one
+request. extend-trial moved \`currentPeriodEnd\`, #23 moved \`autoRenew\`, #24 the two overrides;
+three sets of rules to keep in step, and a correction touching two of them was two writes and two
+history rows for one decision.
+
+### \`reason\` is stored, not just logged
+
+It goes onto the subscription as **\`reasonForChanges\`** — why it looks the way it does, readable
+without a second query — and onto the history row beside the list of fields that moved. The
+document keeps the latest; history keeps all of them.
+
+**Every edit overwrites it, including with null.** Sending no reason says "this change has no
+recorded reason", not "keep the last one": a reason left standing from an earlier edit would
+explain the wrong change.
+
+\`cancelledAt\` and \`cancellationReason\` are **gone from the model** (2026-09-07). When a
+subscription was cancelled is the \`effectiveAt\` of its \`CANCELLED\` history row — a second copy on
+the document could only come to disagree with it.
 
 ### Nothing about the money
 
@@ -6278,10 +6293,9 @@ One thing is still refused: a period left running backwards (\`400 INVALID_BILLI
 | a block omitted | leave both of its fields alone |
 | a block sent | replace both; \`null\` inside means "no value" |
 
-\`limitOverrides\` and \`cancellation\` are nested because their fields are nullable on the model and
-so can be cleared — "omitted" has to be told apart from "cleared". The period dates are
-\`@NotNull\` and cannot be cleared at all, so they stay flat, which is what lets a trial's end date
-move on its own.
+\`limitOverrides\` is nested because its two fields are nullable on the model and so can be cleared
+— "omitted" has to be told apart from "cleared". Everything else is \`@NotNull\` and cannot be
+cleared at all, so those stay flat, which is what lets a trial's end date move on its own.
 
 ### Nothing changed is not an error, nothing asked for is
 
@@ -6289,7 +6303,7 @@ A request that restates what is already stored answers \`200\` saying so, and wr
 row. An **empty** request is \`400 NO_CHANGES_REQUESTED\` — answering 200 to it would tell a caller
 who misspelled a field name that their edit worked.
 
-### The twelve test cases are in the request body as comments
+### The eleven test cases are in the request body as comments
 `,
       bodyNotes: `Platform surface. Needs {{schoolId}} and a subscription — run Create
  Subscription first.
@@ -6298,18 +6312,22 @@ who misspelled a field name that their edit worked.
  absence means is in the description above; the cases below are what the
  endpoint actually does with them.
 
- THE EDITABLE FIELDS ARE: status, billingCycle, currentPeriodStart,
+ THE EDITABLE FIELDS ARE SEVEN: status, billingCycle, currentPeriodStart,
  currentPeriodEnd, autoRenew, limitOverrides{maxStudentsOverride,
- maxUsersOverride}, cancellation{cancelledAt, cancellationReason} — plus
- \`reason\`, which goes on the history row and not on the subscription.
+ maxUsersOverride} — plus \`reason\`, which is stored on the subscription as
+ reasonForChanges AND written to the history row.
 
  NOT EDITABLE HERE: contractedPrice and currencyCode (#25),
  billingCustomerReference (#26), the plan (#16), subscriptionNo, current
  and schoolId. Sending them is ignored like any other unknown field.
 
+ cancelledAt AND cancellationReason NO LONGER EXIST on the model. When a
+ subscription was cancelled is the effectiveAt of its CANCELLED history
+ row; reasonForChanges holds why it was last changed, whatever the change.
+
  ANSWERS THE WHOLE SUBSCRIPTION BACK, the same shape as Get Subscription,
  so there is no second call to see what it now says. \`note\` says what moved.`,
-      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides", "cancellation", "reason"],
+      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides", "reason"],
       pathParams: [
         { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
       ],
@@ -6323,7 +6341,7 @@ who misspelled a field name that their edit worked.
   "reason": "Trial extended three months."
 }`,
       successStatus: 200,
-      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "cancelledAt", "cancellationReason", "billingCustomerReference", "note"],
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "reasonForChanges", "billingCustomerReference", "note"],
       captures: [],
       errors: [
         { status: 400, code: "NO_CHANGES_REQUESTED", when: "Ask for nothing" },
@@ -6427,10 +6445,14 @@ who misspelled a field name that their edit worked.
           id: "09",
           name: "CANCEL IT",
           expect: "200 OK",
-          notes: `OUT: status CANCELLED and cancelledAt STAMPED although the request did
-         not send it — a cancellation that cannot answer "when" is not a
-         record of anything.
-    History: eventType CANCELLED, previousStatus ACTIVE.`,
+          notes: `OUT: status CANCELLED, reasonForChanges "School closed mid-year."
+         NO DATE IS STAMPED on the document — when it happened is the
+         effectiveAt of the history row this same request writes.
+    History: eventType CANCELLED, previousStatus ACTIVE.
+
+    NO TRANSITION RULES APPLY. All six statuses are accepted from any
+    other, because this is the override for a subscription that is already
+    wrong. Suspending properly is #19, resuming is #20.`,
           body: `{
   "status": "CANCELLED",
   "reason": "School closed mid-year."
@@ -6438,37 +6460,30 @@ who misspelled a field name that their edit worked.
         },
         {
           id: "10",
-          name: "BACKDATE A CANCELLATION",
+          name: "AN EDIT WITH NO REASON CLEARS THE LAST ONE",
           expect: "200 OK",
-          notes: `OUT: cancelledAt 2026-06-30, not now. An explicit instruction beats the
-         inferred one.`,
+          notes: `Straight after case 09.
+    OUT: reasonForChanges null — NOT "School closed mid-year." A reason
+         left standing from an earlier edit would explain the wrong change.`,
           body: `{
-  "status": "CANCELLED",
-  "cancellation": {
-    "cancelledAt": "2026-06-30T00:00:00Z",
-    "cancellationReason": "Backdated to the actual leaving date."
-  }
+  "autoRenew": false
 }`,
         },
         {
           id: "11",
-          name: "PUT A CANCELLED SUBSCRIPTION BACK",
-          expect: "200 OK",
-          notes: `OUT: cancelledAt AND cancellationReason both cleared. An ACTIVE
-         subscription carrying a cancellation date says two contradictory
-         things at once.
-    History: eventType ACTIVATED — or RESUMED, if it was SUSPENDED.
-
-    NO TRANSITION RULES APPLY. All six statuses are accepted from any
-    other, because this is the override for a subscription that is already
-    wrong. Suspending properly is #19, resuming is #20.`,
+          name: "A REASON ON ITS OWN",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NO_CHANGES_REQUESTED" }
+    A reason is not a change. And a request whose fields all already hold
+    their values (case 03) stores no reason either — an explanation for an
+    edit that did not happen is not worth keeping.`,
           body: `{
-  "status": "ACTIVE"
+  "reason": "Just making a note."
 }`,
         },
         {
           id: "12",
-          name: "EVERYTHING AT ONCE, ONE HISTORY ROW",
+          name: "ALL SEVEN AT ONCE, ONE HISTORY ROW",
           expect: "200 OK",
           notes: `OUT: ONE history row for the whole edit, because it was one decision.
          note names the cycle now disagreeing with the plan's — reported,
@@ -6481,9 +6496,12 @@ who misspelled a field name that their edit worked.
         -> TERMS_CHANGED  TRIAL     -> TRIAL     | Edited currentPeriodEnd.
                                                    Trial extended three
                                                    months.
-           CANCELLED      TRIAL     -> CANCELLED | Edited status,
-                                                   cancelledAt. ...
+           CANCELLED      TRIAL     -> CANCELLED | Edited status. School
+                                                   closed mid-year.
            RESUMED        SUSPENDED -> ACTIVE    | Edited status.
+
+    reasonForChanges IS NOT IN THE FIELD LIST, though it moves on every
+    edit — it would otherwise sit in every row next to the reason itself.
 
     TERMS_CHANGED was added for this endpoint — the enum had only status
     moves, so an edit either went unrecorded or borrowed a type that says
@@ -6583,7 +6601,7 @@ subscription expired yet so it has to be read as lapsed. This is the case a scre
       bodyAllowed: false,
       body: ``,
       successStatus: 200,
-      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "cancelledAt", "cancellationReason", "billingCustomerReference", "note"],
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "reasonForChanges", "billingCustomerReference", "note"],
       captures: [
         { variable: "subscriptionNo", from: "subscriptionNo" },
       ],
@@ -6656,7 +6674,7 @@ billing screen, which is exactly when somebody needs to.
       bodyAllowed: false,
       body: ``,
       successStatus: 200,
-      responseFields: ["subscriptionNo", "status", "planName", "planDescription", "planVersion", "billingCycle", "price", "currencyCode", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "cancelledAt", "note"],
+      responseFields: ["subscriptionNo", "status", "planName", "planDescription", "planVersion", "billingCycle", "price", "currencyCode", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "note"],
       captures: [],
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },

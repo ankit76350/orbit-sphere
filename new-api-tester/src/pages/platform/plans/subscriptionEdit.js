@@ -14,7 +14,9 @@ import { endOfDay, startOfDay, toDateInput } from '../../../lib/dates.js'
  *
  * WHAT IS NOT HERE: the price, the currency, the billing customer reference and the plan. Those
  * are #25, #26 and #16 — money and entitlement, each with its own endpoint, deliberately not
- * reachable from an edit that moves dates around.
+ * reachable from an edit that moves dates around. Nor the cancellation: `cancelledAt` and
+ * `cancellationReason` no longer exist on the model, and `reasonForChanges` is written by the API
+ * from `reason` rather than set as a field.
  */
 
 /** "" for a field with no value, so every box holds a string and none of them is undefined. */
@@ -31,8 +33,6 @@ export const storedForm = (subscription) => ({
   autoRenew: Boolean(subscription.autoRenew),
   maxStudentsOverride: asText(subscription.maxStudentsOverride),
   maxUsersOverride: asText(subscription.maxUsersOverride),
-  cancelledAt: toDateInput(subscription.cancelledAt),
-  cancellationReason: asText(subscription.cancellationReason),
 })
 
 /**
@@ -73,18 +73,12 @@ export function patchBody(form, stored) {
     }
   }
 
-  if (form.cancelledAt !== stored.cancelledAt
-      || form.cancellationReason !== stored.cancellationReason) {
-    out.cancellation = {
-      // Blank is a removal here, unlike the period dates: this one is nullable on the model.
-      cancelledAt: startOfDay(form.cancelledAt),
-      cancellationReason: form.cancellationReason.trim() || null,
-    }
-  }
-
-  // Never part of the diff: a reason changes nothing on the subscription, it only explains the
-  // change on the history row. Sent alone it would be a 400 NO_CHANGES_REQUESTED, so it goes
-  // only when something else is going with it.
+  // Never part of the diff, though it IS stored: the API writes it to reasonForChanges on the
+  // subscription and onto the history row, but a reason is not itself a change. Sent alone it
+  // would be a 400 NO_CHANGES_REQUESTED, so it goes only when something else is going with it.
+  //
+  // Left out when blank on purpose: the API overwrites reasonForChanges on every edit, and an
+  // absent reason is how "this change has no recorded reason" is said.
   if (form.reason?.trim() && Object.keys(out).length > 0) out.reason = form.reason.trim()
 
   return out

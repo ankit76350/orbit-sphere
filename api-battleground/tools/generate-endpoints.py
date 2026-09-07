@@ -287,15 +287,15 @@ CURATED = {
     # fields, because a null inside them means "remove this" and an omitted block means "leave
     # it". Flattening them here would lose the distinction the endpoint is built on.
     optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
-              'limitOverrides','cancellation','reason'],
-    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','cancelledAt','cancellationReason','billingCustomerReference','note'],
+              'limitOverrides','reason'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
     successStatus=200,
   ),
   'Get Subscription': dict(
     summary='What one school is on right now: the plan and its features, the price, the status, the period.',
     required=[],
     optional=[],
-    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','cancelledAt','cancellationReason','billingCustomerReference','note'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
     successStatus=200,
     captures=[('subscriptionNo','subscriptionNo')],
   ),
@@ -303,7 +303,7 @@ CURATED = {
     summary="The school's own billing screen. Deliberately less than the platform sees.",
     required=[],
     optional=[],
-    responseFields=['subscriptionNo','status','planName','planDescription','planVersion','billingCycle','price','currencyCode','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','cancelledAt','note'],
+    responseFields=['subscriptionNo','status','planName','planDescription','planVersion','billingCycle','price','currencyCode','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','note'],
     successStatus=200,
   ),
   'Get Entitlements': dict(

@@ -420,11 +420,14 @@ export default function SchoolSubscriptionTab({ school }) {
                 : null}
             </Detail>
 
-            {s.cancelledAt && (
-              <>
-                <Detail label="Cancelled">{when(s.cancelledAt)}</Detail>
-                <Detail label="Why" className="sm:col-span-2">{s.cancellationReason}</Detail>
-              </>
+            {/* cancelledAt and cancellationReason were removed from the model on 2026-09-07:
+                the date duplicated the CANCELLED history row's effectiveAt, and a
+                cancellation-only reason left every other kind of change unexplained. This is
+                what replaced them — the reason for the last edit, whatever it changed. */}
+            {s.reasonForChanges && (
+              <Detail label="Last changed because" className="sm:col-span-2">
+                {s.reasonForChanges}
+              </Detail>
             )}
           </dl>
 

@@ -323,7 +323,13 @@ public class PlatformSubscriptionService {
      *
      * <p><b>Nothing is written when nothing changed.</b> A request that sets every field to what
      * it already holds answers 200 and says so, with no history row: an audit trail whose rows
-     * record that nothing happened is one nobody can read.
+     * record that nothing happened is one nobody can read. That includes the reason — an
+     * explanation for an edit that did not happen is not worth storing.
+     *
+     * <p><b>{@code reason} lands in two places.</b> On the subscription as
+     * {@code reasonForChanges}, so a screen can say why it looks the way it does without a second
+     * query, and on the history row next to the fields that moved. The document keeps the latest;
+     * history keeps all of them.
      */
     @Transactional
     public SubscriptionDetailResponse updateSubscription(String schoolId, String subscriptionNo,
@@ -369,7 +375,16 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 5 - the period has to still make sense after the edit, whichever end moved
+        //! step 5 - the reason goes onto the document as well as the history row. Written only
+        //! now, because an edit that changed nothing has nothing to explain — and overwritten
+        //! even when no reason was given, since a reason left over from an earlier edit would
+        //! explain the wrong change.
+        subscription.setReasonForChanges(
+                request.reason() == null || request.reason().isBlank()
+                        ? null
+                        : request.reason().trim());
+
+        //! step 6 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -380,7 +395,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 6 - one history row for the whole edit, in this same transaction
+        //! step 7 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -399,7 +414,7 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 7 - the plan is read only so the response can carry its features and limits
+        //! step 8 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehind(saved);
 
@@ -720,8 +735,11 @@ public class PlatformSubscriptionService {
      * rows that explain nothing. So every field is compared before it is set.
      *
      * <p>{@code Objects.equals} throughout, because every field here is nullable — an override
-     * that is not set and a cancellation that never happened are both null, and both have to
-     * compare equal to themselves.
+     * that is not set is null, and null has to compare equal to itself.
+     *
+     * <p><b>{@code reasonForChanges} is not in the list.</b> It is written by the caller on every
+     * edit, so it always "changed" — reporting it would put "reasonForChanges" in every history
+     * row's field list and in every response note, next to the reason itself.
      */
     private List<String> applyEdit(SchoolSubscription subscription,
             SubscriptionUpdateRequest request) {
@@ -775,67 +793,7 @@ public class PlatformSubscriptionService {
             }
         }
 
-        if (request.cancellation() != null) {
-            Instant at = request.cancellation().cancelledAt();
-            String why = request.cancellation().cancellationReason();
-            if (why != null && why.isBlank()) {
-                why = null;
-            }
-
-            if (!Objects.equals(at, subscription.getCancelledAt())) {
-                subscription.setCancelledAt(at);
-                changed.add("cancelledAt");
-            }
-            if (!Objects.equals(why, subscription.getCancellationReason())) {
-                subscription.setCancellationReason(why);
-                changed.add("cancellationReason");
-            }
-        }
-
-        //! the two consequences of a status move, applied last so the caller's own cancellation
-        //! block always wins over what the status would have implied
-        applyCancellationConsequences(subscription, request, changed);
-
         return changed;
-    }
-
-    /**
-     * Keeps the cancellation fields honest about the status.
-     *
-     * <p>A subscription that says CANCELLED with no date cannot answer "when", and one that says
-     * ACTIVE while carrying a cancellation date and reason says two contradictory things at once.
-     * Neither is a state a caller would choose deliberately, so both are corrected here rather
-     * than stored and reported.
-     *
-     * <p>Only applies when the status actually moved, and never overrides a {@code cancellation}
-     * block the caller sent — an explicit instruction beats an inferred one.
-     */
-    private void applyCancellationConsequences(SchoolSubscription subscription,
-            SubscriptionUpdateRequest request, List<String> changed) {
-
-        boolean statusMoved = changed.contains("status");
-        if (!statusMoved) {
-            return;
-        }
-
-        boolean callerSetCancellation = request.cancellation() != null;
-
-        if (subscription.getStatus() == SubscriptionStatus.CANCELLED) {
-            if (!callerSetCancellation && subscription.getCancelledAt() == null) {
-                subscription.setCancelledAt(Instant.now());
-                changed.add("cancelledAt");
-            }
-            return;
-        }
-
-        if (!callerSetCancellation && subscription.getCancelledAt() != null) {
-            subscription.setCancelledAt(null);
-            changed.add("cancelledAt");
-            if (subscription.getCancellationReason() != null) {
-                subscription.setCancellationReason(null);
-                changed.add("cancellationReason");
-            }
-        }
     }
 
     /**

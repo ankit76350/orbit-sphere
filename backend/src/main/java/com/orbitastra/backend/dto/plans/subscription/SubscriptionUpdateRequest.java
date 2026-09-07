@@ -34,12 +34,11 @@ import jakarta.validation.constraints.Size;
  * a nested block sent      -> replace both; null inside means "no value"
  * </pre>
  *
- * <p><b>Why some fields are nested and others are not.</b> A field that is nullable on the model
- * can be cleared, so "omitted" and "cleared" have to be told apart, and a block is the only way
- * to say it — that is {@code limitOverrides} and {@code cancellation}. A field that is
- * {@code @NotNull} on the model cannot be cleared at all, so there is nothing to disambiguate and
- * it stays flat — that is {@code currentPeriodStart} and {@code currentPeriodEnd}, which is also
- * what lets a trial's end date be moved on its own.
+ * <p><b>Why one field is nested.</b> The two capacity overrides are nullable on the model, so
+ * they can be cleared, and "omitted" has to be told apart from "cleared" — a block is the only
+ * way to say it. Everything else here is {@code @NotNull} on the model and cannot be cleared at
+ * all, so there is nothing to disambiguate and those stay flat — which is also what lets a
+ * trial's end date be moved on its own.
  *
  * <h2>What is deliberately absent</h2>
  *
@@ -51,6 +50,10 @@ import jakarta.validation.constraints.Size;
  *
  * <p>So this endpoint covers <b>when</b> a subscription runs, <b>what state</b> it is in, and
  * <b>how much of the product</b> it may use. Nothing about the money.
+ *
+ * <p>{@code reasonForChanges} is not a field a caller sets either — it is written from
+ * {@code reason} on every edit. Setting it directly would let somebody record an explanation for
+ * a change they did not make.
  *
  * <p>{@code subscriptionNo} is the number the sequence handed out and the way this subscription
  * is addressed. Editing it would renumber a record that invoices and history rows already point
@@ -70,15 +73,11 @@ public record SubscriptionUpdateRequest(
          * Example: SubscriptionStatus.SUSPENDED
          *
          * <p>Any of the six, with no transition rules applied — see the note above about this
-         * being the override. Two things follow automatically, because the alternative is a
-         * document that contradicts itself:
+         * being the override.
          *
-         * <ul>
-         * <li>moving <b>to</b> CANCELLED stamps {@code cancelledAt} if the request did not,</li>
-         * <li>moving <b>away from</b> CANCELLED clears {@code cancelledAt} and
-         * {@code cancellationReason}, since a live subscription cancelled on a date is not a
-         * state that means anything.</li>
-         * </ul>
+         * <p><b>Moving to CANCELLED stamps no date.</b> When a subscription was cancelled is the
+         * {@code effectiveAt} of its {@code CANCELLED} history row, which is written here anyway;
+         * a second copy on the document could only ever disagree with it.
          */
         SubscriptionStatus status,
 
@@ -121,22 +120,20 @@ public record SubscriptionUpdateRequest(
         @Valid LimitOverrides limitOverrides,
 
         /**
-         * When and why it was cancelled, replaced as a pair.
+         * Why. Example: "Renegotiated at renewal — 20% partner discount."
          *
-         * <p>Only meaningful next to each other: a cancellation date with no reason is an
-         * unexplained one, and a reason with no date is a cancellation that never happened. Send
-         * {@code null} inside either to clear it.
+         * <p><b>Stored in two places, because they answer different questions.</b> It goes on the
+         * subscription as {@code reasonForChanges} — why it is the way it is now, readable without
+         * a second query — and on the history row next to the list of fields that moved, which is
+         * written whether or not a reason was given.
          *
-         * <p>Setting {@code status} to CANCELLED fills the date in on its own, so this exists for
-         * correcting a cancellation already recorded, or for recording the reason with it.
-         */
-        @Valid Cancellation cancellation,
-
-        /**
-         * Why, for the history row. Example: "Renegotiated at renewal — 20% partner discount."
+         * <p><b>Every edit overwrites {@code reasonForChanges}, including with null.</b> A reason
+         * left standing from an earlier edit would explain the wrong change. So sending no reason
+         * is saying "this change has no recorded reason", not "keep the last one".
          *
-         * <p>Not stored on the subscription. It goes on the audit row next to the list of fields
-         * that actually changed, which is written whether or not a reason was given.
+         * <p>It is not a change in itself: a request carrying only a reason changes nothing and is
+         * refused with {@code NO_CHANGES_REQUESTED} rather than storing an explanation for an
+         * edit that did not happen.
          */
         @Size(max = 500) String reason) {
 
@@ -149,14 +146,9 @@ public record SubscriptionUpdateRequest(
     public record LimitOverrides(Long maxStudentsOverride, Long maxUsersOverride) {
     }
 
-    /** The pair. A null field inside means "no value", not "leave it alone". */
-    public record Cancellation(Instant cancelledAt, @Size(max = 500) String cancellationReason) {
-    }
-
     /** True when the caller asked for nothing at all — answered with a 400, not a silent 200. */
     public boolean isEmpty() {
         return status == null && billingCycle == null && currentPeriodStart == null
-                && currentPeriodEnd == null && autoRenew == null && limitOverrides == null
-                && cancellation == null;
+                && currentPeriodEnd == null && autoRenew == null && limitOverrides == null;
     }
 }
