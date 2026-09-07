@@ -5770,6 +5770,17 @@ What makes a school a paying customer, and the piece \`core\` has been complaini
 settled for a soft check that announces the gap in every response. Create one first and
 \`subscriptionStatus\` reports \`ACTIVE\` instead of \`NONE\`.
 
+### The period, and the capacity, come from the plan
+
+The period starts at **midnight today in the school's own zone** and runs for a **fixed count of
+days** taken from the plan's cycle — 30, 90, 180, 365. \`CUSTOM\` has no length, so the caller must
+send \`currentPeriodEnd\` there.
+
+\`maxStudentsOverride\` and \`maxUsersOverride\` are **written on every sale**, copied from the plan
+when the caller named no figures. So the subscription says what the school may use without
+anybody reading the plan behind it, and a school already sold keeps what it bought when the
+plan's next version moves its ceiling.
+
 ### Two fields is the ordinary request
 
 The plan already knows the price, the currency, the cycle and therefore when the first period
@@ -5867,8 +5878,12 @@ A second is a \`409\` telling you to change the plan on the existing one.
          contractedPrice = the plan's listPrice
          currencyCode    = the plan's currency (never the caller's)
          billingCycle    = the plan's cycle
-         currentPeriodEnd = start + one cycle
-         maxStudents / maxUsers = the plan's, since no override was sent
+         currentPeriodStart = MIDNIGHT TODAY in the school's own zone, not
+                              the moment the request arrived
+         currentPeriodEnd   = start + the cycle's days (30/90/180/365)
+         maxStudentsOverride / maxUsersOverride = COPIED FROM THE PLAN,
+                              since the sale named no figures of its own
+         hasLimitOverrides  = false, because they match the plan
     Header: Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001`,
           body: null,
         },
@@ -5938,11 +5953,20 @@ A second is a \`409\` telling you to change the plan on the existing one.
           id: "06",
           name: "THE PERIOD END DERIVED FROM THE CYCLE",
           expect: "201 Created",
-          notes: `A YEARLY plan gives currentPeriodEnd 2027-04-01.
-    A MONTHLY plan starting 31 January gives 28 February — the calendar
-    clamps, which is what a person means by "a month later".
-    The arithmetic runs in the SCHOOL'S time zone, because a billing period
-    is a pair of dates somebody reads.`,
+          notes: `A FIXED COUNT OF DAYS, from the plan's cycle:
+      MONTHLY 30 | QUARTERLY 90 | HALF_YEARLY 180 | YEARLY 365
+    So a YEARLY plan starting 2026-04-01 ends 2027-04-01, and a MONTHLY one
+    starting 31 January ends 2 March.
+
+    EQUAL PERIODS RATHER THAN EQUAL DATES, and the drift is real: twelve
+    30-day months come to 360 days, and a 365-day year through 29 February
+    ends a day early. Adding calendar months instead makes every period a
+    different length and lands the end on a different day of the month
+    depending on where it started. Evenness was chosen.
+
+    SEND NOTHING and the period starts at MIDNIGHT TODAY in the school's
+    own zone — 06:00 in Kolkata is still yesterday in UTC, so the zone is
+    what decides which day "today" is.`,
           body: `{
   "planCode": "{{planCode}}", "planVersion": 1,
   "currentPeriodStart": "2026-04-01T00:00:00Z"
@@ -5965,6 +5989,9 @@ A second is a \`409\` telling you to change the plan on the existing one.
           expect: "400 Bad Request",
           notes: `OUT: { "code": "LIMIT_TOO_LOW", "message": "... Omit it to use the
            plan's own limit." }
+    Zero is refused HERE, unlike on #14 where it removes an override —
+    on create there is nothing to remove, so it is a mistake like any
+    other. Omitting the field copies the plan's figure instead.
     A negative contractedPrice is PRICE_NEGATIVE, from the same validator #1
     and #2 use.`,
           body: `{
@@ -5990,6 +6017,13 @@ A second is a \`409\` telling you to change the plan on the existing one.
 11  WHAT LANDS IN THE DATABASE
     From mongosh, after case 01:
       db.school_subscriptions.findOne({schoolId: "..."})
+        -> maxStudentsOverride and maxUsersOverride HOLD THE PLAN'S
+           FIGURES, not null: the subscription says what the school may use
+           without anybody reading the plan behind it, and a school already
+           sold keeps what it bought when the plan's next version moves its
+           ceiling. \`hasLimitOverrides\` in the response compares against
+           the plan rather than checking for null, so it still means "this
+           school's ceiling is not its plan's".
       db.subscription_history.find({schoolSubscriptionDocsId: "..."})
         -> one row: eventType CREATED (or TRIAL_STARTED), previousStatus
            null — there was no status before this — newStatus ACTIVE,

@@ -1,10 +1,12 @@
 package com.orbitastra.backend.services.plans;
 
 import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -144,14 +146,19 @@ public class PlatformSubscriptionService {
         });
 
         //! step 3 - the plan has to be one we can actually sell today
+        //? 1 method use
+        //TODO: read the plan 
         PlanDefinition plan = loadSellablePlan(request.planCode(), request.planVersion());
 
         //! step 4 - work out the terms: the plan's, unless the caller overrode them
+        //! The period starts today in the SCHOOL'S day, not at the instant the request landed:
+        //! a billing period is a pair of dates somebody reads, and "your year runs from the 7th"
+        //! is what they expect to see rather than "from 12:47 on the 7th".
         Instant periodStart = request.currentPeriodStart() == null
-                ? Instant.now()
+                ? startOfToday(school.getDefaultTimeZone())
                 : request.currentPeriodStart();
         Instant periodEnd = resolvePeriodEnd(request.currentPeriodEnd(), periodStart,
-                plan.getBillingCycle(), school.getDefaultTimeZone());
+                plan.getBillingCycle());
 
         BigDecimal contractedPrice = request.contractedPrice() == null
                 ? plan.getListPrice()
@@ -159,6 +166,17 @@ public class PlatformSubscriptionService {
 
         validateOverride("maxStudentsOverride", request.maxStudentsOverride());
         validateOverride("maxUsersOverride", request.maxUsersOverride());
+
+        //! The capacity is written onto the subscription either way, copied from the plan when
+        //! the caller named no figure of their own. So the document says what this school may
+        //! use without anybody having to read the plan behind it to find out — and the day the
+        //! plan's next version raises its ceiling, schools already sold keep what they bought.
+        Long maxStudents = request.maxStudentsOverride() == null
+                ? plan.getMaxStudents()
+                : request.maxStudentsOverride();
+        Long maxUsers = request.maxUsersOverride() == null
+                ? plan.getMaxUsers()
+                : request.maxUsersOverride();
 
         boolean trial = Boolean.TRUE.equals(request.trial());
         SubscriptionStatus status = trial ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE;
@@ -184,8 +202,8 @@ public class PlatformSubscriptionService {
                 // different currency from the plan it points at is a mistake nobody would catch
                 // until an invoice went out in the wrong money.
                 .currencyCode(plan.getCurrencyCode())
-                .maxStudentsOverride(request.maxStudentsOverride())
-                .maxUsersOverride(request.maxUsersOverride())
+                .maxStudentsOverride(maxStudents)
+                .maxUsersOverride(maxUsers)
                 .billingCustomerReference(request.billingCustomerReference())
                 .current(true)
                 .build();
@@ -359,24 +377,36 @@ public class PlatformSubscriptionService {
      * {@code note}, because a screen trusting {@code status} alone would show a school as live
      * months after its period ended.
      */
-    public SubscriptionDetailResponse getSubscription(String schoolId) {
+        public SubscriptionDetailResponse getSubscription(String schoolId) {
 
-        //! step 1 - the school's one current subscription
+        //! step 1 - the school's current subscription
         // TODO: read subscription
         SchoolSubscription subscription = schoolSubscription
                 .findBySchoolIdAndCurrentIsTrue(schoolId)
-                .orElseThrow(() -> noSubscription(schoolId));
+                .orElseGet(() -> {
+                        School school = schools.findById(schoolId).orElse(null);
 
-        //! step 2 - the plan it points at, for the name, the limits and the features
+                        if (school == null) {
+                        throw ApiException.notFound("SCHOOL_NOT_FOUND",
+                                "No school found with id '" + schoolId + "'.");
+                        }
+
+                        throw ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                                "'" + school.getSchoolName() + "' has no subscription. Create one first.");
+                });
+
+        //! step 2 - the plan it points at, for the name, limits and features
         // TODO: read plan
         PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
-                        "The plan " + subscription.getSubscriptionNo() + " points at no longer "
-                                + "exists."));
+                        "The plan " + subscription.getSubscriptionNo()
+                                + " points at no longer exists."));
 
-        return SubscriptionDetailResponse.fromSubscription(subscription, plan,
+        return SubscriptionDetailResponse.fromSubscription(
+                subscription,
+                plan,
                 subscriptionNote(subscription, plan));
-    }
+        }
 
     //! endpoint 33 — the school's own billing screen -----------------------------------
 
@@ -413,17 +443,8 @@ public class PlatformSubscriptionService {
 
     //* ---------------------------------------------------------------------------------
 
-    /**
-     * The plan version, if it is one a school can be put on today.
-     *
-     * <p>A draft is refused because its price is still being decided, and a retired one because
-     * it was taken off the menu — putting a new school on either is the mistake this check
-     * exists for.
-     *
-     * <p><b>{@code publiclyAvailable} is deliberately not checked.</b> A plan that is published
-     * but off the public list is exactly a private quote, and this endpoint is how a private
-     * quote gets sold.
-     */
+    //! 1. createSubscription
+    /** The plan version a school can be assigned to today; drafts and retired plans are rejected, while private quotes remain valid. */
     private PlanDefinition loadSellablePlan(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
         // TODO: read plan
@@ -459,18 +480,9 @@ public class PlatformSubscriptionService {
         return plan;
     }
 
-    /**
-     * When the first billing period ends.
-     *
-     * <p>Derived from the plan's cycle so a caller does not have to do calendar arithmetic that
-     * the plan already implies — a yearly plan starting 1 April ends a year later, and getting
-     * that wrong by a day means an invoice for the wrong period.
-     *
-     * <p><b>A {@code CUSTOM} cycle has no length</b>, so there is nothing to derive and the
-     * caller must say. Guessing a month there would be a made-up contract term.
-     */
-    private Instant resolvePeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle,
-            String schoolTimeZone) {
+    //! 1. createSubscription
+    /** Derives the first billing period end date from the plan cycle using fixed-day periods; CUSTOM requires the caller to specify it. */
+    private Instant resolvePeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle) {
 
         if (requested != null) {
             if (!requested.isAfter(periodStart)) {
@@ -481,65 +493,35 @@ public class PlatformSubscriptionService {
             return requested;
         }
 
-        // Months and years need a calendar, and an Instant has none — Instant.plus(1, YEARS)
-        // throws, because "a year" is not a fixed number of seconds. So the arithmetic happens
-        // in the school's own zone and comes back as an instant.
-        //
-        // THE SCHOOL'S ZONE, not UTC, because a billing period is a pair of dates a person
-        // reads: "your year runs to 31 March". Adding a year in UTC keeps the same UTC wall
-        // clock and drifts the local one across a daylight-saving change, so a school would find
-        // its period ending an hour earlier or later than it started.
-        ZoneId zone = zoneOrUtc(schoolTimeZone);
-        ZonedDateTime start = periodStart.atZone(zone);
-
-        return switch (cycle) {
-            case MONTHLY -> start.plusMonths(1).toInstant();
-            case QUARTERLY -> start.plusMonths(3).toInstant();
-            case HALF_YEARLY -> start.plusMonths(6).toInstant();
-            case YEARLY -> start.plusYears(1).toInstant();
+        // Days, so no calendar and no zone is needed: an Instant can add days on its own, where
+        // Instant.plus(1, MONTHS) throws because a month is not a fixed number of seconds.
+        long days = switch (cycle) {
+            case MONTHLY -> 30;
+            case QUARTERLY -> 90;
+            case HALF_YEARLY -> 180;
+            case YEARLY -> 365;
             case CUSTOM -> throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
                     "This plan bills on a CUSTOM cycle, which has no set length, so "
                             + "currentPeriodEnd has to be sent.");
         };
+
+        return periodStart.plus(days, ChronoUnit.DAYS);
     }
 
-    /**
-     * The school's zone, or UTC if it has none we can read.
-     *
-     * <p>Falls back rather than failing: the zone was validated when the school was created and
-     * again by #8, so an unreadable one here means data older than those checks — and refusing
-     * to sell a subscription over it would be the wrong thing to break.
-     */
-    private ZoneId zoneOrUtc(String timeZone) {
-        if (timeZone == null || timeZone.isBlank()) {
-            return ZoneOffset.UTC;
-        }
+        //! 1. createSubscription
+        /** Returns today's start in the school's timezone, falling back to UTC if unavailable. */
+        private Instant startOfToday(String schoolTimeZone) {
+        ZoneId zone;
         try {
-            return ZoneId.of(timeZone.trim());
-        } catch (java.time.DateTimeException unreadable) {
-            return ZoneOffset.UTC;
-        }
-    }
-
-    /**
-     * The 404 for a school with no subscription, once we know which 404 it is.
-     *
-     * <p>Only called when nothing was found, so the extra read is off the path that succeeds. It
-     * is worth the trip: told only "not found", somebody checks the subscription code when the
-     * school id was wrong all along.
-     */
-    private ApiException noSubscription(String schoolId) {
-        // TODO: read school
-        School school = schools.findById(schoolId).orElse(null);
-
-        if (school == null) {
-            return ApiException.notFound("SCHOOL_NOT_FOUND",
-                    "No school found with id '" + schoolId + "'.");
+                zone = (schoolTimeZone == null || schoolTimeZone.isBlank())
+                        ? ZoneOffset.UTC
+                        : ZoneId.of(schoolTimeZone.trim());
+        } catch (DateTimeException e) {
+                zone = ZoneOffset.UTC;
         }
 
-        return ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
-                "'" + school.getSchoolName() + "' has no subscription. Create one first.");
-    }
+        return LocalDate.now(zone).atStartOfDay(zone).toInstant();
+        }
 
     /**
      * Anything about this subscription worth saying out loud.
@@ -547,6 +529,8 @@ public class PlatformSubscriptionService {
      * <p>Each of these is a state the module can genuinely be in today, and each one would
      * otherwise be read wrongly off a single field.
      */
+    //!. getSubscription(
+    //! editedNote(
     private String subscriptionNote(SchoolSubscription subscription, PlanDefinition plan) {
         List<String> notes = new ArrayList<>();
 

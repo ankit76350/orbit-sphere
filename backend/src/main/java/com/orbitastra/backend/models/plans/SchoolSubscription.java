@@ -103,10 +103,26 @@ public class SchoolSubscription extends SchoolBase {
         @NotBlank
         private String currencyCode;
 
-        // Optional per-school student limit; null uses PlanDefinition.maxStudents. Example: 2500
+        /**
+         * This school's student ceiling. Example: 2500
+         *
+         * <p><b>#13 always writes it</b>, copying {@code PlanDefinition.maxStudents} when the
+         * sale named no figure of its own — so the subscription says what the school may use
+         * without anybody reading the plan behind it, and a school already sold keeps what it
+         * bought when the plan's next version moves its ceiling.
+         *
+         * <p>Null still means "fall back to the plan", which is what #14 stores when an override
+         * is removed. It is no longer the ordinary state of a new subscription.
+         */
         private Long maxStudentsOverride;
 
-        // Optional per-school user limit; null uses PlanDefinition.maxUsers. Example: 300
+        /**
+         * This school's user ceiling. Example: 300
+         *
+         * <p>Same as {@code maxStudentsOverride}: written on every sale from
+         * {@code PlanDefinition.maxUsers} unless the caller named one, and null only when #14 has
+         * removed it.
+         */
         private Long maxUsersOverride;
 
         // Example: true

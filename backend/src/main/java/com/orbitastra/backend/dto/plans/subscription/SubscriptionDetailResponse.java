@@ -144,12 +144,38 @@ public record SubscriptionDetailResponse(
                 users,
                 subscription.getMaxStudentsOverride(),
                 subscription.getMaxUsersOverride(),
-                subscription.getMaxStudentsOverride() != null
-                        || subscription.getMaxUsersOverride() != null,
+                negotiatedCapacity(subscription, plan),
                 features.size(),
                 features,
                 subscription.getReasonForChanges(),
                 subscription.getBillingCustomerReference(),
                 note);
+    }
+
+    /**
+     * True when this school's capacity is not the plan's.
+     *
+     * <p><b>Not simply "an override is set".</b> #13 writes the capacity onto every subscription,
+     * copying the plan's figures when the caller named none, so a null check would answer true
+     * for every subscription ever sold and the flag would tell a reader nothing. What is worth
+     * flagging is a school whose ceiling was negotiated away from what its plan lists.
+     */
+    private static boolean negotiatedCapacity(SchoolSubscription subscription,
+            PlanDefinition plan) {
+
+        return awayFromPlan(subscription.getMaxStudentsOverride(), plan.getMaxStudents())
+                || awayFromPlan(subscription.getMaxUsersOverride(), plan.getMaxUsers());
+    }
+
+    /**
+     * One ceiling against the plan's.
+     *
+     * <p><b>Null is not a difference.</b> It means "follow the plan", so the limit in force *is*
+     * the plan's — which is exactly the state #14 leaves behind when an override is removed, and
+     * reporting that as negotiated would put the badge on the one subscription that has no
+     * negotiated limit at all.
+     */
+    private static boolean awayFromPlan(Long override, Long planLimit) {
+        return override != null && !override.equals(planLimit);
     }
 }

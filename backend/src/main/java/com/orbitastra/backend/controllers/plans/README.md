@@ -410,13 +410,13 @@ below are still a plan.
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
 | `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Every later move is **#14** until the lifecycle endpoints #17 to #22 are built — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own. |
 | `billingCycle` | BillingCycle, required | **Copied from the plan.** Same five values. |
-| `currentPeriodStart` | Instant, required | **Any instant** — the request's, or now. |
-| `currentPeriodEnd` | Instant, required | **Start plus one billing cycle**, worked out in the **school's own time zone** and not in UTC: `Instant` has no calendar, so `plus(1, YEARS)` throws outright. A caller-supplied end is accepted if it is after the start. |
+| `currentPeriodStart` | Instant, required | **Any instant.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
+| `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
 | `autoRenew` | Boolean, required | **`true`** unless the request says otherwise. |
 | `contractedPrice` | BigDecimal, `DECIMAL128`, required | **The plan's `listPrice`, or an override** — same rules: `0` or more, at most 2 decimals. This is what makes a private discount possible without a new plan version. |
 | `currencyCode` | String, required | **The plan's currency, never the caller's.** A subscription priced in a different currency from its plan is a mistake nobody would catch until an invoice went out in the wrong money. |
-| `maxStudentsOverride` | Long, optional | **A number, or null** — null falls back to the plan's `maxStudents`. |
-| `maxUsersOverride` | Long, optional | **A number, or null**, same fallback. |
+| `maxStudentsOverride` | Long, optional | **A number.** #13 always writes one, copying the plan's `maxStudents` when the sale named none, so the subscription answers "what may this school use" on its own. Null means fall back to the plan and is what #14 stores when an override is removed — no longer the ordinary state of a new subscription. |
+| `maxUsersOverride` | Long, optional | **A number**, same as `maxStudentsOverride`: copied from the plan's `maxUsers` on create unless the sale named one. |
 | `current` | Boolean, required | **`true`** on create. Exactly one row per school may be `true`; the flag is what makes "the school's subscription" a single document rather than a sort by date. |
 | `billingCustomerReference` | String, optional | **Open** — the gateway's own customer id, e.g. `customer_Qx7B2mR9`, or null until there is one. |
 | `reasonForChanges` | String, optional | Free text, max 500. **Written by #14 from its `reason`, on every edit, overwritten each time.** That request field is **required**, so an edited subscription always carries one — null here means nothing has ever edited it. Replaced `cancelledAt` and `cancellationReason` (2026-09-07): the date duplicated the `CANCELLED` history row's `effectiveAt`, and a cancellation-only reason left every other change unexplained. |
@@ -1011,7 +1011,7 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 **[13](#t13) · `POST /platform/schools/{id}/subscriptions`** — built
 
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — to get the `subscriptionNo`, through the positional operator
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `current` = true
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart` = midnight today in the school's zone unless sent, `currentPeriodEnd` = start plus the cycle's days, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride` and `maxUsersOverride` = **the plan's limits unless the caller named others**, `current` = true
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` — **only** when the school was `PROVISIONING` and its setup is otherwise complete
 
@@ -1056,6 +1056,22 @@ part-way through a run.
 The trailing separator is not decoration: the number is appended straight onto the prefix, so
 `SUB/{YYYY}/{MM}` would produce `SUB/2026/09000001` with the month running into the digits.
 
+### The capacity is copied onto the subscription
+
+`maxStudentsOverride` and `maxUsersOverride` are written on every sale — the caller's figures
+when they gave any, the plan's otherwise. Two reasons:
+
+- **The subscription answers "what may this school use" on its own.** Reading it no longer means
+  fetching the plan behind it to find out whether a null meant 500 or 5000.
+- **A school keeps what it bought.** When the plan's next version raises its ceiling, schools
+  already sold are unaffected, because their number is theirs rather than a pointer at whatever
+  the plan currently says.
+
+The cost is that "override" stops meaning "a figure was set" — it is set on every subscription. So
+`hasLimitOverrides` in the responses compares against the plan rather than checking for null, and
+means what it always meant to: **this school's ceiling is not its plan's**. A null check there
+would answer true for every subscription ever sold.
+
 ### The plan must be sellable, and "publicly available" is not part of that
 
 `ACTIVE`, and inside its selling window. A draft's price is still being decided; a retired plan
@@ -1071,19 +1087,30 @@ Enforced by a unique partial index on `{schoolId, current}`, but checked here fi
 duplicate-key error tells the caller nothing about what to do instead. The message names the
 existing subscription and says to change its plan.
 
-### The period end is calendar arithmetic, in the school's zone
+### The period is a fixed number of days, starting today
 
-Derived from the plan's cycle, so a caller does not redo arithmetic the plan already implies. Two
-things had to be right:
+**The start is midnight at the beginning of today, in the school's own day.** Not the instant the
+request arrived: a billing period is a pair of dates somebody reads, and "your year runs from the
+7th" is what they expect rather than "from 12:47 on the 7th". The school's zone rather than UTC
+decides which day today is — 06:00 in Kolkata is still yesterday in UTC. A caller who sends
+`currentPeriodStart` gets that instead, which is how a backdated contract is recorded.
 
-- **`Instant` has no calendar.** `Instant.plus(1, ChronoUnit.YEARS)` throws — a year is not a
-  fixed number of seconds. The addition happens on a `ZonedDateTime`. This was a real 500 during
-  testing.
-- **The school's time zone, not UTC.** A billing period is a pair of dates somebody reads —
-  "your year runs to 31 March". Adding a year in UTC holds the UTC wall clock steady and drifts
-  the local one across a daylight-saving change.
+**The end is the start plus a fixed count of days**, from the plan's cycle:
 
-31 January plus a month gives 28 February; the calendar clamps, which is what a person means.
+| Cycle | Days |
+|---|---|
+| `MONTHLY` | 30 |
+| `QUARTERLY` | 90 |
+| `HALF_YEARLY` | 180 |
+| `YEARLY` | 365 |
+
+**This is equal periods rather than equal dates, and the cost is worth knowing.** Twelve 30-day
+months come to 360 days, so a monthly subscription renewed through a year finishes five days
+before the year does; a 365-day year that runs through 29 February ends a day early. The
+alternative — adding calendar months — makes every period a different length and lands the end
+date on a different day of the month depending on where it started, and 31 January plus a month
+has to be argued about. Equal lengths were chosen; if the drift matters more than the evenness,
+this is the one function to change.
 
 A `CUSTOM` cycle has no length, so `currentPeriodEnd` is **required** there. Guessing a month
 would be inventing a contract term.

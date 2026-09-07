@@ -490,6 +490,19 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
   // before the round trip that would empty the form.
   const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
     && form.currentPeriodEnd < form.currentPeriodStart
+  // Three states, not two. #13 writes a figure onto every subscription, copying the plan's when
+  // the sale named none, so "a figure is set" no longer means "negotiated" — hasLimitOverrides is
+  // what says the school's ceiling differs from its plan's.
+  const limitHint = (override, inForce) => {
+    if (override == null) return `Blank, so the plan's ${inForce} applies.`
+    if (!subscription.hasLimitOverrides) {
+      return `${override}, copied from the plan when this was sold. Empty the box to make it `
+        + 'follow the plan instead — sent as 0.'
+    }
+    return `Negotiated away from what the plan lists. Empty the box to remove it — sent as 0, `
+      + "which is how the API says \u201cuse the plan's own limit\u201d."
+  }
+
   // Zero is legal now — it is how an override is removed — so only a negative is a refusal.
   const negativeOverride = [form.maxStudentsOverride, form.maxUsersOverride]
     .some((value) => value.trim() !== '' && Number(value) < 0)
@@ -649,9 +662,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
         <div className="field-grid">
           <Field
             label="Student limit"
-            hint={subscription.maxStudentsOverride == null
-              ? `Blank, so the plan's ${subscription.maxStudents} applies.`
-              : "Negotiated. Empty the box to remove it — sent as 0, which is how the API says \u201cuse the plan's own limit\u201d."}
+            hint={limitHint(subscription.maxStudentsOverride, subscription.maxStudents)}
           >
             <Input type="number" min="0" value={form.maxStudentsOverride}
               onChange={set('maxStudentsOverride')}
@@ -659,9 +670,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </Field>
           <Field
             label="User limit"
-            hint={subscription.maxUsersOverride == null
-              ? `Blank, so the plan's ${subscription.maxUsers} applies.`
-              : 'Negotiated. Empty the box to remove it — sent as 0.'}
+            hint={limitHint(subscription.maxUsersOverride, subscription.maxUsers)}
           >
             <Input type="number" min="0" value={form.maxUsersOverride}
               onChange={set('maxUsersOverride')}

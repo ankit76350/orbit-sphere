@@ -409,6 +409,25 @@ for (const [label, ok] of formChecks) {
   if (!ok) fail++
 }
 
+// #13 writes a capacity figure onto every subscription now, copying the plan's when the sale
+// named none. So "a figure is set" stopped meaning "negotiated", and the form has three states to
+// tell apart rather than two — a box showing the plan's own number is not a negotiated ceiling.
+console.log('\nA copied limit is not a negotiated one')
+const limitChecks = [
+  ['the form tells the three states apart', editSource.includes('const limitHint =')],
+  ['it leans on hasLimitOverrides, not on a null check',
+    /const limitHint[\s\S]{0,400}subscription\.hasLimitOverrides/.test(editSource)],
+  ['and says when a figure was copied rather than agreed',
+    editSource.includes('copied from the plan when this was sold')],
+  // The badge on the card has to mean the same thing.
+  ['the card badges only a real negotiation',
+    editSource.includes('{s.hasLimitOverrides ? <Badge tone="brand">negotiated</Badge>')],
+]
+for (const [label, ok] of limitChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nAn edit sends only what moved')
 const STORED_SUB = {
   subscriptionNo: 'SUB/2026/09/000001', planCode: 'PREMIUM', planVersion: 1,
