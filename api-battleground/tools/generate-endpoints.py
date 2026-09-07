@@ -280,6 +280,18 @@ CURATED = {
     responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
     successStatus=200,
   ),
+  'Edit Subscription': dict(
+    summary='Edits any of the terms of one subscription. Replaced extend-trial and the four single-field PATCHes.',
+    required=[],
+    # Nested blocks are passed through as written: limitOverrides and cancellation each hold two
+    # fields, because a null inside them means "remove this" and an omitted block means "leave
+    # it". Flattening them here would lose the distinction the endpoint is built on.
+    optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
+              'contractedPrice','currencyCode','billingCustomerReference','limitOverrides',
+              'cancellation','plan','reason'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','cancelledAt','cancellationReason','billingCustomerReference','note'],
+    successStatus=200,
+  ),
   'Get Subscription': dict(
     summary='What one school is on right now: the plan and its features, the price, the status, the period.',
     required=[],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, CreditCard, Play, Plus, RefreshCw } from 'lucide-react'
+import { CheckCircle2, CreditCard, Pencil, Play, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
@@ -49,6 +49,7 @@ export default function Subscriptions() {
   const [problem, setProblem] = useState(null)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
 
@@ -149,6 +150,7 @@ export default function Subscriptions() {
           schoolId={schoolId}
           busy={busy}
           onActivate={activate}
+          onEdit={() => setEditing(true)}
         />
       ) : (
         <Card
@@ -169,6 +171,14 @@ export default function Subscriptions() {
           </div>
         </Card>
       )}
+
+      <EditSubscription
+        open={editing}
+        schoolId={schoolId}
+        subscription={subscription}
+        onClose={() => setEditing(false)}
+        onSaved={async () => { setEditing(false); await load() }}
+      />
 
       <NewSubscription
         open={creating}
@@ -237,7 +247,7 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 
 /* -------------------------------------------------------------- what the school is on */
 
-function TheSubscription({ subscription, schoolId, busy, onActivate }) {
+function TheSubscription({ subscription, schoolId, busy, onActivate, onEdit }) {
   const s = subscription
   return (
     <>
@@ -336,12 +346,22 @@ function TheSubscription({ subscription, schoolId, busy, onActivate }) {
                 pathParams={{ id: schoolId, subscriptionNo: 'current' }}
               />
             </div>
-          ) : (
-            <p className="muted">
-              Only a TRIAL can be activated. Changing the plan, extending a trial or cancelling
-              are endpoints that are not built.
-            </p>
-          )}
+          ) : null}
+
+          {/* Editing is not a trial-only action, and not a lifecycle one either: it is how a
+              subscription that is already wrong gets corrected. */}
+          <div className="toolbar">
+            <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
+            <span className="muted">
+              Status, plan, price, dates, limits, auto-renewal, the cancellation. One call.
+            </span>
+            <span className="toolbar-spacer" />
+            <EndpointTag
+              id="edit-subscription"
+              name="Edit the terms"
+              pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+            />
+          </div>
         </div>
       </Card>
 

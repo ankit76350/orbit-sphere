@@ -6230,6 +6230,303 @@ menu for new schools and changes nothing for a school already on it.
       ],
     },
     {
+      id: "edit-subscription",
+      name: "Edit Subscription",
+      method: "PATCH",
+      path: "/platform/schools/{id}/subscriptions/current",
+      status: 'live',
+      summary: "Edits any of the terms of one subscription. Replaced extend-trial and the four single-field PATCHes.",
+      schoolSurface: false,
+      docs: `**PATCH** \`/platform/schools/{id}/subscriptions/{no}\` — edits the terms of one subscription.
+
+**One endpoint where there were five.** extend-trial moved \`currentPeriodEnd\`. #23 moved
+\`autoRenew\`, #24 the two capacity overrides, #25 the price, #26 the billing reference. Five
+endpoints editing five columns of one document meant five sets of rules to keep in step, and a
+correction touching two fields was two requests, two writes and two history rows for one
+decision. Pushing a trial's end date out is now \`currentPeriodEnd\` on this request.
+
+### Use \`current\` as the number
+
+Same reason as everywhere else here: a real number is \`SUB/2026/09/000001\`, the slashes end the
+path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
+
+### It applies no transition rules, deliberately
+
+The lifecycle endpoints (#17 to #22) each know one transition and what it implies. This writes
+what it is told — which is what is needed when a subscription is already wrong and no ordinary
+transition describes the fix. It is not how a subscription should ordinarily be renewed or
+cancelled.
+
+Two things are still refused: a plan that cannot be sold today (\`409 PLAN_NOT_SELLABLE\`), and a
+period left running backwards (\`400 INVALID_BILLING_PERIOD\`).
+
+### Absent, null and cleared
+
+| Sent | Means |
+|---|---|
+| omitted, or \`null\` | leave it exactly as it is |
+| \`""\` | clear it — \`billingCustomerReference\` only |
+| a value | replace it |
+| a block omitted | leave both of its fields alone |
+| a block sent | replace both; \`null\` inside means "no value" |
+
+\`limitOverrides\` and \`cancellation\` are nested because their fields are nullable on the model and
+so can be cleared — "omitted" has to be told apart from "cleared". The period dates are
+\`@NotNull\` and cannot be cleared at all, so they stay flat, which is what lets a trial's end date
+move on its own.
+
+### Nothing changed is not an error, nothing asked for is
+
+A request that restates what is already stored answers \`200\` saying so, and writes no history
+row. An **empty** request is \`400 NO_CHANGES_REQUESTED\` — answering 200 to it would tell a caller
+who misspelled a field name that their edit worked.
+
+### The fifteen test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Needs {{schoolId}} and a subscription — run Create
+ Subscription first.
+
+ EVERY FIELD IS OPTIONAL and absent means unchanged. What each field's
+ absence means is in the description above; the cases below are what the
+ endpoint actually does with them.
+
+ ANSWERS THE WHOLE SUBSCRIPTION BACK, the same shape as Get Subscription,
+ so there is no second call to see what it now says. \`note\` says what moved.`,
+      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "contractedPrice", "currencyCode", "billingCustomerReference", "limitOverrides", "cancellation", "plan", "reason"],
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "contractedPrice": 39999.50,
+  "reason": "Renegotiated at renewal \\u2014 20% partner discount."
+}`,
+      successStatus: 200,
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "cancelledAt", "cancellationReason", "billingCustomerReference", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NO_CHANGES_REQUESTED", when: "Ask for nothing" },
+        { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
+        { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE ORDINARY EDIT",
+          expect: "200 OK",
+          notes: `The body above.
+    OUT: contractedPrice 39999.50, hasDiscount true, planListPrice
+         unchanged — the plan everybody else is on did not move.
+         note: "Edited contractedPrice. ..."`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "ASK FOR NOTHING",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NO_CHANGES_REQUESTED",
+           "message": "Nothing to change. Send at least one of the fields
+                       this endpoint edits." }
+    A misspelled field name lands here rather than answering 200 to an
+    edit that did nothing.`,
+          body: `{}`,
+        },
+        {
+          id: "03",
+          name: "SEND WHAT IS ALREADY STORED",
+          expect: "200 OK",
+          notes: `Case 01 twice.
+    OUT: note: "Nothing changed: every field sent already held that value.
+                No history row was written."
+    "Changed" means different from what was stored, not "was mentioned in
+    the request". 39999.5 and 39999.50 are the same money — the price is
+    compared with compareTo, because BigDecimal.equals calls them
+    different numbers.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "PUSH A TRIAL'S END DATE OUT",
+          expect: "200 OK",
+          notes: `THIS IS WHAT EXTEND-TRIAL DID. Nothing else changes.
+    OUT: daysRemaining recounted from the new date.`,
+          body: `{
+  "currentPeriodEnd": "2027-12-31T23:59:59Z",
+  "reason": "Trial extended three months."
+}`,
+        },
+        {
+          id: "05",
+          name: "A PERIOD THAT RUNS BACKWARDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_BILLING_PERIOD",
+           "message": "currentPeriodEnd (...) must be after
+                       currentPeriodStart (...). Editing one end of a
+                       period is checked against the other." }
+    Checked against whichever end did NOT move, so one end cannot be
+    edited past the other.`,
+          body: `{
+  "currentPeriodEnd": "2020-01-01T00:00:00Z"
+}`,
+        },
+        {
+          id: "06",
+          name: "RAISE THE NEGOTIATED LIMITS",
+          expect: "200 OK",
+          notes: `OUT: maxStudents 2500, hasLimitOverrides true. The response reports the
+         limit IN FORCE, so no caller works out which one applies.`,
+          body: `{
+  "limitOverrides": { "maxStudentsOverride": 2500, "maxUsersOverride": 300 }
+}`,
+        },
+        {
+          id: "07",
+          name: "TAKE ONE OVERRIDE AWAY",
+          expect: "200 OK",
+          notes: `OUT: maxStudentsOverride null and maxStudents back to the PLAN's limit;
+         the users override untouched at 300.
+    NULL INSIDE A BLOCK IS A REMOVAL. Omitting the block leaves both alone
+    — that is the whole reason these two are nested.`,
+          body: `{
+  "limitOverrides": { "maxStudentsOverride": null, "maxUsersOverride": 300 }
+}`,
+        },
+        {
+          id: "08",
+          name: "AN OVERRIDE OF ZERO",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "LIMIT_TOO_LOW" }
+    An override that permits nothing is not a limit anybody negotiated.`,
+          body: `{
+  "limitOverrides": { "maxStudentsOverride": 0, "maxUsersOverride": null }
+}`,
+        },
+        {
+          id: "09",
+          name: "CLEAR THE BILLING REFERENCE",
+          expect: "200 OK",
+          notes: `OUT: billingCustomerReference null. "" clears a string field; omitting
+         it leaves it. Send "cus_Qx7B2mR9" to set it.`,
+          body: `{
+  "billingCustomerReference": ""
+}`,
+        },
+        {
+          id: "10",
+          name: "CANCEL IT",
+          expect: "200 OK",
+          notes: `OUT: status CANCELLED and cancelledAt STAMPED although the request did
+         not send it — a cancellation that cannot answer "when" is not a
+         record of anything.
+    History: eventType CANCELLED, previousStatus ACTIVE.`,
+          body: `{
+  "status": "CANCELLED",
+  "reason": "School closed mid-year."
+}`,
+        },
+        {
+          id: "11",
+          name: "BACKDATE A CANCELLATION",
+          expect: "200 OK",
+          notes: `OUT: cancelledAt 2026-06-30, not now. An explicit instruction beats the
+         inferred one.`,
+          body: `{
+  "status": "CANCELLED",
+  "cancellation": {
+    "cancelledAt": "2026-06-30T00:00:00Z",
+    "cancellationReason": "Backdated to the actual leaving date."
+  }
+}`,
+        },
+        {
+          id: "12",
+          name: "PUT A CANCELLED SUBSCRIPTION BACK",
+          expect: "200 OK",
+          notes: `OUT: cancelledAt AND cancellationReason both cleared. An ACTIVE
+         subscription carrying a cancellation date says two contradictory
+         things at once.
+    History: eventType ACTIVATED — or RESUMED, if it was SUSPENDED.`,
+          body: `{
+  "status": "ACTIVE"
+}`,
+        },
+        {
+          id: "13",
+          name: "MOVE THE SCHOOL TO ANOTHER PLAN",
+          expect: "200 OK",
+          notes: `OUT: planCode and planVersion moved; contractedPrice, billingCycle and
+         currencyCode ALL UNCHANGED. Nothing follows the plan — a school
+         on a negotiated price moved to the next version of its plan keeps
+         the price it negotiated.
+         note names anything that no longer matches: "priced in USD but
+         'STARTER_PLAN' version 1 lists in INR", "bills MONTHLY while the
+         plan bills YEARLY". Reported, not corrected.
+    History: eventType PLAN_CHANGED, with previous and new plan ids.
+
+    A DRAFT or RETIRED plan is 409 PLAN_NOT_SELLABLE, and the refusal
+    changes NOTHING ELSE in the same request — send autoRenew alongside a
+    bad plan and autoRenew is untouched.
+
+    This is not #16: proration, and what happens to money already paid for
+    the period, belong there.`,
+          body: `{
+  "plan": { "planCode": "STARTER_PLAN", "planVersion": 1 }
+}`,
+        },
+        {
+          id: "14",
+          name: "EVERYTHING AT ONCE, ONE HISTORY ROW",
+          expect: "200 OK",
+          notes: `OUT: currencyCode normalised to INR. ONE history row for the whole
+         edit, because it was one decision.
+    A bad currency is 409 CURRENCY_INVALID.
+
+15  WHAT LANDS IN THE DATABASE
+    From mongosh, after a few edits:
+      db.subscription_history.find({schoolSubscriptionDocsId: "..."})
+                             .sort({createdAt: 1})
+        -> TERMS_CHANGED  TRIAL     -> TRIAL     | Edited contractedPrice.
+                                                   Partner discount.
+           CANCELLED      TRIAL     -> CANCELLED | Edited status,
+                                                   cancelledAt. ...
+           RESUMED        SUSPENDED -> ACTIVE    | Edited status.
+           PLAN_CHANGED   ACTIVE    -> ACTIVE    | Edited plan.
+
+    TERMS_CHANGED was added for this endpoint — the enum had only status
+    moves, so an edit either went unrecorded or borrowed a type that says
+    something untrue. A status move made here writes the type that names
+    it, so a suspension recorded through this endpoint and one recorded
+    through #19 read identically.
+
+    THE reason ON THE ROW IS THE FIELD LIST PLUS THE CALLER'S WORDS,
+    always. Months later "the price changed" is the question and "which
+    fields moved" is the answer; "renegotiated" alone does not say what.
+
+    NO ROW AT ALL when nothing changed (case 03).
+
+    WHAT IT WILL NOT EDIT: subscriptionNo (the number the sequence handed
+    out, pointed at by invoices and history), current (owned by the unique
+    partial index) and schoolId (in the URL).`,
+          body: `{
+  "status": "PAST_DUE",
+  "billingCycle": "MONTHLY",
+  "currentPeriodStart": "2026-04-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "autoRenew": false,
+  "contractedPrice": 1234.00,
+  "currencyCode": "inr",
+  "billingCustomerReference": "cus_Qx7B2mR9",
+  "limitOverrides": { "maxStudentsOverride": 4000, "maxUsersOverride": 400 },
+  "reason": "Contract renegotiated, invoice overdue."
+}`,
+        },
+      ],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

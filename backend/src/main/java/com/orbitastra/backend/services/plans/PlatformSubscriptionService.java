@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -294,6 +296,120 @@ public class PlatformSubscriptionService {
                         "The plan this subscription points at no longer exists."));
 
         return SubscriptionResponse.fromSubscription(saved, plan, activatedNextStep(school, saved));
+    }
+
+    //! endpoint 15 — editing what a school is contracted to ---------------------------
+
+    /**
+     * #15 — edits any of the terms of one subscription.
+     *
+     * <p><b>This is where extend-trial went, and where #23 to #26 belong.</b> Five endpoints for
+     * five columns of one document meant five sets of rules, and a correction that touched two
+     * fields was two requests, two writes and two history rows for one decision. One PATCH, one
+     * transaction, one history row saying what moved.
+     *
+     * <p><b>It applies no transition rules, on purpose.</b> The lifecycle endpoints each know one
+     * transition and what it implies — renewing raises an invoice, cancelling decides what
+     * happens to money already paid. This writes what it is told, which is exactly what is needed
+     * when a subscription is already wrong and no ordinary transition describes the fix. It is
+     * not how a subscription should ordinarily be renewed or cancelled.
+     *
+     * <p><b>Two things are still not negotiable.</b> A plan that cannot be sold cannot be moved
+     * to, and a billing period cannot be made to run backwards — the first because a draft's
+     * price is not settled, the second because there is no reading of it that is not a mistake.
+     *
+     * <p><b>Nothing is written when nothing changed.</b> A request that sets every field to what
+     * it already holds answers 200 and says so, with no history row: an audit trail whose rows
+     * record that nothing happened is one nobody can read.
+     */
+    @Transactional
+    public SubscriptionDetailResponse updateSubscription(String schoolId, String subscriptionNo,
+            SubscriptionUpdateRequest request) {
+
+        //! step 1 - a request that asks for nothing is a mistake, not a no-op. Answering 200 to
+        //! it would tell a caller who sent the wrong field name that their edit worked.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NO_CHANGES_REQUESTED",
+                    "Nothing to change. Send at least one of the fields this endpoint edits.");
+        }
+
+        //! step 2 - the school has to exist, and still be one whose records mean anything
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        // CLOSED is deliberately allowed: a school that has left still has a subscription whose
+        // record can need correcting, and refusing would leave the wrong figure in place for
+        // ever. A deleted one is different — there is nothing left to be right about.
+        if (school.getStatus() == SchoolStatus.DELETED
+                || school.getStatus() == SchoolStatus.DELETION_PENDING) {
+            throw ApiException.conflict("SUBSCRIPTION_NOT_EDITABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus()
+                            + ", so its subscription is no longer editable.");
+        }
+
+        //! step 3 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSubscription(school, schoolId, subscriptionNo);
+
+        //! step 4 - work out the new plan first, if the caller is moving them. Done before
+        //! anything is applied so a refused plan changes nothing at all.
+        PlanDefinition newPlan = null;
+        if (request.plan() != null) {
+            newPlan = loadSellablePlan(request.plan().planCode(), request.plan().planVersion());
+        }
+
+        //! step 5 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! history row and the response are built from, so "changed" means "different from what
+        //! was stored", not "was mentioned in the request".
+        SubscriptionStatus previousStatus = subscription.getStatus();
+        String previousPlanId = subscription.getPlanDefinitionDocsId();
+        List<String> changed = applyEdit(subscription, request, newPlan);
+
+        if (changed.isEmpty()) {
+            // TODO: read plan
+            PlanDefinition unchangedPlan = loadPlanBehind(subscription);
+            return SubscriptionDetailResponse.fromSubscription(subscription, unchangedPlan,
+                    "Nothing changed: every field sent already held that value. No history row "
+                            + "was written.");
+        }
+
+        //! step 6 - the period has to still make sense after the edit, whichever end moved
+        if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
+            throw ApiException.badRequest("INVALID_BILLING_PERIOD",
+                    "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
+                            + "currentPeriodStart (" + subscription.getCurrentPeriodStart()
+                            + "). Editing one end of a period is checked against the other.");
+        }
+
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
+
+        //! step 7 - one history row for the whole edit, in this same transaction
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(eventTypeFor(previousStatus, saved.getStatus(), newPlan))
+                .previousStatus(previousStatus)
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(previousPlanId)
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason(auditReason(changed, request.reason()))
+                .performedByDocsId(null)
+                .effectiveAt(Instant.now())
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 8 - the plan is read back so the response carries the features and limits of
+        //! whatever plan the subscription now points at
+        // TODO: read plan
+        PlanDefinition plan = loadPlanBehind(saved);
+
+        return SubscriptionDetailResponse.fromSubscription(saved, plan,
+                editedNote(saved, plan, changed));
     }
 
     //! endpoint 27 — what one school is on right now ----------------------------------
@@ -599,6 +715,268 @@ public class PlatformSubscriptionService {
         };
 
         return base + activation + " No invoice has been raised: that is a separate step.";
+    }
+
+    /**
+     * Writes the request onto the subscription, and returns the fields that actually moved.
+     *
+     * <p><b>"Changed" means different from what was stored.</b> A caller who resends the current
+     * price has not edited anything, and recording that they did would fill the audit trail with
+     * rows that explain nothing. So every field is compared before it is set.
+     *
+     * <p>The comparisons are the ones the types need: {@code compareTo} for the price, because
+     * {@code BigDecimal.equals} calls 39999.5 and 39999.50 different numbers and nobody means
+     * that; {@code Objects.equals} everywhere else, since every field here is nullable.
+     */
+    private List<String> applyEdit(SchoolSubscription subscription,
+            SubscriptionUpdateRequest request, PlanDefinition newPlan) {
+
+        List<String> changed = new ArrayList<>();
+
+        //! the plan pointer. Validated already — this only moves it.
+        if (newPlan != null && (!newPlan.getId().equals(subscription.getPlanDefinitionDocsId())
+                || !newPlan.getPlanVersion().equals(subscription.getPlanVersion()))) {
+            subscription.setPlanDefinitionDocsId(newPlan.getId());
+            subscription.setPlanVersion(newPlan.getPlanVersion());
+            changed.add("plan");
+        }
+
+        if (request.status() != null && request.status() != subscription.getStatus()) {
+            subscription.setStatus(request.status());
+            changed.add("status");
+        }
+
+        if (request.billingCycle() != null
+                && request.billingCycle() != subscription.getBillingCycle()) {
+            subscription.setBillingCycle(request.billingCycle());
+            changed.add("billingCycle");
+        }
+
+        if (request.currentPeriodStart() != null
+                && !request.currentPeriodStart().equals(subscription.getCurrentPeriodStart())) {
+            subscription.setCurrentPeriodStart(request.currentPeriodStart());
+            changed.add("currentPeriodStart");
+        }
+
+        if (request.currentPeriodEnd() != null
+                && !request.currentPeriodEnd().equals(subscription.getCurrentPeriodEnd())) {
+            subscription.setCurrentPeriodEnd(request.currentPeriodEnd());
+            changed.add("currentPeriodEnd");
+        }
+
+        if (request.autoRenew() != null
+                && !request.autoRenew().equals(subscription.getAutoRenew())) {
+            subscription.setAutoRenew(request.autoRenew());
+            changed.add("autoRenew");
+        }
+
+        if (request.contractedPrice() != null) {
+            BigDecimal price = planValidator.validatePrice("contractedPrice",
+                    request.contractedPrice());
+            // compareTo, not equals: 39999.5 and 39999.50 are the same money and a different
+            // scale, and equals says they are different values.
+            if (subscription.getContractedPrice() == null
+                    || subscription.getContractedPrice().compareTo(price) != 0) {
+                subscription.setContractedPrice(price);
+                changed.add("contractedPrice");
+            }
+        }
+
+        if (request.currencyCode() != null) {
+            String currency = planValidator.validateCurrencyCode(request.currencyCode());
+            if (!currency.equals(subscription.getCurrencyCode())) {
+                subscription.setCurrencyCode(currency);
+                changed.add("currencyCode");
+            }
+        }
+
+        if (request.billingCustomerReference() != null) {
+            // "" is how a string field is cleared here, per the request's own contract.
+            String reference = request.billingCustomerReference().isBlank()
+                    ? null
+                    : request.billingCustomerReference().trim();
+            if (!Objects.equals(reference, subscription.getBillingCustomerReference())) {
+                subscription.setBillingCustomerReference(reference);
+                changed.add("billingCustomerReference");
+            }
+        }
+
+        //! the two blocks. Sent means "replace both", so a null inside is a removal rather than
+        //! an omission — which is the whole reason they are nested.
+        if (request.limitOverrides() != null) {
+            Long students = request.limitOverrides().maxStudentsOverride();
+            Long users = request.limitOverrides().maxUsersOverride();
+            validateOverride("maxStudentsOverride", students);
+            validateOverride("maxUsersOverride", users);
+
+            if (!Objects.equals(students, subscription.getMaxStudentsOverride())) {
+                subscription.setMaxStudentsOverride(students);
+                changed.add("maxStudentsOverride");
+            }
+            if (!Objects.equals(users, subscription.getMaxUsersOverride())) {
+                subscription.setMaxUsersOverride(users);
+                changed.add("maxUsersOverride");
+            }
+        }
+
+        if (request.cancellation() != null) {
+            Instant at = request.cancellation().cancelledAt();
+            String why = request.cancellation().cancellationReason();
+            if (why != null && why.isBlank()) {
+                why = null;
+            }
+
+            if (!Objects.equals(at, subscription.getCancelledAt())) {
+                subscription.setCancelledAt(at);
+                changed.add("cancelledAt");
+            }
+            if (!Objects.equals(why, subscription.getCancellationReason())) {
+                subscription.setCancellationReason(why);
+                changed.add("cancellationReason");
+            }
+        }
+
+        //! the two consequences of a status move, applied last so the caller's own cancellation
+        //! block always wins over what the status would have implied
+        applyCancellationConsequences(subscription, request, changed);
+
+        return changed;
+    }
+
+    /**
+     * Keeps the cancellation fields honest about the status.
+     *
+     * <p>A subscription that says CANCELLED with no date cannot answer "when", and one that says
+     * ACTIVE while carrying a cancellation date and reason says two contradictory things at once.
+     * Neither is a state a caller would choose deliberately, so both are corrected here rather
+     * than stored and reported.
+     *
+     * <p>Only applies when the status actually moved, and never overrides a {@code cancellation}
+     * block the caller sent — an explicit instruction beats an inferred one.
+     */
+    private void applyCancellationConsequences(SchoolSubscription subscription,
+            SubscriptionUpdateRequest request, List<String> changed) {
+
+        boolean statusMoved = changed.contains("status");
+        if (!statusMoved) {
+            return;
+        }
+
+        boolean callerSetCancellation = request.cancellation() != null;
+
+        if (subscription.getStatus() == SubscriptionStatus.CANCELLED) {
+            if (!callerSetCancellation && subscription.getCancelledAt() == null) {
+                subscription.setCancelledAt(Instant.now());
+                changed.add("cancelledAt");
+            }
+            return;
+        }
+
+        if (!callerSetCancellation && subscription.getCancelledAt() != null) {
+            subscription.setCancelledAt(null);
+            changed.add("cancelledAt");
+            if (subscription.getCancellationReason() != null) {
+                subscription.setCancellationReason(null);
+                changed.add("cancellationReason");
+            }
+        }
+    }
+
+    /**
+     * Which event this edit was.
+     *
+     * <p>An edit can move several things at once, and the row records one type, so it records the
+     * most consequential: moving a school to another plan changes what they get, a status move
+     * changes whether they get it at all, and everything else is terms.
+     *
+     * <p>The status types are the same ones the lifecycle endpoints will write, so a suspension
+     * recorded through this endpoint and one recorded through #19 read identically in the
+     * history — which is what somebody asking "when was this school suspended" needs.
+     */
+    private SubscriptionEventType eventTypeFor(SubscriptionStatus previousStatus,
+            SubscriptionStatus newStatus, PlanDefinition newPlan) {
+
+        if (newPlan != null) {
+            return SubscriptionEventType.PLAN_CHANGED;
+        }
+
+        if (newStatus == previousStatus) {
+            return SubscriptionEventType.TERMS_CHANGED;
+        }
+
+        return switch (newStatus) {
+            case TRIAL -> SubscriptionEventType.TRIAL_STARTED;
+            case ACTIVE -> previousStatus == SubscriptionStatus.SUSPENDED
+                    ? SubscriptionEventType.RESUMED
+                    : SubscriptionEventType.ACTIVATED;
+            case PAST_DUE -> SubscriptionEventType.PAYMENT_PAST_DUE;
+            case SUSPENDED -> SubscriptionEventType.SUSPENDED;
+            case CANCELLED -> SubscriptionEventType.CANCELLED;
+            case EXPIRED -> SubscriptionEventType.EXPIRED;
+        };
+    }
+
+    /**
+     * What goes on the history row's reason.
+     *
+     * <p>The field list is always recorded, and the caller's own words are kept next to it when
+     * they gave any. Months later "the price changed" is the question and "which fields moved" is
+     * the answer — a reason of "renegotiated" alone does not say what was renegotiated.
+     */
+    private String auditReason(List<String> changed, String callerReason) {
+        String fields = "Edited " + String.join(", ", changed) + ".";
+
+        return callerReason == null || callerReason.isBlank()
+                ? fields
+                : fields + " " + callerReason.trim();
+    }
+
+    /** The plan a subscription points at, which must exist for the response to be complete. */
+    private PlanDefinition loadPlanBehind(SchoolSubscription subscription) {
+        // TODO: read plan
+        return planDefinition.findById(subscription.getPlanDefinitionDocsId())
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "The plan " + subscription.getSubscriptionNo() + " points at no longer "
+                                + "exists."));
+    }
+
+    /**
+     * What the caller should know after an edit.
+     *
+     * <p>Says what moved, then anything the edit has left inconsistent. The mismatches are
+     * reported rather than corrected: a subscription priced in a different currency from its plan
+     * is a real thing an operator may be mid-way through fixing, and silently rewriting it would
+     * undo half of a deliberate change. Left unsaid, it would be found on an invoice instead.
+     */
+    private String editedNote(SchoolSubscription subscription, PlanDefinition plan,
+            List<String> changed) {
+
+        List<String> notes = new ArrayList<>();
+        notes.add("Edited " + String.join(", ", changed) + ".");
+
+        if (!plan.getCurrencyCode().equals(subscription.getCurrencyCode())) {
+            notes.add("This subscription is priced in " + subscription.getCurrencyCode()
+                    + " but '" + plan.getPlanCode() + "' version " + plan.getPlanVersion()
+                    + " lists in " + plan.getCurrencyCode() + ".");
+        }
+
+        if (plan.getBillingCycle() != subscription.getBillingCycle()) {
+            notes.add("It bills " + subscription.getBillingCycle() + " while the plan bills "
+                    + plan.getBillingCycle() + ".");
+        }
+
+        if (Boolean.FALSE.equals(subscription.getCurrent())) {
+            notes.add("This is not the school's current subscription.");
+        }
+
+        String standing = subscriptionNote(subscription, plan);
+        if (standing != null) {
+            notes.add(standing);
+        }
+
+        notes.add("No invoice has been raised or credited: that is a separate step.");
+
+        return String.join(" ", notes);
     }
 
     /** An override that lowers nothing and raises nothing is not an override. */

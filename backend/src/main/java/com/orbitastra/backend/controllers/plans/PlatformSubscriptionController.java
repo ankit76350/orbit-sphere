@@ -5,6 +5,7 @@ import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import com.orbitastra.backend.dto.plans.subscription.SubscriptionActivateRequest
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
 import jakarta.validation.Valid;
@@ -33,8 +35,8 @@ import lombok.RequiredArgsConstructor;
  * sense with both.
  *
  * <p><b>A school may not reach any of this.</b> Looking at its own subscription is #33 on the
- * school surface; creating one, changing its price, extending its trial and raising its limits
- * are all here, so there is no request a school can send that does them.
+ * school surface; creating one, changing its price, moving its dates and raising its limits are
+ * all here, so there is no request a school can send that does them.
  */
 @RestController
 @RequiredArgsConstructor
@@ -82,6 +84,34 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.activateSubscription(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #15 — edits the terms of one subscription.
+     *
+     * <p>Use {@code current} as the subscription number for the one the school is on now.
+     *
+     * <p><b>One PATCH for every editable field</b>, because they were five endpoints editing five
+     * columns of the same document. Pushing a trial's end date out — which used to be
+     * extend-trial — is {@code currentPeriodEnd} here.
+     *
+     * <p>Every field is optional and absent means unchanged. The request documents what each
+     * field's absence means, and which two are nested so that "remove this" can be told apart
+     * from "leave it alone".
+     *
+     * <p>Answers the whole subscription back, the same shape as #27, so a caller does not have to
+     * read it again to see what it now says. Nothing to change is {@code 400
+     * NO_CHANGES_REQUESTED}; a request that only restates what is already stored is a 200 that
+     * says nothing changed.
+     */
+    @PatchMapping("/subscriptions/{subscriptionNo}")
+    public ResponseEntity<SubscriptionDetailResponse> update(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody SubscriptionUpdateRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.updateSubscription(schoolId, subscriptionNo, request));
     }
 
     /**

@@ -15,6 +15,15 @@ public enum SubscriptionEventType {
 
     /** Plan definition changed. */
     PLAN_CHANGED,
+    /**
+     * Contract terms changed without the status or the plan moving.
+     *
+     * <p>Price, billing cycle, period dates, capacity overrides, auto-renewal or the billing
+     * customer reference. Added for #15, which can edit any of them: without it an edit either
+     * went unrecorded or borrowed an event type that says something untrue, and "why is this
+     * school's price different from its plan" would have no answer.
+     */
+    TERMS_CHANGED,
 
     /** A new subscription period began. */
     RENEWED,
