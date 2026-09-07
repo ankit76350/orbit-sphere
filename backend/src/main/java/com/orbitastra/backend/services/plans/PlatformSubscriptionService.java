@@ -326,10 +326,11 @@ public class PlatformSubscriptionService {
      * record that nothing happened is one nobody can read. That includes the reason — an
      * explanation for an edit that did not happen is not worth storing.
      *
-     * <p><b>{@code reason} lands in two places.</b> On the subscription as
+     * <p><b>{@code reason} is required, and lands in two places.</b> On the subscription as
      * {@code reasonForChanges}, so a screen can say why it looks the way it does without a second
      * query, and on the history row next to the fields that moved. The document keeps the latest;
-     * history keeps all of them.
+     * history keeps all of them. Requiring it is what makes "why is this school's period ending
+     * in December" answerable at all — every field here is something somebody is paying for.
      */
     @Transactional
     public SubscriptionDetailResponse updateSubscription(String schoolId, String subscriptionNo,
@@ -376,13 +377,9 @@ public class PlatformSubscriptionService {
         }
 
         //! step 5 - the reason goes onto the document as well as the history row. Written only
-        //! now, because an edit that changed nothing has nothing to explain — and overwritten
-        //! even when no reason was given, since a reason left over from an earlier edit would
-        //! explain the wrong change.
-        subscription.setReasonForChanges(
-                request.reason() == null || request.reason().isBlank()
-                        ? null
-                        : request.reason().trim());
+        //! now, because an edit that changed nothing has nothing to explain. No null check: the
+        //! request has @NotBlank on it, so an unexplained edit never reaches here.
+        subscription.setReasonForChanges(request.reason().trim());
 
         //! step 6 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
@@ -830,9 +827,12 @@ public class PlatformSubscriptionService {
     /**
      * What goes on the history row's reason.
      *
-     * <p>The field list is always recorded, and the caller's own words are kept next to it when
-     * they gave any. Months later "the price changed" is the question and "which fields moved" is
-     * the answer — a reason of "renegotiated" alone does not say what was renegotiated.
+     * <p>The field list and the caller's own words, together. Months later "the dates changed" is
+     * the question and "which fields moved" is the answer — a reason of "renegotiated" alone does
+     * not say what was renegotiated, and a field list alone does not say why.
+     *
+     * <p>The blank branch is kept although {@code @NotBlank} makes it unreachable from #15: the
+     * lifecycle endpoints will share this method, and not all of them will take a reason.
      */
     private String auditReason(List<String> changed, String callerReason) {
         String fields = "Edited " + String.join(", ", changed) + ".";

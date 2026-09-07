@@ -507,12 +507,15 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
   const changed = changedFields(body)
   const nothingChanged = changed.length === 0
 
-  // Both refusals the API would answer with, worked out from the boxes so the answer arrives
+  // Every refusal the API would answer with, worked out from the boxes so the answer arrives
   // before the round trip that would empty the form.
   const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
     && form.currentPeriodEnd < form.currentPeriodStart
   const zeroOverride = [form.maxStudentsOverride, form.maxUsersOverride]
     .some((value) => value.trim() !== '' && Number(value) < 1)
+  // The API requires it — @NotBlank, so whitespace does not count. Asked for only once there is
+  // something to explain: a reason demanded before any box has moved reads as a nag.
+  const reasonMissing = !nothingChanged && !form.reason.trim()
 
   const submit = async () => {
     setRefused(null)
@@ -542,10 +545,14 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={nothingChanged || periodBackwards || zeroOverride}
+            disabled={nothingChanged || reasonMissing || periodBackwards || zeroOverride}
             onClick={submit}
           >
-            {nothingChanged ? 'Nothing changed yet' : `Send ${plural(changed.length, 'change')}`}
+            {nothingChanged
+              ? 'Nothing changed yet'
+              : reasonMissing
+                ? 'Say why first'
+                : `Send ${plural(changed.length, 'change')}`}
           </Button>
           <EndpointTag
             id="edit-subscription"
@@ -691,23 +698,31 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </p>
         ) : null}
 
-        <div className="field-split">Why — stored on the subscription, and on the history row</div>
+        <div className="field-split">Why — required, and stored on the subscription</div>
 
         <Field
           label="Reason for these changes"
-          hint="Saved as reasonForChanges, and written to the history row beside the list of fields that moved. On its own it changes nothing, so it is not sent on its own."
+          required
+          error={reasonMissing ? 'The API requires this. Whitespace does not count.' : undefined}
+          hint={subscription.reasonForChanges
+            ? `Saved as reasonForChanges, replacing “${subscription.reasonForChanges}”, and written to the history row beside the fields that moved.`
+            : 'Saved as reasonForChanges, and written to the history row beside the fields that moved.'}
         >
-          <Input value={form.reason} onChange={set('reason')}
-            placeholder="Renegotiated at renewal — 20% partner discount." />
+          <Input
+            value={form.reason}
+            onChange={set('reason')}
+            error={reasonMissing || undefined}
+            placeholder="Renegotiated at renewal — 20% partner discount."
+          />
         </Field>
 
-        {/* The one thing about this box somebody has to know before leaving it empty. */}
-        {subscription.reasonForChanges && !form.reason.trim() ? (
+        {/* Why it is required, said where somebody is being made to type. */}
+        {reasonMissing ? (
           <p className="banner" data-tone="warn">
-            <strong>Leaving this empty clears the reason already stored.</strong> It currently
-            reads “{subscription.reasonForChanges}”. Every edit overwrites it, because a reason
-            left over from an earlier change would explain the wrong one — the full trail stays in
-            the history.
+            <strong>Every field here is something the school is paying for.</strong> An
+            unexplained change to its status, dates or capacity is one nobody can answer for
+            months later — so the API refuses an edit with no reason, and each edit replaces the
+            last reason rather than adding to it. The full trail stays in the history.
           </p>
         ) : null}
 
@@ -722,10 +737,14 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </summary>
           <pre className="resp-body">
             {nothingChanged
-              ? 'An empty PATCH is refused with 400 NO_CHANGES_REQUESTED, so there is nothing to '
-                + 'send until a box changes. Resending a value it already holds is a 200 that '
+              ? 'Nothing to send until a box changes. An empty PATCH is refused for the missing '
+                + 'reason first (400 VALIDATION_FAILED); a reason on its own is 400 '
+                + 'NO_CHANGES_REQUESTED; and resending a value it already holds is a 200 that '
                 + 'says nothing changed.'
-              : JSON.stringify(body, null, 2)}
+              // Shown as it stands, incomplete: the body genuinely has no `reason` yet, and the
+              // API would refuse it. Filling one in adds it to what is printed here.
+              : JSON.stringify(body, null, 2)
+                + (reasonMissing ? '\n\n// plus "reason", which is required and not filled in yet' : '')}
           </pre>
         </details>
       </div>

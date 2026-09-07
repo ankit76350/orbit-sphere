@@ -6,6 +6,7 @@ import com.orbitastra.backend.models.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -34,6 +35,9 @@ import jakarta.validation.constraints.Size;
  * a nested block sent      -> replace both; null inside means "no value"
  * </pre>
  *
+ * <p>{@code reason} is the exception: it is not optional, and it is not one of the fields being
+ * edited. See its own note.
+ *
  * <p><b>Why one field is nested.</b> The two capacity overrides are nullable on the model, so
  * they can be cleared, and "omitted" has to be told apart from "cleared" — a block is the only
  * way to say it. Everything else here is {@code @NotNull} on the model and cannot be cleared at
@@ -52,8 +56,9 @@ import jakarta.validation.constraints.Size;
  * <b>how much of the product</b> it may use. Nothing about the money.
  *
  * <p>{@code reasonForChanges} is not a field a caller sets either — it is written from
- * {@code reason} on every edit. Setting it directly would let somebody record an explanation for
- * a change they did not make.
+ * {@code reason} on every edit, and {@code reason} is <b>required</b>, so no edit here can go
+ * unexplained. Setting it directly would let somebody record an explanation for a change they
+ * did not make.
  *
  * <p>{@code subscriptionNo} is the number the sequence handed out and the way this subscription
  * is addressed. Editing it would renumber a record that invoices and history rows already point
@@ -120,22 +125,27 @@ public record SubscriptionUpdateRequest(
         @Valid LimitOverrides limitOverrides,
 
         /**
-         * Why. Example: "Renegotiated at renewal — 20% partner discount."
+         * Why. <b>Required.</b> Example: "Renegotiated at renewal — 20% partner discount."
+         *
+         * <p><b>The only field on this request that must be sent.</b> Everything else here edits
+         * a subscription somebody is paying for — its status, its dates, its capacity — and an
+         * unexplained change to any of it is one nobody can answer for later. Blank counts as
+         * missing, so {@code "  "} is refused too.
          *
          * <p><b>Stored in two places, because they answer different questions.</b> It goes on the
          * subscription as {@code reasonForChanges} — why it is the way it is now, readable without
-         * a second query — and on the history row next to the list of fields that moved, which is
-         * written whether or not a reason was given.
+         * a second query — and on the history row next to the list of fields that moved.
          *
-         * <p><b>Every edit overwrites {@code reasonForChanges}, including with null.</b> A reason
-         * left standing from an earlier edit would explain the wrong change. So sending no reason
-         * is saying "this change has no recorded reason", not "keep the last one".
+         * <p><b>Every edit overwrites {@code reasonForChanges}.</b> A reason left standing from an
+         * earlier edit would explain the wrong change. Because this field is required, an edited
+         * subscription always carries a reason; null there means nothing has ever edited it.
          *
-         * <p>It is not a change in itself: a request carrying only a reason changes nothing and is
-         * refused with {@code NO_CHANGES_REQUESTED} rather than storing an explanation for an
-         * edit that did not happen.
+         * <p>It is not a change in itself. A request carrying only a reason changes nothing and is
+         * refused with {@code NO_CHANGES_REQUESTED}, and a request whose fields all already hold
+         * their values stores no reason either — an explanation for an edit that did not happen is
+         * not worth keeping.
          */
-        @Size(max = 500) String reason) {
+        @NotBlank @Size(max = 500) String reason) {
 
     /**
      * The pair. A null field inside means "no override", not "leave it alone".

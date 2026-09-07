@@ -124,9 +124,9 @@ public class SchoolSubscription extends SchoolBase {
          * <p>Example: "Renegotiated at renewal — 20% partner discount."
          *
          * <p><b>The reason for the most recent change, not a history of them.</b> Every edit
-         * overwrites it, including with null when the caller gave no reason — a reason left
-         * standing from an earlier edit would attribute the wrong explanation to the current
-         * state, which is worse than having none.
+         * overwrites it — a reason left standing from an earlier edit would attribute the wrong
+         * explanation to the current state. #15 requires a reason, so an edited subscription
+         * always carries one; null here means nothing has ever edited it.
          *
          * <p>The trail of all of them is {@code subscription_history}: one row per change, with
          * its own reason and the list of fields that moved. This field is what a screen showing

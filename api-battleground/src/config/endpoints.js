@@ -6246,15 +6246,19 @@ request. extend-trial moved \`currentPeriodEnd\`, #23 moved \`autoRenew\`, #24 t
 three sets of rules to keep in step, and a correction touching two of them was two writes and two
 history rows for one decision.
 
-### \`reason\` is stored, not just logged
+### \`reason\` is REQUIRED, and stored — not just logged
+
+**The only field on this request that must be sent.** Every other field here changes something a
+school is paying for — its status, its dates, its capacity — so an unexplained change is one
+nobody can answer for months later. Blank counts as missing: \`"  "\` is refused too.
 
 It goes onto the subscription as **\`reasonForChanges\`** — why it looks the way it does, readable
 without a second query — and onto the history row beside the list of fields that moved. The
 document keeps the latest; history keeps all of them.
 
-**Every edit overwrites it, including with null.** Sending no reason says "this change has no
-recorded reason", not "keep the last one": a reason left standing from an earlier edit would
-explain the wrong change.
+**Every edit overwrites it.** A reason left standing from an earlier edit would explain the wrong
+change. Since the field is required, an edited subscription always carries one; \`reasonForChanges\`
+being null means nothing has ever edited it.
 
 \`cancelledAt\` and \`cancellationReason\` are **gone from the model** (2026-09-07). When a
 subscription was cancelled is the \`effectiveAt\` of its \`CANCELLED\` history row — a second copy on
@@ -6282,7 +6286,8 @@ what it is told — which is what is needed when a subscription is already wrong
 transition describes the fix. It is not how a subscription should ordinarily be renewed or
 cancelled.
 
-One thing is still refused: a period left running backwards (\`400 INVALID_BILLING_PERIOD\`).
+Two things are refused: a missing or blank \`reason\` (\`400 VALIDATION_FAILED\`) and a period left
+running backwards (\`400 INVALID_BILLING_PERIOD\`).
 
 ### Absent, null and cleared
 
@@ -6299,13 +6304,17 @@ cleared at all, so those stay flat, which is what lets a trial's end date move o
 
 ### Nothing changed is not an error, nothing asked for is
 
-A request that restates what is already stored answers \`200\` saying so, and writes no history
-row. An **empty** request is \`400 NO_CHANGES_REQUESTED\` — answering 200 to it would tell a caller
-who misspelled a field name that their edit worked.
+A request that restates what is already stored answers \`200\` saying so, writes no history row and
+stores no new reason. An **empty** request is now \`400 VALIDATION_FAILED\` naming \`reason\`, since
+bean validation runs before the service — \`NO_CHANGES_REQUESTED\` is what you get when a reason
+*was* given and no editable field was.
 
-### The eleven test cases are in the request body as comments
+### The twelve test cases are in the request body as comments
 `,
-      bodyNotes: `Platform surface. Needs {{schoolId}} and a subscription — run Create
+      bodyNotes: `\`reason\` IS REQUIRED on every one of these. Drop it and the request is
+refused before the service sees it.
+
+ Platform surface. Needs {{schoolId}} and a subscription — run Create
  Subscription first.
 
  EVERY FIELD IS OPTIONAL and absent means unchanged. What each field's
@@ -6314,8 +6323,8 @@ who misspelled a field name that their edit worked.
 
  THE EDITABLE FIELDS ARE SEVEN: status, billingCycle, currentPeriodStart,
  currentPeriodEnd, autoRenew, limitOverrides{maxStudentsOverride,
- maxUsersOverride} — plus \`reason\`, which is stored on the subscription as
- reasonForChanges AND written to the history row.
+ maxUsersOverride} — plus \`reason\`, which is REQUIRED, is stored on the
+ subscription as reasonForChanges AND written to the history row.
 
  NOT EDITABLE HERE: contractedPrice and currencyCode (#25),
  billingCustomerReference (#26), the plan (#16), subscriptionNo, current
@@ -6327,7 +6336,8 @@ who misspelled a field name that their edit worked.
 
  ANSWERS THE WHOLE SUBSCRIPTION BACK, the same shape as Get Subscription,
  so there is no second call to see what it now says. \`note\` says what moved.`,
-      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides", "reason"],
+      requiredFields: ["reason"],
+      optionalFields: ["status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "autoRenew", "limitOverrides"],
       pathParams: [
         { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
       ],
@@ -6344,9 +6354,10 @@ who misspelled a field name that their edit worked.
       responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "reasonForChanges", "billingCustomerReference", "note"],
       captures: [],
       errors: [
-        { status: 400, code: "NO_CHANGES_REQUESTED", when: "Ask for nothing" },
+        { status: 400, code: "VALIDATION_FAILED", when: "Ask for nothing" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
         { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
+        { status: 400, code: "NO_CHANGES_REQUESTED", when: "A reason on its own" },
       ],
       examples: [
         {
@@ -6362,11 +6373,19 @@ who misspelled a field name that their edit worked.
           id: "02",
           name: "ASK FOR NOTHING",
           expect: "400 Bad Request",
-          notes: `OUT: { "code": "NO_CHANGES_REQUESTED",
-           "message": "Nothing to change. Send at least one of the fields
-                       this endpoint edits." }
-    A misspelled field name lands here rather than answering 200 to an
-    edit that did nothing.`,
+          notes: `OUT: { "code": "VALIDATION_FAILED",
+           "fieldErrors": { "reason": ["must not be blank"] } }
+    Bean validation runs before the service, so the missing reason is what
+    answers first.
+
+02b AN EDIT WITH NO REASON                            -> 400 Bad Request
+{
+  "autoRenew": false
+}
+    OUT: the same VALIDATION_FAILED on \`reason\`. So is "reason": "   " —
+    it is @NotBlank, not @NotNull.
+    EVERY FIELD HERE IS SOMETHING A SCHOOL IS PAYING FOR. An unexplained
+    change to any of it is one nobody can answer for months later.`,
           body: `{}`,
         },
         {
@@ -6376,10 +6395,13 @@ who misspelled a field name that their edit worked.
           notes: `On a subscription whose autoRenew is already true.
     OUT: note: "Nothing changed: every field sent already held that value.
                 No history row was written."
+         reasonForChanges KEEPS whatever it had — an explanation for an
+         edit that did not happen is not worth storing.
     "Changed" means different from what was stored, not "was mentioned in
     the request".`,
           body: `{
-  "autoRenew": true
+  "autoRenew": true,
+  "reason": "This will not be stored."
 }`,
         },
         {
@@ -6460,13 +6482,15 @@ who misspelled a field name that their edit worked.
         },
         {
           id: "10",
-          name: "AN EDIT WITH NO REASON CLEARS THE LAST ONE",
+          name: "THE NEXT EDIT REPLACES THE STORED REASON",
           expect: "200 OK",
           notes: `Straight after case 09.
-    OUT: reasonForChanges null — NOT "School closed mid-year." A reason
-         left standing from an earlier edit would explain the wrong change.`,
+    OUT: reasonForChanges is the NEW sentence, not "School closed
+         mid-year." Each edit explains itself; the trail of all of them is
+         the history.`,
           body: `{
-  "autoRenew": false
+  "autoRenew": false,
+  "reason": "Auto-renewal switched off at the school's request."
 }`,
         },
         {
@@ -6474,9 +6498,8 @@ who misspelled a field name that their edit worked.
           name: "A REASON ON ITS OWN",
           expect: "400 Bad Request",
           notes: `OUT: { "code": "NO_CHANGES_REQUESTED" }
-    A reason is not a change. And a request whose fields all already hold
-    their values (case 03) stores no reason either — an explanation for an
-    edit that did not happen is not worth keeping.`,
+    A reason is not a change. This is the ONLY way to see that code now:
+    an empty body fails validation on \`reason\` first.`,
           body: `{
   "reason": "Just making a note."
 }`,

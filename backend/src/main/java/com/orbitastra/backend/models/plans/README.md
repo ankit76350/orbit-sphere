@@ -113,7 +113,7 @@ Stores contracted plan terms and the current commercial state for one school.
 | `maxStudentsOverride` | Optional negotiated capacity replacing PlanDefinition.maxStudents. |
 | `maxUsersOverride` | Optional negotiated capacity replacing PlanDefinition.maxUsers. |
 | `billingCustomerReference` | External payment-provider customer id. |
-| `reasonForChanges` | Why the subscription was last changed, written by #15 on every edit and overwritten each time — including with null when no reason was given, so it never explains an earlier change. The trail of all of them is `subscription_history`. Replaced `cancelledAt` and `cancellationReason` on 2026-09-07: the date duplicated the `CANCELLED` history row's `effectiveAt`, and a reason that only existed for cancellations left every other change unexplained. |
+| `reasonForChanges` | Why the subscription was last changed, written by #15 on every edit and overwritten each time. #15 **requires** a reason, so an edited subscription always carries one — null here means nothing has ever edited it. The trail of all of them is `subscription_history`. Replaced `cancelledAt` and `cancellationReason` on 2026-09-07: the date duplicated the `CANCELLED` history row's `effectiveAt`, and a reason that only existed for cancellations left every other change unexplained. |
 | `current` | Marks the one subscription currently selected for the school. |
 
 The current subscription is found with:

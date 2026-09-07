@@ -282,12 +282,14 @@ CURATED = {
   ),
   'Edit Subscription': dict(
     summary='Edits when a subscription runs, what state it is in and how much it may use. No money: the price is #25, the plan #16.',
-    required=[],
-    # Nested blocks are passed through as written: limitOverrides and cancellation each hold two
-    # fields, because a null inside them means "remove this" and an omitted block means "leave
-    # it". Flattening them here would lose the distinction the endpoint is built on.
+    # The one field that must be sent. Every other field here changes something a school is
+    # paying for, so an unexplained edit is refused before the service sees it.
+    required=['reason'],
+    # limitOverrides is passed through as written: it holds two fields, because a null inside it
+    # means "remove this" and an omitted block means "leave it". Flattening it here would lose
+    # the distinction the endpoint is built on.
     optional=['status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew',
-              'limitOverrides','reason'],
+              'limitOverrides'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
     successStatus=200,
   ),

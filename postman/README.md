@@ -222,14 +222,19 @@ overrides and the cancellation. It replaced extend-trial — pushing a trial's e
 - **Nothing about the money.** The price and currency stay on #25, the billing customer on #26,
   the plan on #16. Which means **nothing built can change a price** after Create Subscription set
   it: #25 is not built, and #15 will not do it.
-- **Absent means unchanged.** `limitOverrides` and `cancellation` are nested so that `null` inside
-  can mean "remove this" rather than "leave it". The period dates are `@NotNull` on the model, so
-  they cannot be cleared at all — which is what lets a trial's end date move on its own.
-- **Nothing changed is a 200 that says so**, with no history row. An *empty* body is a `400
-  NO_CHANGES_REQUESTED`, so a misspelled field name does not look like a successful edit.
-- **One history row per edit**, whatever moved, with the field list on it. `TERMS_CHANGED` was
-  added to the enum for the case where the status did not move; `PLAN_CHANGED` is never written
-  here, because this endpoint cannot move the plan.
+- **A `reason` is required.** It is the only field that must be sent, and it is stored on the
+  subscription as `reasonForChanges` as well as on the history row — every field this endpoint
+  edits is something a school is paying for, so an unexplained change is one nobody can answer
+  for later. Blank counts as missing.
+- **Absent means unchanged.** `limitOverrides` is nested so that `null` inside can mean "remove
+  this" rather than "leave it". The period dates are `@NotNull` on the model, so they cannot be
+  cleared at all — which is what lets a trial's end date move on its own.
+- **Nothing changed is a 200 that says so**, with no history row and no new reason stored. An
+  *empty* body is a `400 VALIDATION_FAILED` naming `reason`; `NO_CHANGES_REQUESTED` is what you
+  get when a reason *was* given and no editable field was.
+- **One history row per edit**, whatever moved, with the field list and your reason on it.
+  `TERMS_CHANGED` was added to the enum for the case where the status did not move; `PLAN_CHANGED`
+  is never written here, because this endpoint cannot move the plan.
 
 **Its URL says `current`, not a subscription number.** A number is `SUB/2026/09/000001`; the
 slashes end the path segment, and writing them as `%2F` gets `400 Invalid URI: [The encoded slash

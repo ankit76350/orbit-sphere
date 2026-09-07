@@ -372,10 +372,14 @@ const formChecks = [
   ['there is no cancellation to edit any more',
     !editSource.includes('showCancellation') && !editSource.includes('cancelledAt')
       && !editSource.includes('cancellationReason')],
-  // The reason is stored on the subscription now, not only logged, and every edit overwrites it.
+  // The reason is stored on the subscription now, not only logged, and the API requires it.
   ['the reason says it is stored', editSource.includes('Saved as reasonForChanges')],
-  ['and warns before clearing one that exists',
-    editSource.includes('Leaving this empty clears the reason already stored')],
+  ['the reason box is marked required', /label="Reason for these changes"\s*\n\s*required/.test(editSource)],
+  // Asked for only once there is something to explain — a reason demanded before any box has
+  // moved reads as a nag.
+  ['it is only demanded once something has changed',
+    editSource.includes('const reasonMissing = !nothingChanged && !form.reason.trim()')],
+  ['and the button says so rather than just refusing', editSource.includes("'Say why first'")],
   // Two dates, two calendars: the period's two ends.
   ['every date is a calendar, not a typed instant',
     (editSource.match(/type="date"/g) || []).length === 2
@@ -394,8 +398,8 @@ const formChecks = [
   // boxes somebody just filled in.
   ['a backwards period is caught before it is sent', editSource.includes('periodBackwards')],
   ['so is an override of zero', editSource.includes('zeroOverride')],
-  ['and the send button refuses to send either',
-    editSource.includes('disabled={nothingChanged || periodBackwards || zeroOverride}')],
+  ['and the send button refuses all three',
+    editSource.includes('disabled={nothingChanged || reasonMissing || periodBackwards || zeroOverride}')],
 ]
 for (const [label, ok] of formChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
