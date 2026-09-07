@@ -549,6 +549,70 @@ No endpoint in this module writes to either.
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *insert*: `planCode`, `planVersion` = 1, `name`, `description`, `status` = `DRAFT`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`, `publiclyAvailable` = false, `features` = `[]`
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "name": "Premium",                  // REQUIRED, max 120
+  "billingCycle": "YEARLY",           // REQUIRED
+  "listPrice": 49999.00,              // REQUIRED
+  "currencyCode": "INR",              // REQUIRED, exactly 3
+  "maxStudents": 2000,                // REQUIRED
+  "maxUsers": 250,                    // REQUIRED
+
+  "planCode": "PREMIUM",              // optional, max 40
+  "description": "Everything.",       // optional, max 500
+  "effectiveFrom": null,              // optional
+  "effectiveUntil": null              // optional
+}
+</pre></td>
+<td><pre>
+201 Created
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium",
+  "description": "Everything.",
+  "status": "DRAFT",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "effectiveFrom": null,
+  "effectiveUntil": null,
+  "publiclyAvailable": false,
+  "featureCount": 0,
+  "sellable": false,
+  "nextStep": "Draft created. Nobody can buy it yet: set its features, then publish it."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | **yes** | Max 120, `@NotBlank`. What a school reads. |
+| `billingCycle` | **yes** | `MONTHLY`, `QUARTERLY`, `HALF_YEARLY`, `YEARLY` or `CUSTOM`. Decides how long a subscription's period runs — see #13 — and `CUSTOM` makes the period end a required field there. |
+| `listPrice` | **yes** | The public price. Zero is allowed; negative is `400 PRICE_NEGATIVE`. A JSON number, never a string. |
+| `currencyCode` | **yes** | ISO 4217, exactly 3, `@NotBlank`. Normalised to upper case, and checked against the real currency list — `XYZ` is `409 CURRENCY_INVALID`. Every subscription sold on this plan inherits it. |
+| `maxStudents` | **yes** | The plan's student ceiling, at least 1 — `0` is `400 LIMIT_TOO_LOW`. #13 copies it onto every subscription sold. |
+| `maxUsers` | **yes** | The same for staff accounts. |
+| `planCode` | no | The family key, max 40. **Absent derives one from the name** — "Premium Plus" becomes `PREMIUM_PLUS` — so a caller does not have to invent a key. Sending one that **already exists is `409 PLAN_CODE_TAKEN`**: this endpoint only ever makes version 1 of a new family. A second version of an existing plan comes from #5, which copies a published version into a fresh draft. |
+| `description` | no | Max 500. Absent means null; a school sees no description. |
+| `effectiveFrom` | no | When it may start being sold. Absent means it is settled at publish time (#4), not here — a draft is not on sale at all. |
+| `effectiveUntil` | no | When it stops being sold. Absent means never, until somebody retires it. |
+
+**`status` is not on the request.** Every plan starts `DRAFT`. Publishing is #4, which checks the
+plan is complete first; a caller who could ask for `ACTIVE` would skip that.
+
 **Two things came out differently from this plan, both deliberate:**
 
 - **The path is `/platform/plans/drafts`**, not `/platform/plans`, so nobody can read the URL and
@@ -570,11 +634,164 @@ No endpoint in this module writes to either.
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status` — must be `DRAFT` or the edit is refused
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `name`, `description`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `effectiveFrom`, `effectiveUntil`
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "name": "Premium Plus",             // optional, max 120
+  "description": "",                  // optional — "" clears it
+  "billingCycle": "MONTHLY",          // optional
+  "listPrice": 44999.00,              // optional
+  "currencyCode": "INR",              // optional, exactly 3
+  "maxStudents": 3000,                // optional
+  "maxUsers": 300,                    // optional
+  "sellingWindow": {                  // optional, replaced as a pair
+    "effectiveFrom": "2026-04-01T00:00:00Z",
+    "effectiveUntil": null
+  }
+}
+
+// Nothing is required, but a body with
+// nothing in it is a 400: answering 200
+// would tell a caller who misspelled a
+// field that their edit worked.
+</pre></td>
+<td><pre>
+200 OK — the draft as it now stands (PlanResponse)
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium Plus",
+  "description": null,
+  "status": "DRAFT",
+  "billingCycle": "MONTHLY",
+  "listPrice": 44999.00,
+  "currencyCode": "INR",
+  "maxStudents": 3000,
+  "maxUsers": 300,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveUntil": null,
+  "publiclyAvailable": false,
+  "featureCount": 2,
+  "sellable": false,
+  "nextStep": "Draft updated. Nobody can buy it yet: set its features, then publish it."
+}
+
+409 PLAN_NOT_EDITABLE — it is published
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request.** All optional, and absent always means "leave it exactly as it is".
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `name` | no | Max 120. **Cannot be cleared** — it is `@NotBlank` on the model, so `""` here is a `400` rather than a deletion. |
+| `description` | no | Max 500. **`""` clears it.** The one field where an empty string is an instruction rather than a mistake. |
+| `billingCycle` | no | Any of the five. Nothing derived from it is stored on the draft, so changing it is free until the plan is published. |
+| `listPrice` | no | Zero allowed, negative refused. |
+| `currencyCode` | no | Validated and upper-cased as on #1. |
+| `maxStudents` | no | At least 1. |
+| `maxUsers` | no | At least 1. |
+| `sellingWindow` | no | **A pair, replaced together.** Omit the block to leave both dates; send it to replace both, and send `null` inside for either to clear that one. Nested because the two are only meaningful next to each other — an `effectiveUntil` moved earlier than the existing `effectiveFrom` is a plan that can never be sold, which a PATCH changing one alone could create. |
+
+**Only a `DRAFT` can be edited**, and that is the whole shape of this endpoint: once a plan is
+published a school can be on it, and changing the price of something somebody already bought
+would change what they agreed to pay without anybody agreeing to it. `409 PLAN_NOT_EDITABLE`.
+
+**`status`, `publiclyAvailable` and `features` are deliberately absent.** Publishing is #4,
+retiring #6, availability #7, features #3 — each a decision with its own rules. A PATCH that could
+set them all would make "put this on sale" look identical to "fix a typo".
+
 <a id="e3"></a>
 **[3](#t3) · `PUT /platform/plans/{code}/versions/{version}/features`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `features` — the whole list is replaced
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "features": [                       // REQUIRED, the whole list
+    {
+      "featureCode": "STUDENT_MANAGEMENT",  // REQUIRED
+      "enabled": true,                      // optional
+      "usageLimit": null,                   // optional
+      "overagePolicy": null                 // optional
+    },
+    {
+      "featureCode": "SMS_NOTIFICATIONS",
+      "enabled": true,
+      "usageLimit": 5000,
+      "overagePolicy": "BLOCK"
+    }
+  ]
+}
+
+// A PUT: the list sent IS the list. An
+// empty array is allowed and clears them.
+</pre></td>
+<td><pre>
+200 OK — PlanFeatureListResponse
+
+{
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "status": "DRAFT",
+  "featureCount": 2,
+  "features": [
+    {
+      "featureCode": "STUDENT_MANAGEMENT",
+      "label": "Student management",
+      "description": "Admissions, records and transfers.",
+      "enabled": true,
+      "usageLimit": null,
+      "usageMetric": null,
+      "overagePolicy": null
+    },
+    {
+      "featureCode": "SMS_NOTIFICATIONS",
+      "label": "SMS notifications",
+      "description": "Texts to guardians.",
+      "enabled": true,
+      "usageLimit": 5000,
+      "usageMetric": "MESSAGES_PER_MONTH",
+      "overagePolicy": "BLOCK"
+    }
+  ],
+  "changeSummary": "Replaced the feature list: 0 out, 2 in. Still a DRAFT — publish it to sell it."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `features` | **yes** | `@NotNull` — the list itself must be present. **An empty array is legal** and means "this plan grants nothing", which is a state a draft can be in; publishing one is what #4 refuses. |
+| `features[].featureCode` | **yes** | `@NotNull`, from the `FeatureCode` enum. An unknown code is `400 INVALID_VALUE` **naming the position** — *"'NOT_A_FEATURE' is not a valid value for `features[0].featureCode`"* — because "invalid feature" in a list of twelve is not a usable error. The same code twice in one request is `400 DUPLICATE_FEATURE`: each feature is listed once, with one limit. |
+| `features[].enabled` | no | Absent means `true`. Sending `false` records the feature as deliberately switched off rather than leaving it out — which is how a plan says "not this one" instead of saying nothing. |
+| `features[].usageLimit` | no | How many, for a metered feature. Absent means unmetered — no ceiling on it. **`0` is `400 FEATURE_LIMIT_ZERO`**, because a feature that is enabled and allows nothing is two ways of saying "off, but confusingly": the refusal tells you to send `"enabled": false` instead. The `usageMetric` it counts comes back on the response from the feature's own definition — the plan says how many, the feature says of what. |
+| `features[].overagePolicy` | no | What happens past the limit — `BLOCK`, `ALLOW` or `CHARGE`. **Accepted without a `usageLimit`**, where it simply has nothing to act on; it is not refused. |
+
+**It is a `PUT`, not a `POST`.** The list sent is the list the plan ends with: features are not
+added one at a time, because a caller who sends the same feature twice by accident should end up
+with one, and because "what does this plan grant" has to be answerable by reading one request.
+`changeSummary` says what actually moved.
+
+**`label`, `description` and `usageMetric` are never sent.** They belong to the feature's own
+definition, the same for every plan, and come back on the response so a screen does not need a
+second lookup.
 
 ### `featureCode` became an enum while this was built
 
@@ -650,6 +867,63 @@ same reason.
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `features`, `effectiveUntil`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `ACTIVE`, `effectiveFrom` if it was empty
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "effectiveFrom": "2026-04-01T00:00:00Z",   // optional
+  "effectiveUntil": null                     // optional
+}
+
+// The body itself is optional. Send none
+// and it goes on sale now, for ever.
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium",
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveUntil": null,
+  "publiclyAvailable": false,
+  "featureCount": 2,
+  "sellable": false,
+  "nextStep": "Published, and now permanent: this version can never be edited again. It is NOT on the public list yet — it can only be offered privately in a quote until #7 puts it there."
+}
+
+409 PLAN_HAS_NO_FEATURES — nothing to sell
+409 PLAN_NOT_DRAFT      — already published
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `effectiveFrom` | no | When it may start being sold. **Absent means now**, so a plain publish puts it on sale immediately. A future date schedules it — published, but `sellable` false until then, and #13 refuses it with `409 PLAN_NOT_SELLABLE` in the meantime. |
+| `effectiveUntil` | no | When it stops being sold. **Absent means never** — it sells until somebody retires it with #6. |
+
+**The body as a whole is optional** (`@RequestBody(required = false)`), so `POST` with no body at
+all publishes with both defaults. Both fields exist because publishing is a **one-way door**: a
+published plan cannot be edited, so the selling window it goes out with is permanent, and a
+dialog that never asked would set it silently.
+
+**A plan with no features is refused.** A school buying it would get nothing, and the refusal
+names the fix rather than the rule: *"Set its features first."*
 
 ### The one-way door, and what makes it safe to walk through
 
@@ -731,6 +1005,56 @@ and leaves no link between the old price and the new one.
 **[6](#t6) · `POST /platform/plans/{code}/versions/{version}/retire`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `status` = `RETIRED`, `effectiveUntil`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — POST with nothing.
+
+Path:  {code}     the plan family
+       {version}  which version
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium",
+  "status": "RETIRED",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveUntil": null,
+  "publiclyAvailable": false,
+  "featureCount": 2,
+  "sellable": false,
+  "nextStep": "Retired, and no longer on the menu: no school can pick it from here. Schools already on it keep it."
+}
+
+409 PLAN_NOT_ACTIVE — a draft is deleted, not retired
+</pre></td>
+</tr>
+</table>
+
+**No request fields**, and that is the design: retiring takes a plan off the menu and there is
+nothing to configure about it. What it does **not** do is the part worth stating —
+
+- **Schools already on it keep it.** Retiring stops new sales; it does not move anybody. The
+  `nextStep` counts how many schools that is, because "can I retire this" usually means "who is
+  on it".
+- **It cannot be undone**, and there is no endpoint to un-retire. #5 copies a retired version
+  into a new draft, which is the honest way back: a new version with its own number, rather than
+  a price somebody thought was withdrawn quietly coming back.
+- **A `DRAFT` cannot be retired.** Nothing was ever on sale, so there is nothing to withdraw —
+  `409 PLAN_NOT_ACTIVE`.
 - **Nothing else.** No subscription, no invoice, no school is touched.
 
 ### It is about the menu, not about anybody's subscription
@@ -789,6 +1113,55 @@ filters on `ACTIVE` first, so a retired plan is off the pricing page whatever th
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *updates*: `publiclyAvailable`
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "publiclyAvailable": true           // REQUIRED
+}
+</pre></td>
+<td><pre>
+200 OK
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium",
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveUntil": null,
+  "publiclyAvailable": true,
+  "featureCount": 2,
+  "sellable": true,
+  "nextStep": "Now on the public list."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `publiclyAvailable` | **yes** | `@NotNull`, so there is no default and no "toggle" — the caller says which state they want. `true` puts the plan on the list schools can see (#11); `false` takes it off. |
+
+**Why it is `@NotNull` rather than a toggle.** A toggle endpoint answers differently depending on
+what it found, so two callers racing each other end up with the state neither asked for. Naming
+the wanted state makes the request idempotent: sending `true` twice leaves it public.
+
+**Not public is not the same as not sellable.** A published plan that is off the list is exactly a
+**private quote**, and #13 sells it happily — `sellable` on the response tracks the selling
+window and the status, not this flag. The distinction is why `PlanResponse` returns both.
+
 ### Public list, or private quote
 
 The difference between a plan a school can find and pick for itself, and one that only exists in
@@ -845,6 +1218,78 @@ plan. A forgotten field would pull a plan off the pricing page and report succes
 **[8](#t8) · `GET /platform/plans`** — built
 
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`, `status`, `billingCycle`, `listPrice`, `currencyCode`, `maxStudents`, `maxUsers`, `publiclyAvailable`, `effectiveFrom`, `effectiveUntil`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET. Everything is a query
+parameter, and every one is optional.
+
+?status=ACTIVE&status=DRAFT
+&planCode=PREMIUM
+&name=prem
+&publiclyAvailable=true
+&search=prem
+&page=0
+&size=20
+&sort=listPrice,desc
+
+A bare call returns the newest twenty.
+</pre></td>
+<td><pre>
+200 OK — a page of PlanSummaryResponse
+
+{
+  "content": [
+    {
+      "planId": "67aa1202dc3f7d0012345678",
+      "planCode": "PREMIUM",
+      "planVersion": 1,
+      "name": "Premium",
+      "status": "ACTIVE",
+      "billingCycle": "YEARLY",
+      "listPrice": 49999.00,
+      "currencyCode": "INR",
+      "maxStudents": 2000,
+      "maxUsers": 250,
+      "publiclyAvailable": true,
+      "sellable": true,
+      "featureCount": 2,
+      "effectiveFrom": "2026-04-01T00:00:00Z",
+      "effectiveUntil": null,
+      "createdAt": "2026-03-02T09:14:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 3,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
+</pre></td>
+</tr>
+</table>
+
+**Every parameter on the request.** All optional; there is no body.
+
+| Parameter | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `status` | no | **Repeatable** — `?status=ACTIVE&status=DRAFT` means either. `OR` within the field, because "show me the ones I can sell and the ones I am still writing" is one question. Absent means every status. A misspelling is `400 INVALID_PARAMETER` listing the accepted values. |
+| `planCode` | no | Exact, case-insensitive. Names one family, all its versions. |
+| `name` | no | Partial, case-insensitive, on the name alone. |
+| `publiclyAvailable` | no | `true` or `false`. Absent means both — which matters, because private quotes are the ones somebody usually wants to find. |
+| `search` | no | Partial, case-insensitive, across **name and code together**. The term is escaped, so `?search=.*` matches literally and returns nothing rather than everything. |
+| `page` | no | Zero-based. Absent means 0. |
+| `size` | no | Absent means 20. **Between 1 and 100** — `?size=5000` is `400 INVALID_PAGE_SIZE`, so a caller cannot ask for the whole collection in one response. |
+| `sort` | no | `field,direction`, e.g. `listPrice,desc`. Absent means newest first. An unknown field is `400 INVALID_SORT_FIELD` and an unknown direction `400 INVALID_SORT_DIRECTION`, both naming what is allowed. |
+
+**No features on the rows.** A list of plans is a list of prices and ceilings; `featureCount` says
+how many there are and #10 is where the list of them lives. Twenty plans × twelve features each
+would be a response nobody reads to answer a question nobody asked.
 
 ### Filters, search, sort, page
 
@@ -903,6 +1348,69 @@ one that quietly does not. `?search=.*` returns nothing, because the term is mat
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *counts*: how many point at each version
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET.
+
+Path:  {code}  the plan family
+
+Every version of it, newest first. No
+paging: a family has versions, not
+thousands of them.
+</pre></td>
+<td><pre>
+200 OK — PlanVersionHistoryResponse
+
+{
+  "planCode": "PREMIUM",
+  "name": "Premium",
+  "versionCount": 3,
+  "versions": [
+    {
+      "planVersion": 3,
+      "name": "Premium",
+      "status": "DRAFT",
+      "listPrice": 54999.00,
+      "currencyCode": "INR",
+      "priceChangeFromPrevious": 5000.00,
+      "publiclyAvailable": false,
+      "sellable": false,
+      "featureCount": 3,
+      "schoolsOnThisVersion": 0,
+      "effectiveFrom": null,
+      "effectiveUntil": null
+    },
+    {
+      "planVersion": 2,
+      "status": "ACTIVE",
+      "listPrice": 49999.00,
+      "priceChangeFromPrevious": 5000.00,
+      "publiclyAvailable": true,
+      "sellable": true,
+      "featureCount": 2,
+      "schoolsOnThisVersion": 12,
+      "effectiveFrom": "2026-04-01T00:00:00Z",
+      "effectiveUntil": null
+    }
+  ],
+  "note": "Version 2 is the one being sold. 12 schools are on it."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The only input is `{code}` in the path. Two computed fields are the reason
+this endpoint exists rather than a filtered #8:
+
+| Field | What it answers |
+|---|---|
+| `priceChangeFromPrevious` | What this version did to the price. Null on version 1, which had nothing before it. The question "when did we put the price up" is otherwise a subtraction done by hand down a list. |
+| `schoolsOnThisVersion` | How many schools are on each one — **including cancelled and expired subscriptions**, on purpose. "Nobody is on it now" and "nobody was ever on it" are different facts, and the second is the one that says a version can be dropped without explaining anything to anybody. This is the query the `subscription_plan_version_idx` index exists for. |
+
 ### It answers two questions #8 cannot
 
 **How did the price move**, and **can the old versions be forgotten**. The first needs the
@@ -960,6 +1468,80 @@ The `note` and the null price change are the only parts visible without insertin
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *counts*: how many are on this version
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET.
+
+Path:  {code}     the plan family
+       {version}  which version
+
+One version in full, with its features.
+</pre></td>
+<td><pre>
+200 OK — PlanDetailResponse
+
+{
+  "planId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "name": "Premium",
+  "description": "Everything, for a school that has outgrown Starter.",
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "listPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "publiclyAvailable": true,
+  "sellable": true,
+  "effectiveFrom": "2026-04-01T00:00:00Z",
+  "effectiveUntil": null,
+  "featureCount": 2,
+  "features": [
+    {
+      "featureCode": "STUDENT_MANAGEMENT",
+      "label": "Student management",
+      "description": "Admissions, records and transfers.",
+      "enabled": true,
+      "usageLimit": null,
+      "usageMetric": null,
+      "overagePolicy": null
+    },
+    {
+      "featureCode": "SMS_NOTIFICATIONS",
+      "label": "SMS notifications",
+      "description": "Texts to guardians.",
+      "enabled": true,
+      "usageLimit": 5000,
+      "usageMetric": "MESSAGES_PER_MONTH",
+      "overagePolicy": "BLOCK"
+    }
+  ],
+  "schoolsOnThisVersion": 12,
+  "createdAt": "2026-03-02T09:14:00Z",
+  "updatedAt": "2026-04-01T00:00:00Z",
+  "note": null
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** `{code}` and `{version}` in the path, and the response is the whole
+version — the one place `features` comes back with its labels and descriptions filled in from
+each feature's own definition, so a screen showing a plan needs no second call.
+
+| Field | Worth knowing |
+|---|---|
+| `sellable` | The plan is `ACTIVE` **and** inside its selling window. It does **not** include `publiclyAvailable`: a private quote is not on the public list and is still sellable, which is what #13 relies on. A screen that reads `sellable` to decide whether to offer a plan is right; one that reads it to explain *why* needs `status` and the two dates as well. |
+| `features[].enabled` | `false` is a feature the plan deliberately switched off, which is different from one it never mentioned — the second is simply absent from the list. |
+| `usageMetric` | Comes from the feature's definition, not the plan. The plan says how many; the feature says of what. |
+| `schoolsOnThisVersion` | As on #9, counting cancelled and expired ones too. |
+| `createdAt`, `updatedAt` | Set by Spring Data on every write. `updatedAt` moving on a published plan means an availability change (#7) or a retirement (#6) — nothing else can touch one. |
+
 ### Where the features are
 
 #8 and #9 report a feature **count**, because a page of rows carrying twenty entitlements each is
@@ -1015,6 +1597,77 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: `schoolId`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `status` = `TRIAL` or `ACTIVE`, `billingCycle`, `currentPeriodStart` = midnight today in the school's zone unless sent, `currentPeriodEnd` = start plus the cycle's days, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride` and `maxUsersOverride` = **the plan's limits unless the caller named others**, `current` = true
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `schoolSubscriptionDocsId`, `eventType` = `CREATED` or `TRIAL_STARTED`, `previousStatus` = null, `newStatus`, `source`, `reason`, `performedByDocsId`, `effectiveAt`
 - [`schools`](../../models/core/School.java) — *updates*: `status` = `ACTIVE`, `activatedAt` — **only** when the school was `PROVISIONING` and its setup is otherwise complete
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "planCode": "PREMIUM",              // REQUIRED, max 40
+  "planVersion": 1,                   // REQUIRED
+
+  "trial": false,                     // optional
+  "currentPeriodStart": null,         // optional
+  "currentPeriodEnd": null,           // optional / REQUIRED on CUSTOM
+  "autoRenew": true,                  // optional
+  "contractedPrice": 39999.50,        // optional
+  "maxStudentsOverride": 2500,        // optional
+  "maxUsersOverride": 300,            // optional
+  "billingCustomerReference": "cus_Qx7B2mR9",   // optional, max 120
+  "reason": "Pilot, 20% partner discount."      // optional, max 500
+}
+</pre></td>
+<td><pre>
+201 Created
+Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
+
+{
+  "subscriptionId": "6a9e93e37feee1a04ace4a3b",
+  "subscriptionNo": "SUB/2026/09/000001",
+  "schoolId": "6a9e598382db56ca8afb6086",
+  "planDefinitionDocsId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "planName": "Premium",
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "currentPeriodStart": "2026-09-06T18:30:00Z",
+  "currentPeriodEnd": "2027-09-06T18:30:00Z",
+  "autoRenew": true,
+  "contractedPrice": 39999.50,
+  "planListPrice": 49999.00,
+  "currencyCode": "INR",
+  "maxStudents": 2500,
+  "maxUsers": 250,
+  "hasLimitOverrides": true,
+  "current": true,
+  "nextStep": "Subscribed, and billed from 2026-09-06T18:30:00Z. The school is now ACTIVE — a subscription was the last thing it needed. No invoice has been raised: that is a separate step."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `planCode` | **yes** | The plan's family key, max 40 — `PREMIUM`, not a Mongo id. With `planVersion` it names one immutable version. |
+| `planVersion` | **yes** | Which version of that plan. Named rather than looked up, so a caller never has to read an id out of another response. |
+| `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
+| `currentPeriodStart` | no | An instant. Absent means **midnight at the start of today in the school's own time zone** — not the moment the request arrived, because a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
+| `currentPeriodEnd` | **on `CUSTOM`** | An instant, and it must be after the start. Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. |
+| `autoRenew` | no | Absent means `true`. Nothing renews a subscription yet, so today it records the intention only. |
+| `contractedPrice` | no | What this school actually pays. Absent means the plan's `listPrice`. Zero is allowed — a free deal is a deal; negative is `400 PRICE_NEGATIVE`. The response shows it next to `planListPrice`, which is the only way to notice a discount. |
+| `maxStudentsOverride` | no | A negotiated student ceiling. **Absent copies the plan's `maxStudents`** onto the subscription rather than leaving a null, so the document says what the school may use on its own. Zero is `400 LIMIT_TOO_LOW` here — on create there is nothing to remove. |
+| `maxUsersOverride` | no | The same, from the plan's `maxUsers`. |
+| `billingCustomerReference` | no | The payment provider's customer id, max 120. Absent means null; it is set later by #26. |
+| `reason` | no | Free text, max 500, for the history row only — nothing on the subscription stores it. Unlike #14, where a reason is required, this one is optional: the row already records that the subscription was created. |
+
+**`currencyCode` is deliberately not on the request.** It always comes from the plan. A
+subscription priced in a different currency from the plan it points at is a mistake nobody would
+catch until an invoice went out in the wrong money. Changing it later is #25.
 
 ### Two fields is the ordinary request
 
@@ -1157,6 +1810,86 @@ resubscribes keeps the date it originally went live.
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `billingCycle`, `maxStudents`, `maxUsers`, `features` — once, at the end, to build the response
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: any of `status`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `maxStudentsOverride`, `maxUsersOverride` — **and `reasonForChanges` on every edit**, from the request's `reason`, which is **required**
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` (see below), `previousStatus`, `newStatus`, `newPlanDefinitionDocsId`, `source`, `reason` = the fields that moved plus the caller's words, `performedByDocsId`, `effectiveAt` — **and nothing at all when nothing changed**
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "reason": "Renegotiated at renewal.",   // REQUIRED, max 500, not blank
+
+  "status": "ACTIVE",                 // optional
+  "billingCycle": "YEARLY",           // optional
+  "currentPeriodStart": "2026-04-01T00:00:00Z",   // optional
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",     // optional
+  "autoRenew": false,                 // optional
+  "maxStudentsOverride": 2500,        // optional, 0 removes it
+  "maxUsersOverride": 300             // optional, 0 removes it
+}
+
+// At least one field besides `reason`, or
+// 400 NO_CHANGES_REQUESTED.
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "subscriptionId": "6a9e93e37feee1a04ace4a3b",
+  "subscriptionNo": "SUB/2026/09/000001",
+  "schoolId": "6a9e598382db56ca8afb6086",
+  "planDefinitionDocsId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "planName": "Premium",
+  "planStatus": "ACTIVE",
+  "planRetired": false,
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "currentPeriodStart": "2026-04-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "daysRemaining": 205,
+  "periodEnded": false,
+  "autoRenew": false,
+  "current": true,
+  "contractedPrice": 39999.50,
+  "planListPrice": 49999.00,
+  "currencyCode": "INR",
+  "hasDiscount": true,
+  "maxStudents": 2500,
+  "maxUsers": 250,
+  "maxStudentsOverride": 2500,
+  "maxUsersOverride": null,
+  "hasLimitOverrides": true,
+  "featureCount": 2,
+  "features": [ /* as #10 */ ],
+  "reasonForChanges": "Renegotiated at renewal.",
+  "billingCustomerReference": "cus_Qx7B2mR9",
+  "note": "Edited status, autoRenew. No invoice has been raised or credited: that is a separate step."
+}
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `reason` | **yes** | Free text, max 500, `@NotBlank` so `"  "` is refused. The only field that must be sent: everything else here changes something a school is paying for, and an unexplained change is one nobody can answer for months later. It is stored on the subscription as `reasonForChanges` **and** on the history row. **It is not itself a change** — sent alone it is `400 NO_CHANGES_REQUESTED`, and on an edit that moved nothing it is not stored. |
+| `status` | no | Any of the six. **No transition rules apply** — this is the operator's override, not the lifecycle endpoints. Absent leaves it. Moving to `CANCELLED` stamps no date: when it happened is the `effectiveAt` of the `CANCELLED` history row this same request writes. |
+| `billingCycle` | no | Only the cadence. The period dates are **not** recalculated from it — an edit that moved the period end would change what the school is billed for while looking like a change of cadence. |
+| `currentPeriodStart` | no | An instant. Checked against the resulting end, whichever of the two moved. Cannot be cleared: it is `@NotNull` on the model. |
+| `currentPeriodEnd` | no | An instant. **This is what extend-trial used to do** — send it alone to push a trial or a paid period out. A period left running backwards is `400 INVALID_BILLING_PERIOD`. |
+| `autoRenew` | no | `true` or `false`. Absent leaves it. |
+| `maxStudentsOverride` | no | A ceiling. **`0` removes it** and falls back to the plan's own `maxStudents` — the fields are flat, and Jackson cannot tell an omitted field from an explicit `null`, so zero carries the removal. Negative is `400 LIMIT_TOO_LOW`. |
+| `maxUsersOverride` | no | The same, against the plan's `maxUsers`. |
+
+**What the request cannot reach**, each with its own endpoint or its own reason: `contractedPrice`
+and `currencyCode` (#25), `billingCustomerReference` (#26), the plan (#16), `subscriptionNo` (the
+number the sequence handed out, pointed at by invoices and history), `current` (owned by the
+unique partial index) and `schoolId` (it is in the URL). Sending them is ignored like any other
+unknown field — so a body of only those is `400 NO_CHANGES_REQUESTED`.
 
 ### One endpoint where there were three
 
@@ -1460,6 +2193,83 @@ the dates.
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `name`, `status`, `listPrice`, `maxStudents`, `maxUsers`, `features`
 - [`schools`](../../models/core/School.java) — *reads*: `schoolName` — **only when there is no subscription**, to decide which `404` to give
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET.
+
+Path:  {id}  the school's Mongo id
+
+The subscription is not named: a school has
+exactly one current, and a unique partial
+index makes sure of it.
+</pre></td>
+<td><pre>
+200 OK — SubscriptionDetailResponse, the same shape #14 answers
+
+{
+  "subscriptionId": "6a9e93e37feee1a04ace4a3b",
+  "subscriptionNo": "SUB/2026/09/000001",
+  "schoolId": "6a9e598382db56ca8afb6086",
+  "planDefinitionDocsId": "67aa1202dc3f7d0012345678",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "planName": "Premium",
+  "planStatus": "ACTIVE",
+  "planRetired": false,
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "currentPeriodStart": "2026-04-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "daysRemaining": 205,
+  "periodEnded": false,
+  "autoRenew": true,
+  "current": true,
+  "contractedPrice": 39999.50,
+  "planListPrice": 49999.00,
+  "currencyCode": "INR",
+  "hasDiscount": true,
+  "maxStudents": 2500,
+  "maxUsers": 250,
+  "maxStudentsOverride": 2500,
+  "maxUsersOverride": null,
+  "hasLimitOverrides": true,
+  "featureCount": 2,
+  "features": [
+    {
+      "featureCode": "STUDENT_MANAGEMENT",
+      "label": "Student management",
+      "description": "Admissions, records and transfers.",
+      "enabled": true,
+      "usageLimit": null,
+      "usageMetric": null,
+      "overagePolicy": null
+    }
+  ],
+  "reasonForChanges": "Renegotiated at renewal.",
+  "billingCustomerReference": "cus_Qx7B2mR9",
+  "note": null
+}
+
+404 SUBSCRIPTION_NOT_FOUND  — the school has none
+404 SCHOOL_NOT_FOUND       — no such school
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The only input is `{id}` in the path. The four computed fields are worth
+naming, because nothing on the document holds them:
+
+| Field | Where it comes from |
+|---|---|
+| `daysRemaining` | `currentPeriodEnd` minus now, in days. Negative once the period has run out, which is how a screen shows "ended 12 days ago". |
+| `periodEnded` | `currentPeriodEnd` is in the past. Read it rather than `status`: nothing marks a subscription expired yet, so a lapsed period can sit behind a status that still says the school is paying. |
+| `hasDiscount` | `contractedPrice` is below `planListPrice`. Both are returned, because the gap is what somebody rings up about. |
+| `hasLimitOverrides` | This school's ceiling is **not** its plan's. Not a null check — #13 writes a figure onto every subscription, so a null check would answer true for all of them. |
+
 ### Singular, because a school has one
 
 `/subscriptions` is the collection you post to; `/subscription` is the one they are on. A unique
@@ -1538,6 +2348,64 @@ read costs nothing on the path that succeeds.
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`. **Not** `billingCustomerReference` or `reasonForChanges` — a payment-gateway id and an operator's internal note are both ours, not theirs
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `description`
 
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET.
+
+Header:  X-School-Subdomain: springfield-high
+         REQUIRED
+
+The school never names itself in the path.
+The tenant comes from the header, so no
+school can ask for another's subscription.
+</pre></td>
+<td><pre>
+200 OK — MySubscriptionResponse: 14 fields, not the platform's 32
+
+{
+  "subscriptionNo": "SUB/2026/09/000001",
+  "status": "ACTIVE",
+  "planName": "Premium",
+  "planDescription": "Everything, for a school that has outgrown Starter.",
+  "planVersion": 1,
+  "billingCycle": "YEARLY",
+  "price": 39999.50,
+  "currencyCode": "INR",
+  "currentPeriodStart": "2026-04-01T00:00:00Z",
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "daysRemaining": 205,
+  "periodEnded": false,
+  "autoRenew": true,
+  "note": null
+}
+
+404 SUBSCRIPTION_NOT_FOUND — this school has none
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** What matters here is what is **left out**, which is why this is a separate
+type from #27's rather than the same one:
+
+| Withheld | Why |
+|---|---|
+| `planListPrice` | A school on a negotiated price would be shown a number it is not paying — either a discount somebody then has to explain, or an increase they will ring up about. They are shown `price`, which is what they pay. |
+| `billingCustomerReference` | The payment gateway's id for them. Ours to hold, not theirs to see. |
+| `maxStudentsOverride`, `maxUsersOverride` | "Your limit is 2500" is useful; "your limit was negotiated up from the plan's 2000" is a commercial conversation, not a billing screen. |
+| `planCode` | The internal family key. A school reads the name. |
+| `reasonForChanges` | An operator's note on the last edit — "invoice overdue", "renegotiated at renewal". Handing it over turns an internal note into a statement to a customer. |
+| `current`, `schoolId`, ids | A school has one subscription and knows which school it is. |
+
+`contractedPrice` is renamed **`price`** on the way out: from where the school sits there is only
+one price, so calling it "contracted" invites the question of what the other one was.
+
+**`note` is written for a school to read.** #27's version of it explains that nothing marks a
+subscription expired yet — true, useful internally, and not something to tell a customer.
+
 ### It is not #27 with a different URL
 
 [#27](#e27) is the platform read and shows everything. This one is shorter, and the four things
@@ -1583,6 +2451,81 @@ another school's bill would otherwise be a matter of editing a URL.
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+No body — GET.
+
+Header:  X-School-Subdomain: springfield-high
+         REQUIRED
+
+Called by the rest of the product, not by a
+screen: "may this school do X, and how much
+of it".
+</pre></td>
+<td><pre>
+200 OK — and 200 even when the answer is "nothing"
+
+{
+  "active": true,
+  "reason": null,
+  "subscriptionNo": "SUB/2026/09/000001",
+  "status": "ACTIVE",
+  "planName": "Premium",
+  "planVersion": 1,
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "maxStudents": 2500,
+  "maxUsers": 250,
+  "featureCount": 2,
+  "features": [
+    {
+      "featureCode": "STUDENT_MANAGEMENT",
+      "label": "Student management",
+      "includedInPlan": true,
+      "allowed": true,
+      "usageLimit": null,
+      "usageMetric": null,
+      "overagePolicy": null
+    }
+  ]
+}
+
+When the subscription exists but grants
+nothing — a lapsed period, or a cancelled one:
+
+{
+  "active": false,
+  "reason": "The paid period ended on 2026-03-31T23:59:59Z.",
+  "maxStudents": 0,
+  "maxUsers": 0,
+  "featureCount": 0,
+  "features": []
+}
+
+A school with NO subscription is a 404:
+
+404 SUBSCRIPTION_NOT_FOUND
+"This school has no subscription, so it is
+ not entitled to anything."
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The shape is the point: this is the endpoint the rest of the product asks
+before letting a school do something, so it answers in a form nothing has to interpret.
+
+| Field | What a caller does with it |
+|---|---|
+| `active` | The one field a gate needs. **False on a `200`** when the subscription exists but grants nothing — a lapsed period, a cancelled or expired one — because "this school may do nothing" is an answer about a real customer rather than a failure. **A school with no subscription at all is `404 SUBSCRIPTION_NOT_FOUND`**: there is nothing to describe, and the message says so — *"This school has no subscription, so it is not entitled to anything."* So a caller has two cases to handle, not one. |
+| `reason` | Why not, in words, when `active` is false. Null when it is true. |
+| `maxStudents`, `maxUsers` | The ceilings **in force** — the school's negotiated figure where it has one, the plan's otherwise. **Zero when `active` is false**, so a caller that only reads the numbers still refuses rather than letting everything through. |
+| `features[].includedInPlan` | The plan grants this feature. |
+| `features[].allowed` | `includedInPlan` **and** the subscription is live. The pair is deliberate: a caller checking one field gets the right answer, and a screen explaining why can show that the feature is bought but the subscription is not paying. |
+| `features[].usageLimit`, `usageMetric`, `overagePolicy` | How much, of what, and what happens past it — for the features that are metered rather than on or off. |
 
 ### The logic lives in one class, and that is the whole point
 
