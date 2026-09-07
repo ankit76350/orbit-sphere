@@ -364,10 +364,14 @@ for (const [label, ok] of withheldChecks) {
 
 console.log('\nThe edit form says what to fill in, and when')
 const subsSourceFull = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
-// Scoped to the edit form, because the create modal in the same file has a date box of its own
-// now and a file-wide count cannot tell the two apart.
-const editSource = subsSourceFull.slice(
-  subsSourceFull.indexOf('function EditForm('), subsSourceFull.indexOf('function NewSubscription('))
+// Scoped to the edit form, because two other modals in the same file have date boxes of their own
+// and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
+// so adding another modal cannot silently widen it.
+const editFormStart = subsSourceFull.indexOf('function EditForm(')
+const editFormEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index)
+  .filter((i) => i > editFormStart))
+const editSource = subsSourceFull.slice(editFormStart, editFormEnd)
 const formChecks = [
   ['the boxes are grouped under headings',
     (editSource.match(/className="field-split"/g) || []).length >= 4],

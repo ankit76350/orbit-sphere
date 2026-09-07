@@ -6427,6 +6427,260 @@ refused before the service sees it.
       ],
     },
     {
+      id: "change-plan",
+      name: "Change Plan",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/change-plan",
+      status: 'live',
+      summary: "Moves a school onto a different plan or version. Immediate, and the period restarts with it.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/{no}/change-plan\` — moves a school onto a different plan.
+
+**What #14 cannot do.** #14 edits the terms of the plan a school is already on; this changes which
+plan that is, and with it the entitlements, the price and the billing cycle. Two endpoints, because
+"push the trial out a fortnight" and "move them to Enterprise" are not the same request.
+
+### The change is immediate
+
+There is no timing field. A subscription holds **one** plan, not a current one and a pending one,
+so a change scheduled for a future period would have nowhere to live — and moving the pointer now
+while calling it "next period" would hand the school its new entitlements early. So the plan
+changes when you send this, and the billing period restarts with it, on the **new** plan's cycle.
+
+### It asks nothing about the money, and moves none
+
+The school is part-way through a period it has paid for, and this endpoint **charges, credits and
+refunds nothing** — because nothing in this codebase raises an invoice: \`subscription_invoices\` has
+no writer and #17 is not built.
+
+It does not ask what *should* happen to that money either. That is a commercial decision belonging
+to whatever eventually raises the invoice, and the module README still carries it as an open
+question. The response says outright that no money moved, so a plan change is never read as a
+payment.
+
+### What follows the plan, and what survives it
+
+| | |
+|---|---|
+| from the new plan | \`billingCycle\` and \`currencyCode\`, always |
+| from the new plan | the price and both capacity ceilings, **unless you send them** |
+| kept as it is | \`autoRenew\`, **unless you send it** |
+| kept as it is | \`status\`, \`billingCustomerReference\`, \`subscriptionNo\` |
+
+**Two kinds of absence.** A price or ceiling you leave out takes the **new plan's** figure. An
+\`autoRenew\` you leave out keeps **the school's** setting — a plan has no opinion about renewal, so
+defaulting it to \`true\` would switch it back on for the one school that asked for it off.
+
+**Nothing negotiable is carried across on its own.** A discount and a raised ceiling are agreed
+against a *particular* plan, so a move means those terms are agreed again — send
+\`contractedPrice\`, \`maxStudentsOverride\` and \`maxUsersOverride\` to continue them.
+
+### Use \`current\` as the number
+
+Same reason as everywhere else here: a real number is \`SUB/2026/09/000001\`, the slashes end the
+path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
+
+### The nine test cases are in the request body as comments
+`,
+      bodyNotes: `Platform surface. Needs {{schoolId}} on a subscription — run Create
+ Subscription first, ideally on STARTER_PLAN so there is somewhere to go.
+
+ REQUIRED: planCode, planVersion, reason.
+ OPTIONAL: contractedPrice, maxStudentsOverride, maxUsersOverride,
+           autoRenew, currentPeriodEnd.
+
+ THERE IS NO TIMING FIELD. The change is immediate and the period restarts
+ with it. A subscription holds one plan, not a current one and a pending
+ one, so a scheduled change would have nowhere to live.
+
+ THERE IS NO MONEY FIELD EITHER. Nothing raises invoices, so nothing is
+ charged, credited or refunded for the period already paid for — and what
+ SHOULD happen to it is a commercial question left open on purpose.`,
+      requiredFields: ["planCode", "planVersion", "reason"],
+      optionalFields: ["contractedPrice", "maxStudentsOverride", "maxUsersOverride", "autoRenew", "currentPeriodEnd"],
+      pathParams: [
+        { name: "id", value: "{{schoolId}}", description: "The school's MongoDB id. Create School fills this in." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "reason": "Outgrew Starter's 500 students."
+}`,
+      successStatus: 200,
+      responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "reasonForChanges", "billingCustomerReference", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A reason is required" },
+        { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom target with no end date" },
+        { status: 409, code: "PLAN_UNCHANGED", when: "The plan it is already on" },
+        { status: 409, code: "PLAN_NOT_SELLABLE", when: "A plan that cannot be sold" },
+        { status: 409, code: "SUBSCRIPTION_NOT_CHANGEABLE", when: "A finished subscription" },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE ORDINARY UPGRADE",
+          expect: "200 OK",
+          notes: `The body above, on a school currently on STARTER_PLAN.
+    OUT: planCode PREMIUM, contractedPrice 49999 (the new plan's list),
+         billingCycle and currencyCode from the new plan,
+         maxStudents/maxUsers 2000/250 — PREMIUM's own, because the
+         request named no ceilings,
+         currentPeriodStart MIDNIGHT TODAY, currentPeriodEnd + 365 days,
+         reasonForChanges = your reason.
+         note: "Upgraded from 'STARTER_PLAN' version 1 to 'PREMIUM'
+                version 1. ... NO money has moved for the period the
+                school had already paid for ... What should happen to it
+                is still an open question."`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "A REASON IS REQUIRED",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "VALIDATION_FAILED",
+           "fieldErrors": { "reason": ["must not be blank"] } }
+    @NotBlank, so "  " is refused too. A plan change moves what a school
+    is entitled to and what it pays; an unexplained one is the hardest
+    record to answer questions about later.`,
+          body: `{
+  "planCode": "PREMIUM", "planVersion": 1
+}`,
+        },
+        {
+          id: "03",
+          name: "NAME THE CEILINGS, OR GET THE NEW PLAN'S",
+          expect: "200 OK",
+          notes: `OUT: maxStudents 4000 / maxUsers 400, against STARTER_PLAN's own
+         500/50. hasLimitOverrides true.
+
+    A NEGOTIATED CEILING DOES NOT SURVIVE A MOVE ON ITS OWN. Raise one
+    first with Edit Subscription:
+      PATCH .../subscriptions/current
+      { "maxStudentsOverride": 9000, "reason": "Negotiated up." }
+    then move WITHOUT naming ceilings, and the school lands on the new
+    plan's 500/50 — the 9000 is gone. Same rule as Create Subscription:
+    a ceiling is agreed against a plan, and this is a different plan.
+
+    Send only one and the other still comes from the plan: 3000 students
+    with no maxUsersOverride gives 3000/250 on PREMIUM.
+
+    ZERO IS REFUSED HERE — 400 LIMIT_TOO_LOW. There is nothing to remove
+    on a plan change; removing an override is Edit Subscription, where 0
+    means exactly that.`,
+          body: `{
+  "planCode": "STARTER_PLAN",
+  "planVersion": 1,
+  "maxStudentsOverride": 4000,
+  "maxUsersOverride": 400,
+  "reason": "Downsized plan, negotiated headcount."
+}`,
+        },
+        {
+          id: "04",
+          name: "CARRY A DISCOUNT ACROSS",
+          expect: "200 OK",
+          notes: `OUT: contractedPrice 39999.50 next to planListPrice 49999.00,
+         hasDiscount true.
+    A DISCOUNT IS NOT CARRIED OVER AUTOMATICALLY. It was agreed against a
+    plan at a price, and this is a different plan at a different price, so
+    continuing it silently would invent a deal nobody made.
+
+04b AUTO-RENEWAL IS LEFT ALONE UNLESS YOU SAY            -> 200 OK
+    Turn it off first with Edit Subscription:
+      PATCH .../subscriptions/current
+      { "autoRenew": false, "reason": "School asked." }
+    then move plan WITHOUT the field:
+{
+  "planCode": "PREMIUM", "planVersion": 1,
+  "reason": "Upgrade, renewal untouched."
+}
+    OUT: autoRenew STILL false. This is the one field whose absence means
+    "leave it alone" rather than "take the new plan's" — a plan has no
+    opinion about renewal, and defaulting to true the way Create
+    Subscription does would switch it back on for the one school that had
+    asked for it off.
+
+    Send "autoRenew": true or false to set it as part of the move.`,
+          body: `{
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "contractedPrice": 39999.50,
+  "reason": "Partner discount continues on the new plan."
+}`,
+        },
+        {
+          id: "05",
+          name: "THE PLAN IT IS ALREADY ON",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "PLAN_UNCHANGED",
+           "message": "... is the plan this subscription is already on. To
+                       change its terms rather than its plan, use the edit
+                       endpoint." }
+    A NEWER VERSION of the same code IS allowed — that is how a school
+    moves to v2 of what it is on.`,
+          body: `{
+  "planCode": "PREMIUM", "planVersion": 1, "reason": "x"
+}`,
+        },
+        {
+          id: "06",
+          name: "A PLAN THAT CANNOT BE SOLD",
+          expect: "409 Conflict",
+          notes: `A DRAFT or RETIRED target.
+    OUT: { "code": "PLAN_NOT_SELLABLE" }
+    A published plan that is NOT publicly available is allowed: that is a
+    private quote, and moving a school onto one is exactly the use.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A CUSTOM TARGET WITH NO END DATE",
+          expect: "400 Bad Request",
+          notes: `Moving to a plan whose billingCycle is CUSTOM:
+    OUT: { "code": "BILLING_PERIOD_END_REQUIRED" }
+    Send one, and it is used as-is:
+    IT IS THE NEW PLAN'S CYCLE THAT DECIDES, not the old one. A school
+    moving from a yearly plan to a monthly one gets 30 days from today.`,
+          body: `{
+  "planCode": "{{planCode}}", "planVersion": 1,
+  "currentPeriodEnd": "2027-06-30T23:59:59Z",
+  "reason": "Bespoke term."
+}`,
+        },
+        {
+          id: "08",
+          name: "A FINISHED SUBSCRIPTION",
+          expect: "409 Conflict",
+          notes: `On a CANCELLED or EXPIRED subscription.
+    OUT: { "code": "SUBSCRIPTION_NOT_CHANGEABLE",
+           "message": "... so there is nothing to move. Create a new
+                       subscription for this school instead." }
+
+09  WHAT LANDS IN THE DATABASE
+    From mongosh:
+      db.subscription_history.find({schoolSubscriptionDocsId: "..."})
+                             .sort({createdAt: 1})
+        -> PLAN_CHANGED, with BOTH plan ids on the row:
+           previousPlanDefinitionDocsId and newPlanDefinitionDocsId, and
+           previousStatus == newStatus, because a plan change is not a
+           status move.
+           reason: "Moved from 'STARTER_PLAN' version 1 to 'PREMIUM'
+                    version 1, immediately. Outgrew Starter's 500
+                    students."
+
+    db.subscription_invoices IS NOT TOUCHED. Nothing writes it yet, which
+    is why there is no money field on the request.`,
+          body: null,
+        },
+      ],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

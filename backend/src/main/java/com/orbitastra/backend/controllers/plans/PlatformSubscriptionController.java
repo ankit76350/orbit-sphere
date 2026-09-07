@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
@@ -95,6 +96,34 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.updateSubscription(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #16 — moves a school onto a different plan, or a newer version of its own.
+     *
+     * <p>Use {@code current} as the subscription number for the one the school is on now.
+     *
+     * <p><b>What #14 cannot do.</b> #14 edits the terms of the plan a school is already on; this
+     * changes which plan that is, and with it the entitlements, the price and the billing cycle.
+     *
+     * <p><b>It takes effect immediately.</b> There is no scheduling: a subscription holds one
+     * plan, so a change set for the next period would have nowhere to live. The plan moves now
+     * and the billing period restarts with it.
+     *
+     * <p><b>No money moves, and nothing is asked about it.</b> Nothing raises invoices yet, so
+     * this endpoint charges, credits and refunds nothing for the period the school had already
+     * paid for — and the response says so plainly rather than leaving it to be assumed.
+     *
+     * <p>Answers the whole subscription back, the same shape as #27.
+     */
+    @PostMapping("/subscriptions/{subscriptionNo}/change-plan")
+    public ResponseEntity<SubscriptionDetailResponse> changePlan(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody SubscriptionPlanChangeRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.changePlan(schoolId, subscriptionNo, request));
     }
 
     /**

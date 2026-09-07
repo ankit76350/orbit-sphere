@@ -18,6 +18,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.models.core.School;
@@ -96,7 +97,7 @@ public class PlatformSubscriptionService {
      * disagree, and the wrong copy is the one that lets a broken school go live.
      */
     private final SchoolPlatformService schoolPlatform;
-//! Endpoint 13 — a school's first subscription ------------------------------------
+    //! Endpoint 13 — a school's first subscription ------------------------------------
 
     /**
      * #13 — puts a school on a plan. What makes a school a paying customer.
@@ -164,8 +165,8 @@ public class PlatformSubscriptionService {
                 ? plan.getListPrice()
                 : planValidator.validatePrice("contractedPrice", request.contractedPrice());
 
-        validateCapacityOverrideOnCreate("maxStudentsOverride", request.maxStudentsOverride());
-        validateCapacityOverrideOnCreate("maxUsersOverride", request.maxUsersOverride());
+        validateCapacityOverrideIsAtLeastOne("maxStudentsOverride", request.maxStudentsOverride());
+        validateCapacityOverrideIsAtLeastOne("maxUsersOverride", request.maxUsersOverride());
 
         //! The capacity is written onto the subscription either way, copied from the plan when
         //! the caller named no figure of their own. So the document says what this school may
@@ -234,7 +235,7 @@ public class PlatformSubscriptionService {
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
                 describeCreateOutcome(savedSubscription, trial, activation));
     }
-//! Endpoint 14 — edit what a school is contracted to ------------------------------
+    //! Endpoint 14 — edit what a school is contracted to ------------------------------
 
     /**
      * #14 — edits any of the terms of one subscription.
@@ -369,7 +370,183 @@ public class PlatformSubscriptionService {
         return SubscriptionDetailResponse.fromSubscription(saved, plan,
                 String.join(" ", note));
     }
-//! Endpoint 27 — what one school is on right now ----------------------------------
+    //! Endpoint 16 — move a school onto a different plan ------------------------------
+
+    /**
+     * #16 — moves a school onto a different plan, or a newer version of its own.
+     *
+     * <p><b>What #14 deliberately cannot do.</b> #14 edits the terms of the plan a school is
+     * already on; this changes which plan that is, and with it what the school is entitled to,
+     * what it costs and how often it is billed. Keeping them apart is what stops "push the trial
+     * out a fortnight" and "move them to Enterprise" looking like the same request.
+     *
+     * <p><b>It takes effect immediately, and there is no option not to.</b> A subscription holds
+     * one plan, not a current one and a pending one, so a change scheduled for the next period
+     * would have nowhere to live — and moving the pointer now while calling it next period would
+     * hand the school its new entitlements early. The plan changes when the request is made, and
+     * the billing period restarts with it.
+     *
+     * <p><b>It asks nothing about the money already paid, and moves none.</b> The school is
+     * part-way through a period it has paid for, and nothing here charges, credits or refunds any
+     * of it — because nothing in this codebase raises an invoice at all:
+     * {@code subscription_invoices} has no writer and #17 is not built. The response says so
+     * rather than leaving somebody to assume a charge went out.
+     *
+     * <p>Deciding what <i>should</i> happen to that money is a commercial question, and it
+     * belongs with whatever raises the invoice rather than with the request that moves the plan.
+     * {@code controllers/plans/README.md} keeps it as an open question.
+     *
+     * <p><b>The new plan is the starting point for everything negotiable.</b> Price and both
+     * capacity ceilings come from it unless the request names them, exactly as #13 does on a
+     * sale — so a school that had negotiated a ceiling on its old plan does not keep it
+     * automatically. A ceiling is agreed against a particular plan, and moving to a different one
+     * means the terms are being renegotiated whether or not anybody says so; re-stating them here
+     * is what makes the new arrangement somebody's decision rather than this method's.
+     *
+     * <p><b>{@code autoRenew} is the exception, and absent leaves it alone.</b> A plan has no
+     * opinion about renewal — it is the school's standing instruction — so defaulting it to
+     * {@code true} the way a sale does would switch it back on for the one school that had asked
+     * for it off.
+     *
+     * <p><b>Nothing checks whether a downgrade puts the school over its new ceiling</b>, because
+     * nothing counts students yet. The response says so rather than implying the move was safe.
+     */
+    @Transactional
+    public SubscriptionDetailResponse changePlan(String schoolId, String subscriptionNo,
+            SubscriptionPlanChangeRequest request) {
+
+        //! step 1 - the school has to exist and be one we can still sell to
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        if (school.getStatus() == SchoolStatus.DELETED
+                || school.getStatus() == SchoolStatus.DELETION_PENDING
+                || school.getStatus() == SchoolStatus.CLOSED) {
+            throw ApiException.conflict("SCHOOL_NOT_SUBSCRIBABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + " and cannot "
+                            + "be moved to another plan.");
+        }
+
+        //! step 2 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - a finished subscription is not moved, it is replaced. Selling a new plan to
+        //! a cancelled subscription would leave the school paying for something that ended.
+        if (subscription.getStatus() == SubscriptionStatus.CANCELLED
+                || subscription.getStatus() == SubscriptionStatus.EXPIRED) {
+            throw ApiException.conflict("SUBSCRIPTION_NOT_CHANGEABLE",
+                    subscription.getSubscriptionNo() + " is " + subscription.getStatus()
+                            + ", so there is nothing to move. Create a new subscription for this "
+                            + "school instead.");
+        }
+
+        //! step 4 - the plan being left, read before anything moves so the response and the
+        //! history row can both name it
+        // TODO: read plan
+        PlanDefinition previousPlan = loadPlanBehindSubscription(subscription);
+
+        //! step 5 - the plan being moved to, which has to be one we can sell today
+        PlanDefinition newPlan = loadSellablePlan(request.planCode(), request.planVersion());
+
+        if (newPlan.getId().equals(previousPlan.getId())) {
+            throw ApiException.conflict("PLAN_UNCHANGED",
+                    "'" + newPlan.getPlanCode() + "' version " + newPlan.getPlanVersion()
+                            + " is the plan this subscription is already on. To change its terms "
+                            + "rather than its plan, use the edit endpoint.");
+        }
+
+        //! step 6 - work out the price. The new plan's, unless the caller named one: a discount
+        //! is agreed against a plan at a price, and this is a different plan at a different
+        //! price, so carrying the old figure over silently would invent a deal nobody made.
+        BigDecimal newPrice = request.contractedPrice() == null
+                ? newPlan.getListPrice()
+                : planValidator.validatePrice("contractedPrice", request.contractedPrice());
+
+        //! step 7 - work out the ceilings: the caller's, or the new plan's own. The plan being
+        //! left does not come into it — a ceiling is agreed against a particular plan, so moving
+        //! to a different one means the figure is agreed again, and this request is where it is
+        //! said. The same rule #13 uses on a sale.
+        validateCapacityOverrideIsAtLeastOne("maxStudentsOverride", request.maxStudentsOverride());
+        validateCapacityOverrideIsAtLeastOne("maxUsersOverride", request.maxUsersOverride());
+
+        Long newMaxStudents = request.maxStudentsOverride() == null
+                ? newPlan.getMaxStudents()
+                : request.maxStudentsOverride();
+        Long newMaxUsers = request.maxUsersOverride() == null
+                ? newPlan.getMaxUsers()
+                : request.maxUsersOverride();
+
+        //! step 8 - the period restarts today, on the new plan's cycle. A plan change takes
+        //! effect now, so the period it belongs to starts now too.
+        Instant periodStart = startOfTodayInSchoolZone(school.getDefaultTimeZone());
+        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
+                periodStart, newPlan.getBillingCycle());
+
+        //! step 9 - move it
+        String previousPlanId = subscription.getPlanDefinitionDocsId();
+
+        subscription.setPlanDefinitionDocsId(newPlan.getId());
+        subscription.setPlanVersion(newPlan.getPlanVersion());
+        subscription.setContractedPrice(newPrice);
+        subscription.setCurrencyCode(newPlan.getCurrencyCode());
+        subscription.setBillingCycle(newPlan.getBillingCycle());
+        subscription.setMaxStudentsOverride(newMaxStudents);
+        subscription.setMaxUsersOverride(newMaxUsers);
+        subscription.setCurrentPeriodStart(periodStart);
+        subscription.setCurrentPeriodEnd(periodEnd);
+        subscription.setReasonForChanges(request.reason().trim());
+
+        // The only field on this request whose absence means "leave it alone" rather than "take
+        // the new plan's": a plan has no opinion about renewal, and a school that turned it off
+        // has not changed its mind by moving plan.
+        if (request.autoRenew() != null) {
+            subscription.setAutoRenew(request.autoRenew());
+        }
+
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
+
+        //! step 10 - one history row, carrying both plan ids and both decisions. The decisions
+        //! go in the reason because the history document has no field for them; when invoicing
+        //! exists and they start moving money, that is the field to add.
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.PLAN_CHANGED)
+                .previousStatus(saved.getStatus())
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(previousPlanId)
+                .newPlanDefinitionDocsId(newPlan.getId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason("Moved from '" + previousPlan.getPlanCode() + "' version "
+                        + previousPlan.getPlanVersion() + " to '" + newPlan.getPlanCode()
+                        + "' version " + newPlan.getPlanVersion()
+                        + ", immediately. " + request.reason().trim())
+                .performedByDocsId(null)
+                .effectiveAt(periodStart)
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 11 - the note is assembled here rather than by one helper calling another: what
+        //! the move did, what it deliberately did not do to the money, and anything standing
+        //! about the subscription a reader needs either way.
+        List<String> note = new ArrayList<>();
+        note.add(describePlanMove(previousPlan, newPlan, saved));
+
+        String standing = describeSubscriptionState(saved, newPlan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        return SubscriptionDetailResponse.fromSubscription(saved, newPlan,
+                String.join(" ", note));
+    }
+
+    //! Endpoint 27 — what one school is on right now ----------------------------------
 
     /**
      * #27 — the whole of one school's current subscription.
@@ -416,7 +593,7 @@ public class PlatformSubscriptionService {
                 plan,
                 describeSubscriptionState(subscription, plan));
         }
-//! Endpoint 33 — the school's own billing screen ----------------------------------
+    //! Endpoint 33 — the school's own billing screen ----------------------------------
 
     /**
      * #33 — what the school itself sees: its plan, what it costs, when it renews.
@@ -793,6 +970,68 @@ public class PlatformSubscriptionService {
     }
 
     /**
+     * What the move did, and what it deliberately did not do to the money.
+     *
+     * <p>Three things a caller needs and cannot read off the response's fields:
+     *
+     * <ul>
+     * <li><b>Which plan it came from.</b> The response carries only the plan it is on now, so
+     * without this the reader cannot tell an upgrade from a downgrade.</li>
+     * <li><b>That no money moved.</b> The school is part-way through a period it paid for, and
+     * this endpoint charges, credits and refunds nothing — because nothing in this codebase
+     * raises an invoice. Saying so is the difference between a plan moved and a payment somebody
+     * thinks was taken.</li>
+     * <li><b>That a downgrade was not checked.</b> Nothing counts students yet, so moving a
+     * school to a smaller plan may leave it above its new ceiling and nobody would know.</li>
+     * <li><b>Whether the ceilings were negotiated or inherited.</b> {@code maxStudents} on the
+     * response is the figure in force either way, so only the note can say which.</li>
+     * </ul>
+     *
+     * <p>It says nothing about the subscription's standing state — a lapsed period, a trial, a
+     * retired plan. That is {@link #describeSubscriptionState}, and {@code changePlan} joins the
+     * two: one note helper calling the other would bury half the sentence.
+     *
+     * Used by:
+     * - changePlan()
+     */
+    private String describePlanMove(PlanDefinition previousPlan, PlanDefinition newPlan,
+            SchoolSubscription saved) {
+
+        String direction = newPlan.getListPrice().compareTo(previousPlan.getListPrice()) > 0
+                ? "Upgraded"
+                : newPlan.getListPrice().compareTo(previousPlan.getListPrice()) < 0
+                        ? "Downgraded"
+                        : "Moved";
+
+        String money = "NO money has moved for the period the school had already paid for: "
+                + "nothing raises invoices yet, so nothing was charged, credited or refunded. "
+                + "What should happen to it is still an open question.";
+
+        // Only when the ceilings are not the new plan's own, which means this request named
+        // them: worth saying, because maxStudents on the response is the figure in force either
+        // way and does not reveal whether it was negotiated or inherited.
+        String ceiling = Objects.equals(saved.getMaxStudentsOverride(), newPlan.getMaxStudents())
+                && Objects.equals(saved.getMaxUsersOverride(), newPlan.getMaxUsers())
+                        ? ""
+                        : " The ceilings are negotiated rather than the new plan's own: "
+                                + saved.getMaxStudentsOverride() + " students and "
+                                + saved.getMaxUsersOverride() + " users, against the plan's "
+                                + newPlan.getMaxStudents() + " and " + newPlan.getMaxUsers()
+                                + ".";
+
+        String downgrade = "Downgraded".equals(direction)
+                ? " Nothing checks whether the school is already above the new plan's limits — "
+                        + "nothing counts students yet — so a downgrade is not verified as safe."
+                : "";
+
+        return direction + " from '" + previousPlan.getPlanCode() + "' version "
+                + previousPlan.getPlanVersion() + " to '" + newPlan.getPlanCode() + "' version "
+                + newPlan.getPlanVersion() + ". The period restarts today and runs to "
+                + saved.getCurrentPeriodEnd() + " on the new plan's " + saved.getBillingCycle()
+                + " cycle. " + money + ceiling + downgrade;
+    }
+
+    /**
      * What this edit did, and anything it has left inconsistent.
      *
      * <p>A cycle that no longer matches the plan's is reported rather than corrected — billing a
@@ -831,13 +1070,15 @@ public class PlatformSubscriptionService {
     /**
      * An override that lowers nothing and raises nothing is not an override.
      *
-     * <p>Used by #13, where there is nothing to remove yet: a subscription being created has no
-     * override to take away, so zero there is a mistake like any other.
-          *
+     * <p>Used where a ceiling is being <b>set</b> rather than edited — a sale (#13) and a plan
+     * change (#16). Neither has an override to take away, so zero there is a mistake like any
+     * other. #14 is the one place zero means "remove it", and it makes that check itself.
+     *
      * Used by:
      * - createSubscription()
+     * - changePlan()
      */
-    private void validateCapacityOverrideOnCreate(String label, Long value) {
+    private void validateCapacityOverrideIsAtLeastOne(String label, Long value) {
         if (value != null && value < 1) {
             throw ApiException.badRequest("LIMIT_TOO_LOW",
                     label + " must be at least 1 when it is sent. Received: " + value

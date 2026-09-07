@@ -273,6 +273,20 @@ CURATED = {
     successStatus=201,
     captures=[('subscriptionNo','subscriptionNo')],
   ),
+  'Change Plan': dict(
+    summary='Moves a school onto a different plan or version. Immediate, and the period restarts with it.',
+    # `reason` is required because a plan change moves what a school is entitled to and what it
+    # pays. Nothing is asked about the money already paid: nothing raises invoices, so nothing is
+    # charged or credited, and what should happen to it is left open.
+    required=['planCode','planVersion','reason'],
+    # Absent means the new plan's own figure, for all three — the same rule Create Subscription
+    # uses, so a negotiated price or ceiling has to be restated to carry it across.
+    # autoRenew is the odd one out: absent leaves the school's existing setting, where the other
+    # three take the new plan's figure. A plan has no opinion about renewal.
+    optional=['contractedPrice','maxStudentsOverride','maxUsersOverride','autoRenew','currentPeriodEnd'],
+    responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
+    successStatus=200,
+  ),
   'Get Subscription': dict(
     summary='What one school is on right now: the plan and its features, the price, the status, the period.',
     required=[],

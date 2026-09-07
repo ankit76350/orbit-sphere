@@ -1,7 +1,7 @@
 # controllers/plans — API plan
 
-**Fourteen of 71 are built — #1 to #4, #6 to #10, #13, #14, #27, #33 and #34.** #15 was built
-and then withdrawn; see [its entry](#e15). The entire plan
+**Fifteen of 71 are built — #1 to #4, #6 to #10, #13, #14, #16, #27, #33 and #34.** #15 was
+built and then withdrawn; see [its entry](#e15). The entire plan
 catalogue except versioning; giving a school its first subscription, turning that trial into a
 paying one, and reading back what a school is on; and the school's own two reads — its billing
 screen, and the entitlement check the rest of the product asks.
@@ -128,7 +128,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
-| <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
 | <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -310,9 +310,24 @@ accept or return a floating-point number for money.
 configuration, not in two services. (This used to say "#18 to #19"; #18 is no longer being
 built.)
 
-**What happens to money on a mid-period plan change.** #16 has to decide: charge the difference
-now, credit it, or start the new plan at the next period. That is a commercial decision, not a
-technical one, and it should be answered before #16 is written.
+**What happens to money on a mid-period plan change — still open, and #16 does not settle it.**
+The three possibilities are: charge the difference now, credit it, or leave the paid period alone.
+It is a commercial decision, and #16 deliberately neither asks nor assumes: it moves the plan,
+restarts the period, and **charges, credits and refunds nothing**. Its response says exactly that,
+so nobody reads a plan change as a payment.
+
+**It can stay open because nothing could act on it anyway.** `subscription_invoices` has no
+writer, and #17 — which would raise one — is not built. The question belongs with whatever
+eventually raises invoices, not with the request that moves a plan; answering it now would mean
+storing a decision no code could honour, on every plan change, for however long invoicing takes.
+
+**The third possibility turned out to be a different question, and is not offered.** "Start the
+new plan at the next period" is not about money at all, it is about scheduling — and there is
+nowhere on a subscription to hold a change that has not happened, because it holds one plan, not a
+current one and a pending one. So #16 has **no timing field**: the change is immediate, the period
+restarts with it, and moving the pointer now while calling it next period is exactly the
+dishonesty the missing field avoids. Deferring a change belongs to #17, where a period actually
+ends.
 
 **`SubscriptionEventType` could not describe five of these endpoints — settled 2026-09-07.**
 Filling in the collections column above is what turned it up. Every constant the enum had was a
@@ -430,7 +445,7 @@ new row, because a history you can edit is not a history.
 | Field | Type | What can be in it |
 |---|---|---|
 | `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
-| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #15. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** and **`RENEWED`** belong to endpoints that are not built (#16 and #17). |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #15. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** is written by #16. Only **`RENEWED`** belongs to an endpoint that is not built (#17). |
 | `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
 | `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
@@ -2081,11 +2096,139 @@ and from the other module READMEs, so renumbering sixty endpoints to close a hol
 than it tidies.
 
 <a id="e16"></a>
-**[16](#t16) · `POST /platform/schools/{id}/subscriptions/{no}/change-plan`**
+**[16](#t16) · `POST /platform/schools/{id}/subscriptions/current/change-plan`** — built
 
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `status`, `planVersion`, `listPrice`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers` — of the target `version`
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `currencyCode`, `billingCycle`, and `currentPeriodStart`, `currentPeriodEnd` if the period restarts
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus`, `newStatus`, `reason`, `performedByDocsId`, `effectiveAt`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: the plan being **left**, for its price and limits, so the response can name what it moved from and tell a negotiated ceiling from a plan-standard one; and the plan being **moved to**, for `status`, `effectiveFrom`, `effectiveUntil`, `listPrice`, `currencyCode`, `billingCycle`, `maxStudents`, `maxUsers`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `planDefinitionDocsId`, `planVersion`, `contractedPrice`, `currencyCode`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `reasonForChanges`, and `maxStudentsOverride` / `maxUsersOverride` **only where they were not negotiated**
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PLAN_CHANGED`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `previousStatus` and `newStatus` = the status, unchanged, `source`, `reason` = both plans, the money decision and the caller's words, `performedByDocsId`, `effectiveAt`
+- **No invoice.** `subscription_invoices` is not touched, because nothing writes to it yet
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  "planCode": "PREMIUM",              // REQUIRED, max 40
+  "planVersion": 1,                   // REQUIRED
+  "reason": "Outgrew Starter's 500.", // REQUIRED, max 500
+
+  "contractedPrice": 39999.50,        // optional
+  "maxStudentsOverride": 2500,        // optional
+  "maxUsersOverride": 300,            // optional
+  "autoRenew": false,                 // optional
+  "currentPeriodEnd": null            // optional / REQUIRED on CUSTOM
+}
+
+// The change is immediate. There is no
+// timing field, because a subscription
+// cannot hold a pending plan.
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "subscriptionNo": "SUB/2026/09/000001",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "planName": "Premium",
+  "status": "ACTIVE",
+  "billingCycle": "YEARLY",
+  "currentPeriodStart": "2026-09-06T18:30:00Z",
+  "currentPeriodEnd": "2027-09-06T18:30:00Z",
+  "contractedPrice": 39999.50,
+  "planListPrice": 49999.00,
+  "currencyCode": "INR",
+  "hasDiscount": true,
+  "maxStudents": 2000,
+  "maxUsers": 250,
+  "maxStudentsOverride": 2000,
+  "maxUsersOverride": 250,
+  "hasLimitOverrides": false,
+  "reasonForChanges": "Outgrew Starter's 500.",
+  "note": "Upgraded from 'STARTER_PLAN' version 1 to 'PREMIUM' version 1. The period restarts today and runs to 2027-09-06T18:30:00Z on the new plan's YEARLY cycle. NO money has moved for the period the school had already paid for: nothing raises invoices yet, so nothing was charged, credited or refunded. What should happen to it is still an open question."
+}
+
+409 PLAN_UNCHANGED               — already on that version
+409 PLAN_NOT_SELLABLE            — a draft or retired target
+409 SUBSCRIPTION_NOT_CHANGEABLE  — cancelled or expired
+400 BILLING_PERIOD_END_REQUIRED  — a CUSTOM target, no end
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `planCode` | **yes** | The family to move to, max 40. May be the plan the school is already on — that is how it moves to a newer version — but not the same code **and** version, which is `409 PLAN_UNCHANGED`. |
+| `planVersion` | **yes** | Which version. The target must be sellable today: a draft's price is not settled and a retired plan is off the menu, both `409 PLAN_NOT_SELLABLE`. A published plan that is not publicly available is fine — that is a private quote. |
+| `reason` | **yes** | Max 500, `@NotBlank`. Stored as `reasonForChanges` and on the history row. A plan change moves what a school is entitled to and what it pays — an unexplained one is the hardest record to answer questions about later. |
+| `contractedPrice` | no | **Absent means the new plan's list price.** A discount is **not** carried over automatically: it was agreed against a plan at a price, and this is a different plan at a different price, so continuing it silently would invent a deal nobody made. Send it to continue the same arrangement. Zero allowed, negative refused. |
+| `maxStudentsOverride` | no | **Absent copies the new plan's `maxStudents`**, exactly as #13 does on a sale — so a ceiling negotiated on the old plan is **not** carried across unless it is restated here. At least 1; zero is `400 LIMIT_TOO_LOW`, because there is nothing to remove on a plan change. Removing an override is #14, where zero means exactly that. |
+| `maxUsersOverride` | no | The same, against the new plan's `maxUsers`. |
+| `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. Nothing renews a subscription yet, so it records the intention only. |
+| `currentPeriodEnd` | **on a `CUSTOM` target** | An instant. Absent means the **new** plan's cycle decides — 30, 90, 180 or 365 days from today. A school moving from a yearly plan to a monthly one gets 30 days. |
+
+### The change is immediate, and there is no field asking otherwise
+
+A subscription holds **one** plan, not a current one and a pending one, so a change scheduled for
+a future period would have nowhere to live. Moving the pointer now while calling it "next period"
+would hand the school its new entitlements early and bill it at the old price for the rest of the
+period — so the endpoint does the honest thing instead: **the plan changes when the request is
+made, and the billing period restarts with it.**
+
+Deferring a change is #17's territory, if it is ever wanted: renewal is the moment a period ends,
+which is the only moment a deferred change could take effect.
+
+### What follows the plan, and what survives it
+
+| | |
+|---|---|
+| from the new plan | `billingCycle` and `currencyCode`, always |
+| from the new plan | the price and both capacity ceilings, **unless the request names them** |
+| kept as it is | `autoRenew`, **unless the request names it** |
+| kept as it is | `status`, `billingCustomerReference`, `subscriptionNo`, `current` |
+
+**There are two kinds of absence here, and the difference is deliberate.** A price or a ceiling
+left out takes the **new plan's** figure, because those are terms agreed against a plan.
+`autoRenew` left out keeps **the school's** existing setting, because a plan has no opinion about
+renewal. Verified: a school that turns auto-renewal off and is then moved to Premium without the
+field comes back `autoRenew: false`.
+
+**The new plan is the starting point for everything negotiable**, and the request is how a
+negotiated figure is carried across. A price and a ceiling are agreed against a *particular* plan,
+so moving a school to a different one means those terms are being renegotiated whether or not
+anybody says so. Copying the old figures over silently would be this endpoint inventing terms
+nobody agreed to; re-stating them makes the new arrangement somebody's decision.
+
+Worked through, and verified against the running server:
+
+| The school was on | The request said | It ends on |
+|---|---|---|
+| Premium, negotiated 9,000 students | nothing about ceilings | Starter's own **500 / 50** — the 9,000 is gone |
+| Premium | `maxStudentsOverride: 4000`, `maxUsersOverride: 400` | **4,000 / 400**, and `hasLimitOverrides` true |
+| Starter | `maxStudentsOverride: 3000` only | **3,000 / 250** — the students named, the users from Premium |
+
+That first row is the one to know about: **a negotiated ceiling does not survive a plan change on
+its own.** It is the same rule #13 uses, and the alternative — carrying it across — would quietly
+apply a term agreed for one plan to a different one.
+
+### What it will not do
+
+- **Raise, credit or refund anything.** Nothing writes `subscription_invoices`, so the school is
+  part-way through a period it paid for and this endpoint does not touch that money. It does not
+  ask what should happen to it either: that is a commercial question belonging to whatever raises
+  the invoice, and the module's open-questions list still carries it. The response says so
+  outright, because a plan moved and a payment taken are different facts.
+- **Check that a downgrade is safe.** Nothing counts students yet, so moving a school to a smaller
+  plan may leave it above its new ceiling and nobody would know. The response says so on a
+  downgrade rather than implying the move was verified.
+- **Touch anything #14 owns**, and #14 cannot touch the plan. Two endpoints, because "push the
+  trial out a fortnight" and "move them to Enterprise" are not the same request.
+- **Move a finished subscription.** Cancelled or expired is `409 SUBSCRIPTION_NOT_CHANGEABLE`:
+  there is nothing to move, and the school needs a new subscription.
 
 <a id="e17"></a>
 **[17](#t17) · `POST /platform/schools/{id}/subscriptions/{no}/renew`**

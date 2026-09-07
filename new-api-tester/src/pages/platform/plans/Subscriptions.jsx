@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, CreditCard, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, CreditCard, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
@@ -51,6 +51,7 @@ export default function Subscriptions() {
   const [problem, setProblem] = useState(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [changingPlan, setChangingPlan] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
 
@@ -138,6 +139,7 @@ export default function Subscriptions() {
           subscription={subscription}
           schoolId={schoolId}
           onEdit={() => setEditing(true)}
+          onChangePlan={() => setChangingPlan(true)}
         />
       ) : (
         <Card
@@ -158,6 +160,15 @@ export default function Subscriptions() {
           </div>
         </Card>
       )}
+
+      <ChangePlan
+        open={changingPlan}
+        schoolId={schoolId}
+        subscription={subscription}
+        onClose={() => setChangingPlan(false)}
+        onSaved={async () => { setChangingPlan(false); await load() }}
+        onChanged={async () => { setChangingPlan(false); await load() }}
+      />
 
       <EditSubscription
         open={editing}
@@ -234,7 +245,7 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 
 /* -------------------------------------------------------------- what the school is on */
 
-function TheSubscription({ subscription, schoolId, onEdit }) {
+function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
   const s = subscription
   return (
     <>
@@ -342,6 +353,7 @@ function TheSubscription({ subscription, schoolId, onEdit }) {
               subscription that is already wrong gets corrected. */}
           <div className="toolbar">
             <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
+            <Button icon={ArrowLeftRight} onClick={onChangePlan}>Change the plan</Button>
             <span className="muted">
               Status, plan, price, dates, limits, auto-renewal, the cancellation. One call.
             </span>
@@ -349,6 +361,11 @@ function TheSubscription({ subscription, schoolId, onEdit }) {
             <EndpointTag
               id="edit-subscription"
               name="Edit the terms"
+              pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+            />
+            <EndpointTag
+              id="change-plan"
+              name="Change the plan"
               pathParams={{ id: schoolId, subscriptionNo: 'current' }}
             />
           </div>
@@ -746,6 +763,270 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
                 + (reasonMissing ? '\n\n// plus "reason", which is required and not filled in yet' : '')}
           </pre>
         </details>
+      </div>
+    </Modal>
+  )
+}
+
+/* ------------------------------------------------------------------- move it to another plan */
+
+/**
+ * Moving a school onto a different plan, or a newer version of its own.
+ *
+ * <p>THE TWO THINGS THIS SCREEN HAS TO SAY OUT LOUD, because neither is visible in the fields:
+ * the change is immediate and restarts the billing period, and the money decision moves no money
+ * because nothing raises invoices yet. A form that collected them silently would leave somebody
+ * believing a charge had been raised.
+ */
+function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
+  const { call } = useApi()
+  const [plans, setPlans] = useState(null)
+  const [picked, setPicked] = useState('')
+  const [reason, setReason] = useState('')
+  const [price, setPrice] = useState('')
+  const [maxStudents, setMaxStudents] = useState('')
+  const [maxUsers, setMaxUsers] = useState('')
+  // Three states, not a checkbox: absent leaves the school's setting, which a boolean cannot say.
+  const [renewal, setRenewal] = useState('')
+  const [periodEnd, setPeriodEnd] = useState('')
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open || plans) return
+    let alive = true
+    call('list-plans', {
+      label: 'Plans this school could move to',
+      query: { status: 'ACTIVE', page: 0, size: 100 },
+    }).then((result) => {
+      if (alive) setPlans(result.ok ? (result.bodyJson?.content ?? []) : [])
+    })
+    return () => { alive = false }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, plans])
+
+  if (!open || !subscription) return null
+
+  const onNow = `${subscription.planCode}@${subscription.planVersion}`
+  const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
+  // A CUSTOM cycle has no length, so the API cannot derive an end and refuses without one.
+  const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'
+  const cycleDays = chosen ? DAYS_PER_CYCLE[chosen.billingCycle] : undefined
+
+  // Zero is refused by the API on a plan change — there is nothing to remove — so it is caught
+  // here rather than after a round trip that empties the form.
+  const zeroCeiling = [maxStudents, maxUsers]
+    .some((value) => value.trim() !== '' && Number(value) < 1)
+  const missing = !chosen || !reason.trim() || (needsPeriodEnd && !periodEnd)
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
+    const body = {
+      planCode: chosen.planCode,
+      planVersion: chosen.planVersion,
+      reason: reason.trim(),
+    }
+    // Blank means "the new plan's own figure" for all three — the API's own default, so nothing
+    // is sent. That is also why a negotiated price or ceiling has to be retyped to carry it.
+    if (price.trim()) body.contractedPrice = Number(price)
+    if (maxStudents.trim()) body.maxStudentsOverride = Number(maxStudents)
+    if (maxUsers.trim()) body.maxUsersOverride = Number(maxUsers)
+    // Left blank the field is not sent at all, which is how the school's existing setting is
+    // kept — sending false would turn renewal off for a school that had it on.
+    if (renewal) body.autoRenew = renewal === 'on'
+    if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+
+    const result = await call('change-plan', {
+      label: 'Move it to this plan',
+      pathParams: { id: schoolId, subscriptionNo: 'current' },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setPicked(''); setReason(''); setPrice(''); setMaxStudents(''); setMaxUsers('')
+      setRenewal(''); setPeriodEnd('')
+      await onChanged(result.bodyJson)
+      return
+    }
+    setRefused(result.bodyJson || { message: `The server answered ${result.status}.` })
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Move this school to another plan"
+      description="It takes effect immediately, and the billing period restarts with it."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button look="primary" busy={saving} disabled={missing || zeroCeiling} onClick={submit}>
+            {missing ? 'Choose a plan and say why' : 'Move it to this plan'}
+          </Button>
+          <EndpointTag
+            id="change-plan"
+            name="Move it to this plan"
+            look="primary"
+            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+          />
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code || 'Refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {/* Said before anything is chosen, because both facts change what somebody decides. */}
+        <p className="banner" data-tone="warn">
+          <strong>Immediate, and no money moves.</strong> The plan changes when you send this and
+          the period restarts today on the new plan&apos;s cycle — there is no way to defer it,
+          because a subscription holds one plan rather than a current and a pending one. The school
+          is part-way through a period it paid for and <em>nothing is charged, credited or
+          refunded</em>: nothing raises invoices yet.
+        </p>
+
+        <Field
+          label="Move to"
+          required
+          hint={chosen
+            ? `${money(chosen.listPrice, chosen.currencyCode)} ${chosen.billingCycle.toLowerCase()}, `
+              + `${chosen.maxStudents} students, ${chosen.maxUsers} users`
+              + (cycleDays ? ` · the period would run ${cycleDays} days from today` : '')
+            : `On ${subscription.planCode} v${subscription.planVersion} now. Only published plans are offered.`}
+        >
+          <span className="select" style={{ width: '100%' }}>
+            <select className="select-input" style={{ width: '100%' }}
+              value={picked} onChange={(event) => setPicked(event.target.value)}>
+              <option value="">{plans ? 'Choose a plan…' : 'Loading the plans…'}</option>
+              {(plans ?? [])
+                // The version it is already on is left out: sending it is 409 PLAN_UNCHANGED.
+                .filter((one) => `${one.planCode}@${one.planVersion}` !== onNow)
+                .map((one) => (
+                  <option key={`${one.planCode}@${one.planVersion}`}
+                    value={`${one.planCode}@${one.planVersion}`}>
+                    {one.name} — {one.planCode} v{one.planVersion}
+                    {sellability(one).label ? ` (${sellability(one).label})` : ''}
+                  </option>
+                ))}
+            </select>
+          </span>
+        </Field>
+
+        {/* Which direction this is, worked out from the two list prices, because "upgrade" and
+            "downgrade" change what somebody wants to do about the money. */}
+        {chosen ? (
+          <p className="banner" data-tone={chosen.listPrice > subscription.planListPrice ? undefined : 'warn'}>
+            {chosen.listPrice > subscription.planListPrice ? (
+              <span>
+                <strong>An upgrade.</strong> The plan&apos;s ceilings follow unless this school
+                negotiated its own, which are kept.
+              </span>
+            ) : (
+              <span>
+                <strong>A downgrade.</strong> Nothing checks whether the school is already above
+                the new plan&apos;s limits — nothing counts students yet — so this is not verified
+                as safe.
+              </span>
+            )}
+          </p>
+        ) : null}
+
+        {needsPeriodEnd ? (
+          <Field
+            label="New period ends on"
+            required
+            hint="This plan bills on a CUSTOM cycle, which has no length, so the end date has to be said. The chosen day is included."
+          >
+            <Input type="date" value={periodEnd}
+              onChange={(event) => setPeriodEnd(event.target.value)} />
+          </Field>
+        ) : null}
+
+        {/* Nothing negotiable is carried across on its own: a price and a ceiling are agreed
+            against a particular plan, so a move means they are agreed again. Blank means the new
+            plan's own figure, which is why each box shows what that would be. */}
+        <div className="field-split">
+          Negotiated terms — blank takes the new plan&apos;s own figure
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Agreed price"
+            hint={chosen
+              ? `Blank charges ${money(chosen.listPrice, chosen.currencyCode)}, the new plan's list price.`
+              : "Blank charges the new plan's list price."}
+          >
+            <Input type="number" min="0" step="0.01" value={price}
+              onChange={(event) => setPrice(event.target.value)}
+              placeholder={chosen ? String(chosen.listPrice) : ''} />
+          </Field>
+          <Field
+            label="Student limit"
+            hint={chosen ? `Blank takes the plan's ${chosen.maxStudents}.` : "Blank takes the plan's own."}
+          >
+            <Input type="number" min="1" value={maxStudents}
+              onChange={(event) => setMaxStudents(event.target.value)}
+              placeholder={chosen ? String(chosen.maxStudents) : ''} />
+          </Field>
+          <Field
+            label="User limit"
+            hint={chosen ? `Blank takes the plan's ${chosen.maxUsers}.` : "Blank takes the plan's own."}
+          >
+            <Input type="number" min="1" value={maxUsers}
+              onChange={(event) => setMaxUsers(event.target.value)}
+              placeholder={chosen ? String(chosen.maxUsers) : ''} />
+          </Field>
+        </div>
+
+        {/* The one thing somebody moving a negotiated school has to be told before they send it. */}
+        {chosen && subscription.hasLimitOverrides && !maxStudents.trim() && !maxUsers.trim() ? (
+          <p className="banner" data-tone="warn">
+            <strong>This school&apos;s ceilings are negotiated, and they will not carry over.</strong>{' '}
+            It is on {subscription.maxStudents} students and {subscription.maxUsers} users now;
+            leaving the boxes blank puts it on {chosen.maxStudents} and {chosen.maxUsers}, the new
+            plan&apos;s own. Retype them to keep the arrangement.
+          </p>
+        ) : null}
+
+        <Field
+          label="Renew automatically"
+          hint={`Leave this alone and the school keeps its current setting — ${subscription.autoRenew ? 'on' : 'off'}. A plan has no opinion about renewal, so nothing is assumed.`}
+        >
+          <span className="select" style={{ width: '100%' }}>
+            <select className="select-input" style={{ width: '100%' }}
+              value={renewal} onChange={(event) => setRenewal(event.target.value)}>
+              <option value="">
+                Leave it as it is — {subscription.autoRenew ? 'on' : 'off'}
+              </option>
+              <option value="on">Turn it on</option>
+              <option value="off">Turn it off</option>
+            </select>
+          </span>
+        </Field>
+
+        {zeroCeiling ? (
+          <p className="banner" data-tone="bad">
+            <strong>A limit of 0 is refused here.</strong> There is nothing to remove on a plan
+            change — leave the box blank to take the plan&apos;s own figure. Removing an override
+            is the edit endpoint, where <code className="mono">0</code> means exactly that.
+          </p>
+        ) : null}
+
+        <Field
+          label="Why"
+          required
+          hint="Stored on the subscription as reasonForChanges and on the history row. A plan change moves what the school is entitled to and what it pays."
+        >
+          <Input value={reason} onChange={(event) => setReason(event.target.value)}
+            placeholder="Outgrew Starter's 500 students." />
+        </Field>
       </div>
     </Modal>
   )
