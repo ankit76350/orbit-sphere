@@ -162,7 +162,7 @@ would overrule one. A `CUSTOM` billing cycle is the exception: it has no length 
 the form asks for the period end up front instead of letting you find out via
 `400 BILLING_PERIOD_END_REQUIRED`.
 
-**Activating a trial is not here yet.** `POST …/subscriptions/{no}/activate` (#14) is built but
+**Activating a trial is not here yet.** `POST …/subscriptions/{no}/activate` (#15) is built but
 no screen calls it, so a trial shown on this tab cannot be turned into a paying subscription from
 the UI. `409 SUBSCRIPTION_ALREADY_EXISTS` is still shown with what it means, for the case where
 two people create at once.

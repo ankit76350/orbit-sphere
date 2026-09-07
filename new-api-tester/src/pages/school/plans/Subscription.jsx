@@ -52,7 +52,7 @@ const WITHHELD = [
   ['maxStudentsOverride', 'that a limit was negotiated is a commercial conversation'],
   ['maxUsersOverride', 'the same'],
   ['planCode', 'the internal family key. A school reads the name'],
-  // Added 2026-09-07 with the field itself: #15 writes an operator's note here — "invoice
+  // Added 2026-09-07 with the field itself: #14 writes an operator's note here — "invoice
   // overdue", "renegotiated at renewal" — and handing that to the school turns an internal note
   // into a statement to a customer.
   ['reasonForChanges', "an operator's note on the last edit — written for our records, not theirs"],

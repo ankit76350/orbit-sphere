@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Edits what a school is contracted to. Endpoint #15.
+ * Edits what a school is contracted to. Endpoint #14.
  *
  * <p><b>This replaced extend-trial</b>, and took in #23 (auto-renew) and #24 (limit overrides)
  * with it — three endpoints that each moved one column of the same document, with three sets of

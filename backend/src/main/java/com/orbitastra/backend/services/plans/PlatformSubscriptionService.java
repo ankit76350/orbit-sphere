@@ -218,10 +218,10 @@ public class PlatformSubscriptionService {
                 nextStepFor(savedSubscription, trial, activation));
     }
 
-    //! endpoint 14 — a trial becomes a paying subscription ----------------------------
+    //! endpoint 15 — a trial becomes a paying subscription ----------------------------
 
         /**
-         ** #14 — converts a trial into a paid subscription.
+         ** #15 — converts a trial into a paid subscription.
          *
          * <p>Plan, price, and limits remain unchanged; the trial ends and a fresh paid period starts.
          *
@@ -298,10 +298,10 @@ public class PlatformSubscriptionService {
         return SubscriptionResponse.fromSubscription(saved, plan, activatedNextStep(school, saved));
     }
 
-    //! endpoint 15 — editing what a school is contracted to ---------------------------
+    //! endpoint 14 — editing what a school is contracted to ---------------------------
 
     /**
-     * #15 — edits any of the terms of one subscription.
+     * #14 — edits any of the terms of one subscription.
      *
      * <p><b>This is where extend-trial went, along with #23 and #24.</b> Three endpoints for
      * three columns of one document meant three sets of rules, and a correction that touched two
@@ -831,7 +831,7 @@ public class PlatformSubscriptionService {
      * the question and "which fields moved" is the answer — a reason of "renegotiated" alone does
      * not say what was renegotiated, and a field list alone does not say why.
      *
-     * <p>The blank branch is kept although {@code @NotBlank} makes it unreachable from #15: the
+     * <p>The blank branch is kept although {@code @NotBlank} makes it unreachable from #14: the
      * lifecycle endpoints will share this method, and not all of them will take a reason.
      */
     private String auditReason(List<String> changed, String callerReason) {

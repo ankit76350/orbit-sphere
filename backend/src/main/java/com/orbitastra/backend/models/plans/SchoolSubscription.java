@@ -119,13 +119,13 @@ public class SchoolSubscription extends SchoolBase {
         private String billingCustomerReference;
 
         /**
-         * Why this subscription was last changed. Written by #15 on every edit.
+         * Why this subscription was last changed. Written by #14 on every edit.
          *
          * <p>Example: "Renegotiated at renewal — 20% partner discount."
          *
          * <p><b>The reason for the most recent change, not a history of them.</b> Every edit
          * overwrites it — a reason left standing from an earlier edit would attribute the wrong
-         * explanation to the current state. #15 requires a reason, so an edited subscription
+         * explanation to the current state. #14 requires a reason, so an edited subscription
          * always carries one; null here means nothing has ever edited it.
          *
          * <p>The trail of all of them is {@code subscription_history}: one row per change, with

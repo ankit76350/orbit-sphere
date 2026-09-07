@@ -6196,8 +6196,9 @@ menu for new schools and changes nothing for a school already on it.
     it already happened, and a 200 would hide that.
     The advice changes with the status — PAST_DUE says take the payment,
     SUSPENDED says lift the suspension, CANCELLED and EXPIRED say create a
-    new subscription. None of those states are reachable yet: the
-    endpoints that set them are #15 to #26 and are not built.`,
+    new subscription. Only #14 can put a subscription into one of
+    those states today — the lifecycle endpoints #17 to #22 that would
+    do it properly are not built.`,
           body: null,
         },
         {

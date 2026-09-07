@@ -5,7 +5,7 @@ import java.time.Instant;
 import jakarta.validation.constraints.Size;
 
 /**
- * What to send when a trial turns into a paying subscription. Endpoint #14.
+ * What to send when a trial turns into a paying subscription. Endpoint #15.
  *
  * <p>Every field is optional, and the whole body is too. The ordinary case is "the trial ended
  * and they agreed to buy", which needs nothing said: the paid period starts now and runs for one

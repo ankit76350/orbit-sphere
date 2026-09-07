@@ -66,7 +66,7 @@ public class PlatformSubscriptionController {
                 .body(response);
     }
         /**
-         * Endpoint #14 — converts a trial into a paid subscription.
+         * Endpoint #15 — converts a trial into a paid subscription.
          *
          * <p>Use {@code current} as the subscription number. The plan, price, and limits remain unchanged;
          * a new paid billing period starts.
@@ -87,7 +87,7 @@ public class PlatformSubscriptionController {
     }
 
     /**
-     * Endpoint #15 — edits the terms of one subscription.
+     * Endpoint #14 — edits the terms of one subscription.
      *
      * <p>Use {@code current} as the subscription number for the one the school is on now.
      *
