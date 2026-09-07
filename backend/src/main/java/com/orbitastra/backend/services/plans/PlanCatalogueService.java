@@ -94,7 +94,7 @@ public class PlanCatalogueService {
     private final PlanDefinitionRepository plans;
     private final SchoolSubscriptionRepository subscriptions;
     private final PlanValidator planValidator;
-//! Endpoint 1 — create a draft plan -----------------------------------------------
+    //! Endpoint 1 — create a draft plan -----------------------------------------------
 
         /**
          * Creates a new plan as a draft.
@@ -159,7 +159,7 @@ public class PlanCatalogueService {
                 "Draft created. Nobody can buy it yet: set its features, then publish it. "
                         + "While it is a DRAFT everything about it can still be changed.");
     }
-//! Endpoint 2 — edit a draft ------------------------------------------------------
+    //! Endpoint 2 — edit a draft ------------------------------------------------------
 
         /**
          * Updates the details of a draft plan.
@@ -239,7 +239,7 @@ public class PlanCatalogueService {
                 "Draft updated. It is still a DRAFT, so nobody can buy it and everything about "
                         + "it can still be changed. Publish it when the price is settled.");
     }
-//! Endpoint 3 — set a draft's features --------------------------------------------
+    //! Endpoint 3 — set a draft's features --------------------------------------------
 
     /**
      * #3 — replaces the whole feature list of a draft.
@@ -297,7 +297,7 @@ public class PlanCatalogueService {
                 "Replaced the feature list: " + before + " out, " + replacement.size()
                         + " in. Still a DRAFT, so it can be replaced again before publishing.");
     }
-//! Endpoint 4 — publish a draft ---------------------------------------------------
+    //! Endpoint 4 — publish a draft ---------------------------------------------------
 
     /**
      * #4 — turns a draft into a plan schools can buy.
@@ -392,7 +392,7 @@ public class PlanCatalogueService {
 
         return PlanResponse.fromPlan(savedPlan, nextStep);
     }
-//! Endpoint 6 — retire a plan -----------------------------------------------------
+    //! Endpoint 6 — retire a plan -----------------------------------------------------
 
         /**
          * #6 — retires a plan from the catalogue.
@@ -440,7 +440,7 @@ public class PlanCatalogueService {
                         + "ALREADY on it keep it, at the price and features they were sold, and "
                         + "nothing about their subscription has changed.");
     }
-//! Endpoint 7 — list it publicly, or not ------------------------------------------
+    //! Endpoint 7 — list it publicly, or not ------------------------------------------
 
     /**
      * #7 — says whether a plan shows on the public list.
@@ -507,7 +507,7 @@ public class PlanCatalogueService {
         return PlanResponse.fromPlan(savedPlan,
                 (wanted ? "Now on the public list. " : off) + sellabilityNote(savedPlan));
     }
-//! Endpoint 8 — list the catalogue ------------------------------------------------
+    //! Endpoint 8 — list the catalogue ------------------------------------------------
 
         /**
          ** 8 — lists plans with optional filters, sorting, and pagination.
@@ -572,7 +572,7 @@ public class PlanCatalogueService {
 
         return PageResponse.from(plansPage, PlanSummaryResponse::fromPlan);
         }
-//! Endpoint 9 — one plan's version history ----------------------------------------
+    //! Endpoint 9 — one plan's version history ----------------------------------------
 
     /**
      * #9 — every version of one plan, newest first.
@@ -620,7 +620,7 @@ public class PlanCatalogueService {
 
         return PlanVersionHistoryResponse.fromVersions(versions, schoolCounts, note);
     }
-//! Endpoint 10 — one version in full ----------------------------------------------
+    //! Endpoint 10 — one version in full ----------------------------------------------
 
     /**
      * #10 — one plan version, everything about it, features included.

@@ -47,8 +47,7 @@ public class SchoolProfileService {
     private final CurrentSchoolResolver currentSchool;
     private final CoreValidator coreValidator;
 
-    //? G4 — read the school's own profile ---------------------------------------------
-//! Endpoint G4 — what the school sees about itself --------------------------------
+    //! G4 — read the school's own profile ---------------------------------------------
 
     /**
      * G4 — the school reading its own details. The read behind #6 to #9.
@@ -75,13 +74,13 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(school);
     }
 
-    //? endpoint 6 — the school's own details ------------------------------------------
+    //! endpoint 6 — the school's own details ------------------------------------------
 
     // Gets the current school.
     // Rejects empty updates.
     // Updates only provided fields.
     // Saves the updated school.
-//! Endpoint 6 — the school edits its own details ----------------------------------
+
 
     @Transactional
 
@@ -136,8 +135,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //? endpoint 7 — the postal address ------------------------------------------------
-//! Endpoint 7 — replace the address as one unit -----------------------------------
+    //! endpoint 7 — the postal address ------------------------------------------------
 
     /**
      * Replaces the school's complete postal address.
@@ -160,14 +158,13 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //? endpoint 8 — language and time zone --------------------------------------------
+    //! endpoint 8 — language and time zone --------------------------------------------
 
     //? step 1 - get the current school
     //? step 2 - reject empty updates
     //? step 3 - update locale
     //? step 4 - validate and update time zone
     //? step 5 - save changes
-//! Endpoint 8 — locale, and the time zone behind every date -----------------------
 
     @Transactional
 
@@ -228,8 +225,7 @@ public class SchoolProfileService {
         return SchoolProfileResponse.fromSchool(savedSchool);
     }
 
-    //? endpoint 9 — the logo ----------------------------------------------------------
-//! Endpoint 9 — store the logo URL ------------------------------------------------
+    //! endpoint 9 — the logo ----------------------------------------------------------
 
     /**
     * Replaces or removes the school's logo.

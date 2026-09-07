@@ -135,8 +135,7 @@ public class SchoolPlatformService {
     private final SchoolSubscriptionRepository subscriptions;
     private final CoreValidator coreValidator;
 
-    //? endpoint 1 — create the tenant -------------------------------------------------
-//! Endpoint 1 — provision a new tenant --------------------------------------------
+    //! endpoint 1 — create the tenant -------------------------------------------------
 
     @Transactional
 
@@ -180,8 +179,7 @@ public class SchoolPlatformService {
         return SchoolCreateResponse.fromSchool(savedSchool);
     }
 
-    //? endpoint 2 — finish the setup --------------------------------------------------
-//! Endpoint 2 — seed its roles and number sequences -------------------------------
+    //? endpoint 2 — finish the setup (seed its roles and number sequences) --------------------------------------------------
 
         /**
          * Completes tenant setup with missing sequences and roles.
@@ -231,7 +229,7 @@ public class SchoolPlatformService {
         return CompleteProvisioningResponse.fromSchool(
                 school, sequencesCreated, sequencesPresent, rolesCreated, rolesPresent, roleKeys);
     }
-//! Shared check — why this school cannot go live yet ------------------------------
+    //! Shared check — why this school cannot go live yet ------------------------------
 
         /**
          ** Creates missing number sequences for all types.
@@ -277,7 +275,6 @@ public class SchoolPlatformService {
         return null;
     }
     //? endpoint 3 — activate the school -----------------------------------------------
-//! Endpoint 3 — take the school live ----------------------------------------------
 
         /**
          * Activates a school from TRIAL or PROVISIONING.
@@ -330,10 +327,9 @@ public class SchoolPlatformService {
         return SchoolActivateResponse.fromSchool(
                 savedSchool, firstActivation, subscriptionStatus, subscriptionNote);
     }
-    //? endpoint 4 — suspend -----------------------------------------------------------
+    //? endpoint 4 — suspend (stop the school working, with a reason) -----------------------------------------------------------
 
     // Suspends an ACTIVE school by changing its status to SUSPENDED and storing the reason and time.
-//! Endpoint 4 — stop the school working, with a reason ----------------------------
 
     @Transactional
 
@@ -370,7 +366,6 @@ public class SchoolPlatformService {
     }
 
     //? endpoint 5 — reactivate --------------------------------------------------------
-//! Endpoint 5 — put a suspended school back ---------------------------------------
 
    /**
      * Reactivates a suspended school by changing its status from SUSPENDED to ACTIVE.
@@ -409,7 +404,6 @@ public class SchoolPlatformService {
     }
 
     //? endpoint 10 — change the subdomain ---------------------------------------------
-//! Endpoint 10 — rename the tenant key --------------------------------------------
 
     /**
      * #10 — changes the tenant label a school answers to.
@@ -480,7 +474,6 @@ public class SchoolPlatformService {
     }
 
     //? endpoint G1 — list the schools -------------------------------------------------
-//! Endpoint G1 — the operator's school list ---------------------------------------
 
         /**
          * Lists schools with search, filters, sorting, and pagination.
@@ -554,7 +547,7 @@ public class SchoolPlatformService {
                 schoolPage,
                 SchoolSummaryResponse::fromSchool);
         }
-//! Endpoint G2 — one school in full -----------------------------------------------
+    //! Endpoint G2 — one school in full -----------------------------------------------
 
     /**
      * G2 — reads one school in full for the operator.

@@ -33,8 +33,8 @@ public class NumberSequenceService {
     // derived query methods, so they live on NumberSequenceRepositoryCustom rather than being
     // hand-built with MongoTemplate here — data access belongs in the repository layer.
     private final NumberSequenceRepository numberSequences;
-//! Not an endpoint — the next number for one school and type ----------------------
-
+    
+    //! Not an endpoint — the next number for one school and type ----------------------
     /**
      * Allocates the next number and returns it formatted.
      *
