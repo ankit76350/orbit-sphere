@@ -4,7 +4,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { readableInstant } from '../../../lib/dates.js'
+import { endOfDay, readableInstant } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
@@ -404,6 +404,16 @@ function TheSubscription({ subscription, schoolId, onEdit }) {
 
 /* ------------------------------------------------------------------------ edit the terms */
 
+/**
+ * How long a period runs, per cycle — mirrored from `resolvePeriodEnd` in
+ * PlatformSubscriptionService so the form can say what a sale will produce before making it.
+ *
+ * A mirror can drift, so `npm test` reads those numbers back out of the Java and fails if the two
+ * disagree. `CUSTOM` is absent on purpose: it has no length, which is the whole reason the form
+ * has to ask for a date.
+ */
+const DAYS_PER_CYCLE = { MONTHLY: 30, QUARTERLY: 90, HALF_YEARLY: 180, YEARLY: 365 }
+
 const SUBSCRIPTION_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED', 'EXPIRED']
 const BILLING_CYCLES = ['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']
 
@@ -749,6 +759,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const [picked, setPicked] = useState('')
   const [trial, setTrial] = useState(false)
   const [price, setPrice] = useState('')
+  const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -768,6 +779,17 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
   const chosenSellability = chosen ? sellability(chosen) : null
 
+  // A CUSTOM cycle has no length, so there is nothing for the API to derive and it refuses the
+  // sale with BILLING_PERIOD_END_REQUIRED. The date is asked for here instead of being found out
+  // from a 400.
+  const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'
+  const cycleDays = chosen ? DAYS_PER_CYCLE[chosen.billingCycle] : undefined
+  // What the sale would produce, for the cycles that have a length. The response is what counts;
+  // this is so nobody has to create one to find out.
+  const derivedEnd = cycleDays
+    ? new Date(Date.now() + cycleDays * 86400000).toISOString().slice(0, 10)
+    : null
+
   const submit = async () => {
     setRefused(null)
     setSaving(true)
@@ -775,6 +797,9 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     if (trial) body.trial = true
     // An empty box means "charge the plan's list price". Sending 0 would mean free.
     if (price.trim()) body.contractedPrice = Number(price)
+    // Only for a CUSTOM cycle: every other cycle derives its own end, and sending one would
+    // override a length the plan already implies. The chosen day is included, so end of it.
+    if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
 
     const result = await call('create-subscription', {
       label: 'Give it a subscription', pathParams: { id: schoolId }, body,
@@ -784,6 +809,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
       setPicked('')
       setPrice('')
       setTrial(false)
+      setPeriodEnd('')
       await onCreated(result.bodyJson)
       return
     }
@@ -799,8 +825,13 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button look="primary" busy={saving} disabled={!chosen} onClick={submit}>
-            Create it
+          <Button
+            look="primary"
+            busy={saving}
+            disabled={!chosen || (needsPeriodEnd && !periodEnd)}
+            onClick={submit}
+          >
+            {needsPeriodEnd && !periodEnd ? 'Set the end date first' : 'Create it'}
           </Button>
           <EndpointTag
             id="create-subscription"
@@ -827,6 +858,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
           hint={chosen
             ? `${money(chosen.listPrice, chosen.currencyCode)} ${chosen.billingCycle.toLowerCase()}, `
               + `${chosen.maxStudents} students, ${chosen.maxUsers} users`
+              + (derivedEnd ? ` · sold today the period runs ${cycleDays} days, to ${derivedEnd}` : '')
             : 'Only published plans are offered — a draft would be refused.'}
         >
           <span className="select" style={{ width: '100%' }}>
@@ -868,6 +900,31 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
               </span>
             )}
           </p>
+        ) : null}
+
+        {/* A CUSTOM cycle has no length, so the API cannot derive an end and refuses the sale
+            without one. Asked for here rather than found out from a 400. */}
+        {needsPeriodEnd ? (
+          <>
+            <p className="banner" data-tone="warn">
+              <strong>This plan bills on a CUSTOM cycle, so it has no length.</strong> Every other
+              cycle derives its own end — 30, 90, 180 or 365 days — but a custom contract runs to a
+              date somebody agreed, so it has to be said. Without it the sale is refused with
+              <code className="mono"> 400 BILLING_PERIOD_END_REQUIRED</code>.
+            </p>
+
+            <Field
+              label="Period ends on"
+              required
+              hint="The chosen day is included — it is sent as the last second of it. The period starts today unless the school was sold a backdated contract."
+            >
+              <Input
+                type="date"
+                value={periodEnd}
+                onChange={(event) => setPeriodEnd(event.target.value)}
+              />
+            </Field>
+          </>
         ) : null}
 
         <Field

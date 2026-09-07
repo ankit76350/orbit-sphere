@@ -363,7 +363,11 @@ for (const [label, ok] of withheldChecks) {
 }
 
 console.log('\nThe edit form says what to fill in, and when')
-const editSource = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+const subsSourceFull = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+// Scoped to the edit form, because the create modal in the same file has a date box of its own
+// now and a file-wide count cannot tell the two apart.
+const editSource = subsSourceFull.slice(
+  subsSourceFull.indexOf('function EditForm('), subsSourceFull.indexOf('function NewSubscription('))
 const formChecks = [
   ['the boxes are grouped under headings',
     (editSource.match(/className="field-split"/g) || []).length >= 4],
@@ -380,11 +384,12 @@ const formChecks = [
   ['it is only demanded once something has changed',
     editSource.includes('const reasonMissing = !nothingChanged && !form.reason.trim()')],
   ['and the button says so rather than just refusing', editSource.includes("'Say why first'")],
-  // Two dates, two calendars: the period's two ends.
+  // Two dates, two calendars: the period's two ends. Counted inside the edit form only.
   ['every date is a calendar, not a typed instant',
     (editSource.match(/type="date"/g) || []).length === 2
       && !editSource.includes('An ISO instant')],
-  ['each status says what choosing it means', editSource.includes('const STATUS_MEANS')],
+  // Declared at module level, so read from the whole file rather than the EditForm slice.
+  ['each status says what choosing it means', subsSourceFull.includes('const STATUS_MEANS')],
   // The plan and the money have their own endpoints (#16, #25, #26). No boxes for them, and the
   // form says so rather than leaving it to be noticed.
   ['there is no box for the plan or the money',
@@ -421,9 +426,45 @@ const limitChecks = [
     editSource.includes('copied from the plan when this was sold')],
   // The badge on the card has to mean the same thing.
   ['the card badges only a real negotiation',
-    editSource.includes('{s.hasLimitOverrides ? <Badge tone="brand">negotiated</Badge>')],
+    subsSourceFull.includes('{s.hasLimitOverrides ? <Badge tone="brand">negotiated</Badge>')],
 ]
 for (const [label, ok] of limitChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// A CUSTOM cycle has no length, so the API cannot derive a period end and refuses the sale
+// without one. The form has to ask, or the only way to find out is a 400 with a filled-in form.
+//
+// The form also says what period a sale WOULD produce, which means it mirrors the service's day
+// counts — so this reads those numbers back out of the Java and fails if the two ever disagree.
+console.log('\nA CUSTOM cycle is asked for its end date')
+const serviceSource = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
+  'utf8')
+const cycleDays = Object.fromEntries([...subsSourceFull.matchAll(
+  /(MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]))
+const javaDays = Object.fromEntries([...serviceSource.matchAll(
+  /case (MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY) -> (\d+);/g)].map((m) => [m[1], Number(m[2])]))
+
+const customChecks = [
+  ['the form asks for an end date, and only for CUSTOM',
+    subsSourceFull.includes("chosen?.billingCycle === 'CUSTOM'")
+      && /\{needsPeriodEnd \? \(/.test(subsSourceFull)],
+  ['it will not let the sale go without one',
+    subsSourceFull.includes('disabled={!chosen || (needsPeriodEnd && !periodEnd)}')
+      && subsSourceFull.includes("'Set the end date first'")],
+  ['the chosen day is sent as the end of it', subsSourceFull.includes('endOfDay(periodEnd)')],
+  ['and only for CUSTOM — no other cycle gets an end sent',
+    subsSourceFull.includes('if (needsPeriodEnd) body.currentPeriodEnd')],
+  // The mirror, checked against the source it mirrors.
+  ['the form found four cycle lengths', Object.keys(cycleDays).length === 4],
+  ['the service still states the same four', Object.keys(javaDays).length === 4],
+  ['and they agree', JSON.stringify(cycleDays) === JSON.stringify(javaDays)],
+  // CUSTOM must be absent from the mirror, or the form would derive a length it does not have.
+  ['CUSTOM has no length in either', !('CUSTOM' in cycleDays) && !('CUSTOM' in javaDays)],
+]
+for (const [label, ok] of customChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
