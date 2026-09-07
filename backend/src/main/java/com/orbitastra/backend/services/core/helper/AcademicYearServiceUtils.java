@@ -90,7 +90,7 @@ public class AcademicYearServiceUtils {
      * <p>Only the endpoints that add to the list need it. #20 does not: replacing a calendar
      * assigns a fresh list rather than adding to whatever was there.
      */
-    public List<HolidayDetail> ensureList(AcademicYear year) {
+    public List<HolidayDetail> mutableHolidayList(AcademicYear year) {
         if (year.getHolidays() == null) {
             year.setHolidays(new ArrayList<>());
         }
@@ -105,7 +105,7 @@ public class AcademicYearServiceUtils {
      * <p>The two bulk endpoints report a before-and-after count in their change summary. The
      * single-entry endpoints get their counts from {@code HolidayCalendarResponse} instead.
      */
-    public int sizeOf(AcademicYear year) {
+    public int countClosedDays(AcademicYear year) {
         return year.getHolidays() == null ? 0 : year.getHolidays().size();
     }
 
@@ -119,8 +119,12 @@ public class AcademicYearServiceUtils {
      * both, because a run that adds a weekly off to a day already closed for a festival raises
      * the reason count without raising the day count.
      */
-    public int eventCount(AcademicYear year) {
-        return ensureList(year).stream().mapToInt(d -> d.getEvents().size()).sum();
+    public int countEventsInYear(AcademicYear year) {
+        if (year.getHolidays() == null) {
+            year.setHolidays(new ArrayList<>());
+        }
+
+        return year.getHolidays().stream().mapToInt(d -> d.getEvents().size()).sum();
     }
 
     //! findDay — used by endpoints 21, 22 and DELETE one day --------------------------
@@ -131,8 +135,14 @@ public class AcademicYearServiceUtils {
      * <p>The three endpoints addressed by a single date. #21 treats an absent day as "create
      * it"; the other two treat it as a 404.
      */
-    public Optional<HolidayDetail> findDay(AcademicYear year, LocalDate date) {
-        return ensureList(year).stream().filter(h -> h.getDate().equals(date)).findFirst();
+    public Optional<HolidayDetail> findDayInCalendar(AcademicYear year, LocalDate date) {
+        if (year.getHolidays() == null) {
+            year.setHolidays(new ArrayList<>());
+        }
+
+        return year.getHolidays().stream()
+                .filter(h -> h.getDate().equals(date))
+                .findFirst();
     }
 
     //! hasType — used by endpoints 20 to 23 -------------------------------------------
@@ -145,7 +155,7 @@ public class AcademicYearServiceUtils {
      * refuses a retype that would collide, and #23 <b>skips</b> the date rather than refusing,
      * which is what makes running the generator twice safe.
      */
-    public boolean hasType(HolidayDetail day, HolidayType type) {
+    public boolean dayHasEventOfType(HolidayDetail day, HolidayType type) {
         return day.getEvents().stream().anyMatch(e -> e.getType() == type);
     }
 
@@ -161,14 +171,21 @@ public class AcademicYearServiceUtils {
      * <p>This is what {@code ?type=} means, so both endpoints that take it get the same
      * behaviour and the same two errors rather than each inventing its own.
      */
-    public HolidayEvent resolveEvent(HolidayDetail day, HolidayType type) {
+    public HolidayEvent requireEventOfType(HolidayDetail day, HolidayType type) {
         List<HolidayEvent> events = day.getEvents();
+
+        // Both refusals name what the day IS closed for, so a caller who guessed the wrong type
+        // can see the right one without a second request. Built here rather than borrowed from
+        // describeEventsOnDay, so this method's messages are readable in one place.
+        String reasons = events.stream()
+                .map(e -> e.getName() + " (" + e.getType() + ")")
+                .collect(Collectors.joining(", "));
 
         if (type == null) {
             if (events.size() > 1) {
                 throw ApiException.badRequest("HOLIDAY_TYPE_REQUIRED",
                         day.getDate() + " is closed for " + events.size() + " reasons ("
-                                + describe(day) + "). Add ?type= to say which one you mean.");
+                                + reasons + "). Add ?type= to say which one you mean.");
             }
             return events.get(0);
         }
@@ -178,7 +195,7 @@ public class AcademicYearServiceUtils {
                 .findFirst()
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_ENTRY_NOT_FOUND",
                         "No " + type + " entry on " + day.getDate() + ". That day is closed for "
-                                + describe(day) + "."));
+                                + reasons + "."));
     }
 
     //! describe — used by endpoint 19 and DELETE one day ------------------------------
@@ -191,7 +208,7 @@ public class AcademicYearServiceUtils {
      * under-report what is about to be stranded. Also used by both errors in
      * {@link #resolveEvent}.
      */
-    public String describe(HolidayDetail day) {
+    public String describeEventsOnDay(HolidayDetail day) {
         return day.getEvents().stream()
                 .map(e -> e.getName() + " (" + e.getType() + ")")
                 .collect(Collectors.joining(", "));

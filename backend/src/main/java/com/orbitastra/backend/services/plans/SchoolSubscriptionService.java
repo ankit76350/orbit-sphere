@@ -130,6 +130,9 @@ public class SchoolSubscriptionService {
      * <p>One method, so "is this subscription live" has one answer. The reason is returned rather
      * than a bare boolean because a screen has to say which of these it is: "your subscription
      * was cancelled" and "your period ran out" lead the school to do different things.
+          *
+     * Used by:
+     * - entitlementsFor()
      */
     private String whyNotActive(SchoolSubscription subscription) {
         SubscriptionStatus status = subscription.getStatus();

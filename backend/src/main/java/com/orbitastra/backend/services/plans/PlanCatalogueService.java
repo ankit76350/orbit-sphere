@@ -184,7 +184,7 @@ public class PlanCatalogueService {
         }
 
         //! step 2 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         //! step 3 - only a draft may be edited
         requireDraft(plan, "cannot be edited");
@@ -259,7 +259,7 @@ public class PlanCatalogueService {
             List<PlanFeatureRequest> requests) {
 
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         //! step 2 - only a draft may be changed
         requireDraft(plan, "its features cannot be changed");
@@ -318,7 +318,7 @@ public class PlanCatalogueService {
     public PlanResponse publish(String code, Integer version, PlanPublishRequest request) {
         PlanPublishRequest asked = request == null ? PlanPublishRequest.empty() : request;
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         //! step 2 - only a draft can be published. Refused rather than answered 200, because
         //! "it was already published" and "you just published it" are different facts and a
@@ -403,7 +403,7 @@ public class PlanCatalogueService {
     @Transactional
     public PlanResponse retire(String code, Integer version) {
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         //! step 2 - retiring is terminal, so saying "already retired" matters. There is no way
         //! back: no endpoint returns a plan to DRAFT or ACTIVE.
@@ -465,7 +465,7 @@ public class PlanCatalogueService {
             PlanAvailabilityRequest request) {
 
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         boolean wanted = request.publiclyAvailable();
 
@@ -636,7 +636,7 @@ public class PlanCatalogueService {
      */
     public PlanDetailResponse getVersion(String code, Integer version) {
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlan(code, version);
+        PlanDefinition plan = loadPlanVersion(code, version);
 
         //! step 2 - who is on it
         // TODO: count subscriptions
@@ -652,7 +652,33 @@ public class PlanCatalogueService {
         return PlanDetailResponse.fromPlan(plan, schoolsOnThisVersion, note);
     }
 
-    //* ---------------------------------------------------------------------------------
+    /* 
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    ---------------------------------------------------------------------------------
+    */
 
     /**
      * Why the plan can or cannot be bought right now, in a sentence.
@@ -661,6 +687,9 @@ public class PlanCatalogueService {
      * only one of them is what #7 changes. Without this, a caller who has just made a plan
      * public and still sees {@code sellable: false} has no way to tell which of the other two is
      * missing, and the obvious guess is that the call failed.
+          *
+     * Used by:
+     * - setAvailability()
      */
     private String sellabilityNote(PlanDefinition plan) {
         if (plan.getStatus() == PlanStatus.RETIRED) {
@@ -698,6 +727,11 @@ public class PlanCatalogueService {
      *
      * <p>{@code what} completes the sentence, so each endpoint says which change was refused
      * rather than all of them sharing one vague message.
+          *
+     * Used by:
+     * - updateDraft()
+     * - replaceFeatures()
+     * - publish()
      */
     private void requireDraft(PlanDefinition plan, String what) {
         if (plan.getStatus() != PlanStatus.DRAFT) {
@@ -713,8 +747,16 @@ public class PlanCatalogueService {
      *
      * <p>The code is normalized the same way it was when the plan was created, so a link typed
      * as {@code /plans/premium-plus/versions/1} finds {@code PREMIUM_PLUS} rather than nothing.
+          *
+     * Used by:
+     * - updateDraft()
+     * - replaceFeatures()
+     * - publish()
+     * - retire()
+     * - setAvailability()
+     * - getVersion()
      */
-    private PlanDefinition loadPlan(String code, Integer version) {
+    private PlanDefinition loadPlanVersion(String code, Integer version) {
         String planCode = planValidator.normalizePlanCode(code);
         // TODO: read plan
         return plans.findByPlanCodeAndPlanVersion(planCode, version)

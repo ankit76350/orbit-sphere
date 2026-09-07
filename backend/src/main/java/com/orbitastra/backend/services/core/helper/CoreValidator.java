@@ -255,6 +255,10 @@ public class CoreValidator {
      * a year are days of that year.
      *
      * <p>The one place this comparison is written. Every caller that needs it delegates here.
+          *
+     * Used by:
+     * - validateHolidayWithinYear()
+     * - validateDateWithinYear()
      */
     private boolean isWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
         return !date.isBefore(yearStart) && !date.isAfter(yearEnd);

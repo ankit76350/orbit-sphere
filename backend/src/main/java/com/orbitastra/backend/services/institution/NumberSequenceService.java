@@ -41,7 +41,7 @@ public class NumberSequenceService {
      * step and formats what the counter said before the increment.
      */
     public String next(String schoolId, NumberSequenceType type, String prefixTemplate) {
-        ensureCounter(schoolId, type, prefixTemplate);
+        createCounterIfMissing(schoolId, type, prefixTemplate);
 
         // ONE atomic step. The array element is matched in the query and incremented through the
         // positional operator, and returnNew(false) hands back the document as it was, so the
@@ -50,9 +50,9 @@ public class NumberSequenceService {
         NumberSequence before =
                 numberSequences.allocate(schoolId, type, GLOBAL_SCOPE).orElse(null);
 
-        SequenceCounter counter = before == null ? null : findCounter(before, type);
+        SequenceCounter counter = before == null ? null : findCounterForType(before, type);
         if (counter == null) {
-            // ensureCounter just ran, so this means somebody removed it in between, or the
+            // createCounterIfMissing just ran, so this means somebody removed it in between, or the
             // school's document is gone.
             throw ApiException.conflict("NUMBER_SEQUENCE_MISSING",
                     "The " + type + " number sequence for this school could not be read.");
@@ -76,21 +76,41 @@ public class NumberSequenceService {
         int width = counter.getPaddingWidth() == null ? 6 : counter.getPaddingWidth();
         String suffix = counter.getSuffixTemplate() == null ? "" : counter.getSuffixTemplate();
 
-        return resolve(prefix) + pad(value, width) + resolve(suffix);
+        return fillDatePlaceholders(prefix) + padToWidth(value, width)
+                + fillDatePlaceholders(suffix);
     }
 
     /**
-     * Makes sure the school has a counters document and that this counter is in it.
+     * Makes sure this school has a counters document, and that this counter is inside it.
      *
-     * <p>Two steps, because the array cannot be pushed to before the document exists.
+     * <p><b>Two writes, because the array cannot be pushed to before the document exists.</b> The
+     * document comes first, then the counter — and both are safe to lose a race over, which is
+     * what makes this callable on every allocation rather than only at provisioning time.
+     *
+     * <p>The document is created with a {@code save} rather than an update, so the auditing hook
+     * fills in {@code createdAt} and {@code createdByDocsId}; an update would leave both null.
+     * The unique index on {@code schoolId} is what makes that race safe — the loser catches the
+     * duplicate and carries on, because the document it wanted now exists.
+     *
+     * <p>The counter's own guard is inside {@code addCounterIfAbsent}, which pushes only when no
+     * entry for this type and scope is there. Two callers racing on a school's first admission
+     * both arrive here; one adds it, the other is told it already existed. False is success, not
+     * failure, which is why the answer is not checked.
+     *
+     * Used by:
+     * - next()
      */
-    private void ensureCounter(String schoolId, NumberSequenceType type, String prefixTemplate) {
-        ensureDocument(schoolId);
+    private void createCounterIfMissing(String schoolId, NumberSequenceType type,
+            String prefixTemplate) {
 
-        // The guard is inside addCounterIfAbsent: it pushes only when no entry for this type
-        // and scope is there. Two callers racing on a school's first admission both get here;
-        // one adds it, the other is told it already existed. False is success, not failure,
-        // which is why the answer is not checked.
+        if (!numberSequences.existsBySchoolId(schoolId)) {
+            try {
+                numberSequences.save(NumberSequence.builder().schoolId(schoolId).build());
+            } catch (DuplicateKeyException raced) {
+                // Somebody else created it between the check and the insert. Nothing to do.
+            }
+        }
+
         numberSequences.addCounterIfAbsent(schoolId, SequenceCounter.builder()
                 .sequenceType(type)
                 .scopeKey(GLOBAL_SCOPE)
@@ -102,26 +122,16 @@ public class NumberSequenceService {
     }
 
     /**
-     * Creates the school's counters document if it has none.
+     * Picks this type's counter out of a document that was read back.
      *
-     * <p>A {@code save} rather than an update, so the auditing hook fills in createdAt and
-     * createdByDocsId; an update would leave both null. The unique index on schoolId is what
-     * makes the race safe — the loser catches the duplicate and carries on, because the document
-     * it wanted now exists.
+     * <p>Null when the document has no counters at all, or none for this type and scope — which
+     * the caller reads as "somebody removed it between the seeding and the allocation".
+     *
+     * Used by:
+     * - next()
      */
-    private void ensureDocument(String schoolId) {
-        if (numberSequences.existsBySchoolId(schoolId)) {
-            return;
-        }
-        try {
-            numberSequences.save(NumberSequence.builder().schoolId(schoolId).build());
-        } catch (DuplicateKeyException raced) {
-            // Somebody else created it between the check and the insert. Nothing to do.
-        }
-    }
-
-    /** Finds the counter inside a document that was read back. */
-    private SequenceCounter findCounter(NumberSequence document, NumberSequenceType type) {
+    private SequenceCounter findCounterForType(NumberSequence document,
+            NumberSequenceType type) {
         if (document.getCounters() == null) {
             return null;
         }
@@ -132,7 +142,19 @@ public class NumberSequenceService {
                 .orElse(null);
     }
 
-    private String resolve(String template) {
+    /**
+     * Fills the date placeholders in a prefix or suffix template.
+     *
+     * <p>{@code SUB/{YYYY}/{MM}/} becomes {@code SUB/2026/09/}. Resolved at the moment a number
+     * is handed out and then stored back onto the counter, so a school's numbering cannot change
+     * shape half way through a run.
+     *
+     * <p>UTC, deliberately: a number's shape must not depend on which server allocated it.
+     *
+     * Used by:
+     * - next()
+     */
+    private String fillDatePlaceholders(String template) {
         if (template == null || template.isEmpty()) {
             return "";
         }
@@ -143,7 +165,19 @@ public class NumberSequenceService {
                 .replace("{MM}", String.format("%02d", now.getMonthValue()));
     }
 
-    private String pad(long value, int width) {
+    /**
+     * The counter's value as fixed-width digits — 41 becomes {@code 000041}.
+     *
+     * <p>Fixed width is what makes numbers sort and read alike: {@code SUB/2026/09/000041} next
+     * to {@code SUB/2026/09/000412} lines up, where {@code 41} and {@code 412} do not.
+     *
+     * <p>Width is floored at 1, so a counter stored with 0 or a negative still produces a number
+     * rather than an exception from {@code String.format}.
+     *
+     * Used by:
+     * - next()
+     */
+    private String padToWidth(long value, int width) {
         return String.format("%0" + Math.max(1, width) + "d", value);
     }
 }

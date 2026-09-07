@@ -42,7 +42,7 @@ public final class DefaultRoles {
                 .roleKey("SCHOOL_ADMIN")
                 .name("School Administrator")
                 .description("Full access to every module. The role the first account holds.")
-                .permissions(everyModule(DataScope.SCHOOL,
+                .permissions(permissionsOnEveryModule(DataScope.SCHOOL,
                         PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.EDIT,
                         PermissionAction.DELETE, PermissionAction.APPROVE, PermissionAction.EXPORT))
                 .systemManaged(true)
@@ -54,14 +54,14 @@ public final class DefaultRoles {
                 .name("Teacher")
                 .description("Own classes: attendance, homework, marks. No fees, no staff pay.")
                 .permissions(List.of(
-                        permission(AppModule.ATTENDANCE, DataScope.ASSIGNED,
+                        permissionOnOneModule(AppModule.ATTENDANCE, DataScope.ASSIGNED,
                                 PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.EDIT),
-                        permission(AppModule.HOMEWORK, DataScope.ASSIGNED,
+                        permissionOnOneModule(AppModule.HOMEWORK, DataScope.ASSIGNED,
                                 PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.EDIT),
-                        permission(AppModule.EXAMINATIONS, DataScope.ASSIGNED,
+                        permissionOnOneModule(AppModule.EXAMINATIONS, DataScope.ASSIGNED,
                                 PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.EDIT),
-                        permission(AppModule.TIMETABLE, DataScope.ASSIGNED, PermissionAction.VIEW),
-                        permission(AppModule.STUDENTS, DataScope.ASSIGNED, PermissionAction.VIEW)))
+                        permissionOnOneModule(AppModule.TIMETABLE, DataScope.ASSIGNED, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.STUDENTS, DataScope.ASSIGNED, PermissionAction.VIEW)))
                 .systemManaged(true)
                 .active(true)
                 .build());
@@ -71,13 +71,13 @@ public final class DefaultRoles {
                 .name("Parent or Guardian")
                 .description("Their own child only. Deliberately read-mostly.")
                 .permissions(List.of(
-                        permission(AppModule.STUDENTS, DataScope.OWN, PermissionAction.VIEW),
-                        permission(AppModule.ATTENDANCE, DataScope.OWN, PermissionAction.VIEW),
-                        permission(AppModule.HOMEWORK, DataScope.OWN, PermissionAction.VIEW),
-                        permission(AppModule.EXAMINATIONS, DataScope.OWN, PermissionAction.VIEW),
-                        permission(AppModule.FEES_BILLING, DataScope.OWN, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.STUDENTS, DataScope.OWN, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.ATTENDANCE, DataScope.OWN, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.HOMEWORK, DataScope.OWN, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.EXAMINATIONS, DataScope.OWN, PermissionAction.VIEW),
+                        permissionOnOneModule(AppModule.FEES_BILLING, DataScope.OWN, PermissionAction.VIEW),
                         // CREATE so a parent can start a payment, never EDIT an invoice.
-                        permission(AppModule.FEES_PAYMENTS, DataScope.OWN,
+                        permissionOnOneModule(AppModule.FEES_PAYMENTS, DataScope.OWN,
                                 PermissionAction.VIEW, PermissionAction.CREATE)))
                 .systemManaged(true)
                 .active(true)
@@ -86,16 +86,48 @@ public final class DefaultRoles {
         return roles;
     }
 
-    private static List<RolePermission> everyModule(DataScope scope, PermissionAction... actions) {
+    /**
+     * The same actions on every module in the system, at one scope.
+     *
+     * <p>Only SCHOOL_ADMIN needs this, and it needs it unavoidably: it is the only way the first
+     * person at a new school can configure anything. Narrowing it here produces a tenant nobody
+     * can finish setting up.
+     *
+     * <p>It builds each permission itself rather than calling
+     * {@link #permissionOnOneModule}, so that reading this method tells you the whole of what
+     * SCHOOL_ADMIN gets without following a second one.
+     *
+     * Used by:
+     * - forSchool()
+     */
+    private static List<RolePermission> permissionsOnEveryModule(DataScope scope,
+            PermissionAction... actions) {
+
         List<RolePermission> permissions = new ArrayList<>();
+
         for (AppModule module : AppModule.values()) {
-            permissions.add(permission(module, scope, actions));
+            permissions.add(RolePermission.builder()
+                    .module(module)
+                    .actions(new LinkedHashSet<>(List.of(actions)))
+                    .scope(scope)
+                    .build());
         }
+
         return permissions;
     }
 
-    private static RolePermission permission(AppModule module, DataScope scope,
+    /**
+     * One module, one scope, the listed actions — what TEACHER and GUARDIAN are built from.
+     *
+     * <p>A {@code LinkedHashSet} rather than a list: the actions are a set, and the insertion
+     * order is kept so a stored role reads in the order it was written rather than shuffled.
+     *
+     * Used by:
+     * - forSchool()
+     */
+    private static RolePermission permissionOnOneModule(AppModule module, DataScope scope,
             PermissionAction... actions) {
+
         return RolePermission.builder()
                 .module(module)
                 .actions(new LinkedHashSet<>(List.of(actions)))
