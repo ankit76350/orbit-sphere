@@ -130,8 +130,8 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
 | <a id="t16"></a>16 | [`POST /platform/schools/{id}/subscriptions/{no}/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
-| <a id="t18"></a>18 | [`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`](#e18) | Mark that the bill was not paid on time. The school keeps working — this is the warning stage before anything is switched off. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Separate from #18 so nobody is cut off the day after a due date. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
+| <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t20"></a>20 | [`POST /platform/schools/{id}/subscriptions/{no}/resume`](#e20) | Switch the school back on after it pays. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t21"></a>21 | [`POST /platform/schools/{id}/subscriptions/{no}/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -306,8 +306,9 @@ inventing new ones.
 **Money type.** Every amount is `BigDecimal` stored as Decimal128, already. No endpoint may
 accept or return a floating-point number for money.
 
-**Grace period length.** #18 to #19 need a number of days, and #71 needs the same number. It
-belongs in configuration, not in two services.
+**Grace period length.** #19 needs a number of days and #71 needs the same number. It belongs in
+configuration, not in two services. (This used to say "#18 to #19"; #18 is no longer being
+built.)
 
 **What happens to money on a mid-period plan change.** #16 has to decide: charge the difference
 now, credit it, or start the new plan at the next period. That is a commercial decision, not a
@@ -1363,10 +1364,30 @@ than it tidies.
 - [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `previousStatus`, `newStatus`, `source`, `effectiveAt`
 
 <a id="e18"></a>
-**[18](#t18) · `POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`**
+**[~~18~~](#t18) · ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~** — not being built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `PAST_DUE`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `PAYMENT_PAST_DUE`, `previousStatus` = `ACTIVE`, `newStatus` = `PAST_DUE`, `reason`, `effectiveAt`
+**Dropped on 2026-09-07, before being built.** It would have set `status` to `PAST_DUE` and
+written one `PAYMENT_PAST_DUE` history row. [#14](#e14) already does exactly that:
+
+```
+PATCH /platform/schools/{id}/subscriptions/current
+{ "status": "PAST_DUE", "reason": "Invoice INV/2026/09/000123 unpaid since the 14th." }
+```
+
+It writes the same `PAYMENT_PAST_DUE` row, with the same `previousStatus` and `newStatus`, plus a
+reason it insists on. A dedicated endpoint would have been a second way to reach one field, with
+its own refusals to keep in step — the same reasoning that withdrew [#15](#e15).
+
+**`SubscriptionStatus.PAST_DUE` and `SubscriptionEventType.PAYMENT_PAST_DUE` both stay.** The
+state is real and worth recording; what is gone is a separate door to it.
+
+**The three below are not the same case, and are still planned.** #19 cuts a school off, which
+needs a grace period behind it rather than a field edit; #21 also clears `autoRenew`; #22 also
+sets `current` = false, which #14 deliberately cannot touch. #20, resume, is the one that looks
+most like #18 — worth deciding on its own terms rather than by this precedent.
+
+**The gap in the numbering is deliberate**, for the same reason as #15's: the numbers are
+referenced from the code, from Postman and from the other module READMEs.
 
 <a id="e19"></a>
 **[19](#t19) · `POST /platform/schools/{id}/subscriptions/{no}/suspend`**

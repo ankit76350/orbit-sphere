@@ -814,7 +814,8 @@ export default function SchoolSubscriptionTab({ school }) {
                   {refused.code === 'SUBSCRIPTION_ALREADY_EXISTS' && (
                     <p className="mt-1.5 text-red-800/80">
                       A school gets one current subscription, enforced by a unique partial index.
-                      Changing it is #18–20, none of which are built.
+                      Moving it to another plan is #16, and freeing the flag so a second can be
+                      sold is #22 — neither built.
                     </p>
                   )}
                 </div>
