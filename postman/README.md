@@ -234,6 +234,13 @@ capacity overrides. It replaced extend-trial — pushing a trial's end date out 
   subscription as `reasonForChanges` as well as on the history row — every field this endpoint
   edits is something a school is paying for, so an unexplained change is one nobody can answer
   for later. Blank counts as missing.
+- **The cadence decides the period**, as on #13. Changing `billingCycle` recalculates
+  `currentPeriodEnd` from the start plus the new cycle's days, and moving the start does the same;
+  moving to `CUSTOM` needs `currentPeriodEnd` on the same request, because CUSTOM has no length and
+  the date on record belongs to the cadence being left. An explicit end always wins, and a derived
+  change shows up in the changed-field list — so it is never silent. This **reverses** what the
+  endpoint used to do: leaving the old end in place billed a school for a year while the document
+  said it paid monthly.
 - **Absent means unchanged**, and every field is flat. The two overrides take **`0` to mean
   "remove it"** — Jackson cannot tell an omitted field from an explicit `null`, so zero is what
   says "use the plan's own limit". Negative is a `400`. The period dates are `@NotNull` on the

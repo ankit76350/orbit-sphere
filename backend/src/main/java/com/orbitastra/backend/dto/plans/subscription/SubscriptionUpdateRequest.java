@@ -34,6 +34,12 @@ import jakarta.validation.constraints.Size;
  * an override sent as 0    -> remove it, and fall back to the plan's own limit
  * </pre>
  *
+ * <p><b>One exception, and it is the period end.</b> {@code currentPeriodEnd} is not only replaced
+ * when it is sent — it is <i>recalculated</i> when {@code billingCycle} or
+ * {@code currentPeriodStart} moves and no explicit end came with them, because the cycle is what
+ * decides how long a period runs. It then appears in the changed-field list and the history row
+ * like any other edit, so a derived change is never a silent one.
+ *
  * <p>{@code reason} is the exception: it is not optional, and it is not one of the fields being
  * edited. See its own note.
  *
@@ -90,9 +96,19 @@ public record SubscriptionUpdateRequest(
         /**
          * Example: BillingCycle.MONTHLY
          *
-         * <p>Only the cycle. The period dates are not recalculated from it — an edit that
-         * silently moved the period end would change what the school is billed for while
-         * looking like a change of cadence.
+         * <p><b>The cycle decides the period, so changing it moves {@code currentPeriodEnd}</b> —
+         * recalculated as {@code currentPeriodStart} plus the new cycle's days, and reported in
+         * the changed-field list like any other edit. It has to: an end derived as "start + 365"
+         * is not the end of a MONTHLY period, so leaving it would bill the school for a year while
+         * the document says it pays monthly.
+         *
+         * <p>Send {@code currentPeriodEnd} alongside to say the date yourself; an explicit one
+         * always wins, exactly as on #13.
+         *
+         * <p><b>Moving to {@code CUSTOM} requires {@code currentPeriodEnd} with it</b>, because
+         * CUSTOM has no length to derive from and the stored date belongs to the cadence being
+         * left: {@code 400 BILLING_PERIOD_END_REQUIRED}. Moving <i>away</i> from CUSTOM needs
+         * nothing extra — the new cycle's length settles it.
          */
         BillingCycle billingCycle,
 
@@ -101,6 +117,12 @@ public record SubscriptionUpdateRequest(
          *
          * <p>Checked against the resulting {@code currentPeriodEnd}, whichever of the two moved,
          * so a period cannot be left running backwards by editing one end of it.
+         *
+         * <p><b>Moving the start moves the end with it</b> on the four fixed cycles, since the
+         * end is the start plus the cycle's days — a period that kept its old end would be a
+         * different length from the cadence the school is paying on. Send
+         * {@code currentPeriodEnd} to override that. On a {@code CUSTOM} cycle the end stays put:
+         * it is a date somebody agreed rather than a derivation.
          */
         Instant currentPeriodStart,
 
@@ -108,7 +130,12 @@ public record SubscriptionUpdateRequest(
          * Example: 2027-03-31T23:59:59Z
          *
          * <p><b>This is what extend-trial used to do.</b> Send it alone to push a trial or a paid
-         * period out; nothing else changes.
+         * period out; nothing else changes — sent alone, nothing is derived, because neither the
+         * cycle nor the start moved.
+         *
+         * <p><b>An explicit date always wins.</b> Send it with a new {@code billingCycle} or a new
+         * {@code currentPeriodStart} to say the end yourself instead of taking the derived one.
+         * Required when moving to a {@code CUSTOM} cycle, which has no length to derive from.
          */
         Instant currentPeriodEnd,
 

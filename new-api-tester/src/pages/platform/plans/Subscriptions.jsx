@@ -653,6 +653,23 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
 
   // Every refusal the API would answer with, worked out from the boxes so the answer arrives
   // before the round trip that would empty the form.
+  // The cycle decides how long a period runs, so the end date is the caller's to fill in only on
+  // a CUSTOM cadence. For the four fixed ones the API derives it from the start, which is why the
+  // box is disabled rather than optional — a value there would override a date already decided.
+  const editIsCustomCycle = form.billingCycle === 'CUSTOM'
+  const editCycleDays = DAYS_PER_CYCLE[form.billingCycle]
+  const editDerivedEnd = !editIsCustomCycle && editCycleDays && form.currentPeriodStart
+    ? new Date(new Date(`${form.currentPeriodStart}T00:00:00Z`).getTime()
+      + editCycleDays * 86400000).toISOString().slice(0, 10)
+    : ''
+
+  // Moving TO a CUSTOM cadence needs the date with it: CUSTOM has no length to derive from, and
+  // the stored end belongs to the cadence being left. The API answers 400
+  // BILLING_PERIOD_END_REQUIRED, so it is caught here rather than losing a filled-in form.
+  const customNeedsEnd = editIsCustomCycle
+    && form.billingCycle !== stored.billingCycle
+    && !form.currentPeriodEnd
+
   const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
     && form.currentPeriodEnd < form.currentPeriodStart
   // Three states, not two. #13 writes a figure onto every subscription, copying the plan's when
@@ -703,7 +720,8 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride}
+            disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride
+              || customNeedsEnd}
             onClick={submit}
           >
             {nothingChanged
@@ -780,14 +798,27 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </Field>
           <Field
             label="Period ends on"
-            hint="Push this out to extend a trial — that is all extend-trial ever did. The chosen day is included."
+            required={editIsCustomCycle}
+            hint={editIsCustomCycle
+              ? 'A CUSTOM cadence has no length, so this is the only place the end date comes from. Push it out to extend a trial — that is all extend-trial ever did. The chosen day is included.'
+              : (editDerivedEnd
+                ? `Derived: ${editCycleDays} days from the start, on a ${form.billingCycle} cadence. Switch the cycle to CUSTOM to set it yourself.`
+                : 'Derived from the cycle. Switch to CUSTOM to set it yourself.')}
           >
-            <Input type="date" value={form.currentPeriodEnd} onChange={set('currentPeriodEnd')} />
+            <Input
+              type="date"
+              value={editIsCustomCycle ? form.currentPeriodEnd : (editDerivedEnd || form.currentPeriodEnd)}
+              disabled={!editIsCustomCycle}
+              readOnly={!editIsCustomCycle}
+              onChange={set('currentPeriodEnd')}
+            />
           </Field>
           <Field
             label="Billing cycle"
             wide
-            hint="Only the cadence. The dates above are NOT recalculated from it — an edit that moved the period end would change what the school is billed for while looking like a change of cadence."
+            hint={editIsCustomCycle
+              ? 'A CUSTOM cadence has no length, so the end date has to be said alongside it.'
+              : 'The cadence decides how long a period runs, so changing it moves the period end with it — start plus 30, 90, 180 or 365 days.'}
           >
             <span className="select" style={{ width: '100%' }}>
               <select className="select-input" style={{ width: '100%' }}
@@ -801,6 +832,28 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             </span>
           </Field>
         </div>
+
+        {/* Moving to CUSTOM without a date is a 400. Said before the send, because a refused
+            request loses the other twelve boxes somebody has just filled in. */}
+        {customNeedsEnd ? (
+          <p className="banner" data-tone="bad">
+            <strong>A CUSTOM cadence needs an end date with it.</strong> CUSTOM has no length, so
+            there is nothing to work the period out from — and the date on record
+            ({readableInstant(subscription.currentPeriodEnd)}) was derived from the{' '}
+            {stored.billingCycle} cadence this subscription is leaving. Sending it without one is
+            <code className="mono"> 400 BILLING_PERIOD_END_REQUIRED</code>.
+          </p>
+        ) : null}
+
+        {/* The end date is about to move without anybody typing in that box, so it is said. */}
+        {!editIsCustomCycle && editDerivedEnd && editDerivedEnd !== stored.currentPeriodEnd ? (
+          <p className="banner" data-tone="warn">
+            <strong>The period end moves with this.</strong> It runs to {stored.currentPeriodEnd}{' '}
+            now; on a {form.billingCycle} cadence starting {form.currentPeriodStart} it becomes{' '}
+            <strong>{editDerivedEnd}</strong> — {editCycleDays} days. That changes what the school
+            is billed for, so it is worth being deliberate about.
+          </p>
+        ) : null}
 
         {/* Caught here as well as by the API, because a refused request loses the other twelve
             boxes somebody has just filled in. */}

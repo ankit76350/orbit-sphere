@@ -364,6 +364,10 @@ for (const [label, ok] of withheldChecks) {
 
 console.log('\nThe edit form says what to fill in, and when')
 const subsSourceFull = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
+// One read of the service, used by every section below that cross-checks the screen against it.
+const javaService = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
+  'utf8')
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
 // and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
 // so adding another modal cannot silently widen it.
@@ -410,10 +414,60 @@ const formChecks = [
   ['a negative override is caught, and zero is not',
     editSource.includes('negativeOverride') && !editSource.includes('zeroOverride')
       && editSource.includes("min=\"0\"")],
+  // Each clause on its own, not the whole expression: adding a reason to refuse must not read
+  // as removing the others. This is the third guard that had to be loosened this way.
   ['and the send button refuses all three',
-    editSource.includes('disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride}')],
+    ['nothingChanged', 'reasonMissing', 'periodBackwards', 'negativeOverride']
+      .every((guard) => new RegExp(`disabled=\\{[^}]*${guard}`).test(editSource))],
 ]
 for (const [label, ok] of formChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// The cycle decides how long a period runs, on the edit form as on the sale form: #14 now
+// recalculates currentPeriodEnd when billingCycle or currentPeriodStart moves, so the end box is
+// the caller's to fill only on a CUSTOM cadence.
+console.log('\nOn the edit form the cadence decides the period too')
+const editCycleChecks = [
+  ['the end date is disabled unless the cadence is CUSTOM',
+    editSource.includes("const editIsCustomCycle = form.billingCycle === 'CUSTOM'")
+      && editSource.includes('disabled={!editIsCustomCycle}')
+      && editSource.includes('readOnly={!editIsCustomCycle}')],
+  ['it shows the date the API will derive',
+    editSource.includes('const editDerivedEnd =')
+      && editSource.includes('DAYS_PER_CYCLE[form.billingCycle]')],
+  // All three conditions, not just the constant's name: it has to be the cadence being CUSTOM,
+  // the cadence having actually changed, and no date sent. A version stubbed to a constant
+  // passed the earlier "the name exists" form of this check.
+  ['moving to CUSTOM without a date is caught before sending',
+    /const customNeedsEnd = editIsCustomCycle\s*\n\s*&& form\.billingCycle !== stored\.billingCycle\s*\n\s*&& !form\.currentPeriodEnd/
+      .test(editSource)
+      && /disabled=\{[^}]*customNeedsEnd/.test(editSource)],
+  ['and says why, naming the cadence being left',
+    editSource.includes('A CUSTOM cadence needs an end date with it')
+      && editSource.includes('{stored.billingCycle} cadence this subscription is leaving')],
+  ['a period end about to move on its own is announced',
+    editSource.includes('The period end moves with this')],
+  // The hint used to promise the opposite. It must not still say that.
+  ['the cycle hint no longer says the dates are untouched',
+    !editSource.includes('are NOT recalculated from it')],
+  // The service side of the same rule.
+  ['the service derives the end when the cadence or start moves',
+    javaService.includes('boolean cycleMoved = changed.contains("billingCycle")')
+      && javaService.includes('boolean startMoved = changed.contains("currentPeriodStart")')],
+  ['an explicit end still wins',
+    javaService.includes('if (request.currentPeriodEnd() == null && (cycleMoved || startMoved))')],
+  ['a derived end is reported as a changed field, not applied silently',
+    /setCurrentPeriodEnd\(derivedEnd\);[\s\S]{0,80}changed\.add\("currentPeriodEnd"\)/
+      .test(javaService)],
+  ['moving to CUSTOM is refused without a date',
+    /if \(cycleMoved\) \{[\s\S]{0,400}BILLING_PERIOD_END_REQUIRED/.test(javaService)],
+  // A CUSTOM subscription's end is an agreed date, not a derivation, so a moved start leaves it.
+  ['but a CUSTOM subscription keeps its agreed end when only the start moves',
+    /Only when the cadence itself became CUSTOM/.test(javaService)],
+]
+for (const [label, ok] of editCycleChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
@@ -525,9 +579,6 @@ for (const [label, ok] of saleFillChecks) {
 // give are worked out on the screen so they show on the button instead of arriving as a 409.
 // That mirror can drift, so the renewable statuses are read back out of the Java.
 console.log('\nRenewing is a button, and it says when it would be refused')
-const javaService = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
-  'utf8')
 const javaRenew = javaService.slice(
   javaService.indexOf('public SubscriptionDetailResponse renewSubscription('),
   javaService.indexOf('//! Endpoint 27'))
@@ -702,12 +753,9 @@ for (const [label, ok] of cycleChecks) {
 // The form also says what period a sale WOULD produce, which means it mirrors the service's day
 // counts — so this reads those numbers back out of the Java and fails if the two ever disagree.
 console.log('\nA CUSTOM cycle is asked for its end date')
-const serviceSource = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
-  'utf8')
 const cycleDays = Object.fromEntries([...subsSourceFull.matchAll(
   /(MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]))
-const javaDays = Object.fromEntries([...serviceSource.matchAll(
+const javaDays = Object.fromEntries([...javaService.matchAll(
   /case (MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY) -> (\d+);/g)].map((m) => [m[1], Number(m[2])]))
 
 const customChecks = [

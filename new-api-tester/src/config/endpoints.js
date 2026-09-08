@@ -6309,13 +6309,54 @@ refused before the service sees it.
           id: "05",
           name: "MOVE BOTH ENDS AT ONCE",
           expect: "200 OK",
-          notes: `The dates are NOT recalculated from billingCycle, and changing the
-    cycle does not move them: an edit that silently moved the period end
-    would change what the school is billed for while looking like a change
-    of cadence.`,
+          notes: `An explicit currentPeriodEnd always wins, so sending both dates puts
+    exactly those two on the subscription and derives nothing.
+
+    Leave the end OFF and the cadence decides it — see the next case.`,
           body: `{
   "currentPeriodStart": "2026-04-01T00:00:00Z",
-  "currentPeriodEnd": "2027-03-31T23:59:59Z"
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",
+  "reason": "Contract re-dated."
+}`,
+        },
+        {
+          id: "05b",
+          name: "THE CADENCE DECIDES THE PERIOD",
+          expect: "200 OK",
+          notes: `THE CYCLE MOVES THE END WITH IT. An end derived as "start + 365" is not
+    the end of a MONTHLY period, so leaving it would bill the school for a
+    year while the document said it paid monthly.
+
+    On a MONTHLY subscription, send { "billingCycle": "YEARLY", "reason": … }:
+      OUT: billingCycle YEARLY, currentPeriodEnd = start + 365 days, and the
+           note says "Edited billingCycle, currentPeriodEnd" — a derived
+           change is reported, never silent.
+
+    MOVING THE START does the same on the four fixed cycles:
+      { "currentPeriodStart": "2026-10-01T00:00:00Z", "reason": … }
+        -> the end becomes 2026-10-31 on a MONTHLY cadence.
+
+    MOVING TO CUSTOM NEEDS THE DATE WITH IT:
+      { "billingCycle": "CUSTOM", "reason": … }
+        -> 400 BILLING_PERIOD_END_REQUIRED. CUSTOM has no length, and the
+           date on record belongs to the cadence being left.
+      { "billingCycle": "CUSTOM", "currentPeriodEnd": "2028-01-31T23:59:59Z" }
+        -> 200.
+
+    MOVING AWAY FROM CUSTOM needs nothing extra — the new cycle's length
+    settles it.
+
+    A CUSTOM subscription whose START moves KEEPS its end: that date was
+    somebody's decision, not a derivation.
+
+    An edit touching neither the cycle nor the start derives nothing at all.
+
+    This reverses what this endpoint used to do, which was to leave the dates
+    alone on a cadence change. Reporting the derived field in the changed
+    list is what answers the original worry about a silent re-bill.`,
+          body: `{
+  "billingCycle": "YEARLY",
+  "reason": "Moved to annual billing."
 }`,
         },
         {

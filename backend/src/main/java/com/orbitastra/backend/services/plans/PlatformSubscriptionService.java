@@ -330,12 +330,47 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 5 - the reason goes onto the document as well as the history row. Written only
+        //! step 5 - the cycle decides the period, the same way it does on a sale. A cadence that
+        //! moved leaves the stored end date describing a period nobody is on any more: an end
+        //! derived as "start + 365" is not the end of a MONTHLY period, so keeping it would bill
+        //! the school for a year while the document says it pays monthly.
+        //!
+        //! An explicit currentPeriodEnd always wins, exactly as on #13 — this only fills in the
+        //! date nobody sent. The UI disables that box for the four fixed cycles precisely because
+        //! the cycle already decides it.
+        boolean cycleMoved = changed.contains("billingCycle");
+        boolean startMoved = changed.contains("currentPeriodStart");
+
+        if (request.currentPeriodEnd() == null && (cycleMoved || startMoved)) {
+            if (subscription.getBillingCycle() == BillingCycle.CUSTOM) {
+                //! Only when the cadence itself became CUSTOM. A CUSTOM subscription whose start
+                //! moved keeps its agreed end — that date was somebody's decision, not a
+                //! derivation, and step 7 checks it is still after the new start.
+                if (cycleMoved) {
+                    throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
+                            "Moving " + subscription.getSubscriptionNo() + " to a CUSTOM cycle "
+                                    + "needs currentPeriodEnd with it. CUSTOM has no length, so "
+                                    + "there is nothing to work the period out from — and the "
+                                    + "end date on record was derived from the cadence this "
+                                    + "subscription is leaving.");
+                }
+            } else {
+                Instant derivedEnd = calculateSubscriptionPeriodEnd(null,
+                        subscription.getCurrentPeriodStart(), subscription.getBillingCycle());
+
+                if (!derivedEnd.equals(subscription.getCurrentPeriodEnd())) {
+                    subscription.setCurrentPeriodEnd(derivedEnd);
+                    changed.add("currentPeriodEnd");
+                }
+            }
+        }
+
+        //! step 6 - the reason goes onto the document as well as the history row. Written only
         //! now, because an edit that changed nothing has nothing to explain. No null check: the
         //! request has @NotBlank on it, so an unexplained edit never reaches here.
         subscription.setReasonForChanges(request.reason().trim());
 
-        //! step 6 - the period has to still make sense after the edit, whichever end moved
+        //! step 7 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -346,7 +381,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 7 - one history row for the whole edit, in this same transaction
+        //! step 8 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -365,11 +400,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 8 - the plan is read only so the response can carry its features and limits
+        //! step 9 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(saved);
 
-        //! step 9 - the note is two answers joined here rather than by one helper calling the
+        //! step 10 - the note is two answers joined here rather than by one helper calling the
         //! other: what this edit did, and anything standing about the subscription that a
         //! reader needs whether or not it was edited.
         List<String> note = new ArrayList<>();
