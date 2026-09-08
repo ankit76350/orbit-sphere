@@ -2251,34 +2251,68 @@ than it tidies.
 | `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. **Nothing acts on it** — [#17](#e17) does not consult it. |
 | `currentPeriodEnd` | **on a `CUSTOM` cadence** | An instant, after `currentPeriodStart` (`400 INVALID_BILLING_PERIOD`). Absent means the cadence decides — 30, 90, 180 or 365 days from `currentPeriodStart`. **Which cadence counts is `billingCycle` on this request, and the new plan's otherwise** — never the old plan's: a school moving from a yearly plan to a monthly one gets 30 days, and a yearly plan billed `CUSTOM` needs a date. |
 
-### A finished subscription is how a school comes back
+### Every status may change plan, and the new row is always ACTIVE
 
-**No status is refused.** A `CANCELLED` or `EXPIRED` subscription can be moved onto a plan, and
-that is how a school starts paying again — it used to be `409 SUBSCRIPTION_NOT_CHANGEABLE` on the
-grounds that there was "nothing to move", which mistook what this endpoint does. It never edits the
-row it is given; it retires that row and opens a new one, so the state the old row ended in does
-not constrain the new one at all.
+**No status is refused, and none is carried forward.** A plan change is somebody buying this school
+a plan, so the row it lands on has to be one the school can use — carrying `TRIAL`, `SUSPENDED`,
+`PAST_DUE` or `CANCELLED` onto a plan just bought would sell it something it cannot reach.
 
-Two things follow, and both are the difference between a revival and an ordinary move:
+| The old row was | The new row is |
+|---|---|
+| `ACTIVE` | `ACTIVE` |
+| `TRIAL` | `ACTIVE` — **this is the conversion path**; a trial that starts paying is a plan change, which is why [#15](#e15) was withdrawn |
+| `PAST_DUE` | `ACTIVE` |
+| `SUSPENDED` | `ACTIVE` |
+| `CANCELLED`, `EXPIRED` | `ACTIVE` — a finished subscription is how a school comes back |
 
-| | ordinary move | reviving a `CANCELLED`/`EXPIRED` row |
-|---|---|---|
-| the new row's `status` | carried over — a suspended school stays suspended, a trial stays a trial | **`ACTIVE`** |
-| the new row's `autoRenew` | the school's existing setting, unless the request names it | **`true`**, unless the request names it |
-| the closed row's `currentPeriodEnd` | **trimmed** to the new start, so the periods meet | **left alone** — it really did stop then |
+`CANCELLED` and `EXPIRED` used to be `409 SUBSCRIPTION_NOT_CHANGEABLE` on the grounds that there
+was "nothing to move", which mistook what this endpoint does: it never edits the row it is given,
+it retires that row and opens a new one, so the state the old row ended in does not constrain the
+new one at all.
 
-**Why `autoRenew` is the exception.** [#21](#e21) turns it off on its way out, so "the school's
-existing setting" on a revival is whatever the cancellation set. Carrying that forward would apply
-half of a decision this request is reversing, and leave a freshly bought subscription telling the
-school it does not renew.
+**It also agrees with the school now.** [Step 14](#e16-school-status) takes the school `ACTIVE`
+either way; this used to leave a `SUSPENDED` subscription suspended while doing so, which is a
+state nothing could act on sensibly.
+
+**`autoRenew` is carried across untouched, on every plan change including a revival.** It is the
+school's standing instruction, and absent on the request means "leave it as it is" — no exception.
+
+That has one visible consequence worth knowing: [#21](#e21) turns the flag off on its way out, so a
+revived subscription inherits `autoRenew: false` unless the request names it. Nothing acts on the
+flag, so it costs the school nothing — but its own billing view ([#33](#e33)) reads it, and will say
+a subscription somebody has just bought does not renew. **Send `autoRenew: true` with the revival**
+if it should say otherwise; the `note` points that out when the flag comes across off.
+
+Overriding a school's standing instruction is deliberately the caller's decision rather than
+something this endpoint infers.
+
+### A closed period only ever shrinks
+
+The row being retired has its `currentPeriodEnd` set to the handover **only when that is earlier
+than the end it already has**. One rule, and the *dates* decide it rather than the status:
+
+| The closed row's stored end | What happens |
+|---|---|
+| after the handover — it was still serving | **trimmed** to the handover; leaving it would claim the school was on this plan for months it was not |
+| already at or before the handover — it had stopped | **left alone**; stretching it forward would claim it covered a gap the school was on nothing for |
+
+**Keying on the status instead got the middle case wrong.** A *scheduled* cancellation is
+`CANCELLED` with an end still in the future, and it really was serving until the handover — so it
+does need trimming. Treating every `CANCELLED` row as finished left two rows claiming the same
+days.
+
+**One edge worth knowing.** `currentPeriodStart` may legitimately be earlier than when the old row
+stopped — midnight today, say, against a cancellation at 09:35 the same morning. The rule then
+shortens the closed row to the handover, because the alternative is two overlapping periods. If the
+exact moment the old row stopped matters, ask for a handover at or after it.
 
 **Why the closed row's dates are left alone.** On an ordinary move the two periods meet, because
 the old plan really did serve until the new one took over. A cancelled row did not: it stopped when
 it was cancelled. Moving its end forward would claim it covered a gap the school was on nothing
 for. So the gap stays visible, and the `note` names both dates.
 
-The history row is what records the comeback: `previousStatus` is `CANCELLED` and `newStatus` is
-`ACTIVE`, which is the only place a plan change moves the status at all.
+The history row is what records the move: `previousStatus` is whatever the old row was and
+`newStatus` is `ACTIVE`. They are equal only when the school was already `ACTIVE`.
 
 ### The cadence and the period, and how the two rows meet
 

@@ -397,6 +397,9 @@ const changeEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
   .map((m) => m.index)
   .filter((i) => i > changeStart))
 const changeSource = subsSourceFull.slice(changeStart, changeEnd)
+const javaChangePlan = javaService.slice(
+  javaService.indexOf('public SubscriptionDetailResponse changePlan('),
+  javaService.indexOf('//! Endpoint 17'))
 const javaRenew = javaService.slice(
   javaService.indexOf('public SubscriptionDetailResponse renewSubscription('),
   javaService.indexOf('//! Endpoint 27'))
@@ -458,26 +461,45 @@ for (const [label, ok] of formChecks) {
 // Moving a CANCELLED or EXPIRED subscription onto a plan is how a school comes back. #16 used to
 // refuse it, on the grounds that there was "nothing to move" — which mistook what it does: it
 // retires the row it is given and opens a new one.
-console.log('\nA finished subscription comes back by changing its plan')
+console.log('\nEvery status may change plan, and the new row is always ACTIVE')
 const reviveChecks = [
   ['no status is refused any more',
     !javaService.includes('SUBSCRIPTION_NOT_CHANGEABLE')],
-  ['a finished row is recognised as a revival',
-    javaService.includes('boolean revivingFinished = subscription.getStatus() == SubscriptionStatus.CANCELLED')],
-  ['the new row starts ACTIVE rather than carrying the cancellation',
-    javaService.includes('.status(revivingFinished ? SubscriptionStatus.ACTIVE : subscription.getStatus())')],
-  ['it renews again, unless the request says otherwise',
-    /revivingFinished \? Boolean\.TRUE : subscription\.getAutoRenew\(\)/.test(javaService)],
+  ['a finished row is still recognised, for the note alone',
+    javaChangePlan.includes('boolean revivingFinished = subscription.getStatus() == SubscriptionStatus.CANCELLED')],
+  // EVERY status comes out ACTIVE, not just the revivals: a plan change is somebody buying this
+  // school a plan, so the row it lands on has to be one the school can use.
+  ['the new row always starts ACTIVE, whatever the old one was',
+    javaChangePlan.includes('.status(SubscriptionStatus.ACTIVE)')
+      && !javaChangePlan.includes('.status(subscription.getStatus())')
+      && !javaChangePlan.includes('revivingFinished ? SubscriptionStatus.ACTIVE')],
+  ['and it agrees with what the endpoint does to the school',
+    javaChangePlan.includes('school.setStatus(SchoolStatus.ACTIVE)')],
+  // autoRenew and the closed row's dates still turn on whether the old row had FINISHED — both
+  // are about undoing what a cancellation did, not about what the new row is.
+  // autoRenew is carried across untouched now, with no revival exception — so a revived
+  // subscription inherits the false #21 set, and the note has to say so rather than claim
+  // otherwise. That note was left claiming the opposite when the exception was removed.
+  ['autoRenew is carried across untouched, with no exception',
+    javaChangePlan.includes('.autoRenew(request.autoRenew() == null')
+      && !javaChangePlan.includes('revivingFinished ? Boolean.TRUE')],
+  ['and the note reports it rather than claiming it was turned back on',
+    javaChangePlan.includes('autoRenew is still off')
+      && !javaChangePlan.includes('autoRenew is back on')],
   // The closed row really did stop when it was cancelled.
-  ['the finished row keeps its own dates',
-    /if \(!revivingFinished\) \{\s*\n\s*subscription\.setCurrentPeriodEnd\(periodStart\);/
-      .test(javaService)],
-  ['and a live row is still trimmed to the new start',
-    javaService.includes('subscription.setCurrentPeriodEnd(periodStart);')],
+  // A CLOSED PERIOD ONLY EVER SHRINKS, and the dates decide that — not the status. Keying on
+  // the status got the middle case wrong: a scheduled cancellation is CANCELLED with an end
+  // still in the future, so it really was serving until the handover and does need trimming.
+  // Skipping it left two rows claiming the same days.
+  ['the closed row is never stretched forward',
+    javaChangePlan.includes('if (previousPeriodEnd == null || previousPeriodEnd.isAfter(periodStart)) {')
+      && javaChangePlan.includes('subscription.setCurrentPeriodEnd(periodStart);')],
+  ['and that decision no longer keys on the status',
+    !/revivingFinished\) \{\s*\n\s*subscription\.setCurrentPeriodEnd/.test(javaChangePlan)],
   // The history row is the only place a plan change moves the status.
   ['the history row records the status move',
-    javaService.includes('.previousStatus(previousSubscriptionStatus)')
-      && !/PLAN_CHANGED[\s\S]{0,600}\.previousStatus\(saved\.getStatus\(\)\)/.test(javaService)],
+    javaChangePlan.includes('.previousStatus(previousSubscriptionStatus)')
+      && !javaChangePlan.includes('.previousStatus(saved.getStatus())')],
   ['the note names the gap the school was on nothing for',
     javaService.includes('is time this school was on nothing')],
 ]

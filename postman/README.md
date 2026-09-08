@@ -295,6 +295,12 @@ plan's terms with a `subscriptionNo` of its own.
 - **The cadence can be negotiated here too.** `billingCycle` is optional and absent takes the new
   plan's; whichever applies decides the period and whether `currentPeriodEnd` is required. A negotiated ceiling does **not** carry across: it was agreed against a
   particular plan, so moving to a different one means the terms are agreed again.
+- **No status is refused, and the new row is always `ACTIVE`.** A plan change is somebody buying
+  this school a plan, so the row it lands on has to be usable: `TRIAL` converts this way (which is
+  why #15 was withdrawn), and `CANCELLED`/`EXPIRED` is how a school comes back — that used to be a
+  `409`. Only two things still depend on whether the old row had *finished*: `autoRenew` goes back
+  on, and the closed row's dates are left alone rather than trimmed, because it really did stop
+  then.
 - **It takes the school ACTIVE.** `PROVISIONING`, `ACTIVE` and `SUSPENDED` schools may change plan
   and all three come out `ACTIVE` — this is the one endpoint that **un-suspends**, on the argument
   that a school moving onto a new plan has sorted out whatever the suspension was for. The four

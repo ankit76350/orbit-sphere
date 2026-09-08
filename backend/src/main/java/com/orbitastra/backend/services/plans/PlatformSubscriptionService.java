@@ -473,10 +473,11 @@ public class PlatformSubscriptionService {
      * it was superseded, and writing either of the other two words would put something false in
      * the record.
      *
-     * <p><b>A finished subscription is how a school comes back.</b> No status is refused: moving a
-     * {@code CANCELLED} or {@code EXPIRED} row onto a plan opens a new row at {@code ACTIVE},
-     * renewing again, and leaves the finished row's dates exactly as they were — it really did
-     * stop then, and the gap to the new period is time the school was on nothing. {@code current} is the field that says which row is live, which is why every
+     * <p><b>No status is refused, and the new row is always {@code ACTIVE}.</b> A plan change is
+     * somebody buying this school a plan, so the row it lands on has to be usable — and it now
+     * agrees with what this endpoint does to the school itself. A trial converts this way; a
+     * cancelled subscription comes back this way, with the finished row's dates left exactly as
+     * they were, because it really did stop then. {@code current} is the field that says which row is live, which is why every
      * read of "the school's subscription" goes through
      * {@code findBySchoolIdAndCurrentIsTrue}.
      *
@@ -573,8 +574,11 @@ public class PlatformSubscriptionService {
         //! this endpoint does — it does not edit the old row, it retires it and opens a new one,
         //! so the state the old row ended in does not constrain the new one at all.
         //!
-        //! What that means for the row being opened is worked out in step 12: a revival starts
-        //! ACTIVE rather than carrying a cancellation forward.
+        //! The row that gets opened is ACTIVE whatever the old one was — see step 12. Nothing
+        //! else keys on this flag: autoRenew is carried across untouched like every other
+        //! standing instruction, and the closed row's dates are worked out in step 9 from the
+        //! dates themselves, which are the only thing that knows whether the row was serving.
+        //! All it does now is let the note point out that a cancellation left autoRenew off.
         boolean revivingFinished = subscription.getStatus() == SubscriptionStatus.CANCELLED
                 || subscription.getStatus() == SubscriptionStatus.EXPIRED;
 
@@ -655,10 +659,19 @@ public class PlatformSubscriptionService {
 
         subscription.setCurrent(false);
 
-        //! Its end moves to where the new period begins ONLY if it was still serving. A
-        //! cancelled or expired row already stopped, and moving its end forward would claim it
-        //! covered a gap the school was on nothing for — the opposite of what the dates are for.
-        if (!revivingFinished) {
+        //! ITS END NEVER MOVES FORWARD. A closed period only ever shrinks: this row served
+        //! until the new one starts, or until it stopped on its own, whichever came first.
+        //!
+        //! One rule rather than a branch on the status, and it is the dates that know the
+        //! answer. A live row's end is in the future, so it is trimmed to the handover — leaving
+        //! it would claim the school was on this plan for months it was not. A row that already
+        //! stopped keeps the date it stopped on, because moving that forward would claim it
+        //! covered a gap the school was on nothing for.
+        //!
+        //! Keying on the status instead got the middle case wrong: a SCHEDULED cancellation is
+        //! CANCELLED with an end still in the future, and it really was serving until now — so
+        //! it does need trimming, and skipping it left two rows claiming the same days.
+        if (previousPeriodEnd == null || previousPeriodEnd.isAfter(periodStart)) {
             subscription.setCurrentPeriodEnd(periodStart);
         }
         subscription.setReasonForChanges("Superseded by a plan change to '"
@@ -685,24 +698,13 @@ public class PlatformSubscriptionService {
                 .subscriptionNo(subscriptionNumber)
                 .planDefinitionDocsId(newPlan.getId())
                 .planVersion(newPlan.getPlanVersion())
-                // The state the school was in carries over — a suspended school that changes
-                // plan is still suspended, a trial is still a trial — EXCEPT when the old row
-                // had finished. Carrying CANCELLED or EXPIRED onto a row somebody has just
-                // bought would sell a school a plan it cannot use.
-                .status(revivingFinished ? SubscriptionStatus.ACTIVE : subscription.getStatus())
+                .status(SubscriptionStatus.ACTIVE)
                 .billingCycle(billingCycle)
                 .currentPeriodStart(periodStart)
                 .currentPeriodEnd(periodEnd)
-                // Absent on the request means the school's existing instruction, not the plan's:
-                // a plan has no opinion about renewal.
-                //
-                // The one exception is a revival, where "existing" is whatever the cancellation
-                // set — #21 turns autoRenew off on its way out. Carrying that forward would
-                // apply half of a decision this request is reversing, and leave a freshly bought
-                // subscription telling the school it does not renew.
-                .autoRenew(request.autoRenew() != null
-                        ? request.autoRenew()
-                        : (revivingFinished ? Boolean.TRUE : subscription.getAutoRenew()))
+                .autoRenew(request.autoRenew() == null
+                        ? subscription.getAutoRenew()
+                        : request.autoRenew())
                 .contractedPrice(newPrice)
                 .currencyCode(newPlan.getCurrencyCode())
                 .maxStudentsOverride(newMaxStudents)
@@ -793,12 +795,30 @@ public class PlatformSubscriptionService {
         List<String> note = new ArrayList<>();
         note.add(describePlanMove(previousPlan, newPlan, saved, previousSubscriptionNo));
 
-        if (revivingFinished) {
-            note.add("This school was " + previousSubscriptionStatus + " and is paying again: "
-                    + previousSubscriptionNo + " ended on " + previousPeriodEnd + " and its dates "
-                    + "were left alone, because it really did stop then — the gap between that "
-                    + "and " + periodStart + " is time this school was on nothing. The new row "
-                    + "starts ACTIVE, and renews again unless the request said otherwise.");
+        if (previousSubscriptionStatus != SubscriptionStatus.ACTIVE) {
+            note.add("It was " + previousSubscriptionStatus + " and the new row is ACTIVE: a "
+                    + "plan change is somebody buying this school a plan, so the row it lands on "
+                    + "is one the school can use.");
+        }
+
+        if (previousPeriodEnd != null && !previousPeriodEnd.isAfter(periodStart)) {
+            note.add(previousSubscriptionNo + " kept its own end of " + previousPeriodEnd
+                    + ", because it had already stopped by then — a closed period is only ever "
+                    + "shortened, never stretched forward. The gap between that and "
+                    + periodStart + " is time this school was on nothing.");
+        }
+
+        //! autoRenew is the school's standing instruction and is carried across untouched, so a
+        //! revival inherits whatever the cancellation left — #21 turns it off on its way out.
+        //! Nothing enforces the flag, so this costs the school nothing; what it does do is make
+        //! its own billing view (#33) say a subscription somebody has just bought does not renew.
+        //! Said here rather than quietly corrected, because overriding a standing instruction is
+        //! the caller's decision to make.
+        if (revivingFinished && Boolean.FALSE.equals(saved.getAutoRenew())) {
+            note.add("autoRenew is still off: the cancellation turned it off and this request "
+                    + "did not name it, so it carried across. Nothing acts on the flag, but the "
+                    + "school's own billing view reads it — send autoRenew: true if this "
+                    + "subscription should say it renews.");
         }
 
         note.add(schoolNote);

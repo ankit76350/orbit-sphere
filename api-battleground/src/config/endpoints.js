@@ -6558,6 +6558,56 @@ plan needs an end date, so does a \`YEARLY\` plan billed \`CUSTOM\`, and a \`CUS
 A future \`currentPeriodStart\` does **not** delay the plan change — the pointer still moves now.
 It moves when the new billing period opens.
 
+### Every status may change plan, and the new row is always ACTIVE
+
+**No status is refused, and none is carried forward.** A plan change is somebody buying this school
+a plan, so the row it lands on has to be one the school can use — carrying \`TRIAL\`, \`SUSPENDED\`,
+\`PAST_DUE\` or \`CANCELLED\` onto a plan just bought would sell it something it cannot reach.
+
+| The old row was | The new row is |
+|---|---|
+| \`ACTIVE\` | \`ACTIVE\` |
+| \`TRIAL\` | \`ACTIVE\` — **the conversion path**; a trial that starts paying is a plan change, which is why #15 was withdrawn |
+| \`PAST_DUE\`, \`SUSPENDED\` | \`ACTIVE\` |
+| \`CANCELLED\`, \`EXPIRED\` | \`ACTIVE\` — a finished subscription is how a school comes back |
+
+\`CANCELLED\` and \`EXPIRED\` used to be \`409 SUBSCRIPTION_NOT_CHANGEABLE\` for having "nothing to
+move", which mistook what this endpoint does: it never edits the row it is given, it retires that
+row and opens a new one, so the state the old row ended in does not constrain the new one.
+
+It also **agrees with what this endpoint does to the school**, which it takes \`ACTIVE\` either way.
+This used to leave a \`SUSPENDED\` subscription suspended while doing that — a state nothing could
+act on sensibly.
+
+\`autoRenew\` is **carried across untouched** on every plan change, revival included: it is the
+school's standing instruction, and absent means "leave it as it is".
+
+One consequence: #21 turns the flag off on its way out, so a revived subscription inherits
+\`autoRenew: false\` unless the request names it. Nothing acts on the flag, but the school's own
+billing view (#33) reads it and will say a subscription just bought does not renew. Send
+\`autoRenew: true\` with the revival if it should say otherwise — the \`note\` points that out when
+the flag comes across off.
+
+### A closed period only ever shrinks
+
+The retired row's \`currentPeriodEnd\` moves to the handover **only when that is earlier than the
+end it already has**. One rule, and the DATES decide it rather than the status:
+
+| The closed row's stored end | What happens |
+|---|---|
+| after the handover — still serving | **trimmed** to the handover |
+| at or before it — already stopped | **left alone**; stretching it forward would claim it covered a gap the school was on nothing for |
+
+Keying on the status got the middle case wrong: a *scheduled* cancellation is \`CANCELLED\` with an
+end still in the future, so it really was serving until the handover and does need trimming.
+
+One edge: \`currentPeriodStart\` may be earlier than when the old row stopped — midnight today
+against a cancellation at 09:35. The closed row is then shortened to the handover, because the
+alternative is two overlapping periods.
+
+The history row records the move: \`previousStatus\` is whatever the old row was and \`newStatus\` is
+\`ACTIVE\`. They are equal only when the school was already \`ACTIVE\`.
+
 ### It asks nothing about the money, and moves none
 
 The school is part-way through a period it has paid for, and this endpoint **charges, credits and
@@ -6778,8 +6828,11 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
     so the state the old row ended in does not constrain the new one.
 
     Cancel a subscription (immediate: true), then send this.
-    OUT: 200, and a revival differs from an ordinary move in three ways:
-           status      ACTIVE, not the CANCELLED carried over
+    OUT: 200. The new row is ACTIVE — true of EVERY plan change, not just a
+         revival: TRIAL, SUSPENDED, PAST_DUE and CANCELLED all come out
+         ACTIVE, because a plan change is somebody buying this school a plan.
+
+         Two things are specific to reviving a FINISHED row:
            autoRenew   true, unless the request names it — #21 turned it off
                        on its way out, and carrying that forward would apply
                        half of a decision this request reverses

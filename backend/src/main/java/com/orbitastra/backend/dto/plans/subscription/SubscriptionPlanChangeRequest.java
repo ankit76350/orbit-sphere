@@ -33,10 +33,11 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>What follows the plan, and what survives it</h2>
  *
- * <p><b>A finished subscription is how a school comes back.</b> No status is refused. Moving a
- * {@code CANCELLED} or {@code EXPIRED} subscription onto a plan opens the new row at
- * {@code ACTIVE} and renewing again, because carrying a cancellation onto a plan somebody has
- * just bought would sell a school something it cannot use.
+ * <p><b>No status is refused, and the new row is always {@code ACTIVE}.</b> A plan change is
+ * somebody buying this school a plan, so the row it lands on has to be one the school can use —
+ * carrying {@code TRIAL}, {@code SUSPENDED}, {@code PAST_DUE} or {@code CANCELLED} onto a plan
+ * just bought would sell it something it cannot reach. For a trial that is the conversion path;
+ * for a cancelled subscription it is how a school comes back.
  *
  * <pre>
  * from the new plan   -> currencyCode
