@@ -11,15 +11,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionCancelRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionResumeRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionSuspendRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
 import jakarta.validation.Valid;

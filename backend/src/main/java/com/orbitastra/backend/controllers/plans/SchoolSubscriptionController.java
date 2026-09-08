@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
-import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse;
-import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.plans.SchoolSubscriptionService;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
