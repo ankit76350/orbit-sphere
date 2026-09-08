@@ -452,6 +452,35 @@ for (const [label, ok] of formChecks) {
   if (!ok) fail++
 }
 
+// The subscription card's actions: one row per action, each with the endpoint it calls beside it.
+// They used to share a row with all three tags collected at the right, which wrapped onto a
+// second line and left the reader pairing buttons to endpoints by position.
+console.log('\nEach action sits on its own row with its endpoint')
+const actionRows = [...subsSourceFull.matchAll(/<div className="toolbar">([\s\S]*?)<\/div>/g)]
+  .map((m) => m[1])
+  .filter((row) => /<EndpointTag/.test(row) && /<Button/.test(row))
+const cardRows = actionRows.filter((row) => /(onEdit|onChangePlan|onRenew)/.test(row))
+const rowChecks = [
+  ['there are three action rows', cardRows.length === 3],
+  ['each holds exactly one button',
+    cardRows.every((row) => (row.match(/<Button/g) || []).length === 1)],
+  ['and exactly one endpoint tag',
+    cardRows.every((row) => (row.match(/<EndpointTag/g) || []).length === 1)],
+  ['the pairing is right in each',
+    /onEdit[\s\S]{0,500}id="edit-subscription"/.test(subsSourceFull)
+      && /onChangePlan[\s\S]{0,500}id="change-plan"/.test(subsSourceFull)
+      && /onRenew[\s\S]{0,700}id="renew-subscription"/.test(subsSourceFull)],
+  ['the tag is pushed to the right of its own row',
+    cardRows.every((row) => /toolbar-spacer[\s\S]*<EndpointTag/.test(row))],
+  // Each row says what its action does, rather than one hint serving all three.
+  ['each row says what its action does',
+    cardRows.every((row) => /className="muted"/.test(row))],
+]
+for (const [label, ok] of rowChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // #16 got the same three controls as #13 and #14: a cadence from the new plan, a required start,
 // and an end that is only the caller's to give on CUSTOM.
 console.log('\nThe plan-change form names its period too')

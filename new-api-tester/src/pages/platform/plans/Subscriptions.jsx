@@ -413,40 +413,59 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
             </p>
           ) : null}
 
-          {/* Editing is not a trial-only action, and not a lifecycle one either: it is how a
-              subscription that is already wrong gets corrected. */}
-          <div className="toolbar">
-            <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
-            <Button icon={ArrowLeftRight} onClick={onChangePlan}>Change the plan</Button>
-            {/* No modal: #17 takes no body, so there is nothing to fill in. It is disabled with
-                the reason on it when the API would refuse, rather than sending a 409 to find
-                out — the same thing the plan picker does with an unsellable plan. */}
-            <Button
-              icon={RotateCw}
-              busy={renewing}
-              disabled={Boolean(renewRefusal)}
-              onClick={onRenew}
-            >
-              {renewRefusal ? 'Cannot renew yet' : (needsEndDate ? 'Renew…' : 'Renew')}
-            </Button>
-            <span className="muted">
-              {renewRefusal
-                ?? (needsEndDate
-                  ? 'A CUSTOM cycle has no length, so it asks when the next period ends.'
-                  : 'Starts the next period on identical terms. No body to fill in.')}
-            </span>
-            <span className="toolbar-spacer" />
-            <EndpointTag
-              id="edit-subscription"
-              name="Edit the terms"
-              pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-            />
-            <EndpointTag
-              id="change-plan"
-              name="Change the plan"
-              pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-            />
-            <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
+          {/* ONE ROW PER ACTION, each with the endpoint it calls beside it. The three used to
+              share a row with all three tags collected at the far right, which left the reader
+              matching buttons to endpoints by position — and the pairing is the whole point of
+              the tag. Editing is not a trial-only action, and not a lifecycle one either: it is
+              how a subscription that is already wrong gets corrected. */}
+          <div className="stack">
+            <div className="toolbar">
+              <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
+              <span className="muted">
+                Status, dates, cadence, limits, auto-renewal. Only what changed is sent.
+              </span>
+              <span className="toolbar-spacer" />
+              <EndpointTag
+                id="edit-subscription"
+                name="Edit the terms"
+                pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+              />
+            </div>
+
+            <div className="toolbar">
+              <Button icon={ArrowLeftRight} onClick={onChangePlan}>Change the plan</Button>
+              <span className="muted">
+                Closes this row and opens one on the new plan&apos;s terms.
+              </span>
+              <span className="toolbar-spacer" />
+              <EndpointTag
+                id="change-plan"
+                name="Change the plan"
+                pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+              />
+            </div>
+
+            <div className="toolbar">
+              {/* No modal unless the cadence is CUSTOM: #17 takes no body otherwise, so there is
+                  nothing to fill in. Disabled with the reason on it when the API would refuse,
+                  rather than sending a 409 to find out. */}
+              <Button
+                icon={RotateCw}
+                busy={renewing}
+                disabled={Boolean(renewRefusal)}
+                onClick={onRenew}
+              >
+                {renewRefusal ? 'Cannot renew yet' : (needsEndDate ? 'Renew…' : 'Renew')}
+              </Button>
+              <span className="muted">
+                {renewRefusal
+                  ?? (needsEndDate
+                    ? 'A CUSTOM cycle has no length, so it asks when the next period ends.'
+                    : 'Starts the next period on identical terms. No body to fill in.')}
+              </span>
+              <span className="toolbar-spacer" />
+              <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
+            </div>
           </div>
 
           {/* What a renewal does NOT do, said before it is sent rather than read off the note
