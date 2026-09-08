@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
@@ -184,8 +185,9 @@ public class AcademicYearServiceUtils {
         if (type == null) {
             if (events.size() > 1) {
                 throw ApiException.badRequest("HOLIDAY_TYPE_REQUIRED",
-                        day.getDate() + " is closed for " + events.size() + " reasons ("
-                                + reasons + "). Add ?type= to say which one you mean.");
+                        Dates.readable(day.getDate()) + " is closed for " + events.size()
+                                + " reasons (" + reasons
+                                + "). Add ?type= to say which one you mean.");
             }
             return events.get(0);
         }
@@ -194,7 +196,8 @@ public class AcademicYearServiceUtils {
                 .filter(e -> e.getType() == type)
                 .findFirst()
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_ENTRY_NOT_FOUND",
-                        "No " + type + " entry on " + day.getDate() + ". That day is closed for "
+                        "No " + type + " entry on " + Dates.readable(day.getDate())
+                                + ". That day is closed for "
                                 + reasons + "."));
     }
 

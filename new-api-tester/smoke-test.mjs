@@ -378,7 +378,7 @@ const javaService = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
   'utf8')
 const createRequestSource = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/request/SubscriptionCreateRequest.java',
   'utf8')
 const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
 const css = readFileSync('src/styles/components.css', 'utf8')
@@ -388,17 +388,48 @@ const statusEnum = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/models/plans/enums/SubscriptionStatus.java',
   'utf8')
 const editRequestSource = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionUpdateRequest.java',
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/request/SubscriptionUpdateRequest.java',
   'utf8')
 const changeRequestSource = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionPlanChangeRequest.java',
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/request/SubscriptionPlanChangeRequest.java',
   'utf8')
 const renewRequestSource = readFileSync(
-  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionRenewRequest.java',
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/request/SubscriptionRenewRequest.java',
   'utf8')
 // The generated catalogue both apps read. It is documentation the user acts on, so a promise it
 // makes that the API no longer keeps is a real defect.
 const endpointsSource = readFileSync('src/config/endpoints.js', 'utf8')
+const datesUtil = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/common/time/Dates.java', 'utf8')
+// Every model, concatenated, so the date-typed getter names can be read off them rather than
+// guessed at from a list somebody has to remember to update.
+const modelSources = (function readModels(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) return readModels(full)
+    return entry.name.endsWith('.java') ? [readFileSync(full, 'utf8')] : []
+  })
+})('../backend/src/main/java/com/orbitastra/backend/models').join('\n')
+// Every service that puts a date in a message, so none of them can quietly go back to
+// concatenating an instant.
+const messageSources = [
+  ['PlatformSubscriptionService', javaService],
+  ['SchoolSubscriptionService', readFileSync(
+    '../backend/src/main/java/com/orbitastra/backend/services/plans/SchoolSubscriptionService.java',
+    'utf8')],
+  ['PlanCatalogueService', readFileSync(
+    '../backend/src/main/java/com/orbitastra/backend/services/plans/PlanCatalogueService.java',
+    'utf8')],
+  ['AcademicYearService', readFileSync(
+    '../backend/src/main/java/com/orbitastra/backend/services/core/AcademicYearService.java',
+    'utf8')],
+  ['AcademicYearServiceUtils', readFileSync(
+    '../backend/src/main/java/com/orbitastra/backend/services/core/helper/AcademicYearServiceUtils.java',
+    'utf8')],
+  ['CoreValidator', readFileSync(
+    '../backend/src/main/java/com/orbitastra/backend/services/core/helper/CoreValidator.java',
+    'utf8')],
+]
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
 // and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
 // so adding another modal cannot silently widen it.
@@ -819,8 +850,13 @@ const endChecks = [
     javaService.includes('CANCELLATION_ALREADY_SCHEDULED')
       && /if \(!request\.isImmediate\(\)\) \{[\s\S]{0,300}CANCELLATION_ALREADY_SCHEDULED/
         .test(javaService)],
+  // The immediate shape trims currentPeriodEnd to now, so the date the school had actually paid
+  // for survives only in the history row's reason. Asserted on the reason carrying paidUntil at
+  // all, not on how it is concatenated — it used to pin `" + paidUntil`, which broke the moment
+  // the date started going through the readable-date helper.
   ['the history row keeps the date the immediate shape overwrites',
-    javaService.includes('The period paid ') && javaService.includes('" + paidUntil')],
+    javaService.includes('The period paid ')
+      && /\.reason\(\(request\.isImmediate\(\)[\s\S]{0,400}paidUntil/.test(javaService)],
   // The screen side.
   ['the card offers it on its own row',
     subsSourceFull.includes('function whyEndWouldRefuse(')
@@ -940,8 +976,10 @@ const changePeriodChecks = [
   ['and takes a cadence, absent meaning the new plan\'s',
     changeRequestSource.includes('BillingCycle billingCycle')
       && javaService.includes('BillingCycle billingCycle = request.billingCycle() == null')],
+  // Asserted on the ARGUMENTS rather than the line-wrapping: pinning the wrap broke as soon as
+  // the helper gained its zone parameter, and the wrap was never the point.
   ['the service derives the period from the cadence being moved onto',
-    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\),\s*\n\s*periodStart, billingCycle\)/
+    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\),\s*\n?\s*periodStart,\s*billingCycle,/
       .test(javaService)],
   // ONE CADENCE RULE, IN ONE PLACE. #16 used to carry its own CUSTOM check beside the call; the
   // helper now decides for #13, #14, #16 and #17 alike, so the inline one was dead code that
@@ -1114,6 +1152,94 @@ console.log('\nA billing period cannot start in the past')
 // Checked because I have broken it twice: once by extracting logic that had a single caller, and
 // once by pulling a day table out of calculateSubscriptionPeriodEnd into a second helper it then
 // called. Both read fine in isolation; neither survives the rule.
+// A DATE IN A MESSAGE IS READ BY A PERSON. Fields stay ISO-8601 because a program parses them;
+// messages spell the date out, because "2027-10-08T23:59:59Z" in the middle of a sentence is
+// something nobody reads. One helper renders all of them.
+console.log('\nDates in messages are spelled out')
+// Any date-typed value concatenated straight into a string, anywhere in the services that build
+// messages. This is the check that actually holds the line: a new message can be written without
+// going through the helper, and nothing else would notice.
+//
+// IT SCANS STATEMENTS, NOT LINES, and both of those words were learnt the hard way. The first
+// version looked only for GETTERS preceded by `+ "` on ONE line, and three separate mutations
+// walked through the gaps:
+//   - locals   `+ previousPeriodEnd`  — most of these dates are locals, not getters
+//   - wrapping `+ previousPeriodEnd`  — alone on its continuation line, with no quote on it
+//   - ternary  `: "sold on " + x`     — a string with no `+` in front of it
+// Rebuilding it around `;`-delimited statements with the whitespace flattened found eighteen
+// live sites the line version had missed, and four more after that.
+const dateGetters = [...modelSources.matchAll(/private (?:Instant|LocalDate|LocalDateTime) (\w+);/g)]
+  .map((m) => 'get' + m[1][0].toUpperCase() + m[1].slice(1))
+const rawDates = messageSources.flatMap(([name, src]) => {
+  const locals = [...src.matchAll(/\b(?:Instant|LocalDate|LocalDateTime)\s+(\w+)\s*[=,);]/g)]
+    .map((m) => m[1])
+  const idents = [...new Set([...locals, ...dateGetters])].sort((a, b) => b.length - a.length)
+  const found = []
+  let at = 0
+  for (const stmt of src.split(';')) {
+    const startedAt = at
+    at += stmt.length + 1
+    if (!stmt.includes('"')) continue
+    // anything already inside Dates.readable(...) is exactly what we want to see
+    const flat = stmt.replace(/Dates\.readable\([^;]*?\)/g, 'OK').replace(/\s+/g, ' ')
+    for (const id of idents) {
+      const e = '(?<![\\w.])(?:\\w+\\.)?' + id + '(?:\\(\\))?(?![\\w])'
+      if (new RegExp('" *\\+ *' + e + ' *(?:\\+|\\)|,|$)').test(flat)
+        || new RegExp(e + ' *\\+ *"').test(flat)) {
+        const line = src.slice(0, startedAt).split('\n').length
+        found.push(`${name}:~${line} [${id}]`)
+        break
+      }
+    }
+  }
+  return found
+})
+const dateChecks = [
+  [`no service concatenates a raw date${rawDates.length ? ': ' + rawDates.join(' | ') : ''}`,
+    rawDates.length === 0],
+  ['the helper exists, in common rather than in a service',
+    datesUtil.includes('public final class Dates')
+      && datesUtil.includes('package com.orbitastra.backend.common.time;')],
+  // The format the user asked for: weekday, day, month, year, then the time.
+  ['it renders "Friday 8 October 2027 10:01PM"',
+    datesUtil.includes('"EEEE d MMMM yyyy h:mma"')],
+  // Locale.ENGLISH is not optional: en_IN renders "10:01pm" in lower case, and a JVM started
+  // elsewhere would render the month in another language. An API message is part of the contract.
+  ['the locale is pinned, not taken from the JVM',
+    (datesUtil.match(/Locale\.ENGLISH/g) || []).length >= 2
+      && !/DateTimeFormatter\.ofPattern\("[^"]+"\)/.test(datesUtil)],
+  // A LocalDate is already a day; inventing a time for it would invent information.
+  ['a LocalDate keeps its own form, with no invented time',
+    datesUtil.includes('"EEEE d MMMM yyyy"')
+      && /public static String readable\(LocalDate date\)/.test(datesUtil)],
+  ['and a null date reads as text rather than the word null',
+    datesUtil.includes('NOT_SET = "(not set)"')],
+  // THE ZONE DECIDES THE CALENDAR DAY: midnight in Asia/Kolkata is 18:30Z the day before, so a
+  // school-owned date rendered in UTC names the wrong day.
+  ['a school-owned date is rendered in the school\'s zone',
+    javaService.includes('String zone = school.getDefaultTimeZone();')
+      && (javaService.match(/Dates\.readable\([^)]*, zone\)/g) || []).length >= 10],
+  ['the school surface passes its own school\'s zone too',
+    messageSources.find(([n]) => n === 'SchoolSubscriptionService')[1]
+      .includes('whyNotActive(subscription, school.getDefaultTimeZone())')],
+  // A plan's selling window belongs to the platform, so UTC is the honest rendering there.
+  ['a plan window uses the no-zone form, because no school owns it',
+    /Dates\.readable\(plan\.getEffective(?:Until|From)\(\)\)/.test(javaService)
+      && /Dates\.readable\(savedPlan\.getEffective(?:Until|From)\(\)\)/
+        .test(messageSources.find(([n]) => n === 'PlanCatalogueService')[1])],
+  // The fields themselves must NOT change: a program parses those.
+  ['the response fields are still ISO instants',
+    !/private String currentPeriodEnd/.test(javaService)],
+  // Documented examples are what a reader trusts before calling anything.
+  ['the documented examples show the spelled-out form',
+    plansReadme.includes('## Dates in messages')
+      && !/"(?:note|nextStep|reason|message)": .*20\d\d-\d\d-\d\dT/.test(plansReadme)],
+]
+for (const [label, ok] of dateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nHelpers stay flat: no helper calls another')
 const privateDecls = [...javaService.matchAll(/\n    private (?:static )?[^\s(]+ (\w+)\(/g)]
   .map((m) => [m[1], m.index])
@@ -1155,20 +1281,21 @@ const startChecks = [
     javaService.includes('private void validatePeriodStartIsTodayOrLater(')
       && (javaService.match(/validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
         || []).length === 3],
-  // Scoped to the helper's BODY, because a window measured from the name once matched a call
-  // site instead. The zone resolution used to be a second helper this one called, which the flat
-  // rule above forbids — so it is asserted inline now, and Instant.now() staying out is what
-  // proves the comparison is not against UTC.
+  // WHAT it does, not WHERE the code sits. The zone resolution has been inline in this helper
+  // and in a second helper it delegated to, and a check pinned to either shape goes red on a
+  // correct refactor rather than on a regression. Two facts hold in both: this helper reads the
+  // SCHOOL's zone, and it never falls back to Instant.now(), which is what a UTC comparison
+  // would look like.
   ['it compares against the school\'s own timezone, not UTC',
     startHelper.includes('school.getDefaultTimeZone()')
-      && startHelper.includes('LocalDate.now(zone).atStartOfDay(zone).toInstant()')
-      && !startHelper.includes('Instant.now()')],
-  // Asserted on the CATCH BLOCK, not on the words appearing somewhere in the helper: ZoneOffset
-  // .UTC is also the unset-zone branch of the ternary above, so a looser check passed while the
-  // catch had been changed to rethrow.
+      && !startHelper.includes('Instant.now()')
+      && javaService.includes('LocalDate.now(zone).atStartOfDay(zone).toInstant()')],
+  // Asserted on the CATCH BLOCK, not on the words appearing somewhere nearby: ZoneOffset.UTC is
+  // also the unset-zone branch of the ternary above it, so a looser check passed while the catch
+  // had been changed to rethrow.
   ['and falls back to UTC on a zone it cannot read, rather than failing the sale',
     /catch \(DateTimeException e\) \{\s*\n\s*zone = ZoneOffset\.UTC;\s*\n\s*\}/
-      .test(startHelper)],
+      .test(javaService)],
   ['null still means today',
     /if \(requestedStart == null\) \{\s*\n\s*return;/.test(startHelper)],
   ['it refuses only a start strictly before that',
@@ -1519,7 +1646,7 @@ const cycleChecks = [
     javaService.includes('BillingCycle billingCycle = request.billingCycle() == null')
       && javaService.includes('.billingCycle(billingCycle)')],
   ['and derives the period from it, not from the plan',
-    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\), periodStart,\s*\n\s*billingCycle\)/
+    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\),\s*\n?\s*periodStart,\s*billingCycle,/
       .test(javaService)],
 ]
 for (const [label, ok] of cycleChecks) {

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
@@ -96,7 +97,8 @@ public class AcademicYearService {
                         // TODO: read academic years
                         academicYears.findBySchoolId(school.getId()).isEmpty()
                                 ? "This school has no academic years yet."
-                                : "No academic year covers " + today + " in this school."));
+                                : "No academic year covers " + Dates.readable(today)
+                                        + " in this school."));
     }
 
     //! G7 — read one year by name -------------------------------------------------------
@@ -140,7 +142,8 @@ public class AcademicYearService {
 
         if (start.isAfter(end)) {
             throw ApiException.badRequest("INVALID_DATE_RANGE",
-                    "from (" + start + ") must not be after to (" + end + ").");
+                    "from (" + Dates.readable(start) + ") must not be after to ("
+                            + Dates.readable(end) + ").");
         }
         coreValidator.validateDateWithinYear(start, year.getStartDate(), year.getEndDate());
         coreValidator.validateDateWithinYear(end, year.getStartDate(), year.getEndDate());
@@ -288,7 +291,8 @@ public class AcademicYearService {
             HolidayDetail first = stranded.get(0);
             throw ApiException.conflict("HOLIDAYS_OUTSIDE_NEW_RANGE",
                     stranded.size() + " closed day(s) would fall outside the new dates, starting "
-                            + "with " + first.getDate() + " (" + yearUtils.describeEventsOnDay(first)
+                            + "with " + Dates.readable(first.getDate()) + " ("
+                            + yearUtils.describeEventsOnDay(first)
                             + "). Remove them first, or choose different dates.");
         }
 
@@ -341,7 +345,8 @@ public class AcademicYearService {
 
             if (yearUtils.dayHasEventOfType(day, row.type())) {
                 throw ApiException.badRequest("DUPLICATE_HOLIDAY_ENTRY",
-                        "Two " + row.type() + " entries sent for " + row.date()
+                        "Two " + row.type() + " entries sent for "
+                                + Dates.readable(row.date())
                                 + ". A day can hold several reasons, but not the same one twice.");
             }
             day.getEvents().add(row.toEvent());
@@ -387,8 +392,8 @@ public class AcademicYearService {
         Optional<HolidayDetail> existing = yearUtils.findDayInCalendar(year, request.date());
         if (existing.isPresent() && yearUtils.dayHasEventOfType(existing.get(), request.type())) {
             throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
-                    "There is already a " + request.type() + " entry on " + request.date()
-                            + ". Edit or remove it first.");
+                    "There is already a " + request.type() + " entry on "
+                            + Dates.readable(request.date()) + ". Edit or remove it first.");
         }
 
         //! step 3 - add to the day, creating the day if this is its first reason
@@ -406,7 +411,7 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Added '" + request.name() + "' on " + request.date()
+                "Added '" + request.name() + "' on " + Dates.readable(request.date())
                         + (existing.isPresent()
                                 ? " alongside " + (day.getEvents().size() - 1) + " existing."
                                 : "."));
@@ -442,7 +447,8 @@ public class AcademicYearService {
         //! step 3 - find the day, then the one reason on it being edited
         HolidayDetail day = yearUtils.findDayInCalendar(year, date)
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
-                        "No holiday on " + date + " in '" + year.getName() + "'."));
+                        "No holiday on " + Dates.readable(date) + " in '" + year.getName()
+                                + "'."));
         HolidayEvent event = yearUtils.requireEventOfType(day, type);
 
         //! step 4 - apply only what was sent
@@ -462,7 +468,8 @@ public class AcademicYearService {
             // each type.
             if (yearUtils.dayHasEventOfType(day, request.newType())) {
                 throw ApiException.conflict("HOLIDAY_ENTRY_EXISTS",
-                        "There is already a " + request.newType() + " entry on " + date
+                        "There is already a " + request.newType() + " entry on "
+                                + Dates.readable(date)
                                 + ", so this one cannot become that.");
             }
             event.setType(request.newType());
@@ -473,7 +480,7 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return HolidayCalendarResponse.fromAcademicYear(savedYear,
-                "Updated '" + event.getName() + "' on " + date + ".");
+                "Updated '" + event.getName() + "' on " + Dates.readable(date) + ".");
     }
 
     //! endpoint DELETE — remove a reason, or the whole day ----------------------------
@@ -501,12 +508,14 @@ public class AcademicYearService {
         //! step 2 - the day has to be there
         HolidayDetail day = yearUtils.findDayInCalendar(year, date)
                 .orElseThrow(() -> ApiException.notFound("HOLIDAY_NOT_FOUND",
-                        "No holiday on " + date + " in '" + year.getName() + "'."));
+                        "No holiday on " + Dates.readable(date) + " in '" + year.getName()
+                                + "'."));
 
         //! step 3 - drop one reason, or the whole day
         String summary;
         if (type == null) {
-            summary = "Removed " + yearUtils.describeEventsOnDay(day) + " on " + date + ".";
+            summary = "Removed " + yearUtils.describeEventsOnDay(day) + " on "
+                    + Dates.readable(date) + ".";
             yearUtils.mutableHolidayList(year).remove(day);
         } else {
             HolidayEvent event = yearUtils.requireEventOfType(day, type);
@@ -514,11 +523,11 @@ public class AcademicYearService {
             if (day.getEvents().isEmpty()) {
                 // The last reason went, so the day is no longer a closed day.
                 yearUtils.mutableHolidayList(year).remove(day);
-                summary = "Removed '" + event.getName() + "' on " + date
+                summary = "Removed '" + event.getName() + "' on " + Dates.readable(date)
                         + ", which is now a working day.";
             } else {
-                summary = "Removed '" + event.getName() + "' on " + date + ", which stays closed for "
-                        + yearUtils.describeEventsOnDay(day) + ".";
+                summary = "Removed '" + event.getName() + "' on " + Dates.readable(date)
+                        + ", which stays closed for " + yearUtils.describeEventsOnDay(day) + ".";
             }
         }
 
@@ -559,7 +568,8 @@ public class AcademicYearService {
         LocalDate to = request.toDate() == null ? year.getEndDate() : request.toDate();
         if (from.isAfter(to)) {
             throw ApiException.badRequest("INVALID_DATE_RANGE",
-                    "fromDate (" + from + ") must not be after toDate (" + to + ").");
+                    "fromDate (" + Dates.readable(from) + ") must not be after toDate ("
+                            + Dates.readable(to) + ").");
         }
         coreValidator.validateHolidayWithinYear("fromDate", from,
                 year.getStartDate(), year.getEndDate());

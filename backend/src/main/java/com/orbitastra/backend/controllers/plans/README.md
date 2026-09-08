@@ -78,6 +78,40 @@ request a school can send that does them.
 
 ---
 
+## Dates in messages
+
+**Requests and responses carry ISO-8601 instants; messages spell the date out.**
+
+```
+in a field   "currentPeriodEnd": "2027-10-08T16:31:00Z"
+in a message "... runs to Friday 8 October 2027 10:01PM, which has not passed yet ..."
+```
+
+A field is parsed by a program, so it stays machine-readable. A `message`, `note`, `nextStep` or
+`reasonForChanges` is read by a person deciding what to do next, and `2027-10-08T23:59:59Z` in the
+middle of a sentence is something nobody reads. One helper — `common/time/Dates` — renders all of
+them, so the format is one decision rather than thirty concatenations that drift apart.
+
+**The zone is not cosmetic — it decides the calendar day.** A billing period starts at midnight in
+the school's own timezone, which for an Indian school is stored as an instant 5½ hours earlier:
+
+| the stored instant | rendered in UTC | rendered in `Asia/Kolkata` |
+|---|---|---|
+| `2026-09-07T18:30:00Z` | Monday 7 September 2026 6:30PM | **Tuesday 8 September 2026 12:00AM** |
+
+The right-hand column is what the school means, so **every date belonging to a school is rendered
+in that school's `defaultTimeZone`** — on both surfaces. Telling a school its period began on the
+7th when its own calendar says the 8th is worse than telling it nothing. A **plan's** selling
+window belongs to the platform and to no school, so those read in UTC.
+
+**The time is always shown**, even where it looks redundant, because two of these messages compare
+one date against another — "must be after", "is before the start of today" — and both ends can
+fall on the same day. Without the time, `INVALID_BILLING_PERIOD` reads as a contradiction.
+
+A date that is genuinely absent reads `(not set)`. It used to print the literal word `null`.
+
+---
+
 # The endpoints
 
 Numbered straight through, 1 to 71. Grouped only so the list is readable.
@@ -1663,7 +1697,7 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
   "maxUsers": 250,
   "hasLimitOverrides": true,
   "current": true,
-  "nextStep": "Subscribed, and billed from 2026-09-06T18:30:00Z. The school is now ACTIVE — a subscription was the last thing it needed. No invoice has been raised: that is a separate step."
+  "nextStep": "Subscribed, and billed from Monday 7 September 2026 12:00AM. The school is now ACTIVE — a subscription was the last thing it needed. No invoice has been raised: that is a separate step."
 }
 </pre></td>
 </tr>
@@ -2264,7 +2298,7 @@ than it tidies.
   "maxUsersOverride": 250,
   "hasLimitOverrides": false,
   "reasonForChanges": "Outgrew Starter's 500.",
-  "note": "Upgraded from 'STARTER_PLAN' version 1 to 'PREMIUM' version 1. The period restarts today and runs to 2027-09-06T18:30:00Z on the new plan's YEARLY cycle. NO money has moved for the period the school had already paid for: nothing raises invoices yet, so nothing was charged, credited or refunded. What should happen to it is still an open question."
+  "note": "Upgraded from 'STARTER_PLAN' version 1 to 'PREMIUM' version 1. The period restarts today and runs to Tuesday 7 September 2027 12:00AM on the new plan's YEARLY cycle. NO money has moved for the period the school had already paid for: nothing raises invoices yet, so nothing was charged, credited or refunded. What should happen to it is still an open question."
 }
 
 409 PLAN_UNCHANGED               — already on that version
@@ -2576,7 +2610,7 @@ apply a term agreed for one plan to a different one.
   "maxUsers": 42,
   "hasLimitOverrides": true,
   "reasonForChanges": "Renewed from SUB/2026/09/000001 on the same terms.",
-  "note": "Renewed on the same terms: 'PREMIUM' version 1 at 4242.50 INR. SUB/2026/09/000001 is closed and kept as history; this school is now on SUB/2026/09/000002, running from 2026-08-01T00:00:00Z to 2026-08-31T00:00:00Z on its MONTHLY cycle. NO invoice was raised and no money was taken: nothing writes subscription_invoices yet, so this moved the billing period and recorded the renewal without charging for it."
+  "note": "Renewed on the same terms: 'PREMIUM' version 1 at 4242.50 INR. SUB/2026/09/000001 is closed and kept as history; this school is now on SUB/2026/09/000002, running from Saturday 1 August 2026 5:30AM to Monday 31 August 2026 5:30AM on its MONTHLY cycle. NO invoice was raised and no money was taken: nothing writes subscription_invoices yet, so this moved the billing period and recorded the renewal without charging for it."
 }
 
 409 PLAN_NOT_RENEWABLE           — the plan is no longer current
@@ -2774,7 +2808,7 @@ referenced from the code, from Postman and from the other module READMEs.
   "status": "SUSPENDED",
   "reasonForChanges": "Invoice INV/... unpaid 30 days ...",
   ...every other field unchanged
-  "note": "Suspended from ACTIVE. Every feature is now refused: #34 reads SUSPENDED and answers allowed:false on all of them. The school is now SUSPENDED too, which is what actually blocks it ... NOTHING killed the school's live sessions or stopped its scheduled jobs ... The period was not paused: it still ends 2026-10-08T00:00:00Z, so the school is losing time it has paid for."
+  "note": "Suspended from ACTIVE. Every feature is now refused: #34 reads SUSPENDED and answers allowed:false on all of them. The school is now SUSPENDED too, which is what actually blocks it ... NOTHING killed the school's live sessions or stopped its scheduled jobs ... The period was not paused: it still ends Thursday 8 October 2026 5:30AM, so the school is losing time it has paid for."
 }
 
 409 SUBSCRIPTION_NOT_SUSPENDABLE — not ACTIVE or PAST_DUE
@@ -2861,7 +2895,7 @@ same honesty core's own suspend carries.
   "status": "ACTIVE",
   "reasonForChanges": "Invoice INV/... paid in full ...",
   ...every other field unchanged, INCLUDING both period dates
-  "note": "Resumed to ACTIVE. Every feature the plan includes is allowed again. The school is ACTIVE again, so the tenant is reachable. Its suspendedAt is left standing ... The period was NOT extended: it still ends 2026-10-08T00:00:00Z, so the school has paid for the time it was locked out of."
+  "note": "Resumed to ACTIVE. Every feature the plan includes is allowed again. The school is ACTIVE again, so the tenant is reachable. Its suspendedAt is left standing ... The period was NOT extended: it still ends Thursday 8 October 2026 5:30AM, so the school has paid for the time it was locked out of."
 }
 
 409 SUBSCRIPTION_NOT_RESUMABLE — not SUSPENDED
@@ -2936,7 +2970,7 @@ deliberately, by somebody, with a reason recorded.
   "currentPeriodEnd": "2026-10-08T00:00:00Z",   // untouched
   "periodEnded": false,                          // still granting
   "reasonForChanges": "School closing ...",
-  "note": "Cancelled, and the school keeps working until 2026-10-08T00:00:00Z ... It will NOT be renewed or resumed ... NOTHING marks it EXPIRED when that date passes."
+  "note": "Cancelled, and the school keeps working until Thursday 8 October 2026 5:30AM ... It will NOT be renewed or resumed ... NOTHING marks it EXPIRED when that date passes."
 }
 
 409 SUBSCRIPTION_ALREADY_ENDED      — EXPIRED, or cancelled and lapsed
@@ -3392,7 +3426,7 @@ nothing — a lapsed period, or a cancelled one:
 
 {
   "active": false,
-  "reason": "The paid period ended on 2026-03-31T23:59:59Z.",
+  "reason": "The paid period ended on Wednesday 1 April 2026 5:29AM.",
   "maxStudents": 0,
   "maxUsers": 0,
   "featureCount": 0,

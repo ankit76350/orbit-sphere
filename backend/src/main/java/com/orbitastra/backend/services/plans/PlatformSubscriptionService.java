@@ -15,16 +15,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionCancelRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionResumeRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionSuspendRequest;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
-import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
+import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -133,6 +134,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         if (school.getStatus() == SchoolStatus.DELETED
                 || school.getStatus() == SchoolStatus.DELETION_PENDING
                 || school.getStatus() == SchoolStatus.CLOSED) {
@@ -180,8 +185,8 @@ public class PlatformSubscriptionService {
         //! end date and says so, and a CUSTOM plan sold as MONTHLY derives one and REFUSES one —
         //! the rule follows what the school is actually being billed on, not what the plan is
         //! listed at. Only a CUSTOM cadence takes an end date; the other four are their length.
-        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(), periodStart,
-                billingCycle);
+        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
+                periodStart, billingCycle, zone);
 
         BigDecimal contractedPrice = request.contractedPrice() == null
                 ? plan.getListPrice()
@@ -255,7 +260,7 @@ public class PlatformSubscriptionService {
         String activation = activateSchoolIfSetupComplete(school);
 
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
-                describeCreateOutcome(savedSubscription, trial, activation));
+                describeCreateOutcome(savedSubscription, trial, activation, zone));
     }
     //! Endpoint 14 — edit what a school is contracted to ------------------------------
 
@@ -310,6 +315,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         // CLOSED is deliberately allowed: a school that has left still has a subscription whose
         // record can need correcting, and refusing would leave the wrong figure in place for
         // ever. A deleted one is different — there is nothing left to be right about.
@@ -445,7 +454,7 @@ public class PlatformSubscriptionService {
                 && subscription.getBillingCycle() != BillingCycle.CUSTOM) {
 
             Instant derivedEnd = calculateSubscriptionPeriodEnd(null,
-                    subscription.getCurrentPeriodStart(), subscription.getBillingCycle());
+                    subscription.getCurrentPeriodStart(), subscription.getBillingCycle(), zone);
 
             if (!derivedEnd.equals(subscription.getCurrentPeriodEnd())) {
                 subscription.setCurrentPeriodEnd(derivedEnd);
@@ -461,8 +470,10 @@ public class PlatformSubscriptionService {
         //! step 11 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
-                    "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
-                            + "currentPeriodStart (" + subscription.getCurrentPeriodStart()
+                    "currentPeriodEnd ("
+                            + Dates.readable(subscription.getCurrentPeriodEnd(), zone)
+                            + ") must be after currentPeriodStart ("
+                            + Dates.readable(subscription.getCurrentPeriodStart(), zone)
                             + "). Editing one end of a period is checked against the other.");
         }
 
@@ -498,7 +509,7 @@ public class PlatformSubscriptionService {
         List<String> note = new ArrayList<>();
         note.add(describeEditOutcome(saved, plan, changed));
 
-        String standing = describeSubscriptionState(saved, plan);
+        String standing = describeSubscriptionState(saved, plan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -600,6 +611,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         //! An allow-list, not a deny-list: the three running states are named and everything
         //! else is refused, so a status added to SchoolStatus later cannot quietly become one
         //! in which plans may be changed. A conflict rather than a 400 — nothing about the
@@ -692,7 +707,7 @@ public class PlatformSubscriptionService {
         //! is actually billed on: a YEARLY plan billed CUSTOM needs an end date and says so,
         //! and a CUSTOM plan billed QUARTERLY refuses one because the cadence decides it.
         Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
-                periodStart, billingCycle);
+                periodStart, billingCycle, zone);
 
         //! step 9 - close the row the school is leaving. It stops being the current one, and its
         //! period ends exactly where the new one begins, so the two meet and the school is never
@@ -844,7 +859,7 @@ public class PlatformSubscriptionService {
         //! the move did, what it deliberately did not do to the money, what happened to the
         //! school, and anything standing about the subscription a reader needs either way.
         List<String> note = new ArrayList<>();
-        note.add(describePlanMove(previousPlan, newPlan, saved, previousSubscriptionNo));
+        note.add(describePlanMove(previousPlan, newPlan, saved, previousSubscriptionNo, zone));
 
         if (previousSubscriptionStatus != SubscriptionStatus.ACTIVE) {
             note.add("It was " + previousSubscriptionStatus + " and the new row is ACTIVE: a "
@@ -853,10 +868,11 @@ public class PlatformSubscriptionService {
         }
 
         if (previousPeriodEnd != null && !previousPeriodEnd.isAfter(periodStart)) {
-            note.add(previousSubscriptionNo + " kept its own end of " + previousPeriodEnd
+            note.add(previousSubscriptionNo + " kept its own end of "
+                    + Dates.readable(previousPeriodEnd, zone)
                     + ", because it had already stopped by then — a closed period is only ever "
                     + "shortened, never stretched forward. The gap between that and "
-                    + periodStart + " is time this school was on nothing.");
+                    + Dates.readable(periodStart, zone) + " is time this school was on nothing.");
         }
 
         //! autoRenew is the school's standing instruction and is carried across untouched, so a
@@ -874,7 +890,7 @@ public class PlatformSubscriptionService {
 
         note.add(schoolNote);
 
-        String standing = describeSubscriptionState(saved, newPlan);
+        String standing = describeSubscriptionState(saved, newPlan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -974,6 +990,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1038,9 +1058,11 @@ public class PlatformSubscriptionService {
             } else if (planIsUnpublished) {
                 because = "is back to DRAFT with its terms unsettled";
             } else if (planWindowClosed) {
-                because = "stopped being sold on " + plan.getEffectiveUntil();
+                because = "stopped being sold on "
+                        + Dates.readable(plan.getEffectiveUntil());
             } else {
-                because = "does not go on sale until " + plan.getEffectiveFrom();
+                because = "does not go on sale until "
+                        + Dates.readable(plan.getEffectiveFrom());
             }
 
             throw ApiException.conflict("PLAN_NOT_RENEWABLE",
@@ -1073,7 +1095,8 @@ public class PlatformSubscriptionService {
 
         if (previousPeriodEnd == null || previousPeriodEnd.isAfter(Instant.now())) {
             throw ApiException.conflict("PERIOD_NOT_ENDED",
-                    subscription.getSubscriptionNo() + " runs to " + previousPeriodEnd
+                    subscription.getSubscriptionNo() + " runs to "
+                            + Dates.readable(previousPeriodEnd, zone)
                             + ", which has not passed yet, so there is no next period to start. "
                             + "To move that date, use the edit endpoint.");
         }
@@ -1088,7 +1111,7 @@ public class PlatformSubscriptionService {
         //! made to end before it began.
         Instant periodStart = previousPeriodEnd;
         Instant periodEnd = calculateSubscriptionPeriodEnd(requestedPeriodEnd, periodStart,
-                subscription.getBillingCycle());
+                subscription.getBillingCycle(), zone);
 
         //! step 9 - close the period that just ended. Its dates are left exactly as they are:
         //! it ran its full course, which is the difference between this and #16, where the old
@@ -1097,7 +1120,7 @@ public class PlatformSubscriptionService {
 
         subscription.setCurrent(false);
         subscription.setReasonForChanges("Renewed into the next billing period. This row is the "
-                + "period ending " + previousPeriodEnd + ".");
+                + "period ending " + Dates.readable(previousPeriodEnd, zone) + ".");
 
         //! step 10 - written BEFORE the new row, because the unique partial index on
         //! {schoolId, current} allows one current row per school and the old one still claims it
@@ -1153,9 +1176,10 @@ public class PlatformSubscriptionService {
                 .source(SOURCE_ADMIN_PORTAL)
                 .reason("Renewed on the same terms: '" + plan.getPlanCode() + "' version "
                         + plan.getPlanVersion() + ". " + previousSubscriptionNo + " covered the "
-                        + "period ending " + previousPeriodEnd + " and was closed; "
-                        + saved.getSubscriptionNo() + " covers " + periodStart + " to "
-                        + periodEnd + ".")
+                        + "period ending " + Dates.readable(previousPeriodEnd, zone)
+                        + " and was closed; " + saved.getSubscriptionNo() + " covers "
+                        + Dates.readable(periodStart, zone) + " to "
+                        + Dates.readable(periodEnd, zone) + ".")
                 .performedByDocsId(null)
                 .effectiveAt(periodStart)
                 .build();
@@ -1170,7 +1194,8 @@ public class PlatformSubscriptionService {
                 + plan.getPlanVersion() + " at " + saved.getContractedPrice() + " "
                 + saved.getCurrencyCode() + ". " + previousSubscriptionNo + " is closed and kept "
                 + "as history; this school is now on " + saved.getSubscriptionNo()
-                + ", running from " + periodStart + " to " + periodEnd + " on its "
+                + ", running from " + Dates.readable(periodStart, zone) + " to "
+                + Dates.readable(periodEnd, zone) + " on its "
                 + saved.getBillingCycle() + " cycle.");
 
         note.add("NO invoice was raised and no money was taken: nothing writes "
@@ -1186,7 +1211,7 @@ public class PlatformSubscriptionService {
                     + "period is NOT settled by this — nothing here takes a payment.");
         }
 
-        String standing = describeSubscriptionState(saved, plan);
+        String standing = describeSubscriptionState(saved, plan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -1235,6 +1260,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1333,11 +1362,12 @@ public class PlatformSubscriptionService {
         note.add("NOTHING killed the school's live sessions or stopped its scheduled jobs — "
                 + "neither exists yet — so a user already signed in is refused at the next "
                 + "request that checks rather than thrown out now.");
-        note.add("The period was not paused: it still ends " + saved.getCurrentPeriodEnd()
+        note.add("The period was not paused: it still ends "
+                + Dates.readable(saved.getCurrentPeriodEnd(), zone)
                 + ", so the school is losing time it has paid for. Crediting that is a money "
                 + "decision nothing here can make.");
 
-        String standing = describeSubscriptionState(saved, plan);
+        String standing = describeSubscriptionState(saved, plan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -1381,6 +1411,10 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
+        // Every date this method puts in a message or a note is rendered in the SCHOOL's
+        // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
+        // 18:30Z the day before, so UTC would name the wrong calendar day.
+        String zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1463,12 +1497,13 @@ public class PlatformSubscriptionService {
         List<String> note = new ArrayList<>();
         note.add("Resumed to ACTIVE. Every feature the plan includes is allowed again.");
         note.add(schoolNote);
-        note.add("The period was NOT extended: it still ends " + saved.getCurrentPeriodEnd()
+        note.add("The period was NOT extended: it still ends "
+                + Dates.readable(saved.getCurrentPeriodEnd(), zone)
                 + ", so the school has paid for the time it was locked out of. Crediting that is "
                 + "a money decision nothing here can make — moving the date, if that is what was "
                 + "agreed, is the edit endpoint.");
 
-        String standing = describeSubscriptionState(saved, plan);
+        String standing = describeSubscriptionState(saved, plan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -1555,6 +1590,10 @@ public class PlatformSubscriptionService {
         //! serving out its time, and escalating it to immediate is a real decision rather than a
         //! repeat, so that one is allowed through.
         SubscriptionStatus previousStatus = subscription.getStatus();
+        // As everywhere else here: the dates below read in the SCHOOL's zone, because a period
+        // end stored as 18:30Z is midnight the next day on that school's own calendar.
+        String zone = school.getDefaultTimeZone();
+
         Instant paidUntil = subscription.getCurrentPeriodEnd();
         boolean periodStillRunning = paidUntil != null && paidUntil.isAfter(Instant.now());
 
@@ -1568,13 +1607,14 @@ public class PlatformSubscriptionService {
             if (!periodStillRunning) {
                 throw ApiException.conflict("SUBSCRIPTION_ALREADY_ENDED",
                         subscription.getSubscriptionNo() + " was cancelled and its period ended "
-                                + "on " + paidUntil + ", so there is nothing left to end.");
+                                + "on " + Dates.readable(paidUntil, zone)
+                                + ", so there is nothing left to end.");
             }
             if (!request.isImmediate()) {
                 throw ApiException.conflict("CANCELLATION_ALREADY_SCHEDULED",
                         subscription.getSubscriptionNo() + " is already cancelled and runs out "
-                                + "on " + paidUntil + ". Send immediate: true to stop its access "
-                                + "now instead.");
+                                + "on " + Dates.readable(paidUntil, zone)
+                                + ". Send immediate: true to stop its access now instead.");
             }
         }
 
@@ -1619,9 +1659,10 @@ public class PlatformSubscriptionService {
                 .source(SOURCE_ADMIN_PORTAL)
                 .reason((request.isImmediate()
                         ? "Cancelled immediately from " + previousStatus + ". The period paid "
-                                + "for ran to " + paidUntil + " and was trimmed to the "
-                                + "cancellation. "
-                        : "Cancelled from " + previousStatus + " with effect from " + paidUntil
+                                + "for ran to " + Dates.readable(paidUntil, zone)
+                                + " and was trimmed to the cancellation. "
+                        : "Cancelled from " + previousStatus + " with effect from "
+                                + Dates.readable(paidUntil, zone)
                                 + "; the school keeps working until then. ")
                         + request.reason().trim())
                 .performedByDocsId(null)
@@ -1636,16 +1677,17 @@ public class PlatformSubscriptionService {
 
         if (request.isImmediate()) {
             note.add("Cancelled immediately, from " + previousStatus + ". The period was trimmed "
-                    + "from " + paidUntil + " to now, which is what stops the access: every "
-                    + "feature is refused because the subscription is cancelled AND its period "
-                    + "is over.");
+                    + "from " + Dates.readable(paidUntil, zone) + " to now, which is what stops "
+                    + "the access: every feature is refused because the subscription is cancelled "
+                    + "AND its period is over.");
             note.add("NO money was refunded for the rest of that period. Nothing here raises or "
                     + "credits an invoice, so what should happen to it is still an open "
                     + "question. The history row keeps the date originally paid for.");
         } else {
-            note.add("Cancelled, and the school keeps working until " + paidUntil + " — the "
-                    + "period it has already paid for. The status says CANCELLED because the "
-                    + "contract is over; the period says how long the access lasts.");
+            note.add("Cancelled, and the school keeps working until "
+                    + Dates.readable(paidUntil, zone) + " — the period it has already paid for. "
+                    + "The status says CANCELLED because the contract is over; the period says "
+                    + "how long the access lasts.");
             note.add("It will NOT be renewed or resumed: #17 refuses a cancelled subscription "
                     + "and so does #20, so nothing quietly undoes this. Bringing the school back "
                     + "means selling it a new subscription or changing its plan.");
@@ -1658,7 +1700,7 @@ public class PlatformSubscriptionService {
         note.add("The school itself is untouched at " + school.getStatus() + ": this is a "
                 + "commercial end, not a lock-out. Winding the tenant down is core's business.");
 
-        String standing = describeSubscriptionState(saved, plan);
+        String standing = describeSubscriptionState(saved, plan, zone);
         if (standing != null) {
             note.add(standing);
         }
@@ -1690,30 +1732,33 @@ public class PlatformSubscriptionService {
      */
     public SubscriptionDetailResponse getSubscription(String schoolId) {
 
-        //! step 1 - the school's current subscription
+        //! step 1 - the school, read up front rather than only to explain a 404. It is needed
+        //! either way now: its timezone is what the dates in the note are rendered in, and a
+        //! period end stored as 18:30Z is midnight the next day on that school's own calendar.
+        //! The refusals are unchanged — a missing school is still SCHOOL_NOT_FOUND and a school
+        //! without a subscription still SUBSCRIPTION_NOT_FOUND, in that order.
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        String zone = school.getDefaultTimeZone();
+
+        //! step 2 - the school's current subscription
         // TODO: read subscription
         SchoolSubscription subscription = schoolSubscription
                 .findBySchoolIdAndCurrentIsTrue(schoolId)
-                .orElseGet(() -> {
-                        School school = schools.findById(schoolId).orElse(null);
+                .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                        "'" + school.getSchoolName() + "' has no subscription. Create one first."));
 
-                        if (school == null) {
-                        throw ApiException.notFound("SCHOOL_NOT_FOUND",
-                                "No school found with id '" + schoolId + "'.");
-                        }
-
-                        throw ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
-                                "'" + school.getSchoolName() + "' has no subscription. Create one first.");
-                });
-
-        //! step 2 - the plan it points at, for the name, limits and features
+        //! step 3 - the plan it points at, for the name, limits and features
         PlanDefinition plan = loadPlanBehindSubscription(subscription);
 
         return SubscriptionDetailResponse.fromSubscription(
                 subscription,
                 plan,
-                describeSubscriptionState(subscription, plan));
-        }
+                describeSubscriptionState(subscription, plan, zone));
+    }
     
     
 
@@ -1793,12 +1838,12 @@ public class PlatformSubscriptionService {
         if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
             throw ApiException.conflict("PLAN_NOT_SELLABLE",
                     "'" + planCode + "' version " + version + " stopped being sold on "
-                            + plan.getEffectiveUntil() + ".");
+                            + Dates.readable(plan.getEffectiveUntil()) + ".");
         }
         if (plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now)) {
             throw ApiException.conflict("PLAN_NOT_SELLABLE",
                     "'" + planCode + "' version " + version + " does not go on sale until "
-                            + plan.getEffectiveFrom() + ".");
+                            + Dates.readable(plan.getEffectiveFrom()) + ".");
         }
         return plan;
     }
@@ -1833,7 +1878,8 @@ public class PlatformSubscriptionService {
      * - changePlan()
      * - renewSubscription()
      */
-    private Instant calculateSubscriptionPeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle) {
+    private Instant calculateSubscriptionPeriodEnd(Instant requested, Instant periodStart,
+            BillingCycle cycle, String zone) {
 
         // CUSTOM has no length of its own, so it is the ONE cadence whose end date is somebody's
         // decision rather than arithmetic. Refused rather than guessed: inventing a year, or
@@ -1847,8 +1893,9 @@ public class PlatformSubscriptionService {
             }
             if (!requested.isAfter(periodStart)) {
                 throw ApiException.badRequest("INVALID_BILLING_PERIOD",
-                        "currentPeriodEnd (" + requested + ") must be after currentPeriodStart ("
-                                + periodStart + ").");
+                        "currentPeriodEnd (" + Dates.readable(requested, zone)
+                                + ") must be after currentPeriodStart ("
+                                + Dates.readable(periodStart, zone) + ").");
             }
             return requested;
         }
@@ -1911,7 +1958,8 @@ public class PlatformSubscriptionService {
      * - updateSubscription()
      * - getSubscription()
      */
-    private String describeSubscriptionState(SchoolSubscription subscription, PlanDefinition plan) {
+    private String describeSubscriptionState(SchoolSubscription subscription, PlanDefinition plan,
+            String zone) {
         List<String> notes = new ArrayList<>();
 
         Instant end = subscription.getCurrentPeriodEnd();
@@ -1919,10 +1967,10 @@ public class PlatformSubscriptionService {
                 || subscription.getStatus() == SubscriptionStatus.TRIAL;
 
         if (end != null && !end.isAfter(Instant.now()) && live) {
-            notes.add("The period ended on " + end + " but the status still says "
-                    + subscription.getStatus() + ". Nothing marks a subscription expired on its "
-                    + "own yet, so this has to be read as lapsed rather than paying — renewing "
-                    + "it starts the next period.");
+            notes.add("The period ended on " + Dates.readable(end, zone) + " but the status "
+                    + "still says " + subscription.getStatus() + ". Nothing marks a subscription "
+                    + "expired on its own yet, so this has to be read as lapsed rather than "
+                    + "paying — renewing it starts the next period.");
         }
 
         if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
@@ -2159,7 +2207,7 @@ public class PlatformSubscriptionService {
      * - changePlan()
      */
     private String describePlanMove(PlanDefinition previousPlan, PlanDefinition newPlan,
-            SchoolSubscription saved, String previousSubscriptionNo) {
+            SchoolSubscription saved, String previousSubscriptionNo, String zone) {
 
         String direction = newPlan.getListPrice().compareTo(previousPlan.getListPrice()) > 0
                 ? "Upgraded"
@@ -2192,7 +2240,8 @@ public class PlatformSubscriptionService {
                 + previousPlan.getPlanVersion() + " to '" + newPlan.getPlanCode() + "' version "
                 + newPlan.getPlanVersion() + ". " + previousSubscriptionNo + " is closed and kept "
                 + "as history; this school is now on " + saved.getSubscriptionNo()
-                + ", running from today to " + saved.getCurrentPeriodEnd() + " on the new plan's "
+                + ", running from today to "
+                + Dates.readable(saved.getCurrentPeriodEnd(), zone) + " on the new plan's "
                 + saved.getBillingCycle() + " cycle. " + money + ceiling + downgrade;
     }
 
@@ -2286,10 +2335,12 @@ public class PlatformSubscriptionService {
 
         if (requestedStart.isBefore(startOfToday)) {
             throw ApiException.badRequest("PERIOD_START_IN_PAST",
-                    "currentPeriodStart (" + requestedStart + ") is before the start of today in "
-                            + "the school's timezone (" + startOfToday + "). A billing period "
-                            + "starts today or later — nothing here can invoice a period that "
-                            + "has already run.");
+                    "currentPeriodStart ("
+                            + Dates.readable(requestedStart, school.getDefaultTimeZone())
+                            + ") is before the start of today in the school's timezone ("
+                            + Dates.readable(startOfToday, school.getDefaultTimeZone())
+                            + "). A billing period starts today or later — nothing here can "
+                            + "invoice a period that has already run.");
         }
     }
 
@@ -2343,10 +2394,13 @@ public class PlatformSubscriptionService {
      * Used by:
      * - createSubscription()
      */
-    private String describeCreateOutcome(SchoolSubscription subscription, boolean trial, String activation) {
+    private String describeCreateOutcome(SchoolSubscription subscription, boolean trial,
+            String activation, String zone) {
         String base = trial
-                ? "Trial started, running to " + subscription.getCurrentPeriodEnd() + "."
-                : "Subscribed, and billed from " + subscription.getCurrentPeriodStart() + ".";
+                ? "Trial started, running to "
+                        + Dates.readable(subscription.getCurrentPeriodEnd(), zone) + "."
+                : "Subscribed, and billed from "
+                        + Dates.readable(subscription.getCurrentPeriodStart(), zone) + ".";
 
         return base + activation + " No invoice has been raised: that is a separate step.";
     }

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.plans.catalogue.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDetailResponse;
 import com.orbitastra.backend.dto.plans.catalogue.PlanDraftUpdateRequest;
@@ -359,8 +360,9 @@ public class PlanCatalogueService {
         if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
             throw ApiException.conflict("PLAN_WINDOW_ALREADY_CLOSED",
                     "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " stops "
-                            + "being sold on " + plan.getEffectiveUntil() + ", which has passed. "
-                            + "Change or clear the selling window before publishing.");
+                            + "being sold on " + Dates.readable(plan.getEffectiveUntil())
+                            + ", which has passed. Change or clear the selling window before "
+                            + "publishing.");
         }
 
         //! step 5 - go live. An effectiveFrom already set is kept, so a launch date chosen while
@@ -377,12 +379,14 @@ public class PlanCatalogueService {
         //! step 6 - say plainly what just became true, and what has not
         String window = savedPlan.getEffectiveUntil() == null
                 ? "It has no end date, so it sells until somebody retires it. "
-                : "It stops being sold on " + savedPlan.getEffectiveUntil() + ". ";
+                : "It stops being sold on " + Dates.readable(savedPlan.getEffectiveUntil())
+                        + ". ";
 
         String nextStep = "Published, and now permanent: this version can never be edited again. "
                 + window
                 + (scheduled
-                        ? "It goes on sale on " + savedPlan.getEffectiveFrom() + ". "
+                        ? "It goes on sale on " + Dates.readable(savedPlan.getEffectiveFrom())
+                                + ". "
                         : "")
                 + (Boolean.TRUE.equals(savedPlan.getPubliclyAvailable())
                         ? "It is on the public list."
@@ -711,11 +715,12 @@ public class PlanCatalogueService {
 
         Instant now = Instant.now();
         if (plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now)) {
-            return "It is not sellable yet: it goes on sale on " + plan.getEffectiveFrom() + ".";
+            return "It is not sellable yet: it goes on sale on "
+                    + Dates.readable(plan.getEffectiveFrom()) + ".";
         }
         if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
-            return "It is not sellable: it stopped being sold on " + plan.getEffectiveUntil()
-                    + ".";
+            return "It is not sellable: it stopped being sold on "
+                    + Dates.readable(plan.getEffectiveUntil()) + ".";
         }
         return "Schools can now pick it.";
     }

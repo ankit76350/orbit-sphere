@@ -4741,8 +4741,12 @@ scheduled launch still works.
                            "effectiveUntil": "2021-01-01T00:00:00Z" } }
     then publish.
     OUT: { "code": "PLAN_WINDOW_ALREADY_CLOSED",
-           "message": "... stops being sold on 2021-01-01T00:00:00Z, which
-                       has passed." }`,
+           "message": "... stops being sold on Friday 1 January 2021
+                       12:00AM, which has passed." }
+    EVERY DATE IN A MESSAGE IS SPELLED OUT — "Friday 1 January 2021 12:00AM",
+    not 2021-01-01T00:00:00Z. A plan's selling window belongs to the platform
+    rather than to a school, so it reads in UTC; a date that belongs to a
+    school reads in that school's own timezone.`,
           body: null,
         },
         {
@@ -4753,7 +4757,7 @@ scheduled launch still works.
     OUT: status "ACTIVE", effectiveFrom UNCHANGED — the date chosen while it
          was a draft still stands; publishing only fills an empty one.
          sellable false, because the window has not opened.
-         nextStep says "It goes on sale on 2027-04-01T00:00:00Z."`,
+         nextStep says "It goes on sale on Thursday 1 April 2027 12:00AM."`,
           body: null,
         },
         {

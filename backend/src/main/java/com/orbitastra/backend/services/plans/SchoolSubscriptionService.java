@@ -7,8 +7,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse;
-import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse.Feature;
+import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessResponse.Feature;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
@@ -79,7 +80,7 @@ public class SchoolSubscriptionService {
                         "The plan this subscription points at no longer exists."));
 
         //! step 3 - is the subscription granting anything at all
-        String blocked = whyNotActive(subscription);
+        String blocked = whyNotActive(subscription, school.getDefaultTimeZone());
         boolean active = blocked == null;
 
         //! step 4 - each feature, with the answer already worked out
@@ -163,7 +164,7 @@ public class SchoolSubscriptionService {
      * Used by:
      * - featureAccessFor()
      */
-    private String whyNotActive(SchoolSubscription subscription) {
+    private String whyNotActive(SchoolSubscription subscription, String zone) {
         SubscriptionStatus status = subscription.getStatus();
 
         // PAST_DUE still grants. An unpaid invoice is a conversation, not a reason to lock a
@@ -184,7 +185,7 @@ public class SchoolSubscriptionService {
             Instant cancelledEnd = subscription.getCurrentPeriodEnd();
             if (cancelledEnd != null && !cancelledEnd.isAfter(Instant.now())) {
                 return "This subscription was cancelled, and its period ended on "
-                        + cancelledEnd + ".";
+                        + Dates.readable(cancelledEnd, zone) + ".";
             }
         }
         if (status == SubscriptionStatus.EXPIRED) {
@@ -193,7 +194,7 @@ public class SchoolSubscriptionService {
 
         Instant end = subscription.getCurrentPeriodEnd();
         if (end != null && !end.isAfter(Instant.now())) {
-            return "The subscription period ended on " + end + ".";
+            return "The subscription period ended on " + Dates.readable(end, zone) + ".";
         }
 
         return null;

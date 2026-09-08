@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 
@@ -170,7 +171,8 @@ public class CoreValidator {
     public void validateAcademicYearRange(LocalDate start, LocalDate end) {
         if (!start.isBefore(end)) {
             throw ApiException.badRequest("INVALID_DATE_RANGE",
-                    "startDate (" + start + ") must be before endDate (" + end + ").");
+                    "startDate (" + Dates.readable(start) + ") must be before endDate ("
+                            + Dates.readable(end) + ").");
         }
         long days = ChronoUnit.DAYS.between(start, end) + 1;
         if (days < MIN_YEAR_DAYS || days > MAX_YEAR_DAYS) {
@@ -205,7 +207,8 @@ public class CoreValidator {
             if (!apart) {
                 throw ApiException.conflict("ACADEMIC_YEAR_OVERLAP",
                         "These dates overlap '" + other.getName() + "' ("
-                                + other.getStartDate() + " to " + other.getEndDate()
+                                + Dates.readable(other.getStartDate()) + " to "
+                                + Dates.readable(other.getEndDate())
                                 + "). Two years cannot cover the same day.");
             }
         }
@@ -225,8 +228,9 @@ public class CoreValidator {
 
         if (!isWithinYear(date, yearStart, yearEnd)) {
             throw ApiException.badRequest("HOLIDAY_OUTSIDE_YEAR",
-                    "'" + label + "' on " + date + " is outside " + yearStart + " to "
-                            + yearEnd + ".");
+                    "'" + label + "' on " + Dates.readable(date) + " is outside "
+                            + Dates.readable(yearStart) + " to " + Dates.readable(yearEnd)
+                            + ".");
         }
     }
 
@@ -245,8 +249,9 @@ public class CoreValidator {
     public void validateDateWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
         if (!isWithinYear(date, yearStart, yearEnd)) {
             throw ApiException.badRequest("DATE_OUTSIDE_ACADEMIC_YEAR",
-                    date + " is outside " + yearStart + " to " + yearEnd + ", which is what "
-                            + "this academic year covers.");
+                    Dates.readable(date) + " is outside " + Dates.readable(yearStart) + " to "
+                            + Dates.readable(yearEnd) + ", which is what this academic year "
+                            + "covers.");
         }
     }
 
