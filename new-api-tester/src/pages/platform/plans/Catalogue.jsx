@@ -270,15 +270,6 @@ function NewDraft({ open, onClose, onCreated }) {
     setErrors({})
     setRefused(null)
     setSaving(true)
-    const body = {
-      name: form.name.trim(),
-      billingCycle: form.billingCycle,
-      listPrice: Number(form.listPrice),
-      currencyCode: form.currencyCode.trim().toUpperCase(),
-      maxStudents: Number(form.maxStudents),
-      maxUsers: Number(form.maxUsers),
-    }
-    if (form.description.trim()) body.description = form.description.trim()
 
     const result = await call('create-plan-draft', { label: 'New draft', body })
     setSaving(false)
@@ -299,8 +290,23 @@ function NewDraft({ open, onClose, onCreated }) {
   /** What the API will derive the code as, so the form can show it before sending. */
   const derived = form.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 
+  // Built at render, so the pane beside the form tracks it. submit() sends exactly this.
+  const body = (() => {
+    const out = {
+      name: form.name.trim(),
+      billingCycle: form.billingCycle,
+      listPrice: Number(form.listPrice),
+      currencyCode: form.currencyCode.trim().toUpperCase(),
+      maxStudents: Number(form.maxStudents),
+      maxUsers: Number(form.maxUsers),
+    }
+    if (form.description.trim()) out.description = form.description.trim()
+    return out
+  })()
+
   return (
     <Modal
+      preview={body}
       open={open}
       onClose={onClose}
       title="New plan draft"

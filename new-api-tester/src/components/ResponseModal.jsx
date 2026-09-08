@@ -34,10 +34,13 @@ export default function ResponseModal() {
       onClose={() => inspect(null)}
       title={action || endpointName || `${method} ${path}`}
       description={`${method} ${path}`}
-    >
-      <div className="stack">
-        <div className="resp">
-          <div className="resp-head">
+      previewLabel="Response body"
+      /* The reply on the right, opposite the request that produced it. Same geometry as the
+         form-and-payload view this modal replaces on screen, so the request stays in the place
+         the eye already learnt — only the left pane changes, from the form to what it sent. */
+      preview={
+        <>
+          <div className="resp-head" style={{ marginBottom: 10 }}>
             <span className="resp-status" data-ok={ok ? 'true' : 'false'}>
               {status ? `${status}` : 'no reply'}
             </span>
@@ -46,20 +49,20 @@ export default function ResponseModal() {
             <span className="toolbar-spacer" />
             <Badge tone={ok ? 'good' : 'bad'}>{ok ? 'ok' : 'failed'}</Badge>
           </div>
-          <pre className="resp-body">{body(result?.bodyText)}</pre>
-        </div>
-
-        {/* The request is second: when something is wrong the answer is usually in the reply,
-            and the thing that was sent is what you check next. */}
-        {result?.request?.body ? (
-          <div className="resp">
-            <div className="resp-head"><span>what was sent</span></div>
-            <pre className="resp-body">{body(result.request.body)}</pre>
-          </div>
-        ) : null}
-
-        <p className="muted">{result?.request?.url}</p>
-      </div>
+          <pre className="modal-json">{body(result?.bodyText)}</pre>
+        </>
+      }
+    >
+      <p className="modal-pane-label">Request body</p>
+      <pre
+        className="modal-json"
+        data-empty={result?.request?.body ? 'false' : 'true'}
+      >
+        {result?.request?.body ? body(result.request.body) : 'This request sent no body.'}
+      </pre>
+      <p className="muted" style={{ marginTop: 10, wordBreak: 'break-all' }}>
+        {result?.request?.url}
+      </p>
     </Modal>
   )
 }

@@ -978,6 +978,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
     <Modal
       open
       onClose={onClose}
+      preview={body}
       title="Edit the terms"
       description="When it runs, what state it is in, how much it may use. Only what you change is sent — the endpoint reads an absent field as “leave it alone”."
       footer={
@@ -1214,27 +1215,19 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           </p>
         ) : null}
 
-        {/* The point of the screen: which fields this edit actually includes. */}
-        <details className="raw" open>
-          <summary>
-            What will be sent
-            <span className="toolbar-spacer" />
-            <span className="muted">
-              {nothingChanged ? 'nothing yet' : plural(changed.length, 'field')}
-            </span>
-          </summary>
-          <pre className="resp-body">
+        {/* The pane on the right prints the body. What it cannot say is what the API will do
+            with an incomplete one, so that stays here. */}
+        {nothingChanged || reasonMissing ? (
+          <p className="muted">
             {nothingChanged
-              ? 'Nothing to send until a box changes. An empty PATCH is refused for the missing '
-                + 'reason first (400 VALIDATION_FAILED); a reason on its own is 400 '
+              ? 'Nothing is in the body yet. An empty PATCH is refused for the missing reason '
+                + 'first (400 VALIDATION_FAILED); a reason on its own is 400 '
                 + 'NO_CHANGES_REQUESTED; and resending a value it already holds is a 200 that '
                 + 'says nothing changed.'
-              // Shown as it stands, incomplete: the body genuinely has no `reason` yet, and the
-              // API would refuse it. Filling one in adds it to what is printed here.
-              : JSON.stringify(body, null, 2)
-                + (reasonMissing ? '\n\n// plus "reason", which is required and not filled in yet' : '')}
-          </pre>
-        </details>
+              : `${plural(changed.length, 'field')} so far, and "reason" is still empty — the `
+                + 'API refuses the request without it.'}
+          </p>
+        ) : null}
       </div>
     </Modal>
   )
@@ -1339,32 +1332,38 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
 
   const missing = !chosen || !reason.trim() || (needsPeriodEnd && !periodEnd)
 
-  const submit = async () => {
-    setRefused(null)
-    setSaving(true)
-    const body = {
-      planCode: chosen.planCode,
-      planVersion: chosen.planVersion,
+  // BUILT AT RENDER, not inside submit, so the pane beside the form shows the payload as it is
+  // typed rather than after it has gone. submit() sends exactly this object.
+  const body = (() => {
+    const out = {
+      planCode: chosen?.planCode,
+      planVersion: chosen?.planVersion,
       reason: reason.trim(),
     }
     // Blank means "the new plan's own figure" for all three — the API's own default, so nothing
     // is sent. That is also why a negotiated price or ceiling has to be retyped to carry it.
-    if (price.trim()) body.contractedPrice = Number(price)
-    if (maxStudents.trim()) body.maxStudentsOverride = Number(maxStudents)
-    if (maxUsers.trim()) body.maxUsersOverride = Number(maxUsers)
+    if (price.trim()) out.contractedPrice = Number(price)
+    if (maxStudents.trim()) out.maxStudentsOverride = Number(maxStudents)
+    if (maxUsers.trim()) out.maxUsersOverride = Number(maxUsers)
     // Left blank the field is not sent at all, which is how the school's existing setting is
     // kept — sending false would turn renewal off for a school that had it on.
-    if (renewal) body.autoRenew = renewal === 'on'
+    if (renewal) out.autoRenew = renewal === 'on'
     // REQUIRED. Today in the SCHOOL'S day, and the instant that day begins there — UTC midnight
     // is the previous day for any school west of UTC and comes back 400 PERIOD_START_IN_PAST.
-    body.currentPeriodStart = startOfDayInZone(startsOn, timeZone)
+    out.currentPeriodStart = startOfDayInZone(startsOn, timeZone)
     // Sent only when it differs from the new plan's, so an ordinary move does not restate what
     // the plan already says.
-    if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
+    if (cycle && chosen && cycle !== chosen.billingCycle) out.billingCycle = cycle
     // Whatever is in the box, on any cadence. The API takes an explicit end as an override on
     // the four fixed cycles and requires one on CUSTOM, so this sends what was typed and lets
     // the API answer — rather than deciding which requests are worth making.
-    if (periodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+    if (periodEnd) out.currentPeriodEnd = endOfDay(periodEnd)
+    return out
+  })()
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
 
     const result = await call('change-plan', {
       label: 'Move it to this plan',
@@ -1387,6 +1386,7 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
     <Modal
       open
       onClose={onClose}
+      preview={body}
       title="Move this school to another plan"
       description="It takes effect immediately, and the billing period restarts with it."
       footer={
@@ -1677,6 +1677,11 @@ function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }
   const escalatingOnly = subscription.status === 'CANCELLED'
   const endingNow = immediate || escalatingOnly
 
+  // What #21 will receive, recomputed as the checkbox and the reason change.
+  const body = endingNow
+    ? { reason: reason.trim(), immediate: true }
+    : { reason: reason.trim() }
+
   const send = async () => {
     setRefused(null)
     const result = await onSend(reason, endingNow)
@@ -1692,6 +1697,7 @@ function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title={escalatingOnly ? 'Stop its access now' : 'End this subscription'}
       description={escalatingOnly
         ? 'It is already ending when the period runs out. This stops the access today instead.'
@@ -1804,6 +1810,9 @@ function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }
   const action = suspendOrResumeAction(subscription)
   const resuming = action.endpoint === 'resume-subscription'
 
+  // One field, and #19 and #20 take the same one.
+  const body = { reason: reason.trim() }
+
   const send = async () => {
     setRefused(null)
     const result = await onSend(action.endpoint, reason)
@@ -1818,6 +1827,7 @@ function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title={resuming ? 'Switch this school back on' : 'Cut this school off'}
       description={resuming
         ? 'Back to ACTIVE, and the school with it. Nothing else changes.'
@@ -1910,6 +1920,9 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
   const startsOn = subscription ? toDateInput(subscription.currentPeriodEnd) : ''
   const tooEarly = Boolean(endDate) && Boolean(startsOn) && endDate <= startsOn
 
+  // #17 takes a body only for a CUSTOM cadence, and only this one field.
+  const body = endDate ? { currentPeriodEnd: endOfDay(endDate) } : {}
+
   const send = async () => {
     setRefused(null)
     const result = await onRenew(endDate)
@@ -1926,6 +1939,7 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title="When does the next period end?"
       description="This contract bills on a CUSTOM cycle, which has no length — so the date has to be said."
       footer={
@@ -2069,30 +2083,37 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
     ? new Date(Date.now() + cycleDays * 86400000).toISOString().slice(0, 10)
     : null
 
-  const submit = async () => {
-    setRefused(null)
-    setSaving(true)
-    const body = { planCode: chosen.planCode, planVersion: chosen.planVersion }
-    if (trial) body.trial = true
+  // BUILT AT RENDER so the pane beside the form shows the payload as it is typed. submit()
+  // sends exactly this object.
+  const body = (() => {
+    const out = { planCode: chosen?.planCode, planVersion: chosen?.planVersion }
+    if (trial) out.trial = true
     // An empty box means "charge the plan's list price". Sending 0 would mean free.
-    if (price.trim()) body.contractedPrice = Number(price)
+    if (price.trim()) out.contractedPrice = Number(price)
     // Both ceilings the same way: an empty box means "copy the plan's own", which is what the
     // API does with an absent field. Filled in from the plan, so ordinarily these carry the
     // plan's figures and a negotiated sale is somebody typing over one of them.
-    if (maxStudents.trim()) body.maxStudentsOverride = Number(maxStudents)
-    if (maxUsers.trim()) body.maxUsersOverride = Number(maxUsers)
+    if (maxStudents.trim()) out.maxStudentsOverride = Number(maxStudents)
+    if (maxUsers.trim()) out.maxUsersOverride = Number(maxUsers)
     // Only for a CUSTOM cycle: every other cycle derives its own end, and sending one would
     // override a length the plan already implies. The chosen day is included, so end of it.
     // REQUIRED on every cycle since #13 stopped defaulting it. Today in the SCHOOL'S day, and
     // the instant that day begins there — not UTC midnight, which is the previous day for any
     // school west of UTC and comes back 400 PERIOD_START_IN_PAST.
-    body.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)
+    out.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)
     // Whatever is in the box, on any cadence — the API takes an explicit end as an override on
     // the fixed cycles and requires one on CUSTOM. Sent as typed; the API decides.
-    if (periodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+    if (periodEnd) out.currentPeriodEnd = endOfDay(periodEnd)
     // Sent only when it differs from the plan's, so the ordinary sale still reads as "this plan,
     // as listed" rather than restating what the plan already says.
-    if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
+    if (cycle && chosen && cycle !== chosen.billingCycle) out.billingCycle = cycle
+
+    return out
+  })()
+
+  const submit = async () => {
+    setRefused(null)
+    setSaving(true)
 
     const result = await call('create-subscription', {
       label: 'Give it a subscription', pathParams: { id: schoolId }, body,
@@ -2117,6 +2138,7 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title="Give this school a subscription"
       description="Only a published plan can be sold. The price, currency and cycle come from it."
       footer={

@@ -251,11 +251,6 @@ function NewSchool({ open, onClose, onCreated }) {
     setErrors({})
     setRefused(null)
     setSaving(true)
-    // Only what was filled in. An empty optional must not be sent as "" — the API would take
-    // that as a value and refuse it, where leaving it out means "no value".
-    const body = Object.fromEntries(
-      Object.entries(form).filter(([, value]) => String(value).trim() !== ''),
-    )
     const result = await call('create-school', { label: 'Create a school', body })
     setSaving(false)
 
@@ -275,8 +270,16 @@ function NewSchool({ open, onClose, onCreated }) {
     if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
   }
 
+  // Only what was filled in. An empty optional must not be sent as "" — the API would take that
+  // as a value and refuse it, where leaving it out means "no value". Built at render so the pane
+  // beside the form shows it filling up.
+  const body = Object.fromEntries(
+    Object.entries(form).filter(([, value]) => String(value).trim() !== ''),
+  )
+
   return (
     <Modal
+      preview={body}
       open={open}
       onClose={onClose}
       title="Add a school"

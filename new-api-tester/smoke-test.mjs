@@ -44,7 +44,7 @@ const bundle = await rolldown({
 const { output } = await bundle.generate({ format: 'esm' })
 const tmp = new URL('./.smoke-bundle.mjs', import.meta.url)
 writeFileSync(tmp, output[0].code)
-const { App, ApiProvider } = await import(tmp.href)
+const { App, ApiProvider, Modal } = await import(tmp.href)
 rmSync(tmp)
 
 /**
@@ -374,6 +374,7 @@ const createRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
   'utf8')
 const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
+const css = readFileSync('src/styles/components.css', 'utf8')
 const plansReadme = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md', 'utf8')
 const statusEnum = readFileSync(
@@ -417,6 +418,80 @@ const renewDialogStart = subsSourceFull.indexOf('function RenewCustomPeriod(')
 const renewDialogSource = subsSourceFull.slice(renewDialogStart,
   Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
     .map((m) => m.index).filter((i) => i > renewDialogStart)))
+
+// A write is worth seeing whole: the form and the exact payload side by side before it goes, and
+// the payload beside the reply after. So every modal takes the screen and prints the body it will
+// send, recomputed as the fields are typed — reading it afterwards tells you what you sent, not
+// what you are about to send.
+console.log('\nEvery modal shows the request body it will send')
+const kitSource = readFileSync('src/components/ui/Kit.jsx', 'utf8')
+const responseSource = readFileSync('src/components/ResponseModal.jsx', 'utf8')
+const modalFiles = sourceFiles('src/pages').map((f) => [f, readFileSync(f, 'utf8')])
+const modalsWithout = []
+for (const [f, src] of modalFiles) {
+  for (const m of src.matchAll(/<Modal\b/g)) {
+    // the props of that one element, up to the first `>` that closes the opening tag
+    const props = src.slice(m.index, src.indexOf('\n    >', m.index) + 6)
+    if (!props.includes('preview=')) modalsWithout.push(f.replace('src/pages/', ''))
+  }
+}
+const splitChecks = [
+  [`every modal previews its body (${modalsWithout.length ? modalsWithout.join(', ') : 'all do'})`,
+    modalsWithout.length === 0],
+  // The pane only tracks the fields if the body is built during render. A body assembled inside
+  // submit() can only be shown after it has gone, which is the thing this replaces.
+  ['the bodies are built at render, not inside submit',
+    !/const submit = async \(\) => \{[\s\S]{0,400}const body = \{/.test(subsSourceFull)],
+  ['Modal goes full-screen when it has a preview',
+    kitSource.includes("data-split={preview === undefined ? 'false' : 'true'}")
+      && kitSource.includes('className="modal-split"')],
+  ['and the split is two columns that scroll separately',
+    css.includes(".modal[data-split='true']")
+      && /\.modal-split \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/.test(css)
+      && /\.modal-split > \* \{[^}]*overflow-y: auto/.test(css)],
+  // An empty body is information too: a pane that vanished would read as a bug.
+  ['an empty body still shows, marked empty',
+    kitSource.includes('function isEmptyBody(')
+      && kitSource.includes("data-empty={isEmptyBody(preview) ? 'true' : 'false'}")],
+  // After the call: the request that went, beside the reply it got.
+  ['the response modal is split the same way',
+    responseSource.includes('previewLabel="Response body"')
+      && responseSource.includes('<p className="modal-pane-label">Request body</p>')],
+  ['it says so plainly when nothing was sent',
+    responseSource.includes('This request sent no body.')],
+  // DELETE has no body, and that pairing is exactly what the user needs to see.
+  ['and it renders for every method, body or not',
+    !/method === 'DELETE'/.test(responseSource)],
+  ['it stacks to one column on a narrow screen',
+    /@media \(max-width: 900px\)[\s\S]{0,200}\.modal-split \{ grid-template-columns: minmax\(0, 1fr\)/
+      .test(css)],
+]
+// Rendered, not just matched. The patterns above prove the source says the right thing; these
+// prove the browser is handed two panes, with the form in one and the JSON in the other.
+const asModal = (props) => renderToString(
+  React.createElement(Modal, { open: true, title: 'A write', onClose: () => {}, ...props },
+    React.createElement('p', null, 'the form')))
+const split = asModal({ preview: { reason: 'because', immediate: true } })
+const plain = asModal({})
+splitChecks.push(
+  ['rendered: a preview really does open full-screen', split.includes('data-split="true"')],
+  ['rendered: two panes, form on the left and the label on the right',
+    split.includes('modal-split') && split.includes('the form')
+      && split.includes('modal-pane-label')],
+  ['rendered: the pane holds the body that will be sent',
+    split.includes('&quot;reason&quot;: &quot;because&quot;')
+      && split.includes('&quot;immediate&quot;: true')],
+  // A read-only modal is still the old single-pane one. Splitting those would be noise.
+  ['rendered: no preview leaves the plain modal alone',
+    plain.includes('data-split="false"') && plain.includes('modal-body')
+      && !plain.includes('modal-split')],
+  ['rendered: an empty body shows an empty pane rather than none',
+    asModal({ preview: {} }).includes('data-empty="true"')],
+)
+for (const [label, ok] of splitChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
 
 // THIS IS AN API TESTING TOOL, so every request has to be reachable — including the ones the API
 // will refuse. A disabled button is the one thing that makes a refusal untestable, so nothing in
@@ -794,10 +869,10 @@ const changePeriodChecks = [
   ['the end is editable on every cadence',
     changeSource.includes('value={periodEnd}') && !/readOnly|disabled=/.test(changeSource)],
   ['the start is sent in the school\'s zone, and can be changed',
-    changeSource.includes('body.currentPeriodStart = startOfDayInZone(startsOn, timeZone)')
+    changeSource.includes('out.currentPeriodStart = startOfDayInZone(startsOn, timeZone)')
       && changeSource.includes('const startsOn = startDay || todayInZone(timeZone)')],
   ['and the cadence only when it differs from the plan',
-    changeSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle")],
+    changeSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) out.billingCycle = cycle")],
 ]
 for (const [label, ok] of changePeriodChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -851,7 +926,7 @@ const requiredDateChecks = [
       && javaService.includes('request.billingCycle() == BillingCycle.CUSTOM')],
   // The sale form has to send the start now, and send the right instant for the school's zone.
   ['the sale form sends the start it is now required to',
-    newSource.includes('body.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)')],
+    newSource.includes('out.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)')],
   ['it uses the school\'s zone, not UTC midnight',
     newSource.includes('todayInZone(timeZone)')
       && !newSource.includes('body.currentPeriodStart = startOfDay(')],
@@ -1062,8 +1137,8 @@ const saleFillChecks = [
       && /const choosePlan[\s\S]{0,600}setMaxUsers\(plan \? String\(plan\.maxUsers\)/
         .test(newSource)],
   ['a ceiling can now be negotiated at the point of sale',
-    newSource.includes('body.maxStudentsOverride = Number(maxStudents)')
-      && newSource.includes('body.maxUsersOverride = Number(maxUsers)')],
+    newSource.includes('out.maxStudentsOverride = Number(maxStudents)')
+      && newSource.includes('out.maxUsersOverride = Number(maxUsers)')],
   ['an emptied box still means "copy the plan\'s"',
     newSource.includes('if (maxStudents.trim())') && newSource.includes('if (maxUsers.trim())')],
   ['a fresh sale starts from a clean form',
@@ -1224,7 +1299,7 @@ const cycleChecks = [
     /setCycle\(event\.target\.value\)[\s\S]{0,300}setPeriodEnd\(''\)/.test(newSource)],
   // Sent only when it differs, so an ordinary sale does not restate what the plan already says.
   ['the cycle is sent only when it differs from the plan',
-    newSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle")],
+    newSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) out.billingCycle = cycle")],
   ['selling off-cadence is called out before the sale goes',
     newSource.includes('This is not the cadence the plan is listed on')],
   // The service must read the request's cycle, not the plan's, or the form is lying.
@@ -1268,8 +1343,8 @@ const customChecks = [
   // Whatever is typed is sent, on any cycle: the API takes an explicit end as an override on the
   // four fixed cadences, so this tool must be able to make that request.
   ['whatever is typed is sent, on any cycle',
-    (subsSourceFull.match(/if \(periodEnd\) body\.currentPeriodEnd/g) || []).length === 2
-      && !subsSourceFull.includes('if (needsPeriodEnd) body.currentPeriodEnd')],
+    (subsSourceFull.match(/if \(periodEnd\) out\.currentPeriodEnd/g) || []).length === 2
+      && !subsSourceFull.includes('if (needsPeriodEnd) out.currentPeriodEnd')],
   // The mirror, checked against the source it mirrors.
   ['the form found four cycle lengths', Object.keys(cycleDays).length === 4],
   ['the service still states the same four', Object.keys(javaDays).length === 4],

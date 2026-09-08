@@ -454,11 +454,17 @@ function AddHoliday({ open, name, onClose, onDone }) {
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
 
+  // Built at render, WHOLE, so the pane beside the form shows exactly what will go — including
+  // the optional description, which used to be bolted on inside submit.
+  const body = (() => {
+    const out = { name: form.name.trim(), type: form.type, date: form.date }
+    if (form.description.trim()) out.description = form.description.trim()
+    return out
+  })()
+
   const submit = async () => {
     setRefused(null)
     setSaving(true)
-    const body = { name: form.name.trim(), type: form.type, date: form.date }
-    if (form.description.trim()) body.description = form.description.trim()
     const result = await call('add-holiday', {
       label: 'Add a holiday', pathParams: { name }, body,
     })
@@ -475,6 +481,7 @@ function AddHoliday({ open, name, onClose, onDone }) {
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title="Add a holiday"
       description="Appends to the date. A date that already has an event keeps it."
       footer={
@@ -550,14 +557,20 @@ function EditHoliday({ editing, name, onClose, onDone }) {
   const [saving, setSaving] = useState(null)
   const query = { type: event.type }
 
+  // Built at render, whole, so the pane beside the form shows what the PATCH will carry. The
+  // DELETE half of this dialog sends no body at all.
+  const requestBody = (() => {
+    const out = { name: form.name.trim(), description: form.description.trim() || null }
+    if (form.newType) out.newType = form.newType
+    return out
+  })()
+
   const send = async (which) => {
     setRefused(null)
     setSaving(which)
     const options = { pathParams: { name, date }, query }
     if (which === 'save') {
-      const body = { name: form.name.trim(), description: form.description.trim() || null }
-      if (form.newType) body.newType = form.newType
-      options.body = body
+      options.body = requestBody
       options.label = 'Change the holiday'
     } else {
       options.label = 'Remove the holiday'
@@ -572,6 +585,7 @@ function EditHoliday({ editing, name, onClose, onDone }) {
     <Modal
       open
       onClose={onClose}
+      preview={requestBody}
       title={`${event.type} on ${date}`}
       description="The type is sent as a query parameter, because one date can hold several events."
       footer={
@@ -638,6 +652,17 @@ function EditHoliday({ editing, name, onClose, onDone }) {
 
 /* ------------------------------------------------------------- replace the whole calendar */
 
+/** Whether the box holds something the API could parse. */
+function parses(text) {
+  if (!text.trim()) return false
+  try {
+    JSON.parse(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function ReplaceCalendar({ name, days, onDone }) {
   const { call } = useApi()
   const [open, setOpen] = useState(false)
@@ -699,6 +724,8 @@ function ReplaceCalendar({ name, days, onDone }) {
       />
 
       <Modal
+        preview={text.trim() ? text : '{}'}
+        previewLabel={parses(text) ? 'Request body' : 'Request body — not valid JSON yet'}
         open={open}
         onClose={() => setOpen(false)}
         title="Replace the whole calendar"

@@ -309,6 +309,7 @@ function AskFirst({ action, value, onChange, busy, onCancel, onConfirm }) {
     <Modal
       open
       onClose={onCancel}
+      preview={{ [action.asks]: value.trim() || undefined }}
       title={action.label}
       description={action.required
         ? 'The API requires a reason, and it is kept on the school.'
@@ -362,7 +363,7 @@ function ChangeSubdomain({ open, school, onClose, onDone }) {
     const result = await call('change-subdomain', {
       label: 'Change the web address',
       pathParams: { id: school.schoolId },
-      body: { currentSubdomain: school.subdomain, newSubdomain: next.trim() },
+      body,
     })
     setSaving(false)
     if (result.ok) {
@@ -373,10 +374,14 @@ function ChangeSubdomain({ open, school, onClose, onDone }) {
     setRefused(result.bodyJson || { message: `The server answered ${result.status}.` })
   }
 
+  // What the PATCH will carry. Built at render so the pane beside the form tracks the box.
+  const body = { currentSubdomain: school.subdomain, newSubdomain: next.trim() }
+
   return (
     <Modal
       open={open}
       onClose={onClose}
+      preview={body}
       title="Change the web address"
       description="Every saved link and bookmark for the old address stops working."
       footer={

@@ -274,20 +274,25 @@ function EditDraft({ plan, path, onSaved }) {
     || form.maxStudents !== String(plan.maxStudents ?? '')
     || form.maxUsers !== String(plan.maxUsers ?? '')
 
+  // ONLY WHAT MOVED. The endpoint refuses an entirely empty body, and sending unchanged fields
+  // would make every save look like a change in the audit. Built at render so the pane beside
+  // the form shows the diff growing as boxes are edited.
+  const body = (() => {
+    const out = {}
+    if (form.name !== (plan.name ?? '')) out.name = form.name.trim()
+    if (form.description !== (plan.description ?? '')) out.description = form.description.trim() || null
+    if (form.billingCycle !== plan.billingCycle) out.billingCycle = form.billingCycle
+    if (form.listPrice !== String(plan.listPrice ?? '')) out.listPrice = Number(form.listPrice)
+    if (form.currencyCode !== (plan.currencyCode ?? '')) out.currencyCode = form.currencyCode.trim().toUpperCase()
+    if (form.maxStudents !== String(plan.maxStudents ?? '')) out.maxStudents = Number(form.maxStudents)
+    if (form.maxUsers !== String(plan.maxUsers ?? '')) out.maxUsers = Number(form.maxUsers)
+    return out
+  })()
+
   const save = async () => {
     setRefused(null)
     setErrors({})
     setSaving(true)
-    // Only what moved. The endpoint refuses an entirely empty body, and sending unchanged
-    // fields would make every save look like a change in the audit.
-    const body = {}
-    if (form.name !== (plan.name ?? '')) body.name = form.name.trim()
-    if (form.description !== (plan.description ?? '')) body.description = form.description.trim() || null
-    if (form.billingCycle !== plan.billingCycle) body.billingCycle = form.billingCycle
-    if (form.listPrice !== String(plan.listPrice ?? '')) body.listPrice = Number(form.listPrice)
-    if (form.currencyCode !== (plan.currencyCode ?? '')) body.currencyCode = form.currencyCode.trim().toUpperCase()
-    if (form.maxStudents !== String(plan.maxStudents ?? '')) body.maxStudents = Number(form.maxStudents)
-    if (form.maxUsers !== String(plan.maxUsers ?? '')) body.maxUsers = Number(form.maxUsers)
 
     const result = await call('update-plan-draft', { label: 'Save the draft', pathParams: path, body })
     setSaving(false)
@@ -660,6 +665,13 @@ function Confirm({ action, busy, onCancel, onGo }) {
     <Modal
       open
       onClose={onCancel}
+      /* Only the window actions send a body; the rest are a bare POST. */
+      preview={asksWindow
+        ? {
+          ...(from ? { effectiveFrom: startOfDay(from) } : {}),
+          ...(until ? { effectiveUntil: endOfDay(until) } : {}),
+        }
+        : {}}
       title={action.title}
       footer={
         <>

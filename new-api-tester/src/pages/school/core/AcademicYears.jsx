@@ -200,6 +200,7 @@ function NewYear({ open, onClose, onCreated }) {
     <Modal
       open={open}
       onClose={onClose}
+      preview={form}
       title="Add an academic year"
       description="The name is the key other records point at, so it cannot be changed later."
       footer={
