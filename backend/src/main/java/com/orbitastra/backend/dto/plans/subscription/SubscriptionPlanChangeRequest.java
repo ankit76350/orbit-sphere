@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 
+import com.orbitastra.backend.models.plans.enums.BillingCycle;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -32,8 +34,9 @@ import jakarta.validation.constraints.Size;
  * <h2>What follows the plan, and what survives it</h2>
  *
  * <pre>
- * from the new plan   -> billingCycle, currencyCode
- * from the new plan   -> the price and both ceilings, unless this request names them
+ * from the new plan   -> currencyCode
+ * from the new plan   -> billingCycle, the price and both ceilings, unless this request names them
+ * from this request   -> currentPeriodStart, which is required
  * kept as it is       -> autoRenew, unless this request names it
  * kept as it is       -> status, billingCustomerReference, subscriptionNo, current
  * </pre>
@@ -79,15 +82,52 @@ public record SubscriptionPlanChangeRequest(
         BigDecimal contractedPrice,
 
         /**
+         * How often the school is billed on the new plan. Example: BillingCycle.QUARTERLY
+         *
+         * <p><b>Absent means the new plan's own cycle</b>, which is the ordinary move. Send one to
+         * put the school on the new plan at a different cadence — the same negotiation #13 allows
+         * on a sale, and stored on the subscription rather than on the plan.
+         *
+         * <p><b>It is this cycle that decides the new period</b>, and therefore whether
+         * {@code currentPeriodEnd} is required. Moving to a {@code YEARLY} plan but billing
+         * {@code CUSTOM} means an end date has to be sent; moving to a {@code CUSTOM} plan but
+         * billing {@code MONTHLY} means one is derived and none is needed.
+         */
+        BillingCycle billingCycle,
+
+        /**
+         * When the new period starts. <b>Required.</b> Example: 2026-10-01T00:00:00Z
+         *
+         * <p><b>Today or later</b>, never the past: {@code 400 PERIOD_START_IN_PAST}. Nothing here
+         * invoices a period, so a backdated start would record a school as paying for time nothing
+         * could ever charge it for. The comparison is against the start of today in the school's
+         * own timezone.
+         *
+         * <p><b>It used to be derived and is now stated.</b> The start is the anchor the new
+         * period's end is measured from, and it is also the instant the row being left stops
+         * serving — so it decides two dates rather than one, which makes it somebody's decision.
+         *
+         * <p><b>Sending a future date does not delay the plan change.</b> The plan moves when this
+         * request is made; what a later start moves is when the new plan's billing period begins.
+         * The row being left has its end set to this same instant, so the two periods meet
+         * exactly and the school is never on neither.
+         */
+        @NotNull Instant currentPeriodStart,
+
+        /**
          * When the new period ends. Example: 2027-06-30T23:59:59Z
          *
-         * <p><b>Absent means the new plan's cycle decides</b> — 30, 90, 180 or 365 days from
-         * today. Required only when the plan being moved to bills on a {@code CUSTOM} cycle,
-         * which has no length: absent there is
-         * {@code 400 BILLING_PERIOD_END_REQUIRED}, the same refusal #13 gives.
+         * <p><b>Absent means the cycle decides</b> — 30, 90, 180 or 365 days from
+         * {@code currentPeriodStart}. Required when the cadence is {@code CUSTOM}, which has no
+         * length: absent there is {@code 400 BILLING_PERIOD_END_REQUIRED}, the same refusal #13
+         * and #14 give.
          *
-         * <p>It is the <b>new</b> plan's cycle that matters, not the old one. A school moving
-         * from a yearly plan to a monthly one gets a 30-day period from today.
+         * <p>The cadence that matters is {@code billingCycle} on this request where one was sent,
+         * and the <b>new</b> plan's otherwise — never the old plan's. A school moving from a
+         * yearly plan to a monthly one gets a 30-day period.
+         *
+         * <p>It has to be after {@code currentPeriodStart}, or
+         * {@code 400 INVALID_BILLING_PERIOD}.
          */
         Instant currentPeriodEnd,
 

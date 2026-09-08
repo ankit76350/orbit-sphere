@@ -374,6 +374,9 @@ const createRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
   'utf8')
 const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
+const changeRequestSource = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionPlanChangeRequest.java',
+  'utf8')
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
 // and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
 // so adding another modal cannot silently widen it.
@@ -386,6 +389,20 @@ const editSource = subsSourceFull.slice(editFormStart, editFormEnd)
 // rather than beside the first section that used it, because two later sections read from it too.
 const newStart = subsSourceFull.indexOf('function NewSubscription(')
 const newSource = subsSourceFull.slice(newStart)
+const changeStart = subsSourceFull.indexOf('function ChangePlan(')
+const changeEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index)
+  .filter((i) => i > changeStart))
+const changeSource = subsSourceFull.slice(changeStart, changeEnd)
+const javaRenew = javaService.slice(
+  javaService.indexOf('public SubscriptionDetailResponse renewSubscription('),
+  javaService.indexOf('//! Endpoint 27'))
+const mirrorSource = subsSourceFull.slice(subsSourceFull.indexOf('function whyRenewWouldRefuse('),
+  subsSourceFull.indexOf('edit the terms */'))
+const renewDialogStart = subsSourceFull.indexOf('function RenewCustomPeriod(')
+const renewDialogSource = subsSourceFull.slice(renewDialogStart,
+  Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+    .map((m) => m.index).filter((i) => i > renewDialogStart)))
 const formChecks = [
   ['the boxes are grouped under headings',
     (editSource.match(/className="field-split"/g) || []).length >= 4],
@@ -431,6 +448,46 @@ const formChecks = [
       .every((guard) => new RegExp(`disabled=\\{[^}]*${guard}`).test(editSource))],
 ]
 for (const [label, ok] of formChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// #16 got the same three controls as #13 and #14: a cadence from the new plan, a required start,
+// and an end that is only the caller's to give on CUSTOM.
+console.log('\nThe plan-change form names its period too')
+const changePeriodChecks = [
+  ['#16 requires a start, as a validation constraint',
+    /@NotNull Instant currentPeriodStart/.test(changeRequestSource)],
+  ['and takes a cadence, absent meaning the new plan\'s',
+    changeRequestSource.includes('BillingCycle billingCycle')
+      && javaService.includes('BillingCycle billingCycle = request.billingCycle() == null')],
+  ['the service derives the period from the cadence being moved onto',
+    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\),\s*\n\s*periodStart, billingCycle\)/
+      .test(javaService)],
+  ['and refuses CUSTOM without an end',
+    /billingCycle == BillingCycle\.CUSTOM && request\.currentPeriodEnd\(\) == null/
+      .test(javaService)],
+  // The row being left ends where the new one begins, in both directions.
+  ['the closed row ends where the new period starts',
+    javaService.includes('subscription.setCurrentPeriodEnd(periodStart)')],
+  ['the modal offers the cadence, filled from the plan',
+    changeSource.includes('label="Billing cycle"')
+      && /const choosePlan[\s\S]{0,900}setCycle\(plan \? plan\.billingCycle : ''\)/
+        .test(changeSource)],
+  ['it reads the cadence from the box, not the plan',
+    changeSource.includes("const soldCycle = cycle || chosen?.billingCycle || ''")
+      && changeSource.includes("const needsPeriodEnd = soldCycle === 'CUSTOM'")
+      && !changeSource.includes("const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'")],
+  ['the end is disabled unless the cadence is CUSTOM',
+    changeSource.includes('disabled={!needsPeriodEnd}')
+      && changeSource.includes('readOnly={!needsPeriodEnd}')],
+  ['the start is sent, in the school\'s zone',
+    changeSource.includes('body.currentPeriodStart = startOfDayInZone(startsOn, timeZone)')
+      && changeSource.includes('const startsOn = todayInZone(timeZone)')],
+  ['and the cadence only when it differs from the plan',
+    changeSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle")],
+]
+for (const [label, ok] of changePeriodChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
@@ -504,10 +561,10 @@ const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTod
 const startHelper = javaService.slice(startHelperAt,
   javaService.indexOf('\n    }', startHelperAt))
 const startChecks = [
-  ['the service refuses one, on a sale and on an edit',
+  ['the service refuses one on the sale, the edit and the plan change',
     javaService.includes('private void validatePeriodStartIsTodayOrLater(')
       && (javaService.match(/validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
-        || []).length === 2],
+        || []).length === 3],
   // Scoped to the helper's BODY. A window measured from the name matched a call site instead —
   // in createSubscription, startOfTodayInSchoolZone sits three lines under the call.
   ['it compares against the school\'s own timezone, not UTC',
@@ -521,7 +578,7 @@ const startChecks = [
   ['it never checks what is already stored',
     !/validatePeriodStartIsTodayOrLater\([^)]*subscription/.test(javaService)],
   ['the helper says which methods use it',
-    /Used by:[\s\S]{0,120}createSubscription\(\)[\s\S]{0,60}updateSubscription\(\)[\s\S]{0,200}private void validatePeriodStartIsTodayOrLater/
+    /Used by:[\s\S]{0,200}createSubscription\(\)[\s\S]{0,60}updateSubscription\(\)[\s\S]{0,60}changePlan\(\)[\s\S]{0,200}private void validatePeriodStartIsTodayOrLater/
       .test(javaService)],
   // The screen side: only a CHANGED value is flagged, or every running subscription would open
   // with an error on the form.
@@ -633,11 +690,6 @@ for (const [label, ok] of limitChecks) {
 // figures, rather than showing them as placeholders nobody can read back or edit. Scoped to
 // ChangePlan the same way the edit form is, so the other modals' boxes cannot answer for it.
 console.log('\nChoosing a plan fills in what that plan charges')
-const changeStart = subsSourceFull.indexOf('function ChangePlan(')
-const changeEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
-  .map((m) => m.index)
-  .filter((i) => i > changeStart))
-const changeSource = subsSourceFull.slice(changeStart, changeEnd)
 const autofillChecks = [
   ['the select fills the boxes rather than only recording the choice',
     changeSource.includes('onChange={(event) => choosePlan(event.target.value)}')
@@ -715,9 +767,6 @@ for (const [label, ok] of saleFillChecks) {
 // give are worked out on the screen so they show on the button instead of arriving as a 409.
 // That mirror can drift, so the renewable statuses are read back out of the Java.
 console.log('\nRenewing is a button, and it says when it would be refused')
-const javaRenew = javaService.slice(
-  javaService.indexOf('public SubscriptionDetailResponse renewSubscription('),
-  javaService.indexOf('//! Endpoint 27'))
 // Comments stripped, for the checks that ask "does this CALL x" rather than "does it mention x" —
 // the method's own prose explains why it deliberately does not use loadSellablePlan, and a
 // substring test cannot tell that apart from calling it.
@@ -729,14 +778,8 @@ const ALL_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED', '
 const renewableInJava = ALL_STATUSES.filter((st) =>
   new RegExp(`renewable[\\s\\S]{0,240}SubscriptionStatus\\.${st}\\b`).test(javaRenew))
 const refusedInJava = ALL_STATUSES.filter((st) => !renewableInJava.includes(st))
-const mirrorSource = subsSourceFull.slice(subsSourceFull.indexOf('function whyRenewWouldRefuse('),
-  subsSourceFull.indexOf('edit the terms */'))
 // The CUSTOM dialog on its own, ending at whichever function follows it, so the sale form's
 // four boxes below cannot answer for "this dialog has one field".
-const renewDialogStart = subsSourceFull.indexOf('function RenewCustomPeriod(')
-const renewDialogSource = subsSourceFull.slice(renewDialogStart,
-  Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
-    .map((m) => m.index).filter((i) => i > renewDialogStart)))
 
 const renewChecks = [
   ['the screen has a refusal mirror at all', mirrorSource.length > 0],
@@ -895,9 +938,11 @@ const javaDays = Object.fromEntries([...javaService.matchAll(
   /case (MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY) -> (\d+);/g)].map((m) => [m[1], Number(m[2])]))
 
 const customChecks = [
+  // Scoped to the sale form: ChangePlan asks the same question and used to answer it with the
+  // same expression, which is why a file-wide match kept passing for the wrong component.
   ['the form asks for an end date, and only for CUSTOM',
-    subsSourceFull.includes("chosen?.billingCycle === 'CUSTOM'")
-      && /\{needsPeriodEnd \? \(/.test(subsSourceFull)],
+    newSource.includes("const needsPeriodEnd = soldCycle === 'CUSTOM'")
+      && /\{needsPeriodEnd \? \(/.test(newSource)],
   // Matched as one clause of the button's guard rather than as the whole expression, so adding
   // another reason to refuse the sale does not read as removing this one.
   ['it will not let the sale go without one',

@@ -472,11 +472,15 @@ public class PlatformSubscriptionService {
      * read of "the school's subscription" goes through
      * {@code findBySchoolIdAndCurrentIsTrue}.
      *
-     * <p><b>It takes effect immediately, and there is no option not to.</b> A subscription holds
+     * <p><b>The plan changes immediately, and there is no option not to.</b> A subscription holds
      * one plan, not a current one and a pending one, so a change scheduled for the next period
      * would have nowhere to live — and moving the pointer now while calling it next period would
-     * hand the school its new entitlements early. The plan changes when the request is made, and
-     * the billing period restarts with it.
+     * hand the school its new entitlements early.
+     *
+     * <p><b>What the request does choose is when the new billing PERIOD begins</b>, through the
+     * required {@code currentPeriodStart}. Today is the ordinary answer and reproduces the old
+     * behaviour exactly. A later date does not delay the entitlements — only the period — and the
+     * row being left has its end moved to that same instant, so the two periods meet.
      *
      * <p><b>It asks nothing about the money already paid, and moves none.</b> The school is
      * part-way through a period it has paid for, and nothing here charges, credits or refunds any
@@ -601,15 +605,36 @@ public class PlatformSubscriptionService {
                 ? newPlan.getMaxUsers()
                 : request.maxUsersOverride();
 
-        //! step 8 - the period restarts today, on the new plan's cycle. A plan change takes
-        //! effect now, so the period it belongs to starts now too.
-        Instant periodStart = startOfTodayInSchoolZone(school.getDefaultTimeZone());
-        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
-                periodStart, newPlan.getBillingCycle());
+        //! step 8 - the cadence and the period. The cycle is the new plan's unless this request
+        //! names one, exactly as on a sale: putting a school on a plan at a cadence the plan is
+        //! not listed at is a negotiation, and it lands on the subscription rather than the plan.
+        BillingCycle billingCycle = request.billingCycle() == null
+                ? newPlan.getBillingCycle()
+                : request.billingCycle();
 
-        //! step 9 - close the row the school is leaving. It stops being the current one, and
-        //! its period is trimmed to today because that is the period it actually served —
-        //! leaving the old end date would say the school was on that plan for months it was not.
+        //! The start is REQUIRED — @NotNull on the request — and has to be today or later. It is
+        //! the anchor the new end is measured from AND the instant the row being left stops
+        //! serving, so it decides two dates rather than one.
+        validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
+
+        Instant periodStart = request.currentPeriodStart();
+
+        //! Derived from the cadence ABOVE, not the plan's, so the refusal follows what the school
+        //! is actually billed on: a YEARLY plan billed CUSTOM needs an end date and says so.
+        Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
+                periodStart, billingCycle);
+
+        if (billingCycle == BillingCycle.CUSTOM && request.currentPeriodEnd() == null) {
+            throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
+                    "currentPeriodEnd has to be sent when the new cadence is CUSTOM, which has "
+                            + "no length to work the period out from.");
+        }
+
+        //! step 9 - close the row the school is leaving. It stops being the current one, and its
+        //! period ends exactly where the new one begins, so the two meet and the school is never
+        //! on neither. Ordinarily that TRIMS it — the old end date would otherwise claim months
+        //! the school was not on that plan — and for a start dated later it extends it instead,
+        //! which is the same statement: the old plan serves until the new one takes over.
         //!
         //! Its status is deliberately NOT touched. It did not expire and it was not cancelled;
         //! it was superseded, and inventing one of the other two would put a wrong word in the
@@ -646,7 +671,7 @@ public class PlatformSubscriptionService {
                 // The state the school was in carries over: a suspended school that changes plan
                 // is still suspended, and a trial that changes plan is still a trial.
                 .status(subscription.getStatus())
-                .billingCycle(newPlan.getBillingCycle())
+                .billingCycle(billingCycle)
                 .currentPeriodStart(periodStart)
                 .currentPeriodEnd(periodEnd)
                 // Absent on the request means the school's existing instruction, not the plan's:
@@ -1614,11 +1639,12 @@ public class PlatformSubscriptionService {
      * <p><b>It never looks at what is already stored.</b> A subscription sold months ago has a
      * start in the past by definition; checking that would make every other field on #14
      * unreachable for a running subscription. Only a value somebody is sending now is a decision
-     * to refuse.
+     * to refuse — which on #13 and #16 is every call, because both require the field.
      *
      * Used by:
      * - createSubscription()
      * - updateSubscription()
+     * - changePlan()
      */
     private void validatePeriodStartIsTodayOrLater(Instant requestedStart, School school) {
         if (requestedStart == null) {

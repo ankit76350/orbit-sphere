@@ -6541,6 +6541,23 @@ so a change scheduled for a future period would have nowhere to live — and mov
 while calling it "next period" would hand the school its new entitlements early. So the plan
 changes when you send this, and the billing period restarts with it, on the **new** plan's cycle.
 
+### The cadence and the period
+
+\`currentPeriodStart\` is **required** and has to be **today or later**. It used to be derived as
+"today" and is now stated, because it decides two dates rather than one: the anchor the new
+period's end is measured from, and the instant the row being left stops serving. The closed row's
+end is set to it, so the two periods meet — trimming the old one ordinarily, extending it when the
+start is dated later.
+
+\`billingCycle\` is optional and absent takes the **new plan's** cadence. Send one to move the
+school on at a different cadence, stored on the subscription rather than the plan. Whichever
+applies decides the period, and therefore whether \`currentPeriodEnd\` is required: a \`CUSTOM\`
+plan needs an end date, so does a \`YEARLY\` plan billed \`CUSTOM\`, and a \`CUSTOM\` plan billed
+\`MONTHLY\` needs none.
+
+A future \`currentPeriodStart\` does **not** delay the plan change — the pointer still moves now.
+It moves when the new billing period opens.
+
 ### It asks nothing about the money, and moves none
 
 The school is part-way through a period it has paid for, and this endpoint **charges, credits and
@@ -6609,6 +6626,8 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
       responseFields: ["subscriptionId", "subscriptionNo", "schoolId", "planDefinitionDocsId", "planCode", "planVersion", "planName", "planStatus", "planRetired", "status", "billingCycle", "currentPeriodStart", "currentPeriodEnd", "daysRemaining", "periodEnded", "autoRenew", "current", "contractedPrice", "planListPrice", "currencyCode", "hasDiscount", "maxStudents", "maxUsers", "maxStudentsOverride", "maxUsersOverride", "hasLimitOverrides", "featureCount", "features", "reasonForChanges", "billingCustomerReference", "note"],
       captures: [],
       errors: [
+        { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
+        { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A CUSTOM cadence with no currentPeriodEnd" },
         { status: 400, code: "VALIDATION_FAILED", when: "A reason is required" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom target with no end date" },
         { status: 409, code: "PLAN_UNCHANGED", when: "The plan it is already on" },

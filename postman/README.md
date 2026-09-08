@@ -288,8 +288,12 @@ current and a pending one — and it **writes two rows**: the row being left is 
 (`current` = false, its period trimmed to the day of the change) and a new one opens on the new
 plan's terms with a `subscriptionNo` of its own.
 
-- **A `reason` is required**, and the price and both ceilings come from the **new** plan unless the
-  request names them. A negotiated ceiling does **not** carry across: it was agreed against a
+- **`reason` and `currentPeriodStart` are required**, and the price and both ceilings come from the
+  **new** plan unless the request names them. The start has to be today or later, and it decides
+  two dates: the anchor the new period's end is measured from, and the instant the row being left
+  stops serving — so the two periods meet. A future start moves the *period*, not the plan pointer.
+- **The cadence can be negotiated here too.** `billingCycle` is optional and absent takes the new
+  plan's; whichever applies decides the period and whether `currentPeriodEnd` is required. A negotiated ceiling does **not** carry across: it was agreed against a
   particular plan, so moving to a different one means the terms are agreed again.
 - **It takes the school ACTIVE.** `PROVISIONING`, `ACTIVE` and `SUSPENDED` schools may change plan
   and all three come out `ACTIVE` — this is the one endpoint that **un-suspends**, on the argument

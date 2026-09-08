@@ -221,6 +221,7 @@ export default function Subscriptions() {
       />
 
       <ChangePlan
+        timeZone={school?.defaultTimeZone}
         open={changingPlan}
         schoolId={schoolId}
         subscription={subscription}
@@ -1027,7 +1028,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
  * because nothing raises invoices yet. A form that collected them silently would leave somebody
  * believing a charge had been raised.
  */
-function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
+function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged }) {
   const { call } = useApi()
   const [plans, setPlans] = useState(null)
   const [picked, setPicked] = useState('')
@@ -1037,6 +1038,7 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
   const [maxUsers, setMaxUsers] = useState('')
   // Three states, not a checkbox: absent leaves the school's setting, which a boolean cannot say.
   const [renewal, setRenewal] = useState('')
+  const [cycle, setCycle] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1058,9 +1060,6 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
 
   const onNow = `${subscription.planCode}@${subscription.planVersion}`
   const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
-  // A CUSTOM cycle has no length, so the API cannot derive an end and refuses without one.
-  const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'
-  const cycleDays = chosen ? DAYS_PER_CYCLE[chosen.billingCycle] : undefined
 
   /**
    * Choosing a plan fills the three negotiable boxes with that plan's own figures.
@@ -1079,9 +1078,13 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
     setPrice(plan ? String(plan.listPrice) : '')
     setMaxStudents(plan ? String(plan.maxStudents) : '')
     setMaxUsers(plan ? String(plan.maxUsers) : '')
+    // The cadence comes from the plan and stays editable, and a date typed against the previous
+    // cadence does not belong to this one.
+    setCycle(plan ? plan.billingCycle : '')
+    setPeriodEnd('')
   }
 
-// Whether this school pays something other than its current plan's list price. Worked out
+  // Whether this school pays something other than its current plan's list price. Worked out
   // here rather than read off the response, which reports the two prices and no verdict on them.
   const paysNegotiatedPrice = subscription.planListPrice != null
     && Number(subscription.contractedPrice) !== Number(subscription.planListPrice)
@@ -1096,6 +1099,21 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
   // here rather than after a round trip that empties the form.
   const zeroCeiling = [maxStudents, maxUsers]
     .some((value) => value.trim() !== '' && Number(value) < 1)
+
+  // THE CADENCE BEING MOVED ONTO, which is the box — not the new plan's listed one. It decides
+  // the period and therefore whether an end date is the caller's to give.
+  const soldCycle = cycle || chosen?.billingCycle || ''
+  const needsPeriodEnd = soldCycle === 'CUSTOM'
+  const cycleDays = DAYS_PER_CYCLE[soldCycle]
+
+  // The new period starts today in the school's day. Required by the API since it is the anchor
+  // the end is measured from AND the instant the row being left stops serving.
+  const startsOn = todayInZone(timeZone)
+  const derivedEnd = cycleDays
+    ? new Date(Date.parse(`${startsOn}T00:00:00Z`) + cycleDays * 86400000)
+      .toISOString().slice(0, 10)
+    : ''
+
   const missing = !chosen || !reason.trim() || (needsPeriodEnd && !periodEnd)
 
   const submit = async () => {
@@ -1114,6 +1132,12 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
     // Left blank the field is not sent at all, which is how the school's existing setting is
     // kept — sending false would turn renewal off for a school that had it on.
     if (renewal) body.autoRenew = renewal === 'on'
+    // REQUIRED. Today in the SCHOOL'S day, and the instant that day begins there — UTC midnight
+    // is the previous day for any school west of UTC and comes back 400 PERIOD_START_IN_PAST.
+    body.currentPeriodStart = startOfDayInZone(startsOn, timeZone)
+    // Sent only when it differs from the new plan's, so an ordinary move does not restate what
+    // the plan already says.
+    if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
     if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
 
     const result = await call('change-plan', {
@@ -1123,7 +1147,8 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
     })
     setSaving(false)
     if (result.ok) {
-      setPicked(''); setReason(''); setPrice(''); setMaxStudents(''); setMaxUsers('')
+      setPicked('')
+      setCycle(''); setReason(''); setPrice(''); setMaxStudents(''); setMaxUsers('')
       setRenewal(''); setPeriodEnd('')
       await onChanged(result.bodyJson)
       return
@@ -1228,15 +1253,82 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
           </p>
         ) : null}
 
-        {needsPeriodEnd ? (
+        <div className="field-split">
+          The new billing period — filled from the plan, change what was agreed
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Billing cycle"
+            hint={chosen
+              ? (soldCycle === chosen.billingCycle
+                ? "The new plan's own cadence. Change it to move the school on at different terms."
+                : `'${chosen.planCode}' is listed ${chosen.billingCycle}. This school will be billed ${soldCycle}.`)
+              : 'Choose a plan and this fills in with its own cadence.'}
+          >
+            <span className="select" style={{ width: '100%' }}>
+              <select
+                className="select-input"
+                style={{ width: '100%' }}
+                value={soldCycle}
+                disabled={!chosen}
+                onChange={(event) => { setCycle(event.target.value); setPeriodEnd('') }}
+              >
+                <option value="">Choose a plan first…</option>
+                {BILLING_CYCLES.map((one) => (
+                  <option key={one} value={one}>{one}</option>
+                ))}
+              </select>
+            </span>
+          </Field>
+
+          <Field
+            label="New period starts on"
+            hint={timeZone
+              ? `Today in ${timeZone}. Required by the API, and it is also when the row being left stops serving.`
+              : 'Today. Required by the API, and it is also when the row being left stops serving.'}
+          >
+            <Input type="date" value={startsOn} disabled readOnly />
+          </Field>
+
+          {/* Enabled ONLY for CUSTOM. The other four derive their end from the start, so a value
+              here would override a date the cadence already decides. */}
           <Field
             label="New period ends on"
-            required
-            hint="This plan bills on a CUSTOM cycle, which has no length, so the end date has to be said. The chosen day is included."
+            required={needsPeriodEnd}
+            hint={needsPeriodEnd
+              ? 'A CUSTOM cadence has no length, so the end date has to be said. The chosen day is included.'
+              : (derivedEnd
+                ? `Derived: ${cycleDays} days from ${startsOn}, on a ${soldCycle} cadence.`
+                : 'Choose a cycle first.')}
           >
-            <Input type="date" value={periodEnd}
-              onChange={(event) => setPeriodEnd(event.target.value)} />
+            <Input
+              type="date"
+              min={startsOn}
+              value={needsPeriodEnd ? periodEnd : (derivedEnd || '')}
+              disabled={!needsPeriodEnd}
+              readOnly={!needsPeriodEnd}
+              onChange={(event) => setPeriodEnd(event.target.value)}
+            />
           </Field>
+        </div>
+
+        {needsPeriodEnd ? (
+          <p className="banner" data-tone="warn">
+            <strong>A CUSTOM cadence has no length, so the end date has to be said.</strong> Every
+            other cadence derives its own — 30, 90, 180 or 365 days from {startsOn}. Without it
+            the move is refused with
+            <code className="mono"> 400 BILLING_PERIOD_END_REQUIRED</code>.
+          </p>
+        ) : null}
+
+        {chosen && soldCycle !== chosen.billingCycle ? (
+          <p className="banner" data-tone="warn">
+            <strong>This is not the cadence the new plan is listed on.</strong>{' '}
+            &apos;{chosen.planCode}&apos; v{chosen.planVersion} is sold {chosen.billingCycle}, and
+            this school will be billed <strong>{soldCycle}</strong>. The cadence is stored on the
+            subscription, so the plan itself is unchanged.
+          </p>
         ) : null}
 
         {/* Nothing negotiable is carried across on its own: a price and a ceiling are agreed

@@ -128,7 +128,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. **The billing cycle can be negotiated** — absent takes the plan's, and whichever applies decides the period dates and whether an end date is required. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **The cadence decides the period** — changing the cycle or the start recalculates the end, and moving to `CUSTOM` requires a date with it. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
-| <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **The plan moves immediately**; `currentPeriodStart` is **required** and chooses when the new billing period begins, with the closed row ending at that same instant. **The cadence can be negotiated** — absent takes the new plan's, and whichever applies decides the period and whether an end date is required. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 — **built** | [`POST /platform/schools/{id}/subscriptions/current/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. **No request body** — the plan, price, ceilings and cycle all carry across untouched. Writes a second row and closes the period that ended, so the new period starts exactly where the last one finished. **No invoice is raised** — nothing writes `subscription_invoices` yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
 | <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -2177,7 +2177,9 @@ than it tidies.
   "planCode": "PREMIUM",              // REQUIRED, max 40
   "planVersion": 1,                   // REQUIRED
   "reason": "Outgrew Starter's 500.", // REQUIRED, max 500
+  "currentPeriodStart": "2026-10-01T00:00:00Z",   // REQUIRED, today or later
 
+  "billingCycle": "QUARTERLY",        // optional — the new plan's if absent
   "contractedPrice": 39999.50,        // optional
   "maxStudentsOverride": 2500,        // optional
   "maxUsersOverride": 300,            // optional
@@ -2185,9 +2187,12 @@ than it tidies.
   "currentPeriodEnd": null            // optional / REQUIRED on CUSTOM
 }
 
-// The change is immediate. There is no
-// timing field, because a subscription
-// cannot hold a pending plan.
+// The PLAN changes immediately — a
+// subscription cannot hold a pending one.
+// currentPeriodStart chooses when the new
+// billing PERIOD begins, and the row being
+// left ends at that same instant, so the
+// two meet.
 </pre></td>
 <td><pre>
 200 OK — the whole subscription, as #27 returns it
@@ -2218,6 +2223,8 @@ than it tidies.
 409 PLAN_NOT_SELLABLE            — a draft or retired target
 409 SUBSCRIPTION_NOT_CHANGEABLE  — cancelled or expired
 409 SCHOOL_NOT_PLAN_CHANGEABLE   — the school is being wound down
+400 PERIOD_START_IN_PAST         — a start already past
+400 INVALID_BILLING_PERIOD       — an end not after the start
 400 BILLING_PERIOD_END_REQUIRED  — a CUSTOM target, no end
 400 LIMIT_TOO_LOW                — a ceiling sent as 0
 404 SCHOOL_NOT_FOUND             — no such school
@@ -2233,11 +2240,30 @@ than it tidies.
 | `planCode` | **yes** | The family to move to, max 40. May be the plan the school is already on — that is how it moves to a newer version — but not the same code **and** version, which is `409 PLAN_UNCHANGED`. |
 | `planVersion` | **yes** | Which version. The target must be sellable today: a draft's price is not settled and a retired plan is off the menu, both `409 PLAN_NOT_SELLABLE`. A published plan that is not publicly available is fine — that is a private quote. |
 | `reason` | **yes** | Max 500, `@NotBlank`. Stored as `reasonForChanges` and on the history row. A plan change moves what a school is entitled to and what it pays — an unexplained one is the hardest record to answer questions about later. |
+| `currentPeriodStart` | **yes** | An instant, **today or later** (`400 PERIOD_START_IN_PAST`). It used to be derived as "today" and is now stated, because it decides **two** dates rather than one: the anchor the new period's end is measured from, and the instant the row being left stops serving. A future date does **not** delay the plan change — only the period — and the closed row's end moves to meet it, so the school is never on neither. |
+| `billingCycle` | no | **Absent means the new plan's own cadence**, which is the ordinary move. Send one to put the school on the new plan at a different cadence — the same negotiation #13 allows, stored on the **subscription** rather than the plan. **It is this cadence that decides the new period** and therefore whether `currentPeriodEnd` is required. |
 | `contractedPrice` | no | **Absent means the new plan's list price.** A discount is **not** carried over automatically: it was agreed against a plan at a price, and this is a different plan at a different price, so continuing it silently would invent a deal nobody made. Send it to continue the same arrangement. Zero allowed, negative refused. |
 | `maxStudentsOverride` | no | **Absent copies the new plan's `maxStudents`**, exactly as #13 does on a sale — so a ceiling negotiated on the old plan is **not** carried across unless it is restated here. At least 1; zero is `400 LIMIT_TOO_LOW`, because there is nothing to remove on a plan change. Removing an override is #14, where zero means exactly that. |
 | `maxUsersOverride` | no | The same, against the new plan's `maxUsers`. |
 | `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. **Nothing acts on it** — [#17](#e17) does not consult it. |
-| `currentPeriodEnd` | **on a `CUSTOM` target** | An instant. Absent means the **new** plan's cycle decides — 30, 90, 180 or 365 days from today. A school moving from a yearly plan to a monthly one gets 30 days. |
+| `currentPeriodEnd` | **on a `CUSTOM` cadence** | An instant, after `currentPeriodStart` (`400 INVALID_BILLING_PERIOD`). Absent means the cadence decides — 30, 90, 180 or 365 days from `currentPeriodStart`. **Which cadence counts is `billingCycle` on this request, and the new plan's otherwise** — never the old plan's: a school moving from a yearly plan to a monthly one gets 30 days, and a yearly plan billed `CUSTOM` needs a date. |
+
+### The cadence and the period, and how the two rows meet
+
+| Cadence being moved onto | `currentPeriodStart` | `currentPeriodEnd` |
+|---|---|---|
+| the new plan's, or one named on the request | **required**, today or later | start + 30 / 90 / 180 / 365 |
+| `CUSTOM`, either way round | **required**, today or later | **required** |
+
+"Either way round" is the part worth testing: a `CUSTOM` **plan** needs an end date, and so does a
+`YEARLY` plan being billed `CUSTOM` — while a `CUSTOM` plan billed `MONTHLY` derives one and needs
+none. The refusal follows what the school is actually billed on.
+
+**The two rows meet exactly.** The row being left has its `currentPeriodEnd` set to the new
+`currentPeriodStart`, so there is no day the school was on neither plan and none where it was on
+both. Ordinarily that **trims** the old period — its stored end would otherwise claim months the
+school was not on that plan — and for a start dated later it **extends** it instead, which is the
+same statement: the old plan serves until the new one takes over.
 
 ### The change is immediate, and there is no field asking otherwise
 
@@ -2245,7 +2271,13 @@ A subscription holds **one** plan, not a current one and a pending one, so a cha
 a future period would have nowhere to live. Moving the pointer now while calling it "next period"
 would hand the school its new entitlements early and bill it at the old price for the rest of the
 period — so the endpoint does the honest thing instead: **the plan changes when the request is
-made, and the billing period restarts with it.**
+made.**
+
+**What `currentPeriodStart` chooses is when the new billing PERIOD begins**, which is a different
+question. Today is the ordinary answer and reproduces exactly what this endpoint did when the
+start was derived. A later date moves the period, not the entitlements — and because the closed
+row's end moves with it, the school keeps being billed for the old plan until the new period
+opens. That is not the scheduling this section rules out; the plan pointer still moves now.
 
 Deferring a change is #17's territory, if it is ever wanted: renewal is the moment a period ends,
 which is the only moment a deferred change could take effect.
