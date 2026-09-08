@@ -12,6 +12,14 @@ import { endOfDay, startOfDay, toDateInput } from '../../../lib/dates.js'
  * would say eight fields were edited — which is worse than useless when somebody is later asking
  * which field moved.
  *
+ * ONE FIELD BREAKS THAT RULE, because the endpoint makes it: `currentPeriodEnd` is sent unchanged
+ * when the cadence is moving to CUSTOM, which is the one transition that requires it. See the
+ * note beside it.
+ *
+ * WHAT IS NOT SENT ON A FIXED CADENCE is that same `currentPeriodEnd`: MONTHLY, QUARTERLY,
+ * HALF_YEARLY and YEARLY have a length, so the API derives the end from the start and sending one
+ * would override a date the cadence already decides. The form disables that box for them.
+ *
  * WHAT IS NOT HERE: the price, the currency, the billing customer reference and the plan. Those
  * are #25, #26 and #16 — money and entitlement, each with its own endpoint, deliberately not
  * reachable from an edit that moves dates around. Nor the cancellation: `cancelledAt` and
@@ -60,7 +68,16 @@ export function patchBody(form, stored) {
   if (form.currentPeriodStart && form.currentPeriodStart !== stored.currentPeriodStart) {
     out.currentPeriodStart = startOfDay(form.currentPeriodStart)
   }
-  if (form.currentPeriodEnd && form.currentPeriodEnd !== stored.currentPeriodEnd) {
+  // ONE EXCEPTION TO "ONLY THE DIFFERENCE", and the API is what forces it: moving to a CUSTOM
+  // cadence requires currentPeriodEnd on the same request, because CUSTOM has no length to derive
+  // from and the date on record belongs to the cadence being left. So on that transition the
+  // box's value goes even when it has not been edited — otherwise somebody happy with the date
+  // already showing would get a 400 for changing nothing.
+  const movingToCustom = form.billingCycle === 'CUSTOM'
+    && form.billingCycle !== stored.billingCycle
+
+  if (form.currentPeriodEnd
+    && (movingToCustom || form.currentPeriodEnd !== stored.currentPeriodEnd)) {
     out.currentPeriodEnd = endOfDay(form.currentPeriodEnd)
   }
 

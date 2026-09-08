@@ -434,6 +434,7 @@ for (const [label, ok] of formChecks) {
 // could act on.
 console.log('\nA billing period cannot start in the past')
 // The helper's own body, from its signature to the blank line after its closing brace.
+const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
 const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTodayOrLater(')
 const startHelper = javaService.slice(startHelperAt,
   javaService.indexOf('\n    }', startHelperAt))
@@ -494,10 +495,24 @@ const editCycleChecks = [
   // All three conditions, not just the constant's name: it has to be the cadence being CUSTOM,
   // the cadence having actually changed, and no date sent. A version stubbed to a constant
   // passed the earlier "the name exists" form of this check.
-  ['moving to CUSTOM without a date is caught before sending',
-    /const customNeedsEnd = editIsCustomCycle\s*\n\s*&& form\.billingCycle !== stored\.billingCycle\s*\n\s*&& !form\.currentPeriodEnd/
-      .test(editSource)
+  ['moving to CUSTOM with an empty box is caught before sending',
+    editSource.includes('const customNeedsEnd = editIsCustomCycle && cycleChanged && !form.currentPeriodEnd')
       && /disabled=\{[^}]*customNeedsEnd/.test(editSource)],
+  // The API requires currentPeriodEnd on that transition, so the diff-only body has to break its
+  // own rule there — otherwise somebody happy with the date already shown gets a 400 for
+  // changing nothing.
+  ['and the body sends the end on that transition even unchanged',
+    editBodySource.includes("const movingToCustom = form.billingCycle === 'CUSTOM'")
+      && /movingToCustom \|\| form\.currentPeriodEnd !== stored\.currentPeriodEnd/
+        .test(editBodySource)],
+  // The bug this replaced: periodBackwards compared the STORED end against the new start, so a
+  // perfectly good derived end read as "runs backwards" and disabled the button.
+  ['the period is judged on the end that will be in force',
+    editSource.includes("const effectiveEnd = editIsCustomCycle ? form.currentPeriodEnd : editDerivedEnd")
+      && /const periodBackwards = editIsCustomCycle[\s\S]{0,200}effectiveEnd <= form\.currentPeriodStart/
+        .test(editSource)],
+  ['a derived end is never called backwards',
+    !/periodBackwards[\s\S]{0,200}stored\.currentPeriodEnd/.test(editSource)],
   ['and says why, naming the cadence being left',
     editSource.includes('A CUSTOM cadence needs an end date with it')
       && editSource.includes('{stored.billingCycle} cadence this subscription is leaving')],
@@ -863,6 +878,39 @@ const editCases = [
   ['a reason rides along with a real change',
     same(edited({ autoRenew: false, reason: 'because' }), { autoRenew: false, reason: 'because' })],
   ['one field sends one field', same(edited({ autoRenew: false }), { autoRenew: false })],
+  // THE TWO CASES THAT WERE BROKEN. The screen showed "that period runs backwards" for a
+  // perfectly good derived end, and sent no end at all when moving to CUSTOM.
+  //
+  // On a fixed cadence the API derives the end, so the body must NOT carry one — sending one
+  // would override a date the cadence already decides.
+  ['a cadence and start change sends no end on a fixed cycle',
+    same(edited({ billingCycle: 'QUARTERLY', currentPeriodStart: '2026-11-20', reason: 'r' }),
+      { billingCycle: 'QUARTERLY', currentPeriodStart: '2026-11-20T00:00:00Z', reason: 'r' })],
+  ['and a start change alone sends only the start',
+    same(edited({ currentPeriodStart: '2026-11-20', reason: 'r' }),
+      { currentPeriodStart: '2026-11-20T00:00:00Z', reason: 'r' })],
+  // Moving to CUSTOM requires the end on the same request, so the unchanged box value goes with
+  // it. Without this the API answers 400 BILLING_PERIOD_END_REQUIRED for changing nothing.
+  ['moving to CUSTOM carries the end even unchanged',
+    same(edited({ billingCycle: 'CUSTOM', reason: 'r' }),
+      { billingCycle: 'CUSTOM', currentPeriodEnd: '2027-03-31T23:59:59Z', reason: 'r' })],
+  ['moving to CUSTOM with a new start carries it too',
+    same(edited({ billingCycle: 'CUSTOM', currentPeriodStart: '2026-11-20', reason: 'r' }),
+      { billingCycle: 'CUSTOM', currentPeriodStart: '2026-11-20T00:00:00Z',
+        currentPeriodEnd: '2027-03-31T23:59:59Z', reason: 'r' })],
+  // Already CUSTOM: the end is an agreed date the API keeps, so an unchanged one stays absent.
+  ['a start change on an existing CUSTOM sends no end',
+    (() => {
+      const custom = storedForm({ ...STORED_SUB, billingCycle: 'CUSTOM' })
+      return same(patchBody({ ...custom, currentPeriodStart: '2026-11-20', reason: 'r' }, custom),
+        { currentPeriodStart: '2026-11-20T00:00:00Z', reason: 'r' })
+    })()],
+  ['and a changed end on an existing CUSTOM does send it',
+    (() => {
+      const custom = storedForm({ ...STORED_SUB, billingCycle: 'CUSTOM' })
+      return same(patchBody({ ...custom, currentPeriodEnd: '2027-06-30', reason: 'r' }, custom),
+        { currentPeriodEnd: '2027-06-30T23:59:59Z', reason: 'r' })
+    })()],
   // The money and the plan are #25, #26 and #16. Nothing in the form can reach them, so nothing
   // in the body can either — a box that reappeared by accident would show up here.
   ['no edit can reach the price, the currency, the reference or the plan',

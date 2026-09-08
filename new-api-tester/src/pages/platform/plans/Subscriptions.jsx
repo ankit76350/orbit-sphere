@@ -663,12 +663,19 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
       + editCycleDays * 86400000).toISOString().slice(0, 10)
     : ''
 
+  const cycleChanged = form.billingCycle !== stored.billingCycle
+
   // Moving TO a CUSTOM cadence needs the date with it: CUSTOM has no length to derive from, and
-  // the stored end belongs to the cadence being left. The API answers 400
-  // BILLING_PERIOD_END_REQUIRED, so it is caught here rather than losing a filled-in form.
-  const customNeedsEnd = editIsCustomCycle
-    && form.billingCycle !== stored.billingCycle
-    && !form.currentPeriodEnd
+  // the stored end belongs to the cadence being left. patchBody sends the box's value on that
+  // transition even when it has not been edited, so this fires only when the box is EMPTY and
+  // there is genuinely nothing to send.
+  const customNeedsEnd = editIsCustomCycle && cycleChanged && !form.currentPeriodEnd
+
+  // THE END THAT WILL ACTUALLY BE IN FORCE after this edit — the box's value on a CUSTOM cadence,
+  // and the date the API derives on the other four. Everything below judges the period on this
+  // rather than on what is stored, which is what a first version got wrong: a valid derived end
+  // read as "runs backwards" because the comparison still used the old stored date.
+  const effectiveEnd = editIsCustomCycle ? form.currentPeriodEnd : editDerivedEnd
 
   // A start being SET has to be today or later. The STORED one is not checked — a subscription
   // sold months ago has a start in the past by definition, and flagging that would put an error
@@ -684,8 +691,14 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
   const startInPast = startChanged && Boolean(form.currentPeriodStart)
     && form.currentPeriodStart < todayInput()
 
-  const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
-    && form.currentPeriodEnd < form.currentPeriodStart
+  // ONLY A CUSTOM CADENCE CAN RUN BACKWARDS. A derived end is the start plus 30, 90, 180 or 365
+  // days by construction, so it is always after the start — flagging those was the bug.
+  //
+  // The API wants the end strictly AFTER the start, so a period of one day that begins and ends
+  // on the same date is refused too: hence <=, not <.
+  const periodBackwards = editIsCustomCycle
+    && Boolean(form.currentPeriodStart) && Boolean(effectiveEnd)
+    && effectiveEnd <= form.currentPeriodStart
   // Three states, not two. #13 writes a figure onto every subscription, copying the plan's when
   // the sale named none, so "a figure is set" no longer means "negotiated" — hasLimitOverrides is
   // what says the school's ceiling differs from its plan's.
@@ -891,7 +904,8 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             boxes somebody has just filled in. */}
         {periodBackwards ? (
           <p className="banner" data-tone="bad">
-            <strong>That period runs backwards.</strong> The end has to come after the start, so
+            <strong>That period runs backwards.</strong> It would start {form.currentPeriodStart}{' '}
+            and end {effectiveEnd}. The end has to come after the start, so
             this would be refused with <code className="mono">400 INVALID_BILLING_PERIOD</code>.
           </p>
         ) : null}
