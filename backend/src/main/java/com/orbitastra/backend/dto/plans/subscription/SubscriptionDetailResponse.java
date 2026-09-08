@@ -61,6 +61,7 @@ public record SubscriptionDetailResponse(
         Instant currentPeriodEnd,
         Long daysRemaining,
         boolean periodEnded,
+
         Boolean autoRenew,
         Boolean current,
 

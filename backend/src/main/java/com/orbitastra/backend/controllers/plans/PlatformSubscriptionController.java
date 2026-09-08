@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
@@ -192,6 +193,38 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.resumeSubscription(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #21 — ends a subscription.
+     *
+     * <p>Use {@code current} as the subscription number for the one the school is on now.
+     *
+     * <p><b>The school usually keeps working until the period it already paid for runs out.</b>
+     * The status goes {@code CANCELLED} either way — the contract is over — and it is the
+     * <b>period</b> that decides the access: a cancelled subscription keeps granting until its
+     * {@code currentPeriodEnd} passes. {@code immediate: true} trims that date to now instead,
+     * for a contract terminated rather than run out.
+     *
+     * <p><b>Nothing undoes it.</b> #17 already refuses to renew a cancelled subscription and #20
+     * refuses to resume one. What nothing does is mark it {@code EXPIRED} once the period lapses
+     * — that is #22, and #22 is not built. The response says so.
+     *
+     * <p><b>It does not touch the school</b>, unlike #19: this is a commercial end, not a
+     * lock-out. And no money moves — an immediate cancellation refunds nothing, because nothing
+     * here can.
+     *
+     * <p>A {@code reason} is required. Almost every status can be cancelled; only one that has
+     * already ended is refused.
+     */
+    @PostMapping("/subscriptions/{subscriptionNo}/cancel")
+    public ResponseEntity<SubscriptionDetailResponse> cancel(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody SubscriptionCancelRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.cancelSubscription(schoolId, subscriptionNo, request));
     }
 
     /**

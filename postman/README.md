@@ -364,6 +364,27 @@ it; an operator calls it by hand when something went wrong. **Nothing calls it o
   says so.
 - **`suspendedAt` on the school survives a resume**, on purpose — it is when the suspension began.
 
+**Cancel (#21)** ends the contract, and **the school usually keeps working until the period it
+already paid for runs out.**
+
+- **No field was added to the model for that.** The status goes `CANCELLED` either way — the
+  contract is over either way — and what decides the access is `currentPeriodEnd`: `whyNotActive`
+  now lets a cancelled subscription grant until that date passes. `immediate: true` **trims the
+  period to now**, which is what stops it. The status says cancelled; the dates say how long for.
+- **Nothing undoes it, and no new check was needed.** Renew already refuses a `CANCELLED`
+  subscription and Resume already refuses one. Bringing the school back means selling it something
+  new.
+- **The immediate shape overwrites what the school paid for**, so the history row's reason keeps
+  the original end date — the only place it survives.
+- **Almost everything can be cancelled**, the opposite of Suspend and Resume: a trial that did not
+  convert, a suspended school that never paid, one that is `PAST_DUE`. A `CLOSED` or `OFFBOARDING`
+  school too, because cancelling is *part of* winding one down. Only a deleted school is refused.
+- **Cancelling twice** is `409 CANCELLATION_ALREADY_SCHEDULED` while the period still runs — but
+  escalating to `immediate` is allowed, because that is a real decision.
+- **It does not touch the school**, and no money moves. And nothing marks a lapsed subscription
+  `EXPIRED`, so one that has served out its period reads `CANCELLED` with `periodEnded: true` until
+  #22 exists.
+
 ## The school's own view: #33 and #34
 
 `Subscription — the school's own view` holds the two reads a school makes about itself. Both take

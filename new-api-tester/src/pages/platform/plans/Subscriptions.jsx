@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, CheckCircle2, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCw } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCw, XCircle } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
@@ -56,6 +56,8 @@ export default function Subscriptions() {
   const [renewingCustom, setRenewingCustom] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [pausingOpen, setPausingOpen] = useState(false)
+  const [endingOpen, setEndingOpen] = useState(false)
+  const [ending, setEnding] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
 
@@ -106,6 +108,29 @@ export default function Subscriptions() {
     setPausing(false)
     if (result.ok) {
       setPausingOpen(false)
+      await load()
+    }
+    return result
+  // load is defined below and stable; listing it would be a use-before-define.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId])
+
+  /**
+   * #21 — ends it, at the end of the paid period or now.
+   *
+   * A dialog because the reason is required and the two shapes are a genuine choice: the default
+   * lets the school keep the product it paid for, and `immediate` takes it away today.
+   */
+  const end = useCallback(async (reason, immediate) => {
+    setEnding(true)
+    const result = await call('cancel-subscription', {
+      label: immediate ? 'End it now' : 'End it when the period runs out',
+      pathParams: { id: schoolId, subscriptionNo: 'current' },
+      body: immediate ? { reason: reason.trim(), immediate: true } : { reason: reason.trim() },
+    })
+    setEnding(false)
+    if (result.ok) {
+      setEndingOpen(false)
       await load()
     }
     return result
@@ -209,6 +234,8 @@ export default function Subscriptions() {
           schoolId={schoolId}
           onEdit={() => setEditing(true)}
           onChangePlan={() => setChangingPlan(true)}
+          onEnd={() => setEndingOpen(true)}
+          ending={ending}
           onSuspendOrResume={() => setPausingOpen(true)}
           pausing={pausing}
           onRenew={() => {
@@ -238,6 +265,15 @@ export default function Subscriptions() {
           </div>
         </Card>
       )}
+
+      <EndSubscription
+        open={endingOpen}
+        subscription={subscription}
+        schoolId={schoolId}
+        busy={ending}
+        onClose={() => setEndingOpen(false)}
+        onSend={end}
+      />
 
       <SuspendOrResume
         open={pausingOpen}
@@ -344,7 +380,7 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 /* -------------------------------------------------------------- what the school is on */
 
 function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew, renewing,
-  onSuspendOrResume, pausing }) {
+  onSuspendOrResume, pausing, onEnd, ending }) {
   const s = subscription
   const renewRefusal = whyRenewWouldRefuse(s)
   const needsEndDate = renewNeedsEndDate(s)
@@ -484,6 +520,30 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               />
             </div>
 
+            {/* #21's row. Almost every status can be ended, so this is disabled only for the
+                two that genuinely are already over. */}
+            <div className="toolbar">
+              <Button
+                icon={XCircle}
+                look="danger"
+                busy={ending}
+                disabled={Boolean(whyEndWouldRefuse(s))}
+                onClick={onEnd}
+              >
+                {whyEndWouldRefuse(s) ? 'Already ended' : 'End it'}
+              </Button>
+              <span className="muted">
+                {whyEndWouldRefuse(s)
+                  ?? 'Ends the contract. The school keeps working until its paid period runs out.'}
+              </span>
+              <span className="toolbar-spacer" />
+              <EndpointTag
+                id="cancel-subscription"
+                name="Cancel"
+                pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+              />
+            </div>
+
             {/* ONE ROW FOR TWO ENDPOINTS. A subscription is either suspendable or resumable,
                 never both, so offering both buttons would mean one of them was always dead.
                 Which endpoint the tag names follows the same decision. */}
@@ -588,6 +648,27 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
       </details>
     </>
   )
+}
+
+/**
+ * Why #21 would refuse to end this subscription, or null when it would.
+ *
+ * ALMOST EVERYTHING CAN BE ENDED — a trial that did not convert, a suspended school that never
+ * paid, one that is PAST_DUE. That is the opposite of #19 and #20, so this mirror is short: only
+ * a subscription that is genuinely over is refused.
+ *
+ * A CANCELLED one splits on its period. While that is still running it is a cancellation serving
+ * out its time, and #21 will still escalate it to immediate — so it is NOT refused here, and the
+ * dialog offers the immediate shape only.
+ */
+function whyEndWouldRefuse(subscription) {
+  const s = subscription
+
+  if (s.status === 'EXPIRED') return 'It has already expired, so there is nothing left to end.'
+  if (s.status === 'CANCELLED' && s.periodEnded) {
+    return 'It was cancelled and its period has run out, so there is nothing left to end.'
+  }
+  return null
 }
 
 /**
@@ -1545,6 +1626,134 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
 }
 
 /* -------------------------------------------------------------------- create one */
+
+/* --------------------------------------------------------------- end the subscription */
+
+/**
+ * #21's two shapes, and the reason it requires.
+ *
+ * THE DEFAULT IS THE ONE THE SCHOOL EXPECTS: it keeps the product until the period it paid for
+ * runs out. `immediate` takes it away today, and the dialog says what that costs the school
+ * rather than presenting the two as equivalent radio buttons.
+ *
+ * A CANCELLED subscription still serving out its period can only be escalated, so the scheduled
+ * choice is hidden for it — offering "end it at the period end" to something already ending at
+ * the period end would be a 409 waiting to happen.
+ */
+function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }) {
+  const [reason, setReason] = useState('')
+  const [immediate, setImmediate] = useState(false)
+  const [refused, setRefused] = useState(null)
+
+  if (!open || !subscription) return null
+
+  // Already ending at the period end: immediate is the only move left.
+  const escalatingOnly = subscription.status === 'CANCELLED'
+  const endingNow = immediate || escalatingOnly
+
+  const send = async () => {
+    setRefused(null)
+    const result = await onSend(reason, endingNow)
+    if (!result?.ok) {
+      setRefused(result?.bodyJson || { message: `The server answered ${result?.status}.` })
+      return
+    }
+    setReason('')
+    setImmediate(false)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={escalatingOnly ? 'Stop its access now' : 'End this subscription'}
+      description={escalatingOnly
+        ? 'It is already ending when the period runs out. This stops the access today instead.'
+        : 'The contract ends either way. What you choose is whether the school keeps the time it has paid for.'}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button look="danger" busy={busy} disabled={!reason.trim()} onClick={send}>
+            {!reason.trim()
+              ? 'Say why first'
+              : (endingNow ? 'End it now' : 'End it at the period end')}
+          </Button>
+          <EndpointTag
+            id="cancel-subscription"
+            name="Cancel"
+            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+          />
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code || 'Refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {escalatingOnly ? null : (
+          <label className="feature-row" style={{ cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              className="feature-check"
+              checked={immediate}
+              onChange={(event) => setImmediate(event.target.checked)}
+            />
+            <span className="feature-main">
+              <span className="feature-name">Stop the access today</span>
+              <span className="feature-desc">
+                Trims the period to now, so every feature is refused at once. Leave it off and the
+                school keeps working until {readableInstant(subscription.currentPeriodEnd)} — the
+                time it has already paid for.
+              </span>
+            </span>
+          </label>
+        )}
+
+        <p className="banner" data-tone={endingNow ? 'bad' : 'warn'}>
+          {endingNow ? (
+            <span>
+              <strong>The school loses the rest of the period it paid for.</strong> Its period runs
+              to {readableInstant(subscription.currentPeriodEnd)} and will be trimmed to now.{' '}
+              <strong>Nothing is refunded</strong> — no endpoint here raises or credits an invoice
+              — and the original date survives only on the history row.
+            </span>
+          ) : (
+            <span>
+              <strong>The status becomes CANCELLED straight away, and that is not a mistake.</strong>{' '}
+              The contract is over; the <em>period</em> is what keeps the school working, until{' '}
+              {readableInstant(subscription.currentPeriodEnd)}. Nothing marks it expired after
+              that, so it will read CANCELLED with a lapsed period until somebody closes it.
+            </span>
+          )}
+        </p>
+
+        <p className="banner" data-tone="warn">
+          <strong>Nothing undoes this.</strong> It cannot be renewed or resumed — bringing the
+          school back means selling it a new subscription, or changing its plan. The school itself
+          is left alone: this is a commercial end, not a lock-out.
+        </p>
+
+        <Field
+          label="Why it is ending"
+          required
+          hint="Stored as reasonForChanges and on the history row. This is the one transition nothing undoes."
+        >
+          <Input
+            value={reason}
+            placeholder="School closing at the end of the academic year — confirmed by email."
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </Field>
+      </div>
+    </Modal>
+  )
+}
 
 /* --------------------------------------------------------- cut off, or switch back on */
 

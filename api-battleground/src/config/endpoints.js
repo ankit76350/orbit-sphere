@@ -7330,6 +7330,166 @@ credit was agreed, **#14** is where the date moves — deliberately, with a reas
       ],
     },
     {
+      id: "cancel-subscription",
+      name: "Cancel Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/cancel",
+      status: 'live',
+      summary: "Ends the subscription. The school keeps working until its paid period runs out.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/current/cancel\` — ends the subscription.
+
+**The school usually keeps working until the period it already paid for runs out.** A school
+cancelling mid-month has bought that month, and cutting it off the same afternoon would be keeping
+its money and taking the product away.
+
+### The status says cancelled; the period says how long for
+
+No field was added for "cancelled but still running". The status goes \`CANCELLED\` either way —
+the contract is over either way — and what decides the access is \`currentPeriodEnd\`, because
+\`whyNotActive\` lets a cancelled subscription grant until that date passes.
+
+| | \`status\` | \`currentPeriodEnd\` | Access |
+|---|---|---|---|
+| the default | \`CANCELLED\` | left alone | until the period runs out |
+| \`immediate: true\` | \`CANCELLED\` | **trimmed to now** | stops at once |
+
+The same division of labour **#16** uses when it closes the row a school leaves: the dates record
+the period actually served. The immediate shape overwrites what the school had paid for, so the
+history row's reason keeps the original end date.
+
+**Nothing quietly undoes it, and no new check was needed.** #17 already refuses to renew a cancelled
+subscription and #20 refuses to resume one. Bringing the school back means selling it something new.
+
+### What it refuses
+
+| Subscription | Cancel |
+|---|---|
+| \`ACTIVE\`, \`PAST_DUE\`, \`TRIAL\`, \`SUSPENDED\` | allowed |
+| \`CANCELLED\`, period still running | \`409 CANCELLATION_ALREADY_SCHEDULED\` — but \`immediate: true\` **is** allowed |
+| \`CANCELLED\` lapsed, or \`EXPIRED\` | \`409 SUBSCRIPTION_ALREADY_ENDED\` |
+
+Almost everything can be cancelled, the opposite of #19 and #20 — and a \`CLOSED\` or \`OFFBOARDING\`
+school is allowed too, because cancelling is *part of* winding a school down. Only a deleted school
+is refused.
+
+### It does not touch the school, and no money moves
+
+Unlike #19, this is a commercial end and not a lock-out: the school stays as it is. And nothing
+here raises, credits or refunds an invoice, so an immediate cancellation keeps whatever was paid for
+the part of the period being given up.
+
+**Nothing marks a lapsed subscription \`EXPIRED\`** either, so a cancellation that has served out its
+period reads \`CANCELLED\` with \`periodEnded: true\` — correct in every field, and still not tidied
+away. That is **#22**, and #22 is not built.`,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+      ],
+      requestFields: [
+        { name: "reason", required: "yes",
+          note: "Max 500, not blank. Stored as reasonForChanges and on the history row. This is the one transition nothing undoes, so an unexplained end is the one nobody can answer for." },
+        { name: "immediate", required: "no",
+          note: "Absent or false is the ordinary cancellation — the school keeps the product for the time it paid for. true trims currentPeriodEnd to now, which is what stops the access. It refunds nothing." },
+      ],
+      responseFields: ["subscriptionNo", "status", "autoRenew", "currentPeriodEnd", "periodEnded",
+        "reasonForChanges", "note"],
+      errors: [
+        { status: 409, code: "SUBSCRIPTION_ALREADY_ENDED", when: "EXPIRED, or cancelled and lapsed" },
+        { status: 409, code: "CANCELLATION_ALREADY_SCHEDULED", when: "Cancelled, period still running" },
+        { status: 409, code: "SUBSCRIPTION_NOT_CANCELLABLE", when: "The school is deleted" },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, or a blank one" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "The school has none" },
+      ],
+      examples: [
+        {
+          name: "1 — the ordinary cancellation",
+          notes: `-> 200. status CANCELLED, autoRenew false, and currentPeriodEnd
+       UNTOUCHED with periodEnded false — the school is still working.
+
+    CHECK IT REALLY IS:
+      GET /schools/current/subscription/entitlements
+        -> active TRUE, every feature still allowed. That is the point.
+      db.schools.findOne({ _id: ObjectId("<id>") })
+        -> status ACTIVE, untouched. This is not #19.
+      db.subscription_history.find({ eventType: "CANCELLED" })
+        -> one row, and effectiveAt is the PERIOD END, not now — the only
+           place in this service where that field is deliberately future.
+
+    IT WILL NOT BE RENEWED OR RESUMED:
+      Renew Subscription  -> 409 SUBSCRIPTION_NOT_RENEWABLE
+      Resume Subscription -> 409 SUBSCRIPTION_NOT_RESUMABLE`,
+          body: `{
+  "reason": "School closing at the end of the academic year."
+}`,
+        },
+        {
+          name: "2 — end it now instead",
+          notes: `-> 200. status CANCELLED and currentPeriodEnd TRIMMED TO NOW, which is
+       what stops the access.
+
+      GET /schools/current/subscription/entitlements
+        -> active FALSE now. Cancelled AND the period is over.
+
+    The date the school had paid for is overwritten on the document, so the
+    history row's reason keeps it: "The period paid for ran to <date> and was
+    trimmed to the cancellation."
+
+    NO REFUND. Nothing here raises or credits an invoice.`,
+          body: `{
+  "reason": "Contract terminated for cause.",
+  "immediate": true
+}`,
+        },
+        {
+          name: "3 — cancelling twice",
+          notes: `Cancel once, then send the same body again:
+      -> 409 CANCELLATION_ALREADY_SCHEDULED, naming the date it runs out.
+         A repeat changes nothing, so answering 200 would tell you a new
+         reason was recorded when the first one still stands.
+
+    But ESCALATING is a real decision and IS allowed:
+      { "reason": "...", "immediate": true }  -> 200, period trimmed.
+
+    Once the period has lapsed:
+      db.school_subscriptions.updateOne(
+        { schoolId: "<id>", current: true },
+        { $set: { currentPeriodEnd: new Date("2026-08-01T00:00:00Z") } })
+      -> 409 SUBSCRIPTION_ALREADY_ENDED. Now there is nothing left.`,
+          body: `{
+  "reason": "School closing at the end of the academic year."
+}`,
+        },
+        {
+          name: "4 — what it allows that #19 and #20 do not",
+          notes: `TRIAL      -> 200. A trial that did not convert ends here. #19 refuses
+                  a trial, because there is no unpaid bill behind one.
+    SUSPENDED  -> 200. A school that never paid.
+    PAST_DUE   -> 200.
+
+    AND THE SCHOOL'S OWN STATUS:
+      CLOSED / OFFBOARDING -> 200. Cancelling is PART of winding a school
+        down; refusing it would leave a closed school with a live
+        subscription nobody could end. #19 and #20 refuse these.
+      DELETED / DELETION_PENDING -> 409 SUBSCRIPTION_NOT_CANCELLABLE.
+
+    EXPIRED    -> 409 SUBSCRIPTION_ALREADY_ENDED.`,
+          body: `{
+  "reason": "Trial ended without converting."
+}`,
+        },
+        {
+          name: "5 — a reason is required",
+          notes: `{} -> 400 VALIDATION_FAILED naming reason.
+
+    This is the one transition nothing undoes: #17 will not renew it and #20
+    will not resume it. A record of the end that does not say why is the one
+    nobody can answer for.`,
+          body: `{}`,
+        },
+      ],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

@@ -171,8 +171,21 @@ public class SchoolSubscriptionService {
         if (status == SubscriptionStatus.SUSPENDED) {
             return "This subscription is suspended.";
         }
+        // A CANCELLED subscription keeps granting until the period it was paid for runs out.
+        // That is what #21's ordinary shape means: a school cancelling mid-month has bought that
+        // month, and refusing it the same afternoon would be keeping its money and taking the
+        // product away. Only once the period is over does the cancellation refuse anything — so
+        // this falls through to the period check below rather than blocking on the status.
+        //
+        // #21's immediate shape works by trimming currentPeriodEnd to now, which is what makes
+        // that check bite at once. No extra field says "cancelled but still running": the status
+        // says cancelled and the dates say how long for.
         if (status == SubscriptionStatus.CANCELLED) {
-            return "This subscription has been cancelled.";
+            Instant cancelledEnd = subscription.getCurrentPeriodEnd();
+            if (cancelledEnd != null && !cancelledEnd.isAfter(Instant.now())) {
+                return "This subscription was cancelled, and its period ended on "
+                        + cancelledEnd + ".";
+            }
         }
         if (status == SubscriptionStatus.EXPIRED) {
             return "This subscription has expired.";

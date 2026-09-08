@@ -455,6 +455,66 @@ for (const [label, ok] of formChecks) {
   if (!ok) fail++
 }
 
+// #21 ends the subscription. The point of the design is that no field was added for "cancelled
+// but still running": the status says cancelled, and the period says how long the access lasts.
+console.log('\nEnding a subscription')
+const endChecks = [
+  ['no field was added to the model for it',
+    !javaService.includes('cancelAtPeriodEnd')
+      && !readFileSync('../backend/src/main/java/com/orbitastra/backend/models/plans/SchoolSubscription.java',
+        'utf8').includes('cancelAtPeriodEnd')],
+  ['the status goes CANCELLED either way',
+    /cancelSubscription[\s\S]{0,6000}subscription\.setStatus\(SubscriptionStatus\.CANCELLED\);/
+      .test(javaService)],
+  // Both facts, without a regex spanning the comment between them — a `//` inside a regex
+  // literal ends the literal, which is how a first version of this check failed to parse.
+  ['and only the immediate shape trims the period',
+    javaService.includes('subscription.setCurrentPeriodEnd(Instant.now());')
+      && (javaService.match(/setCurrentPeriodEnd\(Instant\.now\(\)\)/g) || []).length === 1
+      && javaService.includes('if (request.isImmediate()) {')],
+  // The gate is what makes "keeps working" true, and it is in a different service.
+  ['a cancelled subscription still grants until its period ends',
+    /status == SubscriptionStatus\.CANCELLED\) \{[\s\S]{0,400}cancelledEnd\.isAfter\(Instant\.now\(\)\)/
+      .test(readFileSync('../backend/src/main/java/com/orbitastra/backend/services/plans/SchoolSubscriptionService.java',
+        'utf8'))],
+  ['autoRenew is turned off with it',
+    /cancelSubscription[\s\S]{0,6000}setAutoRenew\(Boolean\.FALSE\)/.test(javaService)],
+  ['the school is not touched',
+    !/cancelSubscription[\s\S]{0,6000}school\.setStatus\(/.test(javaService)],
+  ['a CLOSED school can still cancel; only a deleted one cannot',
+    /cancelSubscription[\s\S]{0,2000}SchoolStatus\.DELETED[\s\S]{0,200}DELETION_PENDING/
+      .test(javaService)
+      && !/cancelSubscription[\s\S]{0,2000}SchoolStatus\.CLOSED/.test(javaService)],
+  ['escalating a scheduled cancellation is allowed',
+    javaService.includes('CANCELLATION_ALREADY_SCHEDULED')
+      && /if \(!request\.isImmediate\(\)\) \{[\s\S]{0,300}CANCELLATION_ALREADY_SCHEDULED/
+        .test(javaService)],
+  ['the history row keeps the date the immediate shape overwrites',
+    javaService.includes('The period paid ') && javaService.includes('" + paidUntil')],
+  // The screen side.
+  ['the card offers it on its own row',
+    subsSourceFull.includes('function whyEndWouldRefuse(')
+      && subsSourceFull.includes('id="cancel-subscription"')],
+  ['it refuses only what is genuinely over',
+    /whyEndWouldRefuse[\s\S]{0,500}s\.status === 'EXPIRED'/.test(subsSourceFull)
+      && /whyEndWouldRefuse[\s\S]{0,600}s\.status === 'CANCELLED' && s\.periodEnded/
+        .test(subsSourceFull)],
+  ['the dialog offers both shapes',
+    subsSourceFull.includes('function EndSubscription(')
+      && subsSourceFull.includes('Stop the access today')],
+  ['and only escalation for one already ending',
+    subsSourceFull.includes("const escalatingOnly = subscription.status === 'CANCELLED'")
+      && subsSourceFull.includes('{escalatingOnly ? null : (')],
+  ['it says the status turning CANCELLED is not a mistake',
+    subsSourceFull.includes('that is not a mistake')],
+  ['and that nothing undoes it',
+    subsSourceFull.includes('Nothing undoes this')],
+]
+for (const [label, ok] of endChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // #19 and #20 are one transition each, with a required reason. A subscription is either
 // suspendable or resumable and never both, so the card shows ONE button and the dialog serves
 // both endpoints — two nearly identical dialogs would differ only in their heading.

@@ -133,7 +133,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
 | <a id="t19"></a>19 — **built** | [`POST /platform/schools/{id}/subscriptions/current/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. **Moves two documents**: the subscription goes `SUSPENDED`, which turns every feature off, and the school goes `SUSPENDED` too, which is what blocks the tenant. `ACTIVE` and `PAST_DUE` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
 | <a id="t20"></a>20 — **built** | [`POST /platform/schools/{id}/subscriptions/current/resume`](#e20) | Switch the school back on after it pays. The exact reverse of #19, and only that — **the period is not extended**, so a school suspended for three weeks comes back to the same end date. `SUSPENDED` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
-| <a id="t21"></a>21 | [`POST /platform/schools/{id}/subscriptions/{no}/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t21"></a>21 — **built** | [`POST /platform/schools/{id}/subscriptions/current/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. **The status goes `CANCELLED` either way** — the contract is over — and it is the **period** that decides the access: a cancelled subscription keeps granting until `currentPeriodEnd` passes. `immediate: true` trims that date to now instead. **Does not touch the school**, and no money moves. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t23"></a>[~~23~~](#e23) **superseded by [#14](#t14)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`~~ | Turn automatic renewal on or off. **#14 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t24"></a>[~~24~~](#e24) **superseded by [#14](#t14)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/overrides`~~ | Give one school a bigger student or user limit than its plan normally allows, because that is what was negotiated. **#14 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -2797,10 +2797,106 @@ deliberately, by somebody, with a reason recorded.
 | `CANCELLED`, `EXPIRED` | `409` — ended rather than paused; reopening one would be selling a period without saying so, which is [#13](#e13) or [#16](#e16) |
 
 <a id="e21"></a>
-**[21](#t21) · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**
+**[21](#t21) · `POST /platform/schools/{id}/subscriptions/current/cancel`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `reasonForChanges`, `autoRenew` = false — **no `cancelledAt`**: when it happened is the history row's `effectiveAt`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `CANCELLED`, `previousStatus`, `newStatus` = `CANCELLED`, `reason`, `performedByDocsId`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *reads* `status`, `schoolName`. **No write**: this is a commercial end, not a lock-out, and a `CLOSED` or `OFFBOARDING` school is deliberately allowed
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `CANCELLED`, `autoRenew` = false, `reasonForChanges`, and on `immediate: true` also `currentPeriodEnd` trimmed to now
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan, for the response only
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `CANCELLED`, `previousStatus`, `newStatus` = `CANCELLED`, both plan ids, `source`, `reason`, `effectiveAt`
+- **No new field on the model.** See below
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  // REQUIRED, max 500, not blank
+  "reason": "School closing at the end of
+             the academic year.",
+
+  "immediate": false   // optional
+}
+
+// Absent or false is the ordinary
+// cancellation: the school keeps the
+// product for the time it paid for.
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "status": "CANCELLED",
+  "autoRenew": false,
+  "currentPeriodEnd": "2026-10-08T00:00:00Z",   // untouched
+  "periodEnded": false,                          // still granting
+  "reasonForChanges": "School closing ...",
+  "note": "Cancelled, and the school keeps working until 2026-10-08T00:00:00Z ... It will NOT be renewed or resumed ... NOTHING marks it EXPIRED when that date passes."
+}
+
+409 SUBSCRIPTION_ALREADY_ENDED      — EXPIRED, or cancelled and lapsed
+409 CANCELLATION_ALREADY_SCHEDULED  — cancelled, period still running
+409 SUBSCRIPTION_NOT_CANCELLABLE    — the school is deleted
+400 VALIDATION_FAILED               — no reason, or a blank one
+404 SCHOOL_NOT_FOUND / SUBSCRIPTION_NOT_FOUND
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts |
+|---|---|---|
+| `reason` | **yes** | Max 500, `@NotBlank`. Stored as `reasonForChanges` and on the history row. This is the one transition nothing undoes, so an unexplained end is the one nobody can answer for. |
+| `immediate` | no | Absent or `false` is the ordinary cancellation. `true` trims `currentPeriodEnd` to now, which is what stops the access. It refunds nothing. |
+
+### The status says cancelled; the period says how long for
+
+**No field was added for "cancelled but still running."** The status goes `CANCELLED` either way,
+because the contract is over either way and that is simply true. What decides whether the school
+can still work is `currentPeriodEnd` — `whyNotActive` now lets a cancelled subscription grant until
+that date passes:
+
+| | `status` | `currentPeriodEnd` | Access |
+|---|---|---|---|
+| the default | `CANCELLED` | left alone | until the period runs out |
+| `immediate: true` | `CANCELLED` | **trimmed to now** | stops at once |
+
+That is the same division of labour [#16](#e16) uses when it closes the row a school leaves: the
+dates record the period actually served.
+
+**Nothing quietly undoes it, and no new check was needed.** [#17](#e17) already refuses to renew a
+`CANCELLED` subscription and [#20](#e20) already refuses to resume one. Bringing the school back
+means selling it something new — [#13](#e13) or [#16](#e16).
+
+**The immediate shape overwrites what the school had paid for**, so the history row's `reason`
+records the original end date. That is the only place it survives, which is where #16 puts a
+superseded subscription number for the same reason.
+
+### What it refuses
+
+| Subscription | Cancel |
+|---|---|
+| `ACTIVE`, `PAST_DUE`, `TRIAL`, `SUSPENDED` | allowed — a trial that did not convert and a school that never paid both end here |
+| `CANCELLED`, period still running | `409 CANCELLATION_ALREADY_SCHEDULED` — but `immediate: true` **is** allowed, because escalating is a real decision |
+| `CANCELLED`, period lapsed | `409 SUBSCRIPTION_ALREADY_ENDED` |
+| `EXPIRED` | `409 SUBSCRIPTION_ALREADY_ENDED` |
+
+**Almost everything can be cancelled**, which is the opposite of #19 and #20 — and a `CLOSED` or
+`OFFBOARDING` school is allowed too, unlike there. Cancelling the subscription is *part of* winding
+a school down; refusing it would leave a closed school with a live subscription nobody could end.
+Only a deleted school is refused.
+
+### What nothing does yet
+
+Nothing marks a lapsed subscription `EXPIRED`. So a cancellation that has served out its period
+reads `CANCELLED` with `periodEnded: true` rather than `EXPIRED` — every field correct, and still
+not tidied away. **#22** is where that belongs.
+
+And no money moves: an immediate cancellation keeps whatever was paid for the part of the period
+being given up, because nothing in this codebase raises, credits or refunds an invoice.
+
 
 <a id="e22"></a>
 **[22](#t22) · `POST /platform/schools/{id}/subscriptions/{no}/expire`**

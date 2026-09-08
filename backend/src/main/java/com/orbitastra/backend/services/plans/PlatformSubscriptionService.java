@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
@@ -1361,6 +1362,194 @@ public class PlatformSubscriptionService {
                 + ", so the school has paid for the time it was locked out of. Crediting that is "
                 + "a money decision nothing here can make — moving the date, if that is what was "
                 + "agreed, is the edit endpoint.");
+
+        String standing = describeSubscriptionState(saved, plan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        return SubscriptionDetailResponse.fromSubscription(saved, plan, String.join(" ", note));
+    }
+
+    //! Endpoint 21 — end the subscription ---------------------------------------------
+
+    /**
+     * #21 — ends a subscription, at the end of the paid period or straight away.
+     *
+     * <p><b>The school usually keeps working until the period it already paid for runs out.</b>
+     * That is the default: a school cancelling mid-month has bought that month, and cutting it off
+     * the same afternoon would be keeping its money and taking the product away.
+     *
+     * <p><b>How that is said with the fields that already exist.</b> The status goes
+     * {@code CANCELLED} either way — the contract is over, and that is simply true. What decides
+     * whether the school can still work is the <b>period</b>, because
+     * {@code SchoolSubscriptionService.whyNotActive} now lets a cancelled subscription grant until
+     * its {@code currentPeriodEnd} passes:
+     *
+     * <pre>
+     * immediate absent or false  -> period left alone; access runs to currentPeriodEnd
+     * immediate true             -> currentPeriodEnd trimmed to now; access stops at once
+     * </pre>
+     *
+     * <p>So no flag says "cancelled but still running". The status says cancelled and the dates
+     * say how long for, which is the same division of labour #16 uses when it closes a row.
+     *
+     * <p><b>The cancellation sticks without any new check.</b> #17 already refuses to renew a
+     * {@code CANCELLED} subscription and #20 already refuses to resume one, so there is no path
+     * that quietly undoes this. Bringing the school back means selling it something new — #13 or
+     * #16.
+     *
+     * <p><b>The immediate shape trims the period, and the history row keeps what it was.</b>
+     * Moving {@code currentPeriodEnd} to now is the same thing #16 does to the row a school
+     * leaves: it records the period actually served. What that loses from the document — the end
+     * date originally paid for — goes into the history row's reason, which is where #16 puts the
+     * superseded number for the same reason.
+     *
+     * <p><b>The honest gap.</b> Nothing marks a lapsed subscription {@code EXPIRED}, so a
+     * scheduled cancellation reads {@code CANCELLED} with {@code periodEnded: true} after its
+     * date rather than {@code EXPIRED} — correct in every field, and still not tidied away. That
+     * is #22's job and #22 is not built.
+     *
+     * <p><b>It does not touch the school.</b> Unlike #19, which takes the school's access down
+     * with it, this is a commercial end and not a lock-out. Winding the tenant down is core's
+     * business, and doing it here would make one request mean two decisions.
+     *
+     * <p><b>No money moves.</b> An immediate cancellation keeps whatever was paid for the part of
+     * the period being given up, because nothing here raises, credits or refunds an invoice.
+     *
+     * <p><b>Almost every status can be cancelled</b>, the opposite of #19 and #20: a trial that
+     * did not convert, a suspended school that never paid, one that is {@code PAST_DUE}. Only a
+     * subscription that is genuinely finished is refused.
+     */
+    @Transactional
+    public SubscriptionDetailResponse cancelSubscription(String schoolId, String subscriptionNo,
+            SubscriptionCancelRequest request) {
+
+        //! step 1 - the school has to exist. A CLOSED or OFFBOARDING one is deliberately ALLOWED
+        //! here, unlike on #19 and #20: cancelling the subscription is part of winding a school
+        //! down, and refusing it would leave a closed school with a live subscription nobody
+        //! could end. Only a deleted school is refused — there is nothing left to be right about.
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        if (school.getStatus() == SchoolStatus.DELETED
+                || school.getStatus() == SchoolStatus.DELETION_PENDING) {
+            throw ApiException.conflict("SUBSCRIPTION_NOT_CANCELLABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + ", so its "
+                            + "subscription is past cancelling.");
+        }
+
+        //! step 2 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - what is genuinely finished cannot be ended again. EXPIRED is over. CANCELLED
+        //! is over ONLY once its period has run out — before that it is a cancellation still
+        //! serving out its time, and escalating it to immediate is a real decision rather than a
+        //! repeat, so that one is allowed through.
+        SubscriptionStatus previousStatus = subscription.getStatus();
+        Instant paidUntil = subscription.getCurrentPeriodEnd();
+        boolean periodStillRunning = paidUntil != null && paidUntil.isAfter(Instant.now());
+
+        if (previousStatus == SubscriptionStatus.EXPIRED) {
+            throw ApiException.conflict("SUBSCRIPTION_ALREADY_ENDED",
+                    subscription.getSubscriptionNo() + " is EXPIRED, so there is nothing left "
+                            + "to end.");
+        }
+
+        if (previousStatus == SubscriptionStatus.CANCELLED) {
+            if (!periodStillRunning) {
+                throw ApiException.conflict("SUBSCRIPTION_ALREADY_ENDED",
+                        subscription.getSubscriptionNo() + " was cancelled and its period ended "
+                                + "on " + paidUntil + ", so there is nothing left to end.");
+            }
+            if (!request.isImmediate()) {
+                throw ApiException.conflict("CANCELLATION_ALREADY_SCHEDULED",
+                        subscription.getSubscriptionNo() + " is already cancelled and runs out "
+                                + "on " + paidUntil + ". Send immediate: true to stop its access "
+                                + "now instead.");
+            }
+        }
+
+        //! step 4 - the plan behind it, for the response only
+        // TODO: read plan
+        PlanDefinition plan = loadPlanBehindSubscription(subscription);
+
+        //! step 5 - end it. The status is the same either way, because the contract is over
+        //! either way; what differs is how long the access lasts, and that is the period's job.
+        //!
+        //! autoRenew goes false as well. It enforces nothing on its own — #17 refuses a
+        //! CANCELLED subscription outright — but leaving it true would have the school's own
+        //! billing screen say its cancelled subscription renews automatically.
+        subscription.setStatus(SubscriptionStatus.CANCELLED);
+        subscription.setAutoRenew(Boolean.FALSE);
+        subscription.setReasonForChanges(request.reason().trim());
+
+        if (request.isImmediate()) {
+            //! Trimmed to now, which is what stops the access: whyNotActive refuses a cancelled
+            //! subscription whose period has run out. The same thing #16 does to a row a school
+            //! leaves — it records the period actually served.
+            subscription.setCurrentPeriodEnd(Instant.now());
+        }
+
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
+
+        //! step 6 - one history row. effectiveAt is when the cancellation takes effect: now for
+        //! an immediate one, the period end for a scheduled one — the only place in this service
+        //! where that field is deliberately in the future, and the only honest value for it.
+        //!
+        //! The reason carries the end date originally paid for, because an immediate cancellation
+        //! has just overwritten it on the document and this is the only place it survives.
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.CANCELLED)
+                .previousStatus(previousStatus)
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason((request.isImmediate()
+                        ? "Cancelled immediately from " + previousStatus + ". The period paid "
+                                + "for ran to " + paidUntil + " and was trimmed to the "
+                                + "cancellation. "
+                        : "Cancelled from " + previousStatus + " with effect from " + paidUntil
+                                + "; the school keeps working until then. ")
+                        + request.reason().trim())
+                .performedByDocsId(null)
+                .effectiveAt(request.isImmediate() ? saved.getCurrentPeriodEnd() : paidUntil)
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 7 - the note. Which shape it took, what is still running, and what nothing does.
+        List<String> note = new ArrayList<>();
+
+        if (request.isImmediate()) {
+            note.add("Cancelled immediately, from " + previousStatus + ". The period was trimmed "
+                    + "from " + paidUntil + " to now, which is what stops the access: every "
+                    + "feature is refused because the subscription is cancelled AND its period "
+                    + "is over.");
+            note.add("NO money was refunded for the rest of that period. Nothing here raises or "
+                    + "credits an invoice, so what should happen to it is still an open "
+                    + "question. The history row keeps the date originally paid for.");
+        } else {
+            note.add("Cancelled, and the school keeps working until " + paidUntil + " — the "
+                    + "period it has already paid for. The status says CANCELLED because the "
+                    + "contract is over; the period says how long the access lasts.");
+            note.add("It will NOT be renewed or resumed: #17 refuses a cancelled subscription "
+                    + "and so does #20, so nothing quietly undoes this. Bringing the school back "
+                    + "means selling it a new subscription or changing its plan.");
+            note.add("NOTHING marks it EXPIRED when that date passes. It will read CANCELLED "
+                    + "with periodEnded true — every field correct, and still not tidied away. "
+                    + "That is #22's job and #22 is not built.");
+        }
+
+        note.add("The school itself is untouched at " + school.getStatus() + ": this is a "
+                + "commercial end, not a lock-out. Winding the tenant down is core's business.");
 
         String standing = describeSubscriptionState(saved, plan);
         if (standing != null) {
