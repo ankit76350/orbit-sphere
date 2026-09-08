@@ -311,11 +311,13 @@ function NewDraft({ open, onClose, onCreated }) {
       onClose={onClose}
       title="New plan draft"
       description="Starts as a DRAFT with no features and off the public list. Nothing can buy it yet."
+      endpoint={
+        <EndpointTag id="create-plan-draft" name="Create the draft" look="primary" />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" busy={saving} onClick={submit}>Create the draft</Button>
-          <EndpointTag id="create-plan-draft" name="Create the draft" look="primary" />
         </>
       }
     >

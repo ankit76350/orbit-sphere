@@ -199,8 +199,15 @@ memory.delete('orbit.tester.actingSubdomain')
 console.log('\nA tag matches its button')
 const detailSource = readFileSync('src/pages/platform/core/SchoolDetail.jsx', 'utf8')
 const shared = (detailSource.match(/look=\{action\.look\}/g) || []).length
+// Every control an action drives, and every tag naming it, takes its colour from the action
+// itself. Counting was standing in for that and broke the moment a third place wanted it — what
+// matters is that no such tag hardcodes a colour, so a red action never reads as routine.
+const actionTags = (detailSource.match(/<EndpointTag\s+id=\{action\.endpoint\}[\s\S]{0,200}?\/>/g)
+  || [])
 const pairChecks = [
-  ['the action button and its tag read one value', shared === 2],
+  ['the action button and its tag read one value', shared >= 2],
+  [`every tag for an action takes the action's colour (${actionTags.length} of them)`,
+    actionTags.length > 0 && actionTags.every((tag) => tag.includes('look={action.look}'))],
   // Suspend is the destructive one; if its look were dropped the tag would look routine.
   ['the destructive action is marked danger', /look: 'danger'/.test(detailSource)],
 ]
@@ -488,6 +495,84 @@ splitChecks.push(
   ['rendered: an empty body shows an empty pane rather than none',
     asModal({ preview: {} }).includes('data-empty="true"')],
 )
+// WHICH REQUEST IS THIS? The title says what the modal is for; the heading strip says what it
+// sends. In a tool for exercising an API that is the first thing worth knowing, and no modal may
+// leave it out.
+/** The body of every `endpoint={...}` prop in the screens, brace-matched so nesting is safe. */
+const endpointProps = modalFiles.flatMap(([file, src]) => {
+  const found = []
+  for (const m of src.matchAll(/\bendpoint=\{/g)) {
+    let depth = 0
+    let i = m.index + m[0].length - 1
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}' && --depth === 0) break
+    }
+    found.push({ file, body: src.slice(m.index, i + 1) })
+  }
+  return found
+})
+const headed = asModal({ endpoint: React.createElement('span', null, 'POST /platform/x') })
+const modalsWithoutEndpoint = []
+for (const [f, src] of modalFiles) {
+  for (const m of src.matchAll(/<Modal\b/g)) {
+    const props = src.slice(m.index, src.indexOf('\n    >', m.index) + 6)
+    if (!props.includes('endpoint=')) modalsWithoutEndpoint.push(f.replace('src/pages/', ''))
+  }
+}
+splitChecks.push(
+  [`every modal names its endpoint (${modalsWithoutEndpoint.length
+    ? modalsWithoutEndpoint.join(', ') : 'all do'})`, modalsWithoutEndpoint.length === 0],
+  // The tags resolve {id} themselves, so the strip reads as the URL that will be sent rather
+  // than as a template. A heading that spells its own path out can disagree with the call it
+  // describes, and would be believed — so every one has to come from the registry.
+  //
+  // This asks whether the prop CONTAINS an EndpointTag, which is the whole invariant. Its first
+  // version looked for a quoted "/platform/…" instead and did not bite when a hand-typed path
+  // went in: JSX text carries no quotes.
+  [`every heading comes from the registry (${endpointProps.length} props)`,
+    endpointProps.length >= 15
+      && endpointProps.every(({ body }) => body.includes('<EndpointTag'))],
+  ['rendered: the heading strip is there', headed.includes('modal-endpoint')
+    && headed.includes('POST /platform/x')],
+  ['the response modal heading carries the URL that was really called',
+    responseSource.includes('result?.request?.url || path')
+      && responseSource.includes('className="endpoint-tag-method"')],
+  // It was under the request body; two copies of one URL is one too many.
+  ['and no longer repeats it under the request body',
+    !/className="muted"[\s\S]{0,80}request\?\.url/.test(responseSource)],
+)
+
+// FULL SCREEN, LESS A MARGIN, AND ACTUALLY SCROLLING. The row has to be pinned to the container:
+// an `auto` row grows to its content, so `height: 100%` measures the grown row, nothing overflows,
+// nothing scrolls, and a long response runs off the bottom taking the Submit button with it.
+splitChecks.push(
+  ['the card is held to the screen, so the panes scroll instead of running off it',
+    /\.modal\[data-split='true'\] \{[^}]*grid-template-rows: minmax\(0, 1fr\)/.test(css)
+      && /\.modal\[data-split='true'\] \.modal-card \{[^}]*max-height: 100%/.test(css)],
+  ['it keeps a margin off the edges of the display',
+    /\.modal\[data-split='true'\] \{[^}]*padding: 16px/.test(css)],
+  ['the heading and the actions never scroll away',
+    /\.modal-head \{[^}]*flex: 0 0 auto/.test(css) && /\.modal-foot \{[^}]*flex: 0 0 auto/.test(css)],
+  // A 400-line response must not carry the word telling you what you are reading off the top.
+  ['the response body scrolls under a label that stays put',
+    /\.modal-pane-preview > \.modal-json \{[^}]*overflow-y: auto/.test(css)
+      && /\.modal-pane-preview > \.modal-pane-label,\s*\n\.modal-pane-preview > \.resp-head \{[^}]*flex: 0 0 auto/
+        .test(css)],
+  ['rendered: the preview pane is the one that pins its label', split.includes('modal-pane-preview')],
+  // Every token these rules name has to exist, or the pane silently loses its background.
+  ['every colour the modal asks for is a real token', (() => {
+    const defined = new Set([...readFileSync('src/styles/tokens.css', 'utf8')
+      .matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
+    const asked = [...css.matchAll(/\.modal[^{]*\{([^}]*)\}/g)]
+      .flatMap((block) => [...block[1].matchAll(/var\((--[a-z0-9-]+)(,|\))/g)]
+        .filter((v) => v[2] === ')').map((v) => v[1]))
+    const unknown = [...new Set(asked)].filter((v) => !defined.has(v))
+    if (unknown.length) console.log(`         undefined: ${unknown.join(', ')}`)
+    return unknown.length === 0
+  })()],
+)
+
 for (const [label, ok] of splitChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++

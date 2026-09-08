@@ -284,12 +284,14 @@ function NewSchool({ open, onClose, onCreated }) {
       onClose={onClose}
       title="Add a school"
       description="Creates the row at PROVISIONING. Setting it up is a separate step."
+      endpoint={
+        <EndpointTag id="create-school" name="Create" look="primary" />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
           <div className="stack" style={{ gap: 4, alignItems: 'flex-end' }}>
             <Button look="primary" busy={saving} onClick={submit}>Create</Button>
-            <EndpointTag id="create-school" name="Create" look="primary" />
           </div>
         </>
       }

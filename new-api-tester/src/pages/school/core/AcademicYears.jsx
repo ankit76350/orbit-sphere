@@ -203,11 +203,13 @@ function NewYear({ open, onClose, onCreated }) {
       preview={form}
       title="Add an academic year"
       description="The name is the key other records point at, so it cannot be changed later."
+      endpoint={
+        <EndpointTag id="create-academic-year" name="Create" look="primary" />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" busy={saving} onClick={submit}>Create</Button>
-          <EndpointTag id="create-academic-year" name="Create" look="primary" />
         </>
       }
     >

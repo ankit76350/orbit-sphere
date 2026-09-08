@@ -233,6 +233,7 @@ export default function PlanDetail() {
         <Confirm
           key={confirming.key}
           action={confirming}
+          path={path}
           busy={Boolean(busy)}
           onCancel={() => setConfirming(null)}
           onGo={(body) => run(confirming.key, confirming.endpoint, {
@@ -646,7 +647,7 @@ function Lifecycle({ plan, path, busy, onRun, onConfirm }) {
  * no guard. It used to render always and bail out after its hooks, which crashed the whole page
  * the moment that early return went missing in an edit — the caller decides now.
  */
-function Confirm({ action, busy, onCancel, onGo }) {
+function Confirm({ action, path, busy, onCancel, onGo }) {
   // Initialised straight from the action, not synced to it in an effect. The caller gives this
   // component a key per action, so opening a different one remounts with the right values in a
   // single render instead of showing the previous one's for a frame.
@@ -673,6 +674,14 @@ function Confirm({ action, busy, onCancel, onGo }) {
         }
         : {}}
       title={action.title}
+      endpoint={
+        <EndpointTag
+          id={action.endpoint}
+          name={action.label}
+          look={action.key === 'retire' ? 'danger' : 'primary'}
+          pathParams={path}
+        />
+      }
       footer={
         <>
           <Button onClick={onCancel}>Cancel</Button>

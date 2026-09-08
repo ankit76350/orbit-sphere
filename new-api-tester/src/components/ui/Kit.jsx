@@ -118,8 +118,8 @@ function isEmptyBody(value) {
  * the pane, saying the body is empty — because "this request sends nothing" is itself worth
  * seeing, and a pane that vanished would read as a bug.
  */
-export function Modal({ open, onClose, title, description, footer, preview, previewLabel,
-  children }) {
+export function Modal({ open, onClose, title, description, endpoint, footer, preview,
+  previewLabel, children }) {
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event) => {
@@ -148,12 +148,14 @@ export function Modal({ open, onClose, title, description, footer, preview, prev
           </div>
           <Button look="quiet" onClick={onClose} aria-label="Close"><X size={15} /></Button>
         </div>
+        {/* Which request this is. The title says what the modal is for; this says what it sends. */}
+        {endpoint && <div className="modal-endpoint">{endpoint}</div>}
         {preview === undefined ? (
           <div className="modal-body">{children}</div>
         ) : (
           <div className="modal-split">
             <div>{children}</div>
-            <div>
+            <div className="modal-pane-preview">
               <p className="modal-pane-label">{previewLabel || 'Request body'}</p>
               {/* A ready-made node renders as it is — that is how the response view puts its
                   status line above the JSON. Anything else is a body to stringify. */}

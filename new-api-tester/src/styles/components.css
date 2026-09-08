@@ -360,41 +360,84 @@ button.endpoint-tag:hover .endpoint-tag-path { color: var(--brand); text-decorat
 .modal-scrim { position: absolute; inset: 0; background: rgb(8 10 20 / 0.55); }
 .modal-card {
   position: relative; width: 100%; max-width: 620px; max-height: calc(100vh - 40px);
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius-card); box-shadow: var(--shadow-pop);
 }
-.modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 0; }
-.modal-body { padding: 16px 20px; overflow-y: auto; }
+/* The heading and the actions are fixed furniture: only the middle scrolls. Without this a long
+   form shrinks them instead of scrolling, and the button it is aiming at slides off the bottom. */
+.modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 0; flex: 0 0 auto; }
+.modal-body { padding: 16px 20px; overflow-y: auto; min-height: 0; }
 .modal-foot {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  padding: 14px 20px; border-top: 1px solid var(--line);
+  padding: 14px 20px; border-top: 1px solid var(--line); flex: 0 0 auto;
 }
+
+/* ── The endpoint this modal calls ────────────────────────── */
+/* THE HEADING SAYS WHICH REQUEST THIS IS. A modal titled "End this subscription" does not say
+   whether it posts to /cancel or patches the row, and in a tool for exercising an API that is
+   the first thing worth knowing. Path parameters are already filled in, so it reads as the URL
+   that will actually be sent rather than as a template. */
+.modal-endpoint {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  margin: 12px 20px 0; padding: 8px 12px;
+  background: var(--surface-sunken); border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px; font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--ink-2);
+}
+/* The URL is the point of the strip, so it wraps rather than being clipped to an ellipsis the
+   way the same tag does in a crowded row. */
+.modal-endpoint .endpoint-tag { font-size: inherit; color: inherit; flex-wrap: wrap; }
+.modal-endpoint .endpoint-tag-path { overflow: visible; white-space: normal; word-break: break-all; }
 
 /* ── Split modal: the form beside the JSON it will send ───── */
 /* A write is worth seeing whole, so anything that sends a body takes the screen and shows the
    form and the payload together. The panes scroll independently: a long form must not push the
    JSON out of view, which is the whole point of having both. */
-.modal[data-split='true'] { place-items: stretch; padding: 12px; }
-.modal[data-split='true'] .modal-card { max-width: none; max-height: none; height: 100%; }
+/* FULL SCREEN, LESS A MARGIN. The gap keeps the card off the edges of the display, so it reads
+   as a sheet over the app rather than as a new page.
+   grid-template-rows IS LOAD-BEARING, and its absence was a real bug: the implicit row is `auto`,
+   so it grew to fit the content and the card's `height: 100%` measured that grown row. Nothing
+   ever overflowed, so nothing ever scrolled — a long response simply ran off the bottom of the
+   display, taking the footer and its Submit button with it. Pinning the row to the container's
+   own height is what makes both panes scroll and the actions stay put. */
+.modal[data-split='true'] {
+  place-items: stretch; padding: 16px;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+}
+.modal[data-split='true'] .modal-card {
+  max-width: none; max-height: 100%; height: 100%; min-height: 0;
+}
+/* Actions read as a bar of their own at this size, where the eye has a whole screen to cross to
+   find them. */
+.modal[data-split='true'] .modal-foot { background: var(--surface-sunken); padding: 12px 20px; }
 .modal-split {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0; flex: 1; min-height: 0;
+  gap: 0; flex: 1 1 auto; min-height: 0;
 }
-.modal-split > * { min-width: 0; overflow-y: auto; padding: 16px 20px; }
+.modal-split > * { min-width: 0; min-height: 0; overflow-y: auto; padding: 16px 20px; }
 .modal-split > * + * { border-left: 1px solid var(--line); }
+/* The right-hand pane keeps its label — and, in the response view, its status line — in place and
+   scrolls only the body, because a 400-line response should not carry the word telling you what
+   you are reading off the top of the screen. */
+.modal-pane-preview { display: flex; flex-direction: column; overflow: hidden; }
+.modal-pane-preview > .modal-pane-label,
+.modal-pane-preview > .resp-head { flex: 0 0 auto; }
+.modal-pane-preview > .modal-json { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .modal-pane-label {
   display: flex; align-items: center; gap: 8px;
   font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--text-dim); margin: 0 0 10px;
+  color: var(--ink-muted); margin: 0 0 10px;
 }
 .modal-json {
-  margin: 0; padding: 12px 14px; border-radius: var(--radius-input);
-  background: var(--surface-sunk); border: 1px solid var(--line);
-  font: 12px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word;
-  color: var(--text);
+  margin: 0; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--surface-sunken); border: 1px solid var(--line);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, monospace;
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--ink);
 }
-.modal-json[data-empty='true'] { color: var(--text-dim); font-style: italic; }
+.modal-json[data-empty='true'] { color: var(--ink-muted); font-style: italic; }
 
 /* One column on a narrow screen: side by side is worse than stacked below ~900px. */
 @media (max-width: 900px) {

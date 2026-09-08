@@ -282,6 +282,7 @@ export default function SchoolDetail() {
 
       <AskFirst
         action={asking ? ACTION[asking] : null}
+        schoolId={id}
         value={answer}
         onChange={setAnswer}
         busy={Boolean(busy)}
@@ -301,7 +302,7 @@ export default function SchoolDetail() {
 
 /* --------------------------------------------- the actions that need something said first */
 
-function AskFirst({ action, value, onChange, busy, onCancel, onConfirm }) {
+function AskFirst({ action, schoolId, value, onChange, busy, onCancel, onConfirm }) {
   if (!action) return null
   const missing = action.required && !value.trim()
 
@@ -311,6 +312,14 @@ function AskFirst({ action, value, onChange, busy, onCancel, onConfirm }) {
       onClose={onCancel}
       preview={{ [action.asks]: value.trim() || undefined }}
       title={action.label}
+      endpoint={
+        <EndpointTag
+          id={action.endpoint}
+          name={action.label}
+          look={action.look}
+          pathParams={{ id: schoolId }}
+        />
+      }
       description={action.required
         ? 'The API requires a reason, and it is kept on the school.'
         : 'A note is optional here.'}
@@ -383,6 +392,10 @@ function ChangeSubdomain({ open, school, onClose, onDone }) {
       onClose={onClose}
       preview={body}
       title="Change the web address"
+      endpoint={
+        <EndpointTag id="change-subdomain" name="Change it" look="primary"
+          pathParams={{ id: school.id }} />
+      }
       description="Every saved link and bookmark for the old address stops working."
       footer={
         <>

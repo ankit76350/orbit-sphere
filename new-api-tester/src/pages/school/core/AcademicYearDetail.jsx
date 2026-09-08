@@ -484,6 +484,9 @@ function AddHoliday({ open, name, onClose, onDone }) {
       preview={body}
       title="Add a holiday"
       description="Appends to the date. A date that already has an event keeps it."
+      endpoint={
+        <EndpointTag id="add-holiday" name="Add it" look="primary" pathParams={{ name }} />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -494,7 +497,6 @@ function AddHoliday({ open, name, onClose, onDone }) {
           >
             Add it
           </Button>
-          <EndpointTag id="add-holiday" name="Add it" look="primary" pathParams={{ name }} />
         </>
       }
     >
@@ -588,6 +590,16 @@ function EditHoliday({ editing, name, onClose, onDone }) {
       preview={requestBody}
       title={`${event.type} on ${date}`}
       description="The type is sent as a query parameter, because one date can hold several events."
+      /* TWO ENDPOINTS, ONE DIALOG: Save patches the event and Remove deletes it, so the heading
+         names both rather than picking whichever the eye lands on first. */
+      endpoint={
+        <>
+          <EndpointTag id="update-holiday" name="Save" look="primary"
+            pathParams={{ name, date }} query={query} />
+          <EndpointTag id="remove-holiday" name="Remove" look="danger"
+            pathParams={{ name, date }} query={query} />
+        </>
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -627,24 +639,6 @@ function EditHoliday({ editing, name, onClose, onDone }) {
             options={HOLIDAY_TYPES}
           />
         </Field>
-        <div className="toolbar">
-          <EndpointTag
-            id="update-holiday"
-            name="Save"
-            look="primary"
-            pathParams={{ name, date }}
-            query={query}
-          />
-        </div>
-        <div className="toolbar">
-          <EndpointTag
-            id="remove-holiday"
-            name="Remove"
-            look="danger"
-            pathParams={{ name, date }}
-            query={query}
-          />
-        </div>
       </div>
     </Modal>
   )
@@ -730,6 +724,10 @@ function ReplaceCalendar({ name, days, onDone }) {
         onClose={() => setOpen(false)}
         title="Replace the whole calendar"
         description="A PUT: whatever is not in this body stops being a holiday."
+        endpoint={
+          <EndpointTag id="replace-holiday-calendar" name="Replace it" look="danger"
+            pathParams={{ name }} />
+        }
         footer={
           <>
             <Button onClick={() => setOpen(false)}>Cancel</Button>

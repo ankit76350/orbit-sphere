@@ -33,7 +33,15 @@ export default function ResponseModal() {
       open
       onClose={() => inspect(null)}
       title={action || endpointName || `${method} ${path}`}
-      description={`${method} ${path}`}
+      /* The URL that was actually sent, base address and query string included — not the
+         template. It is the one thing here that cannot be worked out from anything else on
+         screen, so it goes in the heading rather than under the request body where it was. */
+      endpoint={
+        <>
+          <span className="endpoint-tag-method" data-method={method}>{method}</span>
+          <span className="endpoint-tag-path">{result?.request?.url || path}</span>
+        </>
+      }
       previewLabel="Response body"
       /* The reply on the right, opposite the request that produced it. Same geometry as the
          form-and-payload view this modal replaces on screen, so the request stays in the place
@@ -60,9 +68,6 @@ export default function ResponseModal() {
       >
         {result?.request?.body ? body(result.request.body) : 'This request sent no body.'}
       </pre>
-      <p className="muted" style={{ marginTop: 10, wordBreak: 'break-all' }}>
-        {result?.request?.url}
-      </p>
     </Modal>
   )
 }

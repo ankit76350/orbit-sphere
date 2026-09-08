@@ -981,6 +981,14 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
       preview={body}
       title="Edit the terms"
       description="When it runs, what state it is in, how much it may use. Only what you change is sent — the endpoint reads an absent field as “leave it alone”."
+      endpoint={
+        <EndpointTag
+          id="edit-subscription"
+          name="Send the changes"
+          look="primary"
+          pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+        />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -995,12 +1003,6 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
                 ? 'Say why first'
                 : `Send ${plural(changed.length, 'change')}`}
           </Button>
-          <EndpointTag
-            id="edit-subscription"
-            name="Send the changes"
-            look="primary"
-            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-          />
         </>
       }
     >
@@ -1389,18 +1391,20 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
       preview={body}
       title="Move this school to another plan"
       description="It takes effect immediately, and the billing period restarts with it."
+      endpoint={
+        <EndpointTag
+          id="change-plan"
+          name="Move it to this plan"
+          look="primary"
+          pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+        />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
           <Button look="primary" busy={saving} onClick={submit}>
             {missing ? 'Choose a plan and say why' : 'Move it to this plan'}
           </Button>
-          <EndpointTag
-            id="change-plan"
-            name="Move it to this plan"
-            look="primary"
-            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-          />
         </>
       }
     >
@@ -1702,6 +1706,13 @@ function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }
       description={escalatingOnly
         ? 'It is already ending when the period runs out. This stops the access today instead.'
         : 'The contract ends either way. What you choose is whether the school keeps the time it has paid for.'}
+      endpoint={
+        <EndpointTag
+          id="cancel-subscription"
+          name="Cancel"
+          pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+        />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -1710,11 +1721,6 @@ function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }
               ? 'Say why first'
               : (endingNow ? 'End it now' : 'End it at the period end')}
           </Button>
-          <EndpointTag
-            id="cancel-subscription"
-            name="Cancel"
-            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-          />
         </>
       }
     >
@@ -1832,6 +1838,13 @@ function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }
       description={resuming
         ? 'Back to ACTIVE, and the school with it. Nothing else changes.'
         : 'Stops the subscription and the school. Say which bill, and how far past the grace period.'}
+      endpoint={
+        <EndpointTag
+          id={action.endpoint}
+          name={resuming ? 'Resume' : 'Suspend'}
+          pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+        />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -1842,11 +1855,6 @@ function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }
           >
             {reason.trim() ? (resuming ? 'Switch it back on' : 'Cut it off') : 'Say why first'}
           </Button>
-          <EndpointTag
-            id={action.endpoint}
-            name={resuming ? 'Resume' : 'Suspend'}
-            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
-          />
         </>
       }
     >
@@ -1942,6 +1950,9 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
       preview={body}
       title="When does the next period end?"
       description="This contract bills on a CUSTOM cycle, which has no length — so the date has to be said."
+      endpoint={
+        <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -1952,7 +1963,6 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
           >
             {endDate ? 'Renew' : 'Pick a date first'}
           </Button>
-          <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
         </>
       }
     >
@@ -2141,6 +2151,14 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
       preview={body}
       title="Give this school a subscription"
       description="Only a published plan can be sold. The price, currency and cycle come from it."
+      endpoint={
+        <EndpointTag
+          id="create-subscription"
+          name="Create it"
+          look="primary"
+          pathParams={{ id: schoolId }}
+        />
+      }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -2151,12 +2169,6 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
           >
             {needsPeriodEnd && !periodEnd ? 'Set the end date first' : 'Create it'}
           </Button>
-          <EndpointTag
-            id="create-subscription"
-            name="Create it"
-            look="primary"
-            pathParams={{ id: schoolId }}
-          />
         </>
       }
     >
