@@ -4,7 +4,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.orbitastra.backend.dto.core.academicyear.response.HolidayView.EventView;
+
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 
 /**
