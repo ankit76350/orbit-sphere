@@ -5874,6 +5874,7 @@ A second is a \`409\` telling you to change the plan on the existing one.
       errors: [
         { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom billing cycle" },
+        { status: 400, code: "BILLING_PERIOD_END_NOT_ALLOWED", when: "An end date on a fixed cycle" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
         { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
         { status: 404, code: "—", when: "An unknown school or plan" },
@@ -5893,7 +5894,8 @@ A second is a \`409\` telling you to change the plan on the existing one.
          billingCycle    = the plan's cycle, unless the request named one
          currentPeriodStart = MIDNIGHT TODAY in the school's own zone, not
                               the moment the request arrived
-         currentPeriodEnd   = start + the cycle's days (30/90/180/365)
+         currentPeriodEnd   = start + the cycle's days (30/90/180/365),
+                              and it may NOT be sent on those four cycles
          maxStudentsOverride / maxUsersOverride = COPIED FROM THE PLAN,
                               since the sale named no figures of its own
          hasLimitOverrides  = false, because they match the plan
@@ -6350,12 +6352,29 @@ refused before the service sees it.
         },
         {
           id: "05",
-          name: "MOVE BOTH ENDS AT ONCE",
-          expect: "200 OK",
-          notes: `An explicit currentPeriodEnd always wins, so sending both dates puts
-    exactly those two on the subscription and derives nothing.
+          name: "AN END DATE ON A FIXED CADENCE",
+          expect: "400 Bad Request",
+          notes: `ONLY A CUSTOM CADENCE TAKES AN END DATE. The four fixed cycles ARE
+    their length, so one sent with them either agrees with the derivation —
+    saying nothing — or disagrees with it, and then the record contradicts
+    itself: MONTHLY beside a six-month period bills the school for half a
+    year while the document says it pays monthly.
 
-    Leave the end OFF and the cadence decides it — see the next case.`,
+    OUT: { "code": "BILLING_PERIOD_END_NOT_ALLOWED" }
+
+    REFUSED RATHER THAN QUIETLY DROPPED: a 200 carrying a different date
+    than the one sent ignores the caller without telling them. Nothing is
+    written.
+
+    TO MOVE THE END, MOVE WHAT IT IS MEASURED FROM — send currentPeriodStart
+    on its own and the end is re-derived. See the next case.
+
+    A BARE END DATE IS REFUSED TOO, which is the case most callers try:
+      { "currentPeriodEnd": "2027-03-31T23:59:59Z", "reason": "..." }
+
+    READ AGAINST THE CADENCE AFTER THE EDIT, so (CUSTOM -> MONTHLY plus an
+    end date) is refused as one request rather than accepted because CUSTOM
+    was true when it arrived.`,
           body: `{
   "currentPeriodStart": "2026-04-01T00:00:00Z",
   "currentPeriodEnd": "2027-03-31T23:59:59Z",
@@ -6706,8 +6725,10 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
       errors: [
         { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A CUSTOM cadence with no currentPeriodEnd" },
+        { status: 400, code: "BILLING_PERIOD_END_NOT_ALLOWED", when: "An end date on a fixed cadence" },
         { status: 400, code: "VALIDATION_FAILED", when: "A reason is required" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom target with no end date" },
+        { status: 400, code: "BILLING_PERIOD_END_NOT_ALLOWED", when: "An end date on a fixed target cadence" },
         { status: 409, code: "PLAN_UNCHANGED", when: "The plan it is already on" },
         { status: 409, code: "PLAN_NOT_SELLABLE", when: "A plan that cannot be sold" },
       ],
@@ -6928,8 +6949,9 @@ Anything that could change one of those would make it a change rather than a ren
 have their own endpoints: **#14** for the terms, **#16** for the plan.
 
 **One field exists, for the one case that cannot be derived.** A \`CUSTOM\` cycle has no length, so
-\`currentPeriodEnd\` says when the next period ends — **required** there, and an optional override
-on the four fixed cycles. Omit the body entirely for an ordinary renewal.
+\`currentPeriodEnd\` says when the next period ends — **required** there, and **refused** on the
+four fixed cycles (\`400 BILLING_PERIOD_END_NOT_ALLOWED\`), which decide their own length. So
+omitting the body is not merely the ordinary renewal; on those four it is the only call.
 
 ### It writes two rows, the same way #16 does
 
@@ -6990,6 +7012,10 @@ A \`CUSTOM\` cycle is **asked when the next period ends**, not refused: it has n
 fallback would put a date nobody signed off into a billing record — and it has to be after the new
 period's start, or \`400 INVALID_BILLING_PERIOD\`.
 
+**On the other four cadences the field is refused, not overridden.** They are their own length, so
+a renewal running to a date the cadence disagrees with would bill a school for a period its own
+record denies: \`400 BILLING_PERIOD_END_NOT_ALLOWED\`.
+
 ### No invoice is raised, and no money is taken
 
 \`subscription_invoices\` has no repository and no writer anywhere in the codebase, and its fields
@@ -7003,8 +7029,8 @@ rather than starting one, so there is nothing about it that should take a school
         { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
       ],
       requestFields: [
-        { name: "currentPeriodEnd", required: "on a CUSTOM cycle",
-          note: "When the next period ends. Required on CUSTOM, which has no length to derive from. Absent on the four fixed cycles means the cycle decides — 30, 90, 180 or 365 days from where the last period ended, which is the ordinary renewal and needs no body at all." },
+        { name: "currentPeriodEnd", required: "on a CUSTOM cycle, and refused on every other",
+          note: "When the next period ends. Required on CUSTOM, which has no length to derive from. On the four fixed cycles the cycle decides — 30, 90, 180 or 365 days from where the last period ended — and sending one is 400 BILLING_PERIOD_END_NOT_ALLOWED, so there the ordinary renewal needs no body at all and no other call is possible." },
       ],
       responseFields: ["subscriptionNo", "planCode", "planVersion", "status", "billingCycle",
         "currentPeriodStart", "currentPeriodEnd", "contractedPrice", "planListPrice",
@@ -7015,6 +7041,7 @@ rather than starting one, so there is nothing about it that should take a school
         { status: 409, code: "SUBSCRIPTION_NOT_RENEWABLE", when: "TRIAL, SUSPENDED or CANCELLED" },
         { status: 409, code: "PLAN_NOT_RENEWABLE", when: "The plan is retired, DRAFT, or outside its window" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A CUSTOM cycle, no date sent" },
+        { status: 400, code: "BILLING_PERIOD_END_NOT_ALLOWED", when: "A date sent on a fixed cycle" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A date not after the period's start" },
         { status: 409, code: "SCHOOL_NOT_RENEWABLE", when: "The school is being wound down" },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },

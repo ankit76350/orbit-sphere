@@ -177,8 +177,9 @@ public class PlatformSubscriptionService {
         Instant periodStart = request.currentPeriodStart();
 
         //! Derived from the cycle ABOVE, not the plan's. So a YEARLY plan sold as CUSTOM needs an
-        //! end date and says so, and a CUSTOM plan sold as MONTHLY derives one and needs none —
-        //! the refusal follows what the school is actually being billed on.
+        //! end date and says so, and a CUSTOM plan sold as MONTHLY derives one and REFUSES one —
+        //! the rule follows what the school is actually being billed on, not what the plan is
+        //! listed at. Only a CUSTOM cadence takes an end date; the other four are their length.
         Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(), periodStart,
                 billingCycle);
 
@@ -380,13 +381,38 @@ public class PlatformSubscriptionService {
             }
         }
 
-        //! step 6 - a start being SET has to be today or later. The stored one is not checked:
+        //! step 6 - and on the four fixed cadences an end date is refused, because the cadence
+        //! already decides it. This endpoint writes the fields it is given straight onto the
+        //! document, so without this an edit could store MONTHLY beside a period running six
+        //! months — the two would contradict each other and the document would be believed.
+        //!
+        //! Read against the cadence the subscription will be on AFTER this edit, not the one it
+        //! is on now: the pair (CUSTOM -> MONTHLY, plus an end date) has to be refused as one
+        //! request rather than accepted because CUSTOM was true when it arrived.
+        //!
+        //! Not gated on billingCycle being sent, so a bare currentPeriodEnd on a subscription
+        //! already billing MONTHLY is refused too. That is the case the caller is most likely to
+        //! try, and the message names what to send instead.
+        BillingCycle cadenceAfterEdit = request.billingCycle() == null
+                ? subscription.getBillingCycle()
+                : request.billingCycle();
+
+        // "If the user is sending currentPeriodEnd AND the billing cycle is NOT CUSTOM, reject the request."
+        if (request.currentPeriodEnd() != null && cadenceAfterEdit != BillingCycle.CUSTOM) {
+            throw ApiException.badRequest("BILLING_PERIOD_END_NOT_ALLOWED",
+                    "currentPeriodEnd cannot be sent when the cadence is " + cadenceAfterEdit
+                            + ", which decides its own period end. Send currentPeriodStart "
+                            + "instead — the end moves with it — or send billingCycle to change "
+                            + "the cadence. Only a CUSTOM cadence takes an end date.");
+        }
+
+        //! step 7 - a start being SET has to be today or later. The stored one is not checked:
         //! a subscription sold months ago has a start in the past by definition, and refusing to
         //! edit it would make every other field on this endpoint unreachable for a running
         //! subscription. Only a value on the request is a decision somebody is making now.
         validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
 
-        //! step 7 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! step 8 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
         List<String> changed = applySubscriptionEdits(subscription, request);
@@ -399,21 +425,22 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 8 - the cycle decides the period, the same way it does on a sale. A cadence that
-        //! moved leaves the stored end date describing a period nobody is on any more: an end
-        //! derived as "start + 365" is not the end of a MONTHLY period, so keeping it would bill
-        //! the school for a year while the document says it pays monthly.
+        //! step 9 - THE CADENCE DECIDES THE PERIOD, the same way it does on a sale. A cadence
+        //! that moved leaves the stored end date describing a period nobody is on any more: an
+        //! end derived as "start + 365" is not the end of a MONTHLY period, so keeping it would
+        //! bill the school for a year while the document says it pays monthly.
         //!
-        //! An explicit currentPeriodEnd always wins, exactly as on #13 — this only fills in the
-        //! date nobody sent. The UI disables that box for the four fixed cycles precisely because
-        //! the cycle already decides it.
+        //! ON A FIXED CADENCE THE END IS ONLY EVER DERIVED, never sent — step 6 refuses an end
+        //! date outright — so this is the only thing that writes it. Which makes the rule one
+        //! sentence: the end moves when what it is measured from moves, and at no other time.
+        //! An edit to the price or the capacity leaves the period exactly where it was.
         boolean cycleMoved = changed.contains("billingCycle");
         boolean startMoved = changed.contains("currentPeriodStart");
 
-        //! A CUSTOM cadence never reaches here without an end — step 4 requires one with it —
-        //! so the only case left is a fixed cadence whose start or cycle moved. A CUSTOM
-        //! subscription whose start moves alone keeps its agreed end: that date was somebody's
-        //! decision rather than a derivation, and step 8 checks it is still after the new start.
+        //! A CUSTOM cadence keeps the end it was given, whether that arrived with this request or
+        //! was already on record: that date was somebody's decision rather than arithmetic, so
+        //! nothing here recomputes it, and a start that moves under it is checked against it by
+        //! step 11 instead. So the only case left is a fixed cadence whose start or cycle moved.
         if (request.currentPeriodEnd() == null && (cycleMoved || startMoved)
                 && subscription.getBillingCycle() != BillingCycle.CUSTOM) {
 
@@ -426,12 +453,12 @@ public class PlatformSubscriptionService {
             }
         }
 
-        //! step 9 - the reason goes onto the document as well as the history row. Written only
+        //! step 10 - the reason goes onto the document as well as the history row. Written only
         //! now, because an edit that changed nothing has nothing to explain. No null check: the
         //! request has @NotBlank on it, so an unexplained edit never reaches here.
         subscription.setReasonForChanges(request.reason().trim());
 
-        //! step 10 - the period has to still make sense after the edit, whichever end moved
+        //! step 11 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -442,7 +469,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 11 - one history row for the whole edit, in this same transaction
+        //! step 12 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -461,11 +488,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 12 - the plan is read only so the response can carry its features and limits
+        //! step 13 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(saved);
 
-        //! step 13 - the note is two answers joined here rather than by one helper calling the
+        //! step 14 - the note is two answers joined here rather than by one helper calling the
         //! other: what this edit did, and anything standing about the subscription that a
         //! reader needs whether or not it was edited.
         List<String> note = new ArrayList<>();
@@ -662,15 +689,10 @@ public class PlatformSubscriptionService {
         Instant periodStart = request.currentPeriodStart();
 
         //! Derived from the cadence ABOVE, not the plan's, so the refusal follows what the school
-        //! is actually billed on: a YEARLY plan billed CUSTOM needs an end date and says so.
+        //! is actually billed on: a YEARLY plan billed CUSTOM needs an end date and says so,
+        //! and a CUSTOM plan billed QUARTERLY refuses one because the cadence decides it.
         Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(),
                 periodStart, billingCycle);
-
-        if (billingCycle == BillingCycle.CUSTOM && request.currentPeriodEnd() == null) {
-            throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
-                    "currentPeriodEnd has to be sent when the new cadence is CUSTOM, which has "
-                            + "no length to work the period out from.");
-        }
 
         //! step 9 - close the row the school is leaving. It stops being the current one, and its
         //! period ends exactly where the new one begins, so the two meet and the school is never
@@ -1060,9 +1082,10 @@ public class PlatformSubscriptionService {
         //! contiguous: no day the school was live but unbilled, and none it was billed twice for.
         //! The cycle is the SUBSCRIPTION's, not the plan's — #14 can have changed it, and a
         //! renewal renews what the school is actually on.
-        //! The caller's date wins where one was sent — required on CUSTOM, an override on the
-        //! rest — and is checked against the new period's start, so a renewal cannot be made to
-        //! end before it began.
+        //! The caller's date is required on CUSTOM and refused on the other four, which decide
+        //! their own length — so a renewal cannot quietly run to a date the cadence disagrees
+        //! with. On CUSTOM it is checked against the new period's start, so a renewal cannot be
+        //! made to end before it began.
         Instant periodStart = previousPeriodEnd;
         Instant periodEnd = calculateSubscriptionPeriodEnd(requestedPeriodEnd, periodStart,
                 subscription.getBillingCycle());
@@ -1780,13 +1803,48 @@ public class PlatformSubscriptionService {
         return plan;
     }
 
-    /** Derives the first billing period end date from the plan cycle using fixed-day periods; CUSTOM requires the caller to specify it.      *
-     * Used by:
+    /**
+     * Works out when a billing period ends. THE CADENCE DECIDES WHO SAYS SO, and there are only
+     * two answers.
+     *
+     * <pre>
+     * MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY -> the cycle decides: start + 30/90/180/365 days
+     * CUSTOM                                  -> the caller decides, and has to send it
+     * </pre>
+     *
+     * <p><b>A fixed cadence refuses an end date rather than honouring it.</b> The four fixed
+     * cycles ARE their length: an end date sent with one either agrees with the derivation, in
+     * which case it said nothing, or disagrees with it, in which case the record contradicts
+     * itself — a subscription reading MONTHLY whose period runs six months bills the school for
+     * half a year while the document says it pays every month. There is no third case where the
+     * value is useful, so it is a 400 rather than a silent overwrite.
+     *
+     * <p><b>Refused rather than quietly dropped</b>, which is the harder half of that choice. A
+     * caller who sends a date and is answered with a different one has been ignored without being
+     * told, and would have to diff the response to notice. Naming the field and the cadence in
+     * the refusal is what makes the rule discoverable from one wrong request.
+     *
+     * <p>The way to move a fixed-cadence period end is to move what it is measured FROM — the
+     * start, on #14 — or to change the cadence itself. Both derive a new end from here.
+     *
+     * <p>Used by:
      * - createSubscription()
+     * - updateSubscription()
+     * - changePlan()
+     * - renewSubscription()
      */
     private Instant calculateSubscriptionPeriodEnd(Instant requested, Instant periodStart, BillingCycle cycle) {
 
-        if (requested != null) {
+        // CUSTOM has no length of its own, so it is the ONE cadence whose end date is somebody's
+        // decision rather than arithmetic. Refused rather than guessed: inventing a year, or
+        // repeating the length of the last period, would put a date in a billing record that
+        // nobody agreed to.
+        if (cycle == BillingCycle.CUSTOM) {
+            if (requested == null) {
+                throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
+                        "currentPeriodEnd has to be sent on a CUSTOM cadence, which has no set "
+                                + "length to work the period out from.");
+            }
             if (!requested.isAfter(periodStart)) {
                 throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                         "currentPeriodEnd (" + requested + ") must be after currentPeriodStart ("
@@ -1795,17 +1853,33 @@ public class PlatformSubscriptionService {
             return requested;
         }
 
-        // Days, so no calendar and no zone is needed: an Instant can add days on its own, where
+        // DAYS, so no calendar and no zone is needed: an Instant can add days on its own, where
         // Instant.plus(1, MONTHS) throws because a month is not a fixed number of seconds.
+        //
+        // Worked out before the refusal below because the message quotes it — a refusal that
+        // names the cadence but not its length leaves the caller to guess what they will get
+        // instead.
+        //
+        // CUSTOM is unreachable here: it returned above, because it has no length. An exception
+        // rather than a number, so an edit that moves this switch above that block fails loudly
+        // instead of billing somebody on a made-up cadence length.
         long days = switch (cycle) {
             case MONTHLY -> 30;
             case QUARTERLY -> 90;
             case HALF_YEARLY -> 180;
             case YEARLY -> 365;
-            case CUSTOM -> throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
-                    "This plan bills on a CUSTOM cycle, which has no set length, so "
-                            + "currentPeriodEnd has to be sent.");
+            case CUSTOM -> throw new IllegalStateException(
+                    "CUSTOM has no fixed length; its end date comes from the caller.");
         };
+
+        if (requested != null) {
+            throw ApiException.badRequest("BILLING_PERIOD_END_NOT_ALLOWED",
+                    "currentPeriodEnd cannot be sent on a " + cycle + " cadence, which decides "
+                            + "its own: " + cycle + " periods run " + days
+                            + " days from currentPeriodStart. Leave it out and it is worked out "
+                            + "from the start date; move the start to move the end. Only a "
+                            + "CUSTOM cadence takes an end date.");
+        }
 
         return periodStart.plus(days, ChronoUnit.DAYS);
     }

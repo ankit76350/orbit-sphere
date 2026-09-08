@@ -213,11 +213,15 @@ still created, the school stays `PROVISIONING`, and `nextStep` names what is mis
 - **On #14 a cadence names the dates it needs**: sending `billingCycle` requires
   `currentPeriodStart` (`400 PERIOD_START_REQUIRED`), and a `CUSTOM` cadence requires
   `currentPeriodEnd` as well. Every other edit leaves both alone.
+- **Only a `CUSTOM` cadence takes `currentPeriodEnd` at all.** On `MONTHLY`, `QUARTERLY`,
+  `HALF_YEARLY` and `YEARLY` the field is refused — `400 BILLING_PERIOD_END_NOT_ALLOWED` — because
+  those four *are* their length. To move one of their period ends, move `currentPeriodStart`; the
+  end follows it. Applies to #13, #14, #16 and #17 alike.
 - **The cycle can be negotiated too.** `billingCycle` is optional and absent takes the plan's, so
   the same plan can be sold on a different cadence — stored on the *subscription*, leaving the plan
   and every other school on it alone. Whichever cycle applies is what decides the period dates
-  **and** whether `currentPeriodEnd` is required: a `YEARLY` plan sold `CUSTOM` needs a date, and a
-  `CUSTOM` plan sold `MONTHLY` does not.
+  **and** whether `currentPeriodEnd` may be sent at all: a `YEARLY` plan sold `CUSTOM` needs a
+  date, and a `CUSTOM` plan sold `MONTHLY` refuses one.
 - **One subscription per school.** A second is a `409`. Nothing cancels one or changes its plan
   yet, so a test school stays on its first plan.
 - **Numbering is per school**, so every school's first subscription is `SUB/2026/09/000001`.
@@ -256,10 +260,14 @@ capacity overrides. It replaced extend-trial — pushing a trial's end date out 
 - **The cadence decides the period**, as on #13. Changing `billingCycle` recalculates
   `currentPeriodEnd` from the start plus the new cycle's days, and moving the start does the same;
   moving to `CUSTOM` needs `currentPeriodEnd` on the same request, because CUSTOM has no length and
-  the date on record belongs to the cadence being left. An explicit end always wins, and a derived
-  change shows up in the changed-field list — so it is never silent. This **reverses** what the
-  endpoint used to do: leaving the old end in place billed a school for a year while the document
-  said it paid monthly.
+  the date on record belongs to the cadence being left. A derived change shows up in the
+  changed-field list, so it is never silent. This **reverses** what the endpoint used to do:
+  leaving the old end in place billed a school for a year while the document said it paid monthly.
+- **On a fixed cadence the end is only ever derived, never sent.** `currentPeriodEnd` is refused
+  there, read against the cadence the subscription will be on **after** the edit — so
+  (`CUSTOM` → `MONTHLY` + an end date) is one refused request, not an accepted one. Which makes
+  the rule one sentence: the end moves when what it is measured from moves, and at no other time.
+  An edit to the price or the capacity leaves the period exactly where it was.
 - **Absent means unchanged**, and every field is flat. The two overrides take **`0` to mean
   "remove it"** — Jackson cannot tell an omitted field from an explicit `null`, so zero is what
   says "use the plan's own limit". Negative is a `400`. The period dates are `@NotNull` on the
@@ -346,7 +354,8 @@ it; an operator calls it by hand when something went wrong. **Nothing calls it o
   derive — which is the only reason this endpoint has a request body at all. Send
   `currentPeriodEnd`; without it, `400 BILLING_PERIOD_END_REQUIRED`. The date is never guessed: a
   fallback would put a date nobody signed off into a billing record. On the four fixed cycles the
-  field is an optional override, and omitting the body is the ordinary call.
+  field is **refused** (`400 BILLING_PERIOD_END_NOT_ALLOWED`) rather than being an override, so
+  omitting the body is not merely the ordinary call — it is the only one.
 - **No invoice, no money.** `subscription_invoices` has no repository and no writer anywhere, and
   `subTotal`/`taxAmount`/`dueDate` are commercial decisions rather than derivations from a plan's
   price. So #17 moves the billing period and records the renewal; it does not charge for it.

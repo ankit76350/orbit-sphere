@@ -17,8 +17,11 @@ import { endOfDay, startOfDay, toDateInput } from '../../../lib/dates.js'
  * note beside it.
  *
  * WHAT IS NOT SENT ON A FIXED CADENCE is that same `currentPeriodEnd`: MONTHLY, QUARTERLY,
- * HALF_YEARLY and YEARLY have a length, so the API derives the end from the start and sending one
- * would override a date the cadence already decides. The form disables that box for them.
+ * HALF_YEARLY and YEARLY have a length, so the API derives the end from the start and REFUSES one
+ * sent with them — `400 BILLING_PERIOD_END_NOT_ALLOWED`. The box is not disabled for them, because
+ * that refusal is one worth being able to trigger; it is the diff that keeps it out of an ordinary
+ * edit. Leave the box alone on a fixed cadence and nothing is sent; change it and the field goes
+ * and is refused, which is the point.
  *
  * WHAT IS NOT HERE: the price, the currency, the billing customer reference and the plan. Those
  * are #25, #26 and #16 — money and feature access, each with its own endpoint, deliberately not
@@ -73,6 +76,11 @@ export function patchBody(form, stored) {
   // from and the date on record belongs to the cadence being left. So on that transition the
   // box's value goes even when it has not been edited — otherwise somebody happy with the date
   // already showing would get a 400 for changing nothing.
+  //
+  // On the four fixed cadences the diff is what keeps the field out: unchanged means unsent, and
+  // the API derives the end from the start instead. A CHANGED box still goes and is refused with
+  // 400 BILLING_PERIOD_END_NOT_ALLOWED — deliberately, because this is an API tester and that
+  // refusal has to be reachable.
   const movingToCustom = form.billingCycle === 'CUSTOM'
     && form.billingCycle !== stored.billingCycle
 

@@ -126,7 +126,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. **The billing cycle can be negotiated** — absent takes the plan's, and whichever applies decides the period dates and whether an end date is required. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
-| <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **Only a `TRIAL` or `ACTIVE` subscription may be edited** — the other four each have an endpoint that owns the way out of them. **The cadence decides the period** — changing the cycle or the start recalculates the end, and moving to `CUSTOM` requires a date with it. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **Only a `TRIAL` or `ACTIVE` subscription may be edited** — the other four each have an endpoint that owns the way out of them. **The cadence decides the period** — changing the cycle or the start recalculates the end, moving to `CUSTOM` requires a date with it, and on the four fixed cadences an end date is **refused** (`400 BILLING_PERIOD_END_NOT_ALLOWED`): only `CUSTOM` takes one. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
 | <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **The plan moves immediately**; `currentPeriodStart` is **required** and chooses when the new billing period begins, with the closed row ending at that same instant. **The cadence can be negotiated** — absent takes the new plan's, and whichever applies decides the period and whether an end date is required. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 — **built** | [`POST /platform/schools/{id}/subscriptions/current/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. **No request body** — the plan, price, ceilings and cycle all carry across untouched. Writes a second row and closes the period that ended, so the new period starts exactly where the last one finished. **No invoice is raised** — nothing writes `subscription_invoices` yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
@@ -430,7 +430,7 @@ below are still a plan.
 | `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Later moves have their own endpoints where the transition matters: **#19** suspends (`ACTIVE`/`PAST_DUE` → `SUSPENDED`), **#20** resumes (`SUSPENDED` → `ACTIVE`) — both carrying the school's status with them — and **#21** ends it (`CANCELLED`). **#14** is the override for everything else, including `TRIAL` → `ACTIVE`, and it applies no transition rules at all. **Nothing pushes a subscription into `PAST_DUE` or `EXPIRED`**: both are the passage of time noticing something rather than a decision, so a **job** will do them. [#18](#t18) and [#22](#t22) were dropped for that reason. |
 | `billingCycle` | BillingCycle, required | **From the plan by default, or the cycle named on #13's request.** Same five values. It lives here rather than being read through to the plan precisely so a school can be sold a plan on a cadence the plan is not listed at — and so changing the plan's listed cycle later cannot silently re-bill every school on it. #14 can move it afterwards. |
 | `currentPeriodStart` | Instant, required | **Today or later, never the past.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a contract that begins later is recorded; sending one already past is `400 PERIOD_START_IN_PAST` on both #13 and #14. The stored value goes stale as the period runs, and that is fine — the rule applies to a value being set. |
-| `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
+| `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not, and it has to be after the start. On the four fixed cycles the caller may **not** send one: `400 BILLING_PERIOD_END_NOT_ALLOWED`. |
 | `autoRenew` | Boolean, required | **`true`** unless the request says otherwise. |
 | `contractedPrice` | BigDecimal, `DECIMAL128`, required | **The plan's `listPrice`, or an override** — same rules: `0` or more, at most 2 decimals. This is what makes a private discount possible without a new plan version. |
 | `currencyCode` | String, required | **The plan's currency, never the caller's.** A subscription priced in a different currency from its plan is a mistake nobody would catch until an invoice went out in the wrong money. |
@@ -1630,7 +1630,7 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
 
   "trial": false,                     // optional
   "billingCycle": "QUARTERLY",        // optional — the plan's if absent
-  "currentPeriodEnd": null,           // optional / REQUIRED on CUSTOM
+  "currentPeriodEnd": null,           // CUSTOM ONLY: required there, refused on the other four
   "autoRenew": true,                  // optional
   "contractedPrice": 39999.50,        // optional
   "maxStudentsOverride": 2500,        // optional
@@ -1678,7 +1678,7 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
 | `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
 | `billingCycle` | no | **Absent means the plan's own cadence**, which is the ordinary sale. Send one to sell the same plan on different terms — a school paying quarterly for a plan listed yearly buys the same feature access on a different cadence. It is stored on the **subscription**, so the plan itself is unchanged. **It is this cycle, not the plan's, that decides the period** and therefore whether `currentPeriodEnd` is required. |
 | `currentPeriodStart` | **yes** | An instant, **today or later** — a past one is `400 PERIOD_START_IN_PAST`. **Required on every cycle**; it used to default to today and no longer does, because it is the anchor the end is measured from and on a yearly sale it fixes which day the school is billed on for as long as it stays. Midnight in the school's own day is the ordinary value — a billing period is a pair of dates somebody reads, so "your year runs from the 7th" rather than "from 12:47 on the 7th". |
-| `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant, and it must be after the start (`400 INVALID_BILLING_PERIOD`). Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. **Which cycle counts is the one being sold**: a `YEARLY` plan sold `CUSTOM` needs a date, and a `CUSTOM` plan sold `MONTHLY` does not. |
+| `currentPeriodEnd` | **on a `CUSTOM` cycle, and refused on every other** | **Only `CUSTOM` takes one.** A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`, and the date must be after the start (`400 INVALID_BILLING_PERIOD`). On the four fixed cycles the end is derived — start **plus the cycle's days**, `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365 — and sending one is `400 BILLING_PERIOD_END_NOT_ALLOWED`. **Which cycle counts is the one being sold**: a `YEARLY` plan sold `CUSTOM` needs a date, and a `CUSTOM` plan sold `MONTHLY` refuses one. |
 | `autoRenew` | no | Absent means `true`. **Nothing acts on it.** [#17](#e17) starts the next period when it is called and does not consult the flag, and nothing calls #17 on a schedule — so there is no automatic renewal to switch off. It does appear on the school's own billing view, which tells the school its subscription does not renew automatically. |
 | `contractedPrice` | no | What this school actually pays. Absent means the plan's `listPrice`. Zero is allowed — a free deal is a deal; negative is `400 PRICE_NEGATIVE`. The response shows it next to `planListPrice`, which is the only way to notice a discount. |
 | `maxStudentsOverride` | no | A negotiated student ceiling. **Absent copies the plan's `maxStudents`** onto the subscription rather than leaving a null, so the document says what the school may use on its own. Zero is `400 LIMIT_TOO_LOW` here — on create there is nothing to remove. |
@@ -1691,14 +1691,20 @@ unit:
 
 | Cycle being sold | `currentPeriodStart` | `currentPeriodEnd` |
 |---|---|---|
-| `MONTHLY` | **required** | start + 30 days |
-| `QUARTERLY` | **required** | start + 90 days |
-| `HALF_YEARLY` | **required** | start + 180 days |
-| `YEARLY` | **required** | start + 365 days |
+| `MONTHLY` | **required** | **refused** — derived as start + 30 days |
+| `QUARTERLY` | **required** | **refused** — derived as start + 90 days |
+| `HALF_YEARLY` | **required** | **refused** — derived as start + 180 days |
+| `YEARLY` | **required** | **refused** — derived as start + 365 days |
 | `CUSTOM` | **required** | **required** — `400 BILLING_PERIOD_END_REQUIRED` |
 
-The start is required on **every** cycle, and only `CUSTOM` also needs the end — the other four
-have a length to measure with.
+The start is required on **every** cycle. **Only `CUSTOM` takes an end date, and the other four
+refuse one** — `400 BILLING_PERIOD_END_NOT_ALLOWED`. Those four *are* their length, so a date sent
+with one either agrees with the derivation, in which case it said nothing, or disagrees with it,
+in which case the record contradicts itself: a subscription reading `MONTHLY` whose period runs
+six months bills the school for half a year while the document says it pays every month.
+
+Refused rather than quietly dropped, which is the harder half of the choice: a caller answered
+`201` with a different date than the one they sent has been ignored without being told.
 
 "Being sold" means `billingCycle` on this request where one was given, and the plan's otherwise.
 So the refusal follows what the **school** is billed on rather than what the plan is listed at —
@@ -1715,8 +1721,16 @@ unit rather than three independent boxes:
 | `billingCycle` away from `CUSTOM` | recalculated from the new cycle; the start is still required with it |
 | `currentPeriodStart`, on a fixed cycle | recalculated from the new start |
 | `currentPeriodStart`, on `CUSTOM` | left alone — the end is a date somebody agreed |
-| `currentPeriodEnd` explicitly | that date, whatever else moved |
+| `currentPeriodEnd`, on `CUSTOM` | that date |
+| `currentPeriodEnd`, on a fixed cycle | **refused** — `400 BILLING_PERIOD_END_NOT_ALLOWED` |
 | neither the cycle nor the start | nothing derived |
+
+**The end date is read against the cadence the subscription will be on AFTER this edit** — the one
+on the request where `billingCycle` was sent, the stored one otherwise. So (`CUSTOM` → `MONTHLY`,
+plus an end date) is refused as one request rather than accepted because `CUSTOM` was true when it
+arrived. And a bare `currentPeriodEnd` on a subscription already billing `MONTHLY` is refused too,
+which is the case a caller is most likely to try: **to move a fixed-cadence period end, move what
+it is measured from** — send `currentPeriodStart`.
 
 A derived change **appears in the changed-field list and the history row**, so it is never silent:
 an edit sending only `billingCycle` answers `Edited billingCycle, currentPeriodEnd`.
@@ -1819,14 +1833,18 @@ process could act on. Today itself counts, and "today" is the school's day rathe
 the check agrees with the default above. On #14 only a start being **set** is checked; the stored
 one is in the past by definition once the period is running.
 
-**The end is the start plus a fixed count of days**, from the plan's cycle:
+**The end is the start plus a fixed count of days**, from the plan's cycle — and on these four
+that is the *only* way it is ever set. A caller-supplied `currentPeriodEnd` is refused with
+`400 BILLING_PERIOD_END_NOT_ALLOWED` rather than honoured, because a cadence and a period length
+that disagree make the record contradict itself:
 
-| Cycle | Days |
-|---|---|
-| `MONTHLY` | 30 |
-| `QUARTERLY` | 90 |
-| `HALF_YEARLY` | 180 |
-| `YEARLY` | 365 |
+| Cycle | Days | May the caller send an end date? |
+|---|---|---|
+| `MONTHLY` | 30 | no |
+| `QUARTERLY` | 90 | no |
+| `HALF_YEARLY` | 180 | no |
+| `YEARLY` | 365 | no |
+| `CUSTOM` | — no length | **required** |
 
 **This is equal periods rather than equal dates, and the cost is worth knowing.** Twelve 30-day
 months come to 360 days, so a monthly subscription renewed through a year finishes five days
@@ -1893,7 +1911,7 @@ resubscribes keeps the date it originally went live.
   "status": "ACTIVE",                 // optional
   "billingCycle": "YEARLY",           // optional
   "currentPeriodStart": "2026-04-01T00:00:00Z",   // REQUIRED with billingCycle
-  "currentPeriodEnd": "2027-03-31T23:59:59Z",     // REQUIRED with CUSTOM
+  "currentPeriodEnd": "2027-03-31T23:59:59Z",     // CUSTOM ONLY: required there, else 400
   "autoRenew": false,                 // optional
   "maxStudentsOverride": 2500,        // optional, 0 removes it
   "maxUsersOverride": 300             // optional, 0 removes it
@@ -1904,7 +1922,7 @@ resubscribes keeps the date it originally went live.
 //
 // A cadence names the dates it needs:
 //   billingCycle sent -> currentPeriodStart too
-//   ...and CUSTOM     -> currentPeriodEnd as well
+//   ...and CUSTOM     -> currentPeriodEnd as well (and it is refused on the other four)
 // Every other edit leaves both alone.
 </pre></td>
 <td><pre>
@@ -1953,9 +1971,9 @@ resubscribes keeps the date it originally went live.
 |---|---|---|
 | `reason` | **yes** | Free text, max 500, `@NotBlank` so `"  "` is refused. The only field that must be sent: everything else here changes something a school is paying for, and an unexplained change is one nobody can answer for months later. It is stored on the subscription as `reasonForChanges` **and** on the history row. **It is not itself a change** — sent alone it is `400 NO_CHANGES_REQUESTED`, and on an edit that moved nothing it is not stored. |
 | `status` | no | Any of the six. **No transition rules apply** — this is the operator's override, not the lifecycle endpoints. What constrains it is the status the subscription is *already* in: only `TRIAL` and `ACTIVE` may be edited, so this moves a subscription out of those two and never back. Absent leaves it. Moving to `CANCELLED` stamps no date: when it happened is the `effectiveAt` of the `CANCELLED` history row this same request writes. |
-| `billingCycle` | no | Any of the five. **The cadence decides the period, so changing it moves `currentPeriodEnd`** — recalculated as the start plus the new cycle's days, and reported in the changed-field list like any other edit. **Moving to `CUSTOM` requires `currentPeriodEnd` with it** (`400 BILLING_PERIOD_END_REQUIRED`): CUSTOM has no length to derive from, and the date on record belongs to the cadence being left. Moving *away* from CUSTOM needs nothing extra. |
+| `billingCycle` | no | Any of the five. **The cadence decides the period, so changing it moves `currentPeriodEnd`** — recalculated as the start plus the new cycle's days, and reported in the changed-field list like any other edit. **Moving to `CUSTOM` requires `currentPeriodEnd` with it** (`400 BILLING_PERIOD_END_REQUIRED`): CUSTOM has no length to derive from, and the date on record belongs to the cadence being left. Moving *away* from CUSTOM needs nothing extra, and **refuses** an end date sent with it (`400 BILLING_PERIOD_END_NOT_ALLOWED`) — the new cadence decides. |
 | `currentPeriodStart` | **with `billingCycle`** | An instant, **today or later** — `400 PERIOD_START_IN_PAST` otherwise. **Required whenever `billingCycle` is sent** (`400 PERIOD_START_REQUIRED`): a period is measured from its start, so setting the cadence without it would derive an end from an anchor nobody restated. Every other edit leaves it alone when absent. The **stored** start is not checked: a running subscription's is in the past by definition, and refusing that would make every other field here unreachable. Checked against the resulting end, whichever of the two moved. Cannot be cleared: it is `@NotNull` on the model. **Moving it moves the end with it** on the four fixed cycles — a period that kept its old end would be a different length from the cadence being paid on. On `CUSTOM` the end stays: it is an agreed date, not a derivation. |
-| `currentPeriodEnd` | no | An instant. **This is what extend-trial used to do** — send it alone to push a trial or a paid period out, and nothing is derived because neither the cadence nor the start moved. **An explicit date always wins**, so send it alongside a new cycle or start to say the end yourself. A period left running backwards is `400 INVALID_BILLING_PERIOD`. |
+| `currentPeriodEnd` | **only on a `CUSTOM` cadence** | An instant, and **only a `CUSTOM` cadence takes one**: on the four fixed cycles sending it is `400 BILLING_PERIOD_END_NOT_ALLOWED`, because the cadence decides its own length. Read against the cadence **after** this edit, so (`CUSTOM` → `MONTHLY` + an end date) is refused as one request. On `CUSTOM` **this is what extend-trial used to do** — send it alone to push a custom period out, and nothing else is derived because neither the cadence nor the start moved. To move a *fixed*-cadence end, send `currentPeriodStart` instead. A period left running backwards is `400 INVALID_BILLING_PERIOD`. |
 | `autoRenew` | no | `true` or `false`. Absent leaves it. |
 | `maxStudentsOverride` | no | A ceiling. **`0` removes it** and falls back to the plan's own `maxStudents` — the fields are flat, and Jackson cannot tell an omitted field from an explicit `null`, so zero carries the removal. Negative is `400 LIMIT_TOO_LOW`. |
 | `maxUsersOverride` | no | The same, against the plan's `maxUsers`. |
@@ -2582,7 +2600,7 @@ them encoded in a path before Spring sees the request.
 
 | Field | Required | What it accepts, and what its absence means |
 |---|---|---|
-| `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant. **Required** when the subscription bills on `CUSTOM`, which has no length for anything to derive from — without it, `400 BILLING_PERIOD_END_REQUIRED`. **Absent on `MONTHLY`, `QUARTERLY`, `HALF_YEARLY` or `YEARLY` means the cycle decides** — 30, 90, 180 or 365 days from where the last period ended, which is the ordinary renewal and needs no body at all. Sending one on a fixed cycle overrides the derived date, as it does on #13 and #16. It must be after the new period's start (the day the previous period ended), or `400 INVALID_BILLING_PERIOD` — a period that ended before it began is one no school was ever on. |
+| `currentPeriodEnd` | **on a `CUSTOM` cycle, and refused on every other** | An instant. **Required** when the subscription bills on `CUSTOM`, which has no length for anything to derive from — without it, `400 BILLING_PERIOD_END_REQUIRED`. **On `MONTHLY`, `QUARTERLY`, `HALF_YEARLY` or `YEARLY` the cycle decides** — 30, 90, 180 or 365 days from where the last period ended — which is the ordinary renewal, needs no body at all, and **refuses** a date sent with it: `400 BILLING_PERIOD_END_NOT_ALLOWED`, as on #13, #14 and #16. On `CUSTOM` it must be after the new period's start (the day the previous period ended), or `400 INVALID_BILLING_PERIOD` — a period that ended before it began is one no school was ever on. |
 
 ### What renews, and what is refused
 

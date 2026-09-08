@@ -57,11 +57,14 @@ import jakarta.validation.constraints.Size;
  * an override sent as 0    -> remove it, and fall back to the plan's own limit
  * </pre>
  *
- * <p><b>One exception, and it is the period end.</b> {@code currentPeriodEnd} is not only replaced
- * when it is sent — it is <i>recalculated</i> when {@code billingCycle} or
- * {@code currentPeriodStart} moves and no explicit end came with them, because the cycle is what
- * decides how long a period runs. It then appears in the changed-field list and the history row
- * like any other edit, so a derived change is never a silent one.
+ * <p><b>One exception, and it is the period end.</b> On the four fixed cadences
+ * {@code currentPeriodEnd} is never replaced by what was sent — sending one at all is
+ * {@code 400 BILLING_PERIOD_END_NOT_ALLOWED}, because the cadence decides its own length. It is
+ * instead <i>recalculated</i> whenever {@code billingCycle} or {@code currentPeriodStart} moves,
+ * and at no other time: an edit to the price or the capacity leaves the period exactly where it
+ * was. A recalculated end appears in the changed-field list and the history row like any other
+ * edit, so a derived change is never a silent one. Only a {@code CUSTOM} cadence takes an end
+ * date, and then the ordinary replace-when-sent rule applies to it.
  *
  * <p>{@code reason} is the exception: it is not optional, and it is not one of the fields being
  * edited. See its own note.
@@ -127,13 +130,16 @@ public record SubscriptionUpdateRequest(
          * is not the end of a MONTHLY period, so leaving it would bill the school for a year while
          * the document says it pays monthly.
          *
-         * <p>Send {@code currentPeriodEnd} alongside to say the date yourself; an explicit one
-         * always wins, exactly as on #13.
+         * <p><b>Which is also why a fixed cadence refuses an end date of its own</b>: sending
+         * {@code currentPeriodEnd} with one of the four is
+         * {@code 400 BILLING_PERIOD_END_NOT_ALLOWED}, exactly as on #13, #16 and #17. Only
+         * {@code CUSTOM} takes one.
          *
          * <p><b>Moving to {@code CUSTOM} requires {@code currentPeriodEnd} with it</b>, because
          * CUSTOM has no length to derive from and the stored date belongs to the cadence being
          * left: {@code 400 BILLING_PERIOD_END_REQUIRED}. Moving <i>away</i> from CUSTOM needs
-         * nothing extra — the new cycle's length settles it.
+         * nothing extra — the new cycle's length settles it, and refuses an end date sent with
+         * it, because the cadence being moved TO is the one that decides.
          */
         BillingCycle billingCycle,
 
@@ -156,22 +162,44 @@ public record SubscriptionUpdateRequest(
          *
          * <p><b>Moving the start moves the end with it</b> on the four fixed cycles, since the
          * end is the start plus the cycle's days — a period that kept its old end would be a
-         * different length from the cadence the school is paying on. Send
-         * {@code currentPeriodEnd} to override that. On a {@code CUSTOM} cycle the end stays put:
-         * it is a date somebody agreed rather than a derivation.
+         * different length from the cadence the school is paying on. That is not overridable:
+         * {@code currentPeriodEnd} is refused on those cadences, so this is THE way to move a
+         * fixed-cadence period end. On a {@code CUSTOM} cycle the end stays put: it is a date
+         * somebody agreed rather than a derivation, and the moved start is checked against it.
          */
         Instant currentPeriodStart,
 
         /**
-         * Example: 2027-03-31T23:59:59Z
+         * When the period ends. Example: 2027-03-31T23:59:59Z
          *
-         * <p><b>This is what extend-trial used to do.</b> Send it alone to push a trial or a paid
-         * period out; nothing else changes — sent alone, nothing is derived, because neither the
-         * cycle nor the start moved.
+         * <p><b>ONLY A CUSTOM CADENCE TAKES AN END DATE.</b> The four fixed cycles ARE their
+         * length, so they work their own end out and refuse one that is sent:
          *
-         * <p><b>An explicit date always wins.</b> Send it with a new {@code billingCycle} or a new
-         * {@code currentPeriodStart} to say the end yourself instead of taking the derived one.
-         * Required when moving to a {@code CUSTOM} cycle, which has no length to derive from.
+         * <pre>
+         * MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY -> leave it out; start + 30/90/180/365 days
+         *                                            sending one is 400 BILLING_PERIOD_END_NOT_ALLOWED
+         * CUSTOM                                  -> required; absent is 400 BILLING_PERIOD_END_REQUIRED
+         * </pre>
+         *
+         * <p><b>Refused rather than quietly dropped.</b> An end date sent with a fixed cadence
+         * either agrees with the derivation, in which case it said nothing, or disagrees with it
+         * — and then the record contradicts itself: a subscription reading MONTHLY whose period
+         * runs six months bills the school for half a year while the document says it pays every
+         * month. Answering 200 with a different date than the one sent would be ignoring the
+         * caller without telling them.
+         *
+         * <p><b>To move a fixed-cadence period end, move what it is measured FROM</b> — the
+         * start, on #14 — or change the cadence. Both derive a new end.
+         *
+         * <p><b>Read against the cadence the subscription will be on AFTER this edit</b> — the
+         * one on this request where {@code billingCycle} was sent, and the stored one otherwise.
+         * So (CUSTOM -> MONTHLY, plus an end date) is refused as one request rather than accepted
+         * because CUSTOM happened to be true when it arrived. And a bare {@code currentPeriodEnd}
+         * on a subscription already billing MONTHLY is refused too, which is the case a caller is
+         * most likely to try: to push that period out, send {@code currentPeriodStart}.
+         *
+         * <p><b>On CUSTOM this is what extend-trial used to do.</b> Send it alone to push a
+         * custom period out; nothing else changes, because neither the cycle nor the start moved.
          */
         Instant currentPeriodEnd,
 

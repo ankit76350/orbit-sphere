@@ -13,7 +13,8 @@ import java.time.Instant;
  * #14 for the terms, #16 for the plan.
  *
  * <p>So this request exists for exactly one reason: a {@code CUSTOM} cycle has no length, and
- * nothing can work out when its next period should end.
+ * nothing can work out when its next period should end. On the other four cadences there is
+ * nothing to send — an end date is refused, because the cadence already decides it.
  *
  * <p><b>The body may be omitted entirely.</b> {@code POST} with no body at all is the normal call
  * and is what the controller expects for the four fixed cycles; the request arrives as
@@ -34,8 +35,13 @@ public record SubscriptionRenewRequest(
          * decides</b> — 30, 90, 180 or 365 days from where the last period ended. That is the
          * ordinary renewal, and it is why no body is needed for it.
          *
-         * <p>Sending one on a fixed cycle overrides the derived date, exactly as it does on #13
-         * and #16. It has to be after the new period's start, which is the day the previous
+         * <p><b>Sending one on a fixed cycle is refused</b> — {@code 400
+         * BILLING_PERIOD_END_NOT_ALLOWED}, exactly as on #13, #14 and #16. Those four cadences
+         * ARE their length, so a renewal that ran to a date the cadence disagreed with would
+         * bill the school for a period its own record denies. A renewal renews; changing how
+         * long a period runs is #14's job, or a change of cadence.
+         *
+         * <p>On CUSTOM it has to be after the new period's start, which is the day the previous
          * period ended — otherwise {@code 400 INVALID_BILLING_PERIOD}. A renewal that ended
          * before it began would be a period no school was ever on.
          */

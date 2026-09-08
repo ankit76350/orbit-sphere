@@ -393,6 +393,12 @@ const editRequestSource = readFileSync(
 const changeRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionPlanChangeRequest.java',
   'utf8')
+const renewRequestSource = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionRenewRequest.java',
+  'utf8')
+// The generated catalogue both apps read. It is documentation the user acts on, so a promise it
+// makes that the API no longer keeps is a real defect.
+const endpointsSource = readFileSync('src/config/endpoints.js', 'utf8')
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
 // and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
 // so adding another modal cannot silently widen it.
@@ -937,9 +943,17 @@ const changePeriodChecks = [
   ['the service derives the period from the cadence being moved onto',
     /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\),\s*\n\s*periodStart, billingCycle\)/
       .test(javaService)],
-  ['and refuses CUSTOM without an end',
-    /billingCycle == BillingCycle\.CUSTOM && request\.currentPeriodEnd\(\) == null/
-      .test(javaService)],
+  // ONE CADENCE RULE, IN ONE PLACE. #16 used to carry its own CUSTOM check beside the call; the
+  // helper now decides for #13, #14, #16 and #17 alike, so the inline one was dead code that
+  // read as live. What matters is that both halves of the rule live in the helper.
+  ['the helper requires an end on CUSTOM and refuses one on every other cadence',
+    /if \(cycle == BillingCycle\.CUSTOM\) \{[\s\S]{0,400}BILLING_PERIOD_END_REQUIRED/
+      .test(javaService)
+      && /if \(requested != null\) \{\s*\n\s*throw ApiException\.badRequest\("BILLING_PERIOD_END_NOT_ALLOWED"/
+        .test(javaService)],
+  // A fixed cadence must never be asked for a length it does not have, and CUSTOM has none.
+  ['and CUSTOM never reaches the day table',
+    /case CUSTOM -> throw new IllegalStateException/.test(javaService)],
   // The row being left ends where the new one begins, in both directions.
   ['the closed row ends where the new period starts',
     javaService.includes('subscription.setCurrentPeriodEnd(periodStart)')],
@@ -996,9 +1010,11 @@ console.log('\nThe cadence names the dates it needs')
 const requiredDateChecks = [
   ['#13 requires a start, as a validation constraint',
     /@NotNull Instant currentPeriodStart/.test(createRequestSource)],
+  // Named a helper that no longer exists, so it could not fail. What actually holds the line is
+  // the field being @NotNull and the service reading it straight through.
   ['and the service no longer defaults it to today',
     javaService.includes('Instant periodStart = request.currentPeriodStart();')
-      && !javaService.includes('request.currentPeriodStart() == null\n                ? startOfTodayInSchoolZone')],
+      && !/request\.currentPeriodStart\(\) == null\s*\n?\s*\?/.test(javaService)],
   ['#14 requires a start whenever a cadence is sent',
     /if \(request\.billingCycle\(\) != null\) \{[\s\S]{0,400}PERIOD_START_REQUIRED/
       .test(javaService)],
@@ -1019,6 +1035,68 @@ const requiredDateChecks = [
     subsSourceFull.includes("call('get-school', {")
       && subsSourceFull.includes('timeZone={school?.defaultTimeZone}')],
 ]
+// ONLY A CUSTOM CADENCE TAKES AN END DATE, and the four fixed ones refuse rather than honour
+// one. Those four ARE their length: a date sent with one either agrees with the derivation, in
+// which case it said nothing, or disagrees with it — and then the record contradicts itself.
+// Refused rather than quietly dropped, because answering 200 with a different date than the one
+// sent is ignoring the caller without telling them.
+console.log('\nOnly CUSTOM takes an end date')
+const notAllowedChecks = [
+  ['the helper refuses one on a fixed cadence',
+    /if \(requested != null\) \{\s*\n\s*throw ApiException\.badRequest\("BILLING_PERIOD_END_NOT_ALLOWED"/
+      .test(javaService)],
+  // The message has to name the field, the cadence and the way round it, or the refusal is a
+  // dead end for whoever hits it. EVERY one of them, not just the first: there are two throws —
+  // the helper's and #14's — and a window anchored on the first found the helper's text and
+  // passed while #14's message had been gutted.
+  [(() => {
+    const thrown = [...javaService.matchAll(/BILLING_PERIOD_END_NOT_ALLOWED"/g)]
+    const vague = thrown.filter((m) => !javaService.slice(m.index, m.index + 700)
+      .includes('currentPeriodStart')).length
+    return `each refusal names the cadence and what to send instead (${thrown.length} throws, `
+      + `${vague} vague)`
+  })(), (() => {
+    const thrown = [...javaService.matchAll(/BILLING_PERIOD_END_NOT_ALLOWED"/g)]
+    return thrown.length === 2 && thrown.every((m) => {
+      const window = javaService.slice(m.index, m.index + 700)
+      return window.includes('currentPeriodStart') && window.includes('CUSTOM')
+    })
+  })()],
+  // #14 writes fields straight onto the document, so it needs its own guard before it does.
+  ['#14 guards it against the cadence AFTER the edit, not the stored one',
+    javaService.includes('BillingCycle cadenceAfterEdit = request.billingCycle() == null')
+      && /cadenceAfterEdit != BillingCycle\.CUSTOM/.test(javaService)],
+  ['and not only when a cadence was sent, so a bare end date is refused too',
+    /if \(request\.currentPeriodEnd\(\) != null && cadenceAfterEdit != BillingCycle\.CUSTOM\)/
+      .test(javaService)],
+  // Every DTO that takes the field has to say the rule, or a caller reads the old promise.
+  ['every request DTO says only CUSTOM takes one', [
+    ['create', createRequestSource], ['update', editRequestSource],
+    ['change-plan', changeRequestSource], ['renew', renewRequestSource],
+  ].every(([, src]) => src.includes('BILLING_PERIOD_END_NOT_ALLOWED')
+    || src.includes('ONLY A CUSTOM CADENCE TAKES AN END DATE'))],
+  // The old promise was the opposite, so its words must be gone everywhere.
+  ['and none of them still promises an override', ![
+    createRequestSource, editRequestSource, changeRequestSource, renewRequestSource,
+    javaService,
+  ].some((src) => /always wins|optional override|overrides the derived/.test(src))],
+  // The catalogue both apps read is documentation the user acts on.
+  ['the endpoint catalogue lists the new refusal',
+    (endpointsSource.match(/BILLING_PERIOD_END_NOT_ALLOWED/g) || []).length >= 4],
+  ['and no longer says an explicit end wins',
+    !/always wins|an optional override/.test(endpointsSource)],
+  // The box stays typeable on every cadence — that is how the refusal gets tested — but it must
+  // start empty, or an ordinary fixed-cadence sale would 400 on its own.
+  ['the sale form starts the end box empty, so nothing trips by accident',
+    (newSource.match(/const \[periodEnd, setPeriodEnd\] = useState\(''\)/g) || []).length === 1],
+  ['and the edit form only sends it when it was actually changed',
+    editBodySource.includes('form.currentPeriodEnd !== stored.currentPeriodEnd')],
+]
+for (const [label, ok] of notAllowedChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 for (const [label, ok] of requiredDateChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
@@ -1028,6 +1106,46 @@ for (const [label, ok] of requiredDateChecks) {
 // that has already run, so a backdated start would sit in the record as a figure no process
 // could act on.
 console.log('\nA billing period cannot start in the past')
+// THE HELPER CONVENTION, ENFORCED RATHER THAN REMEMBERED. Helpers in this service are flat: the
+// main endpoint methods call them, and no helper calls another. A chain of helpers is what turns
+// "what does this endpoint do" into a trail to follow, and each one's `Used by:` block stops being
+// the whole answer.
+//
+// Checked because I have broken it twice: once by extracting logic that had a single caller, and
+// once by pulling a day table out of calculateSubscriptionPeriodEnd into a second helper it then
+// called. Both read fine in isolation; neither survives the rule.
+console.log('\nHelpers stay flat: no helper calls another')
+const privateDecls = [...javaService.matchAll(/\n    private (?:static )?[^\s(]+ (\w+)\(/g)]
+  .map((m) => [m[1], m.index])
+const helperNames = new Set(privateDecls.map(([name]) => name))
+const chained = []
+privateDecls.forEach(([name, at], i) => {
+  const until = i + 1 < privateDecls.length ? privateDecls[i + 1][1] : javaService.length
+  // Comment lines stripped, so a `Used by:` block or a prose mention is not read as a call.
+  const code = javaService.slice(at, until).split('\n')
+    .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line)).join('\n')
+  for (const other of helperNames) {
+    if (other === name) continue
+    if (new RegExp('\\b' + other + '\\s*\\(').test(code)) chained.push(`${name}() -> ${other}()`)
+  }
+})
+const misIndented = [...javaService.matchAll(/\n( {5,})private (?:static )?[^\s(]+ (\w+)\(/g)]
+  .map((m) => m[2])
+const flatChecks = [
+  [`${helperNames.size} helpers, none calling another${chained.length ? ': ' + chained.join(', ') : ''}`,
+    helperNames.size > 0 && chained.length === 0],
+  // THE INDENT IS LOAD-BEARING for the check above: startOfTodayInSchoolZone sat at eight
+  // spaces, so the scan skipped it and reported a clean file while that helper was being called
+  // from inside another one. Same shape as getSubscription, which hid from the endpoint-marker
+  // audit for the same reason.
+  [`every helper is declared at one indent${misIndented.length ? ': ' + misIndented.join(', ') : ''}`,
+    misIndented.length === 0],
+]
+for (const [label, ok] of flatChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // The helper's own body, from its signature to the blank line after its closing brace.
 const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTodayOrLater(')
 const startHelper = javaService.slice(startHelperAt,
@@ -1037,11 +1155,20 @@ const startChecks = [
     javaService.includes('private void validatePeriodStartIsTodayOrLater(')
       && (javaService.match(/validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
         || []).length === 3],
-  // Scoped to the helper's BODY. A window measured from the name matched a call site instead —
-  // in createSubscription, startOfTodayInSchoolZone sits three lines under the call.
+  // Scoped to the helper's BODY, because a window measured from the name once matched a call
+  // site instead. The zone resolution used to be a second helper this one called, which the flat
+  // rule above forbids — so it is asserted inline now, and Instant.now() staying out is what
+  // proves the comparison is not against UTC.
   ['it compares against the school\'s own timezone, not UTC',
-    startHelper.includes('startOfTodayInSchoolZone(school.getDefaultTimeZone())')
+    startHelper.includes('school.getDefaultTimeZone()')
+      && startHelper.includes('LocalDate.now(zone).atStartOfDay(zone).toInstant()')
       && !startHelper.includes('Instant.now()')],
+  // Asserted on the CATCH BLOCK, not on the words appearing somewhere in the helper: ZoneOffset
+  // .UTC is also the unset-zone branch of the ternary above, so a looser check passed while the
+  // catch had been changed to rethrow.
+  ['and falls back to UTC on a zone it cannot read, rather than failing the sale',
+    /catch \(DateTimeException e\) \{\s*\n\s*zone = ZoneOffset\.UTC;\s*\n\s*\}/
+      .test(startHelper)],
   ['null still means today',
     /if \(requestedStart == null\) \{\s*\n\s*return;/.test(startHelper)],
   ['it refuses only a start strictly before that',

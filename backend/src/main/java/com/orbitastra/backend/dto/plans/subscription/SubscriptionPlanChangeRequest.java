@@ -97,7 +97,7 @@ public record SubscriptionPlanChangeRequest(
          * <p><b>It is this cycle that decides the new period</b>, and therefore whether
          * {@code currentPeriodEnd} is required. Moving to a {@code YEARLY} plan but billing
          * {@code CUSTOM} means an end date has to be sent; moving to a {@code CUSTOM} plan but
-         * billing {@code MONTHLY} means one is derived and none is needed.
+         * billing {@code MONTHLY} means one is derived and sending one is refused.
          */
         BillingCycle billingCycle,
 
@@ -123,16 +123,30 @@ public record SubscriptionPlanChangeRequest(
         /**
          * When the new period ends. Example: 2027-06-30T23:59:59Z
          *
-         * <p><b>Absent means the cycle decides</b> — 30, 90, 180 or 365 days from
-         * {@code currentPeriodStart}. Required when the cadence is {@code CUSTOM}, which has no
-         * length: absent there is {@code 400 BILLING_PERIOD_END_REQUIRED}, the same refusal #13
-         * and #14 give.
+         * <p><b>ONLY A CUSTOM CADENCE TAKES AN END DATE.</b> The four fixed cycles ARE their
+         * length, so they work their own end out and refuse one that is sent:
          *
-         * <p>The cadence that matters is {@code billingCycle} on this request where one was sent,
+         * <pre>
+         * MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY -> leave it out; start + 30/90/180/365 days
+         *                                            sending one is 400 BILLING_PERIOD_END_NOT_ALLOWED
+         * CUSTOM                                  -> required; absent is 400 BILLING_PERIOD_END_REQUIRED
+         * </pre>
+         *
+         * <p><b>Refused rather than quietly dropped.</b> An end date sent with a fixed cadence
+         * either agrees with the derivation, in which case it said nothing, or disagrees with it
+         * — and then the record contradicts itself: a subscription reading MONTHLY whose period
+         * runs six months bills the school for half a year while the document says it pays every
+         * month. Answering 200 with a different date than the one sent would be ignoring the
+         * caller without telling them.
+         *
+         * <p><b>To move a fixed-cadence period end, move what it is measured FROM</b> — the
+         * start, on #14 — or change the cadence. Both derive a new end.
+         *
+         * <p>The cadence that decides is {@code billingCycle} on this request where one was sent,
          * and the <b>new</b> plan's otherwise — never the old plan's. A school moving from a
-         * yearly plan to a monthly one gets a 30-day period.
+         * yearly plan to a monthly one gets a 30-day period whatever it sends here.
          *
-         * <p>It has to be after {@code currentPeriodStart}, or
+         * <p>On CUSTOM it has to be after {@code currentPeriodStart}, or
          * {@code 400 INVALID_BILLING_PERIOD}.
          */
         Instant currentPeriodEnd,

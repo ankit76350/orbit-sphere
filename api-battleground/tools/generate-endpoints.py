@@ -267,8 +267,13 @@ CURATED = {
   ),
   'Create Subscription': dict(
     summary='Makes a school a paying customer, and takes a fully provisioned school from PROVISIONING to ACTIVE.',
-    required=['planCode','planVersion'],
-    optional=['trial','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','maxStudentsOverride','maxUsersOverride','billingCustomerReference','reason'],
+    # currentPeriodStart is @NotNull: it used to default to today and is now stated, because it
+    # is the anchor the period end is measured from.
+    required=['planCode','planVersion','currentPeriodStart'],
+    # currentPeriodEnd is optional in the sense that most sales leave it out — but it is CUSTOM
+    # ONLY. On MONTHLY/QUARTERLY/HALF_YEARLY/YEARLY sending it is 400
+    # BILLING_PERIOD_END_NOT_ALLOWED, because those four cadences are their own length.
+    optional=['trial','currentPeriodEnd','autoRenew','contractedPrice','maxStudentsOverride','maxUsersOverride','billingCustomerReference','reason'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planCode','planVersion','planName','status','billingCycle','currentPeriodStart','currentPeriodEnd','autoRenew','contractedPrice','planListPrice','currencyCode','maxStudents','maxUsers','hasLimitOverrides','current','nextStep'],
     successStatus=201,
     captures=[('subscriptionNo','subscriptionNo')],
@@ -278,12 +283,16 @@ CURATED = {
     # `reason` is required because a plan change moves what a school is entitled to and what it
     # pays. Nothing is asked about the money already paid: nothing raises invoices, so nothing is
     # charged or credited, and what should happen to it is left open.
-    required=['planCode','planVersion','reason'],
+    # currentPeriodStart is @NotNull here too, and decides two dates: the new period's anchor
+    # and the instant the row being left stops serving.
+    required=['planCode','planVersion','reason','currentPeriodStart'],
     # Absent means the new plan's own figure, for all three — the same rule Create Subscription
     # uses, so a negotiated price or ceiling has to be restated to carry it across.
     # autoRenew is the odd one out: absent leaves the school's existing setting, where the other
     # three take the new plan's figure. A plan has no opinion about renewal.
-    optional=['contractedPrice','maxStudentsOverride','maxUsersOverride','autoRenew','currentPeriodEnd'],
+    # currentPeriodEnd is CUSTOM ONLY, as on Create Subscription: refused on the four fixed
+    # cadences, and there the cadence being moved TO is the one that decides.
+    optional=['contractedPrice','maxStudentsOverride','maxUsersOverride','autoRenew','billingCycle','currentPeriodEnd'],
     responseFields=['subscriptionId','subscriptionNo','schoolId','planDefinitionDocsId','planCode','planVersion','planName','planStatus','planRetired','status','billingCycle','currentPeriodStart','currentPeriodEnd','daysRemaining','periodEnded','autoRenew','current','contractedPrice','planListPrice','currencyCode','hasDiscount','maxStudents','maxUsers','maxStudentsOverride','maxUsersOverride','hasLimitOverrides','featureCount','features','reasonForChanges','billingCustomerReference','note'],
     successStatus=200,
   ),

@@ -1075,8 +1075,8 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             hint={editIsCustomCycle
               ? 'A CUSTOM cadence has no length, so the end date has to be sent. The chosen day is included.'
               : (editDerivedEnd
-                ? `Leave it as it stands and the API derives ${editDerivedEnd} — ${editCycleDays} days from the start on a ${form.billingCycle} cadence. Change it to send an explicit end instead, which overrides that.`
-                : 'The API derives this from the cadence unless an explicit end is sent.')}
+                ? `Only CUSTOM takes an end date. Leave it as it stands and the API derives ${editDerivedEnd} — ${editCycleDays} days from the start on a ${form.billingCycle} cadence. Changing it sends the field, which a ${form.billingCycle} cadence refuses.`
+                : `Only CUSTOM takes an end date. On a ${form.billingCycle} cadence the API derives it from the start, and sending one is refused — move the start instead.`)}
           >
             <Input
               type="date"
@@ -1089,7 +1089,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             wide
             hint={editIsCustomCycle
               ? 'A CUSTOM cadence has no length, so the end date has to be said alongside it.'
-              : 'The cadence decides how long a period runs, so changing it moves the period end with it — start plus 30, 90, 180 or 365 days.'}
+              : 'The cadence decides how long a period runs, so changing it moves the period end with it — start plus 30, 90, 180 or 365 days. Which is also why it refuses an end date of its own.'}
           >
             <span className="select" style={{ width: '100%' }}>
               <select className="select-input" style={{ width: '100%' }}
@@ -1525,16 +1525,16 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
             />
           </Field>
 
-          {/* Enabled ONLY for CUSTOM. The other four derive their end from the start, so a value
-              here would override a date the cadence already decides. */}
+          {/* MEANT FOR CUSTOM, and still typeable on the other four so the refusal can be
+              triggered. Empty is what an ordinary move sends, so nothing fires by accident. */}
           <Field
             label="New period ends on"
             required={needsPeriodEnd}
             hint={needsPeriodEnd
               ? 'A CUSTOM cadence has no length, so the end date has to be sent. The chosen day is included.'
               : (derivedEnd
-                ? `Empty sends nothing and the API derives ${derivedEnd} — ${cycleDays} days from ${startsOn}. Type one to override it.`
-                : 'Empty lets the API derive it from the cadence.')}
+                ? `Only CUSTOM takes an end date. Leave this empty and the API derives ${derivedEnd} — ${cycleDays} days from ${startsOn}. Typing one is refused.`
+                : 'Only CUSTOM takes an end date. Leave it empty and the cadence decides.')}
           >
             <Input
               type="date"
@@ -2082,9 +2082,10 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   // it, because it is what the API bills the school on and what it derives the period from.
   const soldCycle = cycle || chosen?.billingCycle || ''
 
-  // Only a CUSTOM cycle has no length, so only a CUSTOM cycle needs a date. For the other four
-  // the end is derived, which is why the box is rather than merely optional: a value
-  // there would override a date the cycle already decides.
+  // Only a CUSTOM cycle has no length, so only a CUSTOM cycle takes a date — and it is the only
+  // one that MAY: the other four derive their end from the start and answer 400
+  // BILLING_PERIOD_END_NOT_ALLOWED to one sent with them. The box stays typeable on all five so
+  // that refusal can be triggered; it just starts empty, so an ordinary sale never trips it.
   const needsPeriodEnd = soldCycle === 'CUSTOM'
   const cycleDays = DAYS_PER_CYCLE[soldCycle]
   // What the sale would produce, for the cycles that have a length. The response is what counts;
@@ -2280,17 +2281,17 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
             />
           </Field>
 
-          {/* Enabled ONLY for CUSTOM. For the other four the end is derived from the cycle, so a
-              value here would override a date the cycle already decides — rather than
-              optional, and showing what the derivation produces. */}
+          {/* MEANT FOR CUSTOM, which is the only cycle that takes an end date. Still typeable on
+              the other four, because 400 BILLING_PERIOD_END_NOT_ALLOWED is a refusal worth being
+              able to trigger — and it starts empty, so nothing fires by accident. */}
           <Field
             label="Period ends on"
             required={needsPeriodEnd}
             hint={needsPeriodEnd
               ? 'Required on CUSTOM. The chosen day is included — it is sent as the last second of it.'
               : (cycleDays
-                ? `Empty sends nothing and the API derives ${derivedEnd} — ${cycleDays} days on a ${soldCycle} cycle. Type one to override it.`
-                : 'Empty lets the API derive it from the cycle.')}
+                ? `Only CUSTOM takes an end date. Leave this empty and the API derives ${derivedEnd} — ${cycleDays} days on a ${soldCycle} cycle. Typing one is refused.`
+                : 'Only CUSTOM takes an end date. Leave it empty and the cycle decides.')}
           >
             <Input
               type="date"
