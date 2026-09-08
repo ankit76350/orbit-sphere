@@ -207,8 +207,9 @@ public class PlatformSubscriptionController {
      * for a contract terminated rather than run out.
      *
      * <p><b>Nothing undoes it.</b> #17 already refuses to renew a cancelled subscription and #20
-     * refuses to resume one. What nothing does is mark it {@code EXPIRED} once the period lapses
-     * — that is #22, and #22 is not built. The response says so.
+     * refuses to resume one. What nothing does is mark it {@code EXPIRED} once the period lapses:
+     * a job will close these, and there is no endpoint for it because a period end passing is a
+     * date arriving rather than a decision. The response says so.
      *
      * <p><b>It does not touch the school</b>, unlike #19: this is a commercial end, not a
      * lock-out. And no money moves — an immediate cancellation refunds nothing, because nothing

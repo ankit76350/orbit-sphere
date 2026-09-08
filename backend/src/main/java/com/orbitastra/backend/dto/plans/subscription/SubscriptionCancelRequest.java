@@ -31,7 +31,8 @@ import jakarta.validation.constraints.Size;
  * <p><b>What nothing does yet, and this is the honest gap.</b> Nothing marks a lapsed subscription
  * {@code EXPIRED}, so a cancellation that has served out its period reads {@code CANCELLED} with
  * {@code periodEnded: true} rather than {@code EXPIRED} — correct in every field, and still not
- * tidied away. #22 is where that belongs.
+ * tidied away. <b>A job will close these.</b> There is no endpoint for it: #22 was dropped
+ * because a period end passing is a date arriving, not a decision anybody makes.
  *
  * <p><b>It does not touch the school.</b> Unlike #19, which takes the school's access down with
  * it, cancelling a subscription is a commercial end and not a lock-out: the school stays

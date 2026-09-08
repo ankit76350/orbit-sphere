@@ -374,6 +374,11 @@ const createRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
   'utf8')
 const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
+const plansReadme = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md', 'utf8')
+const statusEnum = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/models/plans/enums/SubscriptionStatus.java',
+  'utf8')
 const editRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionUpdateRequest.java',
   'utf8')
@@ -504,6 +509,42 @@ const reviveChecks = [
     javaService.includes('is time this school was on nothing')],
 ]
 for (const [label, ok] of reviveChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// #18 and #22 were both dropped because moving INTO PAST_DUE and EXPIRED is the passage of time
+// noticing something, not a decision — so a job will do them. The docs must not promise an
+// endpoint that is never coming, and the enum is where somebody looks first.
+console.log('\nPAST_DUE and EXPIRED are job territory, not endpoints')
+const jobChecks = [
+  ['the README marks #22 not being built',
+    /<a id="t22"><\/a>\[~~22~~\]\(#e22\) \*\*not being built\*\*/.test(plansReadme)],
+  ['and says a job will do it',
+    /id="e22"[\s\S]{0,900}A job will do it/.test(plansReadme)],
+  ['it names both statuses as job territory',
+    /id="e22"[\s\S]{0,2500}`PAST_DUE`[\s\S]{0,400}`EXPIRED`/.test(plansReadme)],
+  // The enum is where somebody looks to find out how a status is reached.
+  // One javadoc each, naming the endpoint that was dropped for it — which is what tells somebody
+  // reading the enum that the gap is deliberate rather than unfinished.
+  ['the enum says a job sets PAST_DUE, citing #18',
+    statusEnum.includes('#18 (mark-past-due)')
+      && statusEnum.slice(0, statusEnum.indexOf('PAST_DUE,'))
+        .includes('A JOB will move a subscription into this')],
+  ['and a job sets EXPIRED, citing #22',
+    statusEnum.includes('#22 (expire)')
+      && (statusEnum.match(/A JOB will move a subscription into this/g) || []).length === 2],
+  ['the enum still says PAST_DUE grants everything',
+    statusEnum.includes('It still <b>grants</b> everything meanwhile')],
+  // Nothing should still promise #22.
+  ['nothing claims #22 is coming',
+    !javaService.includes("#22's job") && !javaService.includes('#22 is not built')
+      && !editRequestSource.includes('#22 is not built')],
+  ['and the honest gap is still stated where it matters',
+    javaService.includes('A job will close these')
+      && javaService.includes('a date arriving rather than a decision')],
+]
+for (const [label, ok] of jobChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

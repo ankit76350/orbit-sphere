@@ -134,7 +134,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t19"></a>19 — **built** | [`POST /platform/schools/{id}/subscriptions/current/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. **Moves two documents**: the subscription goes `SUSPENDED`, which turns every feature off, and the school goes `SUSPENDED` too, which is what blocks the tenant. `ACTIVE` and `PAST_DUE` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
 | <a id="t20"></a>20 — **built** | [`POST /platform/schools/{id}/subscriptions/current/resume`](#e20) | Switch the school back on after it pays. The exact reverse of #19, and only that — **the period is not extended**, so a school suspended for three weeks comes back to the same end date. `SUSPENDED` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
 | <a id="t21"></a>21 — **built** | [`POST /platform/schools/{id}/subscriptions/current/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. **The status goes `CANCELLED` either way** — the contract is over — and it is the **period** that decides the access: a cancelled subscription keeps granting until `currentPeriodEnd` passes. `immediate: true` trims that date to now instead. **Does not touch the school**, and no money moves. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t22"></a>[~~22~~](#e22) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/expire`~~ | Close a subscription whose last paid period has now ended. **Dropped 2026-09-08 — a job will do it.** Its own description said "normally the nightly job does this", and nothing else ever calls it: expiring is not a decision somebody makes, it is a date arriving. An operator who needs it now has [#14](#t14). **Moving *into* `PAST_DUE` and `EXPIRED` is job territory**, the same conclusion [#18](#t18) reached. | — |
 | <a id="t23"></a>[~~23~~](#e23) **superseded by [#14](#t14)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`~~ | Turn automatic renewal on or off. **#14 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t24"></a>[~~24~~](#e24) **superseded by [#14](#t14)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/overrides`~~ | Give one school a bigger student or user limit than its plan normally allows, because that is what was negotiated. **#14 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t25"></a>25 | [`PATCH /platform/schools/{id}/subscriptions/{no}/price`](#e25) | Change the agreed price for this one school without changing the plan everybody else is on. **#14 deliberately cannot**: what a school pays gets invoiced, so it keeps its own endpoint. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -427,7 +427,7 @@ below are still a plan.
 | `subscriptionNo` | String, required | **`SUB/2026/09/000001`** — prefix `SUB/{YYYY}/{MM}/`, six digits zero-padded, allocated by `NumberSequenceService` and never chosen by the caller. (The model's `// Example:` comment still shows `SUB/2026/000001`, from before the house format took a month — the service is what writes, and it writes the month.) |
 | `planDefinitionDocsId` | String, required | **The `_id` of an `ACTIVE` plan version.** A `DRAFT` or `RETIRED` plan is refused. |
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
-| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Later moves have their own endpoints where the transition matters: **#19** suspends (`ACTIVE`/`PAST_DUE` → `SUSPENDED`) and **#20** resumes (`SUSPENDED` → `ACTIVE`), both carrying the school's status with them. **#14** is the override for everything else — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own — and it applies no transition rules at all. #18 was dropped and #21–#22 are not built. |
+| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Later moves have their own endpoints where the transition matters: **#19** suspends (`ACTIVE`/`PAST_DUE` → `SUSPENDED`), **#20** resumes (`SUSPENDED` → `ACTIVE`) — both carrying the school's status with them — and **#21** ends it (`CANCELLED`). **#14** is the override for everything else, including `TRIAL` → `ACTIVE`, and it applies no transition rules at all. **Nothing pushes a subscription into `PAST_DUE` or `EXPIRED`**: both are the passage of time noticing something rather than a decision, so a **job** will do them. [#18](#t18) and [#22](#t22) were dropped for that reason. |
 | `billingCycle` | BillingCycle, required | **From the plan by default, or the cycle named on #13's request.** Same five values. It lives here rather than being read through to the plan precisely so a school can be sold a plan on a cadence the plan is not listed at — and so changing the plan's listed cycle later cannot silently re-bill every school on it. #14 can move it afterwards. |
 | `currentPeriodStart` | Instant, required | **Today or later, never the past.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a contract that begins later is recorded; sending one already past is `400 PERIOD_START_IN_PAST` on both #13 and #14. The stored value goes stale as the period runs, and that is fine — the rule applies to a value being set. |
 | `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
@@ -2959,11 +2959,42 @@ being given up, because nothing in this codebase raises, credits or refunds an i
 
 
 <a id="e22"></a>
-**[22](#t22) · `POST /platform/schools/{id}/subscriptions/{no}/expire`**
+**[~~22~~](#t22) · ~~`POST /platform/schools/{id}/subscriptions/{no}/expire`~~** — not being built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd` — must already have passed
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `EXPIRED`, `current` = false
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `EXPIRED`, `previousStatus`, `newStatus` = `EXPIRED`, `source`, `effectiveAt`
+**Dropped on 2026-09-08, before being built. A job will do it.**
+
+Its own one-line description gave the reason away: *"normally the nightly job does this."* An
+endpoint whose normal caller is a scheduler is a job with an HTTP door on it. Nothing about
+expiring is a decision somebody makes — the period end passes, and the subscription is over. There
+is no reason to weigh, no grace period to apply, nothing to refuse. It is a date arriving.
+
+**The two statuses nothing may push a subscription into**, and why they are the same case:
+
+| Status | How it is reached |
+|---|---|
+| [`PAST_DUE`](../../models/plans/enums/SubscriptionStatus.java) | **a job**, when an invoice goes unpaid past its terms — [#18](#e18) was dropped for this reason on 2026-09-07 |
+| [`EXPIRED`](../../models/plans/enums/SubscriptionStatus.java) | **a job**, when `currentPeriodEnd` passes and nothing renewed it |
+
+Both are the passage of time noticing something, not an operator deciding something. Every other
+transition in this module has a person and a reason behind it — [#19](#e19) cuts a school off,
+[#20](#e20) puts it back, [#21](#e21) ends the contract — and each requires a `reason` precisely
+because somebody chose it. A date arriving has no reason to give.
+
+**What this leaves open in the meantime**, which is the honest cost of not building it:
+
+- A cancellation that has served out its period reads `CANCELLED` with `periodEnded: true` rather
+  than `EXPIRED`. See [#21](#e21).
+- A subscription whose period simply lapsed reads whatever it was — usually `ACTIVE` — with
+  `periodEnded: true`. [#27](#e27) and [#33](#e33) both report that flag, and their `note` says so
+  in a sentence, precisely so a screen does not have to trust `status` alone.
+
+So the state is always *readable* and never wrong; it is only untidied. **Read `periodEnded`
+alongside `status`** until the job exists.
+
+**An operator who needs it now has [#14](#e14)**: `{"status": "EXPIRED", "reason": …}`. That is the
+override, it records who did it and why, and it is the right tool for a one-off. What it is not is
+a substitute for the job — nobody should be closing subscriptions by hand every morning.
+
 
 <a id="e23"></a>
 **[~~23~~](#t23) · ~~`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`~~** — superseded by [#14](#e14)

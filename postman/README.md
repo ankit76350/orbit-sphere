@@ -388,8 +388,10 @@ already paid for runs out.**
 - **Cancelling twice** is `409 CANCELLATION_ALREADY_SCHEDULED` while the period still runs — but
   escalating to `immediate` is allowed, because that is a real decision.
 - **It does not touch the school**, and no money moves. And nothing marks a lapsed subscription
-  `EXPIRED`, so one that has served out its period reads `CANCELLED` with `periodEnded: true` until
-  #22 exists.
+  `EXPIRED`, so one that has served out its period reads `CANCELLED` with `periodEnded: true`.
+  **A job will close these** — there is no endpoint for it, because a period end passing is a date
+  arriving rather than a decision. Same for `PAST_DUE`. Read `periodEnded` alongside `status`: the
+  record is never wrong, only untidied.
 
 ## The school's own view: #33 and #34
 

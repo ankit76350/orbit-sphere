@@ -1460,8 +1460,9 @@ public class PlatformSubscriptionService {
      *
      * <p><b>The honest gap.</b> Nothing marks a lapsed subscription {@code EXPIRED}, so a
      * scheduled cancellation reads {@code CANCELLED} with {@code periodEnded: true} after its
-     * date rather than {@code EXPIRED} — correct in every field, and still not tidied away. That
-     * is #22's job and #22 is not built.
+     * date rather than {@code EXPIRED} — correct in every field, and still not tidied away.
+     * <b>A job will close these</b>; #22 was dropped on 2026-09-08 because expiring is a date
+     * arriving rather than a decision, the same conclusion #18 reached about {@code PAST_DUE}.
      *
      * <p><b>It does not touch the school.</b> Unlike #19, which takes the school's access down
      * with it, this is a commercial end and not a lock-out. Winding the tenant down is core's
@@ -1598,7 +1599,8 @@ public class PlatformSubscriptionService {
                     + "means selling it a new subscription or changing its plan.");
             note.add("NOTHING marks it EXPIRED when that date passes. It will read CANCELLED "
                     + "with periodEnded true — every field correct, and still not tidied away. "
-                    + "That is #22's job and #22 is not built.");
+                    + "A job will close these; there is no endpoint for it, because a period "
+                    + "end passing is a date arriving rather than a decision.");
         }
 
         note.add("The school itself is untouched at " + school.getStatus() + ": this is a "

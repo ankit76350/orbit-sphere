@@ -6183,8 +6183,12 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
 
 ### It applies no transition rules, deliberately
 
-The lifecycle endpoints (#17 to #22) each know one transition and what it implies. This writes
-what it is told — which is what is needed when a subscription is already wrong and no ordinary
+The lifecycle endpoints each know one transition and what it implies: #17 renews, #19 suspends,
+#20 resumes, #21 ends. **Nothing pushes a subscription into \`PAST_DUE\` or \`EXPIRED\`** — both are
+the passage of time noticing something rather than a decision, so a **job** will do them (#18 and
+#22 were dropped for that reason). Until then this endpoint is the only way to set either by hand.
+
+This writes what it is told — which is what is needed when a subscription is already wrong and no ordinary
 transition describes the fix. It is not how a subscription should ordinarily be renewed or
 cancelled.
 
@@ -7453,7 +7457,12 @@ the part of the period being given up.
 
 **Nothing marks a lapsed subscription \`EXPIRED\`** either, so a cancellation that has served out its
 period reads \`CANCELLED\` with \`periodEnded: true\` — correct in every field, and still not tidied
-away. That is **#22**, and #22 is not built.`,
+away. **A job will close these** — there is no endpoint for it, because a period end passing is a
+date arriving rather than a decision anybody makes. #22 was dropped on 2026-09-08 for that reason,
+the same conclusion #18 reached about \`PAST_DUE\`.
+
+Read \`periodEnded\` alongside \`status\` until the job exists: the record is never wrong, only
+untidied.`,
       pathParams: [
         { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
       ],
