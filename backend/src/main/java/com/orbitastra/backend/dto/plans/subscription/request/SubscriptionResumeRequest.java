@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.plans.subscription;
+package com.orbitastra.backend.dto.plans.subscription.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

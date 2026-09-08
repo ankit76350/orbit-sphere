@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.plans.subscription;
+package com.orbitastra.backend.dto.plans.subscription.response;
 
 import java.math.BigDecimal;
 import java.time.Instant;
