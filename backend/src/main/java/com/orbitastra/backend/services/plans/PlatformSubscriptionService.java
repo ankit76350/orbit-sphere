@@ -471,7 +471,12 @@ public class PlatformSubscriptionService {
      *
      * <p>The old row's <b>status is not touched</b>. It did not expire and it was not cancelled —
      * it was superseded, and writing either of the other two words would put something false in
-     * the record. {@code current} is the field that says which row is live, which is why every
+     * the record.
+     *
+     * <p><b>A finished subscription is how a school comes back.</b> No status is refused: moving a
+     * {@code CANCELLED} or {@code EXPIRED} row onto a plan opens a new row at {@code ACTIVE},
+     * renewing again, and leaves the finished row's dates exactly as they were — it really did
+     * stop then, and the gap to the new period is time the school was on nothing. {@code current} is the field that says which row is live, which is why every
      * read of "the school's subscription" goes through
      * {@code findBySchoolIdAndCurrentIsTrue}.
      *
@@ -562,15 +567,16 @@ public class PlatformSubscriptionService {
         //! step 2 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
 
-        //! step 3 - a finished subscription is not moved, it is replaced. Selling a new plan to
-        //! a cancelled subscription would leave the school paying for something that ended.
-        if (subscription.getStatus() == SubscriptionStatus.CANCELLED
-                || subscription.getStatus() == SubscriptionStatus.EXPIRED) {
-            throw ApiException.conflict("SUBSCRIPTION_NOT_CHANGEABLE",
-                    subscription.getSubscriptionNo() + " is " + subscription.getStatus()
-                            + ", so there is nothing to move. Create a new subscription for this "
-                            + "school instead.");
-        }
+        //! step 3 - no status is refused, and a finished one is the interesting case: moving a
+        //! CANCELLED or EXPIRED subscription onto a plan is how a school comes back. This used
+        //! to be refused on the grounds that there was "nothing to move", which mistook what
+        //! this endpoint does — it does not edit the old row, it retires it and opens a new one,
+        //! so the state the old row ended in does not constrain the new one at all.
+        //!
+        //! What that means for the row being opened is worked out in step 12: a revival starts
+        //! ACTIVE rather than carrying a cancellation forward.
+        boolean revivingFinished = subscription.getStatus() == SubscriptionStatus.CANCELLED
+                || subscription.getStatus() == SubscriptionStatus.EXPIRED;
 
         //! step 4 - the plan being left, read before anything moves so the response and the
         //! history row can both name it
@@ -644,9 +650,17 @@ public class PlatformSubscriptionService {
         //! record. `current = false` is what says it is history.
         String previousPlanId = subscription.getPlanDefinitionDocsId();
         String previousSubscriptionNo = subscription.getSubscriptionNo();
+        SubscriptionStatus previousSubscriptionStatus = subscription.getStatus();
+        Instant previousPeriodEnd = subscription.getCurrentPeriodEnd();
 
         subscription.setCurrent(false);
-        subscription.setCurrentPeriodEnd(periodStart);
+
+        //! Its end moves to where the new period begins ONLY if it was still serving. A
+        //! cancelled or expired row already stopped, and moving its end forward would claim it
+        //! covered a gap the school was on nothing for — the opposite of what the dates are for.
+        if (!revivingFinished) {
+            subscription.setCurrentPeriodEnd(periodStart);
+        }
         subscription.setReasonForChanges("Superseded by a plan change to '"
                 + newPlan.getPlanCode() + "' version " + newPlan.getPlanVersion() + ". "
                 + request.reason().trim());
@@ -671,17 +685,24 @@ public class PlatformSubscriptionService {
                 .subscriptionNo(subscriptionNumber)
                 .planDefinitionDocsId(newPlan.getId())
                 .planVersion(newPlan.getPlanVersion())
-                // The state the school was in carries over: a suspended school that changes plan
-                // is still suspended, and a trial that changes plan is still a trial.
-                .status(subscription.getStatus())
+                // The state the school was in carries over — a suspended school that changes
+                // plan is still suspended, a trial is still a trial — EXCEPT when the old row
+                // had finished. Carrying CANCELLED or EXPIRED onto a row somebody has just
+                // bought would sell a school a plan it cannot use.
+                .status(revivingFinished ? SubscriptionStatus.ACTIVE : subscription.getStatus())
                 .billingCycle(billingCycle)
                 .currentPeriodStart(periodStart)
                 .currentPeriodEnd(periodEnd)
                 // Absent on the request means the school's existing instruction, not the plan's:
                 // a plan has no opinion about renewal.
-                .autoRenew(request.autoRenew() == null
-                        ? subscription.getAutoRenew()
-                        : request.autoRenew())
+                //
+                // The one exception is a revival, where "existing" is whatever the cancellation
+                // set — #21 turns autoRenew off on its way out. Carrying that forward would
+                // apply half of a decision this request is reversing, and leave a freshly bought
+                // subscription telling the school it does not renew.
+                .autoRenew(request.autoRenew() != null
+                        ? request.autoRenew()
+                        : (revivingFinished ? Boolean.TRUE : subscription.getAutoRenew()))
                 .contractedPrice(newPrice)
                 .currencyCode(newPlan.getCurrencyCode())
                 .maxStudentsOverride(newMaxStudents)
@@ -703,7 +724,10 @@ public class PlatformSubscriptionService {
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
                 .eventType(SubscriptionEventType.PLAN_CHANGED)
-                .previousStatus(saved.getStatus())
+                // These differ on a revival, and are equal on every other plan change. Reading
+                // the old row's status off `previousStatus` is the only way a history row says
+                // a school came back from cancelled.
+                .previousStatus(previousSubscriptionStatus)
                 .newStatus(saved.getStatus())
                 .previousPlanDefinitionDocsId(previousPlanId)
                 .newPlanDefinitionDocsId(newPlan.getId())
@@ -768,6 +792,15 @@ public class PlatformSubscriptionService {
         //! school, and anything standing about the subscription a reader needs either way.
         List<String> note = new ArrayList<>();
         note.add(describePlanMove(previousPlan, newPlan, saved, previousSubscriptionNo));
+
+        if (revivingFinished) {
+            note.add("This school was " + previousSubscriptionStatus + " and is paying again: "
+                    + previousSubscriptionNo + " ended on " + previousPeriodEnd + " and its dates "
+                    + "were left alone, because it really did stop then — the gap between that "
+                    + "and " + periodStart + " is time this school was on nothing. The new row "
+                    + "starts ACTIVE, and renews again unless the request said otherwise.");
+        }
+
         note.add(schoolNote);
 
         String standing = describeSubscriptionState(saved, newPlan);

@@ -455,6 +455,37 @@ for (const [label, ok] of formChecks) {
   if (!ok) fail++
 }
 
+// Moving a CANCELLED or EXPIRED subscription onto a plan is how a school comes back. #16 used to
+// refuse it, on the grounds that there was "nothing to move" — which mistook what it does: it
+// retires the row it is given and opens a new one.
+console.log('\nA finished subscription comes back by changing its plan')
+const reviveChecks = [
+  ['no status is refused any more',
+    !javaService.includes('SUBSCRIPTION_NOT_CHANGEABLE')],
+  ['a finished row is recognised as a revival',
+    javaService.includes('boolean revivingFinished = subscription.getStatus() == SubscriptionStatus.CANCELLED')],
+  ['the new row starts ACTIVE rather than carrying the cancellation',
+    javaService.includes('.status(revivingFinished ? SubscriptionStatus.ACTIVE : subscription.getStatus())')],
+  ['it renews again, unless the request says otherwise',
+    /revivingFinished \? Boolean\.TRUE : subscription\.getAutoRenew\(\)/.test(javaService)],
+  // The closed row really did stop when it was cancelled.
+  ['the finished row keeps its own dates',
+    /if \(!revivingFinished\) \{\s*\n\s*subscription\.setCurrentPeriodEnd\(periodStart\);/
+      .test(javaService)],
+  ['and a live row is still trimmed to the new start',
+    javaService.includes('subscription.setCurrentPeriodEnd(periodStart);')],
+  // The history row is the only place a plan change moves the status.
+  ['the history row records the status move',
+    javaService.includes('.previousStatus(previousSubscriptionStatus)')
+      && !/PLAN_CHANGED[\s\S]{0,600}\.previousStatus\(saved\.getStatus\(\)\)/.test(javaService)],
+  ['the note names the gap the school was on nothing for',
+    javaService.includes('is time this school was on nothing')],
+]
+for (const [label, ok] of reviveChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // #21 ends the subscription. The point of the design is that no field was added for "cancelled
 // but still running": the status says cancelled, and the period says how long the access lasts.
 console.log('\nEnding a subscription')

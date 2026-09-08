@@ -2225,7 +2225,6 @@ than it tidies.
 
 409 PLAN_UNCHANGED               — already on that version
 409 PLAN_NOT_SELLABLE            — a draft or retired target
-409 SUBSCRIPTION_NOT_CHANGEABLE  — cancelled or expired
 409 SCHOOL_NOT_PLAN_CHANGEABLE   — the school is being wound down
 400 PERIOD_START_IN_PAST         — a start already past
 400 INVALID_BILLING_PERIOD       — an end not after the start
@@ -2251,6 +2250,35 @@ than it tidies.
 | `maxUsersOverride` | no | The same, against the new plan's `maxUsers`. |
 | `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. **Nothing acts on it** — [#17](#e17) does not consult it. |
 | `currentPeriodEnd` | **on a `CUSTOM` cadence** | An instant, after `currentPeriodStart` (`400 INVALID_BILLING_PERIOD`). Absent means the cadence decides — 30, 90, 180 or 365 days from `currentPeriodStart`. **Which cadence counts is `billingCycle` on this request, and the new plan's otherwise** — never the old plan's: a school moving from a yearly plan to a monthly one gets 30 days, and a yearly plan billed `CUSTOM` needs a date. |
+
+### A finished subscription is how a school comes back
+
+**No status is refused.** A `CANCELLED` or `EXPIRED` subscription can be moved onto a plan, and
+that is how a school starts paying again — it used to be `409 SUBSCRIPTION_NOT_CHANGEABLE` on the
+grounds that there was "nothing to move", which mistook what this endpoint does. It never edits the
+row it is given; it retires that row and opens a new one, so the state the old row ended in does
+not constrain the new one at all.
+
+Two things follow, and both are the difference between a revival and an ordinary move:
+
+| | ordinary move | reviving a `CANCELLED`/`EXPIRED` row |
+|---|---|---|
+| the new row's `status` | carried over — a suspended school stays suspended, a trial stays a trial | **`ACTIVE`** |
+| the new row's `autoRenew` | the school's existing setting, unless the request names it | **`true`**, unless the request names it |
+| the closed row's `currentPeriodEnd` | **trimmed** to the new start, so the periods meet | **left alone** — it really did stop then |
+
+**Why `autoRenew` is the exception.** [#21](#e21) turns it off on its way out, so "the school's
+existing setting" on a revival is whatever the cancellation set. Carrying that forward would apply
+half of a decision this request is reversing, and leave a freshly bought subscription telling the
+school it does not renew.
+
+**Why the closed row's dates are left alone.** On an ordinary move the two periods meet, because
+the old plan really did serve until the new one took over. A cancelled row did not: it stopped when
+it was cancelled. Moving its end forward would claim it covered a gap the school was on nothing
+for. So the gap stays visible, and the `note` names both dates.
+
+The history row is what records the comeback: `previousStatus` is `CANCELLED` and `newStatus` is
+`ACTIVE`, which is the only place a plan change moves the status at all.
 
 ### The cadence and the period, and how the two rows meet
 
@@ -2411,8 +2439,6 @@ apply a term agreed for one plan to a different one.
   downgrade rather than implying the move was verified.
 - **Touch anything #14 owns**, and #14 cannot touch the plan. Two endpoints, because "push the
   trial out a fortnight" and "move them to Enterprise" are not the same request.
-- **Move a finished subscription.** Cancelled or expired is `409 SUBSCRIPTION_NOT_CHANGEABLE`:
-  there is nothing to move, and the school needs a new subscription.
 - **Leave two current rows.** The old one is closed first, and the unique partial index on
   `{schoolId, current}` is the backstop — though that index is **not built on the dev database**
   yet, so today the write order in the code is the only thing enforcing it. Worth running the

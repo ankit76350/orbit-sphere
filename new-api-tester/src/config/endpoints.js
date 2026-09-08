@@ -6632,7 +6632,6 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom target with no end date" },
         { status: 409, code: "PLAN_UNCHANGED", when: "The plan it is already on" },
         { status: 409, code: "PLAN_NOT_SELLABLE", when: "A plan that cannot be sold" },
-        { status: 409, code: "SUBSCRIPTION_NOT_CHANGEABLE", when: "A finished subscription" },
       ],
       examples: [
         {
@@ -6771,12 +6770,32 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
         },
         {
           id: "08",
-          name: "A FINISHED SUBSCRIPTION",
-          expect: "409 Conflict",
-          notes: `On a CANCELLED or EXPIRED subscription.
-    OUT: { "code": "SUBSCRIPTION_NOT_CHANGEABLE",
-           "message": "... so there is nothing to move. Create a new
-                       subscription for this school instead." }
+          name: "A FINISHED SUBSCRIPTION COMES BACK",
+          expect: "200 OK",
+          notes: `On a CANCELLED or EXPIRED subscription. This used to be
+    409 SUBSCRIPTION_NOT_CHANGEABLE, which mistook what the endpoint does: it
+    never edits the row it is given, it retires that row and opens a new one,
+    so the state the old row ended in does not constrain the new one.
+
+    Cancel a subscription (immediate: true), then send this.
+    OUT: 200, and a revival differs from an ordinary move in three ways:
+           status      ACTIVE, not the CANCELLED carried over
+           autoRenew   true, unless the request names it — #21 turned it off
+                       on its way out, and carrying that forward would apply
+                       half of a decision this request reverses
+           the closed row's currentPeriodEnd  LEFT ALONE, not trimmed to the
+                       new start: it really did stop when it was cancelled,
+                       and moving it forward would claim it covered a gap the
+                       school was on nothing for
+
+    CHECK: db.subscription_history.findOne({ eventType: "PLAN_CHANGED" })
+             -> previousStatus CANCELLED, newStatus ACTIVE. The only place a
+                plan change moves the status.
+           GET /schools/current/subscription/entitlements
+             -> active false before, TRUE after.
+
+    An EXPIRED one comes back the same way. Every other status still carries
+    over untouched: TRIAL stays TRIAL, SUSPENDED stays SUSPENDED.
 
 09  WHAT LANDS IN THE DATABASE
     TWO ROWS PER CHANGE. From mongosh, after a sale and two changes:

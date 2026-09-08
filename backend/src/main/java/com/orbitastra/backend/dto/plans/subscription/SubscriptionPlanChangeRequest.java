@@ -33,6 +33,11 @@ import jakarta.validation.constraints.Size;
  *
  * <h2>What follows the plan, and what survives it</h2>
  *
+ * <p><b>A finished subscription is how a school comes back.</b> No status is refused. Moving a
+ * {@code CANCELLED} or {@code EXPIRED} subscription onto a plan opens the new row at
+ * {@code ACTIVE} and renewing again, because carrying a cancellation onto a plan somebody has
+ * just bought would sell a school something it cannot use.
+ *
  * <pre>
  * from the new plan   -> currencyCode
  * from the new plan   -> billingCycle, the price and both ceilings, unless this request names them
