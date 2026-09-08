@@ -125,7 +125,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
+| <a id="t13"></a>13 — **built** | [`POST /platform/schools/{id}/subscriptions`](#e13) | Give a school its first subscription. **The billing cycle can be negotiated** — absent takes the plan's, and whichever applies decides the period dates and whether an end date is required. This is what makes a school a paying customer, and it is the missing piece the core module already complains about — `activateSchool` currently lets a school go live with no subscription at all. **A school still `PROVISIONING` with everything else in place goes `ACTIVE` here**, because a subscription was the last thing it was waiting for. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java), [`schools`](../../models/core/School.java) |
 | <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
 | <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
@@ -428,7 +428,7 @@ below are still a plan.
 | `planDefinitionDocsId` | String, required | **The `_id` of an `ACTIVE` plan version.** A `DRAFT` or `RETIRED` plan is refused. |
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
 | `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Every later move is **#14** until the lifecycle endpoints #17 to #22 are built — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own. |
-| `billingCycle` | BillingCycle, required | **Copied from the plan.** Same five values. |
+| `billingCycle` | BillingCycle, required | **From the plan by default, or the cycle named on #13's request.** Same five values. It lives here rather than being read through to the plan precisely so a school can be sold a plan on a cadence the plan is not listed at — and so changing the plan's listed cycle later cannot silently re-bill every school on it. #14 can move it afterwards. |
 | `currentPeriodStart` | Instant, required | **Any instant.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
 | `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
 | `autoRenew` | Boolean, required | **`true`** unless the request says otherwise. |
@@ -1627,7 +1627,8 @@ until #13 exists, and the `note` says to read it as *unknown* rather than *nobod
   "planVersion": 1,                   // REQUIRED
 
   "trial": false,                     // optional
-  "currentPeriodStart": null,         // optional
+  "billingCycle": "QUARTERLY",        // optional — the plan's if absent
+  "currentPeriodStart": null,         // optional — today if absent
   "currentPeriodEnd": null,           // optional / REQUIRED on CUSTOM
   "autoRenew": true,                  // optional
   "contractedPrice": 39999.50,        // optional
@@ -1674,14 +1675,31 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
 | `planCode` | **yes** | The plan's family key, max 40 — `PREMIUM`, not a Mongo id. With `planVersion` it names one immutable version. |
 | `planVersion` | **yes** | Which version of that plan. Named rather than looked up, so a caller never has to read an id out of another response. |
 | `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
+| `billingCycle` | no | **Absent means the plan's own cadence**, which is the ordinary sale. Send one to sell the same plan on different terms — a school paying quarterly for a plan listed yearly buys the same entitlements on a different cadence. It is stored on the **subscription**, so the plan itself is unchanged. **It is this cycle, not the plan's, that decides the period** and therefore whether `currentPeriodEnd` is required. |
 | `currentPeriodStart` | no | An instant. Absent means **midnight at the start of today in the school's own time zone** — not the moment the request arrived, because a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
-| `currentPeriodEnd` | **on `CUSTOM`** | An instant, and it must be after the start. Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. |
+| `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant, and it must be after the start (`400 INVALID_BILLING_PERIOD`). Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. **Which cycle counts is the one being sold**: a `YEARLY` plan sold `CUSTOM` needs a date, and a `CUSTOM` plan sold `MONTHLY` does not. |
 | `autoRenew` | no | Absent means `true`. **Nothing acts on it.** [#17](#e17) starts the next period when it is called and does not consult the flag, and nothing calls #17 on a schedule — so there is no automatic renewal to switch off. It does appear on the school's own billing view, which tells the school its subscription does not renew automatically. |
 | `contractedPrice` | no | What this school actually pays. Absent means the plan's `listPrice`. Zero is allowed — a free deal is a deal; negative is `400 PRICE_NEGATIVE`. The response shows it next to `planListPrice`, which is the only way to notice a discount. |
 | `maxStudentsOverride` | no | A negotiated student ceiling. **Absent copies the plan's `maxStudents`** onto the subscription rather than leaving a null, so the document says what the school may use on its own. Zero is `400 LIMIT_TOO_LOW` here — on create there is nothing to remove. |
 | `maxUsersOverride` | no | The same, from the plan's `maxUsers`. |
 | `billingCustomerReference` | no | The payment provider's customer id, max 120. Absent means null; it is set later by #26. |
 | `reason` | no | Free text, max 500, for the history row only — nothing on the subscription stores it. Unlike #14, where a reason is required, this one is optional: the row already records that the subscription was created. |
+
+**The cycle decides the period, and the cycle can be negotiated.** These three fields work as one
+unit:
+
+| Cycle being sold | `currentPeriodStart` | `currentPeriodEnd` |
+|---|---|---|
+| `MONTHLY` | today, unless sent | start + 30 days |
+| `QUARTERLY` | today, unless sent | start + 90 days |
+| `HALF_YEARLY` | today, unless sent | start + 180 days |
+| `YEARLY` | today, unless sent | start + 365 days |
+| `CUSTOM` | today, unless sent | **required** — `400 BILLING_PERIOD_END_REQUIRED` |
+
+"Being sold" means `billingCycle` on this request where one was given, and the plan's otherwise.
+So the refusal follows what the **school** is billed on rather than what the plan is listed at —
+verified both ways: a `YEARLY` plan sold as `CUSTOM` is refused without a date, and a `CUSTOM`
+plan sold as `MONTHLY` derives 30 days and needs none.
 
 **`currencyCode` is deliberately not on the request.** It always comes from the plan. A
 subscription priced in a different currency from the plan it points at is a mistake nobody would

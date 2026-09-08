@@ -153,14 +153,28 @@ public class PlatformSubscriptionService {
         PlanDefinition plan = loadSellablePlan(request.planCode(), request.planVersion());
 
         //! step 4 - work out the terms: the plan's, unless the caller overrode them
+        //!
+        //! The CYCLE comes first, because it is what decides the period. The plan's own cadence
+        //! is the ordinary sale; a request that names one is selling the same entitlements on
+        //! different terms, which is a negotiation like the price and the ceilings beside it.
+        //! It lands on the subscription, so it changes what this school is billed and nothing
+        //! about the plan.
+        BillingCycle billingCycle = request.billingCycle() == null
+                ? plan.getBillingCycle()
+                : request.billingCycle();
+
         //! The period starts today in the SCHOOL'S day, not at the instant the request landed:
         //! a billing period is a pair of dates somebody reads, and "your year runs from the 7th"
         //! is what they expect to see rather than "from 12:47 on the 7th".
         Instant periodStart = request.currentPeriodStart() == null
                 ? startOfTodayInSchoolZone(school.getDefaultTimeZone())
                 : request.currentPeriodStart();
+
+        //! Derived from the cycle ABOVE, not the plan's. So a YEARLY plan sold as CUSTOM needs an
+        //! end date and says so, and a CUSTOM plan sold as MONTHLY derives one and needs none —
+        //! the refusal follows what the school is actually being billed on.
         Instant periodEnd = calculateSubscriptionPeriodEnd(request.currentPeriodEnd(), periodStart,
-                plan.getBillingCycle());
+                billingCycle);
 
         BigDecimal contractedPrice = request.contractedPrice() == null
                 ? plan.getListPrice()
@@ -195,7 +209,7 @@ public class PlatformSubscriptionService {
                 .planDefinitionDocsId(plan.getId())
                 .planVersion(plan.getPlanVersion())
                 .status(status)
-                .billingCycle(plan.getBillingCycle())
+                .billingCycle(billingCycle)
                 .currentPeriodStart(periodStart)
                 .currentPeriodEnd(periodEnd)
                 .autoRenew(request.autoRenew() == null ? Boolean.TRUE : request.autoRenew())

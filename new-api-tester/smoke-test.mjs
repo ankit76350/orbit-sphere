@@ -638,6 +638,64 @@ for (const [label, ok] of renewChecks) {
   if (!ok) fail++
 }
 
+// The sale form now sells the CYCLE too, not just the plan. #13 takes billingCycle, absent
+// meaning the plan's own — so the box is filled from the plan and editable, and everything about
+// the period follows the box rather than the plan.
+console.log('\nThe sale form sells the cycle, and the period follows it')
+const cycleChecks = [
+  ['the form offers a cycle, filled from the plan',
+    newSource.includes('label="Billing cycle"')
+      && /const choosePlan[\s\S]{0,900}setCycle\(plan \? plan\.billingCycle : ''\)/
+        .test(newSource)],
+  // Two separate facts rather than one wide window between them: the component has a cycle
+  // select, and it is driven by the shared BILLING_CYCLES list so a value added to the enum
+  // cannot be missing from only this form.
+  ['every cycle the model has is offered',
+    (newSource.match(/BILLING_CYCLES\.map/g) || []).length === 1
+      && newSource.includes('label="Billing cycle"')],
+  ['and that list matches the model\'s enum',
+    (() => {
+      const inJs = (subsSourceFull.match(/const BILLING_CYCLES = \[([^\]]+)\]/) || [])[1]
+      const inJava = readFileSync(
+        '../backend/src/main/java/com/orbitastra/backend/models/plans/enums/BillingCycle.java',
+        'utf8').match(/^\s+([A-Z_]{4,}),?$/gm)?.map((l) => l.trim().replace(',', ''))
+      return Boolean(inJs) && Boolean(inJava)
+        && inJava.every((v) => inJs.includes(`'${v}'`))
+        && inJava.length === (inJs.match(/'/g) || []).length / 2
+    })()],
+  // The whole point: the period follows the cycle being SOLD, not the plan's listed one.
+  ['the period follows the cycle being sold, not the plan\'s',
+    newSource.includes("const soldCycle = cycle || chosen?.billingCycle || ''")
+      && newSource.includes("const needsPeriodEnd = soldCycle === 'CUSTOM'")
+      && newSource.includes('const cycleDays = DAYS_PER_CYCLE[soldCycle]')],
+  ['the end date is disabled unless the cycle is CUSTOM',
+    newSource.includes('disabled={!needsPeriodEnd}')
+      && newSource.includes('readOnly={!needsPeriodEnd}')],
+  ['and shows the derived date while it is disabled',
+    newSource.includes("value={needsPeriodEnd ? periodEnd : (derivedEnd ?? '')}")],
+  ['the start date is shown as today and not editable',
+    /label="Period starts on"[\s\S]{0,300}value=\{todayInput\(\)\}[\s\S]{0,80}disabled/
+      .test(newSource)],
+  ['changing the cycle clears a date typed against the old one',
+    /setCycle\(event\.target\.value\)[\s\S]{0,300}setPeriodEnd\(''\)/.test(newSource)],
+  // Sent only when it differs, so an ordinary sale does not restate what the plan already says.
+  ['the cycle is sent only when it differs from the plan',
+    newSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle")],
+  ['selling off-cadence is called out before the sale goes',
+    newSource.includes('This is not the cadence the plan is listed on')],
+  // The service must read the request's cycle, not the plan's, or the form is lying.
+  ['the service bills on the requested cycle',
+    javaService.includes('BillingCycle billingCycle = request.billingCycle() == null')
+      && javaService.includes('.billingCycle(billingCycle)')],
+  ['and derives the period from it, not from the plan',
+    /calculateSubscriptionPeriodEnd\(request\.currentPeriodEnd\(\), periodStart,\s*\n\s*billingCycle\)/
+      .test(javaService)],
+]
+for (const [label, ok] of cycleChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A CUSTOM cycle has no length, so the API cannot derive a period end and refuses the sale
 // without one. The form has to ask, or the only way to find out is a 400 with a filled-in form.
 //

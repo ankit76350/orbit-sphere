@@ -206,6 +206,11 @@ still created, the school stays `PROVISIONING`, and `nextStep` names what is mis
 
 - **Two fields is the ordinary request** — the plan's code and version. Price, currency, cycle and
   the period end all come from the plan.
+- **The cycle can be negotiated too.** `billingCycle` is optional and absent takes the plan's, so
+  the same plan can be sold on a different cadence — stored on the *subscription*, leaving the plan
+  and every other school on it alone. Whichever cycle applies is what decides the period dates
+  **and** whether `currentPeriodEnd` is required: a `YEARLY` plan sold `CUSTOM` needs a date, and a
+  `CUSTOM` plan sold `MONTHLY` does not.
 - **One subscription per school.** A second is a `409`. Nothing cancels one or changes its plan
   yet, so a test school stays on its first plan.
 - **Numbering is per school**, so every school's first subscription is `SUB/2026/09/000001`.

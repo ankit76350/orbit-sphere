@@ -3,6 +3,8 @@ package com.orbitastra.backend.dto.plans.subscription;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import com.orbitastra.backend.models.plans.enums.BillingCycle;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -37,15 +39,47 @@ public record SubscriptionCreateRequest(
          */
         Boolean trial,
 
-        /** When the first billing period starts. Defaults to now. Example: 2026-04-01T00:00:00Z */
+        /**
+         * How often this school is billed. Example: BillingCycle.QUARTERLY
+         *
+         * <p><b>Absent means the plan's own cycle</b>, which is the ordinary sale — the plan says
+         * how it is sold and nobody has to restate it.
+         *
+         * <p>Send one to sell the same plan on a different cadence, which is a real negotiation:
+         * a school that wants to pay quarterly for a plan listed yearly is buying the same
+         * entitlements on different terms. It is stored on the subscription rather than on the
+         * plan, so it changes what this school is billed and nothing about the plan itself.
+         *
+         * <p><b>It is this cycle, not the plan's, that decides the period</b> — and that decides
+         * whether {@code currentPeriodEnd} is required. Selling a {@code YEARLY} plan as
+         * {@code CUSTOM} means an end date has to be sent; selling a {@code CUSTOM} plan as
+         * {@code MONTHLY} means one is derived and none is needed.
+         */
+        BillingCycle billingCycle,
+
+        /**
+         * When the first billing period starts. Defaults to <b>the start of today in the school's
+         * own timezone</b>, which is the ordinary sale. Example: 2026-04-01T00:00:00Z
+         *
+         * <p>Today rather than the instant the request landed, because a billing period is a pair
+         * of dates somebody reads: "your year runs from the 7th" is what they expect to see, not
+         * "from 12:47 on the 7th". Send one only for a contract that was agreed to start on some
+         * other day — a backdated sale, or one that begins next quarter.
+         */
         Instant currentPeriodStart,
 
         /**
-         * When it ends. Worked out from the plan's billing cycle when omitted — a yearly plan
-         * starting 1 April ends 31 March.
+         * When it ends. Worked out from the billing cycle when omitted — a yearly period starting
+         * 1 April ends 365 days later.
          *
-         * <p><b>Required for a {@code CUSTOM} cycle</b>, which by definition has no length to
-         * calculate. Example: 2027-03-31T23:59:59Z
+         * <p><b>Required when the cycle is {@code CUSTOM}</b>, which by definition has no length
+         * to calculate: {@code 400 BILLING_PERIOD_END_REQUIRED} without it. That is the cycle on
+         * <i>this request</i> where one was sent, and the plan's otherwise — so a plan listed
+         * {@code CUSTOM} sold as {@code MONTHLY} needs no end date, and a {@code YEARLY} plan sold
+         * as {@code CUSTOM} does. Example: 2027-03-31T23:59:59Z
+         *
+         * <p>Sending one on a fixed cycle overrides the derived date. It has to be after
+         * {@code currentPeriodStart}, or {@code 400 INVALID_BILLING_PERIOD}.
          */
         Instant currentPeriodEnd,
 

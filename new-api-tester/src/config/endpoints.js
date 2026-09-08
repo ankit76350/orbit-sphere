@@ -5877,7 +5877,7 @@ A second is a \`409\` telling you to change the plan on the existing one.
     OUT: subscriptionNo "SUB/2026/09/000001", status "ACTIVE", current true
          contractedPrice = the plan's listPrice
          currencyCode    = the plan's currency (never the caller's)
-         billingCycle    = the plan's cycle
+         billingCycle    = the plan's cycle, unless the request named one
          currentPeriodStart = MIDNIGHT TODAY in the school's own zone, not
                               the moment the request arrived
          currentPeriodEnd   = start + the cycle's days (30/90/180/365)
@@ -5936,6 +5936,31 @@ A second is a \`409\` telling you to change the plan on the existing one.
     A plan that is published but NOT publicly available IS allowed: that is
     exactly a private quote, and this is how a private quote gets sold.`,
           body: null,
+        },
+        {
+          id: "05b",
+          name: "SELL IT ON A DIFFERENT CADENCE",
+          expect: "201 Created",
+          notes: `billingCycle is optional and absent means the plan's own — this sells
+    the same plan on different terms. It is stored on the SUBSCRIPTION, so
+    the plan itself is unchanged and no other school on it is affected.
+
+    On a YEARLY plan, send { "billingCycle": "QUARTERLY" }:
+      OUT: billingCycle QUARTERLY, and currentPeriodEnd is start + 90 days
+           rather than + 365. The period follows the cycle being SOLD.
+
+    The refusal follows it too, which is the part worth testing both ways:
+      a YEARLY plan sold "CUSTOM" with no date  -> 400
+                                                   BILLING_PERIOD_END_REQUIRED
+      a CUSTOM plan sold "MONTHLY" with no date -> 201, 30 days
+
+    An unknown value is a validation error, not a silent default:
+      { "billingCycle": "WEEKLY" } -> 400`,
+          body: `{
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "billingCycle": "QUARTERLY"
+}`,
         },
         {
           id: "05",

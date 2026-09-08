@@ -4,7 +4,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { endOfDay, readableInstant, toDateInput } from '../../../lib/dates.js'
+import { endOfDay, readableInstant, toDateInput, todayInput } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
@@ -1336,6 +1336,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const [price, setPrice] = useState('')
   const [maxStudents, setMaxStudents] = useState('')
   const [maxUsers, setMaxUsers] = useState('')
+  const [cycle, setCycle] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1373,6 +1374,11 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     setPrice(plan ? String(plan.listPrice) : '')
     setMaxStudents(plan ? String(plan.maxStudents) : '')
     setMaxUsers(plan ? String(plan.maxUsers) : '')
+    // The cycle comes from the plan too, and it is editable: selling a yearly plan quarterly is
+    // a negotiation like the price beside it. Switching plan re-fills it, and clears any end
+    // date typed against the previous cycle — that date belonged to the old contract.
+    setCycle(plan ? plan.billingCycle : '')
+    setPeriodEnd('')
   }
 
   // Zero is refused on a sale — a school sold no students is not a ceiling anybody agreed — so
@@ -1383,8 +1389,15 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
   // A CUSTOM cycle has no length, so there is nothing for the API to derive and it refuses the
   // sale with BILLING_PERIOD_END_REQUIRED. The date is asked for here instead of being found out
   // from a 400.
-  const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'
-  const cycleDays = chosen ? DAYS_PER_CYCLE[chosen.billingCycle] : undefined
+  // The CYCLE BEING SOLD, which is the one in the box — not the plan's. Everything below follows
+  // it, because it is what the API bills the school on and what it derives the period from.
+  const soldCycle = cycle || chosen?.billingCycle || ''
+
+  // Only a CUSTOM cycle has no length, so only a CUSTOM cycle needs a date. For the other four
+  // the end is derived, which is why the box is disabled rather than merely optional: a value
+  // there would override a date the cycle already decides.
+  const needsPeriodEnd = soldCycle === 'CUSTOM'
+  const cycleDays = DAYS_PER_CYCLE[soldCycle]
   // What the sale would produce, for the cycles that have a length. The response is what counts;
   // this is so nobody has to create one to find out.
   const derivedEnd = cycleDays
@@ -1406,6 +1419,9 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     // Only for a CUSTOM cycle: every other cycle derives its own end, and sending one would
     // override a length the plan already implies. The chosen day is included, so end of it.
     if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+    // Sent only when it differs from the plan's, so the ordinary sale still reads as "this plan,
+    // as listed" rather than restating what the plan already says.
+    if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
 
     const result = await call('create-subscription', {
       label: 'Give it a subscription', pathParams: { id: schoolId }, body,
@@ -1416,6 +1432,7 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
       setPrice('')
       setMaxStudents('')
       setMaxUsers('')
+      setCycle('')
       setTrial(false)
       setPeriodEnd('')
       await onCreated(result.bodyJson)
@@ -1510,29 +1527,90 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
           </p>
         ) : null}
 
+        <div className="field-split">
+          The billing period — filled from the plan, change what was agreed
+        </div>
+
+        <div className="field-row">
+          <Field
+            label="Billing cycle"
+            hint={chosen
+              ? (soldCycle === chosen.billingCycle
+                ? `The plan's own cadence. Change it to sell the same plan on different terms.`
+                : `The plan is listed ${chosen.billingCycle}. This school will be billed ${soldCycle}.`)
+              : "Choose a plan and this fills in with its own cadence."}
+          >
+            <span className="select" style={{ width: '100%' }}>
+              <select
+                className="select-input"
+                style={{ width: '100%' }}
+                value={soldCycle}
+                disabled={!chosen}
+                onChange={(event) => {
+                  setCycle(event.target.value)
+                  // A date typed against the old cycle does not belong to the new one, and on a
+                  // fixed cycle it would not be sent at all.
+                  setPeriodEnd('')
+                }}
+              >
+                {/* A select whose value is "" with no matching option renders as its first
+                    option, which would show MONTHLY before a plan is even chosen. */}
+                <option value="">Choose a plan first…</option>
+                {BILLING_CYCLES.map((one) => (
+                  <option key={one} value={one}>{one}</option>
+                ))}
+              </select>
+            </span>
+          </Field>
+
+          <Field label="Period starts on" hint="Today, in the school's own timezone. Not editable here — a backdated contract is a field this form does not offer.">
+            <Input type="date" value={todayInput()} disabled readOnly />
+          </Field>
+
+          {/* Enabled ONLY for CUSTOM. For the other four the end is derived from the cycle, so a
+              value here would override a date the cycle already decides — disabled rather than
+              optional, and showing what the derivation produces. */}
+          <Field
+            label="Period ends on"
+            required={needsPeriodEnd}
+            hint={needsPeriodEnd
+              ? 'The chosen day is included — it is sent as the last second of it.'
+              : (cycleDays
+                ? `Derived: ${cycleDays} days on a ${soldCycle} cycle. Pick CUSTOM to set it yourself.`
+                : 'Choose a cycle first.')}
+          >
+            <Input
+              type="date"
+              min={todayInput()}
+              value={needsPeriodEnd ? periodEnd : (derivedEnd ?? '')}
+              disabled={!needsPeriodEnd}
+              readOnly={!needsPeriodEnd}
+              onChange={(event) => setPeriodEnd(event.target.value)}
+            />
+          </Field>
+        </div>
+
         {/* A CUSTOM cycle has no length, so the API cannot derive an end and refuses the sale
             without one. Asked for here rather than found out from a 400. */}
         {needsPeriodEnd ? (
-          <>
-            <p className="banner" data-tone="warn">
-              <strong>This plan bills on a CUSTOM cycle, so it has no length.</strong> Every other
-              cycle derives its own end — 30, 90, 180 or 365 days — but a custom contract runs to a
-              date somebody agreed, so it has to be said. Without it the sale is refused with
-              <code className="mono"> 400 BILLING_PERIOD_END_REQUIRED</code>.
-            </p>
+          <p className="banner" data-tone="warn">
+            <strong>A CUSTOM cycle has no length, so the end date has to be said.</strong> Every
+            other cycle derives its own — 30, 90, 180 or 365 days from today — but a custom
+            contract runs to a date somebody agreed. Without it the sale is refused with
+            <code className="mono"> 400 BILLING_PERIOD_END_REQUIRED</code>.
+          </p>
+        ) : null}
 
-            <Field
-              label="Period ends on"
-              required
-              hint="The chosen day is included — it is sent as the last second of it. The period starts today unless the school was sold a backdated contract."
-            >
-              <Input
-                type="date"
-                value={periodEnd}
-                onChange={(event) => setPeriodEnd(event.target.value)}
-              />
-            </Field>
-          </>
+        {/* Selling a plan on a cadence it is not listed on changes what the school pays and when,
+            so it is worth saying out loud before the sale goes. */}
+        {chosen && soldCycle !== chosen.billingCycle ? (
+          <p className="banner" data-tone="warn">
+            <strong>This is not the cadence the plan is listed on.</strong>{' '}
+            &apos;{chosen.planCode}&apos; v{chosen.planVersion} is sold {chosen.billingCycle}, and
+            this school will be billed <strong>{soldCycle}</strong> at{' '}
+            {price.trim() ? money(Number(price), chosen.currencyCode) : 'the price above'} per
+            period. The cycle is stored on the subscription, so the plan itself is unchanged.
+          </p>
         ) : null}
 
         <div className="field-split">
