@@ -240,6 +240,12 @@ capacity overrides. It replaced extend-trial — pushing a trial's end date out 
 `currentPeriodEnd` on it — took in #23 and #24, and absorbed what #15 used to do:
 `{"status": "ACTIVE", "reason": …}` is how a trial becomes a paying subscription.
 
+- **Only a `TRIAL` or `ACTIVE` subscription may be edited.** `PAST_DUE`, `SUSPENDED`, `CANCELLED`
+  and `EXPIRED` are all `409 SUBSCRIPTION_NOT_EDITABLE`: each was somebody's decision or a date
+  arriving, and each has an endpoint that owns the way out — #20 resume, #17 renew, #16 change
+  plan. The refusal names it, so it is a signpost rather than a dead end, and nothing is written.
+  **It stays a one-way door the other way**: from `TRIAL` or `ACTIVE` this can set any of the six,
+  which is how `PAST_DUE` and `EXPIRED` are set by hand while no job exists.
 - **Nothing about the money.** The price and currency stay on #25, the billing customer on #26,
   the plan on #16. Which means **nothing built can change a price** after Create Subscription set
   it: #25 is not built, and #14 will not do it.

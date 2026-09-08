@@ -385,6 +385,7 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
   const renewRefusal = whyRenewWouldRefuse(s)
   const needsEndDate = renewNeedsEndDate(s)
   const pauseAction = suspendOrResumeAction(s)
+  const editRefusal = whyEditWouldRefuse(s)
   return (
     <>
       <Card
@@ -481,7 +482,8 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
           {s.status === 'TRIAL' ? (
             <p className="banner" data-tone="warn">
               <strong>This is a trial.</strong> It becomes a paying subscription by editing its
-              status to <code className="mono">ACTIVE</code> below. If the school is buying a
+              status to <code className="mono">ACTIVE</code> below — a trial is one of the two
+              statuses that can be edited at all. If the school is buying a
               different plan from the one it tried, change the plan instead — that closes this
               row and opens one on the new plan&apos;s terms. Renewing a trial is refused: nobody
               has agreed what the next period costs.
@@ -495,9 +497,16 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               how a subscription that is already wrong gets corrected. */}
           <div className="stack">
             <div className="toolbar">
-              <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
+              <Button
+                icon={Pencil}
+                disabled={Boolean(editRefusal)}
+                onClick={onEdit}
+              >
+                {editRefusal ? 'Cannot edit this' : 'Edit the terms'}
+              </Button>
               <span className="muted">
-                Status, dates, cadence, limits, auto-renewal. Only what changed is sent.
+                {editRefusal
+                  ?? 'Status, dates, cadence, limits, auto-renewal. Only what changed is sent.'}
               </span>
               <span className="toolbar-spacer" />
               <EndpointTag
@@ -648,6 +657,26 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
       </details>
     </>
   )
+}
+
+/**
+ * Why #14 would refuse to edit this subscription, or null when it would.
+ *
+ * ONLY TRIAL AND ACTIVE MAY BE EDITED. Each of the other four was somebody's decision or a date
+ * arriving, and each has an endpoint that owns the way out of it — so this names that endpoint
+ * rather than just blocking, which is what the API's own message does.
+ */
+function whyEditWouldRefuse(subscription) {
+  const wayOut = {
+    PAST_DUE: 'Renew it once the bill is settled, or change its plan.',
+    SUSPENDED: 'Switch it back on to lift the suspension.',
+    CANCELLED: 'Change its plan to bring the school back.',
+    EXPIRED: 'Change its plan to bring the school back.',
+  }[subscription.status]
+
+  return wayOut
+    ? `A ${subscription.status} subscription's terms cannot be edited. ${wayOut}`
+    : null
 }
 
 /**

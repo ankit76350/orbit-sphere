@@ -402,6 +402,9 @@ const changeEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
   .map((m) => m.index)
   .filter((i) => i > changeStart))
 const changeSource = subsSourceFull.slice(changeStart, changeEnd)
+const javaUpdate = javaService.slice(
+  javaService.indexOf('public SubscriptionDetailResponse updateSubscription('),
+  javaService.indexOf('//! Endpoint 16'))
 const javaChangePlan = javaService.slice(
   javaService.indexOf('public SubscriptionDetailResponse changePlan('),
   javaService.indexOf('//! Endpoint 17'))
@@ -509,6 +512,40 @@ const reviveChecks = [
     javaService.includes('is time this school was on nothing')],
 ]
 for (const [label, ok] of reviveChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// #14 may only edit a TRIAL or ACTIVE subscription. The other four each have an endpoint that
+// owns the way out of them, and editing a field would bypass it — the history row would say
+// "edited" where the real event was "resumed" or "revived".
+console.log('\nOnly a TRIAL or ACTIVE subscription may be edited')
+const editGateChecks = [
+  ['the service refuses the other four',
+    javaUpdate.includes('previousStatus != SubscriptionStatus.TRIAL')
+      && javaUpdate.includes('previousStatus != SubscriptionStatus.ACTIVE')
+      && javaUpdate.includes('SUBSCRIPTION_NOT_EDITABLE')],
+  // A refusal that does not say where to go instead is a dead end.
+  ['and names the way out of each',
+    ['case SUSPENDED ->', 'case PAST_DUE ->', 'case CANCELLED, EXPIRED ->']
+      .every((arm) => javaUpdate.includes(arm))],
+  ['it refuses before anything is applied',
+    javaUpdate.indexOf('SUBSCRIPTION_NOT_EDITABLE')
+      < javaUpdate.indexOf('applySubscriptionEdits(subscription, request)')],
+  // The override still has to be able to SET those statuses, or PAST_DUE and EXPIRED become
+  // unreachable while no job exists.
+  ['but the status field still accepts all six',
+    !javaUpdate.includes('request.status() != SubscriptionStatus')
+      && editRequestSource.includes('Any of the six')],
+  ['the card says why rather than opening a doomed form',
+    subsSourceFull.includes('function whyEditWouldRefuse(')
+      && subsSourceFull.includes('disabled={Boolean(editRefusal)}')
+      && subsSourceFull.includes("'Cannot edit this'")],
+  ['and it names the same four statuses',
+    ['PAST_DUE:', 'SUSPENDED:', 'CANCELLED:', 'EXPIRED:']
+      .every((k) => new RegExp(`whyEditWouldRefuse[\\s\\S]{0,700}${k}`).test(subsSourceFull))],
+]
+for (const [label, ok] of editGateChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

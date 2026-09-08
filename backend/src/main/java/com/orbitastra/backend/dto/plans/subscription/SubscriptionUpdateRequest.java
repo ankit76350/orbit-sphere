@@ -18,6 +18,25 @@ import jakarta.validation.constraints.Size;
  * history rows for one decision. One PATCH, one transaction, one history row. Pushing a trial end
  * date out is now {@code currentPeriodEnd} on this request.
  *
+ * <p><b>Only a TRIAL or ACTIVE subscription can be edited.</b> {@code PAST_DUE},
+ * {@code SUSPENDED}, {@code CANCELLED} and {@code EXPIRED} are all
+ * {@code 409 SUBSCRIPTION_NOT_EDITABLE}. Each of those states was somebody's decision or a date
+ * arriving, and each has an endpoint that owns the way out of it — undoing one by writing a field
+ * here would bypass that endpoint, and the history row would say "edited" where the real event
+ * was "resumed" or "revived".
+ *
+ * <p><b>It is still a one-way door in the other direction, and that is deliberate.</b> This
+ * endpoint can put a subscription <i>into</i> any of the six statuses from {@code TRIAL} or
+ * {@code ACTIVE} — that is what makes it the override, and how {@code PAST_DUE} and
+ * {@code EXPIRED} are set by hand while no job exists. What it cannot do is edit one afterwards.
+ * Every refused state has a named way back, and the refusal message says which:
+ *
+ * <pre>
+ * SUSPENDED             -> #20 resume
+ * PAST_DUE              -> #17 renew, or #16 change plan
+ * CANCELLED, EXPIRED    -> #16 change plan, which opens a new period at ACTIVE
+ * </pre>
+ *
  * <p><b>It is the operator's override, not the ordinary path.</b> The lifecycle endpoints each
  * know one transition and its rules — #17 renews only what is renewable, #19 suspends and takes
  * the school's access down with it, #20 puts both back, and cancelling would decide what happens
@@ -89,7 +108,9 @@ public record SubscriptionUpdateRequest(
          * Example: SubscriptionStatus.SUSPENDED
          *
          * <p>Any of the six, with no transition rules applied — see the note above about this
-         * being the override.
+         * being the override. What constrains it is the status the subscription is <b>already</b>
+         * in: only {@code TRIAL} and {@code ACTIVE} may be edited at all, so this can move a
+         * subscription out of those two and never back.
          *
          * <p><b>Moving to CANCELLED stamps no date.</b> When a subscription was cancelled is the
          * {@code effectiveAt} of its {@code CANCELLED} history row, which is written here anyway;

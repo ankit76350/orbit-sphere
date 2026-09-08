@@ -6183,6 +6183,29 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
 
 ### It applies no transition rules, deliberately
 
+### Only a TRIAL or ACTIVE subscription may be edited
+
+The other four are \`409 SUBSCRIPTION_NOT_EDITABLE\`. Each was somebody's decision or a date
+arriving, and each has an endpoint that owns the way out — undoing one by writing a field here
+would bypass that endpoint, and the history row would say *edited* where the real event was
+*resumed* or *revived*.
+
+| Status | Editable | The way out |
+|---|---|---|
+| \`TRIAL\`, \`ACTIVE\` | **yes** | — |
+| \`PAST_DUE\` | no | #17 renew once the bill is settled, or #16 change plan |
+| \`SUSPENDED\` | no | #20 resume |
+| \`CANCELLED\`, \`EXPIRED\` | no | #16 change plan, which opens a new period at \`ACTIVE\` |
+
+The refusal names the way out for the status it refused, so it is a signpost rather than a dead
+end, and nothing is written when it refuses.
+
+**It is still a one-way door the other way**, deliberately: from \`TRIAL\` or \`ACTIVE\` this can set
+any of the six — which is how \`PAST_DUE\` and \`EXPIRED\` get set by hand while no job exists — and
+the next PATCH is then refused.
+
+### It applies no transition rules
+
 The lifecycle endpoints each know one transition and what it implies: #17 renews, #19 suspends,
 #20 resumes, #21 ends. **Nothing pushes a subscription into \`PAST_DUE\` or \`EXPIRED\`** — both are
 the passage of time noticing something rather than a decision, so a **job** will do them (#18 and
@@ -6259,6 +6282,7 @@ refused before the service sees it.
       responseFields: [],
       captures: [],
       errors: [
+        { status: 409, code: "SUBSCRIPTION_NOT_EDITABLE", when: "The subscription is not TRIAL or ACTIVE" },
         { status: 400, code: "PERIOD_START_REQUIRED", when: "billingCycle sent with no currentPeriodStart" },
         { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "VALIDATION_FAILED", when: "Ask for nothing" },

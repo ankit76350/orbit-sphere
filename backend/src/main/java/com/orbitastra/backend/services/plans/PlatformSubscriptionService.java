@@ -321,8 +321,38 @@ public class PlatformSubscriptionService {
 
         //! step 3 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+        SubscriptionStatus previousStatus = subscription.getStatus();
 
-        //! step 4 - a cadence being SET names the dates it needs with it. Sending a cycle
+        //! step 4 - only a subscription that is still running its ordinary life may be edited.
+        //! TRIAL and ACTIVE, and nothing else.
+        //!
+        //! This endpoint writes what it is told with no transition rules, which is exactly why it
+        //! should not reach a subscription whose state was somebody's decision: undoing a
+        //! suspension, a cancellation or a lapsed period by editing a field would bypass the
+        //! endpoint that owns that transition, and the history row it writes would say "edited"
+        //! where the real event was "resumed" or "revived".
+        //!
+        //! Every refused state has a way back, and the message names it — that is what makes
+        //! this safe rather than a dead end.
+        if (previousStatus != SubscriptionStatus.TRIAL
+                && previousStatus != SubscriptionStatus.ACTIVE) {
+
+            String wayBack = switch (previousStatus) {
+                case SUSPENDED -> "Resume it to lift the suspension.";
+                case PAST_DUE -> "Renew it once the bill is settled, or change its plan — both "
+                        + "put it back to ACTIVE.";
+                case CANCELLED, EXPIRED -> "Change its plan to bring the school back, which "
+                        + "opens a new period at ACTIVE.";
+                default -> "";
+            };
+
+            throw ApiException.conflict("SUBSCRIPTION_NOT_EDITABLE",
+                    subscription.getSubscriptionNo() + " is " + previousStatus + ", so its terms "
+                            + "cannot be edited. Only a TRIAL or ACTIVE subscription can be. "
+                            + wayBack);
+        }
+
+        //! step 5 - a cadence being SET names the dates it needs with it. Sending a cycle
         //! without them would leave this endpoint deriving a period from an anchor nobody
         //! restated: on the four fixed cycles the start is what the end is measured from, and
         //! CUSTOM has no length at all, so it needs both.
@@ -350,16 +380,15 @@ public class PlatformSubscriptionService {
             }
         }
 
-        //! step 5 - a start being SET has to be today or later. The stored one is not checked:
+        //! step 6 - a start being SET has to be today or later. The stored one is not checked:
         //! a subscription sold months ago has a start in the past by definition, and refusing to
         //! edit it would make every other field on this endpoint unreachable for a running
         //! subscription. Only a value on the request is a decision somebody is making now.
         validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
 
-        //! step 6 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! step 7 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
-        SubscriptionStatus previousStatus = subscription.getStatus();
         List<String> changed = applySubscriptionEdits(subscription, request);
 
         if (changed.isEmpty()) {
@@ -370,7 +399,7 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 7 - the cycle decides the period, the same way it does on a sale. A cadence that
+        //! step 8 - the cycle decides the period, the same way it does on a sale. A cadence that
         //! moved leaves the stored end date describing a period nobody is on any more: an end
         //! derived as "start + 365" is not the end of a MONTHLY period, so keeping it would bill
         //! the school for a year while the document says it pays monthly.
@@ -397,12 +426,12 @@ public class PlatformSubscriptionService {
             }
         }
 
-        //! step 8 - the reason goes onto the document as well as the history row. Written only
+        //! step 9 - the reason goes onto the document as well as the history row. Written only
         //! now, because an edit that changed nothing has nothing to explain. No null check: the
         //! request has @NotBlank on it, so an unexplained edit never reaches here.
         subscription.setReasonForChanges(request.reason().trim());
 
-        //! step 9 - the period has to still make sense after the edit, whichever end moved
+        //! step 10 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -413,7 +442,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 10 - one history row for the whole edit, in this same transaction
+        //! step 11 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -432,11 +461,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 11 - the plan is read only so the response can carry its features and limits
+        //! step 12 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(saved);
 
-        //! step 12 - the note is two answers joined here rather than by one helper calling the
+        //! step 13 - the note is two answers joined here rather than by one helper calling the
         //! other: what this edit did, and anything standing about the subscription that a
         //! reader needs whether or not it was edited.
         List<String> note = new ArrayList<>();
