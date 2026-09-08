@@ -129,7 +129,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t14"></a>14 — **built** | [`PATCH /platform/schools/{id}/subscriptions/current`](#e14) | Edit when a subscription runs, what state it is in, and how much of the product it may use: status, billing cycle, both period dates, auto-renewal, the two capacity overrides. **A `reason` is required** and is stored as `reasonForChanges`. **Nothing about the money** — price and currency are #25, the billing customer #26, the plan #16. **Replaced extend-trial**, which moved one date — that is now `currentPeriodEnd` here — and supersedes #23 and #24. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t15"></a>[~~15~~](#e15) **removed** | ~~`POST /platform/schools/{id}/subscriptions/{no}/activate`~~ | Move a trial to a paying subscription. **Withdrawn 2026-09-07** — whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold (#13), and a trial that later becomes a paying one is either a status edit (#14) or, when the school is buying a different plan from the one it tried, a new subscription. A whole endpoint for one status move was a third way to do the same thing. | — |
 | <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **Immediate**, and the period restarts with it. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| <a id="t17"></a>17 | [`POST /platform/schools/{id}/subscriptions/{no}/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
+| <a id="t17"></a>17 — **built** | [`POST /platform/schools/{id}/subscriptions/current/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. **No request body** — the plan, price, ceilings and cycle all carry across untouched. Writes a second row and closes the period that ended, so the new period starts exactly where the last one finished. **No invoice is raised** — nothing writes `subscription_invoices` yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
 | <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t20"></a>20 | [`POST /platform/schools/{id}/subscriptions/{no}/resume`](#e20) | Switch the school back on after it pays. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
@@ -317,17 +317,20 @@ restarts the period, and **charges, credits and refunds nothing**. Its response 
 so nobody reads a plan change as a payment.
 
 **It can stay open because nothing could act on it anyway.** `subscription_invoices` has no
-writer, and #17 — which would raise one — is not built. The question belongs with whatever
-eventually raises invoices, not with the request that moves a plan; answering it now would mean
-storing a decision no code could honour, on every plan change, for however long invoicing takes.
+writer. #17 is built and deliberately raises no invoice either — see [the money](#e17-money) —
+so there is still nothing in the codebase that could charge, credit or refund. The question
+belongs with whatever eventually raises invoices, not with the request that moves a plan;
+answering it now would mean storing a decision no code could honour, on every plan change, for
+however long invoicing takes.
 
 **The third possibility turned out to be a different question, and is not offered.** "Start the
 new plan at the next period" is not about money at all, it is about scheduling — and there is
 nowhere on a subscription to hold a change that has not happened, because it holds one plan, not a
 current one and a pending one. So #16 has **no timing field**: the change is immediate, the period
 restarts with it, and moving the pointer now while calling it next period is exactly the
-dishonesty the missing field avoids. Deferring a change belongs to #17, where a period actually
-ends.
+dishonesty the missing field avoids. If deferring a change is ever wanted it belongs next to
+[#17](#e17), which is the endpoint that knows when a period ends — it does not defer anything
+today.
 
 **`SubscriptionEventType` could not describe five of these endpoints — settled 2026-09-07.**
 Filling in the collections column above is what turned it up. Every constant the enum had was a
@@ -445,7 +448,7 @@ new row, because a history you can edit is not a history.
 | Field | Type | What can be in it |
 |---|---|---|
 | `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
-| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13, **`ACTIVATED`** by #15. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** is written by #16. Only **`RENEWED`** belongs to an endpoint that is not built (#17). |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** is written by #16 and **`RENEWED`** by #17. Every value is now written by something. |
 | `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
 | `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
@@ -1673,7 +1676,7 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
 | `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
 | `currentPeriodStart` | no | An instant. Absent means **midnight at the start of today in the school's own time zone** — not the moment the request arrived, because a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
 | `currentPeriodEnd` | **on `CUSTOM`** | An instant, and it must be after the start. Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. |
-| `autoRenew` | no | Absent means `true`. Nothing renews a subscription yet, so today it records the intention only. |
+| `autoRenew` | no | Absent means `true`. **Nothing acts on it.** [#17](#e17) starts the next period when it is called and does not consult the flag, and nothing calls #17 on a schedule — so there is no automatic renewal to switch off. It does appear on the school's own billing view, which tells the school its subscription does not renew automatically. |
 | `contractedPrice` | no | What this school actually pays. Absent means the plan's `listPrice`. Zero is allowed — a free deal is a deal; negative is `400 PRICE_NEGATIVE`. The response shows it next to `planListPrice`, which is the only way to notice a discount. |
 | `maxStudentsOverride` | no | A negotiated student ceiling. **Absent copies the plan's `maxStudents`** onto the subscription rather than leaving a null, so the document says what the school may use on its own. Zero is `400 LIMIT_TOO_LOW` here — on create there is nothing to remove. |
 | `maxUsersOverride` | no | The same, from the plan's `maxUsers`. |
@@ -1931,9 +1934,10 @@ be corrected in the database until #25 exists.
 
 ### It applies no transition rules, deliberately
 
-The lifecycle endpoints (#17 to #22) each know one transition and what it implies — renewing
-raises an invoice, cancelling decides what happens to money already paid. This writes what it is
-told, which is what is needed when a subscription is already wrong and no ordinary transition
+The lifecycle endpoints (#17 to #22) each know one transition and what it implies — [#17](#e17)
+renews only what is renewable, and refuses a trial, a live period or a school that turned
+auto-renewal off; cancelling would decide what happens to money already paid. This writes what it
+is told, which is what is needed when a subscription is already wrong and no ordinary transition
 describes the fix. It is not how a subscription should ordinarily be renewed or cancelled.
 
 One thing is still refused, because there is no reading of it that is not a mistake:
@@ -2175,7 +2179,7 @@ than it tidies.
 | `contractedPrice` | no | **Absent means the new plan's list price.** A discount is **not** carried over automatically: it was agreed against a plan at a price, and this is a different plan at a different price, so continuing it silently would invent a deal nobody made. Send it to continue the same arrangement. Zero allowed, negative refused. |
 | `maxStudentsOverride` | no | **Absent copies the new plan's `maxStudents`**, exactly as #13 does on a sale — so a ceiling negotiated on the old plan is **not** carried across unless it is restated here. At least 1; zero is `400 LIMIT_TOO_LOW`, because there is nothing to remove on a plan change. Removing an override is #14, where zero means exactly that. |
 | `maxUsersOverride` | no | The same, against the new plan's `maxUsers`. |
-| `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. Nothing renews a subscription yet, so it records the intention only. |
+| `autoRenew` | no | **Absent leaves it exactly as it is** — the one absence on this request that does *not* mean "take the new plan's". A plan has no opinion about renewal: it is the school's standing instruction, and a school that turned it off has not changed its mind by moving plan. Defaulting to `true` the way #13 does would switch it back on for precisely the school that asked for it off. **Nothing acts on it** — [#17](#e17) does not consult it. |
 | `currentPeriodEnd` | **on a `CUSTOM` target** | An instant. Absent means the **new** plan's cycle decides — 30, 90, 180 or 365 days from today. A school moving from a yearly plan to a monthly one gets 30 days. |
 
 ### The change is immediate, and there is no field asking otherwise
@@ -2322,13 +2326,161 @@ apply a term agreed for one plan to a different one.
   index sync before it matters.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /platform/schools/{id}/subscriptions/{no}/renew`**
+**[17](#t17) · `POST /platform/schools/{id}/subscriptions/current/renew`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `currentPeriodEnd`, `billingCycle`, `contractedPrice`, `autoRenew`
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `currentPeriodStart`, `currentPeriodEnd` — moved to the next period
-- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `nextValue` — to get the `invoiceNo`
-- [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) — *insert*: `invoiceNo`, `schoolSubscriptionDocsId`, `billingPeriodStart`, `billingPeriodEnd`, `issueDate`, `dueDate`, `status` = `DRAFT`, `currencyCode`, `subTotal`, `taxAmount`, `totalAmount`, `paidAmount` = 0, `outstandingAmount` = `totalAmount`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RENEWED`, `previousStatus`, `newStatus`, `source`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *reads* `status` and `schoolName`. **No write** — a renewal continues an arrangement rather than starting one, so unlike [#16](#e16) it does not take the school `ACTIVE` or lift a suspension
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan the subscription is already on, to name it in the response. A **retired** plan is fine: retiring stops new sales, and refusing to renew would end a school's subscription by inaction
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates* the row whose period **ended**: `current` = false, `reasonForChanges`. Its **dates are left alone** — it ran its full course, which is what distinguishes this from #16, where the closed row's end is trimmed to the day of the change
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: the next period — `subscriptionNo` (its own, from the sequence), `currentPeriodStart` = the old `currentPeriodEnd`, `currentPeriodEnd` = that plus the cycle, `status` = `ACTIVE`, `current` = true, and `planDefinitionDocsId`, `planVersion`, `billingCycle`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `billingCustomerReference` all **copied unchanged**
+- [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — the new row needs a `subscriptionNo` of its own, because a unique index forbids two rows of one school sharing one
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: one row against the **new** subscription — `eventType` = `RENEWED`, `previousStatus`, `newStatus` = `ACTIVE`, `previousPlanDefinitionDocsId` and `newPlanDefinitionDocsId` = the same plan (written rather than left null, because that sameness is what tells a renewal from a plan change in a list of history rows), `source`, `reason`, `effectiveAt` = the new period's start
+- **No invoice.** `subscription_invoices` is not touched — see [the money](#e17-money) below
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+(none — for the four fixed cycles)
+
+// One optional field, and the ordinary
+// renewal omits the body entirely:
+{
+  "currentPeriodEnd": "2027-06-30T23:59:59Z"
+}
+
+// REQUIRED on a CUSTOM cycle, which has no
+// length for anything to derive from.
+// Optional override on the other four.
+//
+// Nothing else, because anything that could
+// change a term would make this a change
+// rather than a renewal:
+//
+//   the terms -> #14
+//   the plan  -> #16
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "subscriptionNo": "SUB/2026/09/000002",
+  "planCode": "PREMIUM",
+  "planVersion": 1,
+  "status": "ACTIVE",
+  "billingCycle": "MONTHLY",
+  "currentPeriodStart": "2026-08-01T00:00:00Z",
+  "currentPeriodEnd": "2026-08-31T00:00:00Z",
+  "contractedPrice": 4242.50,
+  "planListPrice": 4999.00,
+  "currencyCode": "INR",
+  "maxStudents": 500,
+  "maxUsers": 42,
+  "hasLimitOverrides": true,
+  "reasonForChanges": "Renewed from SUB/2026/09/000001 on the same terms.",
+  "note": "Renewed on the same terms: 'PREMIUM' version 1 at 4242.50 INR. SUB/2026/09/000001 is closed and kept as history; this school is now on SUB/2026/09/000002, running from 2026-08-01T00:00:00Z to 2026-08-31T00:00:00Z on its MONTHLY cycle. NO invoice was raised and no money was taken: nothing writes subscription_invoices yet, so this moved the billing period and recorded the renewal without charging for it."
+}
+
+409 PERIOD_NOT_ENDED             — the period is still running
+409 SUBSCRIPTION_NOT_RENEWABLE   — TRIAL, SUSPENDED or CANCELLED
+409 SCHOOL_NOT_RENEWABLE         — the school is winding down
+400 BILLING_PERIOD_END_REQUIRED  — a CUSTOM cycle, no date sent
+400 INVALID_BILLING_PERIOD       — a date not after the start
+404 SCHOOL_NOT_FOUND             — no such school
+404 SUBSCRIPTION_NOT_FOUND       — the school has none
+</pre></td>
+</tr>
+</table>
+
+**The body may be omitted entirely**, and for the four fixed cycles it should be — that is the
+point of the endpoint: it renews what is already there. `current` in the path is the literal word,
+the same as [#14](#e14) and [#16](#e16) — a `subscriptionNo` contains slashes and Tomcat rejects
+them encoded in a path before Spring sees the request.
+
+**Every field on the request**
+
+| Field | Required | What it accepts, and what its absence means |
+|---|---|---|
+| `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant. **Required** when the subscription bills on `CUSTOM`, which has no length for anything to derive from — without it, `400 BILLING_PERIOD_END_REQUIRED`. **Absent on `MONTHLY`, `QUARTERLY`, `HALF_YEARLY` or `YEARLY` means the cycle decides** — 30, 90, 180 or 365 days from where the last period ended, which is the ordinary renewal and needs no body at all. Sending one on a fixed cycle overrides the derived date, as it does on #13 and #16. It must be after the new period's start (the day the previous period ended), or `400 INVALID_BILLING_PERIOD` — a period that ended before it began is one no school was ever on. |
+
+### What renews, and what is refused
+
+| Subscription status | Renew | Result |
+|---|---|---|
+| `ACTIVE` | allowed | stays `ACTIVE` on the next period |
+| `PAST_DUE` | allowed | becomes `ACTIVE` — see below |
+| `EXPIRED` | allowed | becomes `ACTIVE`; this is the case the endpoint exists to repair |
+| `TRIAL` | `409 SUBSCRIPTION_NOT_RENEWABLE` | a trial has no agreed next-period price. Extend it with #14, convert it with #16 |
+| `autoRenew: false` | **allowed** | the flag is not checked — see below |
+| a `CUSTOM` cycle | **allowed, with a date** | it is asked for the next period's end, not refused — see below |
+| `SUSPENDED` | `409 SUBSCRIPTION_NOT_RENEWABLE` | billing a school for a period it cannot use |
+| `CANCELLED` | `409 SUBSCRIPTION_NOT_RENEWABLE` | deliberately ended; renewing would undo a decision |
+
+**All three renewable statuses come out `ACTIVE`.** An `EXPIRED` row whose new period has just
+started would contradict its own dates, and a `PAST_DUE` one carried across would say the new
+period is already unpaid before anything has been invoiced for it. What a `PAST_DUE` renewal does
+**not** do is settle the previous period — nothing here takes a payment — and the `note` says so.
+
+**`autoRenew` is not checked, and refuses nothing.** Nothing calls this endpoint on a schedule, so
+every renewal is an operator deciding to renew this particular school now — and refusing that
+because of a flag would only mean editing the flag first to get past the endpoint, which records a
+change nobody wanted for the sake of a call they did.
+
+The flag is still **carried onto the new row**, and the school's own view (#33) still tells a
+school its subscription does not renew automatically. What does not exist is anything that renews
+on its own, which is what the flag would govern. If a scheduled job is ever built, the flag
+belongs in *its* selection query — that is the thing whose behaviour it describes.
+
+**A `CUSTOM` cycle is asked when the next period ends.** It has no length, so there is nothing to
+derive — and that is a question rather than a refusal, which is the whole reason this endpoint has
+a request body at all. Send `currentPeriodEnd`; without it, `400 BILLING_PERIOD_END_REQUIRED`.
+
+The date is **not guessed**. Falling back to a year, or to the length of the last period, would put
+a date in a billing record that nobody signed off. It is checked against the new period's start —
+the day the previous one ended — so a renewal cannot be made to finish before it began
+(`400 INVALID_BILLING_PERIOD`), and nothing is written when it is refused.
+
+**A school being wound down is refused** — `OFFBOARDING`, `CLOSED`, `DELETION_PENDING`, `DELETED`
+give `409 SCHOOL_NOT_RENEWABLE`. The same allow-list #16 uses, for a plainer reason: do not start a
+new billing period for a customer who is leaving.
+
+### The periods are contiguous, and each call advances exactly one
+
+The new period starts at the **old period's end**, not today. So there is no day the school was
+live but unbilled, and none it was billed twice for.
+
+That is also why a period still running is refused rather than renewed early: starting the next
+period before this one ends would leave the school's `current` row with a period that has not
+begun, and every read of "what is this school on" would have to explain it.
+
+**A subscription several periods behind catches up one call at a time.** Each renewal advances one
+period, so a subscription whose period ended three cycles ago needs three calls — and each new row
+is a real record of a real period rather than one row pretending to cover the whole gap:
+
+```
+SUB/…/000001   ran to 2026-08-01      closed
+SUB/…/000002   2026-08-01 → 2026-08-31   closed by the next call
+SUB/…/000003   2026-08-31 → 2026-09-30   current, period still running
+                                          -> a further call is 409 PERIOD_NOT_ENDED
+```
+
+<a id="e17-money"></a>
+
+### No invoice is raised, and that is what this endpoint is missing
+
+The table for #17 named `subscription_invoices`, and it is deliberately not written. Two reasons,
+and neither is an oversight:
+
+- **There is no repository for it.** `SubscriptionInvoice` is a model and nothing else — no
+  repository, no service, no writer anywhere in the codebase.
+- **Its fields are commercial decisions, not derivations.** `subTotal`, `taxAmount`, `dueDate` and
+  the invoice numbering cannot be worked out from a plan's price by this method. Guessing them
+  would put numbers in a financial record that nobody agreed.
+
+So #17 moves the billing period and records the renewal; it does not charge for it. The `note`
+says so on every response rather than leaving a charge to be assumed. Raising the invoice belongs
+with [#70](#e70), the job that also takes the payment, or with an invoicing endpoint of its own.
 
 <a id="e18"></a>
 **[~~18~~](#t18) · ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~** — not being built
@@ -2525,10 +2677,10 @@ exists to answer, so the rows are the answer.
 | `periodEnded` | The period's end has passed while the status still says the school is paying. |
 | `planRetired` | The plan this school is on has been taken off the menu. Allowed and normal — see [#6](#e6) — but it is why the plan is not on the public list. |
 
-**`periodEnded` is not hypothetical.** Nothing renews a subscription or marks one expired yet —
-#21 and #26 are not built — so a period simply lapses and the status stays as it was. A screen
-reading `status` alone would show a school as paying months after its period ran out. `note` says
-so in a sentence as well.
+**`periodEnded` is not hypothetical.** Nothing marks a subscription expired on its own — #21 and
+#26 are not built — so a period lapses and the status stays as it was. A screen reading `status`
+alone would show a school as paying months after its period ran out. `note` says so in a sentence
+as well, and points at [#17](#e17): renewing is what starts the next period, one period per call.
 
 `contractedPrice` and `planListPrice` are both reported, with `hasDiscount` when they differ: the
 gap between them is the discount, and a discount is the thing somebody rings up about. The limits
@@ -2800,10 +2952,10 @@ subscription has lapsed"* rather than simply hiding it. A gate wants `allowed` a
 | `SUSPENDED`, `CANCELLED`, `EXPIRED` | no |
 | period end in the past, whatever the status says | no |
 
-**That last row is not hypothetical.** Nothing renews a subscription or marks one expired yet —
-#21 and #26 are not built — so a period lapses while the status still reads `ACTIVE`. Trusting
-the status alone would keep a school on a plan it stopped paying for, for as long as nobody
-noticed. `reason` says which of these it is, because *"your subscription was cancelled"* and
+**That last row is not hypothetical.** Nothing marks a subscription expired on its own — #21 and
+#26 are not built — so a period lapses while the status still reads `ACTIVE`. Trusting the status
+alone would keep a school on a plan it stopped paying for, for as long as nobody noticed.
+[#17](#e17) is what starts the next period, but it has to be called: nothing calls it yet. `reason` says which of these it is, because *"your subscription was cancelled"* and
 *"your period ran out"* lead a school to do different things.
 
 ### No usage counts, on purpose

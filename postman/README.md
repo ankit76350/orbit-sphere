@@ -191,7 +191,7 @@ stores an **array of reasons per date**, and the requests are shaped around that
   `eventCount` (reasons recorded). They differ wherever a day carries more than one reason, and
   `countsByType` counts reasons — so a festival that falls on a Sunday is still a festival.
 
-## Subscriptions: #13 closes core's activation gap, #14 edits what it sold
+## Subscriptions: #13 sells, #14 edits, #16 moves the plan, #17 starts the next period
 
 `POST /platform/schools/{id}/subscriptions` is what makes a school a paying customer. Before it,
 **Activate School** always answered `"subscriptionStatus": "NONE"` with a note saying activation
@@ -245,10 +245,6 @@ slashes end the path segment, and writing them as `%2F` gets `400 Invalid URI: [
 character is not allowed]` from Tomcat before Spring routes anything. A school has exactly one
 current subscription, so `current` names it without ambiguity.
 
-**The body is optional, all of it.** Send nothing and the paid period starts now and runs one
-billing cycle. It changes the status and the period and nothing else — the plan, price and limits
-are not on the request, so they cannot move by accident.
-
 **Get Subscription (#27)** reads it all back: the plan and its **features listed rather than
 counted**, the price paid against the plan's list price, the status, and when the period ends.
 Its URL is **singular** — `/subscription` is the one they are on, `/subscriptions` is the
@@ -256,9 +252,58 @@ collection you post to.
 
 It works out three things so no caller has to: `daysRemaining`, `planRetired`, and `periodEnded`
 — the period's end has passed while the status still says the school is paying. That last one is
-real today rather than hypothetical, because nothing renews a subscription or marks one expired
-yet, so a period just lapses and the status stays put. A screen trusting `status` alone would
-show a school as paying months after it ran out.
+real today rather than hypothetical: nothing marks a subscription expired on its own, and #17
+starts the next period only when somebody calls it, which nothing does on a schedule. So a period
+just lapses and the status stays put, and a screen trusting `status` alone would show a school as
+paying months after it ran out.
+
+**Change Plan (#16)** moves a school onto a different plan, or a newer version of its own. It is
+**immediate** — there is no timing field, because a subscription holds one plan rather than a
+current and a pending one — and it **writes two rows**: the row being left is closed
+(`current` = false, its period trimmed to the day of the change) and a new one opens on the new
+plan's terms with a `subscriptionNo` of its own.
+
+- **A `reason` is required**, and the price and both ceilings come from the **new** plan unless the
+  request names them. A negotiated ceiling does **not** carry across: it was agreed against a
+  particular plan, so moving to a different one means the terms are agreed again.
+- **It takes the school ACTIVE.** `PROVISIONING`, `ACTIVE` and `SUSPENDED` schools may change plan
+  and all three come out `ACTIVE` — this is the one endpoint that **un-suspends**, on the argument
+  that a school moving onto a new plan has sorted out whatever the suspension was for. The four
+  wind-down states are `409 SCHOOL_NOT_PLAN_CHANGEABLE`.
+- **No money moves**, and nothing is asked about it.
+
+**Renew Subscription (#17)** starts the next billing period. Normally the nightly job would call
+it; an operator calls it by hand when something went wrong. **Nothing calls it on a schedule yet.**
+
+- **The ordinary renewal has no body at all.** The plan, version, price, currency, both ceilings,
+  the cycle,
+  `autoRenew` and the billing customer reference all carry across **untouched** — negotiated ones
+  included, because nobody agreed to renegotiate anything by renewing. That is the opposite of
+  #16, and it is why there is nothing to send: anything you could pass would make it a change.
+- **Two rows again**, but the closed one keeps its dates: it ran its full course, where #16 trims
+  the row it closes. The new period starts exactly where the old one ended, so no day is unbilled
+  and none is billed twice.
+- **Each call advances exactly one period.** A subscription three cycles behind needs three calls,
+  and each row is a real record of a real period rather than one row covering the gap. The chain
+  stops itself with `409 PERIOD_NOT_ENDED` once the current period reaches the future.
+- **`ACTIVE`, `PAST_DUE` and `EXPIRED` renew, and all three come out `ACTIVE`.** `EXPIRED` is the
+  case it exists to repair. A `PAST_DUE` renewal does **not** settle the previous period — nothing
+  here takes a payment, and the `note` says so.
+- **`autoRenew` is still read by nothing.** #17 does not consult it: nothing calls this endpoint
+  on a schedule, so a renewal is always an operator deciding to renew *this* school now, and
+  refusing that over a flag would just mean editing the flag first to get past the endpoint. It is
+  carried onto the new row, and #33 still tells a school its subscription does not renew
+  automatically. `TRIAL`, `SUSPENDED` and `CANCELLED` are `409 SUBSCRIPTION_NOT_RENEWABLE`.
+- **A `CUSTOM` cycle is asked for a date, not refused.** It has no length, so there is nothing to
+  derive — which is the only reason this endpoint has a request body at all. Send
+  `currentPeriodEnd`; without it, `400 BILLING_PERIOD_END_REQUIRED`. The date is never guessed: a
+  fallback would put a date nobody signed off into a billing record. On the four fixed cycles the
+  field is an optional override, and omitting the body is the ordinary call.
+- **No invoice, no money.** `subscription_invoices` has no repository and no writer anywhere, and
+  `subTotal`/`taxAmount`/`dueDate` are commercial decisions rather than derivations from a plan's
+  price. So #17 moves the billing period and records the renewal; it does not charge for it.
+- **It does not touch the school's own status**, unlike #16: a renewal continues an arrangement
+  rather than starting one.
 
 ## The school's own view: #33 and #34
 

@@ -122,7 +122,10 @@ public record SubscriptionPlanChangeRequest(
          * not changed its mind by moving plan. Defaulting to {@code true} here, as #13 does on a
          * sale, would switch it back on for exactly the school that had asked for it off.
          *
-         * <p>Nothing renews a subscription yet, so today this records the intention and no more.
+         * <p>Nothing acts on it. #17 starts the next period when it is called and does not
+         * consult this flag, because nothing calls #17 on a schedule — so there is no automatic
+         * renewal for the flag to switch off. What it does do is show up on the school's own
+         * billing view, which tells the school its subscription does not renew automatically.
          */
         Boolean autoRenew,
 

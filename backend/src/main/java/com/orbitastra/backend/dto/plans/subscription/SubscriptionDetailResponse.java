@@ -26,10 +26,11 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
  * the same sum.
  *
  * <p><b>{@code periodEnded}</b> — the period's end has passed while the status still says the
- * subscription is live. That is a real state today, not a hypothetical: nothing renews a
- * subscription or marks one expired yet (#21 and #26 are not built), so a period simply lapses
- * and the status stays as it was. A screen reading `status` alone would report a school as paying
- * when its period ran out months ago.
+ * subscription is live. That is a real state today, not a hypothetical: nothing marks a
+ * subscription expired on its own (#21 and #26 are not built), and #17 renews only when somebody
+ * calls it — nothing calls it yet. So a period lapses and the status stays as it was, and a
+ * screen reading {@code status} alone would report a school as paying when its period ran out
+ * months ago.
  *
  * <p><b>{@code planRetired}</b> — the plan this school is on has been taken off the menu. That is
  * allowed and normal: retiring stops new sales and changes nothing for schools already on it. But

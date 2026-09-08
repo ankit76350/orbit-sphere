@@ -19,6 +19,7 @@ import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.models.core.School;
@@ -672,6 +673,269 @@ public class PlatformSubscriptionService {
                 String.join(" ", note));
     }
 
+    //! Endpoint 17 — start the next billing period ------------------------------------
+
+    /**
+     * #17 — renews a subscription into its next billing period, on the same terms.
+     *
+     * <p><b>The ordinary renewal sends no body, and one field exists for the case that cannot.</b>
+     * A renewal is the same plan at the same price for the next period: the plan, the version, the
+     * price, the currency, both capacity ceilings, the cycle, {@code autoRenew} and the billing
+     * customer reference all carry across untouched. Anything that could change one of those would
+     * make this a change rather than a renewal, and changes have their own endpoints — #14 for the
+     * terms, #16 for the plan.
+     *
+     * <p>The exception is {@code currentPeriodEnd}, and only because a {@code CUSTOM} cycle has no
+     * length: there is nothing to derive, so the caller has to say when the next period ends.
+     * Required on {@code CUSTOM}, an override on the four fixed cycles, and omitted — with no body
+     * at all — for every ordinary renewal.
+     *
+     * <p><b>It writes two rows, the same way #16 does.</b> A renewal is a new billing period, and
+     * {@code school_subscriptions} holds one document per period rather than one per school — so
+     * the period that just ended is closed ({@code current = false}) and a new row is inserted
+     * with a {@code subscriptionNo} of its own. That is what makes "what was this school paying
+     * in March, and for which period" answerable from the collection.
+     *
+     * <p>The closed row keeps its status. It did not expire and was not cancelled — it ran its
+     * course and was renewed, and {@code current} is the field that says which row is live.
+     *
+     * <p><b>The new period starts where the old one ended, not today.</b> Contiguous, so there is
+     * no gap the school was live but unbilled for and no overlap it was billed twice for. This is
+     * why renewal is refused before the period has actually ended: starting the next period early
+     * would leave the school's current row with a period that has not begun, and every read would
+     * have to explain it.
+     *
+     * <h2>What it refuses, and why each one</h2>
+     *
+     * <pre>
+     * period still running        -> 409 PERIOD_NOT_ENDED       there is no next period yet
+     * TRIAL                       -> 409 SUBSCRIPTION_NOT_RENEWABLE  a trial has no next period
+     * SUSPENDED                   -> 409 SUBSCRIPTION_NOT_RENEWABLE  billing blocked access
+     * CANCELLED                   -> 409 SUBSCRIPTION_NOT_RENEWABLE  deliberately ended
+     * CUSTOM, no end date sent    -> 400 BILLING_PERIOD_END_REQUIRED  say when it ends
+     * an end date not after start -> 400 INVALID_BILLING_PERIOD   it would end before it began
+     * a school being wound down   -> 409 SCHOOL_NOT_RENEWABLE    do not bill a school that is going
+     * </pre>
+     *
+     * <p><b>{@code autoRenew} is not checked, and does not refuse anything.</b> Nothing calls
+     * this endpoint on a schedule, so every renewal is an operator deciding to renew this school
+     * now — and refusing that because of a flag would mean editing the flag first just to get
+     * past this endpoint. The flag is still carried onto the new row, and the school's own view
+     * still tells it the subscription does not renew automatically; what does not exist is
+     * anything that renews on its own for the flag to govern.
+     *
+     * <p><b>ACTIVE, PAST_DUE and EXPIRED renew, and all three come out ACTIVE.</b> EXPIRED is the
+     * case this endpoint exists to repair — a period ran out because nothing renewed it — and
+     * leaving it EXPIRED after starting a new period would contradict the row's own dates.
+     * PAST_DUE renews because an operator calling this by hand is saying the period should start;
+     * the note says the outstanding payment is not thereby settled, because nothing here settles
+     * it.
+     *
+     * <p><b>No invoice is raised, and that is the one thing this endpoint is missing.</b> The
+     * table for #17 names {@code subscription_invoices}, and it is deliberately not written: no
+     * repository exists for it, and the fields it would need — {@code subTotal},
+     * {@code taxAmount}, {@code dueDate} — are commercial decisions rather than something this
+     * method can derive from a plan's price. So this moves the billing period and records the
+     * renewal; it does not charge for it. The response says so rather than letting a caller
+     * assume money moved.
+     *
+     * <p><b>It does not touch the school's own status</b>, unlike #16. A renewal is the
+     * continuation of an arrangement rather than a new one, so there is nothing about it that
+     * should take a school live or lift a suspension.
+     */
+    @Transactional
+    public SubscriptionDetailResponse renewSubscription(String schoolId, String subscriptionNo,
+            SubscriptionRenewRequest request) {
+
+        //! step 1 - the school has to exist, and be one worth billing for another period. The
+        //! same allow-list #16 uses: starting a new billing period for a school that is closing
+        //! bills a customer who is leaving.
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
+                || school.getStatus() == SchoolStatus.ACTIVE
+                || school.getStatus() == SchoolStatus.SUSPENDED;
+
+        if (!schoolIsStillRunning) {
+            throw ApiException.conflict("SCHOOL_NOT_RENEWABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + ", so its "
+                            + "subscription cannot be renewed. Only a PROVISIONING, ACTIVE or "
+                            + "SUSPENDED school can be billed for another period.");
+        }
+
+        //! step 2 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - only three statuses have a next period. A TRIAL does not renew into one:
+        //! nobody has agreed what it costs, so extending it is #14 and converting it is #16. A
+        //! SUSPENDED subscription would be billed for a period the school cannot use, and a
+        //! CANCELLED one was deliberately ended — renewing either would undo a decision.
+        SubscriptionStatus statusBefore = subscription.getStatus();
+
+        boolean renewable = statusBefore == SubscriptionStatus.ACTIVE
+                || statusBefore == SubscriptionStatus.PAST_DUE
+                || statusBefore == SubscriptionStatus.EXPIRED;
+
+        if (!renewable) {
+            throw ApiException.conflict("SUBSCRIPTION_NOT_RENEWABLE",
+                    subscription.getSubscriptionNo() + " is " + statusBefore + ", so it has no "
+                            + "next billing period. Only ACTIVE, PAST_DUE and EXPIRED "
+                            + "subscriptions renew — a trial is extended with the edit endpoint "
+                            + "and converted by changing its plan.");
+        }
+
+        //! step 4 - the plan it is on, read before anything moves so the response can name it.
+        //! A retired plan is fine here: retiring stops new sales, and a school already on one
+        //! keeps it — refusing to renew would end its subscription by inaction.
+        // TODO: read plan
+        PlanDefinition plan = loadPlanBehindSubscription(subscription);
+
+        //! step 5 - a CUSTOM cycle has no length, so the caller has to say when the next period
+        //! ends. This is the ONLY thing this endpoint accepts a body for, and the only cycle that
+        //! needs one: the other four derive their own end from the days in the cycle.
+        //!
+        //! Refused rather than guessed. A custom contract runs to a date somebody agreed, and
+        //! inventing one — a year, or the length of the last period — would put a date in a
+        //! billing record that nobody signed off.
+        Instant requestedPeriodEnd = request == null ? null : request.currentPeriodEnd();
+
+        if (subscription.getBillingCycle() == BillingCycle.CUSTOM && requestedPeriodEnd == null) {
+            throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
+                    subscription.getSubscriptionNo() + " bills on a CUSTOM cycle, which has no "
+                            + "set length, so currentPeriodEnd has to be sent to say when the "
+                            + "next period ends.");
+        }
+
+        //! step 6 - there is no next period until this one has finished. Renewing early would
+        //! insert a current row whose period starts in the future, leaving every read of "what
+        //! is this school on" to explain a subscription that has not begun.
+        Instant previousPeriodEnd = subscription.getCurrentPeriodEnd();
+
+        if (previousPeriodEnd == null || previousPeriodEnd.isAfter(Instant.now())) {
+            throw ApiException.conflict("PERIOD_NOT_ENDED",
+                    subscription.getSubscriptionNo() + " runs to " + previousPeriodEnd
+                            + ", which has not passed yet, so there is no next period to start. "
+                            + "To move that date, use the edit endpoint.");
+        }
+
+        //! step 7 - the next period starts exactly where the last one ended, so the two are
+        //! contiguous: no day the school was live but unbilled, and none it was billed twice for.
+        //! The cycle is the SUBSCRIPTION's, not the plan's — #14 can have changed it, and a
+        //! renewal renews what the school is actually on.
+        //! The caller's date wins where one was sent — required on CUSTOM, an override on the
+        //! rest — and is checked against the new period's start, so a renewal cannot be made to
+        //! end before it began.
+        Instant periodStart = previousPeriodEnd;
+        Instant periodEnd = calculateSubscriptionPeriodEnd(requestedPeriodEnd, periodStart,
+                subscription.getBillingCycle());
+
+        //! step 8 - close the period that just ended. Its dates are left exactly as they are:
+        //! it ran its full course, which is the difference between this and #16, where the old
+        //! row's end is trimmed to the day the school left the plan.
+        String previousSubscriptionNo = subscription.getSubscriptionNo();
+
+        subscription.setCurrent(false);
+        subscription.setReasonForChanges("Renewed into the next billing period. This row is the "
+                + "period ending " + previousPeriodEnd + ".");
+
+        //! step 9 - written BEFORE the new row, because the unique partial index on
+        //! {schoolId, current} allows one current row per school and the old one still claims it
+        // TODO: update current school subscription
+        schoolSubscription.save(subscription);
+
+        //! step 10 - a number of its own, for the same reason #16 allocates one: two rows of one
+        //! school cannot share a subscriptionNo, and an invoice pointing at a number matching two
+        //! records would be unanswerable.
+        String subscriptionNumber = numberSequences.next(schoolId, NumberSequenceType.SUBSCRIPTION,
+                "SUB/{YYYY}/{MM}/");
+
+        //! step 11 - the next period, on identical terms. Everything negotiable is copied rather
+        //! than re-derived from the plan: a school renewing keeps the price and the ceilings it
+        //! actually had, including negotiated ones, because nobody agreed to renegotiate them by
+        //! renewing. That is the opposite of #16, where a different plan means different terms.
+        SchoolSubscription renewed = SchoolSubscription.builder()
+                .schoolId(schoolId)
+                .subscriptionNo(subscriptionNumber)
+                .planDefinitionDocsId(subscription.getPlanDefinitionDocsId())
+                .planVersion(subscription.getPlanVersion())
+                // ACTIVE whichever of the three it was. An EXPIRED row whose new period has just
+                // started would contradict its own dates, and a PAST_DUE one carried across would
+                // say the new period is already unpaid before anything has been invoiced for it.
+                .status(SubscriptionStatus.ACTIVE)
+                .billingCycle(subscription.getBillingCycle())
+                .currentPeriodStart(periodStart)
+                .currentPeriodEnd(periodEnd)
+                .autoRenew(subscription.getAutoRenew())
+                .contractedPrice(subscription.getContractedPrice())
+                .currencyCode(subscription.getCurrencyCode())
+                .maxStudentsOverride(subscription.getMaxStudentsOverride())
+                .maxUsersOverride(subscription.getMaxUsersOverride())
+                .billingCustomerReference(subscription.getBillingCustomerReference())
+                .reasonForChanges("Renewed from " + previousSubscriptionNo + " on the same terms.")
+                .current(true)
+                .build();
+
+        // TODO: insert school subscription
+        SchoolSubscription saved = schoolSubscription.save(renewed);
+
+        //! step 12 - one history row, against the row the school moved onto. Both plan ids are
+        //! the same plan, and that is worth writing down rather than leaving null: it is what
+        //! distinguishes a renewal from a plan change in a list of history rows.
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.RENEWED)
+                .previousStatus(statusBefore)
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(subscription.getPlanDefinitionDocsId())
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason("Renewed on the same terms: '" + plan.getPlanCode() + "' version "
+                        + plan.getPlanVersion() + ". " + previousSubscriptionNo + " covered the "
+                        + "period ending " + previousPeriodEnd + " and was closed; "
+                        + saved.getSubscriptionNo() + " covers " + periodStart + " to "
+                        + periodEnd + ".")
+                .performedByDocsId(null)
+                .effectiveAt(periodStart)
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 13 - the note. What the renewal did, what it did NOT do about the money, and
+        //! anything standing about the subscription a reader needs either way.
+        List<String> note = new ArrayList<>();
+        note.add("Renewed on the same terms: '" + plan.getPlanCode() + "' version "
+                + plan.getPlanVersion() + " at " + saved.getContractedPrice() + " "
+                + saved.getCurrencyCode() + ". " + previousSubscriptionNo + " is closed and kept "
+                + "as history; this school is now on " + saved.getSubscriptionNo()
+                + ", running from " + periodStart + " to " + periodEnd + " on its "
+                + saved.getBillingCycle() + " cycle.");
+
+        note.add("NO invoice was raised and no money was taken: nothing writes "
+                + "subscription_invoices yet, so this moved the billing period and recorded the "
+                + "renewal without charging for it.");
+
+        if (statusBefore == SubscriptionStatus.EXPIRED) {
+            note.add("It was EXPIRED and is now ACTIVE — this renewal is what a lapsed "
+                    + "subscription was waiting for.");
+        }
+        if (statusBefore == SubscriptionStatus.PAST_DUE) {
+            note.add("It was PAST_DUE and is now ACTIVE. Whatever was outstanding on the previous "
+                    + "period is NOT settled by this — nothing here takes a payment.");
+        }
+
+        String standing = describeSubscriptionState(saved, plan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        return SubscriptionDetailResponse.fromSubscription(saved, plan, String.join(" ", note));
+    }
+
     //! Endpoint 27 — what one school is on right now ----------------------------------
 
     /**
@@ -687,8 +951,9 @@ public class PlatformSubscriptionService {
      * subscription" are different problems and a single 404 for both sends people looking in the
      * wrong place. That read costs nothing on the path that succeeds.
      *
-     * <p><b>It reports a lapsed period rather than hiding it.</b> Nothing renews a subscription
-     * or marks one expired yet — #21 and #26 are not built — so a period can run out while the
+     * <p><b>It reports a lapsed period rather than hiding it.</b> Nothing marks a subscription
+     * expired on its own — #21 and #26 are not built — and #17 starts the next period only when
+     * somebody calls it, which nothing does on a schedule yet. So a period can run out while the
      * status still says the school is paying. The response says so in {@code periodEnded} and in
      * {@code note}, because a screen trusting {@code status} alone would show a school as live
      * months after its period ended.
@@ -719,21 +984,10 @@ public class PlatformSubscriptionService {
                 plan,
                 describeSubscriptionState(subscription, plan));
         }
-    //! Endpoint 33 — the school's own billing screen ----------------------------------
+    
+    
 
-    /**
-     * #33 — what the school itself sees: its plan, what it costs, when it renews.
-     *
-     * <p><b>Not #27 with a different URL.</b> #27 is the platform read and shows everything;
-     * this one leaves out the plan's list price, the gateway's customer reference and the
-     * negotiated overrides. A school on a discount being shown a price it is not paying is
-     * either a discount somebody then has to explain or an increase they will ring up about, and
-     * the gateway's id for them is ours to hold. Two response types rather than one shared type
-     * is what keeps that true when somebody adds a field later.
-     *
-     * <p>The school is never named in the URL — it comes from the tenant, so a caller cannot ask
-     * about a school it does not belong to.
-     */
+    //! Endpoint 33 — the school's own billing screen ----------------------------------
     public MySubscriptionResponse getMySubscription(School school) {
 
         //! step 1 - the school's one current subscription
@@ -885,14 +1139,16 @@ public class PlatformSubscriptionService {
 
         if (end != null && !end.isAfter(Instant.now()) && live) {
             notes.add("The period ended on " + end + " but the status still says "
-                    + subscription.getStatus() + ". Nothing renews a subscription or marks one "
-                    + "expired yet, so this has to be read as lapsed rather than paying.");
+                    + subscription.getStatus() + ". Nothing marks a subscription expired on its "
+                    + "own yet, so this has to be read as lapsed rather than paying — renewing "
+                    + "it starts the next period.");
         }
 
         if (subscription.getStatus() == SubscriptionStatus.TRIAL) {
             notes.add("This is a trial. It becomes a paying subscription either by setting its "
                     + "status through #14, or — when the school is buying a different plan from "
-                    + "the one it tried — by selling it a new subscription.");
+                    + "the one it tried — by changing its plan. Renewing it is refused: nobody "
+                    + "has agreed what the next period costs.");
         }
 
         if (plan.getStatus() == PlanStatus.RETIRED) {

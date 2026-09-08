@@ -521,6 +521,95 @@ for (const [label, ok] of saleFillChecks) {
   if (!ok) fail++
 }
 
+// #17 takes no request body, so it is a button rather than a modal — and the refusals it would
+// give are worked out on the screen so they show on the button instead of arriving as a 409.
+// That mirror can drift, so the renewable statuses are read back out of the Java.
+console.log('\nRenewing is a button, and it says when it would be refused')
+const javaService = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
+  'utf8')
+const ALL_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED', 'EXPIRED']
+// The service's allow-list, lifted from renewSubscription's own condition.
+const renewableInJava = ALL_STATUSES.filter((st) =>
+  new RegExp(`renewable[\\s\\S]{0,240}SubscriptionStatus\\.${st}\\b`).test(javaService))
+const refusedInJava = ALL_STATUSES.filter((st) => !renewableInJava.includes(st))
+const mirrorSource = subsSourceFull.slice(subsSourceFull.indexOf('function whyRenewWouldRefuse('),
+  subsSourceFull.indexOf('edit the terms */'))
+// The CUSTOM dialog on its own, ending at whichever function follows it, so the sale form's
+// four boxes below cannot answer for "this dialog has one field".
+const renewDialogStart = subsSourceFull.indexOf('function RenewCustomPeriod(')
+const renewDialogSource = subsSourceFull.slice(renewDialogStart,
+  Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+    .map((m) => m.index).filter((i) => i > renewDialogStart)))
+
+const renewChecks = [
+  ['the screen has a refusal mirror at all', mirrorSource.length > 0],
+  [`the Java renews exactly ACTIVE, PAST_DUE, EXPIRED (got ${renewableInJava.join(', ')})`,
+    renewableInJava.join(',') === 'ACTIVE,PAST_DUE,EXPIRED'],
+  [`and the screen refuses exactly the other three (${refusedInJava.join(', ')})`,
+    refusedInJava.every((st) => mirrorSource.includes(st))
+      && renewableInJava.every((st) => !mirrorSource.includes(`'${st}'`))],
+  // autoRenew is NOT a refusal: #17 does not check it, so neither should the screen. Guarded
+  // the other way round, because a mirror that refuses more than the API does is just as wrong.
+  ['it does not invent an autoRenew refusal', !mirrorSource.includes('autoRenew')],
+  ['and the service does not check autoRenew either',
+    !/renewSubscription[\s\S]{0,4000}AUTO_RENEW_OFF/.test(javaService)],
+  // A CUSTOM cycle is NOT a refusal any more — it is a question. The mirror must not treat it as
+  // one, or the button would block a renewal the API would happily do once given a date.
+  ['a CUSTOM cycle is not in the refusal mirror', !mirrorSource.includes('CUSTOM')],
+  ['the service asks for the date rather than refusing',
+    /renewSubscription[\s\S]{0,6000}BILLING_PERIOD_END_REQUIRED/.test(javaService)
+      && !javaService.includes('CUSTOM_CYCLE_NOT_RENEWABLE')],
+  ['it mirrors the period-not-ended refusal',
+    mirrorSource.includes('new Date(s.currentPeriodEnd) > new Date()')],
+  // A dialog exists now, but only for CUSTOM: an ordinary renewal has nothing to fill in, so it
+  // must still go straight out rather than opening a form with nothing in it.
+  ['an ordinary renewal opens no dialog',
+    /else renew\(\)/.test(subsSourceFull) && !/setRenewingCustom\(true\)\s*\n\s*renew\(/.test(subsSourceFull)],
+  ['the button is disabled by the mirror, not by a bare status test',
+    subsSourceFull.includes('disabled={Boolean(renewRefusal)}')],
+  ['the reason is shown rather than only blocking',
+    subsSourceFull.includes('{renewRefusal') && subsSourceFull.includes('Cannot renew yet')],
+  // The one field #17 ever asks for, and only for the one cycle that needs it.
+  ['a CUSTOM cycle gets asked for the end date',
+    subsSourceFull.includes('function renewNeedsEndDate')
+      && /renewNeedsEndDate[\s\S]{0,120}billingCycle === 'CUSTOM'/.test(subsSourceFull)],
+  ['and only a CUSTOM cycle opens the dialog',
+    subsSourceFull.includes('if (renewNeedsEndDate(subscription)) setRenewingCustom(true)')
+      && subsSourceFull.includes('else renew()')],
+  ['the dialog asks for nothing but the date',
+    (renewDialogSource.match(/<Field/g) || []).length === 1
+      && (renewDialogSource.match(/<Input/g) || []).length === 1
+      && renewDialogSource.includes('type="date"')],
+  // No date means no body at all — buildCall omits the body and the Content-Type when it is
+  // undefined, which is what the endpoint expects for the four derivable cycles.
+  ['an ordinary renewal still sends no body',
+    subsSourceFull.includes('body: endDate ? { currentPeriodEnd: endOfDay(endDate) } : undefined')],
+  ['the picker will not offer a day before the period starts',
+    subsSourceFull.includes('min={startsOn || undefined}')],
+  ['and a too-early date is caught before it is sent',
+    subsSourceFull.includes('const tooEarly =') && subsSourceFull.includes('endDate <= startsOn')
+      && subsSourceFull.includes('disabled={!endDate || tooEarly}')],
+  ['the dialog says a renewal is not a renegotiation',
+    subsSourceFull.includes('a renewal is not a renegotiation')],
+  ['the endpoint is tagged on the screen',
+    subsSourceFull.includes('id="renew-subscription"')],
+  // The two things easiest to assume the wrong way round about a renewal.
+  ['it says no money moves and no invoice is raised',
+    subsSourceFull.includes('Renewing takes no money and raises no invoice')],
+  ['it says a second row is written',
+    /second row<\/strong>/.test(subsSourceFull)],
+  ['and that warning is hidden when renewing is refused anyway',
+    subsSourceFull.includes('{renewRefusal ? null : (')],
+  // #16 has been built since this banner was written.
+  ['the trial banner no longer calls #16 unbuilt',
+    !subsSourceFull.includes('not built yet')],
+]
+for (const [label, ok] of renewChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A CUSTOM cycle has no length, so the API cannot derive a period end and refuses the sale
 // without one. The form has to ask, or the only way to find out is a 400 with a filled-in form.
 //

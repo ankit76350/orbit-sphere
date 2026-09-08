@@ -31,11 +31,23 @@ import lombok.experimental.SuperBuilder;
  * overrides are stored here because one school can negotiate terms different
  * from the public plan defaults.
  *
- * <p><b>One document per plan period, not per school.</b> Exactly one may have
- * {@code current = true}, and that is the row the school is on; the rest are
- * the plan periods it has been through. #16 is what makes a second: it closes
- * the row being left ({@code current = false}, period trimmed to the day of
- * the change) and inserts a new one with its own {@code subscriptionNo}.
+ * <p><b>One document per billing period, not per school.</b> Exactly one may
+ * have {@code current = true}, and that is the row the school is on; the rest
+ * are the periods it has been through. Two endpoints make a second row, and
+ * they differ in what happens to the one being closed:
+ *
+ * <ul>
+ *   <li><b>#16, a plan change</b> — closes the current row with its period
+ *       <i>trimmed</i> to the day of the change, because that is the period it
+ *       actually served, and inserts a row on the new plan's terms.</li>
+ *   <li><b>#17, a renewal</b> — closes the current row with its dates left
+ *       alone, because it ran its full course, and inserts a row on
+ *       <i>identical</i> terms whose period starts where that one ended.</li>
+ * </ul>
+ *
+ * <p>Either way the new row gets its own {@code subscriptionNo} from the
+ * sequence, and the closed row keeps its status: it was superseded or renewed,
+ * not cancelled or expired.
  *
  * <p>So every read of "the school's subscription" goes through
  * {@code schoolId + current}, never through "the one row for this school".

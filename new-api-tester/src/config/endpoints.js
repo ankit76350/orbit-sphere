@@ -6705,6 +6705,252 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
       ],
     },
     {
+      id: "renew-subscription",
+      name: "Renew Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/renew",
+      status: 'live',
+      summary: "Starts the next billing period on identical terms. No request body.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/current/renew\` — starts the next billing period.
+
+Normally the nightly job would call this; an operator calls it by hand when something went wrong.
+**Nothing calls it on a schedule yet**, so today it is only ever called by hand.
+
+### The ordinary renewal sends no body
+
+A renewal is the same plan at the same price for the next period. The plan, the version, the price,
+the currency, both capacity ceilings, the cycle, \`autoRenew\` and the billing customer reference
+all carry across **untouched** — including negotiated ones, because nobody agreed to renegotiate
+anything by renewing. That is the opposite of #16, where a different plan means different terms.
+
+Anything that could change one of those would make it a change rather than a renewal, and changes
+have their own endpoints: **#14** for the terms, **#16** for the plan.
+
+**One field exists, for the one case that cannot be derived.** A \`CUSTOM\` cycle has no length, so
+\`currentPeriodEnd\` says when the next period ends — **required** there, and an optional override
+on the four fixed cycles. Omit the body entirely for an ordinary renewal.
+
+### It writes two rows, the same way #16 does
+
+The period that just ended is **closed** — \`current\` becomes false — and a new row is inserted
+with a \`subscriptionNo\` of its own. So \`school_subscriptions\` holds one document per billing
+period rather than one per school.
+
+The closed row's **dates are left alone**, which is the difference from #16: it ran its full course,
+where a plan change trims the old row's end to the day the school left. Its status is not touched
+either — it was renewed, not expired and not cancelled.
+
+### The periods are contiguous, and each call advances exactly one
+
+The new period starts at the **old period's end**, not today — so there is no day the school was
+live but unbilled, and none it was billed twice for.
+
+A subscription several periods behind catches up **one call at a time**:
+
+\`\`\`
+SUB/…/000001   ran to 2026-08-01           closed
+SUB/…/000002   2026-08-01 → 2026-08-31     closed by the next call
+SUB/…/000003   2026-08-31 → 2026-09-30     current, period still running
+                                            -> a further call is 409 PERIOD_NOT_ENDED
+\`\`\`
+
+### What renews
+
+| Status | Renew | Result |
+|---|---|---|
+| \`ACTIVE\` | yes | stays \`ACTIVE\` |
+| \`PAST_DUE\` | yes | becomes \`ACTIVE\` — but the outstanding payment is NOT settled |
+| \`EXPIRED\` | yes | becomes \`ACTIVE\`; the case this endpoint exists to repair |
+| \`TRIAL\` | \`409\` | no agreed next-period price. Extend with #14, convert with #16 |
+| \`SUSPENDED\` | \`409\` | would bill for a period the school cannot use |
+| \`CANCELLED\` | \`409\` | deliberately ended |
+
+**\`autoRenew\` is not checked, and refuses nothing.** Nothing calls this endpoint on a schedule, so
+every renewal is an operator deciding to renew this school now — refusing that over a flag would
+only mean editing the flag first to get past the endpoint. It is still carried onto the new row,
+and #33 still tells a school its subscription does not renew automatically.
+
+A \`CUSTOM\` cycle is **asked when the next period ends**, not refused: it has no length, so send
+\`currentPeriodEnd\` or get \`400 BILLING_PERIOD_END_REQUIRED\`. The date is never guessed — a
+fallback would put a date nobody signed off into a billing record — and it has to be after the new
+period's start, or \`400 INVALID_BILLING_PERIOD\`.
+
+### No invoice is raised, and no money is taken
+
+\`subscription_invoices\` has no repository and no writer anywhere in the codebase, and its fields
+— \`subTotal\`, \`taxAmount\`, \`dueDate\`, the invoice number — are commercial decisions rather
+than something this endpoint can derive from a plan's price. So this **moves the billing period and
+records the renewal; it does not charge for it**, and the \`note\` says so on every response.
+
+It also does **not** touch the school's own status, unlike #16: a renewal continues an arrangement
+rather than starting one, so there is nothing about it that should take a school live.`,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+      ],
+      requestFields: [
+        { name: "currentPeriodEnd", required: "on a CUSTOM cycle",
+          note: "When the next period ends. Required on CUSTOM, which has no length to derive from. Absent on the four fixed cycles means the cycle decides — 30, 90, 180 or 365 days from where the last period ended, which is the ordinary renewal and needs no body at all." },
+      ],
+      responseFields: ["subscriptionNo", "planCode", "planVersion", "status", "billingCycle",
+        "currentPeriodStart", "currentPeriodEnd", "contractedPrice", "planListPrice",
+        "currencyCode", "maxStudents", "maxUsers", "hasLimitOverrides", "reasonForChanges",
+        "note"],
+      errors: [
+        { status: 409, code: "PERIOD_NOT_ENDED", when: "The period is still running" },
+        { status: 409, code: "SUBSCRIPTION_NOT_RENEWABLE", when: "TRIAL, SUSPENDED or CANCELLED" },
+        { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A CUSTOM cycle, no date sent" },
+        { status: 400, code: "INVALID_BILLING_PERIOD", when: "A date not after the period's start" },
+        { status: 409, code: "SCHOOL_NOT_RENEWABLE", when: "The school is being wound down" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "The school has no subscription" },
+      ],
+      examples: [
+        {
+          name: "1 — the happy path, on a period that has ended",
+          notes: `There is no body. The only setup needed is a subscription whose period is in the
+    past, because a live period is refused.
+
+    From mongosh:
+      db.school_subscriptions.updateOne(
+        { schoolId: "<id>", current: true },
+        { $set: { currentPeriodEnd: new Date("2026-08-01T00:00:00Z") } })
+
+    NOTE: use new Date(...), not { $date: ... } — extended JSON inside a
+    mongosh --eval is stored as a literal subdocument and then fails to map
+    back to Instant, which shows up as a 500 on the next read.
+
+    Then send this with no body.
+
+    -> 200, and a NEW subscriptionNo. Check the collection:
+       db.school_subscriptions.find({ schoolId: "<id>" })
+         -> two rows, exactly one with current: true
+         -> the closed row keeps its own currentPeriodEnd and its status
+         -> the new row's currentPeriodStart == the closed row's
+            currentPeriodEnd, exactly`,
+          body: null,
+        },
+        {
+          name: "2 — the terms carry across untouched",
+          notes: `Sell a subscription with negotiated terms first, so there is something to
+    carry: contractedPrice, maxStudentsOverride and maxUsersOverride all
+    different from the plan's own figures.
+
+    Renew it, and compare the response with what Get Subscription said
+    before:
+
+      planCode, planVersion, billingCycle, contractedPrice, currencyCode,
+      maxStudents, maxUsers, maxStudentsOverride, maxUsersOverride,
+      hasLimitOverrides, autoRenew
+        -> all identical
+
+      subscriptionNo, currentPeriodStart, currentPeriodEnd
+        -> the only three that move
+
+    A renewal is NOT a renegotiation: hasLimitOverrides stays true, and a
+    discount stays a discount. #16 is the endpoint where terms are agreed
+    again, because a different plan means different terms.`,
+          body: null,
+        },
+        {
+          name: "3 — a period still running is refused",
+          notes: `Send it against a freshly sold subscription, with no setup at all.
+
+    -> 409 PERIOD_NOT_ENDED, naming the date it runs to.
+
+    Renewing early would insert a current row whose period starts in the
+    future, and every read of "what is this school on" would then have to
+    explain a subscription that has not begun. To move that date, use
+    Edit Subscription.`,
+          body: null,
+        },
+        {
+          name: "4 — TRIAL, SUSPENDED and CANCELLED are refused; PAST_DUE and EXPIRED are not",
+          notes: `For each, set the status and put the period in the past:
+      db.school_subscriptions.updateOne(
+        { schoolId: "<id>", current: true },
+        { $set: { status: "TRIAL",
+                  currentPeriodEnd: new Date("2026-08-01T00:00:00Z") } })
+
+    TRIAL      -> 409 SUBSCRIPTION_NOT_RENEWABLE
+    SUSPENDED  -> 409 SUBSCRIPTION_NOT_RENEWABLE
+    CANCELLED  -> 409 SUBSCRIPTION_NOT_RENEWABLE
+
+    PAST_DUE   -> 200, and the new row's status is ACTIVE. The note says the
+                  outstanding payment is NOT settled by this.
+    EXPIRED    -> 200, and the new row's status is ACTIVE. This is the case
+                  the endpoint exists to repair.
+
+    All three renewable statuses come out ACTIVE: an EXPIRED row whose new
+    period has just started would contradict its own dates.`,
+          body: null,
+        },
+        {
+          name: "5 — a CUSTOM cycle is asked for the date",
+          notes: `Sell a plan whose billingCycle is CUSTOM (Create Subscription requires
+    currentPeriodEnd for one), then put that end date in the past.
+
+    Send with NO body:
+      -> 400 BILLING_PERIOD_END_REQUIRED, naming currentPeriodEnd. An empty
+         body and an explicit null do the same — Jackson cannot tell them
+         apart, and all three mean "no date was given".
+
+    Then send the body on the right, with a date AFTER the day the previous
+    period ended:
+      -> 200. currentPeriodStart is the old period's end, currentPeriodEnd is
+         exactly the date you sent, and billingCycle is still CUSTOM.
+
+    A date on or before the start:
+      -> 400 INVALID_BILLING_PERIOD, and nothing is written. A period that
+         ended before it began is one no school was ever on.
+
+    The date is never guessed. Falling back to a year, or to the length of the
+    last period, would put a date nobody signed off into a billing record.`,
+          body: { currentPeriodEnd: "2027-03-31T23:59:59Z" },
+        },
+        {
+          name: "6 — a school being wound down is refused",
+          notes: `db.schools.updateOne({ _id: ObjectId("<id>") },
+                           { $set: { status: "CLOSED" } })
+
+    -> 409 SCHOOL_NOT_RENEWABLE
+
+    Same for OFFBOARDING, DELETION_PENDING and DELETED. The same allow-list
+    Change Plan uses — PROVISIONING, ACTIVE, SUSPENDED — for a plainer
+    reason: do not start a new billing period for a customer who is leaving.
+
+    Check nothing was written:
+      db.school_subscriptions.countDocuments({ schoolId: "<id>" })
+        -> still 1`,
+          body: null,
+        },
+        {
+          name: "7 — catching up several periods, one call at a time",
+          notes: `Put the period end far enough back that two whole cycles have passed, then
+    renew repeatedly.
+
+    Each call advances exactly ONE period, and each new row is a real record
+    of a real period rather than one row pretending to cover the whole gap.
+    Keep going and the chain stops on its own:
+
+      -> 409 PERIOD_NOT_ENDED, once the current period reaches the future
+
+      db.school_subscriptions.countDocuments({ schoolId: "<id>" })
+        -> one row per period, exactly one with current: true
+
+    And the history:
+      db.subscription_history.find({ schoolId: "<id>", eventType: "RENEWED" })
+        -> one row per renewal, each with previousPlanDefinitionDocsId ==
+           newPlanDefinitionDocsId. That sameness is what tells a renewal
+           from a plan change in a list of history rows.
+
+    db.subscription_invoices IS NOT TOUCHED, and there is no repository for
+    it. The note on every response says no invoice was raised.`,
+          body: null,
+        },
+      ],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

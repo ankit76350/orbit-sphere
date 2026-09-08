@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, CheckCircle2, CreditCard, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, CreditCard, Pencil, Plus, RefreshCw, RotateCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { endOfDay, readableInstant } from '../../../lib/dates.js'
+import { endOfDay, readableInstant, toDateInput } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
@@ -52,8 +52,40 @@ export default function Subscriptions() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
   const [changingPlan, setChangingPlan] = useState(false)
+  const [renewing, setRenewing] = useState(false)
+  const [renewingCustom, setRenewingCustom] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
+
+  /**
+   * #17 — a button for the ordinary renewal, a one-field dialog for a CUSTOM cycle.
+   *
+   * NO BODY IS SENT WHEN THERE IS NOTHING TO SAY. `body: undefined` makes buildCall omit the
+   * body and the Content-Type entirely, which is what the endpoint expects for the four cycles
+   * that derive their own period end.
+   *
+   * The date only ever comes from the dialog, and only a CUSTOM cycle opens it — see
+   * renewNeedsEndDate. The other refusals are worked out before anything is sent (see
+   * whyRenewWouldRefuse), so they show on the button rather than arriving as a 409.
+   */
+  const renew = useCallback(async (endDate) => {
+    setRenewing(true)
+    const result = await call('renew-subscription', {
+      label: 'Start the next billing period',
+      pathParams: { id: schoolId },
+      // The chosen day is included, so the last second of it — the same rule every date box on
+      // this screen follows.
+      body: endDate ? { currentPeriodEnd: endOfDay(endDate) } : undefined,
+    })
+    setRenewing(false)
+    if (result.ok) {
+      setRenewingCustom(false)
+      await load()
+    }
+    return result
+  // load is defined below and stable; listing it here would be a use-before-define.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId])
 
   const load = useCallback(async () => {
     if (!schoolId) {
@@ -140,6 +172,13 @@ export default function Subscriptions() {
           schoolId={schoolId}
           onEdit={() => setEditing(true)}
           onChangePlan={() => setChangingPlan(true)}
+          onRenew={() => {
+            // A CUSTOM cycle has no length, so the API needs a date it cannot derive. Asked for
+            // here rather than sent blind and answered 400.
+            if (renewNeedsEndDate(subscription)) setRenewingCustom(true)
+            else renew()
+          }}
+          renewing={renewing}
         />
       ) : (
         <Card
@@ -160,6 +199,15 @@ export default function Subscriptions() {
           </div>
         </Card>
       )}
+
+      <RenewCustomPeriod
+        open={renewingCustom}
+        subscription={subscription}
+        schoolId={schoolId}
+        busy={renewing}
+        onClose={() => setRenewingCustom(false)}
+        onRenew={renew}
+      />
 
       <ChangePlan
         open={changingPlan}
@@ -245,8 +293,10 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 
 /* -------------------------------------------------------------- what the school is on */
 
-function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
+function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew, renewing }) {
   const s = subscription
+  const renewRefusal = whyRenewWouldRefuse(s)
+  const needsEndDate = renewNeedsEndDate(s)
   return (
     <>
       <Card
@@ -344,8 +394,9 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
             <p className="banner" data-tone="warn">
               <strong>This is a trial.</strong> It becomes a paying subscription by editing its
               status to <code className="mono">ACTIVE</code> below. If the school is buying a
-              different plan from the one it tried, that is a new subscription rather than an
-              edit — <code className="mono">#16</code>, not built yet.
+              different plan from the one it tried, change the plan instead — that closes this
+              row and opens one on the new plan&apos;s terms. Renewing a trial is refused: nobody
+              has agreed what the next period costs.
             </p>
           ) : null}
 
@@ -354,8 +405,22 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
           <div className="toolbar">
             <Button icon={Pencil} onClick={onEdit}>Edit the terms</Button>
             <Button icon={ArrowLeftRight} onClick={onChangePlan}>Change the plan</Button>
+            {/* No modal: #17 takes no body, so there is nothing to fill in. It is disabled with
+                the reason on it when the API would refuse, rather than sending a 409 to find
+                out — the same thing the plan picker does with an unsellable plan. */}
+            <Button
+              icon={RotateCw}
+              busy={renewing}
+              disabled={Boolean(renewRefusal)}
+              onClick={onRenew}
+            >
+              {renewRefusal ? 'Cannot renew yet' : (needsEndDate ? 'Renew…' : 'Renew')}
+            </Button>
             <span className="muted">
-              Status, plan, price, dates, limits, auto-renewal, the cancellation. One call.
+              {renewRefusal
+                ?? (needsEndDate
+                  ? 'A CUSTOM cycle has no length, so it asks when the next period ends.'
+                  : 'Starts the next period on identical terms. No body to fill in.')}
             </span>
             <span className="toolbar-spacer" />
             <EndpointTag
@@ -368,7 +433,21 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
               name="Change the plan"
               pathParams={{ id: schoolId, subscriptionNo: 'current' }}
             />
+            <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
           </div>
+
+          {/* What a renewal does NOT do, said before it is sent rather than read off the note
+              afterwards. Both are easy to assume the other way round. */}
+          {renewRefusal ? null : (
+            <p className="banner" data-tone="warn">
+              <strong>Renewing takes no money and raises no invoice.</strong> Nothing writes
+              <code className="mono"> subscription_invoices</code> yet, so this moves the billing
+              period and records the renewal without charging for it. It also writes a{' '}
+              <strong>second row</strong>: this one is closed and a new{' '}
+              <code className="mono">subscriptionNo</code> opens, running from{' '}
+              {readableInstant(s.currentPeriodEnd)} on the same terms.
+            </p>
+          )}
         </div>
       </Card>
 
@@ -417,6 +496,53 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan }) {
       </details>
     </>
   )
+}
+
+/**
+ * Whether renewing this subscription needs an end date first.
+ *
+ * A CUSTOM cycle has no length, so #17 cannot derive when the next period ends and answers
+ * `400 BILLING_PERIOD_END_REQUIRED` without one. That is a question rather than a refusal, so the
+ * screen asks it: the Renew button opens a one-field dialog for these, and calls straight through
+ * for the four cycles that derive their own end.
+ */
+function renewNeedsEndDate(subscription) {
+  return subscription.billingCycle === 'CUSTOM'
+}
+
+/**
+ * Why #17 would refuse this subscription, or null when it would renew it.
+ *
+ * MIRRORED FROM renewSubscription, so the button can say "not yet, and here is why" instead of
+ * sending a request to find out. Every branch here has a 409 behind it, and the wording names the
+ * same thing the API's message does.
+ *
+ * The order matters and matches the service: the school checks come first there, but this only
+ * sees the subscription — a wound-down school is the one refusal this cannot predict, and it
+ * arrives as SCHOOL_NOT_RENEWABLE.
+ *
+ * `autoRenew` is deliberately NOT here, because the service does not check it either. Nothing
+ * calls #17 on a schedule, so a renewal is always somebody deciding to renew this school now.
+ *
+ * NOR IS A CUSTOM CYCLE, because it is not a refusal — it is a question. A custom contract has no
+ * length, so #17 asks for the next period's end date; the screen asks for it too rather than
+ * letting the call come back 400. See renewNeedsEndDate.
+ */
+function whyRenewWouldRefuse(subscription) {
+  const s = subscription
+
+  if (s.status === 'TRIAL') {
+    return 'A trial has no agreed next-period price — edit its status, or change its plan.'
+  }
+  if (s.status === 'SUSPENDED' || s.status === 'CANCELLED') {
+    return `A ${s.status} subscription is not renewed — that would undo a decision.`
+  }
+  // The period has to have finished. Renewing early would leave the school's current row with a
+  // period that has not begun, so the API refuses it rather than creating that state.
+  if (!s.currentPeriodEnd || new Date(s.currentPeriodEnd) > new Date()) {
+    return `The period runs to ${readableInstant(s.currentPeriodEnd)}, which has not passed yet.`
+  }
+  return null
 }
 
 /* ------------------------------------------------------------------------ edit the terms */
@@ -832,7 +958,7 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
     setMaxUsers(plan ? String(plan.maxUsers) : '')
   }
 
-  // Whether this school pays something other than its current plan's list price. Worked out
+// Whether this school pays something other than its current plan's list price. Worked out
   // here rather than read off the response, which reports the two prices and no verdict on them.
   const paysNegotiatedPrice = subscription.planListPrice != null
     && Number(subscription.contractedPrice) !== Number(subscription.planListPrice)
@@ -1084,6 +1210,111 @@ function ChangePlan({ open, schoolId, subscription, onClose, onChanged }) {
 }
 
 /* -------------------------------------------------------------------- create one */
+
+/* ------------------------------------------------- renew a CUSTOM-cycle period */
+
+/**
+ * The one field #17 ever asks for: when the next period of a CUSTOM contract ends.
+ *
+ * A dialog only for CUSTOM. MONTHLY, QUARTERLY, HALF_YEARLY and YEARLY derive their own end from
+ * the days in the cycle, so for those the Renew button sends no body at all and this never opens.
+ * A custom contract has no length, so the API answers `400 BILLING_PERIOD_END_REQUIRED` without a
+ * date — that is a question rather than a refusal, and this is where it is asked.
+ *
+ * NOTHING ELSE IS ON THE FORM, deliberately. A renewal carries the plan, the price and both
+ * ceilings across untouched; a second box here would be a change dressed up as a renewal.
+ */
+function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRenew }) {
+  const [endDate, setEndDate] = useState('')
+  const [refused, setRefused] = useState(null)
+
+  // The new period starts where the last one ended, so that is the floor for the picker as well
+  // as what the API checks against — a date on or before it is INVALID_BILLING_PERIOD.
+  const startsOn = subscription ? toDateInput(subscription.currentPeriodEnd) : ''
+  const tooEarly = Boolean(endDate) && Boolean(startsOn) && endDate <= startsOn
+
+  const send = async () => {
+    setRefused(null)
+    const result = await onRenew(endDate)
+    if (!result?.ok) {
+      setRefused(result?.bodyJson || { message: `The server answered ${result?.status}.` })
+      return
+    }
+    setEndDate('')
+  }
+
+  if (!subscription) return null
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="When does the next period end?"
+      description="This contract bills on a CUSTOM cycle, which has no length — so the date has to be said."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            look="primary"
+            busy={busy}
+            disabled={!endDate || tooEarly}
+            onClick={send}
+          >
+            {endDate ? 'Renew' : 'Pick a date first'}
+          </Button>
+          <EndpointTag id="renew-subscription" name="Renew" pathParams={{ id: schoolId }} />
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code || 'Refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        <p className="banner" data-tone="warn">
+          <strong>Only the date is being asked for.</strong> The plan, the price and both capacity
+          ceilings carry across untouched — a renewal is not a renegotiation. To change any of
+          those, edit the terms or change the plan instead.
+        </p>
+
+        <Field
+          label="Period ends on"
+          required
+          hint={startsOn
+            ? `The next period starts ${startsOn}, where the last one ended. The chosen day is included — it is sent as the last second of it.`
+            : 'The chosen day is included — it is sent as the last second of it.'}
+        >
+          <Input
+            type="date"
+            min={startsOn || undefined}
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+          />
+        </Field>
+
+        {tooEarly ? (
+          <p className="banner" data-tone="bad">
+            <strong>That is on or before the day the period starts.</strong> The next period runs
+            from {startsOn}, so an end date of {endDate} would finish before it began — the API
+            answers <code className="mono">400 INVALID_BILLING_PERIOD</code>.
+          </p>
+        ) : null}
+
+        <p className="banner" data-tone="warn">
+          <strong>No invoice, and no money.</strong> This moves the billing period and records the
+          renewal. It writes a <strong>second row</strong>: the current one closes and a new{' '}
+          <code className="mono">subscriptionNo</code> opens, running from{' '}
+          {readableInstant(subscription.currentPeriodEnd)} to the date above.
+        </p>
+      </div>
+    </Modal>
+  )
+}
 
 function NewSubscription({ open, schoolId, onClose, onCreated }) {
   const { call } = useApi()

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
@@ -124,6 +125,23 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.changePlan(schoolId, subscriptionNo, request));
+    }
+
+    
+    /**
+     * Endpoint #17 — renews the subscription for the next billing period.
+    */
+    @PostMapping("/subscriptions/{subscriptionNo}/renew")
+    public ResponseEntity<SubscriptionDetailResponse> renew(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            // Not required: the ordinary renewal sends nothing, and a POST with no body at all
+            // has to keep working. It arrives as null, which the service reads as "derive the
+            // period from the cycle" — the only cycle that cannot is CUSTOM, and it says so.
+            @Valid @RequestBody(required = false) SubscriptionRenewRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.renewSubscription(schoolId, subscriptionNo, request));
     }
 
     /**
