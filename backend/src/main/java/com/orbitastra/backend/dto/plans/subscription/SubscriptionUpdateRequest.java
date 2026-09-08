@@ -5,7 +5,7 @@ import java.time.Instant;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 
-import jakarta.validation.Valid;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
