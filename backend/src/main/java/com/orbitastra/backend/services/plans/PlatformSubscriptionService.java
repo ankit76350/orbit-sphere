@@ -163,16 +163,15 @@ public class PlatformSubscriptionService {
                 ? plan.getBillingCycle()
                 : request.billingCycle();
 
-        //! The period starts today in the SCHOOL'S day, not at the instant the request landed:
-        //! a billing period is a pair of dates somebody reads, and "your year runs from the 7th"
-        //! is what they expect to see rather than "from 12:47 on the 7th".
+        //! The start is REQUIRED — @NotNull on the request, so it is never null here. It used to
+        //! default to today; a period start is the anchor the end is measured from, and on a
+        //! yearly sale it fixes which day the school is billed on for as long as it stays, so it
+        //! is somebody's decision rather than a convenience.
         //!
         //! A start in the past is refused rather than accepted: see the helper.
         validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
 
-        Instant periodStart = request.currentPeriodStart() == null
-                ? startOfTodayInSchoolZone(school.getDefaultTimeZone())
-                : request.currentPeriodStart();
+        Instant periodStart = request.currentPeriodStart();
 
         //! Derived from the cycle ABOVE, not the plan's. So a YEARLY plan sold as CUSTOM needs an
         //! end date and says so, and a CUSTOM plan sold as MONTHLY derives one and needs none —
@@ -320,13 +319,41 @@ public class PlatformSubscriptionService {
         //! step 3 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
 
-        //! step 4 - a start being SET has to be today or later. The stored one is not checked:
+        //! step 4 - a cadence being SET names the dates it needs with it. Sending a cycle
+        //! without them would leave this endpoint deriving a period from an anchor nobody
+        //! restated: on the four fixed cycles the start is what the end is measured from, and
+        //! CUSTOM has no length at all, so it needs both.
+        //!
+        //! Keyed on the cycle being SENT rather than on it changing. Resending the cadence a
+        //! subscription is already on is still a statement about the period, and answering it
+        //! differently depending on what happened to be stored would make the rule impossible
+        //! to describe.
+        if (request.billingCycle() != null) {
+            if (request.currentPeriodStart() == null) {
+                throw ApiException.badRequest("PERIOD_START_REQUIRED",
+                        "currentPeriodStart has to be sent with billingCycle. A "
+                                + request.billingCycle() + " period is measured from its start, "
+                                + "so the cadence cannot be set without saying when the period "
+                                + "it describes begins.");
+            }
+
+            if (request.billingCycle() == BillingCycle.CUSTOM
+                    && request.currentPeriodEnd() == null) {
+                throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
+                        "currentPeriodEnd has to be sent with a CUSTOM billingCycle. CUSTOM has "
+                                + "no length, so there is nothing to work the period out from — "
+                                + "and the end date on record was derived from the cadence this "
+                                + "subscription is leaving.");
+            }
+        }
+
+        //! step 5 - a start being SET has to be today or later. The stored one is not checked:
         //! a subscription sold months ago has a start in the past by definition, and refusing to
         //! edit it would make every other field on this endpoint unreachable for a running
         //! subscription. Only a value on the request is a decision somebody is making now.
         validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
 
-        //! step 5 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! step 6 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
         SubscriptionStatus previousStatus = subscription.getStatus();
@@ -340,7 +367,7 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 6 - the cycle decides the period, the same way it does on a sale. A cadence that
+        //! step 7 - the cycle decides the period, the same way it does on a sale. A cadence that
         //! moved leaves the stored end date describing a period nobody is on any more: an end
         //! derived as "start + 365" is not the end of a MONTHLY period, so keeping it would bill
         //! the school for a year while the document says it pays monthly.
@@ -351,36 +378,28 @@ public class PlatformSubscriptionService {
         boolean cycleMoved = changed.contains("billingCycle");
         boolean startMoved = changed.contains("currentPeriodStart");
 
-        if (request.currentPeriodEnd() == null && (cycleMoved || startMoved)) {
-            if (subscription.getBillingCycle() == BillingCycle.CUSTOM) {
-                //! Only when the cadence itself became CUSTOM. A CUSTOM subscription whose start
-                //! moved keeps its agreed end — that date was somebody's decision, not a
-                //! derivation, and step 7 checks it is still after the new start.
-                if (cycleMoved) {
-                    throw ApiException.badRequest("BILLING_PERIOD_END_REQUIRED",
-                            "Moving " + subscription.getSubscriptionNo() + " to a CUSTOM cycle "
-                                    + "needs currentPeriodEnd with it. CUSTOM has no length, so "
-                                    + "there is nothing to work the period out from — and the "
-                                    + "end date on record was derived from the cadence this "
-                                    + "subscription is leaving.");
-                }
-            } else {
-                Instant derivedEnd = calculateSubscriptionPeriodEnd(null,
-                        subscription.getCurrentPeriodStart(), subscription.getBillingCycle());
+        //! A CUSTOM cadence never reaches here without an end — step 4 requires one with it —
+        //! so the only case left is a fixed cadence whose start or cycle moved. A CUSTOM
+        //! subscription whose start moves alone keeps its agreed end: that date was somebody's
+        //! decision rather than a derivation, and step 8 checks it is still after the new start.
+        if (request.currentPeriodEnd() == null && (cycleMoved || startMoved)
+                && subscription.getBillingCycle() != BillingCycle.CUSTOM) {
 
-                if (!derivedEnd.equals(subscription.getCurrentPeriodEnd())) {
-                    subscription.setCurrentPeriodEnd(derivedEnd);
-                    changed.add("currentPeriodEnd");
-                }
+            Instant derivedEnd = calculateSubscriptionPeriodEnd(null,
+                    subscription.getCurrentPeriodStart(), subscription.getBillingCycle());
+
+            if (!derivedEnd.equals(subscription.getCurrentPeriodEnd())) {
+                subscription.setCurrentPeriodEnd(derivedEnd);
+                changed.add("currentPeriodEnd");
             }
         }
 
-        //! step 7 - the reason goes onto the document as well as the history row. Written only
+        //! step 8 - the reason goes onto the document as well as the history row. Written only
         //! now, because an edit that changed nothing has nothing to explain. No null check: the
         //! request has @NotBlank on it, so an unexplained edit never reaches here.
         subscription.setReasonForChanges(request.reason().trim());
 
-        //! step 8 - the period has to still make sense after the edit, whichever end moved
+        //! step 9 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -391,7 +410,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 9 - one history row for the whole edit, in this same transaction
+        //! step 10 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -410,11 +429,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 10 - the plan is read only so the response can carry its features and limits
+        //! step 11 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(saved);
 
-        //! step 11 - the note is two answers joined here rather than by one helper calling the
+        //! step 12 - the note is two answers joined here rather than by one helper calling the
         //! other: what this edit did, and anything standing about the subscription that a
         //! reader needs whether or not it was edited.
         List<String> note = new ArrayList<>();

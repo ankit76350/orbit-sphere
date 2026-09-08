@@ -118,6 +118,11 @@ public record SubscriptionUpdateRequest(
          * <p>Checked against the resulting {@code currentPeriodEnd}, whichever of the two moved,
          * so a period cannot be left running backwards by editing one end of it.
          *
+         * <p><b>Required whenever {@code billingCycle} is sent.</b> A period is measured from
+         * its start, so setting the cadence without saying when the period it describes begins
+         * would leave this endpoint deriving an end from an anchor nobody restated:
+         * {@code 400 PERIOD_START_REQUIRED}. Every other edit still leaves it alone when absent.
+         *
          * <p><b>A new start cannot be in the past</b> — today or later, or
          * {@code 400 PERIOD_START_IN_PAST}. The <b>stored</b> start is not checked: a
          * subscription sold months ago has one in the past by definition, and refusing to edit

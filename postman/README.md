@@ -204,8 +204,15 @@ finished is waiting only on a subscription, so Create Subscription activates it 
 `nextStep`. Run it against a school whose provisioning is *not* finished and the subscription is
 still created, the school stays `PROVISIONING`, and `nextStep` names what is missing.
 
-- **Two fields is the ordinary request** — the plan's code and version. Price, currency, cycle and
-  the period end all come from the plan.
+- **Three fields is the ordinary request** — the plan's code and version, and
+  `currentPeriodStart`. Price, currency and cycle come from the plan; the period end is derived
+  from the cadence. **The start used to default to today and no longer does**: it is the anchor the
+  end is measured from, and on a yearly sale it fixes which day the school is billed on for as long
+  as it stays, so it is somebody's decision rather than a convenience. Omitting it is
+  `400 VALIDATION_FAILED`.
+- **On #14 a cadence names the dates it needs**: sending `billingCycle` requires
+  `currentPeriodStart` (`400 PERIOD_START_REQUIRED`), and a `CUSTOM` cadence requires
+  `currentPeriodEnd` as well. Every other edit leaves both alone.
 - **The cycle can be negotiated too.** `billingCycle` is optional and absent takes the plan's, so
   the same plan can be sold on a different cadence — stored on the *subscription*, leaving the plan
   and every other school on it alone. Whichever cycle applies is what decides the period dates

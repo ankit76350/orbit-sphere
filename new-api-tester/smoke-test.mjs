@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { detailPath } from './src/paths.js'
 import { sellability } from './src/pages/platform/plans/planFacts.js'
 import { changedFields, patchBody, storedForm } from './src/pages/platform/plans/subscriptionEdit.js'
+import { startOfDayInZone } from './src/lib/dates.js'
 import { endOfDay, startOfDay, toDateInput } from './src/lib/dates.js'
 
 // The store remembers the chosen environment in the browser, and reads it while the provider
@@ -364,10 +365,15 @@ for (const [label, ok] of withheldChecks) {
 
 console.log('\nThe edit form says what to fill in, and when')
 const subsSourceFull = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
-// One read of the service, used by every section below that cross-checks the screen against it.
+// EVERY FILE THIS TEST READS, in one place. Declaring each beside the section that first wanted
+// it meant every section added afterwards hit "cannot access before initialization".
 const javaService = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
   'utf8')
+const createRequestSource = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
+  'utf8')
+const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
 // and a file-wide count cannot tell them apart. The slice ends at whichever function comes next,
 // so adding another modal cannot silently widen it.
@@ -429,12 +435,71 @@ for (const [label, ok] of formChecks) {
   if (!ok) fail++
 }
 
+// A day begins at a different instant in every zone, and #13 now needs that instant rather than
+// a date. Behaviour, not source: these are the conversions the sale form depends on.
+console.log('\nA day begins when the school says it does')
+const zoneCases = [
+  ['Asia/Kolkata is +05:30', startOfDayInZone('2026-09-08', 'Asia/Kolkata'), '2026-09-07T18:30:00Z'],
+  ['UTC is midnight', startOfDayInZone('2026-09-08', 'UTC'), '2026-09-08T00:00:00Z'],
+  // The case a naive `${day}T00:00:00Z` gets refused for: 00:00Z is still the 7th in New York.
+  ['America/New_York in summer is -04:00',
+    startOfDayInZone('2026-09-08', 'America/New_York'), '2026-09-08T04:00:00Z'],
+  ['and -05:00 in winter, so DST is handled',
+    startOfDayInZone('2026-01-15', 'America/New_York'), '2026-01-15T05:00:00Z'],
+  ['Australia/Sydney is +10:00', startOfDayInZone('2026-09-08', 'Australia/Sydney'),
+    '2026-09-07T14:00:00Z'],
+  ['Pacific/Kiritimati is +14:00, the furthest ahead',
+    startOfDayInZone('2026-09-08', 'Pacific/Kiritimati'), '2026-09-07T10:00:00Z'],
+  ['no zone falls back to UTC midnight',
+    startOfDayInZone('2026-09-08', undefined), '2026-09-08T00:00:00Z'],
+  ['and an unusable one does too, rather than throwing',
+    startOfDayInZone('2026-09-08', 'Not/AZone'), '2026-09-08T00:00:00Z'],
+]
+for (const [label, got, want] of zoneCases) {
+  const ok = got === want
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label} — ${got} != ${want}`)
+  if (!ok) fail++
+}
+
+// The cadence names the dates it needs. #13 requires currentPeriodStart on every cycle, and both
+// endpoints require currentPeriodEnd whenever the cadence is CUSTOM.
+console.log('\nThe cadence names the dates it needs')
+const requiredDateChecks = [
+  ['#13 requires a start, as a validation constraint',
+    /@NotNull Instant currentPeriodStart/.test(createRequestSource)],
+  ['and the service no longer defaults it to today',
+    javaService.includes('Instant periodStart = request.currentPeriodStart();')
+      && !javaService.includes('request.currentPeriodStart() == null\n                ? startOfTodayInSchoolZone')],
+  ['#14 requires a start whenever a cadence is sent',
+    /if \(request\.billingCycle\(\) != null\) \{[\s\S]{0,400}PERIOD_START_REQUIRED/
+      .test(javaService)],
+  ['keyed on the cycle being sent, not on it changing',
+    javaService.includes('if (request.billingCycle() != null) {')
+      && /Keyed on the cycle being SENT rather than on it changing/.test(javaService)],
+  // The four fixed cadences derive their end, so only CUSTOM needs one.
+  ['only CUSTOM also requires an end',
+    (javaService.match(/BILLING_PERIOD_END_REQUIRED/g) || []).length >= 2
+      && javaService.includes('request.billingCycle() == BillingCycle.CUSTOM')],
+  // The sale form has to send the start now, and send the right instant for the school's zone.
+  ['the sale form sends the start it is now required to',
+    newSource.includes('body.currentPeriodStart = startOfDayInZone(todayInZone(timeZone), timeZone)')],
+  ['it uses the school\'s zone, not UTC midnight',
+    newSource.includes('todayInZone(timeZone)')
+      && !newSource.includes('body.currentPeriodStart = startOfDay(')],
+  ['and the page loads the school to get that zone',
+    subsSourceFull.includes("call('get-school', {")
+      && subsSourceFull.includes('timeZone={school?.defaultTimeZone}')],
+]
+for (const [label, ok] of requiredDateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A billing period starts today or later, on both endpoints. Nothing here can invoice a period
 // that has already run, so a backdated start would sit in the record as a figure no process
 // could act on.
 console.log('\nA billing period cannot start in the past')
 // The helper's own body, from its signature to the blank line after its closing brace.
-const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
 const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTodayOrLater(')
 const startHelper = javaService.slice(startHelperAt,
   javaService.indexOf('\n    }', startHelperAt))
@@ -470,10 +535,11 @@ const startChecks = [
   ['and it says the stored one being in the past is fine',
     editSource.includes('A billing period starts today or later')
       && editSource.includes('it is only a')],
-  // The sale form never offers the field, so there is nothing to guard there.
-  ['the sale form does not offer a start to get wrong',
+  // The sale form now HAS to send the field, so the guard is that nobody can type a wrong value
+  // into it: the box is read-only and the instant is computed, not picked.
+  ['the sale form offers no editable start to get wrong',
     !newSource.includes("set('currentPeriodStart')")
-      && !newSource.includes('body.currentPeriodStart')],
+      && /label="Period starts on"[\s\S]{0,600}readOnly/.test(newSource)],
 ]
 for (const [label, ok] of startChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -526,15 +592,18 @@ const editCycleChecks = [
     javaService.includes('boolean cycleMoved = changed.contains("billingCycle")')
       && javaService.includes('boolean startMoved = changed.contains("currentPeriodStart")')],
   ['an explicit end still wins',
-    javaService.includes('if (request.currentPeriodEnd() == null && (cycleMoved || startMoved))')],
+    javaService.includes('if (request.currentPeriodEnd() == null && (cycleMoved || startMoved)')],
   ['a derived end is reported as a changed field, not applied silently',
     /setCurrentPeriodEnd\(derivedEnd\);[\s\S]{0,80}changed\.add\("currentPeriodEnd"\)/
       .test(javaService)],
-  ['moving to CUSTOM is refused without a date',
-    /if \(cycleMoved\) \{[\s\S]{0,400}BILLING_PERIOD_END_REQUIRED/.test(javaService)],
+  // The requirement moved: it is now keyed on the cycle SENT rather than on it having changed,
+  // and lives beside the start requirement in step 4.
+  ['a CUSTOM cadence is refused without an end',
+    /request\.billingCycle\(\) == BillingCycle\.CUSTOM\s*\n\s*&& request\.currentPeriodEnd\(\) == null[\s\S]{0,300}BILLING_PERIOD_END_REQUIRED/
+      .test(javaService)],
   // A CUSTOM subscription's end is an agreed date, not a derivation, so a moved start leaves it.
   ['but a CUSTOM subscription keeps its agreed end when only the start moves',
-    /Only when the cadence itself became CUSTOM/.test(javaService)],
+    javaService.includes('&& subscription.getBillingCycle() != BillingCycle.CUSTOM')],
 ]
 for (const [label, ok] of editCycleChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -792,7 +861,7 @@ const cycleChecks = [
   ['and shows the derived date while it is disabled',
     newSource.includes("value={needsPeriodEnd ? periodEnd : (derivedEnd ?? '')}")],
   ['the start date is shown as today and not editable',
-    /label="Period starts on"[\s\S]{0,300}value=\{todayInput\(\)\}[\s\S]{0,80}disabled/
+    /label="Period starts on"[\s\S]{0,600}value=\{todayInZone\(timeZone\)\}[\s\S]{0,80}disabled/
       .test(newSource)],
   ['changing the cycle clears a date typed against the old one',
     /setCycle\(event\.target\.value\)[\s\S]{0,300}setPeriodEnd\(''\)/.test(newSource)],

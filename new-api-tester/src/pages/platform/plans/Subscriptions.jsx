@@ -4,7 +4,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { endOfDay, readableInstant, toDateInput, todayInput } from '../../../lib/dates.js'
+import { endOfDay, readableInstant, startOfDayInZone, toDateInput, todayInput, todayInZone } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
@@ -94,11 +94,22 @@ export default function Subscriptions() {
       return
     }
     setReading(true)
-    const result = await call('get-subscription', {
-      label: 'What this school is on',
-      pathParams: { id: schoolId },
-    })
+    // The school's own record comes with it, for one field: defaultTimeZone. #13 made
+    // currentPeriodStart compulsory, and the instant a day begins depends on the school's zone —
+    // for a school west of UTC, midnight UTC is still the previous day there and the API refuses
+    // it as a past start. The picker's list row does not carry the zone; this does.
+    const [result, detail] = await Promise.all([
+      call('get-subscription', {
+        label: 'What this school is on',
+        pathParams: { id: schoolId },
+      }),
+      call('get-school', {
+        label: "The school's own record, for its timezone",
+        pathParams: { id: schoolId },
+      }),
+    ])
     setReading(false)
+    if (detail.ok) setSchool(detail.bodyJson)
     if (result.ok) {
       setSubscription(result.bodyJson)
       setProblem(null)
@@ -227,6 +238,7 @@ export default function Subscriptions() {
       />
 
       <NewSubscription
+        timeZone={school?.defaultTimeZone}
         open={creating}
         schoolId={schoolId}
         onClose={() => setCreating(false)}
@@ -1427,7 +1439,7 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
   )
 }
 
-function NewSubscription({ open, schoolId, onClose, onCreated }) {
+function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   const { call } = useApi()
   const [plans, setPlans] = useState(null)
   const [picked, setPicked] = useState('')
@@ -1517,6 +1529,10 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
     if (maxUsers.trim()) body.maxUsersOverride = Number(maxUsers)
     // Only for a CUSTOM cycle: every other cycle derives its own end, and sending one would
     // override a length the plan already implies. The chosen day is included, so end of it.
+    // REQUIRED on every cycle since #13 stopped defaulting it. Today in the SCHOOL'S day, and
+    // the instant that day begins there — not UTC midnight, which is the previous day for any
+    // school west of UTC and comes back 400 PERIOD_START_IN_PAST.
+    body.currentPeriodStart = startOfDayInZone(todayInZone(timeZone), timeZone)
     if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
     // Sent only when it differs from the plan's, so the ordinary sale still reads as "this plan,
     // as listed" rather than restating what the plan already says.
@@ -1662,8 +1678,13 @@ function NewSubscription({ open, schoolId, onClose, onCreated }) {
             </span>
           </Field>
 
-          <Field label="Period starts on" hint="Today, in the school's own timezone. Not editable here — a backdated contract is a field this form does not offer.">
-            <Input type="date" value={todayInput()} disabled readOnly />
+          <Field
+            label="Period starts on"
+            hint={timeZone
+              ? `Today in ${timeZone}, sent as ${startOfDayInZone(todayInZone(timeZone), timeZone)}. Required by the API, and it cannot be in the past.`
+              : 'Today. Required by the API, and it cannot be in the past.'}
+          >
+            <Input type="date" value={todayInZone(timeZone)} disabled readOnly />
           </Field>
 
           {/* Enabled ONLY for CUSTOM. For the other four the end is derived from the cycle, so a

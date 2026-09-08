@@ -5765,6 +5765,18 @@ const GROUP_PLANS_SUBSCRIPTIONS = {
       schoolSurface: false,
       docs: `**POST** \`/platform/schools/{id}/subscriptions\` — gives a school its first subscription.
 
+### currentPeriodStart is required, on every cycle
+
+It used to default to today and no longer does: the start is the anchor the end is measured from,
+and on a \`YEARLY\` sale it fixes which day the school is billed on for as long as it stays. So it
+is somebody's decision rather than a convenience — sending today explicitly says the same thing the
+default did, and says it on purpose. Omitting it is \`400 VALIDATION_FAILED\` naming the field.
+
+It has to be **today or later** (\`400 PERIOD_START_IN_PAST\`), and "today" is the start of today in
+the **school's own timezone** — for a school west of UTC, \`{day}T00:00:00Z\` is still the previous
+day there and gets refused. \`CUSTOM\` needs \`currentPeriodEnd\` alongside it; the other four
+cadences derive theirs.
+
 What makes a school a paying customer, and the piece \`core\` has been complaining about:
 \`activateSchool\` was written to require a subscription, found nothing could create one, and
 settled for a soft check that announces the gap in every response. Create one first and
@@ -6243,6 +6255,7 @@ refused before the service sees it.
       responseFields: [],
       captures: [],
       errors: [
+        { status: 400, code: "PERIOD_START_REQUIRED", when: "billingCycle sent with no currentPeriodStart" },
         { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "VALIDATION_FAILED", when: "Ask for nothing" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },

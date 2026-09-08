@@ -23,99 +23,39 @@ import jakarta.validation.constraints.Size;
  */
 public record SubscriptionCreateRequest(
 
-        /** Example: "PREMIUM" */
+        // Plan code
         @NotBlank @Size(max = 40) String planCode,
 
-        /** Example: 1 */
+        // Plan version
         @NotNull Integer planVersion,
 
-        /**
-         * True to start the school on a trial rather than as a paying customer. Defaults to
-         * false. Example: true
-         *
-         * <p>A boolean rather than the status itself, so {@code CANCELLED} cannot be the state a
-         * subscription is created in. Only two starting states make sense and this picks between
-         * them.
-         */
+        // Trial status
         Boolean trial,
 
-        /**
-         * How often this school is billed. Example: BillingCycle.QUARTERLY
-         *
-         * <p><b>Absent means the plan's own cycle</b>, which is the ordinary sale — the plan says
-         * how it is sold and nobody has to restate it.
-         *
-         * <p>Send one to sell the same plan on a different cadence, which is a real negotiation:
-         * a school that wants to pay quarterly for a plan listed yearly is buying the same
-         * entitlements on different terms. It is stored on the subscription rather than on the
-         * plan, so it changes what this school is billed and nothing about the plan itself.
-         *
-         * <p><b>It is this cycle, not the plan's, that decides the period</b> — and that decides
-         * whether {@code currentPeriodEnd} is required. Selling a {@code YEARLY} plan as
-         * {@code CUSTOM} means an end date has to be sent; selling a {@code CUSTOM} plan as
-         * {@code MONTHLY} means one is derived and none is needed.
-         */
+        // Billing cycle
         BillingCycle billingCycle,
 
-        /**
-         * When the first billing period starts. Defaults to <b>the start of today in the school's
-         * own timezone</b>, which is the ordinary sale. Example: 2026-04-01T00:00:00Z
-         *
-         * <p>Today rather than the instant the request landed, because a billing period is a pair
-         * of dates somebody reads: "your year runs from the 7th" is what they expect to see, not
-         * "from 12:47 on the 7th". Send one for a contract agreed to begin later — next month, or
-         * next quarter.
-         *
-         * <p><b>It cannot be in the past</b>, and today counts:
-         * {@code 400 PERIOD_START_IN_PAST}. Nothing here invoices a period, so a backdated start
-         * would record a school as paying for time nothing could ever charge it for. The
-         * comparison is against the start of today <i>in the school's own timezone</i>, matching
-         * the default above, so the operator and the school agree on which day today is.
-         */
-        Instant currentPeriodStart,
+        // Period start
+        @NotNull Instant currentPeriodStart,
 
-        /**
-         * When it ends. Worked out from the billing cycle when omitted — a yearly period starting
-         * 1 April ends 365 days later.
-         *
-         * <p><b>Required when the cycle is {@code CUSTOM}</b>, which by definition has no length
-         * to calculate: {@code 400 BILLING_PERIOD_END_REQUIRED} without it. That is the cycle on
-         * <i>this request</i> where one was sent, and the plan's otherwise — so a plan listed
-         * {@code CUSTOM} sold as {@code MONTHLY} needs no end date, and a {@code YEARLY} plan sold
-         * as {@code CUSTOM} does. Example: 2027-03-31T23:59:59Z
-         *
-         * <p>Sending one on a fixed cycle overrides the derived date. It has to be after
-         * {@code currentPeriodStart}, or {@code 400 INVALID_BILLING_PERIOD}.
-         */
+        // Period end
         Instant currentPeriodEnd,
 
-        /** Defaults to true. Example: false */
+        // Auto renew
         Boolean autoRenew,
 
-        /**
-         * What this school actually pays. Defaults to the plan's list price. Example: 45000.00
-         *
-         * <p>A separate field from the plan's price on purpose: this is the number that gets
-         * invoiced, and a discount agreed with one school must not change the price list.
-         */
+        // Contracted price
         BigDecimal contractedPrice,
 
-        /** A higher student ceiling than the plan's, for this school only. Example: 2500 */
+        // Student limit
         Long maxStudentsOverride,
 
-        /** A higher user ceiling than the plan's, for this school only. Example: 300 */
+        // User limit
         Long maxUsersOverride,
 
-        /** The customer id at the payment provider, if there is one. Example: "cus_Qx7B2mR9" */
+        // Billing customer
         @Size(max = 120) String billingCustomerReference,
 
-        /**
-         * Why this subscription was created, for the history row. Example: "Signed annual
-         * contract, 10% partner discount."
-         *
-         * <p>Optional here and deliberately not required: creating a subscription is the
-         * ordinary path, and the history row already records what happened and when. A reason
-         * matters most on the operations that are <i>not</i> ordinary.
-         */
+        // Reason
         @Size(max = 500) String reason) {
 }
