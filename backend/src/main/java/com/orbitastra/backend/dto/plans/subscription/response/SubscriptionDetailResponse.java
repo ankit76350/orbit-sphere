@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import com.orbitastra.backend.dto.plans.catalogue.PlanFeatureView;
+import com.orbitastra.backend.dto.plans.catalogue.response.PlanFeatureView;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
