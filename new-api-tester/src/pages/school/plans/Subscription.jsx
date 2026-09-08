@@ -11,7 +11,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * School / Plans — what this school is paying for, and what it may use.
  *
  * TWO READS, AND THEY ANSWER DIFFERENT QUESTIONS. `/subscription` is the billing screen — plan,
- * price, when it renews. `/subscription/entitlements` is what the rest of the product asks
+ * price, when it renews. `/subscription/feature-access` is what the rest of the product asks
  * before letting a school use anything. Both are on one screen because a school looking at its
  * bill wants to know what the bill buys, but they are separate cards because they are separate
  * calls with separate answers.
@@ -65,21 +65,21 @@ export default function Subscription() {
   const { environment, actingSubdomain } = useApiState()
 
   const [bill, setBill] = useState(null)
-  const [entitlements, setEntitlements] = useState(null)
+  const [featureAccess, setFeatureAccess] = useState(null)
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) {
       setBill(null)
-      setEntitlements(null)
+      setFeatureAccess(null)
       return
     }
     setLoading(true)
     // In parallel: neither depends on the other, and both are cheap reads.
     const [mine, allowed] = await Promise.all([
       call('get-my-subscription', { label: 'What we are paying for' }),
-      call('get-entitlements', { label: 'What we may use' }),
+      call('get-feature-access', { label: 'What we may use' }),
     ])
     setLoading(false)
 
@@ -92,7 +92,7 @@ export default function Subscription() {
     }
     // Guarded on the shape, not just on `ok`: a 200 carrying something unexpected should show
     // the "did not load" panel rather than crash on a missing feature list.
-    setEntitlements(
+    setFeatureAccess(
       allowed.ok && Array.isArray(allowed.bodyJson?.features) ? allowed.bodyJson : null,
     )
     // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -219,48 +219,48 @@ export default function Subscription() {
         </div>
       </Card>
 
-      <Entitlements entitlements={entitlements} onReload={load} />
+      <FeatureAccess featureAccess={featureAccess} onReload={load} />
 
       <details className="raw">
         <summary>
           The raw responses
           <span className="toolbar-spacer" />
-          <EndpointTag id="get-entitlements" name="And" />
+          <EndpointTag id="get-feature-access" name="And" />
         </summary>
         <pre className="resp-body">
-          {JSON.stringify({ subscription: bill, entitlements }, null, 2)}
+          {JSON.stringify({ subscription: bill, featureAccess }, null, 2)}
         </pre>
       </details>
     </div>
   )
 }
 
-/* ------------------------------------------------------------------------ entitlements */
+/* ------------------------------------------------------------------------ feature access */
 
-function Entitlements({ entitlements, onReload }) {
-  if (!entitlements) {
+function FeatureAccess({ featureAccess, onReload }) {
+  if (!featureAccess) {
     return (
       <Card title="What this school may use">
         <Empty
-          title="The entitlements did not load"
+          title="The feature access did not load"
           description="This read needs the tenant header, which comes from the school chosen in the top bar."
           action={<Button icon={RefreshCw} onClick={onReload}>Try again</Button>}
         />
         <div className="toolbar" style={{ justifyContent: 'center', marginTop: 12 }}>
-          <EndpointTag id="get-entitlements" name="What we may use" />
+          <EndpointTag id="get-feature-access" name="What we may use" />
         </div>
       </Card>
     )
   }
 
-  const e = entitlements
+  const e = featureAccess
   const usable = e.features.filter((one) => one.allowed).length
 
   return (
     <Card
       title="What this school may use"
       description="The read every other module asks before letting a school use anything."
-      action={<EndpointTag id="get-entitlements" name="What we may use" />}
+      action={<EndpointTag id="get-feature-access" name="What we may use" />}
     >
       <div className="stack">
         {/* The one thing every caller has to honour. When this is red, nothing on the plan may

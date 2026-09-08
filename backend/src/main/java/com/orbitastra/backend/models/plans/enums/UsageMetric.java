@@ -5,7 +5,7 @@ package com.orbitastra.backend.models.plans.enums;
  *
  * <p>A limit is a bare number — 2000 — and on its own it cannot be enforced: nothing downstream
  * would know whether it meant students, staff, vehicles or megabytes. This says which counter the
- * entitlement service reads.
+ * feature access service reads.
  *
  * <p><b>Callers never choose one.</b> Each {@link FeatureCode} declares the metric it is measured
  * in, because a feature knows what it counts: students are counted in students. That makes

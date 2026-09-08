@@ -15,7 +15,7 @@ import com.orbitastra.backend.models.plans.enums.PlanStatus;
  * and {@code nextStep} is what distinguishes them.
  *
  * <p>{@code featureCount} rather than the features themselves. A plan can carry a few dozen
- * entitlements, and returning them all on a price change would bury the field that changed. The
+ * feature access, and returning them all on a price change would bury the field that changed. The
  * feature list has its own endpoints (#3 to set, #10 to read).
  *
  * <p>{@code sellable} is <b>derived here, never stored</b>. Whether a plan can be bought today

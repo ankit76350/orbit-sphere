@@ -4,7 +4,7 @@
 built and then withdrawn; see [its entry](#e15). The entire plan
 catalogue except versioning; giving a school its first subscription, turning that trial into a
 paying one, and reading back what a school is on; and the school's own two reads — its billing
-screen, and the entitlement check the rest of the product asks.
+screen, and the feature-access check the rest of the product asks.
 
 **#13 closes the gap `core` has been announcing.** `activateSchool` was written to require an
 active subscription, found that nothing could create one, and settled for a soft check that says
@@ -156,7 +156,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t33"></a>33 — **built** | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| <a id="t34"></a>34 — **built** | [`GET /schools/current/subscription/entitlements`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out entitlements they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
+| <a id="t34"></a>34 — **built** | [`GET /schools/current/subscription/feature-access`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out feature access they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t35"></a>35 | [`GET /schools/current/subscription/usage`](#e35) | How much of each limit the school has used — students, users, whatever a feature counts. Shown next to the limits so a school can see itself getting close. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java), [`students`](../../models/student/Student.java), [`user_accounts`](../../models/identity/UserAccount.java) |
 | <a id="t36"></a>36 | [`GET /schools/current/subscription/history`](#e36) | The school's own view of its plan changes. Shows what happened, but not the operator's internal notes. | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t37"></a>37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -256,7 +256,7 @@ the money works until there is something to bill.
 | **7** | The rest | 11, 12, 35, 37, 38, 45, 46 |
 
 **#34 is the one to build early.** Every other module that has a paid feature is waiting on
-`GET /schools/current/subscription/entitlements`. Until it exists, each of them will invent its
+`GET /schools/current/subscription/feature-access`. Until it exists, each of them will invent its
 own way of checking, and then they will disagree — the same problem G9 solved for working days
 in the core module.
 
@@ -814,7 +814,7 @@ second lookup.
 ### `featureCode` became an enum while this was built
 
 It was a `String` on [`PlanFeature`](../../models/plans/embedded/PlanFeature.java). That accepted
-`STUDNET_MANAGEMENT` with a `200`: the plan looked correct on every screen, and the entitlement
+`STUDNET_MANAGEMENT` with a `200`: the plan looked correct on every screen, and the feature access
 service — asking for `STUDENT_MANAGEMENT` — found nothing and locked the school out of what they
 had paid for. One transposed letter, discovered when they rang up.
 
@@ -1562,7 +1562,7 @@ each feature's own definition, so a screen showing a plan needs no second call.
 
 ### Where the features are
 
-#8 and #9 report a feature **count**, because a page of rows carrying twenty entitlements each is
+#8 and #9 report a feature **count**, because a page of rows carrying twenty feature access each is
 not a page anybody can read. This is the endpoint that returns them, so it is what a screen opens
 after somebody picks a row.
 
@@ -1676,7 +1676,7 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
 | `planCode` | **yes** | The plan's family key, max 40 — `PREMIUM`, not a Mongo id. With `planVersion` it names one immutable version. |
 | `planVersion` | **yes** | Which version of that plan. Named rather than looked up, so a caller never has to read an id out of another response. |
 | `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
-| `billingCycle` | no | **Absent means the plan's own cadence**, which is the ordinary sale. Send one to sell the same plan on different terms — a school paying quarterly for a plan listed yearly buys the same entitlements on a different cadence. It is stored on the **subscription**, so the plan itself is unchanged. **It is this cycle, not the plan's, that decides the period** and therefore whether `currentPeriodEnd` is required. |
+| `billingCycle` | no | **Absent means the plan's own cadence**, which is the ordinary sale. Send one to sell the same plan on different terms — a school paying quarterly for a plan listed yearly buys the same feature access on a different cadence. It is stored on the **subscription**, so the plan itself is unchanged. **It is this cycle, not the plan's, that decides the period** and therefore whether `currentPeriodEnd` is required. |
 | `currentPeriodStart` | **yes** | An instant, **today or later** — a past one is `400 PERIOD_START_IN_PAST`. **Required on every cycle**; it used to default to today and no longer does, because it is the anchor the end is measured from and on a yearly sale it fixes which day the school is billed on for as long as it stays. Midnight in the school's own day is the ordinary value — a billing period is a pair of dates somebody reads, so "your year runs from the 7th" rather than "from 12:47 on the 7th". |
 | `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant, and it must be after the start (`400 INVALID_BILLING_PERIOD`). Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. **Which cycle counts is the one being sold**: a `YEARLY` plan sold `CUSTOM` needs a date, and a `CUSTOM` plan sold `MONTHLY` does not. |
 | `autoRenew` | no | Absent means `true`. **Nothing acts on it.** [#17](#e17) starts the next period when it is called and does not consult the flag, and nothing calls #17 on a schedule — so there is no automatic renewal to switch off. It does appear on the school's own billing view, which tells the school its subscription does not renew automatically. |
@@ -2361,13 +2361,13 @@ same statement: the old plan serves until the new one takes over.
 
 A subscription holds **one** plan, not a current one and a pending one, so a change scheduled for
 a future period would have nowhere to live. Moving the pointer now while calling it "next period"
-would hand the school its new entitlements early and bill it at the old price for the rest of the
+would hand the school its new feature access early and bill it at the old price for the rest of the
 period — so the endpoint does the honest thing instead: **the plan changes when the request is
 made.**
 
 **What `currentPeriodStart` chooses is when the new billing PERIOD begins**, which is a different
 question. Today is the ordinary answer and reproduces exactly what this endpoint did when the
-start was derived. A later date moves the period, not the entitlements — and because the closed
+start was derived. A later date moves the period, not the feature access — and because the closed
 row's end moves with it, the school keeps being billed for the old plan until the new period
 opens. That is not the scheduling this section rules out; the plan pointer still moves now.
 
@@ -3322,7 +3322,7 @@ exactly the school that needs to look would be the wrong way round.
 another school's bill would otherwise be a matter of editing a URL.
 
 <a id="e34"></a>
-**[34](#t34) · `GET /schools/current/subscription/entitlements`** — built
+**[34](#t34) · `GET /schools/current/subscription/feature-access`** — built
 
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `status`, `subscriptionNo`, `planDefinitionDocsId`, `planVersion`, `maxStudentsOverride`, `maxUsersOverride`, `currentPeriodEnd`
 - [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `name`, `maxStudents`, `maxUsers`, `features` — each feature's `featureCode`, `enabled`, `usageLimit`, `usageMetric` and `overagePolicy`

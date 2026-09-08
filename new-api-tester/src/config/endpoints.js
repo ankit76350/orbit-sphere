@@ -4396,7 +4396,7 @@ Features are what a school is buying — \`409\` on a published plan, same as #2
 
  featureCode IS A FIXED LIST, not free text. Changed on 2026-09-03: it was a
  String, which accepted "STUDNET_MANAGEMENT" with a 200 — the plan looked
- perfect on every screen while the entitlement service, asking for
+ perfect on every screen while the feature access service, asking for
  STUDENT_MANAGEMENT, found nothing and locked the school out of what they
  had paid for. One transposed letter, discovered when they rang up.
 
@@ -4497,7 +4497,7 @@ Features are what a school is buying — \`409\` on a published plan, same as #2
           expect: "200 OK",
           notes: `The honest way to clear it, and why there is no separate delete.
     A body of {} is a 400 — features is required, and forgetting a field
-    should not wipe a plan's entitlements.`,
+    should not wipe a plan's feature access.`,
           body: `{
   "features": []
 }`,
@@ -4507,7 +4507,7 @@ Features are what a school is buying — \`409\` on a published plan, same as #2
           name: "THE SAME FEATURE TWICE",
           expect: "400 Bad Request",
           notes: `OUT: { "code": "DUPLICATE_FEATURE" }
-    Two rows for one feature is not a bigger entitlement, it is a question:
+    Two rows for one feature is not a bigger feature access, it is a question:
     which of the two limits applies?`,
           body: `{
   "features": [{ "featureCode": "LIBRARY" }, { "featureCode": "LIBRARY" }]
@@ -6546,7 +6546,7 @@ refused before the service sees it.
       docs: `**POST** \`/platform/schools/{id}/subscriptions/{no}/change-plan\` — moves a school onto a different plan.
 
 **What #14 cannot do.** #14 edits the terms of the plan a school is already on; this changes which
-plan that is, and with it the entitlements, the price and the billing cycle. Two endpoints, because
+plan that is, and with it the feature access, the price and the billing cycle. Two endpoints, because
 "push the trial out a fortnight" and "move them to Enterprise" are not the same request.
 
 ### It writes two rows, and does not edit one
@@ -6566,7 +6566,7 @@ The old row is closed *before* the new one is inserted, because the unique parti
 
 There is no timing field. A subscription holds **one** plan, not a current one and a pending one,
 so a change scheduled for a future period would have nowhere to live — and moving the pointer now
-while calling it "next period" would hand the school its new entitlements early. So the plan
+while calling it "next period" would hand the school its new feature access early. So the plan
 changes when you send this, and the billing period restarts with it, on the **new** plan's cycle.
 
 ### The cadence and the period
@@ -6872,7 +6872,7 @@ path segment, and \`%2F\` is refused by Tomcat before Spring sees it.
     CHECK: db.subscription_history.findOne({ eventType: "PLAN_CHANGED" })
              -> previousStatus CANCELLED, newStatus ACTIVE. The only place a
                 plan change moves the status.
-           GET /schools/current/subscription/entitlements
+           GET /schools/current/subscription/feature-access
              -> active false before, TRUE after.
 
     An EXPIRED one comes back the same way. Every other status still carries
@@ -7277,7 +7277,7 @@ money decision nothing here can make.`,
       PATCH /schools/current/profile with X-School-Subdomain
         -> 200 before, 409 SCHOOL_NOT_EDITABLE while suspended, 200 after
            Resume Subscription.
-      GET /schools/current/subscription/entitlements
+      GET /schools/current/subscription/feature-access
         -> active false, and allowed:false on every feature.`,
           body: `{
   "reason": "Invoice INV/2026/08/000412 unpaid 30 days past the grace period."
@@ -7513,7 +7513,7 @@ untidied.`,
        UNTOUCHED with periodEnded false — the school is still working.
 
     CHECK IT REALLY IS:
-      GET /schools/current/subscription/entitlements
+      GET /schools/current/subscription/feature-access
         -> active TRUE, every feature still allowed. That is the point.
       db.schools.findOne({ _id: ObjectId("<id>") })
         -> status ACTIVE, untouched. This is not #19.
@@ -7533,7 +7533,7 @@ untidied.`,
           notes: `-> 200. status CANCELLED and currentPeriodEnd TRIMMED TO NOW, which is
        what stops the access.
 
-      GET /schools/current/subscription/entitlements
+      GET /schools/current/subscription/feature-access
         -> active FALSE now. Cancelled AND the period is over.
 
     The date the school had paid for is overwritten on the document, so the
@@ -7751,20 +7751,20 @@ billing screen, which is exactly when somebody needs to.
       examples: [],
     },
     {
-      id: "get-entitlements",
-      name: "Get Entitlements",
+      id: "get-feature-access",
+      name: "Get Feature access",
       method: "GET",
-      path: "/schools/current/subscription/entitlements",
+      path: "/schools/current/subscription/feature-access",
       status: 'live',
       summary: "What this school is allowed to use. The one every other module has to ask.",
       schoolSurface: true,
-      docs: `**GET** \`/schools/current/subscription/entitlements\` — what this school is allowed to use.
+      docs: `**GET** \`/schools/current/subscription/feature-access\` — what this school is allowed to use.
 
 **The one the rest of the product asks.** No module may read \`plan_definitions.features\` and
 decide for itself whether a school can use something: two places working that out disagree, and
 they disagree in the direction of letting a school use what it has not paid for.
 
-In-process callers use \`EntitlementService\` directly. This endpoint is the same method with a URL
+In-process callers use \`Feature accessService\` directly. This endpoint is the same method with a URL
 in front of it.
 
 ### Read \`allowed\`, not \`includedInPlan\`

@@ -411,7 +411,7 @@ platform's read of the same subscription (#27): no `planListPrice`, no
 should not be shown a number it is not paying. Its saved tests assert those four are *absent* —
 that is the design, not an accident.
 
-**Get Entitlements (#34)** is the one the rest of the product asks. Read `allowed`, not
+**Get Feature access (#34)** is the one the rest of the product asks. Read `allowed`, not
 `includedInPlan`: the first is whether it may be used right now, the second is only what the
 plan says. `allowed` is false on every feature when the subscription grants nothing, so a
 caller that forgets the top-level `active` flag still gets the right answer.

@@ -9,7 +9,7 @@ import com.orbitastra.backend.models.plans.enums.PlanStatus;
  * A plan's whole feature list. What #3 returns, and what #10 will.
  *
  * <p>Its own record rather than {@link PlanResponse}, which reports only a {@code featureCount}.
- * That is right for a price change — a plan can carry a few dozen entitlements and returning them
+ * That is right for a price change — a plan can carry a few dozen feature access and returning them
  * all would bury the field that moved — and wrong here, where the list <i>is</i> what changed.
  *
  * <p>The rows are {@link PlanFeatureView}, shared with #10 — one shape for a feature however it

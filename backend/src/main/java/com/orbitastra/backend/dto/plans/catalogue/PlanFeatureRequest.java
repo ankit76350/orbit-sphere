@@ -7,7 +7,7 @@ import com.orbitastra.backend.models.plans.enums.OveragePolicy;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * One entitlement in a plan's feature list. Endpoint #3 takes a list of these.
+ * One feature access in a plan's feature list. Endpoint #3 takes a list of these.
  *
  * <p>A feature says what the plan lets a school do, and — when there is a number involved — how
  * much of it and what happens when they go over.

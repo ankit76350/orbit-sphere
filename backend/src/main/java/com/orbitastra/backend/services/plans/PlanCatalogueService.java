@@ -246,7 +246,7 @@ public class PlanCatalogueService {
      *
      * <p><b>The whole list, not one feature at a time.</b> A feature list is priced as a set:
      * "2000 students and the AI reports for a given figure" is one offer, and there is no moment
-     * at which half of it is a plan. Endpoints that added and removed a single entitlement would
+     * at which half of it is a plan. Endpoints that added and removed a single feature access would
      * make that half-state reachable and ordinary, and the plan would sit there priced for a set
      * of features it no longer has.
      *
@@ -275,7 +275,7 @@ public class PlanCatalogueService {
 
         for (PlanFeatureRequest one : incoming) {
             if (!seen.add(one.featureCode())) {
-                // Two rows for one code is not a bigger entitlement, it is a question: which of
+                // Two rows for one code is not a bigger feature access, it is a question: which of
                 // the two limits applies? Nothing downstream could answer it.
                 throw ApiException.badRequest("DUPLICATE_FEATURE",
                         "'" + one.featureCode() + "' appears more than once. Each feature can "

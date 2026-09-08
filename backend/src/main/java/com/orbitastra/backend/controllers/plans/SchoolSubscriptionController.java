@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
-import com.orbitastra.backend.dto.plans.subscription.EntitlementsResponse;
+import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse;
 import com.orbitastra.backend.dto.plans.subscription.MySubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.plans.SchoolSubscriptionService;
@@ -41,7 +41,7 @@ public class SchoolSubscriptionController {
 
     private final CurrentSchoolResolver currentSchool;
     private final PlatformSubscriptionService subscriptionService;
-    private final SchoolSubscriptionService entitlementService;
+    private final SchoolSubscriptionService featureAccessService;
 
     /**
      * Endpoint #33 — the school's billing screen.
@@ -73,9 +73,9 @@ public class SchoolSubscriptionController {
      * <p>In-process callers should use {@link SchoolSubscriptionService} directly rather than making an
      * HTTP request to themselves. This endpoint is the same method with a URL in front of it.
      */
-    @GetMapping("/entitlements")
-    public ResponseEntity<EntitlementsResponse> getEntitlements() {
+    @GetMapping("/feature-access")
+    public ResponseEntity<FeatureAccessResponse> getFeatureAccess() {
         School school = currentSchool.require();
-        return ResponseEntity.ok(entitlementService.entitlementsFor(school));
+        return ResponseEntity.ok(featureAccessService.featureAccessFor(school));
     }
 }

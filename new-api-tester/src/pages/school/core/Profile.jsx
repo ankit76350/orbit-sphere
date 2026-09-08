@@ -38,7 +38,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * What this school is paying for, read at the bottom of its profile.
  *
  * A SUMMARY, NOT A SECOND COPY of the subscription screen. Everything a school can be told about
- * its subscription is on School › Plans › Subscription — the entitlements, the feature list, what
+ * its subscription is on School › Plans › Subscription — the feature access, the feature list, what
  * is withheld from it. Repeating that here would be two screens to keep in step for one answer.
  * What belongs here is the one line somebody opening a profile actually wants: what are they on,
  * and is it live.

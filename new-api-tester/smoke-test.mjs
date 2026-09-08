@@ -1395,9 +1395,9 @@ const bottomChecks = [
   ['both reads go out in parallel', profileSource.includes('Promise.all')],
   ['and it is a summary, not a second copy',
     profileSource.includes("screenPath('school', 'plans', 'subscription')")
-      // The entitlements belong to the subscription screen; repeating them here is two screens
+      // The feature access belong to the subscription screen; repeating them here is two screens
       // to keep in step for one answer.
-      && !profileSource.includes("'get-entitlements'")],
+      && !profileSource.includes("'get-feature-access'")],
   // A school with no subscription is a normal state, not a failed read.
   ['no subscription is an answer, not an error',
     profileSource.includes("=== 'SUBSCRIPTION_NOT_FOUND'")],

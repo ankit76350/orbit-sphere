@@ -6,7 +6,7 @@ import com.orbitastra.backend.models.plans.enums.OveragePolicy;
 import com.orbitastra.backend.models.plans.enums.UsageMetric;
 
 /**
- * One entitlement as the API returns it.
+ * One feature access as the API returns it.
  *
  * <p>Its own file because two endpoints return features — #3 after setting them and #10 when
  * showing a whole version — and two records with the same fields is two things to keep in step.

@@ -444,7 +444,7 @@ const SCHOOL_VIEW = { status: 200, body: {
   currentPeriodStart: '2026-09-03T00:00:00Z', currentPeriodEnd: '2027-09-03T00:00:00Z',
   daysRemaining: 365, periodEnded: false, autoRenew: true, note: null } };
 
-const ENTITLEMENTS = { status: 200, body: {
+const FEATURE_ACCESS = { status: 200, body: {
   active: true, reason: null, subscriptionNo: 'SUB/2026/09/000001', status: 'ACTIVE',
   planName: 'Premium', planVersion: 2, currentPeriodEnd: '2027-09-03T00:00:00Z',
   maxStudents: 2500, maxUsers: 250, featureCount: 2,
@@ -456,11 +456,11 @@ const ENTITLEMENTS = { status: 200, body: {
   ] } };
 
 let schoolViewAnswer = SCHOOL_VIEW;
-let entitlementsAnswer = ENTITLEMENTS;
+let featureAccessAnswer = FEATURE_ACCESS;
 let readAnswer = NO_SUBSCRIPTION;
 let created = { status: 201, body: { subscriptionNo: 'SUB/2026/09/000001' } };
 handler = (url, options = {}) => {
-  if (url.endsWith('/schools/current/subscription/entitlements')) return entitlementsAnswer;
+  if (url.endsWith('/schools/current/subscription/feature-access')) return featureAccessAnswer;
   if (url.endsWith('/schools/current/subscription')) return schoolViewAnswer;
   if (url.endsWith('/subscription')) return readAnswer;
   if (url.includes('/subscriptions') && options.method === 'POST') return created;
@@ -581,11 +581,11 @@ const tenantOf = (suffix) => {
 };
 check('reads the school-surface pair as well',
   Boolean(tenantOf('/schools/current/subscription'))
-    && Boolean(tenantOf('/schools/current/subscription/entitlements')),
+    && Boolean(tenantOf('/schools/current/subscription/feature-access')),
   JSON.stringify(calls.map((c) => c.url)));
 check('and sends the tenant header on both',
   tenantOf('/schools/current/subscription') === 'orbit-astra'
-    && tenantOf('/schools/current/subscription/entitlements') === 'orbit-astra',
+    && tenantOf('/schools/current/subscription/feature-access') === 'orbit-astra',
   JSON.stringify(calls.map((c) => [c.url, c.headers])));
 
 // The point of the school's card is what is NOT in it. Checked against the live response, so a
@@ -596,9 +596,9 @@ check('confirms the four fields held back from the school',
     && !view.container.textContent.includes('is being sent'),
   view.container.textContent.slice(-900));
 
-// One feature list, and it comes from the entitlements read — two lists on one screen is the
+// One feature list, and it comes from the feature access read — two lists on one screen is the
 // exact thing that endpoint exists to prevent.
-check('the entitlements card says how many are available',
+check('the feature access card says how many are available',
   view.container.textContent.includes('2 of 2 available'),
   view.container.textContent.slice(-900));
 check('and says the subscription is granting',
@@ -619,10 +619,10 @@ schoolViewAnswer = SCHOOL_VIEW;
 // Nothing is allowed, and the plan still says yes. This is the case a module reading the plan
 // on its own would get wrong.
 console.log('\nThe subscription tab, when the subscription grants nothing');
-entitlementsAnswer = { status: 200, body: {
-  ...ENTITLEMENTS.body, active: false,
+featureAccessAnswer = { status: 200, body: {
+  ...FEATURE_ACCESS.body, active: false,
   reason: 'The subscription period ended on 2026-08-01T00:00:00Z.',
-  features: ENTITLEMENTS.body.features.map((f) => ({ ...f, allowed: false })) } };
+  features: FEATURE_ACCESS.body.features.map((f) => ({ ...f, allowed: false })) } };
 view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
 
 check('says plainly that nothing is allowed',
@@ -635,19 +635,19 @@ check('flags the features the plan grants but the subscription does not',
   view.container.textContent.includes('In the plan, but not available'),
   view.container.textContent.slice(-900));
 await view.unmount();
-entitlementsAnswer = ENTITLEMENTS;
+featureAccessAnswer = FEATURE_ACCESS;
 
 // A 200 carrying something unexpected must show "did not load", not white-screen the tab.
 console.log('\nThe subscription tab, when a school-surface read answers oddly');
-entitlementsAnswer = { status: 200, body: { unexpected: true } };
+featureAccessAnswer = { status: 200, body: { unexpected: true } };
 view = await mount(wrap(React.createElement(SchoolSubscriptionTab, { school })));
 check('survives a 200 with the wrong shape',
-  view.container.textContent.includes('entitlements did not load'),
+  view.container.textContent.includes('feature access did not load'),
   view.container.textContent.slice(-500));
 check('and still shows the platform read',
   view.container.textContent.includes('SUB/2026/09/000001'));
 await view.unmount();
-entitlementsAnswer = ENTITLEMENTS;
+featureAccessAnswer = FEATURE_ACCESS;
 
 // A period can lapse while the status still says ACTIVE, because nothing expires a subscription
 // yet. The API says so in `note` and the screen must not quietly drop it.

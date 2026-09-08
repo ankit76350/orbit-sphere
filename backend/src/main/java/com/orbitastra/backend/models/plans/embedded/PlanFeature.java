@@ -11,14 +11,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * One feature entitlement embedded inside a PlanDefinition version.
+ * One feature feature access embedded inside a PlanDefinition version.
  *
  * <p>It has no collection identity. Read a row as a sentence: <i>this plan includes X, up to N of
  * Y, and does Z when the school goes past it.</i>
  *
  * <p><b>{@code featureCode} became an enum on 2026-09-03.</b> It was a free string, which
  * accepted {@code STUDNET_MANAGEMENT} without complaint — the plan looked right on every screen
- * while the entitlement service, asking for {@code STUDENT_MANAGEMENT}, found nothing and locked
+ * while the feature access service, asking for {@code STUDENT_MANAGEMENT}, found nothing and locked
  * the school out of what they had paid for. A feature code points at behaviour in this codebase
  * rather than at anything a user invents, so the set of them is closed and belongs in
  * {@link FeatureCode}.

@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
  * capability the software does not have. So the set is closed by definition.
  *
  * <p>It used to be a {@code String}. That accepted {@code STUDNET_MANAGEMENT} with a {@code 200},
- * the plan looked perfect on every screen, and the entitlement service — asking for
+ * the plan looked perfect on every screen, and the feature access service — asking for
  * {@code STUDENT_MANAGEMENT} — never found it. The school was locked out of something they had
  * paid for, by one transposed letter, and nobody would find out until they rang up. As an enum
  * that is a {@code 400} listing the accepted values, at the moment the plan is written.

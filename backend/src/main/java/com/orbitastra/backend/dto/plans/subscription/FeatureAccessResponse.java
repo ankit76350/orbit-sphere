@@ -40,7 +40,7 @@ import com.orbitastra.backend.models.plans.enums.UsageMetric;
  * every request that touches a feature, and counting rows on each one would be the most
  * expensive query in the product. Callers hold their own count and compare it to the limit here.
  */
-public record EntitlementsResponse(
+public record FeatureAccessResponse(
 
         /** Whether the subscription grants anything at all right now. */
         boolean active,
@@ -59,7 +59,7 @@ public record EntitlementsResponse(
         Long maxUsers,
 
         int featureCount,
-        List<Entitlement> features) {
+        List<Feature> features) {
 
     /**
      * One feature, and what this school may do with it.
@@ -71,7 +71,7 @@ public record EntitlementsResponse(
      * @param usageMetric    what the ceiling counts. Null whenever usageLimit is null
      * @param overagePolicy  what to do when the ceiling is passed
      */
-    public record Entitlement(
+    public record Feature(
             FeatureCode featureCode,
             String label,
             boolean includedInPlan,

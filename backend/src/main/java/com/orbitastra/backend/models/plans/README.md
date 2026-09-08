@@ -43,7 +43,7 @@ Represents one immutable version of a public or private SaaS plan.
 | `effectiveFrom` | First date/time when this version may be sold. |
 | `effectiveUntil` | Last date/time when this version may be sold. |
 | `publiclyAvailable` | Whether schools can select the plan without a private quotation. |
-| `features` | Embedded PlanFeature entitlements. Set as a whole list by the API, never one at a time — a plan is priced as a set. |
+| `features` | Embedded PlanFeature feature access. Set as a whole list by the API, never one at a time — a plan is priced as a set. |
 
 `effectiveFrom` and `effectiveUntil` belong to the plan version. They do not
 represent a school's current subscription period.
@@ -60,7 +60,7 @@ Existing subscriptions continue to reference their contracted version.
 
 ## PlanFeature — embedded
 
-Represents one feature entitlement inside a PlanDefinition.
+Represents one feature feature access inside a PlanDefinition.
 
 Read one row as a sentence: *this plan includes X, up to N of Y, and does Z when the school goes
 past it.*
@@ -74,7 +74,7 @@ past it.*
 | `overagePolicy` | Block, warn, allow, or charge after reaching the limit. |
 
 **`featureCode` was a `String` until 2026-09-03.** That accepted `STUDNET_MANAGEMENT` without
-complaint: the plan looked right on every screen while the entitlement service, asking for
+complaint: the plan looked right on every screen while the feature access service, asking for
 `STUDENT_MANAGEMENT`, found nothing and locked the school out of what they had paid for. A
 feature code points at behaviour in this codebase rather than at anything a user invents, so the
 set is closed and belongs in an enum. Add constants, never rename one — the name is stored in

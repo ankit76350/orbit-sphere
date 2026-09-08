@@ -108,7 +108,7 @@ public class PlanController {
      *
      * <p>A {@code PUT} because the list is replaced, not edited row by row. A feature list is
      * priced as a set, so there is no moment at which half of it is a plan — and endpoints that
-     * added or removed one entitlement would make that half-state ordinary.
+     * added or removed one feature access would make that half-state ordinary.
      *
      * <p>The rows arrive under a {@code features} key rather than as a bare array, so a bad row
      * is reported with the same {@code fieldErrors} shape as every other endpoint. Send

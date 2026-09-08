@@ -6,7 +6,7 @@
  *   - `GET  /platform/schools/{id}/subscription`   what WE see. Decides which half shows.
  *   - `POST /platform/schools/{id}/subscriptions`  create one, when the school has none.
  *   - `GET  /schools/current/subscription`         what the SCHOOL sees. Deliberately less.
- *   - `GET  /schools/current/subscription/entitlements`  what the school may actually use.
+ *   - `GET  /schools/current/subscription/feature-access`  what the school may actually use.
  *
  * The first read decides which half of the screen you see, so opening a school that already pays
  * shows the subscription rather than a form that would only be refused.
@@ -17,9 +17,9 @@
  * rather than asserted in a comment — see WITHHELD. A privacy rule nobody verifies is a privacy
  * rule until the day it is not.
  *
- * THE FEATURE LIST COMES FROM THE ENTITLEMENTS READ, NOT FROM THE PLAN. The platform read
+ * THE FEATURE LIST COMES FROM THE FEATURE-ACCESS READ, NOT FROM THE PLAN. The platform read
  * carries the plan's features too, and showing both would put two feature lists on one screen
- * that could disagree — which is the exact thing the entitlements endpoint exists to prevent.
+ * that could disagree — which is the exact thing the feature access endpoint exists to prevent.
  * So there is one list, and it reads `allowed`: the plan saying yes AND the subscription
  * granting. When those two differ the row says so, because that difference is the whole reason
  * no module may read the plan directly.
@@ -143,7 +143,7 @@ export default function SchoolSubscriptionTab({ school }) {
   // (#34). Both are school-surface reads, so they go out with the tenant header rather than the
   // school's id in the path.
   const [schoolView, setSchoolView] = useState(null);
-  const [entitlements, setEntitlements] = useState(null);
+  const [featureAccess, setFeatureAccess] = useState(null);
 
   const [plans, setPlans] = useState(null);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -213,15 +213,15 @@ export default function SchoolSubscriptionTab({ school }) {
         label: "Read the school's own view",
         subdomain: school.subdomain,
       }),
-      call('get-entitlements', {
-        label: 'Read the entitlements',
+      call('get-feature-access', {
+        label: 'Read the feature access',
         subdomain: school.subdomain,
       }),
     ]);
     setSchoolView(mine.ok && mine.bodyJson?.subscriptionNo ? mine.bodyJson : null);
     // Guarded on the shape, not just on `ok`: a 200 carrying something unexpected should show
     // the "did not load" panel, not crash the tab on a missing feature list.
-    setEntitlements(
+    setFeatureAccess(
       allowed.ok && Array.isArray(allowed.bodyJson?.features) ? allowed.bodyJson : null,
     );
   }, [call, school.subdomain]);
@@ -511,14 +511,14 @@ export default function SchoolSubscriptionTab({ school }) {
 
         {/* -------------------------------------------------- what the school may actually use */}
         <Card
-          title="Entitlements"
-          description="What this school may use right now — GET /schools/current/subscription/entitlements"
-          action={<EndpointTag id="get-entitlements" showPath={false} />}
+          title="Feature access"
+          description="What this school may use right now — GET /schools/current/subscription/feature-access"
+          action={<EndpointTag id="get-feature-access" showPath={false} />}
         >
-          {!entitlements ? (
+          {!featureAccess ? (
             <EmptyState
               icon={AlertTriangle}
-              title="The entitlements did not load"
+              title="The feature access did not load"
               description="This read needs the tenant header, which comes from the school's subdomain."
               action={<Button icon={RefreshCw} onClick={loadSchoolView}>Try again</Button>}
             />
@@ -526,7 +526,7 @@ export default function SchoolSubscriptionTab({ school }) {
             <>
               {/* The one thing every module has to honour. A green line here is not decoration:
                   when it is red, nothing on the plan may be used, whatever the plan says. */}
-              {entitlements.active ? (
+              {featureAccess.active ? (
                 <p className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
                   <CheckCircle2 size={14} className="mt-px shrink-0 text-emerald-600" />
                   This subscription is granting what the plan includes.
@@ -535,21 +535,21 @@ export default function SchoolSubscriptionTab({ school }) {
                 <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-900">
                   <AlertTriangle size={14} className="mt-px shrink-0 text-red-600" />
                   <span>
-                    <strong>Nothing is allowed.</strong> {entitlements.reason}
+                    <strong>Nothing is allowed.</strong> {featureAccess.reason}
                   </span>
                 </p>
               )}
 
               <dl className="mt-4 grid gap-x-4 gap-y-4 sm:grid-cols-3">
-                <Detail label="Students">{entitlements.maxStudents}</Detail>
-                <Detail label="Users">{entitlements.maxUsers}</Detail>
+                <Detail label="Students">{featureAccess.maxStudents}</Detail>
+                <Detail label="Users">{featureAccess.maxUsers}</Detail>
                 <Detail label="Features">
-                  {entitlements.features.filter((one) => one.allowed).length} of{' '}
-                  {entitlements.featureCount} available
+                  {featureAccess.features.filter((one) => one.allowed).length} of{' '}
+                  {featureAccess.featureCount} available
                 </Detail>
               </dl>
 
-              {entitlements.featureCount === 0 ? (
+              {featureAccess.featureCount === 0 ? (
                 <EmptyState
                   icon={Info}
                   title="No features on this plan"
@@ -557,7 +557,7 @@ export default function SchoolSubscriptionTab({ school }) {
                 />
               ) : (
                 <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100">
-                  {entitlements.features.map((feature) => (
+                  {featureAccess.features.map((feature) => (
                     <li key={feature.featureCode} className="flex items-start gap-3 py-2.5">
                       {feature.allowed
                         ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />

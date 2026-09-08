@@ -7,8 +7,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.plans.subscription.EntitlementsResponse;
-import com.orbitastra.backend.dto.plans.subscription.EntitlementsResponse.Entitlement;
+import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse;
+import com.orbitastra.backend.dto.plans.subscription.FeatureAccessResponse.Feature;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
@@ -25,13 +25,13 @@ import lombok.RequiredArgsConstructor;
  *
  * <p><b>Every module that gates a feature asks this.</b> Nothing else may read
  * {@code plan_definitions.features} and decide for itself, because the moment two places work
- * entitlements out they disagree — and they disagree quietly, in the direction of letting a
+ * feature access out they disagree — and they disagree quietly, in the direction of letting a
  * school use what it has not paid for. Transport checking "is TRANSPORT in the features list"
  * looks right and misses that the subscription was cancelled last month.
  *
  * <p>It is a class of its own rather than another method on
  * {@link PlatformSubscriptionService} so that the one place is easy to find. A module needing a gate
- * calls {@link #entitlementsFor(School)} directly; #34 is only the HTTP face of the same method.
+ * calls {@link #featureAccessFor(School)} directly; #34 is only the HTTP face of the same method.
  *
  * <h2>Two rules, and they are both here rather than at the call sites</h2>
  *
@@ -63,7 +63,7 @@ public class SchoolSubscriptionService {
      *                      indistinguishable from a plan with no features — and those need
      *                      different fixing.
      */
-    public EntitlementsResponse entitlementsFor(School school) {
+    public FeatureAccessResponse featureAccessFor(School school) {
 
         //! step 1 - the school's one current subscription
         // TODO: read subscription
@@ -83,13 +83,13 @@ public class SchoolSubscriptionService {
         boolean active = blocked == null;
 
         //! step 4 - each feature, with the answer already worked out
-        List<Entitlement> features = new ArrayList<>();
+        List<Feature> features = new ArrayList<>();
         for (PlanFeature feature : plan.getFeatures() == null ? List.<PlanFeature>of()
                 : plan.getFeatures()) {
 
             boolean includedInPlan = Boolean.TRUE.equals(feature.getEnabled());
 
-            features.add(new Entitlement(
+            features.add(new Feature(
                     feature.getFeatureCode(),
                     feature.getFeatureCode().getLabel(),
                     includedInPlan,
@@ -111,7 +111,7 @@ public class SchoolSubscriptionService {
                 ? subscription.getMaxUsersOverride()
                 : plan.getMaxUsers();
 
-        return new EntitlementsResponse(
+        return new FeatureAccessResponse(
                 active,
                 blocked,
                 subscription.getSubscriptionNo(),
@@ -161,7 +161,7 @@ public class SchoolSubscriptionService {
      * was cancelled" and "your period ran out" lead the school to do different things.
           *
      * Used by:
-     * - entitlementsFor()
+     * - featureAccessFor()
      */
     private String whyNotActive(SchoolSubscription subscription) {
         SubscriptionStatus status = subscription.getStatus();

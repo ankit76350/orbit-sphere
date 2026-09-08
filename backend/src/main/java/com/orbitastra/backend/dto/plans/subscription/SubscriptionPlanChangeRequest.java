@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * <p><b>The change takes effect immediately.</b> There is no "from the next period" option and no
  * field asking for one: a subscription holds one plan, not a current one and a pending one, so a
  * scheduled change would have nowhere to live. Moving the pointer now and calling it next period
- * would hand the school its new entitlements early, so the endpoint does the honest thing —
+ * would hand the school its new feature access early, so the endpoint does the honest thing —
  * the plan changes when the request is made, and the period restarts with it.
  *
  * <p><b>It asks nothing about the money already paid, and moves none.</b> The school is part-way

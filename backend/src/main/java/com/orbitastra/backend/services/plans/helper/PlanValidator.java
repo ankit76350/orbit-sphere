@@ -109,7 +109,7 @@ public class PlanValidator {
     //! features — used by endpoint 3 --------------------------------------------------
 
     /**
-     * The rules one entitlement has to satisfy.
+     * The rules one feature access has to satisfy.
      *
      * <p><b>The code itself is not checked here any more.</b> {@code FeatureCode} is an enum, so
      * an unknown feature never reaches this method — it is refused at the request boundary with
@@ -207,7 +207,7 @@ public class PlanValidator {
      * A plan's student or user ceiling.
      *
      * <p>Must be at least one. A plan capped at zero students cannot be used by anybody, and the
-     * entitlement service would block the first thing the school tried to do — which reads as a
+     * feature access service would block the first thing the school tried to do — which reads as a
      * bug in the platform rather than as the plan it was sold.
      */
     public void validateLimit(String label, Long value) {

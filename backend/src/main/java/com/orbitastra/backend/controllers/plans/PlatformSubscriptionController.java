@@ -108,7 +108,7 @@ public class PlatformSubscriptionController {
      * <p>Use {@code current} as the subscription number for the one the school is on now.
      *
      * <p><b>What #14 cannot do.</b> #14 edits the terms of the plan a school is already on; this
-     * changes which plan that is, and with it the entitlements, the price and the billing cycle.
+     * changes which plan that is, and with it the feature access, the price and the billing cycle.
      *
      * <p><b>It takes effect immediately.</b> There is no scheduling: a subscription holds one
      * plan, so a change set for the next period would have nowhere to live. The plan moves now

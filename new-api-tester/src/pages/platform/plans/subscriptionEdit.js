@@ -21,7 +21,7 @@ import { endOfDay, startOfDay, toDateInput } from '../../../lib/dates.js'
  * would override a date the cadence already decides. The form disables that box for them.
  *
  * WHAT IS NOT HERE: the price, the currency, the billing customer reference and the plan. Those
- * are #25, #26 and #16 — money and entitlement, each with its own endpoint, deliberately not
+ * are #25, #26 and #16 — money and feature access, each with its own endpoint, deliberately not
  * reachable from an edit that moves dates around. Nor the cancellation: `cancelledAt` and
  * `cancellationReason` no longer exist on the model, and `reasonForChanges` is written by the API
  * from `reason` rather than set as a field.

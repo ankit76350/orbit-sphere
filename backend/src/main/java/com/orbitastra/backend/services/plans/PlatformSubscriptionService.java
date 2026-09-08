@@ -158,7 +158,7 @@ public class PlatformSubscriptionService {
         //! step 4 - work out the terms: the plan's, unless the caller overrode them
         //!
         //! The CYCLE comes first, because it is what decides the period. The plan's own cadence
-        //! is the ordinary sale; a request that names one is selling the same entitlements on
+        //! is the ordinary sale; a request that names one is selling the same feature access on
         //! different terms, which is a negotiation like the price and the ceilings beside it.
         //! It lands on the subscription, so it changes what this school is billed and nothing
         //! about the plan.
@@ -513,11 +513,11 @@ public class PlatformSubscriptionService {
      * <p><b>The plan changes immediately, and there is no option not to.</b> A subscription holds
      * one plan, not a current one and a pending one, so a change scheduled for the next period
      * would have nowhere to live — and moving the pointer now while calling it next period would
-     * hand the school its new entitlements early.
+     * hand the school its new feature access early.
      *
      * <p><b>What the request does choose is when the new billing PERIOD begins</b>, through the
      * required {@code currentPeriodStart}. Today is the ordinary answer and reproduces the old
-     * behaviour exactly. A later date does not delay the entitlements — only the period — and the
+     * behaviour exactly. A later date does not delay the feature access — only the period — and the
      * row being left has its end moved to that same instant, so the two periods meet.
      *
      * <p><b>It asks nothing about the money already paid, and moves none.</b> The school is

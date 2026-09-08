@@ -30,7 +30,7 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>This document is not school-owned and therefore extends AuditedDocument
  * directly. The immutable business identity is {@code planCode + planVersion}.
- * A published version should not be rewritten; material entitlement or pricing
+ * A published version should not be rewritten; material feature access or pricing
  * changes create a new version.
  *
  * <p>SchoolSubscription links to this document through
