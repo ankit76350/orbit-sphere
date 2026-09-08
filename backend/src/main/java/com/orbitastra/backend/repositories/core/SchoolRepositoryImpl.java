@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.common.mongo.CriteriaText;
-import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
+import com.orbitastra.backend.dto.core.platform.request.SchoolSearchRequest;
 import com.orbitastra.backend.models.core.School;
 
 import lombok.RequiredArgsConstructor;

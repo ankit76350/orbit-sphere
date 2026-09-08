@@ -8,11 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.core.profile.SchoolAddressRequest;
-import com.orbitastra.backend.dto.core.profile.SchoolLocalizationRequest;
-import com.orbitastra.backend.dto.core.profile.SchoolLogoRequest;
-import com.orbitastra.backend.dto.core.profile.SchoolProfileResponse;
-import com.orbitastra.backend.dto.core.profile.SchoolProfileUpdateRequest;
+import com.orbitastra.backend.dto.core.profile.request.SchoolAddressRequest;
+import com.orbitastra.backend.dto.core.profile.request.SchoolLocalizationRequest;
+import com.orbitastra.backend.dto.core.profile.request.SchoolLogoRequest;
+import com.orbitastra.backend.dto.core.profile.response.SchoolProfileResponse;
+import com.orbitastra.backend.dto.core.profile.request.SchoolProfileUpdateRequest;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.core.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.SchoolRepository;

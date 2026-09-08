@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import com.orbitastra.backend.common.mongo.CriteriaText;
-import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.catalogue.request.PlanSearchRequest;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 
 import lombok.RequiredArgsConstructor;

@@ -1383,7 +1383,7 @@ Built on the same parts, for the same reasons:
 this list and the single-plan responses report it. Two screens combining the same three
 conditions slightly differently is how a plan comes to look buyable on one page and not on
 another, so it is computed in
-[`PlanResponse.isSellable`](../../dto/plans/catalogue/PlanResponse.java) and called from both.
+[`PlanResponse.isSellable`](../../dto/plans/catalogue/response/PlanResponse.java) and called from both.
 
 **Regex escaping moved to [`CriteriaText`](../../common/mongo/CriteriaText.java).** The school
 list already had it. One copy was fine; two copies of a security rule is one that gets fixed and
@@ -1607,18 +1607,18 @@ descriptions, and they drift.
 
 ### It does not reuse the writes' response
 
-[`PlanResponse`](../../dto/plans/catalogue/PlanResponse.java) carries a `nextStep` — a sentence
+[`PlanResponse`](../../dto/plans/catalogue/response/PlanResponse.java) carries a `nextStep` — a sentence
 about what just happened and what to do next — and a read did not make anything happen. It also
 reports only a count of features, which is right for a price change and wrong here.
 
-So #10 has [`PlanDetailResponse`](../../dto/plans/catalogue/PlanDetailResponse.java): the whole
+So #10 has [`PlanDetailResponse`](../../dto/plans/catalogue/response/PlanDetailResponse.java): the whole
 document, and nothing about a transition. This is the rule `controllers/core/README.md` set out
 for its own reads — *`nextStep` and `changeSummary` are write fields* — applied.
 
 ### The feature row is now shared
 
 Building this made two endpoints return features, so the row moved into its own record,
-[`PlanFeatureView`](../../dto/plans/catalogue/PlanFeatureView.java). #3 and #10 return the
+[`PlanFeatureView`](../../dto/plans/catalogue/response/PlanFeatureView.java). #3 and #10 return the
 identical shape, so a client that can read one can read the other, and there is one place to
 change if a field is ever added.
 

@@ -3,7 +3,7 @@ package com.orbitastra.backend.repositories.core;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import com.orbitastra.backend.dto.core.platform.SchoolSearchRequest;
+import com.orbitastra.backend.dto.core.platform.request.SchoolSearchRequest;
 import com.orbitastra.backend.models.core.School;
 
 /**

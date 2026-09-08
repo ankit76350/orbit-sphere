@@ -3,7 +3,7 @@ package com.orbitastra.backend.repositories.plans;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import com.orbitastra.backend.dto.plans.catalogue.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.catalogue.request.PlanSearchRequest;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 
 /**

@@ -403,6 +403,14 @@ const datesUtil = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/common/time/Dates.java', 'utf8')
 // Every model, concatenated, so the date-typed getter names can be read off them rather than
 // guessed at from a list somebody has to remember to update.
+// Every backend source, so an import naming a package that no longer exists cannot hide.
+const javaSources = (function walkJava(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = join(dir, e.name)
+    return e.isDirectory() ? walkJava(full)
+      : (e.name.endsWith('.java') ? [readFileSync(full, 'utf8')] : [])
+  })
+})('../backend/src/main/java/com/orbitastra/backend')
 const modelSources = (function readModels(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name)
@@ -1152,6 +1160,72 @@ console.log('\nA billing period cannot start in the past')
 // Checked because I have broken it twice: once by extracting logic that had a single caller, and
 // once by pulling a day table out of calculateSubscriptionPeriodEnd into a second helper it then
 // called. Both read fine in isolation; neither survives the rule.
+// EVERY DTO LIVES IN request/ OR response/. One folder held both, which reads fine at five files
+// and stops reading at thirteen: the thing somebody wants when they open a DTO folder is "what
+// does this endpoint accept" or "what does it answer", and a flat alphabetical list interleaves
+// the two. The split is packaging only — no endpoint's behaviour depends on it — so the guard is
+// that the layout holds, and that no file's package line disagrees with the folder it sits in.
+console.log('\nEvery DTO is filed as a request or a response')
+const dtoRoot = '../backend/src/main/java/com/orbitastra/backend/dto'
+const dtoFiles = (function walk(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = join(dir, e.name)
+    return e.isDirectory() ? walk(full) : (e.name.endsWith('.java') ? [full] : [])
+  })
+})(dtoRoot)
+// A DTO sitting directly in a module folder rather than in request/ or response/.
+const unfiled = dtoFiles
+  .filter((f) => !/\/(request|response)\/[^/]+\.java$/.test(f))
+  .map((f) => f.replace(dtoRoot + '/', ''))
+// The package line has to name the folder, or the move compiled by luck rather than correctness.
+const mispackaged = dtoFiles.filter((f) => {
+  const want = 'package com.orbitastra.backend.dto.'
+    + f.replace(dtoRoot + '/', '').split('/').slice(0, -1).join('.') + ';'
+  return !readFileSync(f, 'utf8').startsWith(want)
+}).map((f) => f.replace(dtoRoot + '/', ''))
+// Named *Request in response/, or *Response in request/ — filed on the wrong side.
+const misfiled = dtoFiles.filter((f) => {
+  const side = f.includes('/request/') ? 'request' : 'response'
+  const name = f.split('/').pop().replace('.java', '')
+  if (name.endsWith('Request')) return side !== 'request'
+  if (name.endsWith('Response')) return side !== 'response'
+  return false
+}).map((f) => f.replace(dtoRoot + '/', ''))
+const dtoLayoutChecks = [
+  [`all ${dtoFiles.length} DTOs are in request/ or response/${unfiled.length ? ': ' + unfiled.join(', ') : ''}`,
+    dtoFiles.length > 40 && unfiled.length === 0],
+  [`every package line names its folder${mispackaged.length ? ': ' + mispackaged.join(', ') : ''}`,
+    mispackaged.length === 0],
+  [`nothing is filed on the wrong side${misfiled.length ? ': ' + misfiled.join(', ') : ''}`,
+    misfiled.length === 0],
+  // Both surfaces of every module, so a module that split only its requests is caught.
+  [(() => {
+    const mods = [...new Set(dtoFiles.map((f) => f.replace(dtoRoot + '/', '')
+      .split('/').slice(0, -2).join('/')))].sort()
+    return `both folders exist in every module (${mods.join(', ')})`
+  })(), (() => {
+    const mods = [...new Set(dtoFiles.map((f) => f.replace(dtoRoot + '/', '')
+      .split('/').slice(0, -2).join('/')))]
+    return mods.length >= 5 && mods.every((m) =>
+      dtoFiles.some((f) => f.includes(`/${m}/request/`))
+        && dtoFiles.some((f) => f.includes(`/${m}/response/`)))
+  })()],
+  // Nothing may still name a flat DTO package: that would compile only while a duplicate class
+  // survived somewhere, and would break the moment it did not.
+  [(() => {
+    const stale = javaSources.filter((src) =>
+      /import com\.orbitastra\.backend\.dto\.(?:core\.(?:academicyear|platform|profile)|plans\.(?:catalogue|subscription))\.[A-Z]/
+        .test(src)).length
+    return `no import names a flat DTO package (${stale} do)`
+  })(), javaSources.every((src) =>
+    !/import com\.orbitastra\.backend\.dto\.(?:core\.(?:academicyear|platform|profile)|plans\.(?:catalogue|subscription))\.[A-Z]/
+      .test(src))],
+]
+for (const [label, ok] of dtoLayoutChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 // A DATE IN A MESSAGE IS READ BY A PERSON. Fields stay ISO-8601 because a program parses them;
 // messages spell the date out, because "2027-10-08T23:59:59Z" in the middle of a sentence is
 // something nobody reads. One helper renders all of them.

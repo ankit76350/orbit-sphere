@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.orbitastra.backend.dto.core.academicyear.AcademicYearCreateRequest;
-import com.orbitastra.backend.dto.core.academicyear.AcademicYearDatesRequest;
-import com.orbitastra.backend.dto.core.academicyear.AcademicYearResponse;
-import com.orbitastra.backend.dto.core.academicyear.DayStatusResponse;
-import com.orbitastra.backend.dto.core.academicyear.GenerateWeeklyOffRequest;
-import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarRequest;
-import com.orbitastra.backend.dto.core.academicyear.HolidayCalendarResponse;
-import com.orbitastra.backend.dto.core.academicyear.HolidayRequest;
-import com.orbitastra.backend.dto.core.academicyear.HolidayUpdateRequest;
-import com.orbitastra.backend.dto.core.academicyear.WeeklyOffGenerateResponse;
-import com.orbitastra.backend.dto.core.academicyear.WorkingDaysResponse;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearCreateRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearDatesRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.GenerateWeeklyOffRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayCalendarRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayRequest;
+import com.orbitastra.backend.dto.core.academicyear.request.HolidayUpdateRequest;
+import com.orbitastra.backend.dto.core.academicyear.response.AcademicYearResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.DayStatusResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.HolidayCalendarResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WeeklyOffGenerateResponse;
+import com.orbitastra.backend.dto.core.academicyear.response.WorkingDaysResponse;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
