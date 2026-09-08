@@ -15,6 +15,8 @@ import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
@@ -142,6 +144,54 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.renewSubscription(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #19 — cuts a school off for non-payment.
+     *
+     * <p>Use {@code current} as the subscription number for the one the school is on now.
+     *
+     * <p><b>Not the same as #14 writing a status.</b> Cutting a school off stops its staff
+     * working, so it is one transition with its own rules rather than a field on an edit — and it
+     * carries the school's own access with it, which #14 does not.
+     *
+     * <p><b>Two documents move.</b> The subscription goes {@code SUSPENDED}, turning every
+     * feature off through #34; the school goes {@code SUSPENDED} too, which is what blocks the
+     * tenant. {@code ACTIVE} and {@code PAST_DUE} only — a trial has no unpaid bill behind it —
+     * and a {@code reason} is required.
+     *
+     * <p><b>It does not kill live sessions or stop scheduled jobs</b>, because neither exists
+     * yet. The response says so rather than leaving it assumed.
+     */
+    @PostMapping("/subscriptions/{subscriptionNo}/suspend")
+    public ResponseEntity<SubscriptionDetailResponse> suspend(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody SubscriptionSuspendRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.suspendSubscription(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #20 — switches a school back on after it pays.
+     *
+     * <p>The exact reverse of #19: the subscription returns to {@code ACTIVE} and the school with
+     * it. Only a {@code SUSPENDED} subscription can be resumed, and a {@code reason} is required.
+     *
+     * <p><b>The period is not extended.</b> A school suspended for three weeks comes back to the
+     * same {@code currentPeriodEnd}, having paid for time it could not use — crediting that is a
+     * money decision nothing here can make, so the response says so instead of quietly moving
+     * the date. #14 is where a date moves if a credit was agreed.
+     */
+    @PostMapping("/subscriptions/{subscriptionNo}/resume")
+    public ResponseEntity<SubscriptionDetailResponse> resume(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @Valid @RequestBody SubscriptionResumeRequest request) {
+
+        return ResponseEntity.ok(
+                subscriptionService.resumeSubscription(schoolId, subscriptionNo, request));
     }
 
     /**

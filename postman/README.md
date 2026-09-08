@@ -341,6 +341,29 @@ it; an operator calls it by hand when something went wrong. **Nothing calls it o
 - **It does not touch the school's own status**, unlike #16: a renewal continues an arrangement
   rather than starting one.
 
+**Suspend (#19) and Resume (#20)** are the non-payment pair, and both require a `reason`.
+
+- **Suspend moves two documents**, because one would stop nothing: `school_subscriptions.status`
+  goes `SUSPENDED`, which turns every feature off through #34, and `schools.status` goes
+  `SUSPENDED` too, which is what blocks the tenant — a school-surface write then answers
+  `409 SCHOOL_NOT_EDITABLE`. Worth proving both ways round: `200` before, `409` while suspended,
+  `200` again after resuming.
+- **`ACTIVE` and `PAST_DUE` only.** A trial is refused — there is no unpaid bill behind one — and
+  that refusal is what lets **Resume** go straight back to `ACTIVE` without looking up what the
+  status used to be. `CANCELLED` and `EXPIRED` ended rather than paused.
+- **This is not `{"status": "SUSPENDED"}` on Edit Subscription.** That moves the field and nothing
+  else: no school status, no `SUSPENDED` history event, none of the refusals. Use it to correct a
+  record, not to cut a school off.
+- **Neither writes a second row**, unlike Change Plan and Renew — the same subscription is paused
+  and unpaused.
+- **The period is not paused or extended.** A school suspended for three weeks comes back to the
+  same `currentPeriodEnd`, having paid for time it could not use. Crediting that is a money
+  decision nothing here can make; Edit Subscription is where a date moves if a credit was agreed.
+- **What suspending does NOT stop:** live sessions and scheduled jobs, because neither exists yet.
+  Somebody already signed in is refused at their next request rather than thrown out. The `note`
+  says so.
+- **`suspendedAt` on the school survives a resume**, on purpose — it is when the suspension began.
+
 ## The school's own view: #33 and #34
 
 `Subscription — the school's own view` holds the two reads a school makes about itself. Both take

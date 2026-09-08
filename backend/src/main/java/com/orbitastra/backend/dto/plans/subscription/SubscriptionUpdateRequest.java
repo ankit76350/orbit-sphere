@@ -18,11 +18,15 @@ import jakarta.validation.constraints.Size;
  * history rows for one decision. One PATCH, one transaction, one history row. Pushing a trial end
  * date out is now {@code currentPeriodEnd} on this request.
  *
- * <p><b>It is the operator's override, not the ordinary path.</b> The lifecycle endpoints (#17 to
- * #22) each know one transition and its rules — renewing raises an invoice, suspending has a
- * reason, cancelling decides what happens to the money already paid. This asks no questions: it
- * writes what it is told. That is what makes it useful when a subscription is already wrong, and
- * why it should not be how a subscription is ordinarily renewed or cancelled.
+ * <p><b>It is the operator's override, not the ordinary path.</b> The lifecycle endpoints each
+ * know one transition and its rules — #17 renews only what is renewable, #19 suspends and takes
+ * the school's access down with it, #20 puts both back, and cancelling would decide what happens
+ * to money already paid. This asks no questions: it writes what it is told.
+ *
+ * <p>So writing {@code SUSPENDED} into {@code status} here is <b>not</b> #19. It moves the field
+ * and nothing else: no school status, no {@code SUSPENDED} history event, and none of #19's
+ * refusals. That is what makes this useful when a subscription is already wrong, and why it is
+ * not how a school should be cut off.
  *
  * <h2>How PATCH behaves here</h2>
  *

@@ -131,8 +131,8 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t16"></a>16 — **built** | [`POST /platform/schools/{id}/subscriptions/current/change-plan`](#e16) | Move the school onto a different plan or a newer version, and say when the change starts and what happens to the money already paid. **The plan moves immediately**; `currentPeriodStart` is **required** and chooses when the new billing period begins, with the closed row ending at that same instant. **The cadence can be negotiated** — absent takes the new plan's, and whichever applies decides the period and whether an end date is required. Price and both capacity ceilings come from the new plan unless the request names them. **No money moves** — nothing raises invoices yet. Takes the school `ACTIVE`, and refuses a school being wound down. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t17"></a>17 — **built** | [`POST /platform/schools/{id}/subscriptions/current/renew`](#e17) | Start the next billing period. Normally the nightly job calls this; an operator can call it by hand when something went wrong. **No request body** — the plan, price, ceilings and cycle all carry across untouched. Writes a second row and closes the period that ended, so the new period starts exactly where the last one finished. **No invoice is raised** — nothing writes `subscription_invoices` yet. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`number_sequences`](../../models/institution/NumberSequence.java) |
 | <a id="t18"></a>[~~18~~](#e18) **not being built** | ~~`POST /platform/schools/{id}/subscriptions/{no}/mark-past-due`~~ | Mark that the bill was not paid on time. **Dropped 2026-09-07** — it is one status move, and [#14](#t14) makes status moves with a required reason and a history row. `PATCH .../subscriptions/current` with `{"status": "PAST_DUE", "reason": …}` is the whole endpoint. | — |
-| <a id="t19"></a>19 | [`POST /platform/schools/{id}/subscriptions/{no}/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
-| <a id="t20"></a>20 | [`POST /platform/schools/{id}/subscriptions/{no}/resume`](#e20) | Switch the school back on after it pays. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t19"></a>19 — **built** | [`POST /platform/schools/{id}/subscriptions/current/suspend`](#e19) | Stop the school using the product because the bill is still unpaid. Kept separate from a bare status change because cutting a school off is a decision with a grace period behind it, not a field edit. **Moves two documents**: the subscription goes `SUSPENDED`, which turns every feature off, and the school goes `SUSPENDED` too, which is what blocks the tenant. `ACTIVE` and `PAST_DUE` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
+| <a id="t20"></a>20 — **built** | [`POST /platform/schools/{id}/subscriptions/current/resume`](#e20) | Switch the school back on after it pays. The exact reverse of #19, and only that — **the period is not extended**, so a school suspended for three weeks comes back to the same end date. `SUSPENDED` only, and a `reason` is required. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`schools`](../../models/core/School.java) |
 | <a id="t21"></a>21 | [`POST /platform/schools/{id}/subscriptions/{no}/cancel`](#e21) | End the subscription with a reason. The school usually keeps working until the period it already paid for runs out. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t22"></a>22 | [`POST /platform/schools/{id}/subscriptions/{no}/expire`](#e22) | Close a subscription whose last paid period has now ended. Normally the nightly job does this. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t23"></a>[~~23~~](#e23) **superseded by [#14](#t14)** | ~~`PATCH /platform/schools/{id}/subscriptions/{no}/auto-renew`~~ | Turn automatic renewal on or off. **#14 does this**, so this endpoint is not being built — see the note below. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -427,7 +427,7 @@ below are still a plan.
 | `subscriptionNo` | String, required | **`SUB/2026/09/000001`** — prefix `SUB/{YYYY}/{MM}/`, six digits zero-padded, allocated by `NumberSequenceService` and never chosen by the caller. (The model's `// Example:` comment still shows `SUB/2026/000001`, from before the house format took a month — the service is what writes, and it writes the month.) |
 | `planDefinitionDocsId` | String, required | **The `_id` of an `ACTIVE` plan version.** A `DRAFT` or `RETIRED` plan is refused. |
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
-| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Every later move is **#14** until the lifecycle endpoints #17 to #22 are built — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own. |
+| `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Later moves have their own endpoints where the transition matters: **#19** suspends (`ACTIVE`/`PAST_DUE` → `SUSPENDED`) and **#20** resumes (`SUSPENDED` → `ACTIVE`), both carrying the school's status with them. **#14** is the override for everything else — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own — and it applies no transition rules at all. #18 was dropped and #21–#22 are not built. |
 | `billingCycle` | BillingCycle, required | **From the plan by default, or the cycle named on #13's request.** Same five values. It lives here rather than being read through to the plan precisely so a school can be sold a plan on a cadence the plan is not listed at — and so changing the plan's listed cycle later cannot silently re-bill every school on it. #14 can move it afterwards. |
 | `currentPeriodStart` | Instant, required | **Today or later, never the past.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a contract that begins later is recorded; sending one already past is `400 PERIOD_START_IN_PAST` on both #13 and #14. The stored value goes stale as the period runs, and that is fine — the rule applies to a value being set. |
 | `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
@@ -448,7 +448,7 @@ new row, because a history you can edit is not a history.
 | Field | Type | What can be in it |
 |---|---|---|
 | `schoolSubscriptionDocsId` | String, required | **The `_id` of the subscription this happened to.** |
-| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** is written by #16 and **`RENEWED`** by #17. Every value is now written by something. |
+| `eventType` | [SubscriptionEventType](../../models/plans/enums/SubscriptionEventType.java), required | **`CREATED`** and **`TRIAL_STARTED`** are written by #13. **#14 writes any of seven**: `TERMS_CHANGED` when the status did not move, and otherwise the one that names the status it moved to — `TRIAL_STARTED` `ACTIVATED` `RESUMED` `PAYMENT_PAST_DUE` `SUSPENDED` `CANCELLED` `EXPIRED`. **`PLAN_CHANGED`** is written by #16, **`RENEWED`** by #17, and **`SUSPENDED`**/**`RESUMED`** by #19 and #20 — which are the only writers of those two that apply the transition's own rules. Every value is written by something. |
 | `previousPlanDefinitionDocsId` | String, optional | **Null on the first row**; the plan moved off, on a `PLAN_CHANGED`. |
 | `previousStatus` | SubscriptionStatus, optional | **Null on the first row** — there was no previous status. Otherwise any of the six. |
 | `newPlanDefinitionDocsId` | String, optional | **The plan moved to.** |
@@ -1991,11 +1991,15 @@ be corrected in the database until #25 exists.
 
 ### It applies no transition rules, deliberately
 
-The lifecycle endpoints (#17 to #22) each know one transition and what it implies — [#17](#e17)
-renews only what is renewable, and refuses a trial, a live period or a school that turned
-auto-renewal off; cancelling would decide what happens to money already paid. This writes what it
-is told, which is what is needed when a subscription is already wrong and no ordinary transition
-describes the fix. It is not how a subscription should ordinarily be renewed or cancelled.
+The lifecycle endpoints each know one transition and what it implies. [#17](#e17) renews only what
+is renewable, and refuses a trial or a live period. [#19](#e19) suspends only an `ACTIVE` or
+`PAST_DUE` subscription and takes the school's access down with it; [#20](#e20) puts both back.
+Cancelling would decide what happens to money already paid.
+
+This writes what it is told, which is what is needed when a subscription is already wrong and no
+ordinary transition describes the fix. **So `{"status": "SUSPENDED"}` here is not #19**: it moves
+the field and nothing else — no school status, no `SUSPENDED` history event, none of the refusals.
+Use it to correct a record, not to cut a school off.
 
 One thing is still refused, because there is no reading of it that is not a mistake:
 
@@ -2630,16 +2634,167 @@ most like #18 — worth deciding on its own terms rather than by this precedent.
 referenced from the code, from Postman and from the other module READMEs.
 
 <a id="e19"></a>
-**[19](#t19) · `POST /platform/schools/{id}/subscriptions/{no}/suspend`**
+**[19](#t19) · `POST /platform/schools/{id}/subscriptions/current/suspend`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `SUSPENDED`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `SUSPENDED`, `previousStatus`, `newStatus` = `SUSPENDED`, `reason`, `performedByDocsId`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *reads* `status`, `schoolName`; *updates* `status` = `SUSPENDED`, `suspendedAt`, `statusReason` — **only when the school is `ACTIVE`**
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `SUSPENDED`, `reasonForChanges`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan, for the response only
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `SUSPENDED`, `previousStatus`, `newStatus` = `SUSPENDED`, both plan ids (the same plan), `source`, `reason`, `performedByDocsId`, `effectiveAt`
+- **No date on the subscription.** When it happened is the history row's `effectiveAt`; a second copy on the document could only disagree with it. The *school* does get `suspendedAt`, because that field already exists and core's own suspend maintains it
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  // REQUIRED, max 500, not blank
+  "reason": "Invoice INV/2026/08/000412
+             unpaid 30 days past the
+             grace period."
+}
+
+// One field, and it is required. This
+// endpoint stops a school working, so
+// "the bill is unpaid" is not enough on
+// its own — which bill, and how far past
+// the grace period, is what makes the
+// decision answerable later.
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "subscriptionNo": "SUB/2026/09/000001",
+  "status": "SUSPENDED",
+  "reasonForChanges": "Invoice INV/... unpaid 30 days ...",
+  ...every other field unchanged
+  "note": "Suspended from ACTIVE. Every feature is now refused: #34 reads SUSPENDED and answers allowed:false on all of them. The school is now SUSPENDED too, which is what actually blocks it ... NOTHING killed the school's live sessions or stopped its scheduled jobs ... The period was not paused: it still ends 2026-10-08T00:00:00Z, so the school is losing time it has paid for."
+}
+
+409 SUBSCRIPTION_NOT_SUSPENDABLE — not ACTIVE or PAST_DUE
+409 SCHOOL_NOT_SUSPENDABLE      — the school is winding down
+400 VALIDATION_FAILED           — no reason, or a blank one
+404 SCHOOL_NOT_FOUND            — no such school
+404 SUBSCRIPTION_NOT_FOUND      — the school has none
+</pre></td>
+</tr>
+</table>
+
+**Every field on the request**
+
+| Field | Required | What it accepts |
+|---|---|---|
+| `reason` | **yes** | Max 500, `@NotBlank`. Stored in **three** places, because three people ask: on the subscription as `reasonForChanges`, on the school as `statusReason` (so whoever finds the school locked can see why), and on the history row. |
+
+### It moves two documents, because one would stop nothing
+
+| | What it does |
+|---|---|
+| `school_subscriptions.status` = `SUSPENDED` | turns **every feature** off — [#34](#e34) reads it and answers `allowed: false` on all of them |
+| `schools.status` = `SUSPENDED` | blocks **the tenant** — `CurrentSchoolResolver.requireUsable()` reads it, so school-surface writes answer `409 SCHOOL_NOT_EDITABLE` |
+
+Writing only the subscription would leave a school that had been "suspended" still editing its own
+records. Verified both ways round: a school-surface `PATCH` answers `200` before, `409
+SCHOOL_NOT_EDITABLE` while suspended, and `200` again after [#20](#e20).
+
+**Only an `ACTIVE` school's status moves.** A `PROVISIONING` one was never usable, so there is
+nothing to block, and one already `SUSPENDED` keeps the `suspendedAt` and reason it has rather than
+having the clock reset. The `note` says which of the three happened.
+
+### What it refuses, and why each one
+
+| Subscription status | Suspend |
+|---|---|
+| `ACTIVE` | allowed |
+| `PAST_DUE` | allowed — the ordinary case, the bill having gone unpaid |
+| `SUSPENDED` | `409` — already suspended, nothing to do |
+| `TRIAL` | `409` — no unpaid bill behind a trial, so this is not that decision |
+| `CANCELLED`, `EXPIRED` | `409` — ended rather than paused, so there is no access left to stop |
+
+**Refusing a trial is what keeps [#20](#e20) simple.** Because only `ACTIVE` and `PAST_DUE` can be
+suspended — and a school that has paid is not `PAST_DUE` any more — resume can go straight to
+`ACTIVE` without looking up what the status used to be.
+
+### What it does NOT stop
+
+Nothing kills the school's live sessions and nothing halts its scheduled jobs, because neither
+exists in this codebase yet. A user already signed in is refused at the next request that checks,
+not thrown out mid-page. The `note` says so on every response rather than leaving it assumed — the
+same honesty core's own suspend carries.
 
 <a id="e20"></a>
-**[20](#t20) · `POST /platform/schools/{id}/subscriptions/{no}/resume`**
+**[20](#t20) · `POST /platform/schools/{id}/subscriptions/current/resume`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, `previousStatus`, `newStatus` = `ACTIVE`, `reason`, `effectiveAt`
+- [`schools`](../../models/core/School.java) — *reads* `status`, `schoolName`; *updates* `status` = `ACTIVE` and `statusReason` — **only when the school is `SUSPENDED`**. `suspendedAt` is deliberately left standing: it is when the suspension began, and a resumed school's history is worth keeping. Core's own reactivate leaves it too
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates*: `status` = `ACTIVE`, `reasonForChanges`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan, for the response only
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *insert*: `eventType` = `RESUMED`, `previousStatus` = `SUSPENDED`, `newStatus` = `ACTIVE`, both plan ids, `source`, `reason`, `effectiveAt`
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+{
+  // REQUIRED, max 500, not blank
+  "reason": "Invoice INV/2026/08/000412
+             paid in full on 2026-09-08."
+}
+
+// Required for the same reason #19's is:
+// a record that says exactly why a school
+// was cut off but only "resumed" for why
+// it came back answers half the question.
+// Naming the payment closes it.
+</pre></td>
+<td><pre>
+200 OK — the whole subscription, as #27 returns it
+
+{
+  "status": "ACTIVE",
+  "reasonForChanges": "Invoice INV/... paid in full ...",
+  ...every other field unchanged, INCLUDING both period dates
+  "note": "Resumed to ACTIVE. Every feature the plan includes is allowed again. The school is ACTIVE again, so the tenant is reachable. Its suspendedAt is left standing ... The period was NOT extended: it still ends 2026-10-08T00:00:00Z, so the school has paid for the time it was locked out of."
+}
+
+409 SUBSCRIPTION_NOT_RESUMABLE — not SUSPENDED
+409 SCHOOL_NOT_RESUMABLE       — the school is winding down
+400 VALIDATION_FAILED          — no reason, or a blank one
+404 SCHOOL_NOT_FOUND           — no such school
+404 SUBSCRIPTION_NOT_FOUND     — the school has none
+</pre></td>
+</tr>
+</table>
+
+### It resumes to ACTIVE without looking anything up
+
+[#19](#e19) only ever suspends an `ACTIVE` or a `PAST_DUE` subscription, and a school that has paid
+is not `PAST_DUE` any more — so `ACTIVE` is the only sensible answer and no history lookup is
+needed to find it. Refusing to suspend a trial is what buys that.
+
+**Nothing else moves.** Not the plan, not the price, not the ceilings, not either period date — a
+suspension pauses access, and lifting it renegotiates nothing. Verified field by field across the
+pair, and the collection still holds one row: unlike #16 and #17, this writes no second document.
+
+### The period is not extended, and that is deliberate
+
+A school suspended for three weeks comes back to the same `currentPeriodEnd` it had, so it has paid
+for time it could not use. Crediting that is a **money** decision: nothing in this codebase raises
+or credits an invoice, so quietly moving the end date would be this endpoint inventing a refund.
+The `note` says so plainly instead. If a credit was agreed, [#14](#e14) is where the date moves —
+deliberately, by somebody, with a reason recorded.
+
+### What it refuses
+
+| Subscription status | Resume |
+|---|---|
+| `SUSPENDED` | allowed |
+| `ACTIVE` | `409` — nothing to resume |
+| `TRIAL`, `PAST_DUE` | `409` — never suspended, so not paused |
+| `CANCELLED`, `EXPIRED` | `409` — ended rather than paused; reopening one would be selling a period without saying so, which is [#13](#e13) or [#16](#e16) |
 
 <a id="e21"></a>
 **[21](#t21) · `POST /platform/schools/{id}/subscriptions/{no}/cancel`**

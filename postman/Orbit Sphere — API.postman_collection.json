@@ -2,7 +2,7 @@
  "info": {
   "_postman_id": "12cbb6ae-c176-4b1d-ba65-09b1668ec5dc",
   "name": "Orbit Sphere — API",
-  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 13 of 28 planned write endpoints, plus three subscription reads.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
+  "description": "Write API for the Orbit Sphere school platform.\n\n**One request per endpoint.** Every test case for that endpoint lives inside the request body as a numbered, commented-out block — swap the active body for the case you want and Send.\n\n**Built: 15 of 28 planned write endpoints, plus three subscription reads.** The rest are specified in `backend/src/main/java/com/orbitastra/backend/controllers/core/README.md`.\n\nSee `postman/README.md` for how to write a new request.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
   "_exporter_id": "47336508",
   "_collection_link": "https://go.postman.co/collection/47336508-12cbb6ae-c176-4b1d-ba65-09b1668ec5dc?source=collection_link"
@@ -2591,6 +2591,78 @@
          ]
         },
         "description": "**POST** `/platform/schools/{id}/subscriptions/current/renew` — starts the next billing period.\n\nEndpoint #17. Normally the nightly job would call this; an operator calls it by hand when something went wrong. **Nothing calls it on a schedule yet.**\n\n**No request body for an ordinary renewal.** The plan, version, price, currency, both ceilings, the cycle, `autoRenew` and the billing customer reference all carry across untouched. Anything that could change one of those would make it a change rather than a renewal — that is #14 (the terms) and #16 (the plan).\n\n**Two rows.** The period that ended is closed (`current` = false, dates left alone — it ran its full course) and a new row opens with its own `subscriptionNo`, starting exactly where the old one ended. Each call advances exactly one period, so a subscription three cycles behind needs three calls.\n\n**ACTIVE, PAST_DUE and EXPIRED renew, and all three come out ACTIVE.** `TRIAL`, `SUSPENDED` and `CANCELLED` are `409 SUBSCRIPTION_NOT_RENEWABLE`; a live period is `409 PERIOD_NOT_ENDED`; a school being wound down is `409 SCHOOL_NOT_RENEWABLE`.\n\n**The plan has to still be current.** A renewal re-commits the school to the same plan, so a plan that is retired, back to `DRAFT`, or outside its effective window is `409 PLAN_NOT_RENEWABLE` — and the message points at Change Plan, because moving the school onto a current plan is the only fix. A private plan renews like any other.\n\n**A `CUSTOM` cycle is asked for a date, not refused.** It has no length, so send `currentPeriodEnd` — without it, `400 BILLING_PERIOD_END_REQUIRED`. That one field is the only reason this endpoint has a body; on the four fixed cycles it is an optional override, and omitting the body is the ordinary call.\n\n**`autoRenew` is not checked.** Nothing calls this on a schedule, so a renewal is always an operator deciding to renew this school now. The flag is carried onto the new row and surfaced by #33; it refuses nothing here.\n\n**No invoice is raised and no money is taken.** `subscription_invoices` has no repository and no writer, and its fields are commercial decisions rather than derivations from a plan's price. This moves the billing period and records the renewal; the `note` says so on every response.\n"
+       }
+      },
+      {
+       "name": "Suspend Subscription",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"reason\": \"Invoice INV/2026/08/000412 unpaid 30 days past the grace period.\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/subscriptions/current/suspend\n//  Platform surface. Needs {{schoolId}} on an ACTIVE or PAST_DUE subscription.\n// ===========================================================================\n//\n//  WHY THIS IS NOT Edit Subscription WRITING A STATUS. #14 can put SUSPENDED\n//  in the status field, and that is the problem: cutting a school off stops\n//  its staff working, and it should not be reachable by the same request that\n//  pushes a date out. { \"status\": \"SUSPENDED\" } on #14 moves the field and\n//  NOTHING else — no school status, no SUSPENDED history event, none of the\n//  refusals below. Use that to correct a record, not to cut a school off.\n//\n//  IT MOVES TWO DOCUMENTS, because one would stop nothing:\n//      school_subscriptions.status = SUSPENDED\n//          -> every feature off. #34 reads it and answers allowed:false.\n//      schools.status = SUSPENDED\n//          -> the TENANT blocked. requireUsable() reads it, so a\n//             school-surface write answers 409 SCHOOL_NOT_EDITABLE.\n//\n//  Only an ACTIVE school's status moves. A PROVISIONING one was never usable,\n//  and one already SUSPENDED keeps the suspendedAt it has. The note says\n//  which of the three happened.\n//\n//  ONE FIELD, AND IT IS REQUIRED. Everything else in this module takes a\n//  reason because it changed a figure; this takes one because it stopped a\n//  school working. \"The bill is unpaid\" is not enough on its own.\n//\n// ---------------------------------------------------------------------------\n// 01  CUT A SCHOOL OFF                                        -> 200 OK\n//     A freshly sold school is often still PROVISIONING, and then only the\n//     subscription moves. Force it ACTIVE to exercise the real path:\n//       db.schools.updateOne({ _id: ObjectId(\"<id>\") },\n//                            { $set: { status: \"ACTIVE\" } })\n//\n//     Send the body above.\n//     CHECK BOTH DOCUMENTS:\n//       db.school_subscriptions.findOne({ schoolId: \"<id>\", current: true })\n//         -> status SUSPENDED, reasonForChanges = your reason\n//       db.schools.findOne({ _id: ObjectId(\"<id>\") })\n//         -> status SUSPENDED, suspendedAt stamped,\n//            statusReason = your reason\n//       db.subscription_history.find({ schoolId: \"<id>\",\n//                                      eventType: \"SUSPENDED\" })\n//         -> one row, previousStatus ACTIVE\n//\n//     THEN PROVE IT BLOCKS ANYTHING:\n//       PATCH /schools/current/profile with X-School-Subdomain\n//         -> 200 before, 409 SCHOOL_NOT_EDITABLE now, 200 after Resume.\n//       GET /schools/current/subscription/entitlements\n//         -> active false, allowed:false on every feature.\n//\n// ---------------------------------------------------------------------------\n// 02  THE STATUSES THAT CANNOT BE SUSPENDED\n//                                    -> 409 SUBSCRIPTION_NOT_SUSPENDABLE\n//     db.school_subscriptions.updateOne(\n//       { schoolId: \"<id>\", current: true },\n//       { $set: { status: \"TRIAL\" } })\n//\n//     TRIAL      -> refused. No unpaid bill behind a trial, so this is not\n//                   that decision — and refusing it is what lets Resume go\n//                   straight to ACTIVE without looking anything up.\n//     SUSPENDED  -> refused. Already suspended.\n//     CANCELLED  -> refused. Ended rather than paused.\n//     EXPIRED    -> refused.\n//\n//     PAST_DUE   -> 200. The ordinary case, the bill having gone unpaid.\n//\n// ---------------------------------------------------------------------------\n// 03  A REASON IS REQUIRED                            -> 400 Bad Request\n//     {}                  -> 400 VALIDATION_FAILED naming reason.\n//     { \"reason\": \"   \" }  -> 400. Blank counts as missing.\n//\n// ---------------------------------------------------------------------------\n// 04  A SCHOOL BEING WOUND DOWN         -> 409 SCHOOL_NOT_SUSPENDABLE\n//     db.schools.updateOne({ _id: ObjectId(\"<id>\") },\n//                          { $set: { status: \"CLOSED\" } })\n//     Same for OFFBOARDING, DELETION_PENDING and DELETED: a school already\n//     closing is not suspended, it is going.\n//     CHECK the subscription did not move -> still ACTIVE.\n//\n// ---------------------------------------------------------------------------\n//  WHAT IT DOES NOT STOP. Nothing kills the school's live sessions and\n//  nothing halts its scheduled jobs, because neither exists yet — a user\n//  already signed in is refused at the next request that checks rather than\n//  thrown out mid-page. The note says so on every response.\n//\n//  NO DATE LANDS ON THE SUBSCRIPTION: when it happened is the history row's\n//  effectiveAt. The SCHOOL gets suspendedAt, because that field already\n//  exists and core's own suspend maintains it.\n//\n//  THE PERIOD IS NOT PAUSED either, so the school loses time it has paid\n//  for. Crediting that is a money decision nothing here can make.\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions/current/suspend",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions",
+          "current",
+          "suspend"
+         ]
+        },
+        "description": "**POST** `/platform/schools/{id}/subscriptions/current/suspend` — cuts a school off for non-payment.\n\nEndpoint #19. **Not the same as #14 writing a status**: cutting a school off stops its staff working, so it is one transition with its own rules rather than a field on an edit — and it carries the school's own access with it.\n\n**Two documents move.** The subscription goes `SUSPENDED`, turning every feature off through #34; the school goes `SUSPENDED` too, which is what blocks the tenant (`409 SCHOOL_NOT_EDITABLE` on a school-surface write). `ACTIVE` and `PAST_DUE` only — a trial has no unpaid bill behind it — and a `reason` is required, stored in three places.\n\n**It does not kill live sessions or stop scheduled jobs**, because neither exists yet, and it does not pause the period. The `note` says both rather than leaving them assumed.\n"
+       }
+      },
+      {
+       "name": "Resume Subscription",
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"reason\": \"Invoice INV/2026/08/000412 paid in full on 2026-09-08.\"\n}\n\n// ===========================================================================\n//  TEST CASES  —  POST /platform/schools/{id}/subscriptions/current/resume\n//  Platform surface. Needs {{schoolId}} on a SUSPENDED subscription — run\n//  Suspend Subscription first.\n// ===========================================================================\n//\n//  THE EXACT REVERSE OF #19 AND ONLY THAT. The subscription returns to ACTIVE\n//  and the school with it. The plan, the price, the ceilings and BOTH period\n//  dates are untouched: a suspension pauses access, and lifting it\n//  renegotiates nothing.\n//\n//  IT RESUMES TO ACTIVE WITHOUT LOOKING ANYTHING UP. #19 only ever suspends\n//  an ACTIVE or a PAST_DUE subscription, and a school that has paid is not\n//  PAST_DUE any more — so ACTIVE is the only sensible answer. Refusing to\n//  suspend a trial is what buys that.\n//\n// ---------------------------------------------------------------------------\n// 01  SWITCH IT BACK ON                                       -> 200 OK\n//     CHECK BOTH DOCUMENTS:\n//       db.schools.findOne({ _id: ObjectId(\"<id>\") })\n//         -> status ACTIVE, statusReason replaced,\n//            suspendedAt STILL SET — kept on purpose: that is when the\n//            suspension began, and a resumed school's history is worth\n//            keeping. Core's own reactivate leaves it too.\n//       db.subscription_history.find({ eventType: \"RESUMED\" })  -> one row\n//\n//     COMPARE WITH WHAT Get Subscription SAID BEFORE THE SUSPENSION:\n//       planCode, planVersion, billingCycle, contractedPrice, currencyCode,\n//       maxStudents, maxUsers, currentPeriodStart, currentPeriodEnd,\n//       subscriptionNo   -> ALL IDENTICAL.\n//\n//     And the collection still holds ONE row: unlike Change Plan and Renew,\n//     this pair writes no second document.\n//\n// ---------------------------------------------------------------------------\n// 02  THE STATUSES THAT CANNOT BE RESUMED\n//                                      -> 409 SUBSCRIPTION_NOT_RESUMABLE\n//     ACTIVE     -> refused. Nothing to resume.\n//     TRIAL      -> refused. Never suspended, so not paused.\n//     PAST_DUE   -> refused.\n//     CANCELLED  -> refused, and the message says why: it ended rather than\n//                   paused, so reopening it would be selling a period\n//                   without saying so. That is Create Subscription or\n//                   Change Plan.\n//     EXPIRED    -> refused.\n//\n// ---------------------------------------------------------------------------\n// 03  A REASON IS REQUIRED                            -> 400 Bad Request\n//     {} -> 400 VALIDATION_FAILED naming reason.\n//     A suspension and its lifting are a pair: a record that explains the\n//     cut-off but not the restoration answers half the question.\n//\n// ---------------------------------------------------------------------------\n//  THE PERIOD IS NOT EXTENDED, and that is deliberate. A school suspended\n//  for three weeks comes back to the same currentPeriodEnd, having paid for\n//  time it could not use. Crediting that is a MONEY decision: nothing here\n//  raises or credits an invoice, so moving the end date would be this\n//  endpoint inventing a refund. The note says so instead. If a credit was\n//  agreed, Edit Subscription is where the date moves — deliberately, by\n//  somebody, with a reason recorded.\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions/current/resume",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions",
+          "current",
+          "resume"
+         ]
+        },
+        "description": "**POST** `/platform/schools/{id}/subscriptions/current/resume` — switches a school back on after it pays.\n\nEndpoint #20. The exact reverse of #19: the subscription returns to `ACTIVE` and the school with it. Only a `SUSPENDED` subscription can be resumed, and a `reason` is required.\n\n**Nothing else moves** — not the plan, the price, the ceilings, or either period date. So the **period is not extended**: a school suspended for three weeks comes back to the same `currentPeriodEnd`, having paid for time it could not use. Crediting that is a money decision nothing here can make; #14 is where a date moves if a credit was agreed.\n"
        }
       },
       {

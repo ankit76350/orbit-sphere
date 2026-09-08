@@ -7088,6 +7088,248 @@ rather than starting one, so there is nothing about it that should take a school
       ],
     },
     {
+      id: "suspend-subscription",
+      name: "Suspend Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/suspend",
+      status: 'live',
+      summary: "Cuts a school off for non-payment. Moves the subscription AND the school.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/current/suspend\` — cuts a school off.
+
+### Why this is not #14 writing a status
+
+#14 *can* put \`SUSPENDED\` in the status field, and that is the problem: cutting a school off stops
+its staff working, and it should not be reachable by the same request that pushes a date out. This
+knows one transition, refuses everything else, and carries the school's own access with it.
+
+\`{"status": "SUSPENDED"}\` on #14 moves the field and nothing else — no school status, no
+\`SUSPENDED\` history event, none of the refusals below. Use that to correct a record, not to cut a
+school off.
+
+### It moves two documents, because one would stop nothing
+
+| | What it does |
+|---|---|
+| \`school_subscriptions.status\` = \`SUSPENDED\` | turns **every feature** off — #34 reads it and answers \`allowed: false\` on all of them |
+| \`schools.status\` = \`SUSPENDED\` | blocks **the tenant** — \`requireUsable()\` reads it, so school-surface writes answer \`409 SCHOOL_NOT_EDITABLE\` |
+
+Only an \`ACTIVE\` school's status moves. A \`PROVISIONING\` one was never usable, and one already
+\`SUSPENDED\` keeps the \`suspendedAt\` and reason it has. The \`note\` says which happened.
+
+### What it refuses
+
+| Status | Suspend |
+|---|---|
+| \`ACTIVE\`, \`PAST_DUE\` | allowed |
+| \`SUSPENDED\` | \`409\` — already suspended |
+| \`TRIAL\` | \`409\` — no unpaid bill behind a trial |
+| \`CANCELLED\`, \`EXPIRED\` | \`409\` — ended rather than paused |
+
+Refusing a trial is what keeps **#20** simple: resume can go straight to \`ACTIVE\` without looking
+up what the status used to be.
+
+### What it does NOT stop
+
+Nothing kills the school's live sessions and nothing halts its scheduled jobs — neither exists yet.
+A user already signed in is refused at the next request that checks, not thrown out mid-page.
+
+**No date lands on the subscription.** When it happened is the history row's \`effectiveAt\`. The
+*school* gets \`suspendedAt\`, because that field already exists and core's own suspend maintains it.
+
+**The period is not paused either**, so the school loses time it has paid for. Crediting that is a
+money decision nothing here can make.`,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+      ],
+      requestFields: [
+        { name: "reason", required: "yes",
+          note: "Max 500, not blank. Stored in three places — on the subscription as reasonForChanges, on the school as statusReason so whoever finds it locked can see why, and on the history row. 'The bill is unpaid' is not enough on its own: which bill, and how far past the grace period." },
+      ],
+      responseFields: ["subscriptionNo", "status", "reasonForChanges", "note"],
+      errors: [
+        { status: 409, code: "SUBSCRIPTION_NOT_SUSPENDABLE", when: "Not ACTIVE or PAST_DUE" },
+        { status: 409, code: "SCHOOL_NOT_SUSPENDABLE", when: "The school is being wound down" },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, or a blank one" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "The school has no subscription" },
+      ],
+      examples: [
+        {
+          name: "1 — cut a school off",
+          notes: `The school has to be ACTIVE for its own status to move — a freshly sold
+    school is often still PROVISIONING, and then only the subscription
+    changes and the note says so:
+
+      db.schools.updateOne({ _id: ObjectId("<id>") },
+                           { $set: { status: "ACTIVE" } })
+
+    -> 200. status SUSPENDED, and check BOTH documents:
+       db.school_subscriptions.findOne({ schoolId: "<id>", current: true })
+         -> status SUSPENDED, reasonForChanges = your reason
+       db.schools.findOne({ _id: ObjectId("<id>") })
+         -> status SUSPENDED, suspendedAt stamped, statusReason = your reason
+       db.subscription_history.find({ schoolId: "<id>",
+                                      eventType: "SUSPENDED" })
+         -> one row, previousStatus ACTIVE
+
+    THEN PROVE IT ACTUALLY BLOCKS ANYTHING:
+      PATCH /schools/current/profile with X-School-Subdomain
+        -> 200 before, 409 SCHOOL_NOT_EDITABLE while suspended, 200 after
+           Resume Subscription.
+      GET /schools/current/subscription/entitlements
+        -> active false, and allowed:false on every feature.`,
+          body: `{
+  "reason": "Invoice INV/2026/08/000412 unpaid 30 days past the grace period."
+}`,
+        },
+        {
+          name: "2 — the statuses that cannot be suspended",
+          notes: `Set the status and try each:
+      db.school_subscriptions.updateOne(
+        { schoolId: "<id>", current: true },
+        { $set: { status: "TRIAL" } })
+
+    TRIAL      -> 409 SUBSCRIPTION_NOT_SUSPENDABLE. No unpaid bill behind a
+                  trial, so this is not that decision — and refusing it is
+                  what lets #20 resume to ACTIVE without a lookup.
+    SUSPENDED  -> 409. Already suspended.
+    CANCELLED  -> 409. Ended rather than paused.
+    EXPIRED    -> 409.
+
+    PAST_DUE   -> 200. The ordinary case, the bill having gone unpaid.`,
+          body: `{
+  "reason": "Invoice unpaid past the grace period."
+}`,
+        },
+        {
+          name: "3 — a reason is required",
+          notes: `An empty body      -> 400 VALIDATION_FAILED naming reason.
+    { "reason": "   " } -> 400. Blank counts as missing.
+
+    Everything else in this module takes a reason because it changed a
+    figure. This one takes a reason because it stopped a school working.`,
+          body: `{}`,
+        },
+        {
+          name: "4 — a school being wound down",
+          notes: `db.schools.updateOne({ _id: ObjectId("<id>") },
+                           { $set: { status: "CLOSED" } })
+
+    -> 409 SCHOOL_NOT_SUSPENDABLE. Same for OFFBOARDING, DELETION_PENDING
+       and DELETED: a school already closing is not suspended, it is going.
+
+    CHECK the subscription did not move:
+      db.school_subscriptions.findOne(...).status  -> still ACTIVE`,
+          body: `{
+  "reason": "Unpaid."
+}`,
+        },
+      ],
+    },
+    {
+      id: "resume-subscription",
+      name: "Resume Subscription",
+      method: "POST",
+      path: "/platform/schools/{id}/subscriptions/current/resume",
+      status: 'live',
+      summary: "Switches a school back on after it pays. The period is NOT extended.",
+      schoolSurface: false,
+      docs: `**POST** \`/platform/schools/{id}/subscriptions/current/resume\` — switches a school back on.
+
+The exact reverse of **#19** and only that: the subscription returns to \`ACTIVE\` and the school
+with it. The plan, the price, the ceilings and both period dates are untouched — a suspension
+pauses access, and lifting it renegotiates nothing.
+
+### It resumes to ACTIVE without looking anything up
+
+#19 only ever suspends an \`ACTIVE\` or a \`PAST_DUE\` subscription, and a school that has paid is not
+\`PAST_DUE\` any more — so \`ACTIVE\` is the only sensible answer. Refusing to suspend a trial is what
+buys that simplicity.
+
+\`suspendedAt\` on the school is deliberately **left standing**: it is when the suspension began, and
+a resumed school's history is worth keeping. Core's own reactivate leaves it too.
+
+### The period is not extended, and that is deliberate
+
+A school suspended for three weeks comes back to the same \`currentPeriodEnd\`, having paid for time
+it could not use. Crediting that is a **money** decision: nothing here raises or credits an invoice,
+so moving the end date would be this endpoint inventing a refund. The \`note\` says so instead. If a
+credit was agreed, **#14** is where the date moves — deliberately, with a reason recorded.
+
+### What it refuses
+
+| Status | Resume |
+|---|---|
+| \`SUSPENDED\` | allowed |
+| \`ACTIVE\` | \`409\` — nothing to resume |
+| \`TRIAL\`, \`PAST_DUE\` | \`409\` — never suspended, so not paused |
+| \`CANCELLED\`, \`EXPIRED\` | \`409\` — ended rather than paused; reopening one would be selling a period, which is #13 or #16 |`,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+      ],
+      requestFields: [
+        { name: "reason", required: "yes",
+          note: "Max 500, not blank. Required for the same reason #19's is: a record that says exactly why a school was cut off but only 'resumed' for why it came back answers half the question. Naming the payment closes it." },
+      ],
+      responseFields: ["subscriptionNo", "status", "reasonForChanges", "note"],
+      errors: [
+        { status: 409, code: "SUBSCRIPTION_NOT_RESUMABLE", when: "Not SUSPENDED" },
+        { status: 409, code: "SCHOOL_NOT_RESUMABLE", when: "The school is being wound down" },
+        { status: 400, code: "VALIDATION_FAILED", when: "No reason, or a blank one" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "The school has none" },
+      ],
+      examples: [
+        {
+          name: "1 — switch it back on",
+          notes: `Suspend it first, then send this.
+
+    -> 200. status ACTIVE, and both documents move back:
+       db.schools.findOne(...)  -> status ACTIVE, statusReason replaced,
+                                   suspendedAt STILL SET (kept on purpose)
+       db.subscription_history.find({ eventType: "RESUMED" })  -> one row
+
+    COMPARE WITH WHAT GET SUBSCRIPTION SAID BEFORE THE SUSPENSION:
+      planCode, planVersion, billingCycle, contractedPrice, currencyCode,
+      maxStudents, maxUsers, currentPeriodStart, currentPeriodEnd,
+      subscriptionNo  -> all IDENTICAL.
+
+    And the collection still holds ONE row: unlike #16 and #17, this pair
+    writes no second document.
+
+    THE PERIOD IS NOT EXTENDED. currentPeriodEnd is exactly what it was, so
+    the school paid for the days it was locked out of. Crediting that is a
+    money decision nothing here can make — #14 is where a date moves if a
+    credit was agreed.`,
+          body: `{
+  "reason": "Invoice INV/2026/08/000412 paid in full on 2026-09-08."
+}`,
+        },
+        {
+          name: "2 — the statuses that cannot be resumed",
+          notes: `ACTIVE     -> 409 SUBSCRIPTION_NOT_RESUMABLE. Nothing to resume.
+    TRIAL      -> 409. Never suspended, so not paused.
+    PAST_DUE   -> 409.
+    CANCELLED  -> 409, and the message says why: it ended rather than
+                  paused, so reopening it would be selling a period without
+                  saying so. That is #13 or #16.
+    EXPIRED    -> 409.`,
+          body: `{
+  "reason": "Paid."
+}`,
+        },
+        {
+          name: "3 — a reason is required",
+          notes: `An empty body -> 400 VALIDATION_FAILED naming reason.
+
+    A suspension and its lifting are a pair. A record that explains the
+    cut-off but not the restoration answers half the question.`,
+          body: `{}`,
+        },
+      ],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

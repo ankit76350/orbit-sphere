@@ -374,6 +374,9 @@ const createRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionCreateRequest.java',
   'utf8')
 const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.js', 'utf8')
+const editRequestSource = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionUpdateRequest.java',
+  'utf8')
 const changeRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/SubscriptionPlanChangeRequest.java',
   'utf8')
@@ -448,6 +451,64 @@ const formChecks = [
       .every((guard) => new RegExp(`disabled=\\{[^}]*${guard}`).test(editSource))],
 ]
 for (const [label, ok] of formChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// #19 and #20 are one transition each, with a required reason. A subscription is either
+// suspendable or resumable and never both, so the card shows ONE button and the dialog serves
+// both endpoints — two nearly identical dialogs would differ only in their heading.
+console.log('\nCutting a school off, and switching it back on')
+const pauseChecks = [
+  ['the service moves both documents on suspend',
+    /suspendSubscription[\s\S]{0,4000}setStatus\(SubscriptionStatus\.SUSPENDED\)/.test(javaService)
+      && /suspendSubscription[\s\S]{0,4000}school\.setStatus\(SchoolStatus\.SUSPENDED\)/
+        .test(javaService)],
+  ['and both back on resume',
+    /resumeSubscription[\s\S]{0,4000}setStatus\(SubscriptionStatus\.ACTIVE\)/.test(javaService)
+      && /resumeSubscription[\s\S]{0,4000}school\.setStatus\(SchoolStatus\.ACTIVE\)/
+        .test(javaService)],
+  ['suspend takes ACTIVE and PAST_DUE only',
+    /previousStatus != SubscriptionStatus\.ACTIVE\s*\n\s*&& previousStatus != SubscriptionStatus\.PAST_DUE/
+      .test(javaService)],
+  ['resume takes SUSPENDED only',
+    javaService.includes('previousStatus != SubscriptionStatus.SUSPENDED')],
+  // Refusing a trial is what lets resume go straight to ACTIVE with no lookup.
+  ['a trial is refused with its own explanation',
+    /case TRIAL -> "A trial has no unpaid bill behind it/.test(javaService)],
+  ['neither writes a second row',
+    !/suspendSubscription[\s\S]{0,4000}SchoolSubscription\.builder\(\)/.test(javaService)
+      && !/resumeSubscription[\s\S]{0,4000}SchoolSubscription\.builder\(\)/.test(javaService)],
+  ['resume leaves suspendedAt standing',
+    !/resumeSubscription[\s\S]{0,4000}setSuspendedAt/.test(javaService)],
+  ['and does not touch either period date',
+    !/resumeSubscription[\s\S]{0,4000}setCurrentPeriod/.test(javaService)],
+  // The screen side.
+  ['the card shows one button, not two',
+    subsSourceFull.includes('function suspendOrResumeAction(')
+      && subsSourceFull.includes('const pauseAction = suspendOrResumeAction(s)')],
+  ['it picks resume only for a SUSPENDED subscription',
+    /suspendOrResumeAction[\s\S]{0,400}if \(s\.status === 'SUSPENDED'\)[\s\S]{0,200}resume-subscription/
+      .test(subsSourceFull)],
+  ['and explains why it cannot when neither applies',
+    /Cannot cut off a trial/.test(subsSourceFull)
+      && /Nothing to cut off/.test(subsSourceFull)],
+  ['the dialog serves both endpoints',
+    subsSourceFull.includes('function SuspendOrResume(')
+      && /onSend\(action\.endpoint, reason\)/.test(subsSourceFull)],
+  ['it will not send without a reason',
+    subsSourceFull.includes("disabled={!reason.trim()}")
+      && subsSourceFull.includes("'Say why first'")],
+  ['it warns that suspending blocks the tenant',
+    subsSourceFull.includes('This stops the school working')
+      && subsSourceFull.includes('SCHOOL_NOT_EDITABLE')],
+  ['and that resuming does not extend the period',
+    subsSourceFull.includes('The period is not extended')],
+  // #14 can still write the status; it must not be presented as the same thing.
+  ['#14 says writing SUSPENDED there is not #19',
+    editRequestSource.includes('is <b>not</b> #19')],
+]
+for (const [label, ok] of pauseChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }

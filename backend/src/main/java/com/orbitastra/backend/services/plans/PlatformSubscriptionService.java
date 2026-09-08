@@ -20,6 +20,8 @@ import com.orbitastra.backend.dto.plans.subscription.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionRenewRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.SubscriptionUpdateRequest;
 import com.orbitastra.backend.models.core.School;
@@ -1077,6 +1079,288 @@ public class PlatformSubscriptionService {
             note.add("It was PAST_DUE and is now ACTIVE. Whatever was outstanding on the previous "
                     + "period is NOT settled by this — nothing here takes a payment.");
         }
+
+        String standing = describeSubscriptionState(saved, plan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        return SubscriptionDetailResponse.fromSubscription(saved, plan, String.join(" ", note));
+    }
+
+    //! Endpoint 19 — cut a school off for non-payment ---------------------------------
+
+    /**
+     * #19 — suspends a subscription, and the school with it.
+     *
+     * <p><b>Why it is not #14 writing a status.</b> #14 can put {@code SUSPENDED} in the status
+     * field, and that is the problem: cutting a school off stops its staff working, and it should
+     * not be reachable by the same request that pushes a date out. This knows one transition,
+     * refuses everything else, and carries the school's own access with it.
+     *
+     * <p><b>Two documents move, because one would stop nothing.</b> The subscription goes
+     * {@code SUSPENDED}, which turns every feature off through #34's {@code allowed}; the school
+     * goes {@code SUSPENDED} too, which is what {@code CurrentSchoolResolver.requireUsable()}
+     * reads. Writing only the subscription would leave a "suspended" school still editing its own
+     * records.
+     *
+     * <p><b>ACTIVE and PAST_DUE only.</b> A trial has no unpaid bill behind it, so cutting one off
+     * is a different decision and is refused — which is also what lets #20 resume to
+     * {@code ACTIVE} without looking anything up. {@code CANCELLED} and {@code EXPIRED} ended
+     * rather than paused, and one already {@code SUSPENDED} has nothing to do.
+     *
+     * <p><b>It stamps no date on the subscription.</b> When it happened is the {@code effectiveAt}
+     * of the {@code SUSPENDED} history row this writes; a second copy on the document could only
+     * ever disagree with it. The school does get {@code suspendedAt}, because that field already
+     * exists and core's own suspend maintains it.
+     *
+     * <p><b>What it does not do:</b> nothing kills the school's live sessions or halts its
+     * scheduled jobs — neither exists yet — so a user already signed in is refused at the next
+     * request that checks rather than thrown out. The response says so.
+     */
+    @Transactional
+    public SubscriptionDetailResponse suspendSubscription(String schoolId, String subscriptionNo,
+            SubscriptionSuspendRequest request) {
+
+        //! step 1 - the school has to exist, and be one there is any point cutting off. The same
+        //! allow-list #16 and #17 use: a school already closing is not suspended, it is going.
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
+                || school.getStatus() == SchoolStatus.ACTIVE
+                || school.getStatus() == SchoolStatus.SUSPENDED;
+
+        if (!schoolIsStillRunning) {
+            throw ApiException.conflict("SCHOOL_NOT_SUSPENDABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + ", so there is "
+                            + "nothing to cut off. Only a PROVISIONING, ACTIVE or SUSPENDED "
+                            + "school can be suspended.");
+        }
+
+        //! step 2 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - one transition, and this is it. A trial is refused rather than suspended:
+        //! there is no unpaid bill behind a trial, so this is not the decision being made — and
+        //! refusing it here is what lets #20 resume to ACTIVE without asking what it was before.
+        SubscriptionStatus previousStatus = subscription.getStatus();
+
+        if (previousStatus != SubscriptionStatus.ACTIVE
+                && previousStatus != SubscriptionStatus.PAST_DUE) {
+
+            String because = switch (previousStatus) {
+                case SUSPENDED -> "It is already suspended.";
+                case TRIAL -> "A trial has no unpaid bill behind it. Ending a trial early is a "
+                        + "status edit, or a plan change if the school is buying something.";
+                case CANCELLED, EXPIRED -> "It has ended rather than paused, so there is no "
+                        + "access left to stop.";
+                default -> "";
+            };
+
+            throw ApiException.conflict("SUBSCRIPTION_NOT_SUSPENDABLE",
+                    subscription.getSubscriptionNo() + " is " + previousStatus + ", so it cannot "
+                            + "be suspended. Only ACTIVE and PAST_DUE can. " + because);
+        }
+
+        //! step 4 - the plan behind it, for the response only. Read before anything moves so the
+        //! answer names the plan the school is locked out of.
+        // TODO: read plan
+        PlanDefinition plan = loadPlanBehindSubscription(subscription);
+
+        //! step 5 - stop the subscription. No date field: the history row's effectiveAt is when
+        //! it happened, and a second copy here could only ever disagree with it.
+        subscription.setStatus(SubscriptionStatus.SUSPENDED);
+        subscription.setReasonForChanges(request.reason().trim());
+
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
+
+        //! step 6 - stop the school, which is the half that actually blocks anything. Only an
+        //! ACTIVE school moves: a PROVISIONING one was never usable, and one already SUSPENDED
+        //! keeps the suspendedAt it has rather than having the clock reset by a second reason.
+        String schoolNote;
+        if (school.getStatus() == SchoolStatus.ACTIVE) {
+            school.setStatus(SchoolStatus.SUSPENDED);
+            school.setSuspendedAt(Instant.now());
+            school.setStatusReason(request.reason().trim());
+
+            // TODO: update school
+            schools.save(school);
+            schoolNote = "The school is now SUSPENDED too, which is what actually blocks it — "
+                    + "the subscription's status turns features off, the school's status turns "
+                    + "the tenant off.";
+        } else if (school.getStatus() == SchoolStatus.SUSPENDED) {
+            schoolNote = "The school was already SUSPENDED, so its suspendedAt and reason are "
+                    + "left as they were.";
+        } else {
+            schoolNote = "The school is " + school.getStatus() + " and was left alone — it is "
+                    + "not usable yet, so there is nothing to block.";
+        }
+
+        //! step 7 - one history row, saying what it was and what it became
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.SUSPENDED)
+                .previousStatus(previousStatus)
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason("Suspended from " + previousStatus + " for non-payment. "
+                        + request.reason().trim())
+                .performedByDocsId(null)
+                .effectiveAt(Instant.now())
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 8 - the note. What stopped, what did NOT stop, and anything standing.
+        List<String> note = new ArrayList<>();
+        note.add("Suspended from " + previousStatus + ". Every feature is now refused: #34 reads "
+                + "SUSPENDED and answers allowed:false on all of them.");
+        note.add(schoolNote);
+        note.add("NOTHING killed the school's live sessions or stopped its scheduled jobs — "
+                + "neither exists yet — so a user already signed in is refused at the next "
+                + "request that checks rather than thrown out now.");
+        note.add("The period was not paused: it still ends " + saved.getCurrentPeriodEnd()
+                + ", so the school is losing time it has paid for. Crediting that is a money "
+                + "decision nothing here can make.");
+
+        String standing = describeSubscriptionState(saved, plan);
+        if (standing != null) {
+            note.add(standing);
+        }
+
+        return SubscriptionDetailResponse.fromSubscription(saved, plan, String.join(" ", note));
+    }
+
+    //! Endpoint 20 — switch a school back on after it pays ----------------------------
+
+    /**
+     * #20 — resumes a suspended subscription, and the school with it.
+     *
+     * <p>The exact reverse of #19 and only that: the subscription returns to {@code ACTIVE} and
+     * the school with it. The plan, the price, the ceilings and the period are all untouched — a
+     * suspension pauses access, and lifting it renegotiates nothing.
+     *
+     * <p><b>It resumes to ACTIVE without looking anything up.</b> #19 only ever suspends an
+     * {@code ACTIVE} or a {@code PAST_DUE} subscription, and a school that has paid is not
+     * {@code PAST_DUE} any more — so there is no case where the right answer is anything else.
+     * Refusing to suspend a trial is what buys that simplicity.
+     *
+     * <p><b>The period is not extended</b>, and that is deliberate. A school suspended for three
+     * weeks comes back to the same {@code currentPeriodEnd}, having paid for time it could not
+     * use. Nothing here raises or credits an invoice, so moving the date would be this endpoint
+     * inventing a refund; the response says so instead. If a credit was agreed, #14 is where the
+     * date moves.
+     *
+     * <p><b>SUSPENDED only.</b> An {@code ACTIVE} subscription has nothing to resume, and a
+     * {@code CANCELLED} or {@code EXPIRED} one ended rather than paused — bringing that back
+     * would be selling a period without saying so, which is #13 or #16.
+     */
+    @Transactional
+    public SubscriptionDetailResponse resumeSubscription(String schoolId, String subscriptionNo,
+            SubscriptionResumeRequest request) {
+
+        //! step 1 - the school has to exist, and be one worth switching back on. Resuming a
+        //! school that is being wound down would reverse the wind-down as a side effect, the
+        //! same reason #16 refuses those four states.
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+        boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
+                || school.getStatus() == SchoolStatus.ACTIVE
+                || school.getStatus() == SchoolStatus.SUSPENDED;
+
+        if (!schoolIsStillRunning) {
+            throw ApiException.conflict("SCHOOL_NOT_RESUMABLE",
+                    "'" + school.getSchoolName() + "' is " + school.getStatus() + ", so it "
+                            + "cannot be switched back on. Only a PROVISIONING, ACTIVE or "
+                            + "SUSPENDED school can be resumed.");
+        }
+
+        //! step 2 - the subscription named in the URL, or the one they are on now
+        SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
+
+        //! step 3 - one transition, and only from SUSPENDED. A finished subscription is not
+        //! resumed: it ended rather than paused, and reopening it would be selling a period.
+        SubscriptionStatus previousStatus = subscription.getStatus();
+
+        if (previousStatus != SubscriptionStatus.SUSPENDED) {
+            String because = previousStatus == SubscriptionStatus.CANCELLED
+                    || previousStatus == SubscriptionStatus.EXPIRED
+                    ? " It ended rather than paused — reopening it would be selling a period, "
+                            + "which is a new subscription or a plan change."
+                    : " There is nothing to resume.";
+
+            throw ApiException.conflict("SUBSCRIPTION_NOT_RESUMABLE",
+                    subscription.getSubscriptionNo() + " is " + previousStatus + ", so it cannot "
+                            + "be resumed. Only a SUSPENDED subscription can be." + because);
+        }
+
+        //! step 4 - the plan behind it, for the response only
+        // TODO: read plan
+        PlanDefinition plan = loadPlanBehindSubscription(subscription);
+
+        //! step 5 - switch the subscription back on. Nothing else moves: the plan, the price,
+        //! the ceilings and both period dates are exactly as they were.
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setReasonForChanges(request.reason().trim());
+
+        // TODO: update school subscription
+        SchoolSubscription saved = schoolSubscription.save(subscription);
+
+        //! step 6 - switch the school back on, which is the half that restores access.
+        //! suspendedAt is deliberately left standing: it is when the suspension started, and a
+        //! resumed school's history is worth keeping. Core's own reactivate leaves it too.
+        String schoolNote;
+        if (school.getStatus() == SchoolStatus.SUSPENDED) {
+            school.setStatus(SchoolStatus.ACTIVE);
+            school.setStatusReason(request.reason().trim());
+
+            // TODO: update school
+            schools.save(school);
+            schoolNote = "The school is ACTIVE again, so the tenant is reachable. Its "
+                    + "suspendedAt is left standing — that is when the suspension began, and it "
+                    + "is worth keeping.";
+        } else {
+            schoolNote = "The school was " + school.getStatus() + " rather than SUSPENDED, so "
+                    + "only the subscription moved.";
+        }
+
+        //! step 7 - one history row
+        SubscriptionHistory historyEntry = SubscriptionHistory.builder()
+                .schoolId(schoolId)
+                .schoolSubscriptionDocsId(saved.getId())
+                .eventType(SubscriptionEventType.RESUMED)
+                .previousStatus(previousStatus)
+                .newStatus(saved.getStatus())
+                .previousPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .newPlanDefinitionDocsId(saved.getPlanDefinitionDocsId())
+                .source(SOURCE_ADMIN_PORTAL)
+                .reason("Resumed after payment. " + request.reason().trim())
+                .performedByDocsId(null)
+                .effectiveAt(Instant.now())
+                .build();
+
+        // TODO: insert history
+        history.save(historyEntry);
+
+        //! step 8 - the note. What came back, and the one thing that did not.
+        List<String> note = new ArrayList<>();
+        note.add("Resumed to ACTIVE. Every feature the plan includes is allowed again.");
+        note.add(schoolNote);
+        note.add("The period was NOT extended: it still ends " + saved.getCurrentPeriodEnd()
+                + ", so the school has paid for the time it was locked out of. Crediting that is "
+                + "a money decision nothing here can make — moving the date, if that is what was "
+                + "agreed, is the edit endpoint.");
 
         String standing = describeSubscriptionState(saved, plan);
         if (standing != null) {

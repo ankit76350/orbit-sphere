@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, CheckCircle2, CreditCard, Pencil, Plus, RefreshCw, RotateCw } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
@@ -54,6 +54,8 @@ export default function Subscriptions() {
   const [changingPlan, setChangingPlan] = useState(false)
   const [renewing, setRenewing] = useState(false)
   const [renewingCustom, setRenewingCustom] = useState(false)
+  const [pausing, setPausing] = useState(false)
+  const [pausingOpen, setPausingOpen] = useState(false)
   // Kept from the 201 only: what creating the subscription did to the school itself.
   const [aftermath, setAftermath] = useState(null)
 
@@ -84,6 +86,30 @@ export default function Subscriptions() {
     }
     return result
   // load is defined below and stable; listing it here would be a use-before-define.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId])
+
+  /**
+   * #19 and #20 — one transition each, and a reason is required on both.
+   *
+   * A dialog rather than a button, because the reason is not optional and the API stores it in
+   * three places. Which of the two it sends is decided by the subscription's status, so there is
+   * one dialog rather than two nearly identical ones.
+   */
+  const pause = useCallback(async (endpoint, reason) => {
+    setPausing(true)
+    const result = await call(endpoint, {
+      label: endpoint === 'suspend-subscription' ? 'Cut this school off' : 'Switch it back on',
+      pathParams: { id: schoolId, subscriptionNo: 'current' },
+      body: { reason: reason.trim() },
+    })
+    setPausing(false)
+    if (result.ok) {
+      setPausingOpen(false)
+      await load()
+    }
+    return result
+  // load is defined below and stable; listing it would be a use-before-define.
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId])
 
@@ -183,6 +209,8 @@ export default function Subscriptions() {
           schoolId={schoolId}
           onEdit={() => setEditing(true)}
           onChangePlan={() => setChangingPlan(true)}
+          onSuspendOrResume={() => setPausingOpen(true)}
+          pausing={pausing}
           onRenew={() => {
             // A CUSTOM cycle has no length, so the API needs a date it cannot derive. Asked for
             // here rather than sent blind and answered 400.
@@ -210,6 +238,15 @@ export default function Subscriptions() {
           </div>
         </Card>
       )}
+
+      <SuspendOrResume
+        open={pausingOpen}
+        subscription={subscription}
+        schoolId={schoolId}
+        busy={pausing}
+        onClose={() => setPausingOpen(false)}
+        onSend={pause}
+      />
 
       <RenewCustomPeriod
         open={renewingCustom}
@@ -306,10 +343,12 @@ function WhatTheSaleDid({ aftermath, onDismiss }) {
 
 /* -------------------------------------------------------------- what the school is on */
 
-function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew, renewing }) {
+function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew, renewing,
+  onSuspendOrResume, pausing }) {
   const s = subscription
   const renewRefusal = whyRenewWouldRefuse(s)
   const needsEndDate = renewNeedsEndDate(s)
+  const pauseAction = suspendOrResumeAction(s)
   return (
     <>
       <Card
@@ -445,6 +484,27 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               />
             </div>
 
+            {/* ONE ROW FOR TWO ENDPOINTS. A subscription is either suspendable or resumable,
+                never both, so offering both buttons would mean one of them was always dead.
+                Which endpoint the tag names follows the same decision. */}
+            <div className="toolbar">
+              <Button
+                icon={pauseAction.endpoint === 'resume-subscription' ? Play : Pause}
+                busy={pausing}
+                disabled={Boolean(pauseAction.refusal)}
+                onClick={onSuspendOrResume}
+              >
+                {pauseAction.label}
+              </Button>
+              <span className="muted">{pauseAction.refusal ?? pauseAction.hint}</span>
+              <span className="toolbar-spacer" />
+              <EndpointTag
+                id={pauseAction.endpoint}
+                name={pauseAction.endpoint === 'resume-subscription' ? 'Resume' : 'Suspend'}
+                pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+              />
+            </div>
+
             <div className="toolbar">
               {/* No modal unless the cadence is CUSTOM: #17 takes no body otherwise, so there is
                   nothing to fill in. Disabled with the reason on it when the API would refuse,
@@ -528,6 +588,47 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
       </details>
     </>
   )
+}
+
+/**
+ * Which of #19 and #20 applies, and whether either does.
+ *
+ * A subscription is either suspendable or resumable, never both, so the card shows ONE button.
+ * Mirrored from suspendSubscription and resumeSubscription so the refusal shows on the button
+ * instead of arriving as a 409.
+ *
+ * SUSPENDING IS THE DEFAULT SHAPE and resuming the exception, because only a SUSPENDED
+ * subscription resumes. Everything that can neither be suspended nor resumed gets the suspend
+ * button, disabled, with the reason it cannot be — which is the more useful of the two to
+ * explain: "you cannot cut this off because it already ended" beats a dead Resume button.
+ */
+function suspendOrResumeAction(subscription) {
+  const s = subscription
+
+  if (s.status === 'SUSPENDED') {
+    return {
+      endpoint: 'resume-subscription',
+      label: 'Switch it back on',
+      hint: 'Back to ACTIVE, and the school with it. The period is NOT extended.',
+      refusal: null,
+    }
+  }
+
+  const suspend = {
+    endpoint: 'suspend-subscription',
+    label: 'Cut it off',
+    hint: 'Suspends the subscription AND the school, so nothing is reachable.',
+    refusal: null,
+  }
+
+  if (s.status === 'ACTIVE' || s.status === 'PAST_DUE') return suspend
+
+  if (s.status === 'TRIAL') {
+    return { ...suspend, label: 'Cannot cut off a trial',
+      refusal: 'A trial has no unpaid bill behind it — end it with an edit, or change its plan.' }
+  }
+  return { ...suspend, label: 'Nothing to cut off',
+    refusal: `A ${s.status} subscription ended rather than paused, so there is no access left to stop.` }
 }
 
 /**
@@ -1444,6 +1545,114 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
 }
 
 /* -------------------------------------------------------------------- create one */
+
+/* --------------------------------------------------------- cut off, or switch back on */
+
+/**
+ * The reason #19 and #20 both require, asked once.
+ *
+ * ONE DIALOG FOR TWO ENDPOINTS, because a subscription is either suspendable or resumable and
+ * never both — two nearly identical dialogs would differ only in their heading. Which endpoint
+ * the send button calls comes from the status, the same decision the button on the card made.
+ *
+ * THE REASON IS THE WHOLE FORM. #19 stores it in three places — on the subscription, on the
+ * school so whoever finds it locked can see why, and on the history row — and #20 replaces the
+ * school's with what let it back on. Nothing else is asked, because nothing else moves: a
+ * suspension pauses access and lifting it renegotiates nothing.
+ */
+function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }) {
+  const [reason, setReason] = useState('')
+  const [refused, setRefused] = useState(null)
+
+  if (!open || !subscription) return null
+
+  const action = suspendOrResumeAction(subscription)
+  const resuming = action.endpoint === 'resume-subscription'
+
+  const send = async () => {
+    setRefused(null)
+    const result = await onSend(action.endpoint, reason)
+    if (!result?.ok) {
+      setRefused(result?.bodyJson || { message: `The server answered ${result?.status}.` })
+      return
+    }
+    setReason('')
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={resuming ? 'Switch this school back on' : 'Cut this school off'}
+      description={resuming
+        ? 'Back to ACTIVE, and the school with it. Nothing else changes.'
+        : 'Stops the subscription and the school. Say which bill, and how far past the grace period.'}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            look={resuming ? 'primary' : 'danger'}
+            busy={busy}
+            disabled={!reason.trim()}
+            onClick={send}
+          >
+            {reason.trim() ? (resuming ? 'Switch it back on' : 'Cut it off') : 'Say why first'}
+          </Button>
+          <EndpointTag
+            id={action.endpoint}
+            name={resuming ? 'Resume' : 'Suspend'}
+            pathParams={{ id: schoolId, subscriptionNo: 'current' }}
+          />
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code || 'Refused'}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {resuming ? (
+          <p className="banner" data-tone="warn">
+            <strong>The period is not extended.</strong> It still ends{' '}
+            {readableInstant(subscription.currentPeriodEnd)}, so this school has paid for the days
+            it was locked out of. Crediting that is a money decision the API will not make on its
+            own — push the date out with the edit endpoint if that is what was agreed.
+          </p>
+        ) : (
+          <p className="banner" data-tone="bad">
+            <strong>This stops the school working.</strong> Every feature is refused, and the
+            tenant itself is blocked — a school-surface request answers{' '}
+            <code className="mono">409 SCHOOL_NOT_EDITABLE</code>. What it does{' '}
+            <strong>not</strong> do is end live sessions or halt scheduled jobs, because neither
+            exists yet: somebody already signed in is refused at their next request rather than
+            thrown out now. The period keeps running too, so the school loses time it paid for.
+          </p>
+        )}
+
+        <Field
+          label={resuming ? 'What lets them back on' : 'Why they are being cut off'}
+          required
+          hint={resuming
+            ? 'Name the payment. Stored as reasonForChanges, on the school as statusReason, and on the history row.'
+            : 'Which bill, and how far past the grace period. Stored in three places: the subscription, the school — so whoever finds it locked can see why — and the history row.'}
+        >
+          <Input
+            value={reason}
+            placeholder={resuming
+              ? 'Invoice INV/2026/08/000412 paid in full on 2026-09-08.'
+              : 'Invoice INV/2026/08/000412 unpaid 30 days past the grace period.'}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </Field>
+      </div>
+    </Modal>
+  )
+}
 
 /* ------------------------------------------------- renew a CUSTOM-cycle period */
 
