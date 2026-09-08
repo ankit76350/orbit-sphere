@@ -499,7 +499,6 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
             <div className="toolbar">
               <Button
                 icon={Pencil}
-                disabled={Boolean(editRefusal)}
                 onClick={onEdit}
               >
                 {editRefusal ? 'Cannot edit this' : 'Edit the terms'}
@@ -529,14 +528,13 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               />
             </div>
 
-            {/* #21's row. Almost every status can be ended, so this is disabled only for the
+            {/* #21's row. Almost every status can be ended, so this is only for the
                 two that genuinely are already over. */}
             <div className="toolbar">
               <Button
                 icon={XCircle}
                 look="danger"
                 busy={ending}
-                disabled={Boolean(whyEndWouldRefuse(s))}
                 onClick={onEnd}
               >
                 {whyEndWouldRefuse(s) ? 'Already ended' : 'End it'}
@@ -560,7 +558,6 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               <Button
                 icon={pauseAction.endpoint === 'resume-subscription' ? Play : Pause}
                 busy={pausing}
-                disabled={Boolean(pauseAction.refusal)}
                 onClick={onSuspendOrResume}
               >
                 {pauseAction.label}
@@ -581,7 +578,6 @@ function TheSubscription({ subscription, schoolId, onEdit, onChangePlan, onRenew
               <Button
                 icon={RotateCw}
                 busy={renewing}
-                disabled={Boolean(renewRefusal)}
                 onClick={onRenew}
               >
                 {renewRefusal ? 'Cannot renew yet' : (needsEndDate ? 'Renew…' : 'Renew')}
@@ -898,7 +894,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
   // before the round trip that would empty the form.
   // The cycle decides how long a period runs, so the end date is the caller's to fill in only on
   // a CUSTOM cadence. For the four fixed ones the API derives it from the start, which is why the
-  // box is disabled rather than optional — a value there would override a date already decided.
+  // box is rather than optional — a value there would override a date already decided.
   const editIsCustomCycle = form.billingCycle === 'CUSTOM'
   const editCycleDays = DAYS_PER_CYCLE[form.billingCycle]
   const editDerivedEnd = !editIsCustomCycle && editCycleDays && form.currentPeriodStart
@@ -990,8 +986,6 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride
-              || customNeedsEnd || startInPast}
             onClick={submit}
           >
             {nothingChanged
@@ -1076,16 +1070,14 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             label="Period ends on"
             required={editIsCustomCycle}
             hint={editIsCustomCycle
-              ? 'A CUSTOM cadence has no length, so this is the only place the end date comes from. Push it out to extend a trial — that is all extend-trial ever did. The chosen day is included.'
+              ? 'A CUSTOM cadence has no length, so the end date has to be sent. The chosen day is included.'
               : (editDerivedEnd
-                ? `Derived: ${editCycleDays} days from the start, on a ${form.billingCycle} cadence. Switch the cycle to CUSTOM to set it yourself.`
-                : 'Derived from the cycle. Switch to CUSTOM to set it yourself.')}
+                ? `Leave it as it stands and the API derives ${editDerivedEnd} — ${editCycleDays} days from the start on a ${form.billingCycle} cadence. Change it to send an explicit end instead, which overrides that.`
+                : 'The API derives this from the cadence unless an explicit end is sent.')}
           >
             <Input
               type="date"
-              value={editIsCustomCycle ? form.currentPeriodEnd : (editDerivedEnd || form.currentPeriodEnd)}
-              disabled={!editIsCustomCycle}
-              readOnly={!editIsCustomCycle}
+              value={form.currentPeriodEnd}
               onChange={set('currentPeriodEnd')}
             />
           </Field>
@@ -1269,6 +1261,7 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
   // Three states, not a checkbox: absent leaves the school's setting, which a boolean cannot say.
   const [renewal, setRenewal] = useState('')
   const [cycle, setCycle] = useState('')
+  const [startDay, setStartDay] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1336,9 +1329,9 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
   const needsPeriodEnd = soldCycle === 'CUSTOM'
   const cycleDays = DAYS_PER_CYCLE[soldCycle]
 
-  // The new period starts today in the school's day. Required by the API since it is the anchor
-  // the end is measured from AND the instant the row being left stops serving.
-  const startsOn = todayInZone(timeZone)
+  // Today in the school's day by DEFAULT, and editable: the API takes any start from today
+  // onwards, and refusing to let one be typed would put a whole class of request out of reach.
+  const startsOn = startDay || todayInZone(timeZone)
   const derivedEnd = cycleDays
     ? new Date(Date.parse(`${startsOn}T00:00:00Z`) + cycleDays * 86400000)
       .toISOString().slice(0, 10)
@@ -1368,7 +1361,10 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
     // Sent only when it differs from the new plan's, so an ordinary move does not restate what
     // the plan already says.
     if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
-    if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+    // Whatever is in the box, on any cadence. The API takes an explicit end as an override on
+    // the four fixed cycles and requires one on CUSTOM, so this sends what was typed and lets
+    // the API answer — rather than deciding which requests are worth making.
+    if (periodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
 
     const result = await call('change-plan', {
       label: 'Move it to this plan',
@@ -1378,7 +1374,8 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
     setSaving(false)
     if (result.ok) {
       setPicked('')
-      setCycle(''); setReason(''); setPrice(''); setMaxStudents(''); setMaxUsers('')
+      setCycle('')
+      setStartDay(''); setReason(''); setPrice(''); setMaxStudents(''); setMaxUsers('')
       setRenewal(''); setPeriodEnd('')
       await onChanged(result.bodyJson)
       return
@@ -1395,7 +1392,7 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button look="primary" busy={saving} disabled={missing || zeroCeiling} onClick={submit}>
+          <Button look="primary" busy={saving} onClick={submit}>
             {missing ? 'Choose a plan and say why' : 'Move it to this plan'}
           </Button>
           <EndpointTag
@@ -1501,7 +1498,6 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
                 className="select-input"
                 style={{ width: '100%' }}
                 value={soldCycle}
-                disabled={!chosen}
                 onChange={(event) => { setCycle(event.target.value); setPeriodEnd('') }}
               >
                 <option value="">Choose a plan first…</option>
@@ -1515,10 +1511,14 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
           <Field
             label="New period starts on"
             hint={timeZone
-              ? `Today in ${timeZone}. Required by the API, and it is also when the row being left stops serving.`
+              ? `Today in ${timeZone}. Required by the API, and it is also when the row being left stops serving. Editable — the API takes any start from today onwards.`
               : 'Today. Required by the API, and it is also when the row being left stops serving.'}
           >
-            <Input type="date" value={startsOn} disabled readOnly />
+            <Input
+              type="date"
+              value={startsOn}
+              onChange={(event) => setStartDay(event.target.value)}
+            />
           </Field>
 
           {/* Enabled ONLY for CUSTOM. The other four derive their end from the start, so a value
@@ -1527,17 +1527,14 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
             label="New period ends on"
             required={needsPeriodEnd}
             hint={needsPeriodEnd
-              ? 'A CUSTOM cadence has no length, so the end date has to be said. The chosen day is included.'
+              ? 'A CUSTOM cadence has no length, so the end date has to be sent. The chosen day is included.'
               : (derivedEnd
-                ? `Derived: ${cycleDays} days from ${startsOn}, on a ${soldCycle} cadence.`
-                : 'Choose a cycle first.')}
+                ? `Empty sends nothing and the API derives ${derivedEnd} — ${cycleDays} days from ${startsOn}. Type one to override it.`
+                : 'Empty lets the API derive it from the cadence.')}
           >
             <Input
               type="date"
-              min={startsOn}
-              value={needsPeriodEnd ? periodEnd : (derivedEnd || '')}
-              disabled={!needsPeriodEnd}
-              readOnly={!needsPeriodEnd}
+              value={periodEnd}
               onChange={(event) => setPeriodEnd(event.target.value)}
             />
           </Field>
@@ -1702,7 +1699,7 @@ function EndSubscription({ open, subscription, schoolId, busy, onClose, onSend }
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button look="danger" busy={busy} disabled={!reason.trim()} onClick={send}>
+          <Button look="danger" busy={busy} onClick={send}>
             {!reason.trim()
               ? 'Say why first'
               : (endingNow ? 'End it now' : 'End it at the period end')}
@@ -1831,7 +1828,6 @@ function SuspendOrResume({ open, subscription, schoolId, busy, onClose, onSend }
           <Button
             look={resuming ? 'primary' : 'danger'}
             busy={busy}
-            disabled={!reason.trim()}
             onClick={send}
           >
             {reason.trim() ? (resuming ? 'Switch it back on' : 'Cut it off') : 'Say why first'}
@@ -1938,7 +1934,6 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
           <Button
             look="primary"
             busy={busy}
-            disabled={!endDate || tooEarly}
             onClick={send}
           >
             {endDate ? 'Renew' : 'Pick a date first'}
@@ -2006,6 +2001,7 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   const [maxStudents, setMaxStudents] = useState('')
   const [maxUsers, setMaxUsers] = useState('')
   const [cycle, setCycle] = useState('')
+  const [startDay, setStartDay] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -2063,7 +2059,7 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   const soldCycle = cycle || chosen?.billingCycle || ''
 
   // Only a CUSTOM cycle has no length, so only a CUSTOM cycle needs a date. For the other four
-  // the end is derived, which is why the box is disabled rather than merely optional: a value
+  // the end is derived, which is why the box is rather than merely optional: a value
   // there would override a date the cycle already decides.
   const needsPeriodEnd = soldCycle === 'CUSTOM'
   const cycleDays = DAYS_PER_CYCLE[soldCycle]
@@ -2090,8 +2086,10 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
     // REQUIRED on every cycle since #13 stopped defaulting it. Today in the SCHOOL'S day, and
     // the instant that day begins there — not UTC midnight, which is the previous day for any
     // school west of UTC and comes back 400 PERIOD_START_IN_PAST.
-    body.currentPeriodStart = startOfDayInZone(todayInZone(timeZone), timeZone)
-    if (needsPeriodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
+    body.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)
+    // Whatever is in the box, on any cadence — the API takes an explicit end as an override on
+    // the fixed cycles and requires one on CUSTOM. Sent as typed; the API decides.
+    if (periodEnd) body.currentPeriodEnd = endOfDay(periodEnd)
     // Sent only when it differs from the plan's, so the ordinary sale still reads as "this plan,
     // as listed" rather than restating what the plan already says.
     if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle
@@ -2106,6 +2104,7 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
       setMaxStudents('')
       setMaxUsers('')
       setCycle('')
+      setStartDay('')
       setTrial(false)
       setPeriodEnd('')
       await onCreated(result.bodyJson)
@@ -2126,7 +2125,6 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={!chosen || (needsPeriodEnd && !periodEnd) || zeroCeiling}
             onClick={submit}
           >
             {needsPeriodEnd && !periodEnd ? 'Set the end date first' : 'Create it'}
@@ -2218,7 +2216,6 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
                 className="select-input"
                 style={{ width: '100%' }}
                 value={soldCycle}
-                disabled={!chosen}
                 onChange={(event) => {
                   setCycle(event.target.value)
                   // A date typed against the old cycle does not belong to the new one, and on a
@@ -2239,30 +2236,31 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
           <Field
             label="Period starts on"
             hint={timeZone
-              ? `Today in ${timeZone}, sent as ${startOfDayInZone(todayInZone(timeZone), timeZone)}. Required by the API, and it cannot be in the past.`
-              : 'Today. Required by the API, and it cannot be in the past.'}
+              ? `Today in ${timeZone}, sent as ${startOfDayInZone(todayInZone(timeZone), timeZone)}. Required by the API, and it cannot be in the past — try one anyway to see the refusal.`
+              : 'Today by default. Required by the API, and it cannot be in the past.'}
           >
-            <Input type="date" value={todayInZone(timeZone)} disabled readOnly />
+            <Input
+              type="date"
+              value={startDay || todayInZone(timeZone)}
+              onChange={(event) => setStartDay(event.target.value)}
+            />
           </Field>
 
           {/* Enabled ONLY for CUSTOM. For the other four the end is derived from the cycle, so a
-              value here would override a date the cycle already decides — disabled rather than
+              value here would override a date the cycle already decides — rather than
               optional, and showing what the derivation produces. */}
           <Field
             label="Period ends on"
             required={needsPeriodEnd}
             hint={needsPeriodEnd
-              ? 'The chosen day is included — it is sent as the last second of it.'
+              ? 'Required on CUSTOM. The chosen day is included — it is sent as the last second of it.'
               : (cycleDays
-                ? `Derived: ${cycleDays} days on a ${soldCycle} cycle. Pick CUSTOM to set it yourself.`
-                : 'Choose a cycle first.')}
+                ? `Empty sends nothing and the API derives ${derivedEnd} — ${cycleDays} days on a ${soldCycle} cycle. Type one to override it.`
+                : 'Empty lets the API derive it from the cycle.')}
           >
             <Input
               type="date"
-              min={todayInput()}
-              value={needsPeriodEnd ? periodEnd : (derivedEnd ?? '')}
-              disabled={!needsPeriodEnd}
-              readOnly={!needsPeriodEnd}
+              value={periodEnd}
               onChange={(event) => setPeriodEnd(event.target.value)}
             />
           </Field>

@@ -385,7 +385,6 @@ export default function Profile() {
                   look="primary"
                   icon={Check}
                   busy={saving === section.id}
-                  disabled={!dirty && !section.whole}
                   onClick={() => save(section)}
                 >
                   {section.whole ? 'Replace' : 'Save changes'}

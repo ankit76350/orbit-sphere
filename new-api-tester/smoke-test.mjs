@@ -417,6 +417,40 @@ const renewDialogStart = subsSourceFull.indexOf('function RenewCustomPeriod(')
 const renewDialogSource = subsSourceFull.slice(renewDialogStart,
   Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
     .map((m) => m.index).filter((i) => i > renewDialogStart)))
+
+// THIS IS AN API TESTING TOOL, so every request has to be reachable — including the ones the API
+// will refuse. A disabled button is the one thing that makes a refusal untestable, so nothing in
+// src may gate a button or lock an input on state. The screens still work out and SHOW every
+// condition; they just do not act on it.
+console.log('\nNothing is disabled: every request stays reachable')
+const uiFiles = sourceFiles('src')
+const gated = uiFiles
+  .filter((f) => !f.endsWith('Kit.jsx'))
+  .map((f) => [f, readFileSync(f, 'utf8')])
+  .filter(([, body]) => /disabled=|readOnly/.test(body))
+  .map(([f]) => f.replace('src/', ''))
+const kit = readFileSync('src/components/ui/Kit.jsx', 'utf8')
+const reachableChecks = [
+  [`no screen gates a button or input (${gated.length ? gated.join(', ') : 'none do'})`,
+    gated.length === 0],
+  // The Button component keeps its own in-flight guard: that stops a double-click firing the
+  // same write twice, which is an accident rather than a test.
+  ['the Button component keeps only its in-flight guard',
+    kit.includes('disabled={disabled || busy}')],
+  // The value of the refusal mirrors is the explanation, not the blocking — so they must survive.
+  ['the refusal mirrors are all still there',
+    ['whyEditWouldRefuse', 'whyRenewWouldRefuse', 'whyEndWouldRefuse', 'suspendOrResumeAction']
+      .every((fn) => subsSourceFull.includes(`function ${fn}(`))],
+  ['and each still reaches the screen',
+    ['editRefusal', 'renewRefusal', 'pauseAction.refusal']
+      .every((v) => subsSourceFull.includes(`{${v}`))
+      && subsSourceFull.includes('whyEndWouldRefuse(s)')],
+]
+for (const [label, ok] of reachableChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 const formChecks = [
   ['the boxes are grouped under headings',
     (editSource.match(/className="field-split"/g) || []).length >= 4],
@@ -455,11 +489,11 @@ const formChecks = [
   ['a negative override is caught, and zero is not',
     editSource.includes('negativeOverride') && !editSource.includes('zeroOverride')
       && editSource.includes("min=\"0\"")],
-  // Each clause on its own, not the whole expression: adding a reason to refuse must not read
-  // as removing the others. This is the third guard that had to be loosened this way.
-  ['and the send button refuses all three',
+  // The send button is NEVER disabled — every request has to be reachable — so what matters is
+  // that each condition is still WORKED OUT and shown, rather than silently gating the button.
+  ['the four conditions are still worked out and shown',
     ['nothingChanged', 'reasonMissing', 'periodBackwards', 'negativeOverride']
-      .every((guard) => new RegExp(`disabled=\\{[^}]*${guard}`).test(editSource))],
+      .every((guard) => editSource.includes(guard))],
 ]
 for (const [label, ok] of formChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -537,10 +571,9 @@ const editGateChecks = [
   ['but the status field still accepts all six',
     !javaUpdate.includes('request.status() != SubscriptionStatus')
       && editRequestSource.includes('Any of the six')],
-  ['the card says why rather than opening a doomed form',
+  ['the card says why, without blocking the attempt',
     subsSourceFull.includes('function whyEditWouldRefuse(')
-      && subsSourceFull.includes('disabled={Boolean(editRefusal)}')
-      && subsSourceFull.includes("'Cannot edit this'")],
+      && subsSourceFull.includes('{editRefusal')],
   ['and it names the same four statuses',
     ['PAST_DUE:', 'SUSPENDED:', 'CANCELLED:', 'EXPIRED:']
       .every((k) => new RegExp(`whyEditWouldRefuse[\\s\\S]{0,700}${k}`).test(subsSourceFull))],
@@ -687,9 +720,8 @@ const pauseChecks = [
   ['the dialog serves both endpoints',
     subsSourceFull.includes('function SuspendOrResume(')
       && /onSend\(action\.endpoint, reason\)/.test(subsSourceFull)],
-  ['it will not send without a reason',
-    subsSourceFull.includes("disabled={!reason.trim()}")
-      && subsSourceFull.includes("'Say why first'")],
+  ['it still says a reason is required',
+    subsSourceFull.includes("'Say why first'")],
   ['it warns that suspending blocks the tenant',
     subsSourceFull.includes('This stops the school working')
       && subsSourceFull.includes('SCHOOL_NOT_EDITABLE')],
@@ -759,12 +791,11 @@ const changePeriodChecks = [
     changeSource.includes("const soldCycle = cycle || chosen?.billingCycle || ''")
       && changeSource.includes("const needsPeriodEnd = soldCycle === 'CUSTOM'")
       && !changeSource.includes("const needsPeriodEnd = chosen?.billingCycle === 'CUSTOM'")],
-  ['the end is disabled unless the cadence is CUSTOM',
-    changeSource.includes('disabled={!needsPeriodEnd}')
-      && changeSource.includes('readOnly={!needsPeriodEnd}')],
-  ['the start is sent, in the school\'s zone',
+  ['the end is editable on every cadence',
+    changeSource.includes('value={periodEnd}') && !/readOnly|disabled=/.test(changeSource)],
+  ['the start is sent in the school\'s zone, and can be changed',
     changeSource.includes('body.currentPeriodStart = startOfDayInZone(startsOn, timeZone)')
-      && changeSource.includes('const startsOn = todayInZone(timeZone)')],
+      && changeSource.includes('const startsOn = startDay || todayInZone(timeZone)')],
   ['and the cadence only when it differs from the plan',
     changeSource.includes("if (cycle && chosen && cycle !== chosen.billingCycle) body.billingCycle = cycle")],
 ]
@@ -820,7 +851,7 @@ const requiredDateChecks = [
       && javaService.includes('request.billingCycle() == BillingCycle.CUSTOM')],
   // The sale form has to send the start now, and send the right instant for the school's zone.
   ['the sale form sends the start it is now required to',
-    newSource.includes('body.currentPeriodStart = startOfDayInZone(todayInZone(timeZone), timeZone)')],
+    newSource.includes('body.currentPeriodStart = startOfDayInZone(startDay || todayInZone(timeZone), timeZone)')],
   ['it uses the school\'s zone, not UTC midnight',
     newSource.includes('todayInZone(timeZone)')
       && !newSource.includes('body.currentPeriodStart = startOfDay(')],
@@ -868,16 +899,20 @@ const startChecks = [
       && /const startInPast = startChanged[\s\S]{0,160}< todayInput\(\)/.test(editSource)],
   ['the picker\'s min appears only once it is changed',
     editSource.includes('min={startChanged ? todayInput() : undefined}')],
-  ['the send button refuses it',
-    /disabled=\{[^}]*startInPast/.test(editSource)],
+  // Not disabled — a backdated start has to be sendable so the 400 can be seen — so the guard
+  // is that the condition is worked out and shown.
+  ['it is flagged without blocking the send',
+    editSource.includes('const startInPast = startChanged')
+      && editSource.includes('{startInPast ? (')],
   ['and it says the stored one being in the past is fine',
     editSource.includes('A billing period starts today or later')
       && editSource.includes('it is only a')],
   // The sale form now HAS to send the field, so the guard is that nobody can type a wrong value
   // into it: the box is read-only and the instant is computed, not picked.
-  ['the sale form offers no editable start to get wrong',
-    !newSource.includes("set('currentPeriodStart')")
-      && /label="Period starts on"[\s\S]{0,600}readOnly/.test(newSource)],
+  // It IS editable now: the API takes any start from today onwards, and a locked box put that
+  // whole class of request out of reach of a tool whose job is to make them.
+  ['the sale form lets the start be typed',
+    /label="Period starts on"[\s\S]{0,600}onChange=\{\(event\) => setStartDay/.test(newSource)],
 ]
 for (const [label, ok] of startChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
@@ -889,19 +924,18 @@ for (const [label, ok] of startChecks) {
 // the caller's to fill only on a CUSTOM cadence.
 console.log('\nOn the edit form the cadence decides the period too')
 const editCycleChecks = [
-  ['the end date is disabled unless the cadence is CUSTOM',
+  ['the end date is editable on every cadence',
     editSource.includes("const editIsCustomCycle = form.billingCycle === 'CUSTOM'")
-      && editSource.includes('disabled={!editIsCustomCycle}')
-      && editSource.includes('readOnly={!editIsCustomCycle}')],
+      && editSource.includes('value={form.currentPeriodEnd}')],
   ['it shows the date the API will derive',
     editSource.includes('const editDerivedEnd =')
       && editSource.includes('DAYS_PER_CYCLE[form.billingCycle]')],
   // All three conditions, not just the constant's name: it has to be the cadence being CUSTOM,
   // the cadence having actually changed, and no date sent. A version stubbed to a constant
   // passed the earlier "the name exists" form of this check.
-  ['moving to CUSTOM with an empty box is caught before sending',
+  ['moving to CUSTOM with an empty box is flagged, not blocked',
     editSource.includes('const customNeedsEnd = editIsCustomCycle && cycleChanged && !form.currentPeriodEnd')
-      && /disabled=\{[^}]*customNeedsEnd/.test(editSource)],
+      && editSource.includes('{customNeedsEnd ? (')],
   // The API requires currentPeriodEnd on that transition, so the diff-only body has to break its
   // own rule there — otherwise somebody happy with the date already shown gets a 400 for
   // changing nothing.
@@ -1105,8 +1139,8 @@ const renewChecks = [
   // must still go straight out rather than opening a form with nothing in it.
   ['an ordinary renewal opens no dialog',
     /else renew\(\)/.test(subsSourceFull) && !/setRenewingCustom\(true\)\s*\n\s*renew\(/.test(subsSourceFull)],
-  ['the button is disabled by the mirror, not by a bare status test',
-    subsSourceFull.includes('disabled={Boolean(renewRefusal)}')],
+  ['the mirror drives the label, not a disabled button',
+    subsSourceFull.includes("{renewRefusal ? 'Cannot renew yet'")],
   ['the reason is shown rather than only blocking',
     subsSourceFull.includes('{renewRefusal') && subsSourceFull.includes('Cannot renew yet')],
   // The one field #17 ever asks for, and only for the one cycle that needs it.
@@ -1126,9 +1160,9 @@ const renewChecks = [
     subsSourceFull.includes('body: endDate ? { currentPeriodEnd: endOfDay(endDate) } : undefined')],
   ['the picker will not offer a day before the period starts',
     subsSourceFull.includes('min={startsOn || undefined}')],
-  ['and a too-early date is caught before it is sent',
+  ['and a too-early date is flagged, still sendable',
     subsSourceFull.includes('const tooEarly =') && subsSourceFull.includes('endDate <= startsOn')
-      && subsSourceFull.includes('disabled={!endDate || tooEarly}')],
+      && subsSourceFull.includes('{tooEarly ? (')],
   ['the dialog says a renewal is not a renegotiation',
     subsSourceFull.includes('a renewal is not a renegotiation')],
   ['the endpoint is tagged on the screen',
@@ -1179,13 +1213,12 @@ const cycleChecks = [
     newSource.includes("const soldCycle = cycle || chosen?.billingCycle || ''")
       && newSource.includes("const needsPeriodEnd = soldCycle === 'CUSTOM'")
       && newSource.includes('const cycleDays = DAYS_PER_CYCLE[soldCycle]')],
-  ['the end date is disabled unless the cycle is CUSTOM',
-    newSource.includes('disabled={!needsPeriodEnd}')
-      && newSource.includes('readOnly={!needsPeriodEnd}')],
-  ['and shows the derived date while it is disabled',
-    newSource.includes("value={needsPeriodEnd ? periodEnd : (derivedEnd ?? '')}")],
-  ['the start date is shown as today and not editable',
-    /label="Period starts on"[\s\S]{0,600}value=\{todayInZone\(timeZone\)\}[\s\S]{0,80}disabled/
+  ['the end date is editable on every cycle',
+    newSource.includes('value={periodEnd}') && !/readOnly/.test(newSource)],
+  ['and the derived date is named in the hint instead',
+    newSource.includes('the API derives')],
+  ['the start date defaults to today and can be changed',
+    /label="Period starts on"[\s\S]{0,600}value=\{startDay \|\| todayInZone\(timeZone\)\}/
       .test(newSource)],
   ['changing the cycle clears a date typed against the old one',
     /setCycle\(event\.target\.value\)[\s\S]{0,300}setPeriodEnd\(''\)/.test(newSource)],
@@ -1226,14 +1259,17 @@ const customChecks = [
       && /\{needsPeriodEnd \? \(/.test(newSource)],
   // Matched as one clause of the button's guard rather than as the whole expression, so adding
   // another reason to refuse the sale does not read as removing this one.
-  ['it will not let the sale go without one',
-    /disabled=\{[^}]*needsPeriodEnd && !periodEnd/.test(subsSourceFull)
-      && subsSourceFull.includes("'Set the end date first'")],
-  ['and not with a ceiling of nothing',
-    /disabled=\{[^}]*zeroCeiling/.test(subsSourceFull)],
+  // Both still WORKED OUT and shown; neither blocks the send, so both refusals are testable.
+  ['it says an end date is needed without blocking the sale',
+    subsSourceFull.includes("'Set the end date first'")],
+  ['and flags a ceiling of nothing the same way',
+    subsSourceFull.includes('zeroCeiling') && subsSourceFull.includes('{zeroCeiling ? (')],
   ['the chosen day is sent as the end of it', subsSourceFull.includes('endOfDay(periodEnd)')],
-  ['and only for CUSTOM — no other cycle gets an end sent',
-    subsSourceFull.includes('if (needsPeriodEnd) body.currentPeriodEnd')],
+  // Whatever is typed is sent, on any cycle: the API takes an explicit end as an override on the
+  // four fixed cadences, so this tool must be able to make that request.
+  ['whatever is typed is sent, on any cycle',
+    (subsSourceFull.match(/if \(periodEnd\) body\.currentPeriodEnd/g) || []).length === 2
+      && !subsSourceFull.includes('if (needsPeriodEnd) body.currentPeriodEnd')],
   // The mirror, checked against the source it mirrors.
   ['the form found four cycle lengths', Object.keys(cycleDays).length === 4],
   ['the service still states the same four', Object.keys(javaDays).length === 4],

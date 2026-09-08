@@ -349,7 +349,7 @@ function EditDraft({ plan, path, onSaved }) {
           </Field>
         </div>
         <div className="toolbar">
-          <Button look="primary" icon={Check} busy={saving} disabled={!dirty} onClick={save}>
+          <Button look="primary" icon={Check} busy={saving} onClick={save}>
             Save the draft
           </Button>
           <span className="muted">
@@ -544,7 +544,6 @@ function Lifecycle({ plan, path, busy, onRun, onConfirm }) {
             <Button
               look="primary"
               icon={Rocket}
-              disabled={noFeatures}
               busy={busy === 'publish'}
               onClick={() => onConfirm({
                 key: 'publish',

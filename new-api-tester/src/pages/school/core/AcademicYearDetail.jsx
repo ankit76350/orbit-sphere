@@ -213,7 +213,7 @@ function Dates({ year, name, onSaved }) {
           </Field>
         </div>
         <div className="toolbar">
-          <Button look="primary" icon={Check} busy={saving} disabled={!dirty} onClick={save}>
+          <Button look="primary" icon={Check} busy={saving} onClick={save}>
             Move the dates
           </Button>
           <span className="muted">
@@ -483,7 +483,6 @@ function AddHoliday({ open, name, onClose, onDone }) {
           <Button
             look="primary"
             busy={saving}
-            disabled={!form.name.trim() || !form.date}
             onClick={submit}
           >
             Add it
@@ -752,7 +751,6 @@ function Asks({ name }) {
             <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </Field>
           <Button
-            disabled={!date}
             onClick={async () => {
               const result = await call('get-day-status', {
                 label: 'Day status', pathParams: { name, date },

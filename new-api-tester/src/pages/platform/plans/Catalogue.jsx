@@ -182,8 +182,8 @@ export default function Catalogue() {
           </span>
           <span className="toolbar-spacer" />
           <div className="pager">
-            <Button disabled={!data.hasPrevious} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-            <Button disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>Next</Button>
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
           </div>
         </div>
       ) : null}

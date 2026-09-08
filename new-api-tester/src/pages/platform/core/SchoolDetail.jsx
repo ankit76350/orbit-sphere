@@ -316,7 +316,7 @@ function AskFirst({ action, value, onChange, busy, onCancel, onConfirm }) {
       footer={
         <>
           <Button onClick={onCancel}>Cancel</Button>
-          <Button look={action.look || 'primary'} busy={busy} disabled={missing} onClick={onConfirm}>
+          <Button look={action.look || 'primary'} busy={busy} onClick={onConfirm}>
             {action.label}
           </Button>
         </>
@@ -382,7 +382,7 @@ function ChangeSubdomain({ open, school, onClose, onDone }) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button look="primary" busy={saving} disabled={!next.trim()} onClick={submit}>
+          <Button look="primary" busy={saving} onClick={submit}>
             Change it
           </Button>
         </>
@@ -399,7 +399,7 @@ function ChangeSubdomain({ open, school, onClose, onDone }) {
         ) : null}
 
         <Field label="Current" hint="Sent with the request, so a stale page cannot rename the wrong school.">
-          <Input value={school.subdomain} readOnly />
+          <Input value={school.subdomain} />
         </Field>
         <Field label="New address" required>
           <Input
