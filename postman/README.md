@@ -294,6 +294,13 @@ it; an operator calls it by hand when something went wrong. **Nothing calls it o
   refusing that over a flag would just mean editing the flag first to get past the endpoint. It is
   carried onto the new row, and #33 still tells a school its subscription does not renew
   automatically. `TRIAL`, `SUSPENDED` and `CANCELLED` are `409 SUBSCRIPTION_NOT_RENEWABLE`.
+- **The plan has to still be current.** A renewal re-commits the school to the *same* plan, so a
+  plan that is retired, back to `DRAFT`, or outside its effective window is
+  `409 PLAN_NOT_RENEWABLE`, and the message names the change-plan endpoint — the school is already
+  on this plan, so the only fix is moving it to one that is current. A private plan
+  (`publiclyAvailable: false`) renews like any other: that is a negotiated quote, not an invalid
+  state. This is deliberately *not* the sale-time check, whose advice ("publish it first") is the
+  wrong answer for a school already on the plan.
 - **A `CUSTOM` cycle is asked for a date, not refused.** It has no length, so there is nothing to
   derive — which is the only reason this endpoint has a request body at all. Send
   `currentPeriodEnd`; without it, `400 BILLING_PERIOD_END_REQUIRED`. The date is never guessed: a

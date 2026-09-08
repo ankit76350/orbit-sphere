@@ -708,6 +708,7 @@ public class PlatformSubscriptionService {
      * <h2>What it refuses, and why each one</h2>
      *
      * <pre>
+     * plan retired or withdrawn   -> 409 PLAN_NOT_RENEWABLE     nothing to re-commit to
      * period still running        -> 409 PERIOD_NOT_ENDED       there is no next period yet
      * TRIAL                       -> 409 SUBSCRIPTION_NOT_RENEWABLE  a trial has no next period
      * SUSPENDED                   -> 409 SUBSCRIPTION_NOT_RENEWABLE  billing blocked access
@@ -716,6 +717,14 @@ public class PlatformSubscriptionService {
      * an end date not after start -> 400 INVALID_BILLING_PERIOD   it would end before it began
      * a school being wound down   -> 409 SCHOOL_NOT_RENEWABLE    do not bill a school that is going
      * </pre>
+     *
+     * <p><b>The plan has to still be current, and a retired one is refused.</b> A renewal commits
+     * the school to the same plan for another period, so a plan that is no longer sold — retired,
+     * back to DRAFT, or past its {@code effectiveUntil} — is not something to re-commit to
+     * silently. {@code 409 PLAN_NOT_RENEWABLE} says so and points at #16, because moving the
+     * school onto a plan that is still current is the only fix. A private plan is not affected:
+     * {@code publiclyAvailable} is a quote, not a state, and a school on one renews like any
+     * other.
      *
      * <p><b>{@code autoRenew} is not checked, and does not refuse anything.</b> Nothing calls
      * this endpoint on a schedule, so every renewal is an operator deciding to renew this school
@@ -788,12 +797,50 @@ public class PlatformSubscriptionService {
         }
 
         //! step 4 - the plan it is on, read before anything moves so the response can name it.
-        //! A retired plan is fine here: retiring stops new sales, and a school already on one
-        //! keeps it — refusing to renew would end its subscription by inaction.
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(subscription);
 
-        //! step 5 - a CUSTOM cycle has no length, so the caller has to say when the next period
+        //! step 5 - the plan has to still be one a school can be on for another period. A
+        //! renewal commits the school to the SAME plan again, so a plan that is no longer being
+        //! sold is not something to re-commit to by default — the fix is to move the school onto
+        //! a plan that is, which is #16.
+        //!
+        //! Deliberately NOT loadSellablePlan: that one is for choosing a plan to sell, and its
+        //! advice ("publish it first", "pick one still on the menu") is wrong here. The school is
+        //! already on this plan; the question is whether to run it for another period, and the
+        //! answer when the plan has gone is always the same one endpoint.
+        //!
+        //! publiclyAvailable is deliberately not consulted. A private plan is a negotiated quote,
+        //! not an invalid plan, and a school on one renews like any other.
+        Instant checkedAt = Instant.now();
+
+        boolean planIsRetired = plan.getStatus() == PlanStatus.RETIRED;
+        boolean planIsUnpublished = plan.getStatus() == PlanStatus.DRAFT;
+        boolean planWindowClosed = plan.getEffectiveUntil() != null
+                && !plan.getEffectiveUntil().isAfter(checkedAt);
+        boolean planWindowNotOpen = plan.getEffectiveFrom() != null
+                && plan.getEffectiveFrom().isAfter(checkedAt);
+
+        if (planIsRetired || planIsUnpublished || planWindowClosed || planWindowNotOpen) {
+            String because;
+            if (planIsRetired) {
+                because = "has been retired";
+            } else if (planIsUnpublished) {
+                because = "is back to DRAFT with its terms unsettled";
+            } else if (planWindowClosed) {
+                because = "stopped being sold on " + plan.getEffectiveUntil();
+            } else {
+                because = "does not go on sale until " + plan.getEffectiveFrom();
+            }
+
+            throw ApiException.conflict("PLAN_NOT_RENEWABLE",
+                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " "
+                            + because + ", so " + subscription.getSubscriptionNo() + " cannot be "
+                            + "renewed onto it for another period. Move this school to a current "
+                            + "plan with the change-plan endpoint instead.");
+        }
+
+        //! step 6 - a CUSTOM cycle has no length, so the caller has to say when the next period
         //! ends. This is the ONLY thing this endpoint accepts a body for, and the only cycle that
         //! needs one: the other four derive their own end from the days in the cycle.
         //!
@@ -809,7 +856,7 @@ public class PlatformSubscriptionService {
                             + "next period ends.");
         }
 
-        //! step 6 - there is no next period until this one has finished. Renewing early would
+        //! step 7 - there is no next period until this one has finished. Renewing early would
         //! insert a current row whose period starts in the future, leaving every read of "what
         //! is this school on" to explain a subscription that has not begun.
         Instant previousPeriodEnd = subscription.getCurrentPeriodEnd();
@@ -821,7 +868,7 @@ public class PlatformSubscriptionService {
                             + "To move that date, use the edit endpoint.");
         }
 
-        //! step 7 - the next period starts exactly where the last one ended, so the two are
+        //! step 8 - the next period starts exactly where the last one ended, so the two are
         //! contiguous: no day the school was live but unbilled, and none it was billed twice for.
         //! The cycle is the SUBSCRIPTION's, not the plan's — #14 can have changed it, and a
         //! renewal renews what the school is actually on.
@@ -832,7 +879,7 @@ public class PlatformSubscriptionService {
         Instant periodEnd = calculateSubscriptionPeriodEnd(requestedPeriodEnd, periodStart,
                 subscription.getBillingCycle());
 
-        //! step 8 - close the period that just ended. Its dates are left exactly as they are:
+        //! step 9 - close the period that just ended. Its dates are left exactly as they are:
         //! it ran its full course, which is the difference between this and #16, where the old
         //! row's end is trimmed to the day the school left the plan.
         String previousSubscriptionNo = subscription.getSubscriptionNo();
@@ -841,18 +888,18 @@ public class PlatformSubscriptionService {
         subscription.setReasonForChanges("Renewed into the next billing period. This row is the "
                 + "period ending " + previousPeriodEnd + ".");
 
-        //! step 9 - written BEFORE the new row, because the unique partial index on
+        //! step 10 - written BEFORE the new row, because the unique partial index on
         //! {schoolId, current} allows one current row per school and the old one still claims it
         // TODO: update current school subscription
         schoolSubscription.save(subscription);
 
-        //! step 10 - a number of its own, for the same reason #16 allocates one: two rows of one
+        //! step 11 - a number of its own, for the same reason #16 allocates one: two rows of one
         //! school cannot share a subscriptionNo, and an invoice pointing at a number matching two
         //! records would be unanswerable.
         String subscriptionNumber = numberSequences.next(schoolId, NumberSequenceType.SUBSCRIPTION,
                 "SUB/{YYYY}/{MM}/");
 
-        //! step 11 - the next period, on identical terms. Everything negotiable is copied rather
+        //! step 12 - the next period, on identical terms. Everything negotiable is copied rather
         //! than re-derived from the plan: a school renewing keeps the price and the ceilings it
         //! actually had, including negotiated ones, because nobody agreed to renegotiate them by
         //! renewing. That is the opposite of #16, where a different plan means different terms.
@@ -881,7 +928,7 @@ public class PlatformSubscriptionService {
         // TODO: insert school subscription
         SchoolSubscription saved = schoolSubscription.save(renewed);
 
-        //! step 12 - one history row, against the row the school moved onto. Both plan ids are
+        //! step 13 - one history row, against the row the school moved onto. Both plan ids are
         //! the same plan, and that is worth writing down rather than leaving null: it is what
         //! distinguishes a renewal from a plan change in a list of history rows.
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
@@ -905,7 +952,7 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 13 - the note. What the renewal did, what it did NOT do about the money, and
+        //! step 14 - the note. What the renewal did, what it did NOT do about the money, and
         //! anything standing about the subscription a reader needs either way.
         List<String> note = new ArrayList<>();
         note.add("Renewed on the same terms: '" + plan.getPlanCode() + "' version "

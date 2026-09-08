@@ -528,10 +528,19 @@ console.log('\nRenewing is a button, and it says when it would be refused')
 const javaService = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
   'utf8')
+const javaRenew = javaService.slice(
+  javaService.indexOf('public SubscriptionDetailResponse renewSubscription('),
+  javaService.indexOf('//! Endpoint 27'))
+// Comments stripped, for the checks that ask "does this CALL x" rather than "does it mention x" —
+// the method's own prose explains why it deliberately does not use loadSellablePlan, and a
+// substring test cannot tell that apart from calling it.
+const javaRenewCode = javaRenew.split('\n')
+  .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+  .join('\n')
 const ALL_STATUSES = ['TRIAL', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED', 'EXPIRED']
 // The service's allow-list, lifted from renewSubscription's own condition.
 const renewableInJava = ALL_STATUSES.filter((st) =>
-  new RegExp(`renewable[\\s\\S]{0,240}SubscriptionStatus\\.${st}\\b`).test(javaService))
+  new RegExp(`renewable[\\s\\S]{0,240}SubscriptionStatus\\.${st}\\b`).test(javaRenew))
 const refusedInJava = ALL_STATUSES.filter((st) => !renewableInJava.includes(st))
 const mirrorSource = subsSourceFull.slice(subsSourceFull.indexOf('function whyRenewWouldRefuse('),
   subsSourceFull.indexOf('edit the terms */'))
@@ -553,15 +562,34 @@ const renewChecks = [
   // the other way round, because a mirror that refuses more than the API does is just as wrong.
   ['it does not invent an autoRenew refusal', !mirrorSource.includes('autoRenew')],
   ['and the service does not check autoRenew either',
-    !/renewSubscription[\s\S]{0,4000}AUTO_RENEW_OFF/.test(javaService)],
+    !javaRenewCode.includes('AUTO_RENEW_OFF')],
   // A CUSTOM cycle is NOT a refusal any more — it is a question. The mirror must not treat it as
   // one, or the button would block a renewal the API would happily do once given a date.
   ['a CUSTOM cycle is not in the refusal mirror', !mirrorSource.includes('CUSTOM')],
   ['the service asks for the date rather than refusing',
-    /renewSubscription[\s\S]{0,6000}BILLING_PERIOD_END_REQUIRED/.test(javaService)
+    javaRenew.includes('BILLING_PERIOD_END_REQUIRED')
       && !javaService.includes('CUSTOM_CYCLE_NOT_RENEWABLE')],
   ['it mirrors the period-not-ended refusal',
     mirrorSource.includes('new Date(s.currentPeriodEnd) > new Date()')],
+  // A renewal re-commits the school to the SAME plan, so the plan has to still be current. The
+  // response reports planStatus and planRetired, which makes this one predictable on the screen.
+  ['it mirrors the retired-plan refusal',
+    mirrorSource.includes('s.planRetired') && mirrorSource.includes("s.planStatus === 'DRAFT'")],
+  ['and points at changing the plan rather than just blocking',
+    /planRetired[\s\S]{0,300}change the plan instead/.test(mirrorSource)],
+  ['the service refuses a plan that is no longer current',
+    javaRenew.includes('PLAN_NOT_RENEWABLE')
+      && javaRenew.includes('PlanStatus.RETIRED') && javaRenew.includes('PlanStatus.DRAFT')
+      && javaRenew.includes('getEffectiveUntil()') && javaRenew.includes('getEffectiveFrom()')],
+  ['and does not reuse the sale-time refusal for it',
+    !javaRenewCode.includes('loadSellablePlan')
+      && !javaRenewCode.includes('PLAN_NOT_SELLABLE')],
+  ['the refusal tells the caller to change the plan',
+    /PLAN_NOT_RENEWABLE[\s\S]{0,700}change-plan/.test(javaRenew)],
+  // A private plan is a negotiated quote, not an invalid state.
+  ['neither refuses a private plan',
+    !mirrorSource.includes('publiclyAvailable')
+      && !javaRenewCode.includes('PubliclyAvailable')],
   // A dialog exists now, but only for CUSTOM: an ordinary renewal has nothing to fill in, so it
   // must still go straight out rather than opening a form with nothing in it.
   ['an ordinary renewal opens no dialog',

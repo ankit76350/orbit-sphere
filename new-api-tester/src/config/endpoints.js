@@ -6755,6 +6755,20 @@ SUB/…/000003   2026-08-31 → 2026-09-30     current, period still running
                                             -> a further call is 409 PERIOD_NOT_ENDED
 \`\`\`
 
+### The plan has to still be current
+
+A renewal commits the school to the **same plan** for another period, so the plan it is on has to
+be one a school can still be put on. Retired, back to \`DRAFT\`, or outside its
+\`effectiveFrom\`/\`effectiveUntil\` window is \`409 PLAN_NOT_RENEWABLE\`, and the message points at
+**#16** — the school is already on this plan, so the only fix is moving it to one that is current.
+
+A **private** plan (\`publiclyAvailable: false\`) renews like any other: that is a negotiated quote,
+not an invalid state.
+
+This is deliberately not the check \`loadSellablePlan\` does for a sale. That one advises "publish
+it first" or "pick one still on the menu", which is the wrong answer for a school already on the
+plan.
+
 ### What renews
 
 | Status | Renew | Result |
@@ -6799,6 +6813,7 @@ rather than starting one, so there is nothing about it that should take a school
       errors: [
         { status: 409, code: "PERIOD_NOT_ENDED", when: "The period is still running" },
         { status: 409, code: "SUBSCRIPTION_NOT_RENEWABLE", when: "TRIAL, SUSPENDED or CANCELLED" },
+        { status: 409, code: "PLAN_NOT_RENEWABLE", when: "The plan is retired, DRAFT, or outside its window" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A CUSTOM cycle, no date sent" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A date not after the period's start" },
         { status: 409, code: "SCHOOL_NOT_RENEWABLE", when: "The school is being wound down" },
@@ -6909,7 +6924,29 @@ rather than starting one, so there is nothing about it that should take a school
           body: { currentPeriodEnd: "2027-03-31T23:59:59Z" },
         },
         {
-          name: "6 — a school being wound down is refused",
+          name: "6 — a plan that is no longer current is refused",
+          notes: `Publish a plan, sell it, put the period in the past, then retire the
+    plan (Retire Plan) and renew.
+
+    -> 409 PLAN_NOT_RENEWABLE, and the message names the change-plan endpoint:
+       "'X' version 1 has been retired, so SUB/... cannot be renewed onto it
+        for another period. Move this school to a current plan with the
+        change-plan endpoint instead."
+
+    Same for a plan put back to DRAFT, one past effectiveUntil, and one whose
+    effectiveFrom is still in the future. Nothing is written on any of them:
+      db.school_subscriptions.countDocuments({ schoolId: "<id>" })  -> still 1
+
+    NOT refused: publiclyAvailable false. A private plan is a negotiated
+    quote, not an invalid state, and a school on one renews like any other.
+
+    A renewal re-commits the school to the SAME plan, which is why this is
+    checked here and not on #16 — there, the plan being left can be anything,
+    because the school is leaving it.`,
+          body: null,
+        },
+        {
+          name: "7 — a school being wound down is refused",
           notes: `db.schools.updateOne({ _id: ObjectId("<id>") },
                            { $set: { status: "CLOSED" } })
 
@@ -6925,7 +6962,7 @@ rather than starting one, so there is nothing about it that should take a school
           body: null,
         },
         {
-          name: "7 — catching up several periods, one call at a time",
+          name: "8 — catching up several periods, one call at a time",
           notes: `Put the period end far enough back that two whole cycles have passed, then
     renew repeatedly.
 

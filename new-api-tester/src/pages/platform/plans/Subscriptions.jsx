@@ -527,10 +527,22 @@ function renewNeedsEndDate(subscription) {
  * NOR IS A CUSTOM CYCLE, because it is not a refusal — it is a question. A custom contract has no
  * length, so #17 asks for the next period's end date; the screen asks for it too rather than
  * letting the call come back 400. See renewNeedsEndDate.
+ *
+ * WHAT IT CANNOT SEE is the plan's effective-date window, which the response does not report, and
+ * the school's own status. Both come back as a 409 — PLAN_NOT_RENEWABLE and SCHOOL_NOT_RENEWABLE.
  */
 function whyRenewWouldRefuse(subscription) {
   const s = subscription
 
+  // The plan itself has to still be one a school can be on. The response reports planStatus and
+  // planRetired, so this one IS predictable — the effective-date window is not, and arrives as
+  // the same PLAN_NOT_RENEWABLE if it has closed.
+  if (s.planRetired || s.planStatus === 'RETIRED') {
+    return `'${s.planCode}' v${s.planVersion} is retired, so there is nothing to renew onto — change the plan instead.`
+  }
+  if (s.planStatus === 'DRAFT') {
+    return `'${s.planCode}' v${s.planVersion} is back to DRAFT, so its terms are not settled — change the plan instead.`
+  }
   if (s.status === 'TRIAL') {
     return 'A trial has no agreed next-period price — edit its status, or change its plan.'
   }

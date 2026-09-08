@@ -2329,7 +2329,7 @@ apply a term agreed for one plan to a different one.
 **[17](#t17) · `POST /platform/schools/{id}/subscriptions/current/renew`** — built
 
 - [`schools`](../../models/core/School.java) — *reads* `status` and `schoolName`. **No write** — a renewal continues an arrangement rather than starting one, so unlike [#16](#e16) it does not take the school `ACTIVE` or lift a suspension
-- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan the subscription is already on, to name it in the response. A **retired** plan is fine: retiring stops new sales, and refusing to renew would end a school's subscription by inaction
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads* the plan the subscription is already on, for its `status`, `effectiveFrom` and `effectiveUntil`, and to name it in the response. **The plan has to still be current**, or `409 PLAN_NOT_RENEWABLE` — see [the plan's own state](#e17-plan-state)
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *updates* the row whose period **ended**: `current` = false, `reasonForChanges`. Its **dates are left alone** — it ran its full course, which is what distinguishes this from #16, where the closed row's end is trimmed to the day of the change
 - [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *insert*: the next period — `subscriptionNo` (its own, from the sequence), `currentPeriodStart` = the old `currentPeriodEnd`, `currentPeriodEnd` = that plus the cycle, `status` = `ACTIVE`, `current` = true, and `planDefinitionDocsId`, `planVersion`, `billingCycle`, `autoRenew`, `contractedPrice`, `currencyCode`, `maxStudentsOverride`, `maxUsersOverride`, `billingCustomerReference` all **copied unchanged**
 - [`number_sequences`](../../models/institution/NumberSequence.java) — *updates*: `counters.$.nextValue` — the new row needs a `subscriptionNo` of its own, because a unique index forbids two rows of one school sharing one
@@ -2382,6 +2382,7 @@ apply a term agreed for one plan to a different one.
   "note": "Renewed on the same terms: 'PREMIUM' version 1 at 4242.50 INR. SUB/2026/09/000001 is closed and kept as history; this school is now on SUB/2026/09/000002, running from 2026-08-01T00:00:00Z to 2026-08-31T00:00:00Z on its MONTHLY cycle. NO invoice was raised and no money was taken: nothing writes subscription_invoices yet, so this moved the billing period and recorded the renewal without charging for it."
 }
 
+409 PLAN_NOT_RENEWABLE           — the plan is no longer current
 409 PERIOD_NOT_ENDED             — the period is still running
 409 SUBSCRIPTION_NOT_RENEWABLE   — TRIAL, SUSPENDED or CANCELLED
 409 SCHOOL_NOT_RENEWABLE         — the school is winding down
@@ -2414,6 +2415,7 @@ them encoded in a path before Spring sees the request.
 | `TRIAL` | `409 SUBSCRIPTION_NOT_RENEWABLE` | a trial has no agreed next-period price. Extend it with #14, convert it with #16 |
 | `autoRenew: false` | **allowed** | the flag is not checked — see below |
 | a `CUSTOM` cycle | **allowed, with a date** | it is asked for the next period's end, not refused — see below |
+| a plan no longer current | `409 PLAN_NOT_RENEWABLE` | retired, back to `DRAFT`, or outside its window — see below |
 | `SUSPENDED` | `409 SUBSCRIPTION_NOT_RENEWABLE` | billing a school for a period it cannot use |
 | `CANCELLED` | `409 SUBSCRIPTION_NOT_RENEWABLE` | deliberately ended; renewing would undo a decision |
 
@@ -2464,6 +2466,36 @@ SUB/…/000002   2026-08-01 → 2026-08-31   closed by the next call
 SUB/…/000003   2026-08-31 → 2026-09-30   current, period still running
                                           -> a further call is 409 PERIOD_NOT_ENDED
 ```
+
+<a id="e17-plan-state"></a>
+
+### The plan has to still be current, and a retired one is refused
+
+A renewal commits the school to **the same plan** for another period. So the plan it is on has to
+be one a school can still be put on:
+
+| `plan_definitions` state | Renew |
+|---|---|
+| `ACTIVE`, inside its window | allowed |
+| `ACTIVE`, `publiclyAvailable: false` | **allowed** — a private plan is a negotiated quote, not an invalid state |
+| `RETIRED` | `409 PLAN_NOT_RENEWABLE` |
+| back to `DRAFT` | `409 PLAN_NOT_RENEWABLE` — its terms are not settled |
+| past `effectiveUntil` | `409 PLAN_NOT_RENEWABLE` |
+| before `effectiveFrom` | `409 PLAN_NOT_RENEWABLE` |
+
+**The refusal names #16, because that is the only fix.** The school is already on this plan and the
+plan has gone; the question is not which plan to sell but whether to run this one for another
+period, and the answer is to move the school onto a plan that is still current:
+
+> 'STARTER_PLAN' version 1 has been retired, so SUB/2026/09/000001 cannot be renewed onto it for
+> another period. Move this school to a current plan with the change-plan endpoint instead.
+
+**Not the same check `loadSellablePlan` does**, though it looks it. That one is for *choosing* a
+plan to sell, and its advice — "publish it first", "use a plan that is still on the menu" — is
+wrong for a school already on the plan. Different question, different code, different sentence.
+
+**Nothing is written when it is refused**, so a school on a retired plan keeps the period it has
+until somebody moves it.
 
 <a id="e17-money"></a>
 
