@@ -118,6 +118,12 @@ public record SubscriptionUpdateRequest(
          * <p>Checked against the resulting {@code currentPeriodEnd}, whichever of the two moved,
          * so a period cannot be left running backwards by editing one end of it.
          *
+         * <p><b>A new start cannot be in the past</b> — today or later, or
+         * {@code 400 PERIOD_START_IN_PAST}. The <b>stored</b> start is not checked: a
+         * subscription sold months ago has one in the past by definition, and refusing to edit
+         * that would make every other field on this request unreachable for a running
+         * subscription. Only a value being set now is a decision to refuse.
+         *
          * <p><b>Moving the start moves the end with it</b> on the four fixed cycles, since the
          * end is the start plus the cycle's days — a period that kept its old end would be a
          * different length from the cadence the school is paying on. Send

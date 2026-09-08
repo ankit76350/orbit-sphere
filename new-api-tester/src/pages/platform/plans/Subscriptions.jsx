@@ -670,6 +670,20 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
     && form.billingCycle !== stored.billingCycle
     && !form.currentPeriodEnd
 
+  // A start being SET has to be today or later. The STORED one is not checked — a subscription
+  // sold months ago has a start in the past by definition, and flagging that would put an error
+  // on the form the moment it opened. So this fires only on a value somebody has changed, which
+  // is exactly what the API validates.
+  //
+  // Compared against UTC today, where the API compares against the start of today in the
+  // school's own timezone. For a school east of UTC those differ for part of the day, so a date
+  // this lets through can still come back 400 PERIOD_START_IN_PAST — the API's message names
+  // both instants. The school's timezone is not on the subscription response, which is why this
+  // cannot do better.
+  const startChanged = form.currentPeriodStart !== stored.currentPeriodStart
+  const startInPast = startChanged && Boolean(form.currentPeriodStart)
+    && form.currentPeriodStart < todayInput()
+
   const periodBackwards = Boolean(form.currentPeriodStart) && Boolean(form.currentPeriodEnd)
     && form.currentPeriodEnd < form.currentPeriodStart
   // Three states, not two. #13 writes a figure onto every subscription, copying the plan's when
@@ -721,7 +735,7 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             look="primary"
             busy={saving}
             disabled={nothingChanged || reasonMissing || periodBackwards || negativeOverride
-              || customNeedsEnd}
+              || customNeedsEnd || startInPast}
             onClick={submit}
           >
             {nothingChanged
@@ -791,10 +805,16 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
         <div className="field-grid">
           <Field
             label="Period starts on"
-            hint={`Stored as ${readableInstant(subscription.currentPeriodStart)}. A picked day is sent from its start.`}
+            hint={`Stored as ${readableInstant(subscription.currentPeriodStart)}. A picked day is sent from its start, and a new one has to be today or later.`}
           >
-            <Input type="date" value={form.currentPeriodStart}
-              onChange={set('currentPeriodStart')} />
+            {/* min only once it has been changed: the stored value is legitimately in the past,
+                and a min below the current value marks the field invalid on open. */}
+            <Input
+              type="date"
+              min={startChanged ? todayInput() : undefined}
+              value={form.currentPeriodStart}
+              onChange={set('currentPeriodStart')}
+            />
           </Field>
           <Field
             label="Period ends on"
@@ -832,6 +852,18 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
             </span>
           </Field>
         </div>
+
+        {/* A backdated start is a 400. Nothing here can invoice a period that has already run,
+            so the API refuses one rather than storing a figure no process could act on. */}
+        {startInPast ? (
+          <p className="banner" data-tone="bad">
+            <strong>A billing period starts today or later.</strong> {form.currentPeriodStart} has
+            passed, and nothing here can invoice a period that has already run. The stored start
+            ({readableInstant(subscription.currentPeriodStart)}) is in the past and that is fine —
+            it is only a <em>new</em> one that has to be today or later. Sending it is
+            <code className="mono"> 400 PERIOD_START_IN_PAST</code>.
+          </p>
+        ) : null}
 
         {/* Moving to CUSTOM without a date is a 400. Said before the send, because a refused
             request loses the other twelve boxes somebody has just filled in. */}

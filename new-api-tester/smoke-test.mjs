@@ -376,6 +376,10 @@ const editFormEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)
   .map((m) => m.index)
   .filter((i) => i > editFormStart))
 const editSource = subsSourceFull.slice(editFormStart, editFormEnd)
+// NewSubscription is the last function in the file, so its slice runs to the end. Declared here
+// rather than beside the first section that used it, because two later sections read from it too.
+const newStart = subsSourceFull.indexOf('function NewSubscription(')
+const newSource = subsSourceFull.slice(newStart)
 const formChecks = [
   ['the boxes are grouped under headings',
     (editSource.match(/className="field-split"/g) || []).length >= 4],
@@ -421,6 +425,56 @@ const formChecks = [
       .every((guard) => new RegExp(`disabled=\\{[^}]*${guard}`).test(editSource))],
 ]
 for (const [label, ok] of formChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// A billing period starts today or later, on both endpoints. Nothing here can invoice a period
+// that has already run, so a backdated start would sit in the record as a figure no process
+// could act on.
+console.log('\nA billing period cannot start in the past')
+// The helper's own body, from its signature to the blank line after its closing brace.
+const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTodayOrLater(')
+const startHelper = javaService.slice(startHelperAt,
+  javaService.indexOf('\n    }', startHelperAt))
+const startChecks = [
+  ['the service refuses one, on a sale and on an edit',
+    javaService.includes('private void validatePeriodStartIsTodayOrLater(')
+      && (javaService.match(/validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
+        || []).length === 2],
+  // Scoped to the helper's BODY. A window measured from the name matched a call site instead —
+  // in createSubscription, startOfTodayInSchoolZone sits three lines under the call.
+  ['it compares against the school\'s own timezone, not UTC',
+    startHelper.includes('startOfTodayInSchoolZone(school.getDefaultTimeZone())')
+      && !startHelper.includes('Instant.now()')],
+  ['null still means today',
+    /if \(requestedStart == null\) \{\s*\n\s*return;/.test(startHelper)],
+  ['it refuses only a start strictly before that',
+    startHelper.includes('requestedStart.isBefore(startOfToday)')],
+  // The stored start of a running subscription is in the past by definition.
+  ['it never checks what is already stored',
+    !/validatePeriodStartIsTodayOrLater\([^)]*subscription/.test(javaService)],
+  ['the helper says which methods use it',
+    /Used by:[\s\S]{0,120}createSubscription\(\)[\s\S]{0,60}updateSubscription\(\)[\s\S]{0,200}private void validatePeriodStartIsTodayOrLater/
+      .test(javaService)],
+  // The screen side: only a CHANGED value is flagged, or every running subscription would open
+  // with an error on the form.
+  ['the edit form flags only a changed start',
+    editSource.includes('const startChanged = form.currentPeriodStart !== stored.currentPeriodStart')
+      && /const startInPast = startChanged[\s\S]{0,160}< todayInput\(\)/.test(editSource)],
+  ['the picker\'s min appears only once it is changed',
+    editSource.includes('min={startChanged ? todayInput() : undefined}')],
+  ['the send button refuses it',
+    /disabled=\{[^}]*startInPast/.test(editSource)],
+  ['and it says the stored one being in the past is fine',
+    editSource.includes('A billing period starts today or later')
+      && editSource.includes('it is only a')],
+  // The sale form never offers the field, so there is nothing to guard there.
+  ['the sale form does not offer a start to get wrong',
+    !newSource.includes("set('currentPeriodStart')")
+      && !newSource.includes('body.currentPeriodStart')],
+]
+for (const [label, ok] of startChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
@@ -547,8 +601,6 @@ for (const [label, ok] of autofillChecks) {
 // #13 has accepted maxStudentsOverride and maxUsersOverride since the sale started copying the
 // plan's limits onto the subscription, but there was no way to negotiate one at the point of sale.
 console.log('\nThe sale form fills in from the plan too')
-const newStart = subsSourceFull.indexOf('function NewSubscription(')
-const newSource = subsSourceFull.slice(newStart)
 const saleFillChecks = [
   ['the select fills the boxes',
     newSource.includes('onChange={(event) => choosePlan(event.target.value)}')],

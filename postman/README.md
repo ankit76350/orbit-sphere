@@ -214,6 +214,12 @@ still created, the school stays `PROVISIONING`, and `nextStep` names what is mis
 - **One subscription per school.** A second is a `409`. Nothing cancels one or changes its plan
   yet, so a test school stays on its first plan.
 - **Numbering is per school**, so every school's first subscription is `SUB/2026/09/000001`.
+- **A billing period starts today or later**, on #13 and #14 both: a past `currentPeriodStart` is
+  `400 PERIOD_START_IN_PAST`. Nothing invoices a period, so a backdated start would record a school
+  as paying for time nothing could charge it for. Today counts, and "today" is the **school's** day
+  — an Asia/Kolkata school's midnight is `18:30Z` the previous day and that instant is accepted, so
+  a UTC comparison would wrongly reject it. On #14 only a start being *set* is checked; a running
+  subscription's stored start is in the past by definition.
 
 **There is no Activate Subscription request any more.** #15 was built and then withdrawn on
 2026-09-07: whether a subscription starts as `TRIAL` or `ACTIVE` is decided when it is sold, from

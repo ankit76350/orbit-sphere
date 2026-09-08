@@ -166,6 +166,10 @@ public class PlatformSubscriptionService {
         //! The period starts today in the SCHOOL'S day, not at the instant the request landed:
         //! a billing period is a pair of dates somebody reads, and "your year runs from the 7th"
         //! is what they expect to see rather than "from 12:47 on the 7th".
+        //!
+        //! A start in the past is refused rather than accepted: see the helper.
+        validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
+
         Instant periodStart = request.currentPeriodStart() == null
                 ? startOfTodayInSchoolZone(school.getDefaultTimeZone())
                 : request.currentPeriodStart();
@@ -316,7 +320,13 @@ public class PlatformSubscriptionService {
         //! step 3 - the subscription named in the URL, or the one they are on now
         SchoolSubscription subscription = findSchoolSubscription(school, schoolId, subscriptionNo);
 
-        //! step 4 - apply the edit, keeping a list of what actually moved. The list is what the
+        //! step 4 - a start being SET has to be today or later. The stored one is not checked:
+        //! a subscription sold months ago has a start in the past by definition, and refusing to
+        //! edit it would make every other field on this endpoint unreachable for a running
+        //! subscription. Only a value on the request is a decision somebody is making now.
+        validatePeriodStartIsTodayOrLater(request.currentPeriodStart(), school);
+
+        //! step 5 - apply the edit, keeping a list of what actually moved. The list is what the
         //! history row and the response are built from, so "changed" means "different from what
         //! was stored", not "was mentioned in the request".
         SubscriptionStatus previousStatus = subscription.getStatus();
@@ -330,7 +340,7 @@ public class PlatformSubscriptionService {
                             + "was written.");
         }
 
-        //! step 5 - the cycle decides the period, the same way it does on a sale. A cadence that
+        //! step 6 - the cycle decides the period, the same way it does on a sale. A cadence that
         //! moved leaves the stored end date describing a period nobody is on any more: an end
         //! derived as "start + 365" is not the end of a MONTHLY period, so keeping it would bill
         //! the school for a year while the document says it pays monthly.
@@ -365,12 +375,12 @@ public class PlatformSubscriptionService {
             }
         }
 
-        //! step 6 - the reason goes onto the document as well as the history row. Written only
+        //! step 7 - the reason goes onto the document as well as the history row. Written only
         //! now, because an edit that changed nothing has nothing to explain. No null check: the
         //! request has @NotBlank on it, so an unexplained edit never reaches here.
         subscription.setReasonForChanges(request.reason().trim());
 
-        //! step 7 - the period has to still make sense after the edit, whichever end moved
+        //! step 8 - the period has to still make sense after the edit, whichever end moved
         if (!subscription.getCurrentPeriodEnd().isAfter(subscription.getCurrentPeriodStart())) {
             throw ApiException.badRequest("INVALID_BILLING_PERIOD",
                     "currentPeriodEnd (" + subscription.getCurrentPeriodEnd() + ") must be after "
@@ -381,7 +391,7 @@ public class PlatformSubscriptionService {
         // TODO: update school subscription
         SchoolSubscription saved = schoolSubscription.save(subscription);
 
-        //! step 8 - one history row for the whole edit, in this same transaction
+        //! step 9 - one history row for the whole edit, in this same transaction
         SubscriptionHistory historyEntry = SubscriptionHistory.builder()
                 .schoolId(schoolId)
                 .schoolSubscriptionDocsId(saved.getId())
@@ -400,11 +410,11 @@ public class PlatformSubscriptionService {
         // TODO: insert history
         history.save(historyEntry);
 
-        //! step 9 - the plan is read only so the response can carry its features and limits
+        //! step 10 - the plan is read only so the response can carry its features and limits
         // TODO: read plan
         PlanDefinition plan = loadPlanBehindSubscription(saved);
 
-        //! step 10 - the note is two answers joined here rather than by one helper calling the
+        //! step 11 - the note is two answers joined here rather than by one helper calling the
         //! other: what this edit did, and anything standing about the subscription that a
         //! reader needs whether or not it was edited.
         List<String> note = new ArrayList<>();
@@ -1563,6 +1573,47 @@ public class PlatformSubscriptionService {
             throw ApiException.badRequest("LIMIT_TOO_LOW",
                     label + " must be at least 1 when it is sent. Received: " + value
                             + ". Omit it to use the plan's own limit.");
+        }
+    }
+
+    /**
+     * Refuses a billing period that starts before today.
+     *
+     * <p>A period start is a commitment about when billing begins, and one in the past says the
+     * school has been paying for time nobody charged it for. There is nothing in the codebase
+     * that could reconcile that — no invoice is raised for a period at all — so a backdated start
+     * would sit in the record as a figure no process could act on.
+     *
+     * <p><b>Today counts.</b> The comparison is against the start of today <i>in the school's own
+     * timezone</i>, matching the default this endpoint uses when no start is sent, so "today" is
+     * the same day to the operator and to the school. A start at any point later today is fine —
+     * only a day already finished is refused.
+     *
+     * <p><b>Null is fine, and means "today".</b> The field is optional on both requests: absent
+     * on a sale takes today, and absent on an edit leaves the stored start alone.
+     *
+     * <p><b>It never looks at what is already stored.</b> A subscription sold months ago has a
+     * start in the past by definition; checking that would make every other field on #14
+     * unreachable for a running subscription. Only a value somebody is sending now is a decision
+     * to refuse.
+     *
+     * Used by:
+     * - createSubscription()
+     * - updateSubscription()
+     */
+    private void validatePeriodStartIsTodayOrLater(Instant requestedStart, School school) {
+        if (requestedStart == null) {
+            return;
+        }
+
+        Instant startOfToday = startOfTodayInSchoolZone(school.getDefaultTimeZone());
+
+        if (requestedStart.isBefore(startOfToday)) {
+            throw ApiException.badRequest("PERIOD_START_IN_PAST",
+                    "currentPeriodStart (" + requestedStart + ") is before the start of today in "
+                            + "the school's timezone (" + startOfToday + "). A billing period "
+                            + "starts today or later — nothing here can invoice a period that "
+                            + "has already run.");
         }
     }
 

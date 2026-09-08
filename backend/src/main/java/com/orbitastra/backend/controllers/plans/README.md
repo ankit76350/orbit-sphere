@@ -429,7 +429,7 @@ below are still a plan.
 | `planVersion` | Integer, required | **Copied from the plan**, not sent. |
 | `status` | [SubscriptionStatus](../../models/plans/enums/SubscriptionStatus.java), required | **`TRIAL`** when the request says `trial: true`, otherwise **`ACTIVE`** (#13). **`TRIAL`** or **`ACTIVE`** on create, from the `trial` flag (#13). Every later move is **#14** until the lifecycle endpoints #17 to #22 are built — including `TRIAL` → `ACTIVE`, which used to be an endpoint of its own. |
 | `billingCycle` | BillingCycle, required | **From the plan by default, or the cycle named on #13's request.** Same five values. It lives here rather than being read through to the plan precisely so a school can be sold a plan on a cadence the plan is not listed at — and so changing the plan's listed cycle later cannot silently re-bill every school on it. #14 can move it afterwards. |
-| `currentPeriodStart` | Instant, required | **Any instant.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
+| `currentPeriodStart` | Instant, required | **Today or later, never the past.** Absent on create means midnight at the start of today **in the school's own zone**, not the moment the request arrived — a billing period is a pair of dates somebody reads. Sending one is how a contract that begins later is recorded; sending one already past is `400 PERIOD_START_IN_PAST` on both #13 and #14. The stored value goes stale as the period runs, and that is fine — the rule applies to a value being set. |
 | `currentPeriodEnd` | Instant, required | **Start plus a fixed count of days** taken from the cycle — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. Equal periods rather than equal dates, with the drift that implies; see the note under [#13](#e13). **`CUSTOM` has no length**, so the caller must send it — `400 BILLING_PERIOD_END_REQUIRED` if they do not. A caller-supplied end is accepted whenever it is after the start. |
 | `autoRenew` | Boolean, required | **`true`** unless the request says otherwise. |
 | `contractedPrice` | BigDecimal, `DECIMAL128`, required | **The plan's `listPrice`, or an override** — same rules: `0` or more, at most 2 decimals. This is what makes a private discount possible without a new plan version. |
@@ -1676,7 +1676,7 @@ Location: /platform/schools/{id}/subscriptions/SUB/2026/09/000001
 | `planVersion` | **yes** | Which version of that plan. Named rather than looked up, so a caller never has to read an id out of another response. |
 | `trial` | no | `true` opens the subscription at `TRIAL` instead of `ACTIVE`. Nothing else differs — a trial has the same plan, price and limits. Absent or `false` means a paying subscription. **This is the only place the choice is made**; #15, which used to convert one, was withdrawn. |
 | `billingCycle` | no | **Absent means the plan's own cadence**, which is the ordinary sale. Send one to sell the same plan on different terms — a school paying quarterly for a plan listed yearly buys the same entitlements on a different cadence. It is stored on the **subscription**, so the plan itself is unchanged. **It is this cycle, not the plan's, that decides the period** and therefore whether `currentPeriodEnd` is required. |
-| `currentPeriodStart` | no | An instant. Absent means **midnight at the start of today in the school's own time zone** — not the moment the request arrived, because a billing period is a pair of dates somebody reads. Sending one is how a backdated contract is recorded. |
+| `currentPeriodStart` | no | An instant, **today or later** — a past one is `400 PERIOD_START_IN_PAST`. Absent means **midnight at the start of today in the school's own time zone**, not the moment the request arrived, because a billing period is a pair of dates somebody reads. Sending one is how a contract that begins later is recorded. |
 | `currentPeriodEnd` | **on a `CUSTOM` cycle** | An instant, and it must be after the start (`400 INVALID_BILLING_PERIOD`). Absent means start **plus the cycle's days** — `MONTHLY` 30, `QUARTERLY` 90, `HALF_YEARLY` 180, `YEARLY` 365. A `CUSTOM` cycle has no length, so absent there is `400 BILLING_PERIOD_END_REQUIRED`. **Which cycle counts is the one being sold**: a `YEARLY` plan sold `CUSTOM` needs a date, and a `CUSTOM` plan sold `MONTHLY` does not. |
 | `autoRenew` | no | Absent means `true`. **Nothing acts on it.** [#17](#e17) starts the next period when it is called and does not consult the flag, and nothing calls #17 on a schedule — so there is no automatic renewal to switch off. It does appear on the school's own billing view, which tells the school its subscription does not renew automatically. |
 | `contractedPrice` | no | What this school actually pays. Absent means the plan's `listPrice`. Zero is allowed — a free deal is a deal; negative is `400 PRICE_NEGATIVE`. The response shows it next to `planListPrice`, which is the only way to notice a discount. |
@@ -1806,7 +1806,14 @@ existing subscription and says to change its plan.
 request arrived: a billing period is a pair of dates somebody reads, and "your year runs from the
 7th" is what they expect rather than "from 12:47 on the 7th". The school's zone rather than UTC
 decides which day today is — 06:00 in Kolkata is still yesterday in UTC. A caller who sends
-`currentPeriodStart` gets that instead, which is how a backdated contract is recorded.
+`currentPeriodStart` gets that instead, which is how a contract that begins later is recorded.
+
+**It cannot be in the past.** Today or later, or `400 PERIOD_START_IN_PAST` — on this endpoint and
+on [#14](#e14). Nothing in the codebase invoices a period, so a backdated start would record a
+school as paying for time nothing could ever charge it for: a figure sitting in the record that no
+process could act on. Today itself counts, and "today" is the school's day rather than UTC's, so
+the check agrees with the default above. On #14 only a start being **set** is checked; the stored
+one is in the past by definition once the period is running.
 
 **The end is the start plus a fixed count of days**, from the plan's cycle:
 
@@ -1938,7 +1945,7 @@ resubscribes keeps the date it originally went live.
 | `reason` | **yes** | Free text, max 500, `@NotBlank` so `"  "` is refused. The only field that must be sent: everything else here changes something a school is paying for, and an unexplained change is one nobody can answer for months later. It is stored on the subscription as `reasonForChanges` **and** on the history row. **It is not itself a change** — sent alone it is `400 NO_CHANGES_REQUESTED`, and on an edit that moved nothing it is not stored. |
 | `status` | no | Any of the six. **No transition rules apply** — this is the operator's override, not the lifecycle endpoints. Absent leaves it. Moving to `CANCELLED` stamps no date: when it happened is the `effectiveAt` of the `CANCELLED` history row this same request writes. |
 | `billingCycle` | no | Any of the five. **The cadence decides the period, so changing it moves `currentPeriodEnd`** — recalculated as the start plus the new cycle's days, and reported in the changed-field list like any other edit. **Moving to `CUSTOM` requires `currentPeriodEnd` with it** (`400 BILLING_PERIOD_END_REQUIRED`): CUSTOM has no length to derive from, and the date on record belongs to the cadence being left. Moving *away* from CUSTOM needs nothing extra. |
-| `currentPeriodStart` | no | An instant. Checked against the resulting end, whichever of the two moved. Cannot be cleared: it is `@NotNull` on the model. **Moving it moves the end with it** on the four fixed cycles, for the same reason — a period that kept its old end would be a different length from the cadence being paid on. On `CUSTOM` the end stays: it is an agreed date, not a derivation. |
+| `currentPeriodStart` | no | An instant, **today or later** — `400 PERIOD_START_IN_PAST` otherwise. The **stored** start is not checked: a running subscription's is in the past by definition, and refusing that would make every other field here unreachable. Checked against the resulting end, whichever of the two moved. Cannot be cleared: it is `@NotNull` on the model. **Moving it moves the end with it** on the four fixed cycles — a period that kept its old end would be a different length from the cadence being paid on. On `CUSTOM` the end stays: it is an agreed date, not a derivation. |
 | `currentPeriodEnd` | no | An instant. **This is what extend-trial used to do** — send it alone to push a trial or a paid period out, and nothing is derived because neither the cadence nor the start moved. **An explicit date always wins**, so send it alongside a new cycle or start to say the end yourself. A period left running backwards is `400 INVALID_BILLING_PERIOD`. |
 | `autoRenew` | no | `true` or `false`. Absent leaves it. |
 | `maxStudentsOverride` | no | A ceiling. **`0` removes it** and falls back to the plan's own `maxStudents` — the fields are flat, and Jackson cannot tell an omitted field from an explicit `null`, so zero carries the removal. Negative is `400 LIMIT_TOO_LOW`. |
@@ -2204,6 +2211,7 @@ than it tidies.
 409 SCHOOL_NOT_PLAN_CHANGEABLE   — the school is being wound down
 400 BILLING_PERIOD_END_REQUIRED  — a CUSTOM target, no end
 400 LIMIT_TOO_LOW                — a ceiling sent as 0
+400 PERIOD_START_IN_PAST         — a start already past
 404 SCHOOL_NOT_FOUND             — no such school
 404 SUBSCRIPTION_NOT_FOUND       — the school has none
 </pre></td>

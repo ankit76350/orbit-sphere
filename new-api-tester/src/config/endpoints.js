@@ -5860,6 +5860,7 @@ A second is a \`409\` telling you to change the plan on the existing one.
         { variable: "subscriptionNo", from: "subscriptionNo" },
       ],
       errors: [
+        { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "BILLING_PERIOD_END_REQUIRED", when: "A custom billing cycle" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
         { status: 400, code: "LIMIT_TOO_LOW", when: "An override of zero" },
@@ -6242,6 +6243,7 @@ refused before the service sees it.
       responseFields: [],
       captures: [],
       errors: [
+        { status: 400, code: "PERIOD_START_IN_PAST", when: "currentPeriodStart is before today in the school's zone" },
         { status: 400, code: "VALIDATION_FAILED", when: "Ask for nothing" },
         { status: 400, code: "INVALID_BILLING_PERIOD", when: "A period that runs backwards" },
         { status: 400, code: "NO_CHANGES_REQUESTED", when: "A reason on its own" },

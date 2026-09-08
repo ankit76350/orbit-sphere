@@ -63,8 +63,14 @@ public record SubscriptionCreateRequest(
          *
          * <p>Today rather than the instant the request landed, because a billing period is a pair
          * of dates somebody reads: "your year runs from the 7th" is what they expect to see, not
-         * "from 12:47 on the 7th". Send one only for a contract that was agreed to start on some
-         * other day — a backdated sale, or one that begins next quarter.
+         * "from 12:47 on the 7th". Send one for a contract agreed to begin later — next month, or
+         * next quarter.
+         *
+         * <p><b>It cannot be in the past</b>, and today counts:
+         * {@code 400 PERIOD_START_IN_PAST}. Nothing here invoices a period, so a backdated start
+         * would record a school as paying for time nothing could ever charge it for. The
+         * comparison is against the start of today <i>in the school's own timezone</i>, matching
+         * the default above, so the operator and the school agree on which day today is.
          */
         Instant currentPeriodStart,
 
