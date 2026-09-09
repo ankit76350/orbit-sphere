@@ -1372,7 +1372,7 @@ them** — code ascending, version descending — which reads as a menu rather t
 
 Built on the same parts, for the same reasons:
 
-- **It runs in the database.** [`PlanDefinitionRepositoryImpl`](../../repositories/plans/PlanDefinitionRepositoryImpl.java) builds one query; one page of documents is read however large the catalogue grows.
+- **It runs in the database.** [`PlanDefinitionRepositoryImpl`](../../repositories/plans/plandefinition/PlanDefinitionRepositoryImpl.java) builds one query; one page of documents is read however large the catalogue grows.
 - **Bad paging is refused, not clamped.** `size=5000` is a `400`. A clamped page looks like a complete result.
 - **`sort` is an allow-list.** An arbitrary field means an unindexed collection scan per request — and the *order* of a field can leak it even when the value is never returned.
 - **Every sort ends with the plan's identity**, `planCode` asc + `planVersion` desc. That pair is unique, so paging is deterministic; without a tiebreaker, paging equal sort keys can show one row twice and miss another.
@@ -3411,7 +3411,7 @@ school's rows.
 
 ### Tests
 
-- **59 unit tests**, no database: [`PageResponseTest`](../../../../../../../test/java/com/orbitastra/backend/common/web/PageResponseTest.java) for the shared page/size/sort resolution, [`ListSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListSubscriptionsTest.java) for what the service does around the query — how many queries run, what the repository was handed, which check fired first — and [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/SchoolSubscriptionRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria, because a dropped filter returns *more* rows and that looks like data rather than a bug.
+- **59 unit tests**, no database: [`PageResponseTest`](../../../../../../../test/java/com/orbitastra/backend/common/web/PageResponseTest.java) for the shared page/size/sort resolution, [`ListSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListSubscriptionsTest.java) for what the service does around the query — how many queries run, what the repository was handed, which check fired first — and [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/schoolsubscription/SchoolSubscriptionRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria, because a dropped filter returns *more* rows and that looks like data rather than a bug.
 - **80 end-to-end assertions** against a real Mongo: every filter alone and in combination, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum size, order stability across repeated requests, every refusal, and that two schools never see each other's rows.
 
 <a id="e29"></a>

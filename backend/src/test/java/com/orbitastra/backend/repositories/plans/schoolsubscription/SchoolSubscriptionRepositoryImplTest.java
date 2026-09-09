@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.plans;
+package com.orbitastra.backend.repositories.plans.schoolsubscription;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

@@ -39,8 +39,8 @@ import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.SchoolRepository;
-import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
-import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
+import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
+import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 
 /**
  * #28 — {@code listSubscriptions}, the decisions the service makes before and after the query.

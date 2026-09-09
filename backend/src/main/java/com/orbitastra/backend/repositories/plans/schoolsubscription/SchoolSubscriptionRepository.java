@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.plans;
+package com.orbitastra.backend.repositories.plans.schoolsubscription;
 
 import java.util.Optional;
 

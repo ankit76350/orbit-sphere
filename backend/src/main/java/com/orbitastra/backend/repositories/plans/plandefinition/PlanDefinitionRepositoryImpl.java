@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.plans;
+package com.orbitastra.backend.repositories.plans.plandefinition;
 
 import java.util.ArrayList;
 import java.util.List;

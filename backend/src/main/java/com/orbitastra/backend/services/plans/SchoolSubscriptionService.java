@@ -16,8 +16,8 @@ import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.OveragePolicy;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
-import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
-import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
+import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
+import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 
 import lombok.RequiredArgsConstructor;
 

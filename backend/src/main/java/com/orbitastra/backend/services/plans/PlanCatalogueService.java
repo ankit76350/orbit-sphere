@@ -32,8 +32,8 @@ import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
-import com.orbitastra.backend.repositories.plans.PlanDefinitionRepository;
-import com.orbitastra.backend.repositories.plans.SchoolSubscriptionRepository;
+import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
+import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
 import com.orbitastra.backend.services.plans.helper.PlanValidator;
 

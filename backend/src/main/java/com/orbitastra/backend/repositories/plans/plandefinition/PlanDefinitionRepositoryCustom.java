@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.plans;
+package com.orbitastra.backend.repositories.plans.plandefinition;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
