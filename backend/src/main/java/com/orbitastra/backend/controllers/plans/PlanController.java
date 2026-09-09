@@ -7,9 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanDraftUpdateRequest;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanFeatureListRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanFeatureListResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanFeatureListRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanFeatureListResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,16 +18,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.web.PageResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanAvailabilityRequest;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanCreateRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanDetailResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanPublishRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanSearchRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanSummaryResponse;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanVersionHistoryResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanAvailabilityRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanCreateRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanDetailResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanPublishRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanSummaryResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanVersionHistoryResponse;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
-import com.orbitastra.backend.services.plans.PlanCatalogueService;
+import com.orbitastra.backend.services.plans.PlanDefinitionService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +55,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/platform/plans")
 public class PlanController {
 
-    private final PlanCatalogueService planCatalogueService;
+    private final PlanDefinitionService planDefinitionService;
 
     /**
      * Creates a new plan.
@@ -73,7 +73,7 @@ public class PlanController {
      */
     @PostMapping("/drafts")
     public ResponseEntity<PlanResponse> createDraft(@Valid @RequestBody PlanCreateRequest request) {
-        PlanResponse response = planCatalogueService.createDraft(request);
+        PlanResponse response = planDefinitionService.createDraft(request);
 
         return ResponseEntity
                 .created(URI.create("/platform/plans/" + response.planCode() + "/versions/"
@@ -100,7 +100,7 @@ public class PlanController {
             @PathVariable Integer version,
             @Valid @RequestBody PlanDraftUpdateRequest request) {
 
-        return ResponseEntity.ok(planCatalogueService.updateDraft(code, version, request));
+        return ResponseEntity.ok(planDefinitionService.updateDraft(code, version, request));
     }
 
     /**
@@ -123,7 +123,7 @@ public class PlanController {
             @Valid @RequestBody PlanFeatureListRequest request) {
 
         return ResponseEntity.ok(
-                planCatalogueService.replaceFeatures(code, version, request.features()));
+                planDefinitionService.replaceFeatures(code, version, request.features()));
     }
 
     /**
@@ -144,7 +144,7 @@ public class PlanController {
             @PathVariable Integer version,
             @Valid @RequestBody(required = false) PlanPublishRequest request) {
 
-        return ResponseEntity.ok(planCatalogueService.publish(code, version, request));
+        return ResponseEntity.ok(planDefinitionService.publish(code, version, request));
     }
 
     /**
@@ -162,7 +162,7 @@ public class PlanController {
             @PathVariable String code,
             @PathVariable Integer version) {
 
-        return ResponseEntity.ok(planCatalogueService.retire(code, version));
+        return ResponseEntity.ok(planDefinitionService.retire(code, version));
     }
 
     /**
@@ -185,7 +185,7 @@ public class PlanController {
             @Valid @RequestBody PlanAvailabilityRequest request) {
 
         return ResponseEntity.ok(
-                planCatalogueService.setAvailability(code, version, request));
+                planDefinitionService.setAvailability(code, version, request));
     }
 
     /**
@@ -218,7 +218,7 @@ public class PlanController {
         PlanSearchRequest request = new PlanSearchRequest(
                 status, planCode, name, publiclyAvailable, search, page, size, sort);
 
-        return ResponseEntity.ok(planCatalogueService.listPlans(request));
+        return ResponseEntity.ok(planDefinitionService.listPlans(request));
     }
 
     /**
@@ -233,7 +233,7 @@ public class PlanController {
      */
     @GetMapping("/{code}/versions")
     public ResponseEntity<PlanVersionHistoryResponse> listVersions(@PathVariable String code) {
-        return ResponseEntity.ok(planCatalogueService.listVersions(code));
+        return ResponseEntity.ok(planDefinitionService.listVersions(code));
     }
 
     /**
@@ -250,6 +250,6 @@ public class PlanController {
             @PathVariable String code,
             @PathVariable Integer version) {
 
-        return ResponseEntity.ok(planCatalogueService.getVersion(code, version));
+        return ResponseEntity.ok(planDefinitionService.getVersion(code, version));
     }
 }

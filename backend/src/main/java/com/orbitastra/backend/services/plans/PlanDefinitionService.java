@@ -17,17 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanCreateRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanDetailResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanDraftUpdateRequest;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanAvailabilityRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanFeatureListResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanFeatureRequest;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanPublishRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanResponse;
-import com.orbitastra.backend.dto.plans.catalogue.request.PlanSearchRequest;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanSummaryResponse;
-import com.orbitastra.backend.dto.plans.catalogue.response.PlanVersionHistoryResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanCreateRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanDetailResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanDraftUpdateRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanAvailabilityRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanFeatureListResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanFeatureRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanPublishRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.request.PlanSearchRequest;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanSummaryResponse;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanVersionHistoryResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
@@ -36,11 +36,12 @@ import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRe
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
 import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.utils.PlanDefinitionServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * The plan catalogue — what we sell, at what price, with what limits. Endpoints #1 to #7.
+ * Plan definitions — what we sell, at what price, with what limits. Endpoints #1 to #7.
  *
  * <p><b>Platform surface only.</b> A {@code PlanDefinition} has no {@code schoolId}: it is
  * configuration shared by every tenant, and it is the one document in this module that is not
@@ -61,16 +62,17 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
-public class PlanCatalogueService {
+public class PlanDefinitionService {
 
     /**
      * #8's default order, and its tiebreaker under whatever a caller asks for.
      *
-     * <p>By code, newest version of each first — the catalogue read as a menu. Ending in
+     * <p>By code, newest version of each first, so the versions of one plan stay together.
+     * Ending in
      * {@code planVersion} makes the order total, since {@code planCode + planVersion} is unique,
      * which is what keeps pagination stable.
      */
-    private static final Sort CATALOGUE_ORDER = Sort.by(
+    private static final Sort PLAN_DEFINITION_ORDER = Sort.by(
             Sort.Order.asc("planCode"),
             Sort.Order.desc("planVersion"));
 
@@ -99,6 +101,7 @@ public class PlanCatalogueService {
     private final PlanDefinitionRepository plans;
     private final SchoolSubscriptionRepository subscriptions;
     private final PlanValidator planValidator;
+    private final PlanDefinitionServiceUtils utils;
     //! Endpoint 1 — create a draft plan -----------------------------------------------
 
         /**
@@ -192,10 +195,10 @@ public class PlanCatalogueService {
         }
 
         //! step 2 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         //! step 3 - only a draft may be edited
-        requireDraft(plan, "cannot be edited");
+        utils.requireDraft(plan, "cannot be edited");
 
         //! step 4 - apply only what was sent
         if (request.name() != null) {
@@ -268,10 +271,10 @@ public class PlanCatalogueService {
             List<PlanFeatureRequest> requests) {
 
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         //! step 2 - only a draft may be changed
-        requireDraft(plan, "its features cannot be changed");
+        utils.requireDraft(plan, "its features cannot be changed");
 
         //! step 3 - check every feature, and refuse the same code twice
         List<PlanFeatureRequest> incoming = requests == null ? List.of() : requests;
@@ -328,7 +331,7 @@ public class PlanCatalogueService {
     public PlanResponse publish(String code, Integer version, PlanPublishRequest request) {
         PlanPublishRequest asked = request == null ? PlanPublishRequest.empty() : request;
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         //! step 2 - only a draft can be published. Refused rather than answered 200, because
         //! "it was already published" and "you just published it" are different facts and a
@@ -339,7 +342,7 @@ public class PlanCatalogueService {
                             + " is already published. To change it, make a new version.");
         }
 
-        requireDraft(plan, "cannot be published");
+        utils.requireDraft(plan, "cannot be published");
 
         //! step 3 - a plan with nothing in it is not a plan
         if (plan.getFeatures() == null || plan.getFeatures().isEmpty()) {
@@ -403,7 +406,7 @@ public class PlanCatalogueService {
     //! Endpoint 6 — retire a plan -----------------------------------------------------
 
         /**
-         * #6 — retires a plan from the catalogue.
+         * #6 — retires a plan, so no new school can be put on it.
          *
          * <p>Existing schools keep their plan, price, and features.
          * This does not cancel subscriptions.
@@ -417,7 +420,7 @@ public class PlanCatalogueService {
 
     public PlanResponse retire(String code, Integer version) {
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         //! step 2 - retiring is terminal, so saying "already retired" matters. There is no way
         //! back: no endpoint returns a plan to DRAFT or ACTIVE.
@@ -480,7 +483,7 @@ public class PlanCatalogueService {
             PlanAvailabilityRequest request) {
 
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         boolean wanted = request.publiclyAvailable();
 
@@ -497,7 +500,7 @@ public class PlanCatalogueService {
         if (Boolean.valueOf(wanted).equals(plan.getPubliclyAvailable())) {
             return PlanResponse.fromPlan(plan, (wanted
                     ? "It was already on the public list. "
-                    : "It was already off the public list. ") + sellabilityNote(plan));
+                    : "It was already off the public list. ") + utils.sellabilityNote(plan));
         }
 
         //! step 4 - flip it and save
@@ -513,9 +516,9 @@ public class PlanCatalogueService {
                 : "Taken off the public list. It can still be offered privately in a quote. ";
 
         return PlanResponse.fromPlan(savedPlan,
-                (wanted ? "Now on the public list. " : off) + sellabilityNote(savedPlan));
+                (wanted ? "Now on the public list. " : off) + utils.sellabilityNote(savedPlan));
     }
-    //! Endpoint 8 — list the catalogue ------------------------------------------------
+    //! Endpoint 8 — every plan version there is ---------------------------------------
 
         /**
          ** 8 — lists plans with optional filters, sorting, and pagination.
@@ -527,7 +530,7 @@ public class PlanCatalogueService {
         // #28 needed the identical ones, which is when two copies of "is the page negative"
         // became a thing that could disagree. The four refusals and their wording are unchanged.
         Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
-                SORTABLE_PLAN_FIELDS, SORTABLE_PLAN_FIELD_NAMES, CATALOGUE_ORDER);
+                SORTABLE_PLAN_FIELDS, SORTABLE_PLAN_FIELD_NAMES, PLAN_DEFINITION_ORDER);
 
         // TODO: search plans
         Page<PlanDefinition> plansPage = plans.search(request, pageable);
@@ -601,7 +604,7 @@ public class PlanCatalogueService {
      */
     public PlanDetailResponse getVersion(String code, Integer version) {
         //! step 1 - find the plan, or 404
-        PlanDefinition plan = loadPlanVersion(code, version);
+        PlanDefinition plan = utils.loadPlanVersion(code, version);
 
         //! step 2 - who is on it
         // TODO: count subscriptions
@@ -615,118 +618,5 @@ public class PlanCatalogueService {
                 : null;
 
         return PlanDetailResponse.fromPlan(plan, schoolsOnThisVersion, note);
-    }
-
-    /*
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    */
-
-    /**
-     * Why the plan can or cannot be bought right now, in a sentence.
-     *
-     * <p>Sellability is three facts — published, public, and inside the selling window — and
-     * only one of them is what #7 changes. Without this, a caller who has just made a plan
-     * public and still sees {@code sellable: false} has no way to tell which of the other two is
-     * missing, and the obvious guess is that the call failed.
-          *
-     * Used by:
-     * - setAvailability()
-     */
-    private String sellabilityNote(PlanDefinition plan) {
-        if (plan.getStatus() == PlanStatus.RETIRED) {
-            // Checked before the public-list line, because for a retired plan that flag is not
-            // the reason it cannot be sold and saying so would send somebody to fix the wrong
-            // thing.
-            return "It is not sellable, and cannot become sellable: it is retired.";
-        }
-        if (!Boolean.TRUE.equals(plan.getPubliclyAvailable())) {
-            return "It is not sellable: a plan has to be on the public list to be picked.";
-        }
-        if (plan.getStatus() != PlanStatus.ACTIVE) {
-            return "It is NOT sellable yet — it is still a " + plan.getStatus()
-                    + ". Publish it to put it on sale.";
-        }
-
-        Instant now = Instant.now();
-        if (plan.getEffectiveFrom() != null && plan.getEffectiveFrom().isAfter(now)) {
-            return "It is not sellable yet: it goes on sale on "
-                    + Dates.readable(plan.getEffectiveFrom()) + ".";
-        }
-        if (plan.getEffectiveUntil() != null && !plan.getEffectiveUntil().isAfter(now)) {
-            return "It is not sellable: it stopped being sold on "
-                    + Dates.readable(plan.getEffectiveUntil()) + ".";
-        }
-        return "Schools can now pick it.";
-    }
-
-    /**
-     * Refuses anything but a draft.
-     *
-     * <p>The rule the whole catalogue is built on, in one place: a published plan may have
-     * schools on it, so changing what it costs or what it includes would change what somebody
-     * already agreed to without anybody agreeing to it. A retired plan is refused for the same
-     * reason — schools may still be on it.
-     *
-     * <p>{@code what} completes the sentence, so each endpoint says which change was refused
-     * rather than all of them sharing one vague message.
-          *
-     * Used by:
-     * - updateDraft()
-     * - replaceFeatures()
-     * - publish()
-     */
-    private void requireDraft(PlanDefinition plan, String what) {
-        if (plan.getStatus() != PlanStatus.DRAFT) {
-            throw ApiException.conflict("PLAN_NOT_EDITABLE",
-                    "'" + plan.getPlanCode() + "' version " + plan.getPlanVersion() + " is "
-                            + plan.getStatus() + " and " + what + ". Schools may already be on "
-                            + "it. Make a new version of it instead.");
-        }
-    }
-
-    /**
-     * One plan version, by the code and version in the URL, or a 404.
-     *
-     * <p>The code is normalized the same way it was when the plan was created, so a link typed
-     * as {@code /plans/premium-plus/versions/1} finds {@code PREMIUM_PLUS} rather than nothing.
-          *
-     * Used by:
-     * - updateDraft()
-     * - replaceFeatures()
-     * - publish()
-     * - retire()
-     * - setAvailability()
-     * - getVersion()
-     */
-    private PlanDefinition loadPlanVersion(String code, Integer version) {
-        String planCode = planValidator.normalizePlanCode(code);
-        // TODO: read plan
-        return plans.findByPlanCodeAndPlanVersion(planCode, version)
-                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
-                        "No plan '" + planCode + "' version " + version + " exists."));
     }
 }

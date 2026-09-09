@@ -10,7 +10,6 @@ import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessRespo
 import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.plans.SchoolSubscriptionService;
-import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,8 +39,7 @@ import lombok.RequiredArgsConstructor;
 public class SchoolSubscriptionController {
 
     private final CurrentSchoolResolver currentSchool;
-    private final PlatformSubscriptionService subscriptionService;
-    private final SchoolSubscriptionService featureAccessService;
+    private final SchoolSubscriptionService schoolSubscriptionService;
 
     /**
      * Endpoint #33 — the school's billing screen.
@@ -56,7 +54,7 @@ public class SchoolSubscriptionController {
     @GetMapping
     public ResponseEntity<MySubscriptionResponse> getMySubscription() {
         School school = currentSchool.require();
-        return ResponseEntity.ok(subscriptionService.getMySubscription(school));
+        return ResponseEntity.ok(schoolSubscriptionService.getMySubscription(school));
     }
 
     /**
@@ -76,6 +74,6 @@ public class SchoolSubscriptionController {
     @GetMapping("/feature-access")
     public ResponseEntity<FeatureAccessResponse> getFeatureAccess() {
         School school = currentSchool.require();
-        return ResponseEntity.ok(featureAccessService.featureAccessFor(school));
+        return ResponseEntity.ok(schoolSubscriptionService.featureAccessFor(school));
     }
 }

@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.plans.catalogue.response;
+package com.orbitastra.backend.dto.plans.plandefinition.response;
 
 import java.math.BigDecimal;
 import java.time.Instant;

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.FeatureAccessResponse.Feature;
+import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
@@ -51,18 +52,34 @@ public class SchoolSubscriptionService {
     private final SchoolSubscriptionRepository schoolSubscription;
     private final PlanDefinitionRepository planDefinition;
     private final SchoolSubscriptionServiceUtils utils;
+
+
+
+
+
+
+   //! Endpoint 33 — the school's own billing screen ----------------------------------
+    public MySubscriptionResponse getMySubscription(School school) {
+
+        //! step 1 - the school's one current subscription
+        // TODO: read subscription
+        SchoolSubscription subscription = schoolSubscription
+                .findBySchoolIdAndCurrentIsTrue(school.getId())
+                .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                        "This school has no subscription."));
+
+        //! step 2 - the plan it is on, for the name and the description
+        // TODO: read plan
+        PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
+                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
+                        "The plan this subscription points at no longer exists."));
+
+        return MySubscriptionResponse.fromSubscription(subscription, plan);
+    }
+
     //! Endpoint 34 — what this school may use right now -------------------------------
 
-    /**
-     * #34 — what this school may use right now.
-     *
-     * <p>Two reads: the school's current subscription, then the plan it points at.
-     *
-     * @throws ApiException 404 when the school has no subscription. A school with none is not
-     *                      entitled to anything, but saying so as an empty allowance would be
-     *                      indistinguishable from a plan with no features — and those need
-     *                      different fixing.
-     */
+    /** #34 — Returns what the school can use right now. */
     public FeatureAccessResponse featureAccessFor(School school) {
 
         //! step 1 - the school's one current subscription

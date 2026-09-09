@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.plans.catalogue.request;
+package com.orbitastra.backend.dto.plans.plandefinition.request;
 
 import java.util.List;
 

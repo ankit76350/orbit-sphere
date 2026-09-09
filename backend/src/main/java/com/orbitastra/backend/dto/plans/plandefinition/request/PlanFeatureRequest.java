@@ -1,4 +1,4 @@
-package com.orbitastra.backend.dto.plans.catalogue.request;
+package com.orbitastra.backend.dto.plans.plandefinition.request;
 
 import com.orbitastra.backend.models.plans.embedded.PlanFeature;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;

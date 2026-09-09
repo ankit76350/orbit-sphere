@@ -1544,22 +1544,5 @@ public class PlatformSubscriptionService {
                 subscription, plansById.get(subscription.getPlanDefinitionDocsId()), now));
     }
 
-    //! Endpoint 33 — the school's own billing screen ----------------------------------
-    public MySubscriptionResponse getMySubscription(School school) {
 
-        //! step 1 - the school's one current subscription
-        // TODO: read subscription
-        SchoolSubscription subscription = schoolSubscription
-                .findBySchoolIdAndCurrentIsTrue(school.getId())
-                .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
-                        "This school has no subscription."));
-
-        //! step 2 - the plan it is on, for the name and the description
-        // TODO: read plan
-        PlanDefinition plan = planDefinition.findById(subscription.getPlanDefinitionDocsId())
-                .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",
-                        "The plan this subscription points at no longer exists."));
-
-        return MySubscriptionResponse.fromSubscription(subscription, plan);
-    }
 }
