@@ -8106,14 +8106,24 @@ finished months ago. Across the whole platform that is the difference between "p
 payment-gateway id; a list of every school is the worst place for it) and the plan's features
 (#27 returns those in full).
 
-### KNOWN: ten documents make the bare list a 500
+### A row with no period end sorts to the top
 
-Ten rows in \`school_subscriptions\` have \`currentPeriodEnd\` stored as \`{"$date": "..."}\` — a
-nested object instead of a BSON date — so Spring Data throws converting them. **Not this
-endpoint's bug**: #27 and #28 already answer 500 on those ten schools. What #30 changes is that
-its default request touches all of them.
+Mongo puts missing and null values first in an ascending sort, and the default order is
+\`currentPeriodEnd\` ascending. \`currentPeriodEnd\` is \`@NotNull\` on the model, so a row without
+one exists only from a migration or a hand-written insert — and an operator's screen ordered by
+"what needs attention" is the right place for it to surface. One row is in that state today.
 
-Add any \`endDateTo\` to step around them (objects sort after dates in BSON), or repair them:
+### FIXED 2026-09-09: ten documents used to make the bare list a 500
+
+Ten rows had \`currentPeriodEnd\` stored as \`{"$date": "..."}\` — a nested object instead of a BSON
+date — so Spring Data threw converting them. It was never this endpoint's bug (#27 and #28
+already answered 500 on those ten schools); #30's default request was simply the first to touch
+all of them, which is how it was found. **All ten are repaired**, and every date field on
+\`school_subscriptions\`, \`schools\`, \`subscription_history\` and \`plan_definitions\` was scanned —
+those were the only malformed values.
+
+If it ever recurs, the screen names the pattern rather than blaming the endpoint, and the repair
+is:
 
 \`\`\`js
 db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
@@ -8127,8 +8137,7 @@ db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
 01  BARE LIST                                          -> 200 OK
     GET /platform/subscriptions
     First 20, soonest to end first. Several schools in one page.
-    NOTE: currently 500 — see the ten corrupt rows above. Add
-    ?endDateTo=2099-01-01T00:00:00Z to step around them.
+    A row with no currentPeriodEnd sorts to the top — see above.
 
 02  ONE ROW PER SCHOOL                                 -> 200 OK
     ?current=true
@@ -8202,7 +8211,6 @@ db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
       queryParams: [
         { key: "page", value: "0", enabled: true },
         { key: "size", value: "20", enabled: true },
-        { key: "endDateTo", value: "2099-01-01T00:00:00Z", enabled: true },
         { key: "sort", value: "currentPeriodEnd,asc", enabled: false },
         { key: "status", value: "SUSPENDED", enabled: false },
         { key: "billingCycle", value: "MONTHLY", enabled: false },
@@ -8213,6 +8221,7 @@ db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
         { key: "startDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
         { key: "startDateTo", value: "2027-03-31T23:59:59Z", enabled: false },
         { key: "endDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "endDateTo", value: "2027-03-31T23:59:59Z", enabled: false },
       ],
       headers: [],
       bodyAllowed: false,

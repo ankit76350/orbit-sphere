@@ -3770,26 +3770,39 @@ a nullable tenant is one `if` away from answering one school's request with anot
 - **The absence of the tenant clause is only testable here.** A cross-school list that had somehow acquired a school filter would just return fewer rows, which looks like data rather than a bug. Two unit tests read the query document and assert `schoolId` appears in no clause; a third asserts the service never calls the school-scoped `search` at all.
 - **84 end-to-end assertions** against a real Mongo: that one page really holds several schools, every filter alone and combined, `current=true` giving one row per school, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum, every refusal, and that the tie-heavy dataset pages through 60 rows at sizes 10 and 3 without losing or repeating one.
 
-### The corrupt data this endpoint found
+### The corrupt data this endpoint found — repaired 2026-09-09
 
-**Ten documents in `school_subscriptions` have `currentPeriodEnd` stored as `{"$date": "..."}`** —
-a nested object rather than a BSON date — so Spring Data throws converting them and any page that
-touches one is a 500. They are hand-inserted fixture rows from 7 September, one per status across
-ten schools, written with mongosh's extended-JSON syntax instead of `new Date(...)`.
+**Ten documents in `school_subscriptions` had `currentPeriodEnd` stored as `{"$date": "..."}`** —
+a nested object rather than a BSON date — so Spring Data threw converting them and any page that
+touched one was a 500. They were hand-inserted fixture rows from 7 September, one per status
+across ten schools, written with mongosh's extended-JSON syntax instead of `new Date(...)`.
 
-**This is not #30's bug**: [#27](#e27) and [#28](#e28) already answer 500 on those ten schools.
-What #30 changes is that its *default, unfiltered* request touches all of them, so the breakage
-stops being confined to ten schools and becomes the endpoint's front page.
+It was never #30's bug: [#27](#e27) and [#28](#e28) already answered 500 on those ten schools.
+What #30 changed is that its *default, unfiltered* request touched all of them, so the breakage
+stopped being confined to ten schools and became the endpoint's front page — which is how it was
+found.
+
+**Repaired.** All ten now hold the date they always meant (`2026-08-01T00:00:00Z`), and #27, #28,
+#29 and #30 all answer 200 for those schools. The same scan was run across every date field on
+`school_subscriptions`, `schools`, `subscription_history` and `plan_definitions`: those ten were
+the only malformed values anywhere.
 
 Nothing in the code papers over it, deliberately — an operator's list that silently skipped
-unreadable rows would be worse than one that fails. The repair is a one-liner and it un-breaks
-#27 and #28 for those ten schools too:
+unreadable rows would be worse than one that fails. If it ever recurs, the scan and the repair
+are:
 
 ```js
+// find it
+db.school_subscriptions.countDocuments({currentPeriodEnd: {$type: 'object'}})
+
+// fix it
 db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
   db.school_subscriptions.updateOne({_id: d._id},
     {$set: {currentPeriodEnd: new Date(d.currentPeriodEnd['$date'])}}))
 ```
+
+The `AllSubscriptions` screen still detects the pattern and names it, so the next occurrence
+reads as corrupt data rather than as a broken endpoint.
 
 <a id="e31"></a>
 **[31](#t31) · `GET /platform/subscriptions/renewals-due`**

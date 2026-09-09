@@ -230,16 +230,20 @@ export default function AllSubscriptions() {
       </Card>
 
       {/*
-        WHY THIS PANEL EXISTS. Ten rows in school_subscriptions have currentPeriodEnd stored as
-        {"$date": "..."} instead of a BSON date, so Spring Data throws converting them and any
-        page that touches one is a 500. It is NOT this endpoint's bug — #27 and #28 already fail
-        on those ten schools — but #30's default request touches all of them, so without this
-        panel the screen would just say INTERNAL_ERROR and blame itself.
+        WHY THIS PANEL EXISTS, AND WHY IT IS NOW DORMANT. Ten rows in school_subscriptions had
+        currentPeriodEnd stored as {"$date": "..."} instead of a BSON date, so Spring Data threw
+        converting them and any page touching one was a 500. It was never this endpoint's bug —
+        #27 and #28 failed on those ten schools too — but #30's default request touched all of
+        them, which is how it was found. They were repaired on 2026-09-09.
+
+        The panel stays because the failure mode is silent and the shape of it is easy to
+        reintroduce with one mongosh insert: without it the screen would just say INTERNAL_ERROR
+        and blame itself.
       */}
       {corruptRows ? (
         <Card
-          title="This is the ten corrupt fixture rows, not the endpoint"
-          description={'Ten documents have currentPeriodEnd stored as a nested {"$date": …} object rather than a date, so Spring Data throws converting them. #27 and #28 already answer 500 on those ten schools; #30\u2019s default request is just the first that touches all of them.'}
+          title="This is corrupt data, not the endpoint"
+          description={'Some documents have currentPeriodEnd stored as a nested {"$date": …} object rather than a BSON date, so Spring Data throws converting them and any page touching one is a 500. It is not this endpoint: #27 and #28 fail on those schools too. Ten such rows were repaired on 9 September; this panel is here in case it recurs.'}
         >
           <div className="stack">
             <span className="muted">

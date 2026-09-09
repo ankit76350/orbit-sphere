@@ -2278,7 +2278,9 @@ const allChecks = [
       && !/\{row\.currentPeriodEnd\}/.test(allSubs)],
   ['an empty page reads as "nobody has one", not as an error',
     /No school on the platform has one yet/.test(allSubs)],
-  // The ten corrupt fixture rows: the screen must name the cause rather than blame itself.
+  // Corrupt date values: the screen must name the cause rather than blame itself. The ten rows
+  // that prompted this were repaired on 2026-09-09, so the panel is dormant — but the failure
+  // mode is silent and one bad mongosh insert brings it back, so the diagnostic stays guarded.
   ['a 500 from the corrupt rows is explained, not shown as INTERNAL_ERROR',
     allSubs.includes('problem?.status === 500') && /not the endpoint/.test(allSubs)
       && /\$type: 'object'/.test(allSubs)],

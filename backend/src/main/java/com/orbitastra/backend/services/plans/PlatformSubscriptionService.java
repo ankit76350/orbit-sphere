@@ -170,6 +170,13 @@ public class PlatformSubscriptionService {
      * page one and again on page two while another is never seen. Period ends tie constantly
      * here, because schools onboarded together get the same one.
      *
+     * <p><b>A row with no period end sorts to the top</b>, because Mongo puts missing and null
+     * values first in an ascending sort. That is left as it is rather than pushed to the end: a
+     * subscription with no end date is anomalous — the field is {@code @NotNull} on the model, so
+     * one exists only from a migration or a hand-written row — and an operator's screen ordered
+     * by "what needs attention" is the right place for it to surface. One row of 3152 is in that
+     * state today.
+     *
      * <p>{@code subscription_period_end_idx} on {@code {currentPeriodEnd: 1, _id: 1}} was added
      * for exactly this order — see the note on the model, and the measurements in the README.
      */
