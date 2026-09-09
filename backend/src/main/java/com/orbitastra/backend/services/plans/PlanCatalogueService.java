@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.common.web.Paging;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.plans.catalogue.request.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.response.PlanDetailResponse;
@@ -523,11 +522,11 @@ public class PlanCatalogueService {
         */
         public PageResponse<PlanSummaryResponse> listPlans(PlanSearchRequest request) {
 
-        // The paging, the size cap and the sort allow-list are all one shared piece now — see
-        // common/web/Paging. These forty lines lived here first and #28 needed the identical
-        // forty, which is when two copies of "is the page negative" became a thing that could
-        // disagree. The four refusals and their exact wording are unchanged.
-        Pageable pageable = Paging.of(request.page(), request.size(), request.sort(),
+        // The paging, the size cap and the sort allow-list are all one shared piece now, on
+        // PageResponse — the type this method already returns. These lines lived here first and
+        // #28 needed the identical ones, which is when two copies of "is the page negative"
+        // became a thing that could disagree. The four refusals and their wording are unchanged.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
                 SORTABLE_PLAN_FIELDS, SORTABLE_PLAN_FIELD_NAMES, CATALOGUE_ORDER);
 
         // TODO: search plans

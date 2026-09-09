@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
-import com.orbitastra.backend.common.web.Paging;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
@@ -82,15 +81,8 @@ public class PlatformSubscriptionService {
     /** Written on every history row this service creates. */
     private static final String SOURCE_ADMIN_PORTAL = "ADMIN_PORTAL";
 
-    /**
-     * What #28 may sort on, and what each name means on the document.
-     *
-     * <p>Keyed lowercase so {@code sort=CurrentPeriodStart} works, and an allow-list rather than
-     * a pass-through so a caller cannot order by a field with no index behind it — or learn the
-     * document's shape by guessing field names and watching which ones stop erroring.
-     */
+    /** Allowed fields for sorting subscription history. */
     private static final Map<String, String> SORTABLE_SUBSCRIPTION_FIELDS = new LinkedHashMap<>();
-
     static {
         SORTABLE_SUBSCRIPTION_FIELDS.put("currentperiodstart", "currentPeriodStart");
         SORTABLE_SUBSCRIPTION_FIELDS.put("currentperiodend", "currentPeriodEnd");
@@ -100,42 +92,19 @@ public class PlatformSubscriptionService {
         SORTABLE_SUBSCRIPTION_FIELDS.put("updatedat", "updatedAt");
     }
 
-    /** The same names spelled as they should be typed, for the refusal. */
+     /** Allowed sort field names shown in validation errors. */
     private static final String SORTABLE_SUBSCRIPTION_FIELD_NAMES =
             "currentPeriodStart, currentPeriodEnd, subscriptionNo, status, createdAt, updatedAt";
 
-    /**
-     * #28's default order, and its tiebreaker under whatever a caller asks for.
-     *
-     * <p><b>Newest period first</b>, because a history is read from the end: the question is
-     * almost always "what happened recently", and the row somebody wants is the one at the top.
-     *
-     * <p><b>{@code subscriptionNo} is the stability half, and it is not decoration.</b>
-     * Subscription numbers are sequential within a school and unique within it, so ordering on
-     * one makes the order total — no two rows compare equal. Without that, two subscriptions
-     * sharing a {@code currentPeriodStart} (which #16 produces every time a plan changes on the
-     * day a period begins) could come back in either order per query, and a row would appear on
-     * page one and again on page two while another was never seen at all.
-     */
+    /** Default order for subscription history: newest period first, then subscription number. */
     private static final Sort SUBSCRIPTION_HISTORY_ORDER = Sort.by(
             Sort.Order.desc("currentPeriodStart"),
             Sort.Order.desc("subscriptionNo"));
 
-    /**
-     * What to put in the URL instead of a subscription number, to mean "the one this school is
-     * on now".
-     *
-     * <p><b>This exists because a subscription number cannot go in a URL.</b> The house format
-     * is {@code SUB/2026/09/000001} — it has slashes in it, and a slash ends a path segment, so
-     * {@code .../subscriptions/SUB/2026/09/000001/activate} is not the address of anything.
-     * Writing them as {@code %2F} does not help either: Tomcat rejects an encoded slash in a
-     * path with a 400 before Spring ever sees it.
-     *
-     * <p>So the word {@code current} is used instead, and it is not a workaround so much as the
-     * honest name for what is being asked. A school has exactly one current subscription — a
-     * unique index makes sure of it — so there was never a choice to make here.
-     */
+    /** URL value used to refer to the school's current subscription. */
     private static final String CURRENT_SUBSCRIPTION = "current";
+
+
 
     private final SchoolRepository schools;
     private final PlanDefinitionRepository planDefinition;
@@ -143,39 +112,15 @@ public class PlatformSubscriptionService {
     private final SubscriptionHistoryRepository history;
     private final NumberSequenceService numberSequences;
     private final PlanValidator planValidator;
-
-    /**
-     * Only for the two setup gates and nothing else.
-     *
-     * <p>A subscription takes a school live, and going live has conditions that belong to core: a
-     * SCHOOL_ADMIN role and the number sequences. Asking core rather than re-checking them here
-     * means one implementation — two copies of "is this school ready" is how the two come to
-     * disagree, and the wrong copy is the one that lets a broken school go live.
-     */
     private final SchoolPlatformService schoolPlatform;
+
+
+
+
     //! Endpoint 13 — a school's first subscription ------------------------------------
 
-    /**
-     * #13 — puts a school on a plan. What makes a school a paying customer.
-     *
-     * <p><b>This is the piece the core module has been complaining about.</b>
-     * {@code activateSchool} was written to require an active subscription, found that nothing
-     * could create one, and had to settle for a soft check that lets a school go live with no
-     * subscription at all — announcing the gap in every response rather than pretending. This
-     * closes it.
-     *
-     * <p>Three documents, one transaction: the subscription, its first history row, and the
-     * number sequence it took its number from. A subscription without its history row is a
-     * customer nobody can explain, and a number handed out without a subscription to attach it
-     * to is a gap in the numbering that looks like a deleted record for ever.
-     *
-     * <p><b>Most of the request is optional.</b> Price, currency, cycle and the period end all
-     * come from the plan unless the caller says otherwise — the ordinary case is "put them on
-     * Premium v1", and the fields exist for the deal that is not ordinary.
-     */
+    /** #13 — Puts a school on a plan and creates its first subscription history record. */
     @Transactional
-
-
     public SubscriptionResponse createSubscription(String schoolId,
             SubscriptionCreateRequest request) {
 
@@ -313,43 +258,12 @@ public class PlatformSubscriptionService {
         return SubscriptionResponse.fromSubscription(savedSubscription, plan,
                 describeCreateOutcome(savedSubscription, trial, activation, zone));
     }
+
+
+
     //! Endpoint 14 — edit what a school is contracted to ------------------------------
-
-    /**
-     * #14 — edits any of the terms of one subscription.
-     *
-     * <p><b>This is where extend-trial went, along with #23 and #24.</b> Three endpoints for
-     * three columns of one document meant three sets of rules, and a correction that touched two
-     * of them was two requests, two writes and two history rows for one decision. One PATCH, one
-     * transaction, one history row saying what moved.
-     *
-     * <p><b>Nothing about the money is here.</b> The price and currency are #25, the billing
-     * customer is #26, the plan is #16 — see the request for why. What is here is when the
-     * subscription runs, what state it is in, and how much of the product it may use.
-     *
-     * <p><b>It applies no transition rules, on purpose.</b> The lifecycle endpoints each know one
-     * transition and what it implies — renewing raises an invoice, cancelling decides what
-     * happens to money already paid. This writes what it is told, which is exactly what is needed
-     * when a subscription is already wrong and no ordinary transition describes the fix. It is
-     * not how a subscription should ordinarily be renewed or cancelled.
-     *
-     * <p><b>One thing is still not negotiable.</b> A billing period cannot be made to run
-     * backwards, because there is no reading of that which is not a mistake.
-     *
-     * <p><b>Nothing is written when nothing changed.</b> A request that sets every field to what
-     * it already holds answers 200 and says so, with no history row: an audit trail whose rows
-     * record that nothing happened is one nobody can read. That includes the reason — an
-     * explanation for an edit that did not happen is not worth storing.
-     *
-     * <p><b>{@code reason} is required, and lands in two places.</b> On the subscription as
-     * {@code reasonForChanges}, so a screen can say why it looks the way it does without a second
-     * query, and on the history row next to the fields that moved. The document keeps the latest;
-     * history keeps all of them. Requiring it is what makes "why is this school's period ending
-     * in December" answerable at all — every field here is something somebody is paying for.
-     */
+   /** #14 — Updates subscription terms and records the change in history. */
     @Transactional
-
-
     public SubscriptionDetailResponse updateSubscription(String schoolId, String subscriptionNo,
             SubscriptionUpdateRequest request) {
 
@@ -570,85 +484,11 @@ public class PlatformSubscriptionService {
         return SubscriptionDetailResponse.fromSubscription(saved, plan,
                 String.join(" ", note));
     }
+
+
     //! Endpoint 16 — move a school onto a different plan ------------------------------
 
-    /**
-     * #16 — moves a school onto a different plan, or a newer version of its own.
-     *
-     * <p><b>What #14 deliberately cannot do.</b> #14 edits the terms of the plan a school is
-     * already on; this changes which plan that is, and with it what the school is entitled to,
-     * what it costs and how often it is billed. Keeping them apart is what stops "push the trial
-     * out a fortnight" and "move them to Enterprise" looking like the same request.
-     *
-     * <p><b>It writes two rows, and does not edit one.</b> The row the school is leaving is
-     * closed — {@code current = false}, and its period trimmed to today, because that is the
-     * period it actually served — and a new row is inserted for the plan it moves onto, with a
-     * {@code subscriptionNo} of its own. So {@code school_subscriptions} keeps one row per plan
-     * period rather than one row per school, and "what was this school on in March" is answerable
-     * from the collection instead of only from the history.
-     *
-     * <p>The old row's <b>status is not touched</b>. It did not expire and it was not cancelled —
-     * it was superseded, and writing either of the other two words would put something false in
-     * the record.
-     *
-     * <p><b>No status is refused, and the new row is always {@code ACTIVE}.</b> A plan change is
-     * somebody buying this school a plan, so the row it lands on has to be usable — and it now
-     * agrees with what this endpoint does to the school itself. A trial converts this way; a
-     * cancelled subscription comes back this way, with the finished row's dates left exactly as
-     * they were, because it really did stop then. {@code current} is the field that says which row is live, which is why every
-     * read of "the school's subscription" goes through
-     * {@code findBySchoolIdAndCurrentIsTrue}.
-     *
-     * <p><b>The plan changes immediately, and there is no option not to.</b> A subscription holds
-     * one plan, not a current one and a pending one, so a change scheduled for the next period
-     * would have nowhere to live — and moving the pointer now while calling it next period would
-     * hand the school its new feature access early.
-     *
-     * <p><b>What the request does choose is when the new billing PERIOD begins</b>, through the
-     * required {@code currentPeriodStart}. Today is the ordinary answer and reproduces the old
-     * behaviour exactly. A later date does not delay the feature access — only the period — and the
-     * row being left has its end moved to that same instant, so the two periods meet.
-     *
-     * <p><b>It asks nothing about the money already paid, and moves none.</b> The school is
-     * part-way through a period it has paid for, and nothing here charges, credits or refunds any
-     * of it — because nothing in this codebase raises an invoice at all:
-     * {@code subscription_invoices} has no writer and #17 is not built. The response says so
-     * rather than leaving somebody to assume a charge went out.
-     *
-     * <p>Deciding what <i>should</i> happen to that money is a commercial question, and it
-     * belongs with whatever raises the invoice rather than with the request that moves the plan.
-     * {@code controllers/plans/README.md} keeps it as an open question.
-     *
-     * <p><b>The new plan is the starting point for everything negotiable.</b> Price and both
-     * capacity ceilings come from it unless the request names them, exactly as #13 does on a
-     * sale — so a school that had negotiated a ceiling on its old plan does not keep it
-     * automatically. A ceiling is agreed against a particular plan, and moving to a different one
-     * means the terms are being renegotiated whether or not anybody says so; re-stating them here
-     * is what makes the new arrangement somebody's decision rather than this method's.
-     *
-     * <p><b>{@code autoRenew} is the exception, and absent leaves it alone.</b> A plan has no
-     * opinion about renewal — it is the school's standing instruction — so defaulting it to
-     * {@code true} the way a sale does would switch it back on for the one school that had asked
-     * for it off.
-     *
-     * <p><b>Nothing checks whether a downgrade puts the school over its new ceiling</b>, because
-     * nothing counts students yet. The response says so rather than implying the move was safe.
-     *
-     * <p><b>It moves the school's own status, which is the one side effect it has outside
-     * {@code school_subscriptions}.</b> Only a school that is still running may change plan —
-     * PROVISIONING, ACTIVE or SUSPENDED — and all three come out ACTIVE, because a school paying
-     * for a plan should be able to use it. The four wind-down states (OFFBOARDING, CLOSED,
-     * DELETION_PENDING, DELETED) are refused with
-     * {@code 409 SCHOOL_NOT_PLAN_CHANGEABLE}: selling a different plan to a school that is
-     * leaving, and taking it ACTIVE on the way, would reverse a wind-down as a side effect.
-     *
-     * <p>Note that this un-suspends, where a sale does not: #13 leaves a SUSPENDED school
-     * suspended, on the argument that lifting a suspension is a decision rather than a side
-     * effect of buying a plan. Here it is the opposite — a suspension is ordinarily for
-     * non-payment, and a school being moved onto a new plan has generally sorted that out, so
-     * leaving it locked out would bill it for something it cannot reach. The response always
-     * says what happened to the school's status, so it is never a silent change.
-     */
+    /** #16 — Moves a school to a different plan or plan version. */
     @Transactional
     public SubscriptionDetailResponse changePlan(String schoolId, String subscriptionNo,
             SubscriptionPlanChangeRequest request) {
@@ -951,84 +791,7 @@ public class PlatformSubscriptionService {
     }
 
     //! Endpoint 17 — start the next billing period ------------------------------------
-
-    /**
-     * #17 — renews a subscription into its next billing period, on the same terms.
-     *
-     * <p><b>The ordinary renewal sends no body, and one field exists for the case that cannot.</b>
-     * A renewal is the same plan at the same price for the next period: the plan, the version, the
-     * price, the currency, both capacity ceilings, the cycle, {@code autoRenew} and the billing
-     * customer reference all carry across untouched. Anything that could change one of those would
-     * make this a change rather than a renewal, and changes have their own endpoints — #14 for the
-     * terms, #16 for the plan.
-     *
-     * <p>The exception is {@code currentPeriodEnd}, and only because a {@code CUSTOM} cycle has no
-     * length: there is nothing to derive, so the caller has to say when the next period ends.
-     * Required on {@code CUSTOM}, an override on the four fixed cycles, and omitted — with no body
-     * at all — for every ordinary renewal.
-     *
-     * <p><b>It writes two rows, the same way #16 does.</b> A renewal is a new billing period, and
-     * {@code school_subscriptions} holds one document per period rather than one per school — so
-     * the period that just ended is closed ({@code current = false}) and a new row is inserted
-     * with a {@code subscriptionNo} of its own. That is what makes "what was this school paying
-     * in March, and for which period" answerable from the collection.
-     *
-     * <p>The closed row keeps its status. It did not expire and was not cancelled — it ran its
-     * course and was renewed, and {@code current} is the field that says which row is live.
-     *
-     * <p><b>The new period starts where the old one ended, not today.</b> Contiguous, so there is
-     * no gap the school was live but unbilled for and no overlap it was billed twice for. This is
-     * why renewal is refused before the period has actually ended: starting the next period early
-     * would leave the school's current row with a period that has not begun, and every read would
-     * have to explain it.
-     *
-     * <h2>What it refuses, and why each one</h2>
-     *
-     * <pre>
-     * plan retired or withdrawn   -> 409 PLAN_NOT_RENEWABLE     nothing to re-commit to
-     * period still running        -> 409 PERIOD_NOT_ENDED       there is no next period yet
-     * TRIAL                       -> 409 SUBSCRIPTION_NOT_RENEWABLE  a trial has no next period
-     * SUSPENDED                   -> 409 SUBSCRIPTION_NOT_RENEWABLE  billing blocked access
-     * CANCELLED                   -> 409 SUBSCRIPTION_NOT_RENEWABLE  deliberately ended
-     * CUSTOM, no end date sent    -> 400 BILLING_PERIOD_END_REQUIRED  say when it ends
-     * an end date not after start -> 400 INVALID_BILLING_PERIOD   it would end before it began
-     * a school being wound down   -> 409 SCHOOL_NOT_RENEWABLE    do not bill a school that is going
-     * </pre>
-     *
-     * <p><b>The plan has to still be current, and a retired one is refused.</b> A renewal commits
-     * the school to the same plan for another period, so a plan that is no longer sold — retired,
-     * back to DRAFT, or past its {@code effectiveUntil} — is not something to re-commit to
-     * silently. {@code 409 PLAN_NOT_RENEWABLE} says so and points at #16, because moving the
-     * school onto a plan that is still current is the only fix. A private plan is not affected:
-     * {@code publiclyAvailable} is a quote, not a state, and a school on one renews like any
-     * other.
-     *
-     * <p><b>{@code autoRenew} is not checked, and does not refuse anything.</b> Nothing calls
-     * this endpoint on a schedule, so every renewal is an operator deciding to renew this school
-     * now — and refusing that because of a flag would mean editing the flag first just to get
-     * past this endpoint. The flag is still carried onto the new row, and the school's own view
-     * still tells it the subscription does not renew automatically; what does not exist is
-     * anything that renews on its own for the flag to govern.
-     *
-     * <p><b>ACTIVE, PAST_DUE and EXPIRED renew, and all three come out ACTIVE.</b> EXPIRED is the
-     * case this endpoint exists to repair — a period ran out because nothing renewed it — and
-     * leaving it EXPIRED after starting a new period would contradict the row's own dates.
-     * PAST_DUE renews because an operator calling this by hand is saying the period should start;
-     * the note says the outstanding payment is not thereby settled, because nothing here settles
-     * it.
-     *
-     * <p><b>No invoice is raised, and that is the one thing this endpoint is missing.</b> The
-     * table for #17 names {@code subscription_invoices}, and it is deliberately not written: no
-     * repository exists for it, and the fields it would need — {@code subTotal},
-     * {@code taxAmount}, {@code dueDate} — are commercial decisions rather than something this
-     * method can derive from a plan's price. So this moves the billing period and records the
-     * renewal; it does not charge for it. The response says so rather than letting a caller
-     * assume money moved.
-     *
-     * <p><b>It does not touch the school's own status</b>, unlike #16. A renewal is the
-     * continuation of an arrangement rather than a new one, so there is nothing about it that
-     * should take a school live or lift a suspension.
-     */
+    /** #17 — Renews a subscription for the next billing period with the same terms. */
     @Transactional
     public SubscriptionDetailResponse renewSubscription(String schoolId, String subscriptionNo,
             SubscriptionRenewRequest request) {
@@ -1271,35 +1034,7 @@ public class PlatformSubscriptionService {
     }
 
     //! Endpoint 19 — cut a school off for non-payment ---------------------------------
-
-    /**
-     * #19 — suspends a subscription, and the school with it.
-     *
-     * <p><b>Why it is not #14 writing a status.</b> #14 can put {@code SUSPENDED} in the status
-     * field, and that is the problem: cutting a school off stops its staff working, and it should
-     * not be reachable by the same request that pushes a date out. This knows one transition,
-     * refuses everything else, and carries the school's own access with it.
-     *
-     * <p><b>Two documents move, because one would stop nothing.</b> The subscription goes
-     * {@code SUSPENDED}, which turns every feature off through #34's {@code allowed}; the school
-     * goes {@code SUSPENDED} too, which is what {@code CurrentSchoolResolver.requireUsable()}
-     * reads. Writing only the subscription would leave a "suspended" school still editing its own
-     * records.
-     *
-     * <p><b>ACTIVE and PAST_DUE only.</b> A trial has no unpaid bill behind it, so cutting one off
-     * is a different decision and is refused — which is also what lets #20 resume to
-     * {@code ACTIVE} without looking anything up. {@code CANCELLED} and {@code EXPIRED} ended
-     * rather than paused, and one already {@code SUSPENDED} has nothing to do.
-     *
-     * <p><b>It stamps no date on the subscription.</b> When it happened is the {@code effectiveAt}
-     * of the {@code SUSPENDED} history row this writes; a second copy on the document could only
-     * ever disagree with it. The school does get {@code suspendedAt}, because that field already
-     * exists and core's own suspend maintains it.
-     *
-     * <p><b>What it does not do:</b> nothing kills the school's live sessions or halts its
-     * scheduled jobs — neither exists yet — so a user already signed in is refused at the next
-     * request that checks rather than thrown out. The response says so.
-     */
+    /** #19 — Suspends a subscription and the school. */
     @Transactional
     public SubscriptionDetailResponse suspendSubscription(String schoolId, String subscriptionNo,
             SubscriptionSuspendRequest request) {
@@ -1427,29 +1162,7 @@ public class PlatformSubscriptionService {
     }
 
     //! Endpoint 20 — switch a school back on after it pays ----------------------------
-
-    /**
-     * #20 — resumes a suspended subscription, and the school with it.
-     *
-     * <p>The exact reverse of #19 and only that: the subscription returns to {@code ACTIVE} and
-     * the school with it. The plan, the price, the ceilings and the period are all untouched — a
-     * suspension pauses access, and lifting it renegotiates nothing.
-     *
-     * <p><b>It resumes to ACTIVE without looking anything up.</b> #19 only ever suspends an
-     * {@code ACTIVE} or a {@code PAST_DUE} subscription, and a school that has paid is not
-     * {@code PAST_DUE} any more — so there is no case where the right answer is anything else.
-     * Refusing to suspend a trial is what buys that simplicity.
-     *
-     * <p><b>The period is not extended</b>, and that is deliberate. A school suspended for three
-     * weeks comes back to the same {@code currentPeriodEnd}, having paid for time it could not
-     * use. Nothing here raises or credits an invoice, so moving the date would be this endpoint
-     * inventing a refund; the response says so instead. If a credit was agreed, #14 is where the
-     * date moves.
-     *
-     * <p><b>SUSPENDED only.</b> An {@code ACTIVE} subscription has nothing to resume, and a
-     * {@code CANCELLED} or {@code EXPIRED} one ended rather than paused — bringing that back
-     * would be selling a period without saying so, which is #13 or #16.
-     */
+    /** #20 — Resumes a suspended subscription and the school. */
     @Transactional
     public SubscriptionDetailResponse resumeSubscription(String schoolId, String subscriptionNo,
             SubscriptionResumeRequest request) {
@@ -1563,56 +1276,7 @@ public class PlatformSubscriptionService {
     }
 
     //! Endpoint 21 — end the subscription ---------------------------------------------
-
-    /**
-     * #21 — ends a subscription, at the end of the paid period or straight away.
-     *
-     * <p><b>The school usually keeps working until the period it already paid for runs out.</b>
-     * That is the default: a school cancelling mid-month has bought that month, and cutting it off
-     * the same afternoon would be keeping its money and taking the product away.
-     *
-     * <p><b>How that is said with the fields that already exist.</b> The status goes
-     * {@code CANCELLED} either way — the contract is over, and that is simply true. What decides
-     * whether the school can still work is the <b>period</b>, because
-     * {@code SchoolSubscriptionService.whyNotActive} now lets a cancelled subscription grant until
-     * its {@code currentPeriodEnd} passes:
-     *
-     * <pre>
-     * immediate absent or false  -> period left alone; access runs to currentPeriodEnd
-     * immediate true             -> currentPeriodEnd trimmed to now; access stops at once
-     * </pre>
-     *
-     * <p>So no flag says "cancelled but still running". The status says cancelled and the dates
-     * say how long for, which is the same division of labour #16 uses when it closes a row.
-     *
-     * <p><b>The cancellation sticks without any new check.</b> #17 already refuses to renew a
-     * {@code CANCELLED} subscription and #20 already refuses to resume one, so there is no path
-     * that quietly undoes this. Bringing the school back means selling it something new — #13 or
-     * #16.
-     *
-     * <p><b>The immediate shape trims the period, and the history row keeps what it was.</b>
-     * Moving {@code currentPeriodEnd} to now is the same thing #16 does to the row a school
-     * leaves: it records the period actually served. What that loses from the document — the end
-     * date originally paid for — goes into the history row's reason, which is where #16 puts the
-     * superseded number for the same reason.
-     *
-     * <p><b>The honest gap.</b> Nothing marks a lapsed subscription {@code EXPIRED}, so a
-     * scheduled cancellation reads {@code CANCELLED} with {@code periodEnded: true} after its
-     * date rather than {@code EXPIRED} — correct in every field, and still not tidied away.
-     * <b>A job will close these</b>; #22 was dropped on 2026-09-08 because expiring is a date
-     * arriving rather than a decision, the same conclusion #18 reached about {@code PAST_DUE}.
-     *
-     * <p><b>It does not touch the school.</b> Unlike #19, which takes the school's access down
-     * with it, this is a commercial end and not a lock-out. Winding the tenant down is core's
-     * business, and doing it here would make one request mean two decisions.
-     *
-     * <p><b>No money moves.</b> An immediate cancellation keeps whatever was paid for the part of
-     * the period being given up, because nothing here raises, credits or refunds an invoice.
-     *
-     * <p><b>Almost every status can be cancelled</b>, the opposite of #19 and #20: a trial that
-     * did not convert, a suspended school that never paid, one that is {@code PAST_DUE}. Only a
-     * subscription that is genuinely finished is refused.
-     */
+    /** #21 — Cancels a subscription immediately or at the end of its current period. */
     @Transactional
     public SubscriptionDetailResponse cancelSubscription(String schoolId, String subscriptionNo,
             SubscriptionCancelRequest request) {
@@ -1760,27 +1424,7 @@ public class PlatformSubscriptionService {
     }
 
     //! Endpoint 27 — what one school is on right now ----------------------------------
-
-    /**
-     * #27 — the whole of one school's current subscription.
-     *
-     * <p>The platform read. Everything about what a school is on: the plan and its features, the
-     * price they actually pay against the plan's list price, the status, and when the period
-     * ends.
-     *
-     * <p><b>Two reads on the way through, and a third only when something is wrong.</b> The happy
-     * path is the subscription and then the plan it points at. If there is no subscription, the
-     * school is looked up before answering, because "no such school" and "that school has no
-     * subscription" are different problems and a single 404 for both sends people looking in the
-     * wrong place. That read costs nothing on the path that succeeds.
-     *
-     * <p><b>It reports a lapsed period rather than hiding it.</b> Nothing marks a subscription
-     * expired on its own — #21 and #26 are not built — and #17 starts the next period only when
-     * somebody calls it, which nothing does on a schedule yet. So a period can run out while the
-     * status still says the school is paying. The response says so in {@code periodEnded} and in
-     * {@code note}, because a screen trusting {@code status} alone would show a school as live
-     * months after its period ended.
-     */
+    /** #27 — Returns the school's current subscription with plan, pricing, status, and period details. */
     public SubscriptionDetailResponse getSubscription(String schoolId) {
 
         //! step 1 - the school, read up front rather than only to explain a 404. It is needed
@@ -1814,53 +1458,14 @@ public class PlatformSubscriptionService {
     
 
     //! Endpoint 28 — every subscription this school has ever had ----------------------
-
-    /**
-     * #28 — one school's whole subscription history, filtered, sorted and paged.
-     *
-     * <p><b>What this answers that #27 cannot.</b> #27 returns the row a school is on now, which
-     * is the question a billing screen asks. This one returns every row the school has ever had:
-     * the trial it started on, the plan it moved off, the period that lapsed, the cancellation
-     * from two years ago. A school on its fourth plan has four documents in
-     * {@code school_subscriptions}, and only one of them is {@code current}.
-     *
-     * <p><b>Every status is included by default</b>, and that is the point — a history that
-     * hid the cancelled and expired rows would hide the thing somebody opened it to find. Ask
-     * for {@code ?status=} to narrow it, or {@code ?current=false} for the closed rows alone.
-     *
-     * <h2>Nothing is loaded that is not returned</h2>
-     *
-     * <p>Filtering, sorting and paging are all on the Mongo query, so one page of documents is
-     * read however long the history is. The plans behind that page are then fetched in
-     * <b>one</b> call — {@code findAllById} over the distinct plan ids on the page — rather than
-     * one lookup per row. That is the difference between two queries and twenty-one for a
-     * twenty-row page, and it is why the rows are mapped here instead of each DTO fetching its
-     * own plan.
-     *
-     * <p>Typically it is <b>two</b> plan ids for twenty rows, not twenty: a school's history is
-     * mostly repeated renewals of the same plan version, and each renewal points at the same
-     * document.
-     *
-     * <h2>No new index was added, and that was checked rather than assumed</h2>
-     *
-     * <p>{@code school_subscription_status_period_idx} is
-     * {@code {schoolId: 1, status: 1, currentPeriodEnd: 1}}. Mongo can use an index prefix, so
-     * the school-scoped match every one of these queries starts with is served by its first key,
-     * and {@code ?status=} by its first two. The default sort is on {@code currentPeriodStart},
-     * which that index does not cover — so it is a sort in memory, and deliberately: the
-     * candidate set is one school's subscriptions, which is a handful of documents even for a
-     * school of ten years' standing, and an index earning nothing still costs a write on every
-     * subscription ever created.
-     *
-     * <p>Read-only, so no {@code @Transactional}.
-     */
+    /** #28 — Returns the school's subscription history with filters, sorting, and pagination. */
     public PageResponse<SubscriptionSummaryResponse> listSubscriptions(String schoolId,
             SubscriptionSearchRequest request) {
 
         //! step 1 - the paging and the order, validated before anything is read. Cheap checks
         //! with no I/O behind them go first, so a malformed request costs no database round trip
         //! — and a 404 for the school is then only ever the answer to an otherwise valid ask.
-        Pageable pageable = Paging.of(request.page(), request.size(), request.sort(),
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
                 SORTABLE_SUBSCRIPTION_FIELDS, SORTABLE_SUBSCRIPTION_FIELD_NAMES,
                 SUBSCRIPTION_HISTORY_ORDER);
 

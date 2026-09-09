@@ -15,13 +15,14 @@ import org.springframework.data.domain.Sort;
 import com.orbitastra.backend.common.error.exception.ApiException;
 
 /**
- * {@link Paging} — the shared page/size/sort resolution behind every list endpoint.
+ * {@link PageResponse#pageableOf} — the shared page/size/sort resolution behind every list
+ * endpoint.
  *
  * <p>Worth unit-testing rather than only exercising through an endpoint: every list endpoint now
  * depends on it, so a mistake here is a mistake in all of them at once, and the interesting cases
  * (a sort key that collides with the tiebreaker) are awkward to set up over HTTP.
  */
-class PagingTest {
+class PageResponseTest {
 
     private static final Map<String, String> SORTABLE = new LinkedHashMap<>();
 
@@ -39,7 +40,7 @@ class PagingTest {
             Sort.Order.desc("subscriptionNo"));
 
     private Pageable resolve(Integer page, Integer size, String sort) {
-        return Paging.of(page, size, sort, SORTABLE, NAMES, FALLBACK);
+        return PageResponse.pageableOf(page, size, sort, SORTABLE, NAMES, FALLBACK);
     }
 
     @Nested
@@ -52,7 +53,7 @@ class PagingTest {
             Pageable pageable = resolve(null, null, null);
 
             assertThat(pageable.getPageNumber()).isZero();
-            assertThat(pageable.getPageSize()).isEqualTo(Paging.DEFAULT_SIZE);
+            assertThat(pageable.getPageSize()).isEqualTo(PageResponse.DEFAULT_SIZE);
         }
 
         @Test
@@ -84,7 +85,7 @@ class PagingTest {
         void sizeTooSmall() {
             assertThatThrownBy(() -> resolve(0, 0, null))
                     .isInstanceOf(ApiException.class)
-                    .hasMessageContaining("size must be between 1 and " + Paging.MAX_SIZE);
+                    .hasMessageContaining("size must be between 1 and " + PageResponse.MAX_SIZE);
         }
 
         @Test
@@ -96,16 +97,16 @@ class PagingTest {
         @Test
         @DisplayName("the maximum size is allowed")
         void maximumSizeIsValid() {
-            assertThat(resolve(0, Paging.MAX_SIZE, null).getPageSize())
-                    .isEqualTo(Paging.MAX_SIZE);
+            assertThat(resolve(0, PageResponse.MAX_SIZE, null).getPageSize())
+                    .isEqualTo(PageResponse.MAX_SIZE);
         }
 
         @Test
         @DisplayName("one over the maximum is REFUSED, not silently clamped")
         void sizeAboveMaximumIsRefusedNotClamped() {
-            assertThatThrownBy(() -> resolve(0, Paging.MAX_SIZE + 1, null))
+            assertThatThrownBy(() -> resolve(0, PageResponse.MAX_SIZE + 1, null))
                     .isInstanceOf(ApiException.class)
-                    .hasMessageContaining(String.valueOf(Paging.MAX_SIZE + 1));
+                    .hasMessageContaining(String.valueOf(PageResponse.MAX_SIZE + 1));
         }
     }
 

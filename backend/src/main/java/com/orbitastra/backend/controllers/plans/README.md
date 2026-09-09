@@ -3389,7 +3389,7 @@ The tiebreaker is appended under whatever the caller sorts by — and doing that
 had been in [#8](#e8) since it was written. A Mongo sort is a document and cannot hold one key
 twice; the driver keeps the last. So appending a fallback of `planCode ASC` under a caller's
 `planCode DESC` produced `{planCode: -1, planCode: 1}` and sorted **ascending**: `?sort=planCode,desc`
-had never worked. [`Paging`](../../common/web/Paging.java) now drops any fallback order whose field
+had never worked. [`PageResponse.pageableOf`](../../common/web/PageResponse.java) now drops any fallback order whose field
 the caller already named, which fixes both endpoints.
 
 > **Note on tied rows.** With a stable tiebreaker, `desc` is *not* the exact reverse of `asc`:
@@ -3411,7 +3411,7 @@ school's rows.
 
 ### Tests
 
-- **59 unit tests**, no database: [`PagingTest`](../../../../../../../test/java/com/orbitastra/backend/common/web/PagingTest.java) for the shared page/size/sort resolution, [`ListSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListSubscriptionsTest.java) for what the service does around the query — how many queries run, what the repository was handed, which check fired first — and [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/SchoolSubscriptionRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria, because a dropped filter returns *more* rows and that looks like data rather than a bug.
+- **59 unit tests**, no database: [`PageResponseTest`](../../../../../../../test/java/com/orbitastra/backend/common/web/PageResponseTest.java) for the shared page/size/sort resolution, [`ListSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListSubscriptionsTest.java) for what the service does around the query — how many queries run, what the repository was handed, which check fired first — and [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/SchoolSubscriptionRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria, because a dropped filter returns *more* rows and that looks like data rather than a bug.
 - **80 end-to-end assertions** against a real Mongo: every filter alone and in combination, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum size, order stability across repeated requests, every refusal, and that two schools never see each other's rows.
 
 <a id="e29"></a>
