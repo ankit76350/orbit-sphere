@@ -131,6 +131,23 @@ public final class Dates {
     }
 
     /**
+     * Today's calendar date, as the school's own calendar sees it.
+     *
+     * <p>Beside {@link #startOfTodayIn} because it answers the same question for the other date
+     * type. An academic year's boundaries are {@code LocalDate} — they are days, not moments —
+     * so "is today inside this year" cannot be asked with an {@code Instant} without converting
+     * one of them and inventing information in the process.
+     *
+     * <p><b>The zone is not cosmetic here either.</b> At 23:00 in Asia/Kolkata it is still the
+     * previous day in UTC, so a year that ends today would already read as finished. Reuses the
+     * same zone fallback as everything else in this class, so a rendered date and a date
+     * comparison can never disagree about the zone.
+     */
+    public static LocalDate todayIn(String zone) {
+        return LocalDate.now(zoneOrUtc(zone));
+    }
+
+    /**
      * The school's zone, or UTC when it is unset or unusable.
      *
      * <p>Inline in each method rather than shared with the callers that also need a ZoneId: this
