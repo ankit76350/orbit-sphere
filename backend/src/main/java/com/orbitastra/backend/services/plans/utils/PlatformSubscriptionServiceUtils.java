@@ -294,18 +294,17 @@ public class PlatformSubscriptionServiceUtils {
     /**
      * One plan out of a page's worth, tolerating a row that names no plan.
      *
-     * <p><b>This exists because {@code Map.of().get(null)} throws.</b> Both list endpoints fetch
-     * the plans behind a page in one query and then read each row's plan out of the map, and both
-     * have rows whose plan id can be null — a history row for an event that moved no plan, or a
-     * subscription whose plan link is missing. When <i>no</i> row on the page names a plan the map
-     * is the empty one, and {@code Map.of()} is {@code ImmutableCollections.MapN}, which
-     * {@code requireNonNull}s the key rather than answering null like {@code HashMap} does. So the
-     * page that needed no plan lookup at all was the one that failed with a
-     * {@code NullPointerException}.
+     * <p><b>This exists because {@code Map.of().get(null)} throws.</b> The three list endpoints
+     * fetch the plans behind a page in one query and then read each row's plan out of the map,
+     * and all three have rows whose plan id can be null — a history row for an event that moved
+     * no plan, or a subscription whose plan link is missing. When <i>no</i> row on the page names
+     * a plan the map is the empty one, and {@code Map.of()} is
+     * {@code ImmutableCollections.MapN}, which {@code requireNonNull}s the key rather than
+     * answering null like {@code HashMap} does. So the page that needed no plan lookup at all was
+     * the one that failed with a {@code NullPointerException}.
      *
-     * <p>Found by #29 against six audit rows that name no plan. #28 had the same latent fault:
-     * its map is built the same way, and its {@code Objects::nonNull} filter says the author
-     * already knew a subscription's plan id could be absent.
+     * <p>Found by #29 against six audit rows that name no plan. #28 had the same latent fault,
+     * and #30 would have been the third.
      *
      * <p>Checking the id here rather than choosing a map type is deliberate — it cannot be undone
      * by somebody tidying an empty {@code HashMap} back into {@code Map.of()}.
@@ -316,6 +315,7 @@ public class PlatformSubscriptionServiceUtils {
      *
      * Used by:
      * - getSubscriptionHistory()
+     * - listAllSubscriptions()
      * - listSubscriptions()
      */
     public PlanDefinition planFrom(Map<String, PlanDefinition> plansById, String planDocsId) {

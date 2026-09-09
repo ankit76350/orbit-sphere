@@ -8029,6 +8029,209 @@ page still says what it belongs to.
       examples: [],
     },
     {
+      id: "list-all-subscriptions",
+      name: "Get All Subscriptions",
+      method: "GET",
+      path: "/platform/subscriptions",
+      status: 'live',
+      summary: "Every school's subscription in one list. The operator's main screen.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/subscriptions\` — every school's subscription, in one list.
+
+**The operator's main screen.** Who is on what, who is suspended, whose period is about to lapse
+— the questions somebody asks when they are looking after the *platform* rather than one school.
+#28 is this same list narrowed to one school by its URL.
+
+**No school in the path.** It is the only endpoint on this controller without one, which is why
+the controller is mapped at \`/platform\` with \`/schools/{schoolId}\` on each of its other ten
+methods. There is no 404 here: no school is looked up, so an empty platform is an empty page.
+
+### Rows are periods, not schools
+
+The collection holds **one document per billing period**, so a school on its fourth plan appears
+four times and exactly one of those rows is \`current\`. A bare list is therefore periods, and the
+same school shows up several times.
+
+**\`?current=true\` is the one-row-per-school view**, and it is what a "who is on what" screen
+wants. It is deliberately **not** the default: a list endpoint that quietly filtered would report
+a total that does not match what it returned.
+
+| Parameter | Meaning |
+|---|---|
+| \`status\` | repeatable — \`?status=SUSPENDED&status=PAST_DUE\` means either. The headline filter. **Also how you ask for trials**: \`?status=TRIAL\` |
+| \`billingCycle\` | repeatable, ORs within itself |
+| \`planCode\` | **exact**, case-insensitive, normalized — \`premium-plus\` finds \`PREMIUM_PLUS\`. A code matching no plan gives an empty page, not an error |
+| \`planVersion\` | one version; only meaningful beside \`planCode\` |
+| \`autoRenew\` | \`true\` or \`false\` |
+| \`current\` | \`true\` is one row per school. See above — not defaulted |
+| \`startDateFrom\`, \`startDateTo\` | instants, **inclusive** both ends, on \`currentPeriodStart\` |
+| \`endDateFrom\`, \`endDateTo\` | instants, **inclusive** both ends, on \`currentPeriodEnd\` |
+| \`page\`, \`size\` | zero-based; size defaults to 20, max 100 — **refused above it, not clamped** |
+| \`sort\` | \`field,direction\` — \`currentPeriodEnd\`, \`currentPeriodStart\`, \`status\`, \`contractedPrice\`, \`createdAt\`, \`updatedAt\` |
+
+Filters combine with AND; only \`status\` and \`billingCycle\` OR within themselves. The names and
+defaults are #28's minus the tenant, on purpose.
+
+**There is no \`schoolId\` filter.** Naming one school *is* #28.
+
+### \`sort\` refuses \`subscriptionNo\`, unlike #28
+
+A subscription number is generated **per school**, so two schools both have a
+\`SUB/2026/09/000001\`. Across the platform it is neither unique nor a meaningful order, so it is
+off the allow-list — \`?sort=subscriptionNo,asc\` is a \`400 INVALID_SORT_FIELD\`.
+
+That is also why the pagination tiebreaker is the **row id** instead. Period ends tie constantly
+here, because schools onboarded together get the same one, and without a unique key a row could
+appear on page one *and* page two while another was never seen.
+
+### Every row names its school
+
+\`schoolId\`, \`schoolName\`, \`subdomain\` and \`schoolStatus\`. #28 withholds \`schoolId\` because the
+school is in its URL; here the opposite is true, and a row that did not say whose it was would be
+unreadable. Paste the \`schoolId\` into #28's URL to drill in.
+
+**\`schoolStatus\` is not padding.** A school that is \`SUSPENDED\` or \`CLOSED\` with an \`ACTIVE\`
+subscription is exactly the row this screen exists to surface, and the two statuses move
+independently.
+
+### \`periodEnded\` matters more here than anywhere
+
+Nothing marks a lapsed subscription \`EXPIRED\` yet, so a row can read \`ACTIVE\` with a period that
+finished months ago. Across the whole platform that is the difference between "paying" and
+"nobody has noticed". Worked out once per page from a single \`now\`.
+
+### What a row does not carry
+
+\`planDefinitionDocsId\` (internal — the plan is named instead), \`billingCustomerReference\` (a
+payment-gateway id; a list of every school is the worst place for it) and the plan's features
+(#27 returns those in full).
+
+### KNOWN: ten documents make the bare list a 500
+
+Ten rows in \`school_subscriptions\` have \`currentPeriodEnd\` stored as \`{"$date": "..."}\` — a
+nested object instead of a BSON date — so Spring Data throws converting them. **Not this
+endpoint's bug**: #27 and #28 already answer 500 on those ten schools. What #30 changes is that
+its default request touches all of them.
+
+Add any \`endDateTo\` to step around them (objects sort after dates in BSON), or repair them:
+
+\`\`\`js
+db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
+  db.school_subscriptions.updateOne({_id: d._id},
+    {$set: {currentPeriodEnd: new Date(d.currentPeriodEnd['$date'])}}))
+\`\`\`
+
+### The test cases
+
+\`\`\`
+01  BARE LIST                                          -> 200 OK
+    GET /platform/subscriptions
+    First 20, soonest to end first. Several schools in one page.
+    NOTE: currently 500 — see the ten corrupt rows above. Add
+    ?endDateTo=2099-01-01T00:00:00Z to step around them.
+
+02  ONE ROW PER SCHOOL                                 -> 200 OK
+    ?current=true
+    At most one row per school. This is the "who is on what" view.
+
+03  THE HEADLINE FILTER                                -> 200 OK
+    ?status=SUSPENDED
+    ?status=SUSPENDED&status=PAST_DUE     both, ORed — and the counts add up
+    ?status=TRIAL                         this is the "trial filter"
+
+04  WHO NEEDS CHASING                                  -> 200 OK
+    ?status=ACTIVE&current=true&autoRenew=false
+    Live, and nobody has agreed a renewal.
+
+05  ONE PLAN, ONE VERSION                              -> 200 OK
+    ?planCode=PREMIUM
+    ?planCode=premium-plus     normalized, finds PREMIUM_PLUS
+    ?planCode=NO_SUCH          EMPTY page, not an error
+    ?planCode=PREMIUM&planVersion=2
+
+06  BY CADENCE                                         -> 200 OK
+    ?billingCycle=YEARLY
+    ?billingCycle=MONTHLY&billingCycle=YEARLY
+
+07  THE PERIOD WINDOWS                                 -> 200 OK
+    ?endDateFrom=2026-10-01T00:00:00Z&endDateTo=2026-12-31T23:59:59Z
+    Both ends apply, inclusive. This pair is the renewal question.
+
+08  PAGING                                             -> 200 OK
+    ?page=0&size=1   then page=1, page=2 ...
+    ?page=99999      an empty page, not an error
+    ?size=100        the maximum
+
+09  SORTING                                            -> 200 OK
+    ?sort=currentPeriodEnd,desc
+    ?sort=contractedPrice,desc     biggest contracts first
+    ?sort=status,asc
+    ?sort=CreatedAt,DESC           case-insensitive
+
+10  A SCHOOL THAT DOES NOT MATCH ITS SUBSCRIPTION      -> 200 OK
+    Look for schoolStatus SUSPENDED or CLOSED beside status ACTIVE.
+    Nothing keeps the two in step; this screen is where you see it.
+
+11  BAD PAGING                                    -> 400 Bad Request
+    ?page=-1     INVALID_PAGE
+    ?size=0      INVALID_PAGE_SIZE
+    ?size=101    INVALID_PAGE_SIZE — refused, NOT clamped to 100
+
+12  BAD SORTING                                   -> 400 Bad Request
+    ?sort=subscriptionNo,asc   INVALID_SORT_FIELD — unique only per school
+    ?sort=schoolName,asc       INVALID_SORT_FIELD — not on the subscription
+    ?sort=currentPeriodEnd,sideways   INVALID_SORT_DIRECTION
+
+13  A WINDOW THAT RUNS BACKWARDS                  -> 400 Bad Request
+    ?endDateFrom=2027-01-01T00:00:00Z&endDateTo=2026-01-01T00:00:00Z
+    { "code": "INVALID_DATE_RANGE" }, with both dates spelled out
+
+14  AN INVALID ENUM OR DATE                       -> 400 Bad Request
+    ?status=NOT_A_STATUS
+    ?billingCycle=NOT_A_CYCLE
+    ?endDateFrom=not-a-date
+
+15  PARAMETERS ARE CHECKED BEFORE ANYTHING IS READ
+    ?page=-1&planCode=X answers INVALID_PAGE, so a malformed request
+    costs no database round trip.
+
+16  READING NEVER WRITES                          -> 405 / 404
+    POST, PUT, PATCH and DELETE on this URL are not mapped.
+\`\`\``,
+      pathParams: [],
+      queryParams: [
+        { key: "page", value: "0", enabled: true },
+        { key: "size", value: "20", enabled: true },
+        { key: "endDateTo", value: "2099-01-01T00:00:00Z", enabled: true },
+        { key: "sort", value: "currentPeriodEnd,asc", enabled: false },
+        { key: "status", value: "SUSPENDED", enabled: false },
+        { key: "billingCycle", value: "MONTHLY", enabled: false },
+        { key: "planCode", value: "{{planCode}}", enabled: false },
+        { key: "planVersion", value: "1", enabled: false },
+        { key: "autoRenew", value: "false", enabled: false },
+        { key: "current", value: "true", enabled: false },
+        { key: "startDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "startDateTo", value: "2027-03-31T23:59:59Z", enabled: false },
+        { key: "endDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative" },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size outside 1-100 — refused, not clamped" },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field off the allow-list — subscriptionNo included" },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "Anything but asc or desc" },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "from is after to, on either window" },
+        { status: 400, code: "VALIDATION_FAILED", when: "An unknown enum value, or a date that is not an instant" },
+      ],
+      // A GET sends no body, so the sixteen cases are in `docs` above rather than here.
+      examples: [],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

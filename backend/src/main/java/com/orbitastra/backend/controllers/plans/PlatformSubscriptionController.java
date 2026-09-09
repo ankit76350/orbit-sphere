@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionHistorySearchRequest;
@@ -23,6 +24,7 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeR
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
+import com.orbitastra.backend.dto.plans.subscription.response.PlatformSubscriptionRowResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionHistoryEntryResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
@@ -55,7 +57,13 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/platform/schools/{schoolId}")
+/*
+ * MAPPED AT /platform RATHER THAN /platform/schools/{schoolId}, and the school segment is on each
+ * method instead. Spring appends a method's path to the class's, so a class pinned to one school
+ * cannot host #30, whose URL has no school in it — and #30 belongs on this controller because it
+ * is the same resource read a different way. Every URL below is unchanged by the move.
+ */
+@RequestMapping("/platform")
 public class PlatformSubscriptionController {
 
     private final PlatformSubscriptionService subscriptionService;
@@ -68,7 +76,7 @@ public class PlatformSubscriptionController {
          *
          * <p>Creates the subscription, history, and subscription number in one transaction.
          */
-    @PostMapping("/subscriptions")
+    @PostMapping("/schools/{schoolId}/subscriptions")
     public ResponseEntity<SubscriptionResponse> create(
             @PathVariable String schoolId,
             @Valid @RequestBody SubscriptionCreateRequest request) {
@@ -103,7 +111,7 @@ public class PlatformSubscriptionController {
      * NO_CHANGES_REQUESTED}; a request that only restates what is already stored is a 200 that
      * says nothing changed.
      */
-    @PatchMapping("/subscriptions/{subscriptionNo}")
+    @PatchMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}")
     public ResponseEntity<SubscriptionDetailResponse> update(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -131,7 +139,7 @@ public class PlatformSubscriptionController {
      *
      * <p>Answers the whole subscription back, the same shape as #27.
      */
-    @PostMapping("/subscriptions/{subscriptionNo}/change-plan")
+    @PostMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/change-plan")
     public ResponseEntity<SubscriptionDetailResponse> changePlan(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -145,7 +153,7 @@ public class PlatformSubscriptionController {
     /**
      * Endpoint #17 — renews the subscription for the next billing period.
     */
-    @PostMapping("/subscriptions/{subscriptionNo}/renew")
+    @PostMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/renew")
     public ResponseEntity<SubscriptionDetailResponse> renew(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -175,7 +183,7 @@ public class PlatformSubscriptionController {
      * <p><b>It does not kill live sessions or stop scheduled jobs</b>, because neither exists
      * yet. The response says so rather than leaving it assumed.
      */
-    @PostMapping("/subscriptions/{subscriptionNo}/suspend")
+    @PostMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/suspend")
     public ResponseEntity<SubscriptionDetailResponse> suspend(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -196,7 +204,7 @@ public class PlatformSubscriptionController {
      * money decision nothing here can make, so the response says so instead of quietly moving
      * the date. #14 is where a date moves if a credit was agreed.
      */
-    @PostMapping("/subscriptions/{subscriptionNo}/resume")
+    @PostMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/resume")
     public ResponseEntity<SubscriptionDetailResponse> resume(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -229,7 +237,7 @@ public class PlatformSubscriptionController {
      * <p>A {@code reason} is required. Almost every status can be cancelled; only one that has
      * already ended is refused.
      */
-    @PostMapping("/subscriptions/{subscriptionNo}/cancel")
+    @PostMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/cancel")
     public ResponseEntity<SubscriptionDetailResponse> cancel(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -252,7 +260,7 @@ public class PlatformSubscriptionController {
      * <p>A school with none gets {@code 404 SUBSCRIPTION_NOT_FOUND}, and a school that does not
      * exist gets {@code 404 SCHOOL_NOT_FOUND} — different problems, different answers.
      */
-    @GetMapping("/subscription")
+    @GetMapping("/schools/{schoolId}/subscription")
     public ResponseEntity<SubscriptionDetailResponse> getSubscription(
             @PathVariable String schoolId) {
 
@@ -284,7 +292,7 @@ public class PlatformSubscriptionController {
      *
      * <p>Read-only, so no {@code @Transactional}.
      */
-    @GetMapping("/subscriptions")
+    @GetMapping("/schools/{schoolId}/subscriptions")
     public ResponseEntity<PageResponse<SubscriptionSummaryResponse>> listSubscriptions(
             @PathVariable String schoolId,
             @RequestParam(required = false) List<SubscriptionStatus> status,
@@ -356,7 +364,7 @@ public class PlatformSubscriptionController {
      * <p>Read-only, so no {@code @Transactional}. Nothing about this endpoint can change a
      * history row.
      */
-    @GetMapping("/subscriptions/{subscriptionNo}/history")
+    @GetMapping("/schools/{schoolId}/subscriptions/{subscriptionNo}/history")
     public ResponseEntity<PageResponse<SubscriptionHistoryEntryResponse>> getSubscriptionHistory(
             @PathVariable String schoolId,
             @PathVariable String subscriptionNo,
@@ -388,5 +396,71 @@ public class PlatformSubscriptionController {
 
         return ResponseEntity.ok(
                 subscriptionService.getSubscriptionHistory(schoolId, subscriptionNo, request));
+    }
+
+    /**
+     * Endpoint #30 — every school's subscription in one list.
+     *
+     * <p><b>The operator's main screen.</b> Who is on what, who is suspended, whose period is
+     * about to lapse — the questions somebody asks when they are looking after the platform
+     * rather than looking after one school. #28 is this same list narrowed to one school.
+     *
+     * <p><b>No school in the URL, which is why the class is mapped at {@code /platform}</b> — see
+     * the note above the class. It is the only endpoint here without one, and a response contains
+     * other schools' names, plans and prices, so there is no version of it that could ever belong
+     * on the school surface.
+     *
+     * <h2>Rows are periods, not schools</h2>
+     *
+     * <p>The collection holds one document per billing period, so a school on its fourth plan
+     * appears four times and exactly one of those rows is {@code current}.
+     * <b>{@code ?current=true} is the one-row-per-school view</b>, and it is what a "who is on
+     * what" screen wants — but it is not the default, because a list endpoint that quietly
+     * filtered would report a total that does not match what it returned.
+     *
+     * <pre>
+     * ?page=0&amp;size=20                     the first page, soonest to end first
+     * ?status=SUSPENDED&amp;status=PAST_DUE    who needs chasing
+     * ?status=TRIAL                        trials — there is no `trial` field to filter on
+     * ?current=true                        one row per school
+     * ?planCode=PREMIUM                    who is on this plan
+     * ?endDateFrom=2026-10-01T00:00:00Z    periods ending from October
+     * ?autoRenew=false&amp;current=true       live, and nobody has agreed a renewal
+     * ?sort=contractedPrice,desc           biggest contracts first
+     * </pre>
+     *
+     * <p><b>Every row names its school</b> — id, name, subdomain and the school's own status,
+     * because a school that is {@code CLOSED} with an {@code ACTIVE} subscription is exactly what
+     * this screen exists to surface. An empty platform is an <b>empty page</b>, never a 404.
+     *
+     * <p><b>{@code sort} does not accept {@code subscriptionNo}</b>, unlike #28: a subscription
+     * number is unique only within a school.
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    @GetMapping("/subscriptions")
+    public ResponseEntity<PageResponse<PlatformSubscriptionRowResponse>> listAllSubscriptions(
+            @RequestParam(required = false) List<SubscriptionStatus> status,
+            @RequestParam(required = false) List<BillingCycle> billingCycle,
+            @RequestParam(required = false) String planCode,
+            @RequestParam(required = false) Integer planVersion,
+            @RequestParam(required = false) Boolean autoRenew,
+            @RequestParam(required = false) Boolean current,
+            @RequestParam(required = false) Instant startDateFrom,
+            @RequestParam(required = false) Instant startDateTo,
+            @RequestParam(required = false) Instant endDateFrom,
+            @RequestParam(required = false) Instant endDateTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+
+        // Bound one at a time rather than through @ModelAttribute, so a misspelled status or a
+        // date that is not an instant comes back through the type-mismatch handler naming the
+        // parameter and what it accepts — the same reasoning as #28's list.
+        PlatformSubscriptionSearchRequest request = new PlatformSubscriptionSearchRequest(
+                status, billingCycle, planCode, planVersion, autoRenew, current,
+                startDateFrom, startDateTo, endDateFrom, endDateTo, page, size, sort);
+
+        return ResponseEntity.ok(subscriptionService.listAllSubscriptions(request));
     }
 }

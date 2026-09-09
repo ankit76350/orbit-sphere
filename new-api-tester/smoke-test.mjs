@@ -2198,6 +2198,159 @@ for (const [label, ok] of trailChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe platform-wide list (#30) is wired to the screen')
+// Its own file, so the whole source is the slice — no boundary hunting needed.
+const allSubs = readFileSync('src/pages/platform/plans/AllSubscriptions.jsx', 'utf8')
+const screensSource = readFileSync('src/screens.js', 'utf8')
+const e30 = lookupEndpoint('list-all-subscriptions')
+const allChecks = [
+  ['the endpoint is in the catalogue, as a GET with no school in the path',
+    Boolean(e30) && e30.method === 'GET' && e30.path === '/platform/subscriptions'
+      && e30.pathParams.length === 0],
+  ['a screen calls it', allSubs.includes("call('list-all-subscriptions'")],
+  // A screen of its own: Subscriptions.jsx is school-scoped and opens with a School picker, and
+  // #30 has no school at all.
+  ['it is a screen of its own, not a card on the school-scoped page',
+    screensSource.includes('screen: AllSubscriptions')
+      && screensSource.includes("id: 'all-subscriptions'")
+      && !subsSourceFull.includes('list-all-subscriptions')],
+  ['and it is reachable from the navigation',
+    /label: 'All subscriptions'/.test(screensSource)],
+  ['it takes no school, so it asks for none',
+    !/SchoolPicker/.test(allSubs) && !/schoolId:/.test(allSubs)],
+  ['the tag shows the URL it will really send, filters included',
+    /<EndpointTag[\s\S]{0,200}id="list-all-subscriptions"[\s\S]{0,200}query=\{query\}/
+      .test(allSubs)],
+  ['the query is built at render, not inside the call',
+    /const query = useMemo\(\(\) => \{/.test(allSubs)
+      && allSubs.indexOf('const query = useMemo') < allSubs.indexOf("call('list-all-subscriptions'")],
+  ['an empty filter box sends nothing rather than an empty parameter',
+    allSubs.includes('if (planCode.trim()) out.planCode = planCode.trim()')],
+  [(() => {
+    const supported = ['status', 'billingCycle', 'planCode', 'planVersion', 'autoRenew',
+      'current', 'startDateFrom', 'startDateTo', 'endDateFrom', 'endDateTo', 'page', 'size',
+      'sort']
+    const absent = supported.filter((f) => !allSubs.includes('out.' + f)
+      && !new RegExp('\\{ *' + f + '[,} ]').test(allSubs))
+    return `every filter the API takes is on the screen${absent.length ? ': missing ' + absent.join(', ') : ''}`
+  })(), (() => {
+    const supported = ['status', 'billingCycle', 'planCode', 'planVersion', 'autoRenew',
+      'current', 'startDateFrom', 'startDateTo', 'endDateFrom', 'endDateTo', 'page', 'size',
+      'sort']
+    return supported.every((f) => allSubs.includes('out.' + f)
+      || new RegExp('\\{ *' + f + '[,} ]').test(allSubs))
+  })()],
+  // There is no schoolId filter on #30: naming one school IS #28.
+  ['no schoolId filter is invented — that is #28',
+    !allSubs.includes('out.schoolId')],
+  ['there is no invented trial filter',
+    !allSubs.includes('out.trial') && allSubs.includes("'TRIAL'")],
+  // Rows are periods, not schools, and the screen must not quietly narrow.
+  ['current=true is offered as a filter, not applied by default',
+    allSubs.includes("out.current = current") && allSubs.includes("useState('')")
+      && !/const \[current, setCurrent\] = useState\('true'\)/.test(allSubs)],
+  ['the screen says rows are periods rather than schools',
+    /billing periods, not schools/.test(allSubs)],
+  // The refusal that separates #30 from #28.
+  ['the sort list carries subscriptionNo, which this endpoint refuses and #28 allows',
+    allSubs.includes("'subscriptionNo,asc'")],
+  ['and the catalogue says why it is refused, and what the tiebreaker is instead',
+    /generated \*\*per school\*\*/.test(e30.docs)
+      && /neither unique nor a meaningful order/.test(e30.docs)
+      && /tiebreaker is the \*\*row id\*\*/.test(e30.docs)],
+  ['the refusals are reachable: a size over the cap and a sort off the allow-list',
+    allSubs.includes("'101'") && allSubs.includes("'schoolName,asc'")],
+  ['nothing in it is disabled', !/disabled=|readOnly/.test(allSubs)],
+  // Every row must name its school, which is the whole difference from #28's row.
+  ['a row names the school: name, subdomain and id',
+    allSubs.includes('row.schoolName') && allSubs.includes('row.subdomain')
+      && allSubs.includes('row.schoolId')],
+  ['a row shows the SCHOOL\'s status as well as the subscription\'s',
+    allSubs.includes('row.schoolStatus') && allSubs.includes('row.status')],
+  ['a row shows current and periodEnded, not just the status',
+    allSubs.includes('row.current') && allSubs.includes('row.periodEnded')],
+  ['a row whose school was deleted says so rather than showing a blank',
+    /the school document has gone/.test(allSubs)],
+  ['a row whose plan was deleted says so too',
+    allSubs.includes('row.planCode === null')],
+  ['dates go through the readable helper, not raw',
+    allSubs.includes('readableDateTime(row.currentPeriodStart)')
+      && !/\{row\.currentPeriodEnd\}/.test(allSubs)],
+  ['an empty page reads as "nobody has one", not as an error',
+    /No school on the platform has one yet/.test(allSubs)],
+  // The ten corrupt fixture rows: the screen must name the cause rather than blame itself.
+  ['a 500 from the corrupt rows is explained, not shown as INTERNAL_ERROR',
+    allSubs.includes('problem?.status === 500') && /not the endpoint/.test(allSubs)
+      && /\$type: 'object'/.test(allSubs)],
+  ['and there is a one-click way past it',
+    allSubs.includes('Step around them')
+      && /CORRUPT_ROW_WORKAROUND = '2099-01-01'/.test(allSubs)],
+  ['the catalogue entry documents every refusal the endpoint gives',
+    ['INVALID_PAGE', 'INVALID_PAGE_SIZE', 'INVALID_SORT_FIELD', 'INVALID_SORT_DIRECTION',
+      'INVALID_DATE_RANGE'].every((code) => e30.errors.some((e) => e.code === code))],
+  // No school is looked up, so there is nothing to 404 on.
+  ['and documents that there is no 404',
+    !e30.errors.some((e) => e.status === 404)],
+  ['the catalogue offers every query parameter the API takes',
+    ['page', 'size', 'sort', 'status', 'billingCycle', 'planCode', 'planVersion', 'autoRenew',
+      'current', 'startDateFrom', 'startDateTo', 'endDateFrom', 'endDateTo']
+      .every((key) => e30.queryParams.some((q) => q.key === key))],
+]
+for (const [label, ok] of allChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nThe platform controller was rebased without moving a URL')
+const controller = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/controllers/plans/PlatformSubscriptionController.java',
+  'utf8')
+// #30 has no school in its URL, so the class cannot be pinned to one — Spring appends a method's
+// path to the class's. The school segment moved onto each of the other ten methods, and every
+// URL has to be exactly what it was.
+const classPath = (controller.match(/@RequestMapping\("([^"]*)"\)/) || [, ''])[1]
+const mapped = [...controller.matchAll(/@(Get|Post|Patch|Put|Delete)Mapping\("([^"]*)"\)/g)]
+  .map((m) => `${m[1].toUpperCase()} ${classPath}${m[2]}`)
+const expected = [
+  'POST /platform/schools/{schoolId}/subscriptions',
+  'PATCH /platform/schools/{schoolId}/subscriptions/{subscriptionNo}',
+  'POST /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/change-plan',
+  'POST /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/renew',
+  'POST /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/suspend',
+  'POST /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/resume',
+  'POST /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/cancel',
+  'GET /platform/schools/{schoolId}/subscription',
+  'GET /platform/schools/{schoolId}/subscriptions',
+  'GET /platform/schools/{schoolId}/subscriptions/{subscriptionNo}/history',
+  'GET /platform/subscriptions',
+]
+const rebaseChecks = [
+  ['the class is mapped at /platform, not at one school', classPath === '/platform'],
+  ['every method carries its own path', mapped.length === 11],
+  [(() => {
+    const missing = expected.filter((one) => !mapped.includes(one))
+    return `all eleven URLs are exactly what they were${missing.length ? ': lost ' + missing.join(' | ') : ''}`
+  })(), expected.every((one) => mapped.includes(one))],
+  [(() => {
+    const extra = mapped.filter((one) => !expected.includes(one))
+    return `and no URL was invented${extra.length ? ': ' + extra.join(' | ') : ''}`
+  })(), mapped.every((one) => expected.includes(one))],
+  ['the rebase says why it was needed',
+    /cannot host #30/.test(controller)],
+  // The one endpoint here with no tenant. The repository keeps it a separate method rather than a
+  // nullable school id, so the boundary cannot be forgotten by accident.
+  ['#30 uses a separate repository method, not a nullable school id',
+    readFileSync('../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java', 'utf8')
+      .includes('schoolSubscription.searchAcrossSchools(request, planIds')],
+  ['and the tiebreaker is the row id, because subscriptionNo is per-school',
+    /PLATFORM_SUBSCRIPTION_ORDER = Sort\.by\(\s*Sort\.Order\.asc\("currentPeriodEnd"\),\s*Sort\.Order\.asc\("id"\)\)/
+      .test(readFileSync('../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java', 'utf8'))],
+]
+for (const [label, ok] of rebaseChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nDates on screen are readable, per the project rule')
 const dateRuleChecks = [
   ['there is one helper for it, in lib/dates.js',

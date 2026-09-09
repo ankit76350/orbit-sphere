@@ -181,7 +181,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t27"></a>27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t28"></a>28 — **built** | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. **Paged, filtered and sorted in the database.** A school with none gets an **empty page**, not a 404. Filters: `status`, `billingCycle`, `planCode`, `planVersion`, `autoRenew`, `current`, and the two period windows. **There is no `trial` filter** — a trial is a status, so `?status=TRIAL` is the whole answer. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t29"></a>29 — **built** | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". **Paged, filtered and sorted in the database.** Use `current`, or the `subscriptionId` from #28 — a subscription number has slashes and cannot go in a URL. Filters: `eventType`, `status`, `previousStatus`, `source`, `performedByDocsId`, `sourceEventId`, `reason`, and the two date windows. **`effectiveAt` and `createdAt` are different dates** and both are filterable. Another school's subscription is a **404**, not a 403. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| <a id="t30"></a>30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t30"></a>30 — **built** | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. **Paged, filtered and sorted in the database.** No school in the URL — every row names its own, including the school's status, because a CLOSED school with an ACTIVE subscription is what this screen is for. Rows are **periods, not schools**: `?current=true` is the one-row-per-school view, and it is not the default. **`sort` refuses `subscriptionNo`** — it is unique only within a school. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`schools`](../../models/core/School.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t31"></a>31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t32"></a>32 | [`GET /platform/subscriptions/at-risk`](#e32) | Everything past due, suspended, or ending soon with auto-renew off. The list somebody works through on a Monday morning. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
 
@@ -3612,9 +3612,184 @@ apply either way. Splitting one was mutation-tested and changed no result. Keepi
 `Criteria` is a clarity choice; the comment now says so in both files.
 
 <a id="e30"></a>
-**[30](#t30) · `GET /platform/subscriptions`**
+**[30](#t30) · `GET /platform/subscriptions`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `schoolId`, `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `autoRenew`, `current`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `schoolId`, `subscriptionNo`, `status`, `billingCycle`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `autoRenew`, `current`
+- [`schools`](../../models/core/School.java) — *reads*: `schoolName`, `subdomain`, `status`, for every school on the page
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`
+
+### What this answers that [#28](#e28) cannot
+
+**The operator's main screen.** Who is on what, who is suspended, whose period is about to lapse —
+the questions somebody asks when they are looking after the *platform* rather than looking after
+one school. #28 is this same list narrowed to one school by its URL.
+
+**It is the only endpoint on this controller with no school in its path**, which is why the class
+is mapped at `/platform` with `/schools/{schoolId}` on each of the other ten methods rather than
+on the class. Spring appends a method's path to the class's, so a class pinned to one school could
+not host this one.
+
+### Rows are periods, not schools
+
+The collection holds **one document per billing period**, so a school on its fourth plan appears
+four times and exactly one of those rows is `current`. A bare list is therefore periods, and the
+same school shows up several times.
+
+**`?current=true` is the one-row-per-school view**, and it is what a "who is on what" screen
+wants. It is deliberately **not** the default: a list endpoint that quietly filtered would report
+a total that does not match what it returned.
+
+### Request
+
+```
+?page=0&size=20                     the first page, soonest to end first
+?status=SUSPENDED&status=PAST_DUE    who needs chasing
+?status=TRIAL                        trials — there is no `trial` field to filter on
+?current=true                        one row per school
+?planCode=PREMIUM&planVersion=2      who is on this plan version
+?billingCycle=YEARLY                 by cadence
+?autoRenew=false&current=true        live, and nobody has agreed a renewal
+?endDateFrom=2026-10-01T00:00:00Z    periods ending from October
+?sort=contractedPrice,desc           biggest contracts first
+```
+
+All optional; they combine with **AND**, and only `status` and `billingCycle` OR within
+themselves. The names, shapes and defaults are #28's minus the tenant, on purpose — an operator
+who has learned one should not have to learn the other. Pagination and the four refusals come
+from the same shared [`PageResponse.pageableOf`](../../common/web/PageResponse.java).
+
+**There is no `schoolId` filter.** Naming one school *is* #28, and a second way to ask one
+question eventually answers it differently.
+
+**Sortable on** `currentPeriodEnd`, `currentPeriodStart`, `status`, `contractedPrice`, `createdAt`,
+`updatedAt`. **Not `subscriptionNo`**, unlike #28 — see below.
+
+### Response
+
+One page of [`PlatformSubscriptionRowResponse`](../../dto/plans/subscription/response/PlatformSubscriptionRowResponse.java),
+in the same envelope as #28 and #29.
+
+**Every row names its school** — `schoolId`, `schoolName`, `subdomain` and `schoolStatus`. #28
+withholds `schoolId` because the school is in its URL; here the opposite is true, and a row that
+did not say whose it was would be unreadable. The name is what an operator scans, the subdomain is
+how they reach the school, the id is what they paste into #28's URL to drill in.
+
+**`schoolStatus` is not padding.** A school that is `SUSPENDED` or `CLOSED` with an `ACTIVE`
+subscription is exactly the row this screen exists to surface, and the two statuses move
+independently — nothing keeps them in step. It costs nothing, because the school document is
+already read for the name.
+
+**`periodEnded` matters more here than anywhere.** Nothing marks a lapsed subscription `EXPIRED`
+yet, so a row can read `ACTIVE` with a period that finished months ago — across the whole platform
+that is the difference between "paying" and "nobody has noticed". Computed once for the page from
+a single `now`, so no two rows can disagree.
+
+**A missing school or plan leaves that side's fields null rather than failing the page.**
+`schoolId` survives a missing school, so an orphaned subscription is still traceable — which is
+precisely what somebody investigating one needs.
+
+**What is deliberately absent:** `planDefinitionDocsId` (internal, and the plan is named instead),
+`billingCustomerReference` (a payment-gateway id — a list of every school on the platform is the
+worst possible place for it), and the plan's features and capacity overrides ([#27](#e27) returns
+those in full).
+
+### Errors
+
+| Code | Status | When |
+|---|---|---|
+| `INVALID_PAGE` | 400 | `page` is negative |
+| `INVALID_PAGE_SIZE` | 400 | `size` is below 1 or above 100 — refused, not clamped |
+| `INVALID_SORT_FIELD` | 400 | the sort field is off the allow-list, `subscriptionNo` included |
+| `INVALID_SORT_DIRECTION` | 400 | the direction is not `asc` or `desc` |
+| `INVALID_DATE_RANGE` | 400 | a window's `from` is after its `to` |
+| `VALIDATION_FAILED` | 400 | an unknown enum value, or a date that is not an instant |
+
+**There is no 404.** There is no school to look up, so an empty platform is an empty page.
+
+### Performance — three queries for a page
+
+The filter, the sort and the paging are all on the query. Two round trips for the page and its
+total, built from the same `Criteria` object so they cannot drift, then one for the schools and
+one for the plans.
+
+**Two N+1s were avoided, and this endpoint is the most exposed of the three to the first.** Every
+row on a page can belong to a *different* school, so naming them per row is twenty queries for
+twenty rows. Both the school ids and the plan ids on a page go into one distinct set each and are
+fetched with a single `findAllById` — and neither runs at all when the page is empty.
+
+**One index was added, and it was chosen by measurement rather than by the textbook.**
+`subscription_period_end_idx` on `{currentPeriodEnd: 1, _id: 1}`. Every other index on this
+collection is prefixed on `schoolId` and is therefore useless to an endpoint that has no school.
+Measured on 3148 rows:
+
+| index | bare list | `?status=ACTIVE` | `?current=true` | sort |
+|---|---|---|---|---|
+| *(none)* | COLLSCAN, 3148 docs | COLLSCAN, 3148 | COLLSCAN, 3148 | in memory |
+| `{status, currentPeriodEnd}` | COLLSCAN, 3148 | IXSCAN, **2357** | — | in memory |
+| `{currentPeriodEnd, status}` | COLLSCAN, 3148 | COLLSCAN, 3148 | — | in memory |
+| `{status, currentPeriodEnd, _id}` | COLLSCAN, 3148 | IXSCAN, 20 | — | index order |
+| **`{currentPeriodEnd, _id}`** | **IXSCAN, 20** | **IXSCAN, 39** | **IXSCAN, 24** | **index order** |
+
+The equality-first index is the textbook choice and it loses here: it only serves requests that
+send a status, leaving the bare list on a collection scan, and without `_id` in it Mongo still
+sorts 2357 matched documents in memory. Putting the sort key first serves the bare list **and**
+every filter combination in index order — one index instead of two. Adding the status-prefixed
+index as well would only take `?status=ACTIVE` from 39 documents to 20, which is not worth a
+second index on a collection this project builds indexes on demand for.
+
+**It is not built in the dev database**, where `school_subscriptions` has only `_id_`. Same as
+#29: auto-index-creation is off because it cost six minutes per boot, so indexes are built with
+`app.mongo.sync-indexes=true`. A deployment step, not a code change.
+
+### Pagination is stable, and the tiebreaker could not be #28's
+
+The default order is `currentPeriodEnd` ascending — soonest to lapse first, because that is what a
+renewal conversation looks like before it happens — then **the row id**.
+
+**It cannot be `subscriptionNo`.** That number is generated per school, so two schools both have a
+`SUB/2026/09/000001`: across the platform it is neither unique nor a meaningful order, and it is
+absent from the sort allow-list for the same reason. Period ends tie constantly here, because
+schools onboarded together get the same one, so without a unique key a row could appear on page
+one *and* page two while another was never seen.
+
+### Security
+
+Same position as the rest of this surface: no authentication exists in the project yet, so there
+is nothing to opt into. What is different is that **this endpoint has no tenant boundary at all,
+and that is the feature** — so the boundary is enforced by keeping it away from the school
+surface entirely. A response contains other schools' names, plans and prices; there is no version
+of it that could ever belong on `/schools/current/...`, so none exists.
+
+Inside the code the separation is structural rather than conditional: the repository has a
+**separate** `searchAcrossSchools` method rather than `search` taking a nullable school id, because
+a nullable tenant is one `if` away from answering one school's request with another's records.
+
+### Tests
+
+- **31 unit tests**, no database: [`ListAllSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListAllSubscriptionsTest.java) for what the service does around the query, and the `AcrossSchools` nested class in [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/schoolsubscription/SchoolSubscriptionRepositoryImplTest.java) for what the query says.
+- **The absence of the tenant clause is only testable here.** A cross-school list that had somehow acquired a school filter would just return fewer rows, which looks like data rather than a bug. Two unit tests read the query document and assert `schoolId` appears in no clause; a third asserts the service never calls the school-scoped `search` at all.
+- **84 end-to-end assertions** against a real Mongo: that one page really holds several schools, every filter alone and combined, `current=true` giving one row per school, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum, every refusal, and that the tie-heavy dataset pages through 60 rows at sizes 10 and 3 without losing or repeating one.
+
+### The corrupt data this endpoint found
+
+**Ten documents in `school_subscriptions` have `currentPeriodEnd` stored as `{"$date": "..."}`** —
+a nested object rather than a BSON date — so Spring Data throws converting them and any page that
+touches one is a 500. They are hand-inserted fixture rows from 7 September, one per status across
+ten schools, written with mongosh's extended-JSON syntax instead of `new Date(...)`.
+
+**This is not #30's bug**: [#27](#e27) and [#28](#e28) already answer 500 on those ten schools.
+What #30 changes is that its *default, unfiltered* request touches all of them, so the breakage
+stops being confined to ten schools and becomes the endpoint's front page.
+
+Nothing in the code papers over it, deliberately — an operator's list that silently skipped
+unreadable rows would be worse than one that fails. The repair is a one-liner and it un-breaks
+#27 and #28 for those ten schools too:
+
+```js
+db.school_subscriptions.find({currentPeriodEnd: {$type: 'object'}}).forEach(d =>
+  db.school_subscriptions.updateOne({_id: d._id},
+    {$set: {currentPeriodEnd: new Date(d.currentPeriodEnd['$date'])}}))
+```
 
 <a id="e31"></a>
 **[31](#t31) · `GET /platform/subscriptions/renewals-due`**

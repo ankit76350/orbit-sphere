@@ -75,7 +75,27 @@ import lombok.experimental.SuperBuilder;
                 //
                 // NOT school-scoped, unlike every other index here: the question is about a
                 // plan, and a plan belongs to no school.
-                @CompoundIndex(name = "subscription_plan_version_idx", def = "{'planDefinitionDocsId': 1, 'planVersion': 1}")
+                @CompoundIndex(name = "subscription_plan_version_idx", def = "{'planDefinitionDocsId': 1, 'planVersion': 1}"),
+                // Answers "every school's subscription, soonest to end first" — #30's default
+                // order, and the order #31 and #32 will want too. Added 2026-09-09.
+                //
+                // NOT school-scoped either, and that is the point: #30 takes no school, so every
+                // other index here is useless to it — each one is prefixed on schoolId. Without
+                // this, the operator's main screen is a collection scan plus an in-memory sort of
+                // every subscription on the platform.
+                //
+                // WHY THE `_id` IS IN IT. The sort ends in _id because subscriptionNo is only
+                // unique WITHIN a school, so across the platform it cannot break a tie. An index
+                // without _id still scans, but Mongo then has to sort the matches in memory:
+                // measured on 3148 rows, `{status, currentPeriodEnd}` read 2357 documents to
+                // return 20, and this one reads 20.
+                //
+                // WHY THE PERIOD END LEADS rather than status, even though status is the headline
+                // filter. Equality-first would be the textbook choice, but it only serves queries
+                // that send a status — measured, a status-prefixed index left the bare list on a
+                // collection scan, while this one serves the bare list AND every filter
+                // combination in index order. One index instead of two.
+                @CompoundIndex(name = "subscription_period_end_idx", def = "{'currentPeriodEnd': 1, '_id': 1}")
 })
 @Data
 @EqualsAndHashCode(callSuper = true)

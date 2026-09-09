@@ -1,6 +1,7 @@
 import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
+import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
 import Subscriptions from './pages/platform/plans/Subscriptions.jsx'
 import MySubscription from './pages/school/plans/Subscription.jsx'
 import SchoolDetail from './pages/platform/core/SchoolDetail.jsx'
@@ -70,9 +71,20 @@ export const SURFACES = [
           {
             id: 'subscriptions',
             label: 'Subscriptions',
-            endpoints: 3,
+            // Ten: create, edit, change-plan, renew, suspend, resume, cancel, plus the three
+            // reads (#27, #28, #29). The badge said 3, from when that was true.
+            endpoints: 10,
             group: 'Plans / Subscriptions',
             screen: Subscriptions,
+          },
+          {
+            // A screen of its own rather than a card on Subscriptions: that one is school-scoped
+            // and starts with a School picker, and #30 takes no school at all.
+            id: 'all-subscriptions',
+            label: 'All subscriptions',
+            endpoints: 1,
+            group: 'Plans / All subscriptions',
+            screen: AllSubscriptions,
           },
         ],
       },

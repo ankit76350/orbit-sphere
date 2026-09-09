@@ -318,4 +318,157 @@ class SchoolSubscriptionRepositoryImplTest {
         assertThat(clauses(filter)).hasSize(9);
         assertThat(clauseOn(filter, "schoolId")).containsEntry("schoolId", SCHOOL_ID);
     }
+
+    // ======================================================== #30, the cross-school query
+
+    /**
+     * What {@code searchAcrossSchools} asks the database.
+     *
+     * <p><b>The point of these is what is NOT in the query.</b> Every other query on this
+     * collection pins {@code schoolId} unconditionally; this one must not, and no end-to-end test
+     * can prove a clause is absent — a cross-school list that had somehow acquired a tenant would
+     * simply return fewer rows, which looks like data.
+     */
+    @org.junit.jupiter.api.Nested
+    class AcrossSchools {
+
+        private com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest empty30() {
+            return new com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest(
+                    null, null, null, null, null, null, null, null, null, null, null, null, null);
+        }
+
+        private Query capture30(
+                com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest request) {
+            repository.searchAcrossSchools(request, null, PageRequest.of(0, 20));
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            org.mockito.Mockito.verify(mongo).find(captor.capture(), eq(SchoolSubscription.class));
+            return captor.getValue();
+        }
+
+        @Test
+        @DisplayName("no filters means an EMPTY query, with no tenant and no $and")
+        void noFiltersMeansAnEmptyQuery() {
+            Document document = capture30(empty30()).getQueryObject();
+
+            // Not {$and: []} — Mongo refuses an empty $and outright, which is why the
+            // implementation returns a bare Criteria when nothing was sent.
+            assertThat(document).isEmpty();
+        }
+
+        @Test
+        @DisplayName("the query never mentions schoolId, whatever is filtered")
+        void theQueryNeverMentionsSchoolId() {
+            var all = new com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest(
+                    List.of(SubscriptionStatus.ACTIVE), List.of(BillingCycle.MONTHLY), "PREMIUM", 2,
+                    Boolean.TRUE, Boolean.TRUE,
+                    Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-12-31T00:00:00Z"),
+                    Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-12-31T00:00:00Z"),
+                    0, 20, null);
+
+            repository.searchAcrossSchools(all, List.of("planA"), PageRequest.of(0, 20));
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            org.mockito.Mockito.verify(mongo).find(captor.capture(), eq(SchoolSubscription.class));
+
+            // Read structurally rather than through toJson(): serialising the document needs a
+            // BSON codec for the status enum, which this unit test has no registry for.
+            Document document = captor.getValue().getQueryObject();
+            @SuppressWarnings("unchecked")
+            List<Document> clauses = (List<Document>) document.get("$and");
+
+            assertThat(document).doesNotContainKey("schoolId");
+            assertThat(clauses).isNotEmpty();
+            assertThat(clauses).allSatisfy(clause ->
+                    assertThat(clause).doesNotContainKey("schoolId"));
+        }
+
+        @Test
+        @DisplayName("status becomes an $in, so it ORs within itself")
+        void statusIsAnIn() {
+            var request = new com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest(
+                    List.of(SubscriptionStatus.SUSPENDED, SubscriptionStatus.PAST_DUE),
+                    null, null, null, null, null, null, null, null, null, null, null, null);
+
+            Document document = capture30(request).getQueryObject();
+            @SuppressWarnings("unchecked")
+            List<Document> clauses = (List<Document>) document.get("$and");
+            Document clause = clauses.stream().filter(d -> d.containsKey("status"))
+                    .findFirst().orElseThrow();
+
+            assertThat(((Document) clause.get("status")).get("$in"))
+                    .isEqualTo(List.of(SubscriptionStatus.SUSPENDED, SubscriptionStatus.PAST_DUE));
+        }
+
+        @Test
+        @DisplayName("an unmatched planCode becomes `in []`, which matches nothing")
+        void anEmptyPlanSetMatchesNothing() {
+            repository.searchAcrossSchools(empty30(), List.of(), PageRequest.of(0, 20));
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            org.mockito.Mockito.verify(mongo).find(captor.capture(), eq(SchoolSubscription.class));
+
+            @SuppressWarnings("unchecked")
+            List<Document> clauses = (List<Document>) captor.getValue().getQueryObject().get("$and");
+            Document clause = clauses.stream().filter(d -> d.containsKey("planDefinitionDocsId"))
+                    .findFirst().orElseThrow();
+
+            assertThat(((Document) clause.get("planDefinitionDocsId")).get("$in"))
+                    .isEqualTo(List.of());
+        }
+
+        @Test
+        @DisplayName("both ends of a period window survive on one field")
+        void bothEndsOfAWindowSurvive() {
+            Instant from = Instant.parse("2026-04-01T00:00:00Z");
+            Instant to = Instant.parse("2027-03-31T23:59:59Z");
+            var request = new com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest(
+                    null, null, null, null, null, null, null, null, from, to, null, null, null);
+
+            Document document = capture30(request).getQueryObject();
+            @SuppressWarnings("unchecked")
+            List<Document> clauses = (List<Document>) document.get("$and");
+            Document window = (Document) clauses.stream()
+                    .filter(d -> d.containsKey("currentPeriodEnd")).findFirst().orElseThrow()
+                    .get("currentPeriodEnd");
+
+            assertThat(window.get("$gte")).isEqualTo(from);
+            assertThat(window.get("$lte")).isEqualTo(to);
+        }
+
+        @Test
+        @DisplayName("the count carries the filter but never the paging")
+        void countCarriesTheFilterWithoutThePaging() {
+
+            repository.searchAcrossSchools(empty30(), null, PageRequest.of(3, 5));
+
+            ArgumentCaptor<Query> counted = ArgumentCaptor.forClass(Query.class);
+            org.mockito.Mockito.verify(mongo).count(counted.capture(), eq(SchoolSubscription.class));
+
+            assertThat(counted.getValue().getSkip()).isZero();
+            assertThat(counted.getValue().getLimit()).isZero();
+        }
+
+        @Test
+        @DisplayName("the sort reaches the query, ending in the unique key")
+        void theSortReachesTheQuery() {
+            Sort order = Sort.by(Sort.Order.asc("currentPeriodEnd"), Sort.Order.asc("id"));
+
+            repository.searchAcrossSchools(empty30(), null, PageRequest.of(0, 20, order));
+            ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+            org.mockito.Mockito.verify(mongo).find(captor.capture(), eq(SchoolSubscription.class));
+
+            // The property, not the stored field: QueryMapper turns `id` into `_id` later.
+            assertThat(captor.getValue().getSortObject().keySet())
+                    .containsExactly("currentPeriodEnd", "id");
+        }
+
+        @Test
+        @DisplayName("it reads and nothing else")
+        void itOnlyReads() {
+
+            repository.searchAcrossSchools(empty30(), null, PageRequest.of(0, 20));
+
+            org.mockito.Mockito.verify(mongo).count(any(Query.class), eq(SchoolSubscription.class));
+            org.mockito.Mockito.verify(mongo).find(any(Query.class), eq(SchoolSubscription.class));
+            org.mockito.Mockito.verifyNoMoreInteractions(mongo);
+        }
+    }
 }

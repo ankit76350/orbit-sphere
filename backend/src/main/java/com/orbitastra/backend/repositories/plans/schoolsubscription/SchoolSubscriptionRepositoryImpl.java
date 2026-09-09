@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchRequest;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 
@@ -64,6 +65,115 @@ public class SchoolSubscriptionRepositoryImpl implements SchoolSubscriptionRepos
 
         //! step 6 - hand back the rows with the total beside them
         return new PageImpl<>(rows, pageable, total);
+    }
+
+    @Override
+    public Page<SchoolSubscription> searchAcrossSchools(PlatformSubscriptionSearchRequest request,
+            Collection<String> planDefinitionDocsIds, Pageable pageable) {
+
+        //! step 1 - build the filter. NO tenant clause: this is the cross-school view, and the
+        //! absence is the feature rather than an omission — see the interface.
+        Criteria criteria = buildPlatformCriteria(request, planDefinitionDocsIds);
+
+        //! step 2 - the count query, carrying the filter and nothing else
+        Query countQuery = new Query(criteria);
+
+        //! step 3 - the page query, the same filter plus the paging and sorting
+        Query pageQuery = new Query(criteria).with(pageable);
+
+        //! step 4 - run the count, for totalElements
+        // TODO: reading subscriptions across schools (how many match)
+        long total = mongo.count(countQuery, SchoolSubscription.class);
+
+        //! step 5 - run the page. Only these rows are read, however many schools there are.
+        // TODO: reading subscriptions across schools (one page of them)
+        List<SchoolSubscription> rows = mongo.find(pageQuery, SchoolSubscription.class);
+
+        //! step 6 - hand back the rows with the total beside them
+        return new PageImpl<>(rows, pageable, total);
+    }
+
+    /**
+     * #30's filters, combined with AND. An absent one adds nothing, so no filters means every
+     * subscription on the platform.
+     *
+     * <p><b>Deliberately not shared with {@link #buildCriteria} above.</b> They look alike and
+     * they are not the same: that one starts by pinning the tenant and this one must not. Folding
+     * them together behind a nullable school id would make the tenant boundary an argument that
+     * can be forgotten, on the one collection where forgetting it means answering one school's
+     * request with another's records. Two readable methods beat one clever one here.
+     *
+     * <p>An empty {@code $and} is not possible — Mongo rejects it — so this returns a bare
+     * {@link Criteria} when nothing was filtered, which matches everything.
+     */
+    private Criteria buildPlatformCriteria(PlatformSubscriptionSearchRequest request,
+            Collection<String> planDefinitionDocsIds) {
+
+        //! step 1 - nothing is pinned first here. Start empty.
+        List<Criteria> filters = new ArrayList<>();
+
+        //! step 2 - status, the headline filter, which ORs within itself
+        if (request.statuses() != null && !request.statuses().isEmpty()) {
+            filters.add(Criteria.where("status").in(request.statuses()));
+        }
+
+        //! step 3 - cadence, which ORs within itself too
+        if (request.billingCycles() != null && !request.billingCycles().isEmpty()) {
+            filters.add(Criteria.where("billingCycle").in(request.billingCycles()));
+        }
+
+        //! step 4 - the plan, already resolved from a code to the version ids it names. Null
+        //! means no planCode was sent; EMPTY means one was sent and matched no plan, which has
+        //! to match nothing rather than everything — an `in []` is what says that.
+        if (planDefinitionDocsIds != null) {
+            filters.add(Criteria.where("planDefinitionDocsId").in(planDefinitionDocsIds));
+        }
+
+        //! step 5 - the version, stored on the subscription so it filters on its own
+        if (request.planVersion() != null) {
+            filters.add(Criteria.where("planVersion").is(request.planVersion()));
+        }
+
+        //! step 6 - the two standing flags
+        if (request.autoRenew() != null) {
+            filters.add(Criteria.where("autoRenew").is(request.autoRenew()));
+        }
+        if (request.current() != null) {
+            filters.add(Criteria.where("current").is(request.current()));
+        }
+
+        //! step 7 - the period windows. Each end is INCLUSIVE (gte / lte), because a caller
+        //! filtering "ending before 31 March" means a period ending on 31 March is in, and an
+        //! exclusive bound would silently drop the row they were looking for. Both ends of one
+        //! window go on the same criteria object, which builds one clause; see the note on
+        //! buildCriteria about what that is and is not for.
+        if (request.startDateFrom() != null || request.startDateTo() != null) {
+            Criteria start = Criteria.where("currentPeriodStart");
+            if (request.startDateFrom() != null) {
+                start = start.gte(request.startDateFrom());
+            }
+            if (request.startDateTo() != null) {
+                start = start.lte(request.startDateTo());
+            }
+            filters.add(start);
+        }
+
+        if (request.endDateFrom() != null || request.endDateTo() != null) {
+            Criteria end = Criteria.where("currentPeriodEnd");
+            if (request.endDateFrom() != null) {
+                end = end.gte(request.endDateFrom());
+            }
+            if (request.endDateTo() != null) {
+                end = end.lte(request.endDateTo());
+            }
+            filters.add(end);
+        }
+
+        //! step 8 - AND them together, unless nothing was sent at all. `andOperator` of an empty
+        //! list produces `{$and: []}`, which Mongo refuses outright, so a bare list has to be a
+        //! bare Criteria — the one shape difference from the school-scoped query, which always
+        //! has at least the tenant in its list.
+        return filters.isEmpty() ? new Criteria() : new Criteria().andOperator(filters);
     }
 
     /**

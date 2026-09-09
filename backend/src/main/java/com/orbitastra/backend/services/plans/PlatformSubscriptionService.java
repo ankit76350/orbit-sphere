@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionHistorySearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
@@ -30,6 +31,7 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchR
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
+import com.orbitastra.backend.dto.plans.subscription.response.PlatformSubscriptionRowResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionHistoryEntryResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
@@ -136,6 +138,44 @@ public class PlatformSubscriptionService {
             Sort.Order.desc("effectiveAt"),
             Sort.Order.desc("createdAt"),
             Sort.Order.desc("id"));
+
+    /** Allowed fields for sorting the platform-wide subscription list. */
+    private static final Map<String, String> SORTABLE_PLATFORM_FIELDS = new LinkedHashMap<>();
+    static {
+        SORTABLE_PLATFORM_FIELDS.put("currentperiodend", "currentPeriodEnd");
+        SORTABLE_PLATFORM_FIELDS.put("currentperiodstart", "currentPeriodStart");
+        SORTABLE_PLATFORM_FIELDS.put("status", "status");
+        SORTABLE_PLATFORM_FIELDS.put("contractedprice", "contractedPrice");
+        SORTABLE_PLATFORM_FIELDS.put("createdat", "createdAt");
+        SORTABLE_PLATFORM_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** Allowed platform-list sort field names shown in validation errors. */
+    private static final String SORTABLE_PLATFORM_FIELD_NAMES =
+            "currentPeriodEnd, currentPeriodStart, status, contractedPrice, createdAt, updatedAt";
+
+    /**
+     * Default order for the platform-wide list: soonest to end first, then the row id.
+     *
+     * <p><b>Soonest first because #30 is the screen somebody works from.</b> A period about to
+     * lapse is a renewal conversation that has not happened yet; a period that lapsed last year
+     * is history. Newest-first would bury the first behind the second.
+     *
+     * <p><b>The tiebreaker is the row id, and it cannot be {@code subscriptionNo} the way #28's
+     * is.</b> A subscription number is generated per school — two schools both have a
+     * {@code SUB/2026/09/000001} — so across the platform it is neither unique nor meaningful as
+     * an order, and {@code subscriptionNo} is deliberately absent from
+     * {@code SORTABLE_PLATFORM_FIELDS} for the same reason. Without a unique key the paging is
+     * not stable: rows that compare equal may come back in either order, so one can appear on
+     * page one and again on page two while another is never seen. Period ends tie constantly
+     * here, because schools onboarded together get the same one.
+     *
+     * <p>{@code subscription_period_end_idx} on {@code {currentPeriodEnd: 1, _id: 1}} was added
+     * for exactly this order — see the note on the model, and the measurements in the README.
+     */
+    private static final Sort PLATFORM_SUBSCRIPTION_ORDER = Sort.by(
+            Sort.Order.asc("currentPeriodEnd"),
+            Sort.Order.asc("id"));
 
 
 
@@ -1656,5 +1696,122 @@ public class PlatformSubscriptionService {
                 subscription.getSubscriptionNo(),
                 utils.planFrom(plansById, entry.getPreviousPlanDefinitionDocsId()),
                 utils.planFrom(plansById, entry.getNewPlanDefinitionDocsId())));
+    }
+
+    //! Endpoint 30 — every school's subscription in one list --------------------------
+    /**
+     * #30 — Returns every school's subscriptions with filters, sorting, and pagination.
+     *
+     * <p><b>The only method on this service that is not scoped to one school.</b> Every other
+     * endpoint here takes a {@code schoolId} and every query they run is pinned to that tenant;
+     * this one takes no school at all, because it is the operator's cross-school view — who is on
+     * what, who is suspended, whose period is about to lapse.
+     *
+     * <p>That is why it calls a <b>separate</b> repository method rather than passing null for the
+     * school: a nullable tenant on the school-scoped query would be one {@code if} away from
+     * answering one school's request with another's records, on the one collection where that
+     * matters most.
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    public PageResponse<PlatformSubscriptionRowResponse> listAllSubscriptions(
+            PlatformSubscriptionSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no database round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_PLATFORM_FIELDS, SORTABLE_PLATFORM_FIELD_NAMES,
+                PLATFORM_SUBSCRIPTION_ORDER);
+
+        //! step 2 - a window that runs backwards is a mistake, not an empty result. Mongo would
+        //! answer it with zero rows quite happily, and the caller would read that as "nothing on
+        //! the platform is in that range" rather than "you sent from and to the wrong way round".
+        if (request.startDateFrom() != null && request.startDateTo() != null
+                && request.startDateFrom().isAfter(request.startDateTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDateFrom (" + Dates.readable(request.startDateFrom())
+                            + ") must not be after startDateTo ("
+                            + Dates.readable(request.startDateTo()) + ").");
+        }
+
+        if (request.endDateFrom() != null && request.endDateTo() != null
+                && request.endDateFrom().isAfter(request.endDateTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "endDateFrom (" + Dates.readable(request.endDateFrom())
+                            + ") must not be after endDateTo ("
+                            + Dates.readable(request.endDateTo()) + ").");
+        }
+
+        //! step 3 - resolve a planCode filter to the plan versions it names. The subscription
+        //! stores planDefinitionDocsId, not the code, so this is the only way to filter on one —
+        //! and it is still one query rather than reading subscriptions and sifting them.
+        //!
+        //! NULL means no code was sent, so no plan filter at all. An EMPTY set means a code was
+        //! sent and matched nothing, which has to match nothing rather than everything.
+        Set<String> planIds = null;
+
+        if (request.planCode() != null && !request.planCode().isBlank()) {
+            // Shaped the way a code is on the way in, so ?planCode=premium-plus finds
+            // PREMIUM_PLUS. normalizePlanCode never throws, which is what a filter needs: a
+            // code of the wrong shape should match nothing, not turn a list into an error.
+            String code = helper.normalizePlanCode(request.planCode());
+
+            // TODO: read plans (the versions of one code)
+            planIds = planDefinition.findByPlanCodeOrderByPlanVersionDesc(code).stream()
+                    .map(PlanDefinition::getId)
+                    .collect(Collectors.toSet());
+        }
+
+        //! step 4 - one page of subscriptions, filtered and ordered in the database. No school is
+        //! passed, and there is no school to pass.
+        // TODO: search subscriptions across schools
+        Page<SchoolSubscription> page = schoolSubscription.searchAcrossSchools(request, planIds,
+                pageable);
+
+        //! step 5 - the schools behind THIS page, in ONE query. A row that did not name its
+        //! school would be unreadable, and asking per row would be twenty queries for twenty
+        //! rows — the N+1 this endpoint is most exposed to, because unlike #28 every row can
+        //! belong to a different school.
+        Set<String> schoolIdsOnPage = page.getContent().stream()
+                .map(SchoolSubscription::getSchoolId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // TODO: read schools (the ones this page points at)
+        Map<String, School> schoolsById = schoolIdsOnPage.isEmpty()
+                ? Map.of()
+                : schools.findAllById(schoolIdsOnPage).stream()
+                        .collect(Collectors.toMap(School::getId, Function.identity()));
+
+        //! step 6 - the plans behind THIS page, in one more query. Distinct ids, so twenty
+        //! schools on the same plan cost one lookup rather than twenty.
+        Set<String> planIdsOnPage = page.getContent().stream()
+                .map(SchoolSubscription::getPlanDefinitionDocsId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // TODO: read plans (the ones this page points at)
+        Map<String, PlanDefinition> plansById = planIdsOnPage.isEmpty()
+                ? Map.of()
+                : planDefinition.findAllById(planIdsOnPage).stream()
+                        .collect(Collectors.toMap(PlanDefinition::getId, Function.identity()));
+
+        //! step 7 - one `now` for the whole page, so periodEnded cannot disagree between the
+        //! first row and the last. Two calls to Instant.now() a millisecond apart can straddle a
+        //! period end, and a page where one row says ended and another says not is unexplainable.
+        Instant now = Instant.now();
+
+        //! step 8 - map, reading each row's school and plan out of the maps rather than fetching
+        //! them. Either being absent leaves that row's fields null rather than failing the page;
+        //! see the DTO. The school is read straight from the map because schoolId is never null
+        //! on a subscription; the plan goes through the utils, which tolerates a null id.
+        return PageResponse.from(page, subscription -> PlatformSubscriptionRowResponse
+                .fromSubscription(
+                        subscription,
+                        schoolsById.get(subscription.getSchoolId()),
+                        utils.planFrom(plansById, subscription.getPlanDefinitionDocsId()),
+                        now));
     }
 }

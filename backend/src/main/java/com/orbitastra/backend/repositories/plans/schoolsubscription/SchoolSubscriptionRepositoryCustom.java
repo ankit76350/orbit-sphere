@@ -5,6 +5,7 @@ import java.util.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.orbitastra.backend.dto.plans.subscription.request.PlatformSubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchRequest;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 
@@ -33,5 +34,23 @@ public interface SchoolSubscriptionRepositoryCustom {
      *                              that matches nothing rather than no filter at all.
      */
     Page<SchoolSubscription> search(String schoolId, SubscriptionSearchRequest request,
+            Collection<String> planDefinitionDocsIds, Pageable pageable);
+
+    /**
+     * Every school's subscriptions, filtered, sorted and paged in the database. #30.
+     *
+     * <p><b>There is no school id, and that is the whole point.</b> This is the operator's
+     * cross-school view, so the tenant filter that every other query on this collection applies
+     * unconditionally is simply absent here. That makes it the one method on this repository that
+     * can return two schools' rows in one page, so it is deliberately separate from
+     * {@link #search} above rather than that method taking a nullable school — a nullable tenant
+     * is one {@code if} away from leaking one school's rows into another's request.
+     *
+     * @param planDefinitionDocsIds the plan versions the {@code planCode} filter resolved to, or
+     *                              {@code null} when no {@code planCode} was sent. An <b>empty</b>
+     *                              collection means the code matched no plan, which is a filter
+     *                              that matches nothing rather than no filter at all.
+     */
+    Page<SchoolSubscription> searchAcrossSchools(PlatformSubscriptionSearchRequest request,
             Collection<String> planDefinitionDocsIds, Pageable pageable);
 }
