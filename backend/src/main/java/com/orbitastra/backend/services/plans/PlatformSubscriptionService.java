@@ -1503,10 +1503,9 @@ public class PlatformSubscriptionService {
 
         if (request.planCode() != null && !request.planCode().isBlank()) {
             // Shaped the way a code is on the way in, so ?planCode=premium-plus finds
-            // PREMIUM_PLUS. Deliberately not the validator: a filter of the wrong shape should
-            // match nothing rather than turn a list request into an error.
-            String code = request.planCode().trim().toUpperCase()
-                    .replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+            // PREMIUM_PLUS. normalizePlanCode never throws, which is what a filter needs: a
+            // code of the wrong shape should match nothing, not turn a list into an error.
+            String code = planValidator.normalizePlanCode(request.planCode());
 
             // TODO: read plans (the versions of one code)
             planIds = planDefinition.findByPlanCodeOrderByPlanVersionDesc(code).stream()

@@ -64,10 +64,20 @@ The dependency direction is never reversed, and never chained between utils or b
   common to the whole module; per-service logic belongs in that service's own utils file. One
   giant helper is the thing this structure exists to avoid.
 
-## Known open point
+## Settled: what to do when two utils methods need each other
 
-`validatePeriodStartIsTodayOrLater` needs `startOfTodayInSchoolZone`. Whichever layer both sit
-in, one calls the other, so it breaks rule 2 or rule 3. The two ways to satisfy the rules are to
-inline the zone lookup into the caller, or to have the main service call
-`startOfTodayInSchoolZone` and pass the instant in. Left as it is for now — noted so it is a
-decision rather than an oversight.
+`validatePeriodStartIsTodayOrLater` needed `startOfTodayInSchoolZone`, and both were utils
+methods — so one called the other, breaking rule 2.
+
+**Fixed by moving the shared piece out of the module entirely**, into `common/time/Dates` as
+`Dates.startOfTodayIn(zone)`. That is the third way out, and usually the right one: if two utils
+methods need the same thing and it is not specific to this module, it belongs in `common/`. A
+utils method calling `Dates` or `ApiException` is not "calling another utils method" — those are
+shared infrastructure, and every utils method already calls them.
+
+It also removed a duplication: `startOfTodayInSchoolZone` resolved a timezone with a UTC fallback
+in exactly the same lines `Dates` already had privately, so a rendered date and a date comparison
+could have disagreed about the zone.
+
+The other two ways out, for when the shared piece *is* module-specific: inline it into the one
+caller, or have the main service call it and pass the result in.

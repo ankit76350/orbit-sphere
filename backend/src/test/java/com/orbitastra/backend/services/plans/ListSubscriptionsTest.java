@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -41,6 +42,7 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
+import com.orbitastra.backend.services.plans.helper.PlanValidator;
 import com.orbitastra.backend.services.plans.utils.PlatformSubscriptionServiceUtils;
 
 /**
@@ -74,6 +76,15 @@ class ListSubscriptionsTest {
      */
     @Mock
     private PlatformSubscriptionServiceUtils utils;
+
+    /**
+     * A REAL validator, spied rather than mocked. It is stateless with no dependencies of its
+     * own, and the normalisation case below is meant to prove that {@code premium-plus} really
+     * does reach the repository as {@code PREMIUM_PLUS} — against a stub it would only be
+     * proving the stub.
+     */
+    @Spy
+    private PlanValidator planValidator = new PlanValidator();
 
     @InjectMocks
     private PlatformSubscriptionService service;

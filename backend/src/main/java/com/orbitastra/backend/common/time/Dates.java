@@ -114,6 +114,23 @@ public final class Dates {
     }
 
     /**
+     * Midnight today, as the school's own calendar sees it.
+     *
+     * <p>"Today" is not a fixed instant — it depends whose day you mean. Midnight in
+     * Asia/Kolkata is 18:30Z the evening before, so a check like "is this date in the past"
+     * answered in UTC would call a school's own today yesterday.
+     *
+     * <p>Here rather than in a service, because it is the same question {@link #readable} already
+     * answers: which day is this, for this school. It reuses the same zone fallback, so a
+     * rendered date and a date comparison can never disagree about the zone.
+     */
+    public static Instant startOfTodayIn(String zone) {
+        ZoneId resolved = zoneOrUtc(zone);
+
+        return LocalDate.now(resolved).atStartOfDay(resolved).toInstant();
+    }
+
+    /**
      * The school's zone, or UTC when it is unset or unusable.
      *
      * <p>Inline in each method rather than shared with the callers that also need a ZoneId: this

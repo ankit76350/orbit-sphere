@@ -1,10 +1,6 @@
 package com.orbitastra.backend.services.plans.utils;
 
-import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -181,23 +177,6 @@ public class PlatformSubscriptionServiceUtils {
 
         return periodStart.plus(days, ChronoUnit.DAYS);
     }
-
-    /** Returns today's start in the school's timezone, falling back to UTC if unavailable.      *
-     * Used by:
-     * - createSubscription()
-     */
-    public Instant startOfTodayInSchoolZone(String schoolTimeZone) {
-        ZoneId zone;
-        try {
-                zone = (schoolTimeZone == null || schoolTimeZone.isBlank())
-                        ? ZoneOffset.UTC
-                        : ZoneId.of(schoolTimeZone.trim());
-        } catch (DateTimeException e) {
-                zone = ZoneOffset.UTC;
-        }
-
-        return LocalDate.now(zone).atStartOfDay(zone).toInstant();
-        }
 
     /**
      * Anything about this subscription worth saying out loud.
@@ -582,7 +561,9 @@ public class PlatformSubscriptionServiceUtils {
             return;
         }
 
-        Instant startOfToday = startOfTodayInSchoolZone(school.getDefaultTimeZone());
+        // Dates owns this: a utils method must not call another utils method, and a rendered
+        // date and a date comparison must not disagree about which zone they used.
+        Instant startOfToday = Dates.startOfTodayIn(school.getDefaultTimeZone());
 
         if (requestedStart.isBefore(startOfToday)) {
             throw ApiException.badRequest("PERIOD_START_IN_PAST",

@@ -5,13 +5,10 @@ import java.time.Instant;
 import java.util.Currency;
 import java.util.regex.Pattern;
 
-import com.orbitastra.backend.models.plans.enums.FeatureCode;
-
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-
-import lombok.RequiredArgsConstructor;
+import com.orbitastra.backend.models.plans.enums.FeatureCode;
 
 /**
  * Every check the plans module makes on what a caller sent.
@@ -24,7 +21,6 @@ import lombok.RequiredArgsConstructor;
  * to invent its own message and status code, and they drift.
  */
 @Component
-@RequiredArgsConstructor
 public class PlanValidator {
 
     //! plan code — used by endpoints 1 and 2 ------------------------------------------
