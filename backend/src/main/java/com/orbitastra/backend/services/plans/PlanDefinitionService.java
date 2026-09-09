@@ -106,17 +106,17 @@ public class PlanDefinitionService {
 
         /**
          * Creates a new plan as a draft.
-         *
+     *
          * <p>The plan starts as {@code DRAFT}, version 1, and cannot be purchased yet.
-         *
+     *
          * <p>The plan code must be unique. The same code cannot be used for another plan because the
          * code is the plan's permanent identity.
-         *
+     *
          * <p>The code is optional. If not provided, it is created from the name. For example,
          * {@code Premium Plus} becomes {@code PREMIUM_PLUS}.
-         *
+     *
          * <p>The new plan starts with no features. Use #3 to add features.
-         *
+     *
          * <p>Endpoint: {@code POST /platform/plans/drafts}
          */
     @Transactional
@@ -171,15 +171,15 @@ public class PlanDefinitionService {
 
         /**
          * Updates the details of a draft plan.
-         *
+     *
          * <p>Published plans cannot be changed. This prevents changing the price or details for schools
          * that are already using the plan.
-         *
+     *
          * <p>Retired plans also cannot be changed because schools may still be using them.
-         *
+     *
          * <p>Only the fields provided are updated. A {@code null} value keeps the existing value, while
          * {@code ""} clears the description.
-         *
+     *
          * <p>The start and end dates are updated together.
          */
     @Transactional
@@ -407,12 +407,12 @@ public class PlanDefinitionService {
 
         /**
          * #6 — retires a plan, so no new school can be put on it.
-         *
+     *
          * <p>Existing schools keep their plan, price, and features.
          * This does not cancel subscriptions.
-         *
+     *
          * <p>Draft plans can also be retired. No data is deleted.
-         *
+     *
          * <p>{@code publiclyAvailable} is managed by #7.
          */
     @Transactional

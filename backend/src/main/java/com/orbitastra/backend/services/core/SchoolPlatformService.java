@@ -179,9 +179,9 @@ public class SchoolPlatformService {
 
         /**
          * Completes tenant setup with missing sequences and roles.
-         *
+     *
          * <p>Idempotent: creates only missing data.
-         *
+     *
          * <p>Works for all statuses except end-of-life statuses.
          */
     @Transactional
@@ -229,7 +229,7 @@ public class SchoolPlatformService {
 
         /**
          ** Creates missing number sequences for all types.
-         *
+     *
          ** <p>Uses GLOBAL scope and skips existing sequences.
          */
     /**
@@ -274,7 +274,7 @@ public class SchoolPlatformService {
 
         /**
          * Activates a school from TRIAL or PROVISIONING.
-         *
+     *
          * <p>Rejects other statuses and records the activation date.
          */
     @Transactional

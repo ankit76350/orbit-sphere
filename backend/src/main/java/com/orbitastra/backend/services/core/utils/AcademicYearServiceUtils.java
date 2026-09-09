@@ -54,7 +54,25 @@ public class AcademicYearServiceUtils {
 
     //! loadYear — used by endpoints 20 to 25 and both DELETEs -------------------------
 
-    /** The caller's year, by name, or a 404. */
+    /**
+     * The caller's year, by name, or a 404.
+     *
+     * Used by:
+     * - addHoliday()
+     * - countWorkingDays()
+     * - disableEnrollment()
+     * - enableEnrollment()
+     * - generateWeeklyOff()
+     * - getAcademicYear()
+     * - getDayStatus()
+     * - getHolidayCalendar()
+     * - lockResults()
+     * - removeHoliday()
+     * - removeHolidaysByType()
+     * - replaceCalendar()
+     * - unlockResults()
+     * - updateHoliday()
+     */
     public AcademicYear loadYear(String name) {
         return loadYear(currentSchool.requireUsable(), name);
     }
@@ -71,6 +89,22 @@ public class AcademicYearServiceUtils {
      * one request, is two chances to disagree.
      *
      * <p>If #26 and #27 are not coming back, delete this overload with them.
+     *
+     * Used by:
+     * - addHoliday()
+     * - countWorkingDays()
+     * - disableEnrollment()
+     * - enableEnrollment()
+     * - generateWeeklyOff()
+     * - getAcademicYear()
+     * - getDayStatus()
+     * - getHolidayCalendar()
+     * - lockResults()
+     * - removeHoliday()
+     * - removeHolidaysByType()
+     * - replaceCalendar()
+     * - unlockResults()
+     * - updateHoliday()
      */
     public AcademicYear loadYear(School school, String name) {
         // TODO: read academic year
@@ -90,6 +124,12 @@ public class AcademicYearServiceUtils {
      *
      * <p>Only the endpoints that add to the list need it. #20 does not: replacing a calendar
      * assigns a fresh list rather than adding to whatever was there.
+     *
+     * Used by:
+     * - addHoliday()
+     * - generateWeeklyOff()
+     * - removeHoliday()
+     * - removeHolidaysByType()
      */
     public List<HolidayDetail> mutableHolidayList(AcademicYear year) {
         if (year.getHolidays() == null) {
@@ -105,6 +145,10 @@ public class AcademicYearServiceUtils {
      *
      * <p>The two bulk endpoints report a before-and-after count in their change summary. The
      * single-entry endpoints get their counts from {@code HolidayCalendarResponse} instead.
+     *
+     * Used by:
+     * - generateWeeklyOff()
+     * - replaceCalendar()
      */
     public int countClosedDays(AcademicYear year) {
         return year.getHolidays() == null ? 0 : year.getHolidays().size();
@@ -119,6 +163,9 @@ public class AcademicYearServiceUtils {
      * {@code HolidayCalendarResponse} — which computes both counts itself — and it has to report
      * both, because a run that adds a weekly off to a day already closed for a festival raises
      * the reason count without raising the day count.
+     *
+     * Used by:
+     * - generateWeeklyOff()
      */
     public int countEventsInYear(AcademicYear year) {
         if (year.getHolidays() == null) {
@@ -135,6 +182,12 @@ public class AcademicYearServiceUtils {
      *
      * <p>The three endpoints addressed by a single date. #21 treats an absent day as "create
      * it"; the other two treat it as a 404.
+     *
+     * Used by:
+     * - addHoliday()
+     * - getDayStatus()
+     * - removeHoliday()
+     * - updateHoliday()
      */
     public Optional<HolidayDetail> findDayInCalendar(AcademicYear year, LocalDate date) {
         if (year.getHolidays() == null) {
@@ -155,6 +208,12 @@ public class AcademicYearServiceUtils {
      * broken. The four use the same answer differently: #20 and #21 refuse the duplicate, #22
      * refuses a retype that would collide, and #23 <b>skips</b> the date rather than refusing,
      * which is what makes running the generator twice safe.
+     *
+     * Used by:
+     * - addHoliday()
+     * - generateWeeklyOff()
+     * - replaceCalendar()
+     * - updateHoliday()
      */
     public boolean dayHasEventOfType(HolidayDetail day, HolidayType type) {
         return day.getEvents().stream().anyMatch(e -> e.getType() == type);
@@ -171,6 +230,10 @@ public class AcademicYearServiceUtils {
      *
      * <p>This is what {@code ?type=} means, so both endpoints that take it get the same
      * behaviour and the same two errors rather than each inventing its own.
+     *
+     * Used by:
+     * - removeHoliday()
+     * - updateHoliday()
      */
     public HolidayEvent requireEventOfType(HolidayDetail day, HolidayType type) {
         List<HolidayEvent> events = day.getEvents();
@@ -210,6 +273,10 @@ public class AcademicYearServiceUtils {
      * date can be closed for more than one reason, naming a single holiday there would
      * under-report what is about to be stranded. Also used by both errors in
      * {@link #resolveEvent}.
+     *
+     * Used by:
+     * - removeHoliday()
+     * - updateDates()
      */
     public String describeEventsOnDay(HolidayDetail day) {
         return day.getEvents().stream()

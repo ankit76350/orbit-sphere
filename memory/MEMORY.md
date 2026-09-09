@@ -5,3 +5,4 @@
 - [Backend Service Code Writing Rules](backend/code-writing-rules/service/folder-structure-and-call-rules.md) — each module gets main services + `utils/` + one `helper/` file; service → utils → helper, never chained between utils or between helpers
 - [Backend Repository Code Writing Rules](backend/code-writing-rules/repositories/folder-structure.md) — repositories go module → document/table → files; never loose in the module folder
 - [Backend DTO Folder Structure Rules](backend/code-writing-rules/dto/folder-structure.md) — DTOs go module → feature/document → `request/`+`response/`; never loose in the module folder
+- [Used by: notes on utils and helper](backend/code-writing-rules/service/used-by-notes.md) — every utils/helper method ends its comment with a `Used by:` list of the methods that call it

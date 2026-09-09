@@ -23,20 +23,7 @@ import com.orbitastra.backend.services.institution.NumberSequenceService;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.stereotype.Component;
 
-import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.models.identity.Role;
-import com.orbitastra.backend.models.identity.embedded.RoleDefinition;
-import com.orbitastra.backend.models.institution.NumberSequence;
-import com.orbitastra.backend.models.institution.embedded.SequenceCounter;
-import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
-import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
-import com.orbitastra.backend.models.plans.SchoolSubscription;
-import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
-import com.orbitastra.backend.services.institution.NumberSequenceService;
-
-import lombok.RequiredArgsConstructor;
 
 /**
  * The bits {@code SchoolPlatformService} needs and its endpoints do not read as.
@@ -69,7 +56,7 @@ public class SchoolPlatformServiceUtils {
      *
      * @return how many counters were written, which the response reports against how many were
      *         already there
-          *
+     *
      * Used by:
      * - completeProvisioning()
      */
@@ -125,7 +112,7 @@ public class SchoolPlatformServiceUtils {
      * Adds missing default roles.
      *
      * <p>Matches roles by roleKey and keeps existing roles unchanged.
-          *
+     *
      * Used by:
      * - completeProvisioning()
      */
@@ -170,7 +157,7 @@ public class SchoolPlatformServiceUtils {
      * subscriptions yet. CANCELLED or EXPIRED subscriptions block activation.
      *
      * <p>The response shows the subscription status so this can be made required later.
-          *
+     *
      * Used by:
      * - activateSchool()
      */

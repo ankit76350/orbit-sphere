@@ -54,6 +54,9 @@ public class PlansHelper {
      * key that can change is not a key.
      *
      * @return the code to store, uppercased and normalized
+     *
+     * Used by:
+     * - createDraft()
      */
     public String resolvePlanCode(String rawCode, String name) {
         boolean derived = rawCode == null || rawCode.isBlank();
@@ -98,6 +101,12 @@ public class PlansHelper {
      * /platform/plans/premium-plus/versions/1} should find {@code PREMIUM_PLUS}. What it must not
      * do is refuse — a code of the wrong shape simply matches no plan, and "no such plan" is a
      * 404, not a complaint about the shape of something the caller was reading off a link.
+     *
+     * Used by:
+     * - listSubscriptions()
+     * - listVersions()
+     * - loadPlanVersion()
+     * - loadSellablePlan()
      */
     public String normalizePlanCode(String raw) {
         if (raw == null) {
@@ -126,6 +135,9 @@ public class PlansHelper {
      * of it" is the same outcome as switching the feature off, reached by a route that leaves it
      * looking available on every screen listing what the plan includes. {@code enabled: false}
      * says it plainly, and is allowed with a limit of zero.
+     *
+     * Used by:
+     * - replaceFeatures()
      */
     public void validateFeature(FeatureCode featureCode, Boolean enabled, Long usageLimit) {
         if (usageLimit == null) {
@@ -163,6 +175,12 @@ public class PlansHelper {
      * for them is how 1999.999 quietly becomes 2000.00 on every invoice for a year.
      *
      * @return the price at exactly two decimal places, so stored values compare predictably
+     *
+     * Used by:
+     * - changePlan()
+     * - createDraft()
+     * - createSubscription()
+     * - updateDraft()
      */
     public BigDecimal validatePrice(String label, BigDecimal raw) {
         if (raw == null) {
@@ -188,6 +206,10 @@ public class PlansHelper {
      * INS — is a typo nobody notices until an invoice is issued in it.
      *
      * @return the code in upper case
+     *
+     * Used by:
+     * - createDraft()
+     * - updateDraft()
      */
     public String validateCurrencyCode(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -211,6 +233,10 @@ public class PlansHelper {
      * <p>Must be at least one. A plan capped at zero students cannot be used by anybody, and the
      * feature access service would block the first thing the school tried to do — which reads as a
      * bug in the platform rather than as the plan it was sold.
+     *
+     * Used by:
+     * - createDraft()
+     * - updateDraft()
      */
     public void validateLimit(String label, Long value) {
         if (value == null) {
@@ -227,6 +253,11 @@ public class PlansHelper {
      *
      * <p>Both ends are optional — a draft usually has neither, and #4 stamps
      * {@code effectiveFrom} when it publishes. Only the pair together can be wrong.
+     *
+     * Used by:
+     * - createDraft()
+     * - publish()
+     * - updateDraft()
      */
     public void validateSellingWindow(Instant effectiveFrom, Instant effectiveUntil) {
         if (effectiveFrom == null || effectiveUntil == null) {

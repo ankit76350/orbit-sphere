@@ -34,7 +34,12 @@ public final class DefaultRoles {
     private DefaultRoles() {
     }
 
-    /** Role key -> the role, for one school. Keys are what the seeder checks for. */
+    /**
+     * Role key -> the role, for one school. Keys are what the seeder checks for.
+     *
+     * Used by:
+     * - completeProvisioning()
+     */
     public static List<RoleDefinition> forSchool() {
         List<RoleDefinition> roles = new ArrayList<>();
 

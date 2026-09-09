@@ -70,6 +70,10 @@ public class CoreHelper {
      * <p>Converts the subdomain to a standard format and checks if it is valid or reserved.
      *
      * @return the normalized subdomain
+     *
+     * Used by:
+     * - changeSubdomain()
+     * - createNewSchool()
      */
     public String validateSubdomain(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -115,6 +119,9 @@ public class CoreHelper {
      *
      * <p>Case-insensitive, because the path match is not: {@code /academic-years/Current} also
      * reaches G6.
+     *
+     * Used by:
+     * - createAcademicYear()
      */
     public void validateAcademicYearName(String name) {
         if (name != null && RESERVED_ACADEMIC_YEAR_NAMES.contains(name.trim().toLowerCase())) {
@@ -134,6 +141,10 @@ public class CoreHelper {
      * <p>Checks that the time zone is valid and supported by the JVM.
      *
      * @return the trimmed time zone
+     *
+     * Used by:
+     * - createNewSchool()
+     * - updateLocalization()
      */
     public String validateTimeZone(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -159,6 +170,10 @@ public class CoreHelper {
      * <p>The length check is a typo guard, not a rule about how schools work. A three-day
      * "year" and a five-year one are both somebody mistyping a date, and letting either through
      * means every later question about which year a date belongs to has a strange answer.
+     *
+     * Used by:
+     * - createAcademicYear()
+     * - updateDates()
      */
     public void validateAcademicYearRange(LocalDate start, LocalDate end) {
         if (!start.isBefore(end)) {
@@ -186,6 +201,10 @@ public class CoreHelper {
      * day would give that question two answers.
      *
      * @param ignoreId the year being edited, excluded so it does not overlap itself
+     *
+     * Used by:
+     * - createAcademicYear()
+     * - updateDates()
      */
     public void validateNoAcademicYearOverlap(String schoolId, String ignoreId,
             LocalDate start, LocalDate end) {
@@ -214,6 +233,11 @@ public class CoreHelper {
      * <p>The calendar is embedded in the AcademicYear document, so an entry outside the year's
      * range is unreachable by every query that asks "what are the non-working days between these
      * dates" — it is stored, invisible, and will surprise somebody a term later.
+     *
+     * Used by:
+     * - addHoliday()
+     * - generateWeeklyOff()
+     * - replaceCalendar()
      */
     public void validateHolidayWithinYear(String label, LocalDate date,
             LocalDate yearStart, LocalDate yearEnd) {
@@ -237,6 +261,10 @@ public class CoreHelper {
      *
      * <p><b>Both go through {@link #isWithinYear}</b>, so the messages can differ but the answer
      * cannot. If a year's bounds ever stop being inclusive, one edit changes both.
+     *
+     * Used by:
+     * - countWorkingDays()
+     * - getDayStatus()
      */
     public void validateDateWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
         if (!isWithinYear(date, yearStart, yearEnd)) {
@@ -280,7 +308,7 @@ public class CoreHelper {
      * a year are days of that year.
      *
      * <p>The one place this comparison is written. Every caller that needs it delegates here.
-          *
+     *
      * Used by:
      * - validateHolidayWithinYear()
      * - validateDateWithinYear()

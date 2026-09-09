@@ -224,7 +224,7 @@ public class PlatformSubscriptionServiceUtils {
      *
      * <p>See {@link #CURRENT_SUBSCRIPTION} for why the word is needed: a subscription number has
      * slashes in it and cannot be written in a path.
-          *
+     *
      * Used by:
      * - updateSubscription()
      */
@@ -260,7 +260,7 @@ public class PlatformSubscriptionServiceUtils {
      * <p><b>{@code reasonForChanges} is not in the list.</b> It is written by the caller on every
      * edit, so it always "changed" — reporting it would put "reasonForChanges" in every history
      * row's field list and in every response note, next to the reason itself.
-          *
+     *
      * Used by:
      * - updateSubscription()
      */
@@ -353,7 +353,7 @@ public class PlatformSubscriptionServiceUtils {
      * <p>The status types are the same ones the lifecycle endpoints will write, so a suspension
      * recorded through this endpoint and one recorded through #19 read identically in the
      * history — which is what somebody asking "when was this school suspended" needs.
-          *
+     *
      * Used by:
      * - updateSubscription()
      */
@@ -385,7 +385,7 @@ public class PlatformSubscriptionServiceUtils {
      *
      * <p>The blank branch is kept although {@code @NotBlank} makes it unreachable from #14: the
      * lifecycle endpoints will share this method, and not all of them will take a reason.
-          *
+     *
      * Used by:
      * - updateSubscription()
      */
@@ -595,7 +595,7 @@ public class PlatformSubscriptionServiceUtils {
      * reactivate is for, and it is a decision rather than a side effect.
      *
      * @return a sentence for the response saying what happened to the school's own status
-          *
+     *
      * Used by:
      * - createSubscription()
      */

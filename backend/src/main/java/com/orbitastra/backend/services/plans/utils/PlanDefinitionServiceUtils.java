@@ -41,7 +41,7 @@ public class PlanDefinitionServiceUtils {
      * only one of them is what #7 changes. Without this, a caller who has just made a plan
      * public and still sees {@code sellable: false} has no way to tell which of the other two is
      * missing, and the obvious guess is that the call failed.
-          *
+     *
      * Used by:
      * - setAvailability()
      */
@@ -82,7 +82,7 @@ public class PlanDefinitionServiceUtils {
      *
      * <p>{@code what} completes the sentence, so each endpoint says which change was refused
      * rather than all of them sharing one vague message.
-          *
+     *
      * Used by:
      * - updateDraft()
      * - replaceFeatures()
@@ -102,7 +102,7 @@ public class PlanDefinitionServiceUtils {
      *
      * <p>The code is normalized the same way it was when the plan was created, so a link typed
      * as {@code /plans/premium-plus/versions/1} finds {@code PREMIUM_PLUS} rather than nothing.
-          *
+     *
      * Used by:
      * - updateDraft()
      * - replaceFeatures()
