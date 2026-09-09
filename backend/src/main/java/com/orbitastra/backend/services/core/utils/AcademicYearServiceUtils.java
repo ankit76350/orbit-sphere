@@ -283,4 +283,46 @@ public class AcademicYearServiceUtils {
                 .map(e -> e.getName() + " (" + e.getType() + ")")
                 .collect(Collectors.joining(", "));
     }
+
+    /**
+     * What ending a year actually did, as a sentence.
+     *
+     * <p><b>It has to be able to say "nothing".</b> Ending a year that was already not running
+     * and already closed on today is a legitimate repeat call, and answering it with the same
+     * confident "year ended" as a real change would tell the caller something untrue. So each
+     * half is reported separately: whether it stopped running, and whether its dates moved.
+     *
+     * <p>The number of days is included when the year was cut short, because that is the fact
+     * somebody checks the decision against — "we ended it 47 days early" is reviewable in a way
+     * that a pair of dates is not.
+     *
+     * @param wasRunning whether the year had been marked as running before the change
+     * @param datesMoved whether {@code endDate} actually moved
+     * @param daysLost   how many days were cut off the end; zero when the dates did not move
+     *
+     * Used by:
+     * - endAcademicYear()
+     */
+    public String describeYearEnding(AcademicYear year, boolean wasRunning, boolean datesMoved,
+            long daysLost) {
+
+        if (!wasRunning && !datesMoved) {
+            return "Nothing changed: '" + year.getName() + "' was already closed on "
+                    + Dates.readable(year.getEndDate()) + " and was not marked as running.";
+        }
+
+        List<String> what = new ArrayList<>();
+
+        if (wasRunning) {
+            what.add("it is no longer the year this school is running");
+        }
+        if (datesMoved) {
+            what.add("its last day is now " + Dates.readable(year.getEndDate())
+                    + ", " + daysLost + " day(s) earlier than planned");
+        }
+
+        return "'" + year.getName() + "' has been ended — " + String.join(", and ", what)
+                + ". Enrollment and result locking are unchanged; set those separately if this "
+                + "year should also stop accepting records.";
+    }
 }

@@ -102,6 +102,7 @@ one. **There is no rename and no `DELETE`** — see the two notes below the tabl
 | <a id="t25"></a>#25 | [`POST /schools/current/academic-years/{name}/enrollment/disable`](#e25) | **Built.** Close the year to new enrollments. A gate on new writes only — students already enrolled are untouched. | [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t26"></a>#26 | [`POST /schools/current/academic-years/{name}/results/lock`](#e26) | **Built.** Lock results against further change. What happens when marks are published. | [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t27"></a>#27 | [`POST /schools/current/academic-years/{name}/results/unlock`](#e27) | **Built.** Unlock results so they can be corrected. **Records nothing about who unlocked, or why** — see the debt noted below. | [`academic_years`](../../models/core/AcademicYear.java) |
+| <a id="t29"></a>#29 | [`POST /schools/current/academic-years/{name}/end`](#e29) | **Built.** End the year today: stop it running and close its dates on today, in the school's own timezone. **Refuses to extend** a year that already finished, and refuses one that has not started. Allows a year cut very short, which [#19](#t19) rejects as implausible. Re-ending is a 200 saying nothing changed. | [`academic_years`](../../models/core/AcademicYear.java) |
 | <a id="t28"></a>#28 | [`POST /schools/current/academic-years/{name}/clone`](#e28) | **Optional.** Copy last year's calendar into a new year, so a school does not re-enter it. Convenience only — #18 plus #20 already do it. | [`academic_years`](../../models/core/AcademicYear.java) |
 
 ## 4. Reads — platform · [Build order ↓](#build-order)
@@ -147,7 +148,7 @@ Mongo transaction manager.
 | **3** | A school can edit itself | #6–#9 | built |
 | **4** | A year exists | #18, #19 | built |
 | **5** | The year has a calendar | #20–#23, D1, D2 | built |
-| **6** | Gates and sensitive edits | #10, #24–#27 built; #12 deferred | part |
+| **6** | Gates and sensitive edits | #10, #24–#27, #29 built; #12 deferred | part |
 | **7** | The reads | G1, G2, G4–G10 | built |
 | **8** | Offboarding and deletion | #13–#17 | deferred |
 | **9** | Convenience | #28, G11 | |
@@ -324,6 +325,7 @@ description of running code rather than a plan.
 | `holidays` | List, required | **`[]`** at create — #18 never accepts holidays, the calendar has its own endpoints. Keyed by `date`, one entry per closed day, each carrying one or more reasons. Rows below. |
 | `enrollmentEnabled` | Boolean, required | **`false`** at create; `true` from #24, `false` from #25. A gate on **new** enrollments only — students already enrolled are untouched. Both are idempotent: already in the asked-for state comes back `200` saying so. |
 | `resultsLocked` | Boolean, required | **`false`** at create; `true` from #26, `false` from #27. Idempotent both ways, and **neither records who did it or why** — see Debts. |
+| `isThisYearRunning` | Boolean, required | **`false`** at create, and **null on every document written before 2026-09-09** — which reads as not running, which is the right way round for a gate. `false` from [#29](#e29); **nothing sets it true yet**. It says the school has *switched over* to a year the calendar says has begun, which the dates cannot say on their own. Read only **alongside** the dates, never alone: one left true after its year ended would keep a finished year live. `AcademicYearResponse` argues against storing this at all — see the field's own javadoc, which records both sides. Wants a partial unique index on `{schoolId, isThisYearRunning}` filtered to true, once something writes it. |
 | `recordState` | [RecordState](../../models/base/enums/RecordState.java), required | **`ACTIVE`** always. `INACTIVE` `ARCHIVED` `DELETED` exist on the base class and **nothing in this module writes them**, which is why G5 returns every year rather than filtering: a filter here would be the only one in the codebase, and it would disagree with the overlap check. |
 
 ### `academic_years.holidays[]` — [HolidayDetail](../../models/core/embedded/HolidayDetail.java)
@@ -960,7 +962,7 @@ endpoint is what stores it.
 
 - [`schools`](../../models/core/School.java) — *updates*: would have been `accountHolderName` — #6 does it
 
-## Academic year — writes  ·  #18–#28, D1, D2
+## Academic year — writes  ·  #18–#29, D1, D2
 
 <a id="e18"></a>
 **[#18](#t18) · `POST /schools/current/academic-years`**
@@ -1655,6 +1657,126 @@ does.
 **Four endpoints rather than two toggles.** `results/unlock` states the wanted end state, so two
 callers racing each other cannot leave it in the state neither asked for — and a request that
 says "enable" is auditable in a way one that says "flip" is not.
+
+<a id="e29"></a>
+**[#29](#t29) · `POST /schools/current/academic-years/{name}/end`**
+
+- [`academic_years`](../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate`, `holidays`, `isThisYearRunning`
+- [`academic_years`](../../models/core/AcademicYear.java) — *updates*: `isThisYearRunning` = false, `endDate` = today
+- [`schools`](../../models/core/School.java) — *reads*: `defaultTimeZone`, to know which day today is
+
+### Request and response
+
+<table>
+<tr><th align="left">Request body</th><th align="left">Response body</th></tr>
+<tr valign="top">
+<td><pre>
+Header:  X-School-Subdomain: springfield-high
+Path:    {name}  the year
+
+No body — POST with nothing.
+</pre></td>
+<td><pre>
+200 OK — AcademicYearResponse
+
+{
+  "academicYearId": "6a9ea1b2c3d4e5f601234567",
+  "name": "2026-27",
+  "startDate": "2026-06-01",
+  "endDate": "2026-09-09",
+  "durationDays": 101,
+  "current": true,
+  "holidayCount": 12,
+  "enrollmentEnabled": false,
+  "resultsLocked": false,
+  "nextStep": "'2026-27' has been ended — it is no
+    longer the year this school is running, and its
+    last day is now Wednesday 9 September 2026, 233
+    day(s) earlier than planned. Enrollment and
+    result locking are unchanged; set those
+    separately if this year should also stop
+    accepting records."
+}
+</pre></td>
+</tr>
+</table>
+
+**No request fields.** The year is in the path and there is nothing to configure — like #24 to
+#27, the endpoint does one thing and its URL says which.
+
+### An event, not a re-plan — which is why it is not [#19](#e19)
+
+#19 moves a year's boundaries because somebody **decided** they should be different. This records
+that the year **is over**, as of today: a term finished early, a school closing, a calendar
+superseded. The difference is not cosmetic, because the two are allowed to refuse different
+things:
+
+| | [#19](#e19) `PATCH .../dates` | #29 `POST .../end` |
+|---|---|---|
+| A 6-day year | `400 IMPLAUSIBLE_DATE_RANGE` | **allowed** |
+| Moving `endDate` later | allowed — that is the point | `409 ACADEMIC_YEAR_ALREADY_ENDED` |
+| Which date it writes | whatever you send | today, always |
+| `isThisYearRunning` | untouched | set false |
+
+**#29 deliberately does not call `validateAcademicYearRange`.** That validator rejects any range
+under 30 days as "almost certainly a typo", which is right when somebody is *planning* a year and
+wrong here: a school that shut two weeks into term really did have a two-week year, and refusing
+to record it would leave the calendar claiming a year that is still running.
+
+### Today is the *school's* today
+
+`Dates.todayIn(school.defaultTimeZone)`, not the server's date. At 23:00 in Asia/Kolkata it is
+still the previous day in UTC, and closing a year a day early loses a day of the school's work.
+This was mutation-tested: swapping it for `LocalDate.now()` is invisible to any test whose school
+shares the server's zone, so the check uses two zones 25 hours apart — Kiritimati and Midway —
+which are never on the same calendar date.
+
+### What it refuses
+
+| Code | Status | When |
+|---|---|---|
+| `ACADEMIC_YEAR_NOT_FOUND` | 404 | this school has no year by that name |
+| `ACADEMIC_YEAR_NOT_STARTED` | 409 | today is on or before its first day — it would end before it began |
+| `ACADEMIC_YEAR_ALREADY_ENDED` | 409 | it finished in the past, so writing today would move that date **forward** |
+| `HOLIDAYS_OUTSIDE_NEW_RANGE` | 409 | closed days after today would be stranded outside the shortened year |
+
+**`ACADEMIC_YEAR_ALREADY_ENDED` is the trap this endpoint exists to avoid.** Writing today's date
+onto a year that closed last March would push its end forward by months — the exact opposite of
+ending it — and it would look like it worked.
+
+**Stranded closed days are refused, not deleted**, with the same code and the same policy as
+[#19](#e19), so the two cannot answer the question differently. Deleting a school's calendar
+entries as a side effect of a different action is not something this should do quietly. A closed
+day already *behind* today is fine and is kept: it is still inside the shortened year.
+
+### Idempotent, like #24 to #27
+
+Ending an already-ended year answers `200` with *"Nothing changed: '2026-27' was already closed
+on … and was not marked as running."* — the same shape as the enrollment and results flags, and
+as [#14](../plans/README.md#e14) in the plans module. The caller wants the year ended, and it is
+ended.
+
+The note reports the two halves separately, because they move independently: whether it stopped
+running, and whether its dates moved. Saying "year ended" for a call that changed nothing would
+be telling the caller something untrue.
+
+### What it does NOT touch
+
+**`enrollmentEnabled` and `resultsLocked` are left alone**, and the response says so. Both are
+arguably implied by a year ending — a finished year should not take admissions — but neither was
+asked for, and a write that quietly changed three flags when it was asked to change one is worse
+than a second call. #24 to #27 are those flags, one deliberate act each.
+
+### Tests
+
+**41 end-to-end assertions**: the happy path and the day count, re-ending as a no-op, a year not
+yet started, a year already finished (and that its `endDate` really was left alone), closed days
+after today refused with the first one named, closed days before today kept, a 6-day year allowed
+here and refused by #19, the 404, the missing tenant header, that `GET`/`PATCH`/`DELETE` are not
+mapped, and the two-zone case above.
+
+**Seven mutations, all caught**: dropping either date guard, stranding the holidays, forgetting
+either write, using the server's date, and applying the planning-range validator.
 
 <a id="e28"></a>
 **[#28](#t28) · `POST /schools/current/academic-years/{name}/clone`**  ·  optional

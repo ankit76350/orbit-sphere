@@ -307,6 +307,114 @@ public class AcademicYearService {
                         + "name and are not checked against the new range yet.");
     }
 
+    //! endpoint — end the academic year -----------------------------------------------
+
+    /**
+     * Ends the school's academic year today: stops it running, and closes its dates on today.
+     *
+     * <p><b>An event, not a re-plan.</b> The year is over as of today — a term finished early, a
+     * school closing, a calendar that was set up wrong and has been superseded. That is a
+     * different thing from {@link #updateDates}, which moves a year's boundaries deliberately,
+     * and the difference shows up in what each one is allowed to refuse.
+     *
+     * <h2>Why this does NOT use validateAcademicYearRange</h2>
+     *
+     * <p>That validator rejects any range shorter than 30 days as "almost certainly a typo",
+     * which is right when somebody is <b>planning</b> a year and wrong here: a school that shuts
+     * two weeks into term really did have a two-week year, and refusing to record it would leave
+     * the calendar claiming a year that is still running. So this applies only the checks that
+     * ending actually needs, and each one is a real impossibility rather than an implausibility.
+     *
+     * <h2>What it refuses</h2>
+     *
+     * <ul>
+     * <li><b>A year that has not started.</b> Today would land before {@code startDate}, giving
+     *     a year that ends before it begins.</li>
+     * <li><b>A year already finished.</b> Its {@code endDate} is in the past, so writing today
+     *     would move that date <i>forward</i> — silently <b>extending</b> a year somebody asked
+     *     to end. That is the trap in this endpoint, and it is the reason the check exists at
+     *     all.</li>
+     * <li><b>Closed days after today.</b> Same policy and the same error code as
+     *     {@link #updateDates}: shortening a year would strand them outside it. Deleting a
+     *     school's calendar entries as a side effect of a different action is not something this
+     *     endpoint should do quietly, so it refuses and says how many.</li>
+     * </ul>
+     *
+     * <p><b>Today is today in the school's own timezone.</b> At 23:00 in Asia/Kolkata it is
+     * still the previous day in UTC, and closing a year a day early loses a day of the school's
+     * work.
+     *
+     * <p><b>Re-ending an already-ended year changes nothing and says so</b>, rather than
+     * refusing — the same shape as #14, where a request restating what is already stored is a
+     * 200 that reports no change.
+     *
+     * <p><b>It does not touch {@code enrollmentEnabled} or {@code resultsLocked}.</b> Both are
+     * arguably implied by a year ending, and neither was asked for; a write that quietly changed
+     * three flags when it was asked to change one is worse than a second call.
+     */
+    @Transactional
+    public AcademicYearResponse endAcademicYear(String name) {
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - find the year by its name
+        // TODO: read academic year
+        AcademicYear year = academicYears.findBySchoolIdAndName(school.getId(), name.trim())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + name + "' in this school."));
+
+        //! step 3 - today, as the school's own calendar sees it
+        LocalDate today = Dates.todayIn(school.getDefaultTimeZone());
+
+        //! step 4 - a year cannot end before it begins
+        if (!today.isAfter(year.getStartDate())) {
+            throw ApiException.conflict("ACADEMIC_YEAR_NOT_STARTED",
+                    "'" + year.getName() + "' starts on " + Dates.readable(year.getStartDate())
+                            + ", so it cannot be ended today. Change its dates instead, or "
+                            + "archive it if it was created by mistake.");
+        }
+
+        //! step 5 - a year already finished must not be quietly EXTENDED to today. This is the
+        //! whole reason the check is here: writing today's date onto a year that closed last
+        //! March would push its end forward by months, which is the opposite of ending it.
+        boolean alreadyClosed = year.getEndDate().isBefore(today);
+        if (alreadyClosed) {
+            throw ApiException.conflict("ACADEMIC_YEAR_ALREADY_ENDED",
+                    "'" + year.getName() + "' already finished on "
+                            + Dates.readable(year.getEndDate())
+                            + ". Ending it today would move that date forward.");
+        }
+
+        //! step 6 - nothing may be left stranded outside the shortened year. Same rule and same
+        //! code as updateDates, so the two cannot answer this differently.
+        List<HolidayDetail> stranded = year.getHolidays() == null ? List.of()
+                : year.getHolidays().stream()
+                        .filter(holiday -> holiday.getDate().isAfter(today))
+                        .toList();
+        if (!stranded.isEmpty()) {
+            HolidayDetail first = stranded.get(0);
+            throw ApiException.conflict("HOLIDAYS_OUTSIDE_NEW_RANGE",
+                    stranded.size() + " closed day(s) fall after today and would end up outside "
+                            + "the year, starting with " + Dates.readable(first.getDate()) + " ("
+                            + yearUtils.describeEventsOnDay(first) + "). Remove them first.");
+        }
+
+        //! step 7 - what actually moves. Recorded before the write so the answer can say.
+        boolean wasRunning = Boolean.TRUE.equals(year.getIsThisYearRunning());
+        boolean datesMove = !year.getEndDate().isEqual(today);
+        long daysLost = datesMove ? ChronoUnit.DAYS.between(today, year.getEndDate()) : 0;
+
+        //! step 8 - end it: stop it running, and close it on today
+        year.setIsThisYearRunning(false);
+        year.setEndDate(today);
+        // TODO: update academic year
+        AcademicYear savedYear = academicYears.save(year);
+
+        //! step 9 - say what happened, including when it did not
+        return AcademicYearResponse.fromAcademicYear(savedYear,
+                yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost));
+    }
+
     //! endpoint 20 — replace the whole calendar ---------------------------------------
 
     /**
