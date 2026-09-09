@@ -28,7 +28,6 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchR
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
-import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionSummaryResponse;
