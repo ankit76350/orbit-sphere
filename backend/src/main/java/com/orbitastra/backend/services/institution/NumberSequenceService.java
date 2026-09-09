@@ -40,7 +40,7 @@ public class NumberSequenceService {
      *
      * <p>Makes sure the school's document and the counter exist, then increments in one atomic
      * step and formats what the counter said before the increment.
-     */
+    */
     public String next(String schoolId, NumberSequenceType type, String prefixTemplate) {
         createCounterIfMissing(schoolId, type, prefixTemplate);
 

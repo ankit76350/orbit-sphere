@@ -23,7 +23,7 @@ import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
-import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.helper.PlansHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -50,7 +50,7 @@ public class PlatformSubscriptionServiceUtils {
     private final SchoolRepository schools;
     private final PlanDefinitionRepository planDefinition;
     private final SchoolSubscriptionRepository schoolSubscription;
-    private final PlanValidator planValidator;
+    private final PlansHelper helper;
     private final SchoolPlatformService schoolPlatform;
 
     /** URL value used to refer to the school's current subscription. */
@@ -61,7 +61,7 @@ public class PlatformSubscriptionServiceUtils {
      * - createSubscription()
      */
     public PlanDefinition loadSellablePlan(String code, Integer version) {
-        String planCode = planValidator.normalizePlanCode(code);
+        String planCode = helper.normalizePlanCode(code);
         // TODO: read plan
         PlanDefinition plan = planDefinition.findByPlanCodeAndPlanVersion(planCode, version)
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",

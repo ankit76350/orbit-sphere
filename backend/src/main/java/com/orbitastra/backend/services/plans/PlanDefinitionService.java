@@ -35,7 +35,7 @@ import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.core.helper.TextHelper;
-import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.helper.PlansHelper;
 import com.orbitastra.backend.services.plans.utils.PlanDefinitionServiceUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -100,7 +100,7 @@ public class PlanDefinitionService {
 
     private final PlanDefinitionRepository plans;
     private final SchoolSubscriptionRepository subscriptions;
-    private final PlanValidator planValidator;
+    private final PlansHelper helper;
     private final PlanDefinitionServiceUtils utils;
     //! Endpoint 1 — create a draft plan -----------------------------------------------
 
@@ -125,12 +125,12 @@ public class PlanDefinitionService {
     public PlanResponse createDraft(PlanCreateRequest request) {
         //! step 1 - normalize and check everything the caller sent
         // Normally nothing was sent, and the code comes from the name.
-        String planCode = planValidator.resolvePlanCode(request.planCode(), request.name());
-        String currencyCode = planValidator.validateCurrencyCode(request.currencyCode());
-        var listPrice = planValidator.validatePrice("listPrice", request.listPrice());
-        planValidator.validateLimit("maxStudents", request.maxStudents());
-        planValidator.validateLimit("maxUsers", request.maxUsers());
-        planValidator.validateSellingWindow(request.effectiveFrom(), request.effectiveUntil());
+        String planCode = helper.resolvePlanCode(request.planCode(), request.name());
+        String currencyCode = helper.validateCurrencyCode(request.currencyCode());
+        var listPrice = helper.validatePrice("listPrice", request.listPrice());
+        helper.validateLimit("maxStudents", request.maxStudents());
+        helper.validateLimit("maxUsers", request.maxUsers());
+        helper.validateSellingWindow(request.effectiveFrom(), request.effectiveUntil());
 
         //! step 2 - the code has to be free
         // TODO: check plan code exists
@@ -216,17 +216,17 @@ public class PlanDefinitionService {
             plan.setBillingCycle(request.billingCycle());
         }
         if (request.listPrice() != null) {
-            plan.setListPrice(planValidator.validatePrice("listPrice", request.listPrice()));
+            plan.setListPrice(helper.validatePrice("listPrice", request.listPrice()));
         }
         if (request.currencyCode() != null) {
-            plan.setCurrencyCode(planValidator.validateCurrencyCode(request.currencyCode()));
+            plan.setCurrencyCode(helper.validateCurrencyCode(request.currencyCode()));
         }
         if (request.maxStudents() != null) {
-            planValidator.validateLimit("maxStudents", request.maxStudents());
+            helper.validateLimit("maxStudents", request.maxStudents());
             plan.setMaxStudents(request.maxStudents());
         }
         if (request.maxUsers() != null) {
-            planValidator.validateLimit("maxUsers", request.maxUsers());
+            helper.validateLimit("maxUsers", request.maxUsers());
             plan.setMaxUsers(request.maxUsers());
         }
 
@@ -234,7 +234,7 @@ public class PlanDefinitionService {
         if (request.sellingWindow() != null) {
             Instant from = request.sellingWindow().effectiveFrom();
             Instant until = request.sellingWindow().effectiveUntil();
-            planValidator.validateSellingWindow(from, until);
+            helper.validateSellingWindow(from, until);
             plan.setEffectiveFrom(from);
             plan.setEffectiveUntil(until);
         }
@@ -290,7 +290,7 @@ public class PlanDefinitionService {
                                 + "only be listed once, with one limit.");
             }
 
-            planValidator.validateFeature(one.featureCode(), one.enabled(), one.usageLimit());
+            helper.validateFeature(one.featureCode(), one.enabled(), one.usageLimit());
             replacement.add(one.toFeature());
         }
 
@@ -375,7 +375,7 @@ public class PlanDefinitionService {
         //! step 5 - go live. An effectiveFrom already set is kept, so a launch date chosen while
         //! it was a draft still stands; an empty one means "from now".
         //! step 5 - and it cannot close before it opens
-        planValidator.validateSellingWindow(plan.getEffectiveFrom(), plan.getEffectiveUntil());
+        helper.validateSellingWindow(plan.getEffectiveFrom(), plan.getEffectiveUntil());
 
         boolean scheduled = plan.getEffectiveFrom().isAfter(now);
         plan.setStatus(PlanStatus.ACTIVE);
@@ -554,7 +554,7 @@ public class PlanDefinitionService {
      */
     public PlanVersionHistoryResponse listVersions(String code) {
         //! step 1 - every version of that code, newest first
-        String planCode = planValidator.normalizePlanCode(code);
+        String planCode = helper.normalizePlanCode(code);
         // TODO: read plans
         List<PlanDefinition> versions = plans.findByPlanCodeOrderByPlanVersionDesc(planCode);
 

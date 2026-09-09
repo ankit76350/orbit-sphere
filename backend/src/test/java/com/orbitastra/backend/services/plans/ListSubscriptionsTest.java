@@ -42,7 +42,7 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
-import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.helper.PlansHelper;
 import com.orbitastra.backend.services.plans.utils.PlatformSubscriptionServiceUtils;
 
 /**
@@ -84,7 +84,7 @@ class ListSubscriptionsTest {
      * proving the stub.
      */
     @Spy
-    private PlanValidator planValidator = new PlanValidator();
+    private PlansHelper helper = new PlansHelper();
 
     @InjectMocks
     private PlatformSubscriptionService service;

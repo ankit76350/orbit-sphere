@@ -47,7 +47,7 @@ import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscr
 import com.orbitastra.backend.repositories.plans.subscriptionhistory.SubscriptionHistoryRepository;
 import com.orbitastra.backend.services.core.SchoolPlatformService;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
-import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.helper.PlansHelper;
 import com.orbitastra.backend.services.plans.utils.PlatformSubscriptionServiceUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -103,7 +103,7 @@ public class PlatformSubscriptionService {
     private final SchoolSubscriptionRepository schoolSubscription;
     private final SubscriptionHistoryRepository history;
     private final NumberSequenceService numberSequences;
-    private final PlanValidator planValidator;
+    private final PlansHelper helper;
     private final PlatformSubscriptionServiceUtils utils;
     private final SchoolPlatformService schoolPlatform;
 
@@ -179,7 +179,7 @@ public class PlatformSubscriptionService {
 
         BigDecimal contractedPrice = request.contractedPrice() == null
                 ? plan.getListPrice()
-                : planValidator.validatePrice("contractedPrice", request.contractedPrice());
+                : helper.validatePrice("contractedPrice", request.contractedPrice());
 
         utils.validateCapacityOverrideIsAtLeastOne("maxStudentsOverride", request.maxStudentsOverride());
         utils.validateCapacityOverrideIsAtLeastOne("maxUsersOverride", request.maxUsersOverride());
@@ -557,7 +557,7 @@ public class PlatformSubscriptionService {
         //! price, so carrying the old figure over silently would invent a deal nobody made.
         BigDecimal newPrice = request.contractedPrice() == null
                 ? newPlan.getListPrice()
-                : planValidator.validatePrice("contractedPrice", request.contractedPrice());
+                : helper.validatePrice("contractedPrice", request.contractedPrice());
 
         //! step 7 - work out the ceilings: the caller's, or the new plan's own. The plan being
         //! left does not come into it — a ceiling is agreed against a particular plan, so moving
@@ -1505,7 +1505,7 @@ public class PlatformSubscriptionService {
             // Shaped the way a code is on the way in, so ?planCode=premium-plus finds
             // PREMIUM_PLUS. normalizePlanCode never throws, which is what a filter needs: a
             // code of the wrong shape should match nothing, not turn a list into an error.
-            String code = planValidator.normalizePlanCode(request.planCode());
+            String code = helper.normalizePlanCode(request.planCode());
 
             // TODO: read plans (the versions of one code)
             planIds = planDefinition.findByPlanCodeOrderByPlanVersionDesc(code).stream()

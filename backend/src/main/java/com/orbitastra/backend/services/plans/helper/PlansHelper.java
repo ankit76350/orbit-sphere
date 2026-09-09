@@ -11,17 +11,23 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
 
 /**
- * Every check the plans module makes on what a caller sent.
+ * The one helper the whole plans module shares.
  *
- * <p>One file per module, the same arrangement {@code CoreValidator} uses: when the next endpoint
- * needs to know whether a currency code is real, there is one place it already lives and no
- * decision to make about where to put it.
+ * <p>Both the main services and their utils call in here, so there is one answer to "what shape
+ * is a plan code", "is this a real currency", "is this price allowed" — instead of one answer per
+ * service that can drift.
  *
- * <p>These throw rather than return a flag. A validator that returns false leaves every caller
- * to invent its own message and status code, and they drift.
+ * <p><b>It was called {@code PlansHelper}, and most of it is still checks</b> — those throw
+ * rather than return a flag, because a check that returns false leaves every caller to invent
+ * its own message and status code. But {@link #resolvePlanCode} and {@link #normalizePlanCode}
+ * do not check anything; they work out what the code should be. The name says helper now because
+ * that is what the file is.
+ *
+ * <p>Each method here stands on its own and calls nothing else in this class — see the service
+ * code-writing rules. Anything two of them would both need belongs in {@code common/}.
  */
 @Component
-public class PlanValidator {
+public class PlansHelper {
 
     //! plan code — used by endpoints 1 and 2 ------------------------------------------
 

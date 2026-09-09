@@ -9,7 +9,7 @@ import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.enums.PlanStatus;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
-import com.orbitastra.backend.services.plans.helper.PlanValidator;
+import com.orbitastra.backend.services.plans.helper.PlansHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class PlanDefinitionServiceUtils {
 
     private final PlanDefinitionRepository plans;
-    private final PlanValidator planValidator;
+    private final PlansHelper helper;
 
     /**
      * Why the plan can or cannot be bought right now, in a sentence.
@@ -112,7 +112,7 @@ public class PlanDefinitionServiceUtils {
      * - getVersion()
      */
     public PlanDefinition loadPlanVersion(String code, Integer version) {
-        String planCode = planValidator.normalizePlanCode(code);
+        String planCode = helper.normalizePlanCode(code);
         // TODO: read plan
         return plans.findByPlanCodeAndPlanVersion(planCode, version)
                 .orElseThrow(() -> ApiException.notFound("PLAN_NOT_FOUND",

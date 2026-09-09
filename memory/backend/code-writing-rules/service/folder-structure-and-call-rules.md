@@ -15,7 +15,7 @@ Each module contains:
 | `utils/` | utility classes used by the main service |
 | `helper/` | **only one helper file**, with the common helper methods both the main service and the utils use |
 
-Example: `services/plans/helper/PlanValidator.java`
+Example: `services/plans/helper/PlansHelper.java`
 
 ```
 services/plans/
@@ -27,8 +27,19 @@ services/plans/
 │   ├── PlatformSubscriptionServiceUtils.java
 │   └── SchoolSubscriptionServiceUtils.java
 └── helper/
-    └── PlanValidator.java              ONE file, shared by the services and the utils
+    └── PlansHelper.java                ONE file, shared by the services and the utils
 ```
+
+## Naming the helper
+
+Name it after the **module**, not after one of the things it happens to do —
+`plans/helper/PlansHelper.java`. It was `PlanValidator` at first, which stopped being true as
+soon as it held `resolvePlanCode` and `normalizePlanCode`: those work out what a code should be
+rather than checking anything. The helper is where whatever the module shares ends up, so a name
+that describes one category of method will date.
+
+The field is `helper` in every service and utils file. There is exactly one per module, so
+nothing is ambiguous: `helper.validatePrice(...)`, `helper.normalizePlanCode(...)`.
 
 ## Method calling rules
 
