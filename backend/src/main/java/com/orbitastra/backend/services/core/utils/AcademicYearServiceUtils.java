@@ -1,4 +1,4 @@
-package com.orbitastra.backend.services.core.helper;
+package com.orbitastra.backend.services.core.utils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
  * The service had grown eight private helpers below its last endpoint, and reading it meant
  * scrolling past all of them to find the next thing that answers a request.
  *
- * <p><b>These are not validators.</b> {@link CoreValidator} refuses bad input; nothing here
+ * <p><b>These are not validators.</b> {@link CoreHelper} refuses bad input; nothing here
  * refuses anything on its own. These find a year, find a day, count what is on it, and turn a
  * calendar into words — the questions the endpoints keep asking. The two 404s that do get thrown
  * are the answer to "which one did you mean", not a rule about what is allowed.

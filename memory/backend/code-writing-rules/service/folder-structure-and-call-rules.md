@@ -65,6 +65,17 @@ Main Service  →  Utils  →  Helper
 
 The dependency direction is never reversed, and never chained between utils or between helpers.
 
+## The rules govern the PUBLIC methods
+
+A `private` method inside a utils or helper class is an implementation detail, not part of what
+the rest of the code can call — so two public methods in one class sharing a private one is fine.
+`CoreHelper.validateHolidayWithinYear` and `validateDateWithinYear` both use a private
+`isWithinYear`; `DefaultRoles.forSchool` uses two private permission builders. Applying the rule
+to those would mean duplicating them, which is worse code and breaks "no duplicated logic".
+
+What the rules are about is the calls one class makes into another: a service reaching into
+utils, utils reaching into the helper, and nothing reaching sideways or back.
+
 ## What this rules out, and why it matters
 
 - **A utils method calling another utils method** turns "what does this endpoint do" into a trail

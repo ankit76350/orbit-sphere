@@ -17,35 +17,27 @@ import lombok.RequiredArgsConstructor;
 
 
 /**
- * Every validation rule the core module owns, in one place.
+ * The one helper the whole core module shares.
  *
- * <p>One validator class per module, holding one method per rule. Core owns School and
- * AcademicYear, so this is where a subdomain, a time zone, an academic-year date range and a
- * holiday date get checked. Finance would get its own with its own rules.
+ * <p>Both the main services and their utils call in here, so there is one answer to "is this
+ * subdomain allowed", "is this a real timezone", "do these two academic years overlap" — instead
+ * of one answer per service that can drift.
  *
- * <p>Everything here answers one question about one value, throws when the answer is no, and
- * returns the value in the form it should be stored in. Normalising as it validates is
- * deliberate: a caller that has to remember to trim after checking will forget.
+ * <p><b>Everything here is currently a check</b>, and checks throw rather than return a flag: one
+ * that returned false would leave every caller to invent its own message and status code. The
+ * name says helper rather than validator because this is the module's single helper file, and
+ * whatever core comes to share ends up here — the same reason the plans module's is
+ * {@code PlansHelper}.
  *
- * <p><b>These mostly throw ApiException.conflict, which is a 409, and that is not an oversight.</b>
- * `"Asia/Pune"` is a well-formed string and a reasonable guess. `api` is a perfectly valid
- * subdomain the platform simply will not hand over. Answering 400 would tell the caller their
- * request was malformed and send them hunting for a syntax error that is not there — the
- * request was fine, and the answer is still no.
+ * <p>Trimming and lowercasing are NOT here. That is {@code common/text/TextHelper}, which rejects
+ * nothing — and it lives in {@code common} because the plans module needs it too.
  *
- * <p>That is also the line between this class and a Jakarta annotation on the request record.
- * Annotations say <i>this is not a well-formed value</i> — required, length, a simple regex,
- * `@Email`. They run before the controller method is entered and produce per-field errors a
- * form can put next to the right input, so anything they can do belongs there rather than
- * here. This class is for <i>well-formed and still not allowed</i>: rules that need a lookup, a
- * reserved list, or policy.
- *
- * <p>Normalising with nothing to decide is not validation and does not belong here — see
- * {@link TextHelper}, which trims and lowercases and rejects nothing.
+ * <p>Each method here stands on its own and calls nothing else in this class — see the service
+ * code-writing rules. Anything two of them would both need belongs in {@code common/}.
  */
 @Component
 @RequiredArgsConstructor
-public class CoreValidator {
+public class CoreHelper {
 
     /**
      * Needed by the overlap check, which is the first rule here that cannot be answered from

@@ -2,11 +2,9 @@ package com.orbitastra.backend.services.core;
 
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -35,19 +33,16 @@ import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.identity.Role;
 import com.orbitastra.backend.models.identity.embedded.RoleDefinition;
 import com.orbitastra.backend.models.institution.NumberSequence;
-import com.orbitastra.backend.models.institution.embedded.SequenceCounter;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
-import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
-import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.identity.RoleRepository;
 import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
-import com.orbitastra.backend.services.institution.NumberSequenceService;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
-import com.orbitastra.backend.services.core.helper.CoreValidator;
-import com.orbitastra.backend.services.core.helper.DefaultRoles;
-import com.orbitastra.backend.services.core.helper.TextHelper;
+import com.orbitastra.backend.services.core.helper.CoreHelper;
+import com.orbitastra.backend.services.core.utils.SchoolPlatformServiceUtils;
+import com.orbitastra.backend.services.core.utils.DefaultRoles;
+import com.orbitastra.backend.common.text.TextHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -133,7 +128,8 @@ public class SchoolPlatformService {
     private final NumberSequenceRepository numberSequences;
     private final RoleRepository roles;
     private final SchoolSubscriptionRepository subscriptions;
-    private final CoreValidator coreValidator;
+    private final CoreHelper helper;
+    private final SchoolPlatformServiceUtils utils;
 
     //! endpoint 1 — create the tenant -------------------------------------------------
 
@@ -142,8 +138,8 @@ public class SchoolPlatformService {
 
     public SchoolCreateResponse createNewSchool(SchoolCreateRequest request) {
         //! validating subdomain
-        String subdomain = coreValidator.validateSubdomain(request.subdomain());
-        String timeZone = coreValidator.validateTimeZone(request.defaultTimeZone());
+        String subdomain = helper.validateSubdomain(request.subdomain());
+        String timeZone = helper.validateTimeZone(request.defaultTimeZone());
         String countryCode = TextHelper.uppercaseOrNull(request.countryCode());
 
         // Checked before writing so the caller gets a clear message. The unique index is still
@@ -207,12 +203,12 @@ public class SchoolPlatformService {
         }
 
         //! step 3 - save the missing number sequences
-        int sequencesCreated = seedMissingNumberSequences(schoolId);
+        int sequencesCreated = utils.seedMissingNumberSequences(schoolId);
         int sequencesPresent = NumberSequenceType.values().length - sequencesCreated;
 
         //! step 4 - save the missing roles
         List<RoleDefinition> wanted = DefaultRoles.forSchool();
-        int rolesCreated = seedMissingRoles(schoolId, wanted);
+        int rolesCreated = utils.seedMissingRoles(schoolId, wanted);
         int rolesPresent = wanted.size() - rolesCreated;
 
         // step 5 - read back what the school ended up with
@@ -312,7 +308,7 @@ public class SchoolPlatformService {
         String subscriptionStatus = subscription
                 .map(s -> s.getStatus().name())
                 .orElse("NONE");
-        String subscriptionNote = describeSubscriptionForActivation(subscription);
+        String subscriptionNote = utils.describeSubscriptionForActivation(subscription);
 
         //! step 5 - go live, stamping activatedAt only the first time
         boolean firstActivation = school.getActivatedAt() == null;
@@ -446,7 +442,7 @@ public class SchoolPlatformService {
         }
 
         //! step 4 - shape, reserved words, normalization
-        String newSubdomain = coreValidator.validateSubdomain(request.newSubdomain());
+        String newSubdomain = helper.validateSubdomain(request.newSubdomain());
 
         String oldSubdomain = school.getSubdomain();
         if (newSubdomain.equals(oldSubdomain)) {
@@ -565,165 +561,5 @@ public class SchoolPlatformService {
                         "No school found with id '" + schoolId + "'."));
 
         return SchoolDetailResponse.fromSchool(school);
-    }
-
-    /*
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    ---------------------------------------------------------------------------------
-    */
-
-    /**
-     * Adds a counter for every {@link NumberSequenceType} the school is short of.
-     *
-     * <p><b>Only the gaps, and only when there are gaps.</b> Nothing missing means no write at
-     * all, which is what makes a repeat call free — and pushing the missing entries leaves every
-     * existing counter's {@code nextValue} exactly where it was. Saving the whole document back
-     * would be the way to reset a school's numbering by accident.
-     *
-     * <p>The school's first run is a {@code save} rather than an update, so the auditing hook
-     * fills in {@code createdAt} and {@code createdByDocsId}; an update would leave both null.
-     *
-     * @return how many counters were written, which the response reports against how many were
-     *         already there
-          *
-     * Used by:
-     * - completeProvisioning()
-     */
-    private int seedMissingNumberSequences(String schoolId) {
-        //! step 1 - read the school's one counters document, if it has one yet
-        Optional<NumberSequence> document = numberSequences.findBySchoolId(schoolId);
-
-        Set<NumberSequenceType> existing = document
-                .map(NumberSequence::getCounters)
-                .orElseGet(List::of)
-                .stream()
-                .map(SequenceCounter::getSequenceType)
-                .collect(Collectors.toSet());
-
-        //! step 2 - build a counter for every type that is missing
-        List<SequenceCounter> missing = new ArrayList<>();
-        for (NumberSequenceType type : NumberSequenceType.values()) {
-            if (existing.contains(type)) {
-                continue;
-            }
-            missing.add(SequenceCounter.builder()
-                    .sequenceType(type)
-                    .scopeKey(NumberSequenceService.GLOBAL_SCOPE)
-                    .nextValue(1L)
-                    .paddingWidth(6)
-                    .resetPolicy(SequenceResetPolicy.NEVER)
-                    .build());
-        }
-
-        //! step 3 - write them, and return how many were written
-        // Nothing missing means no write at all, which is what makes a repeat call free.
-        if (missing.isEmpty()) {
-            return 0;
-        }
-
-        if (document.isEmpty()) {
-            // First run for this school: a save, so the auditing hook fills in createdAt and
-            // createdByDocsId. An update would leave both null.
-            numberSequences.save(NumberSequence.builder()
-                    .schoolId(schoolId)
-                    .counters(missing)
-                    .build());
-            return missing.size();
-        }
-
-        // The document is already there, so add only what it is short of. Pushing the missing
-        // entries leaves every existing counter's nextValue exactly where it was — saving the
-        // whole document back would be the way to reset a school's numbering by accident.
-        return numberSequences.addCounters(schoolId, missing);
-    }
-
-    /**
-     * Adds missing default roles.
-     *
-     * <p>Matches roles by roleKey and keeps existing roles unchanged.
-          *
-     * Used by:
-     * - completeProvisioning()
-     */
-    private int seedMissingRoles(String schoolId, List<RoleDefinition> wanted) {
-        //! step 1 - read the school's one roles document, if it has one yet
-        Optional<Role> document = roles.findBySchoolId(schoolId);
-
-        Set<String> existingKeys = document
-                .map(Role::getRoles)
-                .orElseGet(List::of)
-                .stream()
-                .map(RoleDefinition::getRoleKey)
-                .collect(Collectors.toSet());
-
-        //! step 2 - keep only the defaults that are not there yet
-        List<RoleDefinition> missing = wanted.stream()
-                .filter(role -> !existingKeys.contains(role.getRoleKey()))
-                .collect(Collectors.toList());
-
-        //! step 3 - write them, and return how many were written
-        // An existing role is never touched, only skipped. That matters more here than for the
-        // counters: a school may have edited SCHOOL_ADMIN's permissions, and re-running
-        // provisioning must not put our defaults back over the top of that.
-        if (missing.isEmpty()) {
-            return 0;
-        }
-
-        if (document.isEmpty()) {
-            roles.save(Role.builder()
-                    .schoolId(schoolId)
-                    .roles(missing)
-                    .build());
-            return missing.size();
-        }
-        return roles.addRoles(schoolId, missing);
-    }
-
-    /**
-     * Checks if the subscription allows activation.
-     *
-     * <p>A missing subscription is allowed for now because the system does not create
-     * subscriptions yet. CANCELLED or EXPIRED subscriptions block activation.
-     *
-     * <p>The response shows the subscription status so this can be made required later.
-          *
-     * Used by:
-     * - activateSchool()
-     */
-    private String describeSubscriptionForActivation(Optional<SchoolSubscription> subscription) {
-        if (subscription.isEmpty()) {
-            return "No subscription exists for this school. Activation was allowed anyway "
-                    + "because nothing creates subscriptions yet — this check must become a "
-                    + "hard requirement once it does.";
-        }
-        SubscriptionStatus status = subscription.get().getStatus();
-        if (status == SubscriptionStatus.CANCELLED || status == SubscriptionStatus.EXPIRED) {
-            throw ApiException.conflict("SUBSCRIPTION_NOT_ACTIVE",
-                    "The school's subscription is " + status + ". It cannot be activated.");
-        }
-        return "Subscription is " + status + ".";
     }
 }

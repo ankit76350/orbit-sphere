@@ -16,8 +16,8 @@ import com.orbitastra.backend.dto.core.profile.request.SchoolProfileUpdateReques
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
-import com.orbitastra.backend.services.core.helper.CoreValidator;
-import com.orbitastra.backend.services.core.helper.TextHelper;
+import com.orbitastra.backend.services.core.helper.CoreHelper;
+import com.orbitastra.backend.common.text.TextHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,7 +45,7 @@ public class SchoolProfileService {
     private final SchoolRepository schools;
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
-    private final CoreValidator coreValidator;
+    private final CoreHelper helper;
 
     //! G4 — read the school's own profile ---------------------------------------------
 
@@ -191,7 +191,7 @@ public class SchoolProfileService {
 
         //! step 4 - time zone, if sent, and only with both guards satisfied
         if (request.defaultTimeZone() != null) {
-            String zone = coreValidator.validateTimeZone(request.defaultTimeZone());
+            String zone = helper.validateTimeZone(request.defaultTimeZone());
 
             if (!zone.equals(school.getDefaultTimeZone())) {
                 if (!Boolean.TRUE.equals(request.confirmTimeZoneChange())) {

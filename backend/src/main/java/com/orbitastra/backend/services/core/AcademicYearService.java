@@ -33,9 +33,9 @@ import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
-import com.orbitastra.backend.services.core.helper.AcademicYearServiceUtils;
-import com.orbitastra.backend.services.core.helper.CoreValidator;
-import com.orbitastra.backend.services.core.helper.TextHelper;
+import com.orbitastra.backend.services.core.utils.AcademicYearServiceUtils;
+import com.orbitastra.backend.services.core.helper.CoreHelper;
+import com.orbitastra.backend.common.text.TextHelper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -65,7 +65,7 @@ public class AcademicYearService {
 
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
-    private final CoreValidator coreValidator;
+    private final CoreHelper helper;
     private final AcademicYearServiceUtils yearUtils;
 
     //! G5 — list the school's years ----------------------------------------------------
@@ -124,7 +124,7 @@ public class AcademicYearService {
     public DayStatusResponse getDayStatus(String name, LocalDate date) {
         AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
 
-        coreValidator.validateDateWithinYear(date, year.getStartDate(), year.getEndDate());
+        helper.validateDateWithinYear(date, year.getStartDate(), year.getEndDate());
 
         return yearUtils.findDayInCalendar(year, date)
                 .map(day -> DayStatusResponse.closed(year.getName(), day))
@@ -145,8 +145,8 @@ public class AcademicYearService {
                     "from (" + Dates.readable(start) + ") must not be after to ("
                             + Dates.readable(end) + ").");
         }
-        coreValidator.validateDateWithinYear(start, year.getStartDate(), year.getEndDate());
-        coreValidator.validateDateWithinYear(end, year.getStartDate(), year.getEndDate());
+        helper.validateDateWithinYear(start, year.getStartDate(), year.getEndDate());
+        helper.validateDateWithinYear(end, year.getStartDate(), year.getEndDate());
 
         // Both ends count, so a single-day range is one day and not zero.
         int totalDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
@@ -195,7 +195,7 @@ public class AcademicYearService {
 
         //! step 2 - the name must be one a URL can point at, must be free, and can never
         //! be changed later
-        coreValidator.validateAcademicYearName(name);
+        helper.validateAcademicYearName(name);
         // TODO: check academic year exists
         if (academicYears.existsBySchoolIdAndName(school.getId(), name)) {
             throw ApiException.conflict("ACADEMIC_YEAR_NAME_TAKEN",
@@ -203,10 +203,10 @@ public class AcademicYearService {
         }
 
         //! step 3 - the dates must make sense on their own
-        coreValidator.validateAcademicYearRange(request.startDate(), request.endDate());
+        helper.validateAcademicYearRange(request.startDate(), request.endDate());
 
         //! step 4 - and must not overlap a year that already exists
-        coreValidator.validateNoAcademicYearOverlap(
+        helper.validateNoAcademicYearOverlap(
                 school.getId(), null, request.startDate(), request.endDate());
 
         //! step 5 - build the document, with an empty calendar
@@ -274,10 +274,10 @@ public class AcademicYearService {
         //! step 4 - work out the new range, keeping whichever date was not sent
         LocalDate newStart = request.startDate() == null ? year.getStartDate() : request.startDate();
         LocalDate newEnd = request.endDate() == null ? year.getEndDate() : request.endDate();
-        coreValidator.validateAcademicYearRange(newStart, newEnd);
+        helper.validateAcademicYearRange(newStart, newEnd);
 
         //! step 5 - it must still not overlap another year
-        coreValidator.validateNoAcademicYearOverlap(
+        helper.validateNoAcademicYearOverlap(
                 school.getId(), year.getId(), newStart, newEnd);
 
         //! step 6 - every holiday already on this year must still fall inside it
@@ -337,7 +337,7 @@ public class AcademicYearService {
         // LinkedHashMap so the built calendar reads back in the order the school sent it.
         Map<LocalDate, HolidayDetail> byDate = new LinkedHashMap<>();
         for (HolidayRequest row : incoming) {
-            coreValidator.validateHolidayWithinYear(
+            helper.validateHolidayWithinYear(
                     row.name(), row.date(), year.getStartDate(), year.getEndDate());
 
             HolidayDetail day = byDate.computeIfAbsent(row.date(),
@@ -386,7 +386,7 @@ public class AcademicYearService {
         AcademicYear year = yearUtils.loadYear(name);
 
         //! step 2 - inside the year, and this reason not already on that day
-        coreValidator.validateHolidayWithinYear(
+        helper.validateHolidayWithinYear(
                 request.name(), request.date(), year.getStartDate(), year.getEndDate());
 
         Optional<HolidayDetail> existing = yearUtils.findDayInCalendar(year, request.date());
@@ -571,9 +571,9 @@ public class AcademicYearService {
                     "fromDate (" + Dates.readable(from) + ") must not be after toDate ("
                             + Dates.readable(to) + ").");
         }
-        coreValidator.validateHolidayWithinYear("fromDate", from,
+        helper.validateHolidayWithinYear("fromDate", from,
                 year.getStartDate(), year.getEndDate());
-        coreValidator.validateHolidayWithinYear("toDate", to,
+        helper.validateHolidayWithinYear("toDate", to,
                 year.getStartDate(), year.getEndDate());
 
         //! step 3 - walk the window, adding that weekday wherever no weekly off is on it yet
