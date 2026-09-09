@@ -32,7 +32,7 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.services.core.helper.AcademicYearServiceUtils;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
 import com.orbitastra.backend.services.core.helper.TextHelper;

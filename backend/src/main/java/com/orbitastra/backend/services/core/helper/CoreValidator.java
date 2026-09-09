@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.core.AcademicYear;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 
 import lombok.RequiredArgsConstructor;
 

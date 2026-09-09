@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

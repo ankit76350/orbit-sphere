@@ -14,8 +14,8 @@ import com.orbitastra.backend.dto.core.profile.request.SchoolLogoRequest;
 import com.orbitastra.backend.dto.core.profile.response.SchoolProfileResponse;
 import com.orbitastra.backend.dto.core.profile.request.SchoolProfileUpdateRequest;
 import com.orbitastra.backend.models.core.School;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
+import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.services.core.helper.CoreValidator;
 import com.orbitastra.backend.services.core.helper.TextHelper;
 

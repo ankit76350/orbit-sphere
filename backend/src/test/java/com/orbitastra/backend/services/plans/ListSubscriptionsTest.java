@@ -38,7 +38,7 @@ import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 

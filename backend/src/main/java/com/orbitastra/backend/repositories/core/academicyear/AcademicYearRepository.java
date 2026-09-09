@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.core;
+package com.orbitastra.backend.repositories.core.academicyear;
 
 import java.time.LocalDate;
 import java.util.List;

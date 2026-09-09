@@ -40,7 +40,7 @@ import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.institution.enums.SequenceResetPolicy;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
-import com.orbitastra.backend.repositories.core.SchoolRepository;
+import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.identity.RoleRepository;
 import com.orbitastra.backend.repositories.institution.NumberSequenceRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;

@@ -16,7 +16,7 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.embedded.HolidayDetail;
 import com.orbitastra.backend.models.core.embedded.HolidayEvent;
 import com.orbitastra.backend.models.core.enums.HolidayType;
-import com.orbitastra.backend.repositories.core.AcademicYearRepository;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 
 import lombok.RequiredArgsConstructor;
 

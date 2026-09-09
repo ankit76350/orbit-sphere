@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.core;
+package com.orbitastra.backend.repositories.core.school;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

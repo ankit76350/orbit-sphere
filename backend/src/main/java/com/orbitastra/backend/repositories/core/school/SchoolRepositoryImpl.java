@@ -1,4 +1,4 @@
-package com.orbitastra.backend.repositories.core;
+package com.orbitastra.backend.repositories.core.school;
 
 import java.util.ArrayList;
 import java.util.List;
