@@ -115,10 +115,17 @@ public class SchoolSubscriptionRepositoryImpl implements SchoolSubscriptionRepos
         //! filtering "from 1 April" means a period that starts on 1 April is in, and an
         //! exclusive bound would silently drop the row they were looking for.
         //!
-        //! The two ends of one window go on the SAME criteria object rather than as two
-        //! separate `where` clauses: two clauses on one field is a document with two keys of the
-        //! same name, and Mongo keeps only the last — so a from/to pair would filter on `to`
-        //! alone and quietly return too much.
+        //! Both ends go on the SAME criteria object, which builds one
+        //! `{currentPeriodStart: {$gte: .., $lte: ..}}` clause.
+        //!
+        //! CORRECTION (2026-09-09, while building #29): this used to say two separate `where`
+        //! clauses would lose one because a document cannot repeat a key. That is not true of
+        //! this construction — `andOperator` gives each criteria its own element of the `$and`
+        //! ARRAY, so both ends apply either way, and splitting them was mutation-tested here and
+        //! changed no result. One object is a clarity choice, and the form that stays correct if
+        //! these are ever merged with `.and()`, which is where a repeated key really collides.
+        //! The place the duplicate key genuinely bit was the SORT document — see
+        //! PageResponse.sortOf, where `?sort=planCode,desc` silently sorted ascending.
         if (request.startDateFrom() != null || request.startDateTo() != null) {
             Criteria start = Criteria.where("currentPeriodStart");
             if (request.startDateFrom() != null) {

@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +42,10 @@ import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 import com.orbitastra.backend.services.plans.helper.PlansHelper;
+import org.junit.jupiter.api.BeforeEach;
+import com.orbitastra.backend.services.core.SchoolPlatformService;
+import com.orbitastra.backend.services.institution.NumberSequenceService;
+import com.orbitastra.backend.repositories.plans.subscriptionhistory.SubscriptionHistoryRepository;
 import com.orbitastra.backend.services.plans.utils.PlatformSubscriptionServiceUtils;
 
 /**
@@ -70,11 +73,30 @@ class ListSubscriptionsTest {
     private SchoolSubscriptionRepository schoolSubscription;
 
     /**
-     * Mocked although listSubscriptions calls nothing on it. Without it Mockito hands the
-     * service a null for this collaborator, and the first helper call added to this endpoint
-     * would fail as an NPE rather than as the missing stub it really is.
+     * Needed by the utils below, which is real. Nothing in listSubscriptions touches it.
      */
     @Mock
+    private SchoolPlatformService schoolPlatform;
+
+    /** Constructor arguments the service needs; listSubscriptions touches neither. */
+    @Mock
+    private SubscriptionHistoryRepository history;
+
+    @Mock
+    private NumberSequenceService numberSequences;
+
+    /**
+     * REAL utils, not a mock.
+     *
+     * <p>It was a mock, with a comment saying "listSubscriptions calls nothing on it". That
+     * stopped being true when the endpoint started resolving each row's plan through
+     * {@code utils.planFrom} — and a mock answers null to everything, so the plan-matching case
+     * below failed while the endpoint was perfectly correct.
+     *
+     * <p>Built from the mocks rather than stubbed, for the same reason the validator below is a
+     * spy: {@code planFrom} is the code this test is checking the behaviour of, and against a
+     * stub it would only be proving the stub.
+     */
     private PlatformSubscriptionServiceUtils utils;
 
     /**
@@ -86,8 +108,19 @@ class ListSubscriptionsTest {
     @Spy
     private PlansHelper helper = new PlansHelper();
 
-    @InjectMocks
     private PlatformSubscriptionService service;
+
+    /**
+     * Wired by hand rather than by {@code @InjectMocks}, because utils is a real object built
+     * from the mocks and the annotation cannot express that.
+     */
+    @BeforeEach
+    void wire() {
+        utils = new PlatformSubscriptionServiceUtils(schools, planDefinition, schoolSubscription,
+                helper, schoolPlatform);
+        service = new PlatformSubscriptionService(schools, planDefinition, schoolSubscription,
+                history, numberSequences, helper, utils, schoolPlatform);
+    }
 
     @Captor
     private ArgumentCaptor<Pageable> pageable;

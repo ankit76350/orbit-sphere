@@ -14,8 +14,13 @@ import com.orbitastra.backend.models.plans.SubscriptionHistory;
  * the interface deliberately offers no way to, beyond what {@code MongoRepository} brings, and
  * the day this matters enough it should be narrowed to inserts the way {@code AuditEvent} asks
  * for.
+ *
+ * <p>{@code search} comes from {@link SubscriptionHistoryRepositoryCustom}, which #29 needs
+ * because its filters are all optional and no derived method name could express that. It reads
+ * and nothing else, so the append-only rule above still holds.
  */
-public interface SubscriptionHistoryRepository extends MongoRepository<SubscriptionHistory, String> {
+public interface SubscriptionHistoryRepository extends MongoRepository<SubscriptionHistory, String>,
+        SubscriptionHistoryRepositoryCustom {
 
     /** One subscription's story, newest first. */
     List<SubscriptionHistory> findBySchoolIdAndSchoolSubscriptionDocsIdOrderByEffectiveAtDesc(

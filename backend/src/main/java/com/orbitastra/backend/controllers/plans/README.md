@@ -180,7 +180,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 |---|---|---|---|
 | <a id="t27"></a>27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t28"></a>28 — **built** | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. **Paged, filtered and sorted in the database.** A school with none gets an **empty page**, not a 404. Filters: `status`, `billingCycle`, `planCode`, `planVersion`, `autoRenew`, `current`, and the two period windows. **There is no `trial` filter** — a trial is a status, so `?status=TRIAL` is the whole answer. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| <a id="t29"></a>29 | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t29"></a>29 — **built** | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". **Paged, filtered and sorted in the database.** Use `current`, or the `subscriptionId` from #28 — a subscription number has slashes and cannot go in a URL. Filters: `eventType`, `status`, `previousStatus`, `source`, `performedByDocsId`, `sourceEventId`, `reason`, and the two date windows. **`effectiveAt` and `createdAt` are different dates** and both are filterable. Another school's subscription is a **404**, not a 403. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_history`](../../models/plans/SubscriptionHistory.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t30"></a>30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t31"></a>31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t32"></a>32 | [`GET /platform/subscriptions/at-risk`](#e32) | Everything past due, suspended, or ending soon with auto-renew off. The list somebody works through on a Monday morning. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`subscription_invoices`](../../models/plans/billing/SubscriptionInvoice.java) |
@@ -3415,9 +3415,201 @@ school's rows.
 - **80 end-to-end assertions** against a real Mongo: every filter alone and in combination, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum size, order stability across repeated requests, every refusal, and that two schools never see each other's rows.
 
 <a id="e29"></a>
-**[29](#t29) · `GET /platform/schools/{id}/subscriptions/{no}/history`**
+**[29](#t29) · `GET /platform/schools/{id}/subscriptions/{no}/history`** — built
 
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: every field — `eventType`, `previousStatus`, `newStatus`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `source`, `sourceEventId`, `reason`, `performedByDocsId`, `effectiveAt`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo` — and it is how the subscription in the path is resolved and checked against the school
+- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: every field — `eventType`, `previousStatus`, `newStatus`, `previousPlanDefinitionDocsId`, `newPlanDefinitionDocsId`, `source`, `sourceEventId`, `reason`, `performedByDocsId`, `effectiveAt`, `createdAt`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `planVersion`, `name`, for both plans a row names
+
+### What this answers
+
+**What changed, when it changed, who changed it and why** — the answer to "why did this school get
+suspended", months after whoever did it has forgotten. Every endpoint that moves a subscription
+writes a history row *in the same transaction as the change*, so the trail cannot be missing the
+one event that explains the state.
+
+Read-only, and the collection is append-only. A correction is a new row written by whichever
+endpoint made the change; nothing about this endpoint can alter one.
+
+### Naming the subscription in the path
+
+A subscription number looks like `SUB/2026/09/000002` and **cannot be written in a URL** — the
+slashes are path separators, and Tomcat rejects them encoded. So three forms are accepted:
+
+| In the path | What it means |
+|---|---|
+| `current` | the subscription the school is on now |
+| `6aa100755e32971b99de6109` | its id — what [#28](#e28) returns as `subscriptionId` |
+| `SUB-with-no-slashes` | the number itself, for a caller that can send it |
+
+The id form is why [#28](#e28) returns `subscriptionId` at all. The lookup carries the school id in
+every one of the three, so a subscription belonging to another school is a **404**, not that
+school's audit trail.
+
+### Request
+
+```
+?page=0&size=20                       the first page, newest change first
+?eventType=SUSPENDED&eventType=RESUMED  the cut-offs and the switch-backs
+?status=CANCELLED                      changes that moved it TO cancelled
+?previousStatus=TRIAL                  when the trial ended
+?source=ADMIN_PORTAL                   exact, case-insensitive
+?performedByDocsId=...                 the acting identity
+?sourceEventId=billing_event_00004519  trace a row to the webhook that caused it
+?reason=non-payment                    free-text search of the reason
+?effectiveFrom=2026-04-01T00:00:00Z    changes effective this academic year
+?recordedTo=2026-09-01T00:00:00Z       rows written before September
+?sort=effectiveAt,asc                  oldest change first
+```
+
+All optional; they combine with **AND**. `eventType`, `status` and `previousStatus` are OR within
+themselves. Pagination and the refusals are the same as [#28](#e28) — same shared
+[`PageResponse.pageableOf`](../../common/web/PageResponse.java), same four error codes, same
+default of 20 and cap of 100, refused rather than clamped.
+
+**`effectiveAt` and `createdAt` are different dates, and both are filterable.** A cancellation
+agreed today for the end of the period is *effective* at the end of the period and *recorded*
+today. Filtering the wrong one silently answers a different question, so each window is named
+after what it means — `effectiveFrom`/`effectiveTo` and `recordedFrom`/`recordedTo`.
+
+**There is no plan-code filter, unlike #28.** A history row stores *two* plan links, so "rows
+involving PREMIUM" would have to guess whether the caller means moved-off or moved-to.
+`?eventType=PLAN_CHANGED` is the question that actually gets asked, and the response names both
+plans so the reader can see which.
+
+**Sortable on** `effectiveAt`, `createdAt`, `eventType`, `newStatus`, `previousStatus` — an
+allow-list, so nobody can order by a field the endpoint does not expose or probe the document's
+shape by guessing names.
+
+### Response
+
+One page of [`SubscriptionHistoryEntryResponse`](../../dto/plans/subscription/response/SubscriptionHistoryEntryResponse.java),
+in the same envelope as #28.
+
+**Both plans are named, not just linked.** A pair of Mongo ids cannot answer the question the row
+exists for — nobody can tell from them whether a school moved from Premium v1 to Standard v3. So
+each side carries `planCode`, `planVersion` and `planName`.
+
+**A gap is left as a gap.** An audit trail is read to settle what actually happened, so a field the
+endpoint cannot answer is `null` rather than filled in with something reasonable:
+
+- `previousStatus` is null on a subscription's first row, because there was no previous status. It
+  does not mean "unknown".
+- **`performedByDocsId` is null on every row that exists today.** Nothing populates it yet — #13
+  does not resolve the acting account — so `source` is the only answer to "who" the record
+  currently holds, and `ADMIN_PORTAL` is the only value ever written. The filter for it is
+  implemented and matches nothing; that is the honest state, not a bug.
+- `reason` is null when whoever made the change gave none.
+- A plan whose document has since been deleted leaves that side's three plan fields null rather
+  than failing the page. A history is exactly where a deleted plan turns up.
+
+**What is deliberately NOT in a row:** `schoolSubscriptionDocsId`. The caller named the
+subscription in the URL, so echoing its internal id back on all twenty rows says nothing.
+`subscriptionNo` is there instead, so a row copied out of a page still says what it belongs to.
+
+**An event where the plan did not move shows the same plan on both sides**, because that is what
+#19/#20/#21 write — recording which plan was in force when the school was cut off is the point.
+This endpoint reports it unchanged rather than tidying one side to null.
+
+### Errors
+
+| Code | Status | When |
+|---|---|---|
+| `INVALID_PAGE` | 400 | `page` is negative |
+| `INVALID_PAGE_SIZE` | 400 | `size` is below 1 or above 100 |
+| `INVALID_SORT_FIELD` | 400 | the sort field is off the allow-list |
+| `INVALID_SORT_DIRECTION` | 400 | the direction is not `asc` or `desc` |
+| `INVALID_DATE_RANGE` | 400 | a window's `from` is after its `to` |
+| `SCHOOL_NOT_FOUND` | 404 | no such school |
+| `SUBSCRIPTION_NOT_FOUND` | 404 | no such subscription **in this school** |
+
+**A subscription that belongs to another school is a 404, not a 403.** Confirming that somebody
+else's subscription exists is itself a disclosure about the other school.
+
+**A subscription with no history is an empty page, not a 404** — the subscription exists and the
+honest answer is "nothing has happened to it". In practice no subscription has an empty trail,
+because #13 writes `CREATED` in the same transaction as the subscription.
+
+**Parameter validation runs before anything is read**, so a malformed request costs no database
+round trip and a 404 is only ever the answer to an otherwise valid ask.
+
+### Performance — two queries for a page, three when a row names a plan
+
+The filter, the sort and the paging are all on the query, so one page of rows is read however long
+the trail is. Two round trips for the page and its total, built from the same `Criteria` object so
+they cannot drift apart, then at most one more for the plans.
+
+**The N+1 that was avoided.** Each row needs up to two plans named, and a page of twenty plan
+changes would be forty lookups. Both sides of every row go into one set of distinct ids and are
+fetched in a single `findAllById` — one query, or none at all when no row on the page names a
+plan.
+
+**No new index was added, and that was measured rather than assumed.**
+`school_subscription_event_time_idx` on
+`{schoolId: 1, schoolSubscriptionDocsId: 1, effectiveAt: -1, createdAt: -1}` was already declared
+on the document and matches this endpoint exactly — the first two keys are the equality match every
+request makes, the last two are the default order in the same direction:
+
+```
+without it   COLLSCAN, 4189 documents examined, 11 returned
+with it      IXSCAN,     11 documents examined, 11 returned
+```
+
+**It is not built in the dev database**, where the collection has only `_id_`. That is deliberate:
+auto-index-creation is off because it cost six minutes on every boot, so indexes are built on
+demand with `app.mongo.sync-indexes=true`. Until that is run against an environment, this endpoint
+collection-scans there — a deployment step, not a code change.
+
+### Pagination is stable even when two rows share an instant
+
+The default order is `effectiveAt` desc, then `createdAt` desc, then **the row id** — and the id is
+there because it is the only unique key. Two rows really can share both dates, and rows that
+compare equal may come back in either order, so one could appear on page one and again on page two
+while another was never seen at all. An audit trail that loses a row when you page through it is
+worse than useless.
+
+Whatever a caller sorts by goes first and the default follows underneath it as the tiebreaker, with
+any key the caller named removed from the tail — the same shared code, and the same duplicate-key
+fix, as #28.
+
+The trailing `_id` costs the sort the tail of its index, and measuring says that costs nothing
+here: the filter is an equality match on one subscription, so Mongo finishes the ordering over
+tens of rows. #28 could not make the same trade, which is why its tiebreaker is `subscriptionNo`.
+
+### Security
+
+No authentication exists in this project yet — there is no Spring Security on the classpath — so
+there is nothing for this endpoint to opt into. What it does enforce is the **tenant boundary**:
+`schoolId` is on the subscription lookup and on the history query, separately from the caller's
+filters, so it is always applied and can never be omitted. Two schools cannot see each other's
+rows even given each other's ids.
+
+Audit data, so the read is deliberately narrow: no write of any kind, and `POST`/`PUT`/`PATCH`/
+`DELETE` on the URL are not mapped. When authentication arrives it belongs in front of the whole
+platform surface, not inside this endpoint.
+
+### Tests
+
+- **40 unit tests**, no database: [`GetSubscriptionHistoryTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/GetSubscriptionHistoryTest.java) for what the service does around the query — which check fires first, how many reads run, what the repository is handed, what a deleted plan does — and [`SubscriptionHistoryRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/subscriptionhistory/SubscriptionHistoryRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria.
+- **113 end-to-end assertions** against a real Mongo: a five-event trail written by the real endpoints (`CREATED`, `TERMS_CHANGED`, `SUSPENDED`, `RESUMED`, `CANCELLED`), every filter alone and in combination, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum size, every refusal, and that two schools never see each other's rows.
+- **Stable ordering was tested with six rows sharing one instant**, which the API cannot produce on its own: they page through one at a time, three at a time, and under four different caller sorts, and every row is seen exactly once in one total order.
+- **The tenant clause is guarded by the unit tests, because no end-to-end test can reach it.** A history row is keyed by the subscription's globally-unique id, so deleting the tenant clause returns identical rows — all 113 live assertions passed with it removed. Six unit tests fail instead.
+
+### Two bugs this endpoint found
+
+**`Map.of().get(null)` throws.** Both list endpoints fetch a page's plans in one query and then read
+each row's plan out of the map, and both have rows whose plan id can be null. When *no* row on the
+page names a plan the map is the empty one, and `Map.of()` rejects a null key rather than answering
+null the way `HashMap` does — so the page that needed no plan lookup at all was the one that failed
+with a `NullPointerException`. #28 had the same latent fault. Both now go through
+`utils.planFrom`, which checks the id rather than relying on which empty map you got.
+
+**A comment that was confidently wrong.** #28's repository said two `where` clauses on one field
+would lose one, "because a document cannot hold the same key twice". That is true of a *sort*
+document — it is why `?sort=planCode,desc` silently sorted ascending — but not of these filters:
+`andOperator` gives each criteria its own element of the `$and` **array**, so both ends of a window
+apply either way. Splitting one was mutation-tested and changed no result. Keeping both ends on one
+`Criteria` is a clarity choice; the comment now says so in both files.
 
 <a id="e30"></a>
 **[30](#t30) · `GET /platform/subscriptions`**

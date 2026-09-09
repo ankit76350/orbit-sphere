@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionHistorySearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
@@ -23,10 +24,12 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchR
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionHistoryEntryResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionSummaryResponse;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
+import com.orbitastra.backend.models.plans.enums.SubscriptionEventType;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
@@ -306,5 +309,84 @@ public class PlatformSubscriptionController {
                 startDateFrom, startDateTo, endDateFrom, endDateTo, page, size, sort);
 
         return ResponseEntity.ok(subscriptionService.listSubscriptions(schoolId, request));
+    }
+
+    /**
+     * Endpoint #29 — the full audit trail of one subscription.
+     *
+     * <p><b>What changed, when it changed, who changed it and why.</b> The answer to "why did
+     * this school get suspended", months after whoever did it has forgotten. Every endpoint that
+     * moves a subscription writes a row in the same transaction as the change, so the trail
+     * cannot be missing the one event that explains the state.
+     *
+     * <h2>Naming the subscription in the path</h2>
+     *
+     * <p>Three forms are accepted, because a subscription number looks like
+     * {@code SUB/2026/09/000002} and <b>cannot be written in a URL</b>:
+     *
+     * <pre>
+     * current                    the subscription the school is on now
+     * 6aa100755e32971b99de6109   its id — what #28 returns as `subscriptionId`
+     * SUB-with-no-slashes        the number itself, if it can be sent
+     * </pre>
+     *
+     * <p>A subscription belonging to a different school is {@code 404 SUBSCRIPTION_NOT_FOUND},
+     * not {@code 403}: confirming that somebody else's subscription exists is itself a
+     * disclosure about the other school.
+     *
+     * <p>A subscription with no history yet gets an <b>empty page</b>, not a 404 — the
+     * subscription exists and the honest answer is "nothing has happened to it". The same split
+     * #28 makes for a school with no subscriptions.
+     *
+     * <pre>
+     * ?page=0&amp;size=20                       the first page, newest change first
+     * ?eventType=SUSPENDED&amp;eventType=RESUMED  the cut-offs and the switch-backs
+     * ?status=CANCELLED                      changes that moved it TO cancelled
+     * ?previousStatus=TRIAL                  when the trial ended
+     * ?reason=non-payment                    free-text search of the reason
+     * ?effectiveFrom=2026-04-01T00:00:00Z    changes that took effect this academic year
+     * ?recordedTo=2026-09-01T00:00:00Z       rows written before September
+     * ?sort=effectiveAt,asc                  oldest change first
+     * </pre>
+     *
+     * <p><b>{@code effectiveAt} and {@code createdAt} are different dates</b> and both are
+     * filterable and returned — a cancellation agreed today for the end of the period is
+     * effective at the end of the period and recorded today.
+     *
+     * <p>Read-only, so no {@code @Transactional}. Nothing about this endpoint can change a
+     * history row.
+     */
+    @GetMapping("/subscriptions/{subscriptionNo}/history")
+    public ResponseEntity<PageResponse<SubscriptionHistoryEntryResponse>> getSubscriptionHistory(
+            @PathVariable String schoolId,
+            @PathVariable String subscriptionNo,
+            @RequestParam(required = false) List<SubscriptionEventType> eventType,
+            @RequestParam(required = false) List<SubscriptionStatus> status,
+            @RequestParam(required = false) List<SubscriptionStatus> previousStatus,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String performedByDocsId,
+            @RequestParam(required = false) String sourceEventId,
+            @RequestParam(required = false) String reason,
+            @RequestParam(required = false) Instant effectiveFrom,
+            @RequestParam(required = false) Instant effectiveTo,
+            @RequestParam(required = false) Instant recordedFrom,
+            @RequestParam(required = false) Instant recordedTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+
+        // Bound one at a time rather than through @ModelAttribute, so a misspelled event type or
+        // a date that is not an instant comes back through the type-mismatch handler naming the
+        // parameter and what it accepts — the same reasoning as #28's list.
+        //
+        // `status` is the parameter and `newStatuses` is the field: the caller asks about the
+        // status a change moved the subscription TO, which is the question almost every reader
+        // has, and `previousStatus` is spelled out because it is the other end of the same move.
+        SubscriptionHistorySearchRequest request = new SubscriptionHistorySearchRequest(
+                eventType, status, previousStatus, source, performedByDocsId, sourceEventId,
+                reason, effectiveFrom, effectiveTo, recordedFrom, recordedTo, page, size, sort);
+
+        return ResponseEntity.ok(
+                subscriptionService.getSubscriptionHistory(schoolId, subscriptionNo, request));
     }
 }

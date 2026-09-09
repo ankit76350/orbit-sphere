@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
@@ -55,6 +57,14 @@ public class PlatformSubscriptionServiceUtils {
 
     /** URL value used to refer to the school's current subscription. */
     private static final String CURRENT_SUBSCRIPTION = "current";
+
+    /**
+     * What a Mongo document id looks like: 24 hex characters.
+     *
+     * <p>Matched rather than parsed, because {@code new ObjectId(s)} throws on anything else and
+     * a path segment that is not an id is an ordinary 404, not an exception to catch.
+     */
+    private static final Pattern OBJECT_ID = Pattern.compile("^[0-9a-fA-F]{24}$");
 
     /** The plan version a school can be assigned to today; drafts and retired plans are rejected, while private quotes remain valid.      *
      * Used by:
@@ -222,10 +232,33 @@ public class PlatformSubscriptionServiceUtils {
     /**
      * The subscription named in the URL, or the school's current one.
      *
-     * <p>See {@link #CURRENT_SUBSCRIPTION} for why the word is needed: a subscription number has
-     * slashes in it and cannot be written in a path.
+     * <p>Three things are accepted in the one path segment, and they cannot be confused with each
+     * other:
+     *
+     * <ol>
+     * <li><b>{@code current}</b> — the row the school is on now. See
+     *     {@link #CURRENT_SUBSCRIPTION} for why the word is needed: a subscription number has
+     *     slashes in it and cannot be written in a path at all.</li>
+     * <li><b>The subscription's own id</b> — 24 hex characters, which is what #28 returns as
+     *     {@code subscriptionId} precisely so that a row from a list can be asked about
+     *     directly. A subscription number is never that shape, so there is nothing to
+     *     disambiguate.</li>
+     * <li><b>The subscription number</b> — kept because it is the number printed on the record,
+     *     and it does resolve for a caller that can send it (a test, an internal call, or a
+     *     number that one day has no slashes in it).</li>
+     * </ol>
+     *
+     * <p><b>The school id is in every one of those lookups.</b> Even the id lookup, which is
+     * globally unique on its own: it is the tenant boundary, so a caller who guesses another
+     * school's subscription id gets a 404 rather than somebody else's record.
      *
      * Used by:
+     * - cancelSubscription()
+     * - changePlan()
+     * - getSubscriptionHistory()
+     * - renewSubscription()
+     * - resumeSubscription()
+     * - suspendSubscription()
      * - updateSubscription()
      */
     public SchoolSubscription findSchoolSubscription(School school, String schoolId,
@@ -239,12 +272,54 @@ public class PlatformSubscriptionServiceUtils {
                                     + "one first."));
         }
 
+        // Shaped like a Mongo id, so it is one. Checked here rather than attempted-and-fallen-back
+        // so that exactly one query runs whichever form was sent.
+        if (subscriptionNo != null && OBJECT_ID.matcher(subscriptionNo).matches()) {
+            // TODO: read school subscription
+            return schoolSubscription.findBySchoolIdAndId(schoolId, subscriptionNo)
+                    .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
+                            "'" + school.getSchoolName() + "' has no subscription with id '"
+                                    + subscriptionNo + "'."));
+        }
+
         // TODO: read school subscription
         return schoolSubscription.findBySchoolIdAndSubscriptionNo(schoolId, subscriptionNo)
                 .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                         "'" + school.getSchoolName() + "' has no subscription numbered '"
                                 + subscriptionNo + "'. A subscription number contains slashes "
-                                + "and cannot be written in a URL — use 'current'."));
+                                + "and cannot be written in a URL — use 'current', or the "
+                                + "subscriptionId from the subscription list."));
+    }
+
+    /**
+     * One plan out of a page's worth, tolerating a row that names no plan.
+     *
+     * <p><b>This exists because {@code Map.of().get(null)} throws.</b> Both list endpoints fetch
+     * the plans behind a page in one query and then read each row's plan out of the map, and both
+     * have rows whose plan id can be null — a history row for an event that moved no plan, or a
+     * subscription whose plan link is missing. When <i>no</i> row on the page names a plan the map
+     * is the empty one, and {@code Map.of()} is {@code ImmutableCollections.MapN}, which
+     * {@code requireNonNull}s the key rather than answering null like {@code HashMap} does. So the
+     * page that needed no plan lookup at all was the one that failed with a
+     * {@code NullPointerException}.
+     *
+     * <p>Found by #29 against six audit rows that name no plan. #28 had the same latent fault:
+     * its map is built the same way, and its {@code Objects::nonNull} filter says the author
+     * already knew a subscription's plan id could be absent.
+     *
+     * <p>Checking the id here rather than choosing a map type is deliberate — it cannot be undone
+     * by somebody tidying an empty {@code HashMap} back into {@code Map.of()}.
+     *
+     * @param plansById the plans behind this page, keyed by id
+     * @param planDocsId the plan this row points at, or null when it points at none
+     * @return the plan, or null when the row names none or that plan document has gone
+     *
+     * Used by:
+     * - getSubscriptionHistory()
+     * - listSubscriptions()
+     */
+    public PlanDefinition planFrom(Map<String, PlanDefinition> plansById, String planDocsId) {
+        return planDocsId == null ? null : plansById.get(planDocsId);
     }
 
     /**

@@ -29,6 +29,19 @@ public interface SchoolSubscriptionRepository extends MongoRepository<SchoolSubs
             String subscriptionNo);
 
     /**
+     * One school's subscription, by its own document id.
+     *
+     * <p><b>The school id is in the query even though the document id is globally unique.</b>
+     * That is not redundancy, it is the tenant boundary: a caller who guesses or is handed
+     * another school's subscription id gets nothing back rather than somebody else's record —
+     * which matters most on #29, where what comes back is an audit trail.
+     *
+     * <p>Needed because #28 returns {@code subscriptionId} and #29 accepts it in the path: a
+     * subscription number has slashes in it and cannot be written in a URL.
+     */
+    Optional<SchoolSubscription> findBySchoolIdAndId(String schoolId, String id);
+
+    /**
      * How many schools are on one plan version.
      *
      * <p>Backed by {@code subscription_plan_version_idx}. A plan version is its own document, so

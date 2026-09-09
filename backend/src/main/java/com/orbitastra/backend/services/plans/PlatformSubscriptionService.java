@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +22,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionHistorySearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
@@ -29,6 +31,7 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspend
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionHistoryEntryResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -95,6 +98,44 @@ public class PlatformSubscriptionService {
     private static final Sort SUBSCRIPTION_HISTORY_ORDER = Sort.by(
             Sort.Order.desc("currentPeriodStart"),
             Sort.Order.desc("subscriptionNo"));
+
+    /** Allowed fields for sorting one subscription's audit trail. */
+    private static final Map<String, String> SORTABLE_HISTORY_FIELDS = new LinkedHashMap<>();
+    static {
+        SORTABLE_HISTORY_FIELDS.put("effectiveat", "effectiveAt");
+        SORTABLE_HISTORY_FIELDS.put("createdat", "createdAt");
+        SORTABLE_HISTORY_FIELDS.put("eventtype", "eventType");
+        SORTABLE_HISTORY_FIELDS.put("newstatus", "newStatus");
+        SORTABLE_HISTORY_FIELDS.put("previousstatus", "previousStatus");
+    }
+
+    /** Allowed history sort field names shown in validation errors. */
+    private static final String SORTABLE_HISTORY_FIELD_NAMES =
+            "effectiveAt, createdAt, eventType, newStatus, previousStatus";
+
+    /**
+     * Default order for an audit trail: newest change first, then newest written, then the row id.
+     *
+     * <p><b>The id is on the end because it is the only unique key</b>, and without a unique key
+     * the paging is not stable. Two rows can share {@code effectiveAt} and {@code createdAt} —
+     * #13 writes CREATED and TRIAL_STARTED in one transaction with one instant — and rows that
+     * compare equal may come back in either order, so one could appear on page one and again on
+     * page two while another was never seen at all. An audit trail that loses a row when you page
+     * through it is worse than useless.
+     *
+     * <p>It costs the sort the tail of its index. {@code school_subscription_event_time_idx}
+     * covers {@code effectiveAt} and {@code createdAt} but not {@code _id} after them, so Mongo
+     * finishes the ordering in memory. Measured, that costs nothing here: with the index built,
+     * the default query examines 11 documents to return 11, because the filter is an equality
+     * match on one subscription — tens of rows, not a collection scan.
+     *
+     * <p>#28 could not have made the same trade: a school-wide filter has no such bound, which is
+     * why its tiebreaker is {@code subscriptionNo}, unique per school <i>and</i> in its index.
+     */
+    private static final Sort SUBSCRIPTION_TRAIL_ORDER = Sort.by(
+            Sort.Order.desc("effectiveAt"),
+            Sort.Order.desc("createdAt"),
+            Sort.Order.desc("id"));
 
 
 
@@ -1539,8 +1580,81 @@ public class PlatformSubscriptionService {
         //! step 8 - map, reading each row's plan out of the map rather than fetching it. A plan
         //! that has since been deleted leaves that row's plan fields null; see the DTO.
         return PageResponse.from(page, subscription -> SubscriptionSummaryResponse.fromSubscription(
-                subscription, plansById.get(subscription.getPlanDefinitionDocsId()), now));
+                subscription, utils.planFrom(plansById, subscription.getPlanDefinitionDocsId()),
+                now));
     }
 
 
+    //! Endpoint 29 — the audit trail of one subscription ------------------------------
+    
+    /** #29 — Returns one subscription's history with filters, sorting, and pagination. */
+    public PageResponse<SubscriptionHistoryEntryResponse> getSubscriptionHistory(String schoolId,
+            String subscriptionNo, SubscriptionHistorySearchRequest request) {
+
+
+        //! step 1 - validate paging and sorting
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_HISTORY_FIELDS, SORTABLE_HISTORY_FIELD_NAMES, SUBSCRIPTION_TRAIL_ORDER);
+
+        
+        //! step 2 - validate the date range
+        if (request.effectiveFrom() != null && request.effectiveTo() != null
+                && request.effectiveFrom().isAfter(request.effectiveTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "effectiveFrom (" + Dates.readable(request.effectiveFrom())
+                            + ") must not be after effectiveTo ("
+                            + Dates.readable(request.effectiveTo()) + ").");
+        }
+
+        if (request.recordedFrom() != null && request.recordedTo() != null
+                && request.recordedFrom().isAfter(request.recordedTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "recordedFrom (" + Dates.readable(request.recordedFrom())
+                            + ") must not be after recordedTo ("
+                            + Dates.readable(request.recordedTo()) + ").");
+        }
+
+        //! step 3 - check that the school exists
+        // TODO: read school
+        School school = schools.findById(schoolId)
+                .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
+                        "No school found with id '" + schoolId + "'."));
+
+
+        //! step 4 - find the subscription for this school
+        SchoolSubscription subscription = utils.findSchoolSubscription(school, schoolId,
+                subscriptionNo);
+
+        //! step 5 - search the subscription history
+        // TODO: search subscription history
+        Page<SubscriptionHistory> page = history.search(schoolId, subscription.getId(), request,
+                pageable);
+
+        //! step 6 - the plans named on THIS page, in one query. Both sides of every row go into
+        //! one set of distinct ids, so a trail of twenty plan changes costs one plan read rather
+        //! than forty.
+        Set<String> planIdsOnPage = page.getContent().stream()
+                .flatMap(entry -> Stream.of(entry.getPreviousPlanDefinitionDocsId(),
+                        entry.getNewPlanDefinitionDocsId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // TODO: read plans (the ones this page names)
+        Map<String, PlanDefinition> plansById = planIdsOnPage.isEmpty()
+                ? Map.of()
+                : planDefinition.findAllById(planIdsOnPage).stream()
+                        .collect(Collectors.toMap(PlanDefinition::getId, Function.identity()));
+
+        //! step 7 - map, reading each row's plans out of the map rather than fetching them. A
+        //! plan that has since been deleted leaves that side's plan fields null; see the DTO.
+        //! The subscription number is passed in once for the whole page, because a history row
+        //! stores the subscription's id and not its number.
+        return PageResponse.from(page, entry -> SubscriptionHistoryEntryResponse.fromHistory(
+                entry,
+                subscription.getSubscriptionNo(),
+                utils.planFrom(plansById, entry.getPreviousPlanDefinitionDocsId()),
+                utils.planFrom(plansById, entry.getNewPlanDefinitionDocsId())));
+    }
 }
