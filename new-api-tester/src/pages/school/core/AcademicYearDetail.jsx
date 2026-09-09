@@ -139,6 +139,8 @@ export default function AcademicYearDetail() {
 
       <Gates year={year} name={name} busy={busy} onRun={run} />
 
+      <EndTheYear year={year} name={name} busy={busy} onRun={run} />
+
       <Holidays
         name={name}
         calendar={calendar}
@@ -231,6 +233,108 @@ function Dates({ year, name, onSaved }) {
  * The two switches, and they are switches rather than one-way doors — which is why both
  * directions are offered and neither asks for confirmation.
  */
+/**
+ * Ending the year. Its own card, deliberately not one of the gates.
+ *
+ * A GATE IS A SWITCH; THIS IS NOT. Enrollment and results have both directions, so the Gates
+ * card offers whichever one is not the current state. Ending a year has no opposite: there is no
+ * un-end, and the only way back is to move the dates with the editor above. Putting it beside two
+ * reversible switches would suggest it is one.
+ *
+ * IT SHOWS WHAT WOULD HAPPEN BEFORE IT HAPPENS. Today's date, how many days would be cut, and
+ * which of the three refusals the year is currently heading for. That is the difference between a
+ * button somebody can reason about and one they press to find out.
+ *
+ * NOTHING IS DISABLED. Every refusal is reachable on purpose — that is what this tool is for — so
+ * the warnings say what will happen rather than preventing it.
+ */
+function EndTheYear({ year, name, busy, onRun }) {
+  // The school's own today is what the API uses. The browser's is the closest thing this screen
+  // has to it, and the two agree unless the viewer is in a different zone from the school — which
+  // is why the note says "as your browser sees it" rather than claiming to know.
+  const today = new Date().toISOString().slice(0, 10)
+  const notStarted = today <= year.startDate
+  const alreadyEnded = year.endDate < today
+  const daysCut = alreadyEnded || notStarted
+    ? 0
+    : Math.round((Date.parse(year.endDate) - Date.parse(today)) / 86400000)
+
+  // Refusals, in the order the API checks them, so the first one shown is the one that will fire.
+  const willRefuse = notStarted
+    ? { code: 'ACADEMIC_YEAR_NOT_STARTED', why: `It starts on ${year.startDate}, so today is not inside it. A year cannot end before it begins.` }
+    : alreadyEnded
+      ? { code: 'ACADEMIC_YEAR_ALREADY_ENDED', why: `It already finished on ${year.endDate}. Ending it today would move that date FORWARD, which is the opposite of ending it — so the API refuses.` }
+      : null
+
+  return (
+    <Card
+      title="End the year"
+      description="An event, not an edit: the year is over as of today. Sets isThisYearRunning false and writes endDate = today, in the school's own timezone."
+    >
+      <div className="stack">
+        <div className="toolbar">
+          <Button
+            look="danger"
+            icon={CalendarX}
+            busy={busy === 'end'}
+            onClick={() => onRun('end', 'end-academic-year', { label: 'End the year today' })}
+          >
+            End it today
+          </Button>
+          <span className="muted">
+            {willRefuse
+              ? `This will be refused — see below.`
+              : daysCut > 0
+                ? `Its last day becomes ${today}, ${daysCut} day(s) earlier than planned.`
+                : `Its last day is already ${today}. Nothing would change.`}
+          </span>
+          <span className="toolbar-spacer" />
+          <EndpointTag
+            id="end-academic-year"
+            name="End the year today"
+            look="danger"
+            pathParams={{ name }}
+          />
+        </div>
+
+        {/* The API writes this; before it was returned, the endpoint's main effect was invisible. */}
+        <div className="toolbar">
+          <Badge tone={year.isThisYearRunning ? 'good' : undefined}>
+            {year.isThisYearRunning ? 'the school is running this year' : 'not marked as running'}
+          </Badge>
+          <span className="muted">
+            {year.isThisYearRunning === null || year.isThisYearRunning === undefined
+              ? 'null — this year predates the field, which reads as not running.'
+              : 'isThisYearRunning. Read it beside `current` above, which is derived from the dates: a finished year can still read true here if nobody ended it.'}
+          </span>
+        </div>
+
+        {willRefuse ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{willRefuse.code}</span>
+            </div>
+            <pre className="resp-body">{willRefuse.why}</pre>
+          </div>
+        ) : null}
+
+        {/* Closed days after today are refused rather than deleted — the same policy as the date
+            editor. Counted here so the refusal is not a surprise. */}
+        <p className="muted">
+          A closed day dated after today is refused as{' '}
+          <span className="mono">HOLIDAYS_OUTSIDE_NEW_RANGE</span>, not deleted — remove it first.
+          One already behind today is kept, because it is still inside the shortened year.
+        </p>
+        <p className="muted">
+          A year cut very short is allowed here and refused by the date editor above, which
+          rejects anything under 30 days as an implausible range. Enrollment and result locking
+          are left alone.
+        </p>
+      </div>
+    </Card>
+  )
+}
+
 function Gates({ year, name, busy, onRun }) {
   const gates = [
     {

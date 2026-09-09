@@ -1612,6 +1612,188 @@ included.** The design is kept in \`controllers/core/README.md\`.
       ],
     },
     {
+      id: "end-academic-year",
+      name: "End Academic Year",
+      method: "POST",
+      path: "/schools/current/academic-years/{name}/end",
+      status: 'live',
+      summary: "Ends the year today: stops it running and closes its dates on today.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{name}/end\` — the year is over as of today.
+
+Sets \`isThisYearRunning\` to false and writes \`endDate\` = **today in the school's own timezone**.
+Takes no body.
+
+### An event, not a re-plan — which is why it is not Update Dates
+
+\`PATCH .../dates\` moves a year's boundaries because somebody **decided** they should be
+different. This records that the year **is over**: a term finished early, a school closing, a
+calendar superseded. They are allowed to refuse different things:
+
+| | \`PATCH .../dates\` | \`POST .../end\` |
+|---|---|---|
+| A 6-day year | \`400 IMPLAUSIBLE_DATE_RANGE\` | **allowed** |
+| Moving \`endDate\` later | allowed — that is the point | \`409 ACADEMIC_YEAR_ALREADY_ENDED\` |
+| Which date it writes | whatever you send | today, always |
+| \`isThisYearRunning\` | untouched | set false |
+
+**It deliberately skips the plausibility check.** \`validateAcademicYearRange\` rejects any range
+under 30 days as "almost certainly a typo" — right when *planning* a year, wrong here: a school
+that shut two weeks into term really did have a two-week year, and refusing to record it would
+leave the calendar claiming a year that is still running.
+
+### The trap it exists to avoid
+
+\`ACADEMIC_YEAR_ALREADY_ENDED\`. Writing today's date onto a year that closed last March would
+push its end **forward** by months — the opposite of ending it — and it would look like it
+worked.
+
+### Today is the SCHOOL's today
+
+\`Dates.todayIn(school.defaultTimeZone)\`, not the server's date. At 23:00 in Asia/Kolkata it is
+still the previous day in UTC, and closing a year a day early loses a day of the school's work.
+
+### Stranded closed days are refused, never deleted
+
+Same code and policy as Update Dates, so the two cannot answer differently. Deleting a school's
+calendar as a side effect of a different action is not something this should do quietly. A closed
+day already **behind** today is kept — it is still inside the shortened year.
+
+### Idempotent
+
+Ending an already-ended year is a \`200\` saying *"Nothing changed"*, like the enrollment and
+results flags. The note reports the two halves separately — whether it stopped running, and
+whether the dates moved — because they move independently.
+
+### What it does NOT touch
+
+\`enrollmentEnabled\` and \`resultsLocked\` are left alone, and the response says so. Both are
+arguably implied by a year ending; neither was asked for.
+
+**No authorization is enforced yet.**
+
+### The nine test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain. Run Create School and Create Academic Year first.
+
+ AN EVENT, NOT AN EDIT. Sets isThisYearRunning false and endDate = today, in
+ the SCHOOL's timezone. No body needed; anything sent is ignored.
+
+ THE TRAP: a year that already finished is REFUSED, because writing today
+ would move its end date FORWARD. That is the opposite of ending it.
+
+ A very short year is allowed here and refused by Update Dates, which
+ rejects anything under 30 days as an implausible range.`,
+      pathParams: [
+        { name: "name", value: "{{academicYearName}}", description: "The year name, such as 2026-2027. It is the join key and can never change." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+}`,
+      successStatus: 200,
+      responseFields: ["academicYearId", "name", "startDate", "endDate", "durationDays", "current", "holidayCount", "enrollmentEnabled", "resultsLocked", "isThisYearRunning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "No tenant header" },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "Unknown year name" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_STARTED", when: "Today is on or before its first day — it would end before it began." },
+        { status: 409, code: "ACADEMIC_YEAR_ALREADY_ENDED", when: "It finished in the past, so writing today would move that date FORWARD." },
+        { status: 409, code: "HOLIDAYS_OUTSIDE_NEW_RANGE", when: "Closed days after today would be stranded outside the shortened year." },
+        { status: 409, code: "SCHOOL_NOT_EDITABLE", when: "The school is past PROVISIONING or ACTIVE and cannot be edited." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "END A RUNNING YEAR",
+          expect: "200 OK",
+          notes: `OUT: endDate becomes today, durationDays shrinks.
+         "...it is no longer the year this school is running, and its
+          last day is now Wednesday 9 September 2026, 233 day(s)
+          earlier than planned."`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "SEND IT AGAIN",
+          expect: "200 OK",
+          notes: `IDEMPOTENT. "Nothing changed: '2026-2027' was already closed on
+    Wednesday 9 September 2026 and was not marked as running."`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "A YEAR THAT ALREADY FINISHED",
+          expect: "409 Conflict",
+          notes: `Make a year whose endDate is in the past, then end it.
+    OUT: { "code": "ACADEMIC_YEAR_ALREADY_ENDED" }
+         "...already finished on ... Ending it today would move that
+          date forward."
+    THIS IS THE POINT OF THE ENDPOINT'S MAIN GUARD.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A YEAR THAT HAS NOT STARTED",
+          expect: "409 Conflict",
+          notes: `Make a year starting next month, then end it.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_STARTED" }
+         "...starts on Friday 9 October 2026, so it cannot be ended today."`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A CLOSED DAY AFTER TODAY",
+          expect: "409 Conflict",
+          notes: `Add a holiday dated next week, then end the year.
+    OUT: { "code": "HOLIDAYS_OUTSIDE_NEW_RANGE" }
+         "1 closed day(s) fall after today and would end up outside the
+          year, starting with ... Remove them first."
+    REFUSED, NOT DELETED. Remove the holiday, then end it.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "A CLOSED DAY BEFORE TODAY IS KEPT",
+          expect: "200 OK",
+          notes: `Add a holiday dated last week, then end the year.
+    It succeeds and holidayCount stays as it was: a closed day already
+    behind us is still inside the shortened year.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A YEAR CUT VERY SHORT",
+          expect: "200 OK",
+          notes: `Make a year that started 5 days ago. Then:
+      PATCH .../dates {"endDate": "<today>"}  -> 400 IMPLAUSIBLE_DATE_RANGE
+      POST  .../end                          -> 200 OK
+    A school that shut in week one really had a 6-day year.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "UNKNOWN YEAR NAME",
+          expect: "404 Not Found",
+          notes: `Change {{academicYearName}} to 1999-2000.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "NO TENANT HEADER",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "TENANT_NOT_RESOLVED" }`,
+          body: null,
+        },
+      ],
+    },
+    {
       id: "list-academic-years",
       name: "List Academic Years",
       method: "GET",

@@ -2395,6 +2395,103 @@ for (const [label, ok] of dateRuleChecks) {
   if (!ok) fail++
 }
 
+console.log('\nEnding the academic year is wired to the screen')
+const yearDetail = readFileSync('src/pages/school/core/AcademicYearDetail.jsx', 'utf8')
+const eEnd = lookupEndpoint('end-academic-year')
+// From the card's own COMMENT block to the function after it. Starting at the function itself
+// would leave the javadoc above it outside the slice, and that comment is where the card records
+// why it is not one of the gates — which is exactly what the check below reads.
+const endFn = yearDetail.indexOf('function EndTheYear(')
+const endStart = yearDetail.lastIndexOf('/**', endFn)
+const endStop = Math.min(...[...yearDetail.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index).filter((i) => i > endFn).concat([yearDetail.length]))
+const endCard = yearDetail.slice(endStart, endStop)
+const yearEndChecks = [
+  ['the endpoint is in the catalogue, as a POST on the named year',
+    Boolean(eEnd) && eEnd.method === 'POST'
+      && eEnd.path === '/schools/current/academic-years/{name}/end'],
+  ['it is a school-surface endpoint and sends the tenant header',
+    eEnd.schoolSurface === true
+      && eEnd.headers.some((h) => h.key === 'X-School-Subdomain' && h.enabled)],
+  ['a screen calls it', endCard.includes("'end-academic-year'")],
+  ['it is mounted on the year detail page',
+    yearDetail.includes('<EndTheYear year={year} name={name} busy={busy} onRun={run} />')],
+  // A gate is a switch and this is not: there is no un-end, so it must not sit in the Gates card
+  // pretending to be reversible.
+  ['it is its own card, not one of the two-way gates',
+    endCard.includes('function EndTheYear') && !/openEndpoint: 'end-academic-year'/.test(yearDetail)
+      && /not one of the gates/i.test(endCard)],
+  ['the tag names the year in the path',
+    /<EndpointTag[\s\S]{0,200}id="end-academic-year"[\s\S]{0,200}pathParams=\{\{ name \}\}/
+      .test(endCard)],
+  // It says what will happen before it happens, rather than being a button you press to find out.
+  ['it shows how many days would be cut before you press it',
+    endCard.includes('daysCut') && /day\(s\) earlier than planned/.test(endCard)],
+  ['it names the refusal the year is currently heading for',
+    endCard.includes("'ACADEMIC_YEAR_ALREADY_ENDED'")
+      && endCard.includes("'ACADEMIC_YEAR_NOT_STARTED'")],
+  ['and explains the already-ended one as an EXTENSION, which is the real trap',
+    /move that date FORWARD/.test(endCard)],
+  ['it says the holiday refusal does not delete anything',
+    /HOLIDAYS_OUTSIDE_NEW_RANGE/.test(endCard) && /not deleted/.test(endCard)],
+  ['it says a short year is allowed here and refused by the date editor',
+    /implausible range/.test(endCard)],
+  ['it says enrollment and result locking are untouched',
+    /Enrollment and result locking\s*\n?\s*are left alone/.test(endCard.replace(/\s+/g, ' '))
+      || /left alone/.test(endCard)],
+  ['nothing in it is disabled', !/disabled=|readOnly/.test(endCard)],
+  // The flag is the endpoint's main effect. Until it was returned, nothing could observe it.
+  ['the screen shows isThisYearRunning', endCard.includes('year.isThisYearRunning')],
+  ['and says null means not running, for years predating the field',
+    /predates the field/.test(endCard)],
+  ['and tells the reader to read it beside `current`, not instead of it',
+    /beside `current`/.test(endCard)],
+  ['the catalogue documents every refusal the endpoint gives',
+    ['TENANT_NOT_RESOLVED', 'ACADEMIC_YEAR_NOT_FOUND', 'ACADEMIC_YEAR_NOT_STARTED',
+      'ACADEMIC_YEAR_ALREADY_ENDED', 'HOLIDAYS_OUTSIDE_NEW_RANGE']
+      .every((code) => eEnd.errors.some((e) => e.code === code))],
+  ['and carries the worked cases, including the already-ended trap',
+    eEnd.examples.length >= 9
+      && eEnd.examples.some((x) => /ALREADY FINISHED/.test(x.name))],
+  ['the response fields the screen reads are the ones the catalogue lists',
+    ['endDate', 'durationDays', 'isThisYearRunning', 'nextStep']
+      .every((f) => eEnd.responseFields.includes(f))],
+]
+for (const [label, ok] of yearEndChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nThe response exposes what the write changes')
+const yearResponse = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/dto/core/academicyear/response/AcademicYearResponse.java',
+  'utf8')
+const exposeChecks = [
+  // A field the API writes but never returns cannot be checked from here, which is what this
+  // whole app is for. It was added for that reason and the DTO says so.
+  ['AcademicYearResponse returns isThisYearRunning',
+    /Boolean isThisYearRunning,/.test(yearResponse)
+      && /year\.getIsThisYearRunning\(\)/.test(yearResponse)],
+  ['and records why it had to be added',
+    /had no way to be checked/.test(yearResponse)],
+  ['`current` is still derived, not stored — the two answer different questions',
+    /derived here, never stored/.test(yearResponse)
+      && /A finished year can still read true here/.test(yearResponse)],
+  // The default changed to true, so several years can read true at once. The docs must say that
+  // rather than claiming the flag narrows anything today.
+  ['the field table says the default is true, not false',
+    /`isThisYearRunning` \| Boolean, required \| \*\*`true`\*\* at create/
+      .test(readFileSync('../backend/src/main/java/com/orbitastra/backend/controllers/core/README.md', 'utf8'))],
+  ['and warns that several years can read true at once',
+    /several\s+years can read true at once/.test(
+      readFileSync('../backend/src/main/java/com/orbitastra/backend/controllers/core/README.md', 'utf8')
+        .replace(/\s+/g, ' '))],
+]
+for (const [label, ok] of exposeChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nEndpoint coverage')
 const catalogue = readFileSync('src/config/endpoints.js', 'utf8')
 const allIds = [...catalogue.matchAll(/\bid:\s*"([a-z][a-z0-9-]+)",\s*\n\s*name:/g)].map((m) => m[1])

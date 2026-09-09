@@ -31,6 +31,25 @@ public record AcademicYearResponse(
         Boolean resultsLocked,
 
         /**
+         * Whether the school has switched over to operating in this year.
+         *
+         * <p><b>Added 2026-09-09, because the endpoint that writes it had no way to be checked.</b>
+         * {@code POST .../end} sets it false, and until this field existed nothing returned it —
+         * so the endpoint's main effect was invisible to any caller, and
+         * {@code ActionGate.requireRunningAcademicYear} gated on a value nobody could observe.
+         *
+         * <p><b>Read it beside {@code current}, not instead of it.</b> They answer different
+         * questions and the note at the top of this record explains why: {@code current} is
+         * derived from the dates and says the calendar is inside this year; this is stored and
+         * says the school has started using it. A finished year can still read true here if
+         * nobody ended it, which is exactly why the gate requires both.
+         *
+         * <p><b>Null on every document written before this field existed</b>, which reads as not
+         * running.
+         */
+        Boolean isThisYearRunning,
+
+        /**
          * What to do next. A <b>write</b> field — it says what just happened.
          *
          * <p>Left out of the JSON when it is null, which is what the reads pass. A read did not
@@ -68,6 +87,7 @@ public record AcademicYearResponse(
                 year.getHolidays() == null ? 0 : year.getHolidays().size(),
                 year.getEnrollmentEnabled(),
                 year.getResultsLocked(),
+                year.getIsThisYearRunning(),
                 nextStep);
     }
 }

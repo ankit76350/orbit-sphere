@@ -288,6 +288,12 @@ public class ActionGate {
      * <p><b>A null flag counts as not running</b>, which is what the documents predating the
      * field read as. A gate should fail closed.
      *
+     * <p><b>The field defaults to true on create</b>, and nothing enforces one-per-school, so
+     * several years can read true at once. That means this gate currently adds nothing to the
+     * date check for a freshly created year — it only bites once something sets it false, which
+     * today is only {@code POST .../end}. Worth a partial unique index before anything relies on
+     * the flag to pick between years.
+     *
      * <p><b>Today is today in the school's own zone.</b> At 23:00 in Asia/Kolkata it is still
      * yesterday in UTC, so a year ending today would already read as finished — which is a whole
      * day of the school's work refused.
