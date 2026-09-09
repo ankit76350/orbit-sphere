@@ -179,7 +179,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t27"></a>27 — **built** | [`GET /platform/schools/{id}/subscription`](#e27) | What this school is on right now: plan, price, status, when the period ends. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
-| <a id="t28"></a>28 | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
+| <a id="t28"></a>28 — **built** | [`GET /platform/schools/{id}/subscriptions`](#e28) | Every subscription this school has ever had, including old cancelled ones. **Paged, filtered and sorted in the database.** A school with none gets an **empty page**, not a 404. Filters: `status`, `billingCycle`, `planCode`, `planVersion`, `autoRenew`, `current`, and the two period windows. **There is no `trial` filter** — a trial is a status, so `?status=TRIAL` is the whole answer. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t29"></a>29 | [`GET /platform/schools/{id}/subscriptions/{no}/history`](#e29) | The full trail of what changed, when, who did it and why. The answer to "why did this school get suspended". | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
 | <a id="t30"></a>30 | [`GET /platform/subscriptions`](#e30) | Every school's subscription in one list, filtered by status. The operator's main screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t31"></a>31 | [`GET /platform/subscriptions/renewals-due`](#e31) | Which subscriptions renew in the next N days. Lets somebody see a renewal coming before it fails. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
@@ -3242,9 +3242,177 @@ just "not found", somebody checks the subscription when the school id was wrong 
 read costs nothing on the path that succeeds.
 
 <a id="e28"></a>
-**[28](#t28) · `GET /platform/schools/{id}/subscriptions`**
+**[28](#t28) · `GET /platform/schools/{id}/subscriptions`** — built
 
-- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `currentPeriodStart`, `currentPeriodEnd`, `contractedPrice`, `currencyCode`, `current`, `reasonForChanges`
+- [`school_subscriptions`](../../models/plans/SchoolSubscription.java) — *reads*: `subscriptionNo`, `status`, `planDefinitionDocsId`, `planVersion`, `billingCycle`, `currentPeriodStart`, `currentPeriodEnd`, `autoRenew`, `contractedPrice`, `currencyCode`, `current`, `reasonForChanges`, `createdAt`, `updatedAt`
+- [`plan_definitions`](../../models/plans/PlanDefinition.java) — *reads*: `planCode`, `name`. **One query for the whole page**, not one per row — see [performance](#e28-performance)
+
+### What this answers that [#27](#e27) cannot
+
+[#27](#e27) returns the row a school is on **now**, which is what a billing screen asks. This
+returns **every row it has ever had**: the trial it started on, the plan it left, the period that
+lapsed, the cancellation from two years ago. A school on its fourth plan has four documents in
+`school_subscriptions`, and exactly one of them is `current`.
+
+**Every status is included by default**, and that is the point — a history that hid the cancelled
+and expired rows would hide the thing somebody opened it to find.
+
+### Request
+
+<table>
+<tr><th align="left">Parameter</th><th align="left">Meaning</th></tr>
+<tr valign="top"><td><code>page</code></td><td>Zero-based. Defaults to <b>0</b>. Negative is <code>400 INVALID_PAGE</code>.</td></tr>
+<tr valign="top"><td><code>size</code></td><td>Defaults to <b>20</b>, capped at <b>100</b>. Outside 1–100 is <code>400 INVALID_PAGE_SIZE</code> — <b>refused, not clamped</b>: a caller who asked for 5000 rows and silently got 100 has been handed a page they will read as the whole answer.</td></tr>
+<tr valign="top"><td><code>sort</code></td><td><code>field,direction</code>. Sortable on <code>currentPeriodStart</code>, <code>currentPeriodEnd</code>, <code>subscriptionNo</code>, <code>status</code>, <code>createdAt</code>, <code>updatedAt</code>. An <b>allow-list</b>, so nobody can order by an unindexed field or learn the document's shape by guessing names. Default <b><code>currentPeriodStart,desc</code></b>.</td></tr>
+<tr valign="top"><td><code>status</code></td><td>Repeat for several — <code>?status=CANCELLED&amp;status=EXPIRED</code>. ORs within itself. <b>This is also how you ask for trials</b>: <code>?status=TRIAL</code>.</td></tr>
+<tr valign="top"><td><code>billingCycle</code></td><td>Repeat for several. ORs within itself.</td></tr>
+<tr valign="top"><td><code>planCode</code></td><td>Exact, case-insensitive, normalised on the way in — <code>?planCode=premium-plus</code> finds <code>PREMIUM_PLUS</code>. A code matching no plan gives an <b>empty page</b>, not an error.</td></tr>
+<tr valign="top"><td><code>planVersion</code></td><td>One version. Only meaningful beside <code>planCode</code>.</td></tr>
+<tr valign="top"><td><code>autoRenew</code></td><td><code>true</code> or <code>false</code>.</td></tr>
+<tr valign="top"><td><code>current</code></td><td><code>true</code> is at most one row — the one [#27](#e27) returns. <code>false</code> is the history without it.</td></tr>
+<tr valign="top"><td><code>startDateFrom</code>, <code>startDateTo</code></td><td>Instants, <b>inclusive</b> both ends. Filters <code>currentPeriodStart</code>.</td></tr>
+<tr valign="top"><td><code>endDateFrom</code>, <code>endDateTo</code></td><td>Instants, <b>inclusive</b> both ends. Filters <code>currentPeriodEnd</code>.</td></tr>
+</table>
+
+The filters combine with **AND**; only `status` and `billingCycle` OR within themselves.
+
+**There is no `trial` filter, and that is deliberate.** There is no `trial` field on
+`school_subscriptions` — a trial is a **status**. [#13](#e13) takes a `trial` flag on the way in
+and it lands on `status`; nothing keeps it as a field of its own. A boolean here would be a second
+way to ask one question, and two ways to ask one question eventually disagree.
+
+**`planCode` is not on the document either.** A subscription links to a plan *version* by
+`planDefinitionDocsId`; the code lives on `plan_definitions`. So the filter resolves the code to
+version ids first — one extra query, still in the database, never by reading subscriptions and
+sifting them in memory.
+
+### Response
+
+`200 OK` — the shared [`PageResponse`](../../common/web/PageResponse.java) envelope, the same six
+fields every list endpoint returns, wrapping `SubscriptionSummaryResponse` rows.
+
+```jsonc
+{
+  "content": [
+    {
+      "subscriptionId": "6a9ffe1d7feee1a04ace4b7d",
+      "subscriptionNo": "SUB/2026/09/000004",
+      "planCode": "PREMIUM",          // from plan_definitions, so the row is readable
+      "planVersion": 1,
+      "planName": "Premium",
+      "status": "CANCELLED",
+      "billingCycle": "HALF_YEARLY",
+      "currentPeriodStart": "2026-09-09T00:00:00Z",
+      "currentPeriodEnd": "2027-03-08T00:00:00Z",
+      "periodEnded": false,           // computed — NOT derivable from status, see below
+      "autoRenew": false,
+      "current": true,                // exactly one row in the whole history
+      "contractedPrice": 100.00,
+      "currencyCode": "INR",
+      "reasonForChanges": "School closing at the end of the academic year.",
+      "createdAt": "2026-09-08T12:22:53.310Z",
+      "updatedAt": "2026-09-08T12:23:20.481Z"
+    }
+  ],
+  "page": 0, "size": 20, "totalElements": 4,
+  "totalPages": 1, "hasNext": false, "hasPrevious": false
+}
+```
+
+**`periodEnded` is computed and is not derivable from `status`.** Nothing marks a lapsed
+subscription `EXPIRED` yet, so a row can read `ACTIVE` with a period that finished months ago.
+It is worked out once for the whole page from a single `now`, so no two rows on one page can
+disagree about it.
+
+**What is deliberately NOT in a row:**
+
+| Withheld | Why |
+|---|---|
+| `planDefinitionDocsId` | An internal document id with no meaning to a caller. Everything it was needed for — which plan, which version — is spelled out beside it. |
+| `schoolId` | It is in the URL. |
+| `billingCustomerReference` | A payment-gateway customer id. A list is the wrong place to spray it across twenty rows; it belongs in [#27](#e27), where somebody is actually working on billing. |
+| the plan's features | A list is read to find a period, not to work on one. [#27](#e27) returns them in full. |
+
+`subscriptionId` **is** returned, because it is how [#29](#e29) asks for one row's history, and
+`subscriptionNo` because that is the number printed on the record.
+
+### Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `INVALID_PAGE` | `page` is negative |
+| 400 | `INVALID_PAGE_SIZE` | `size` is outside 1–100 |
+| 400 | `INVALID_SORT_FIELD` | a field off the allow-list; the message lists the allowed ones |
+| 400 | `INVALID_SORT_DIRECTION` | anything but `asc` or `desc` |
+| 400 | `INVALID_DATE_RANGE` | `startDateFrom` after `startDateTo`, or `endDateFrom` after `endDateTo` |
+| 400 | `VALIDATION_FAILED` | an unknown enum value, or a date that is not an instant — through the type-mismatch handler |
+| 404 | `SCHOOL_NOT_FOUND` | no such school |
+
+**A backwards window is a 400, not an empty page.** Mongo would answer it with zero rows quite
+happily, and the caller would read that as "this school has nothing in that range" rather than
+"you sent `from` and `to` the wrong way round".
+
+**Parameter validation runs before the school is read**, so a malformed request costs no database
+round trip — and a `404` is then only ever the answer to an otherwise valid ask.
+
+<a id="e28-performance"></a>
+### Performance — two queries for a page, three with a `planCode` filter
+
+| | |
+|---|---|
+| the count, for `totalElements` | the filter and nothing else — with the page's skip and limit it would only ever count one page |
+| the page | the same filter, plus the paging and the sort |
+| the plans behind that page | **one** `findAllById` over the **distinct** plan ids on the page |
+
+**The plan lookup is the N+1 that was avoided.** Each row needs its plan's code and name, and the
+obvious way to get them — a lookup per row — makes a twenty-row page cost twenty-one queries.
+Typically it is **two** plan ids for twenty rows anyway: a history is mostly repeated renewals of
+the same version, each pointing at the same document.
+
+**No new index was added, and that was checked rather than assumed.**
+`school_subscription_status_period_idx` is `{schoolId: 1, status: 1, currentPeriodEnd: 1}`. Mongo
+can use an index prefix, so the school-scoped match every one of these queries starts with is
+served by its first key, and `?status=` by its first two. The default sort is on
+`currentPeriodStart`, which that index does not cover — so it is a sort in memory, **deliberately**:
+the candidate set is one school's subscriptions, a handful of documents even after ten years, and
+an index earning nothing still costs a write on every subscription ever created.
+
+### Pagination is stable, which took a fix to the shared sort code
+
+The default order ends in `subscriptionNo`, which is **unique within a school** — so the order is
+total and no two rows compare equal. Without that, two subscriptions sharing a
+`currentPeriodStart` (which [#16](#e16) produces every time a plan changes on the day a period
+begins) could come back in either order per query, and a row could appear on page one *and* page
+two while another was never seen at all.
+
+The tiebreaker is appended under whatever the caller sorts by — and doing that exposed a bug that
+had been in [#8](#e8) since it was written. A Mongo sort is a document and cannot hold one key
+twice; the driver keeps the last. So appending a fallback of `planCode ASC` under a caller's
+`planCode DESC` produced `{planCode: -1, planCode: 1}` and sorted **ascending**: `?sort=planCode,desc`
+had never worked. [`Paging`](../../common/web/Paging.java) now drops any fallback order whose field
+the caller already named, which fixes both endpoints.
+
+> **Note on tied rows.** With a stable tiebreaker, `desc` is *not* the exact reverse of `asc`:
+> the tiebreaker is applied in the same direction either way, so tied rows keep their relative
+> order. That is the stability working, not a bug.
+
+### Security
+
+Platform surface, so the school is named in the path rather than taken from a header — the
+opposite of [#33](#e33), which is the school's own view and can only ever see itself. The school
+id goes into the Mongo filter **first and unconditionally**, so a query can never return another
+school's rows.
+
+> **There is no authentication or authorization in this codebase yet** — no Spring Security, no
+> token, no roles. Every `/platform/**` endpoint is reachable by anyone who can reach the port,
+> and this one is no more and no less exposed than the twenty before it. Saying "follows the
+> existing authorization rules" would be saying it follows nothing. When auth arrives it belongs
+> in front of the whole platform surface, not inside this endpoint.
+
+### Tests
+
+- **59 unit tests**, no database: [`PagingTest`](../../../../../../../test/java/com/orbitastra/backend/common/web/PagingTest.java) for the shared page/size/sort resolution, [`ListSubscriptionsTest`](../../../../../../../test/java/com/orbitastra/backend/services/plans/ListSubscriptionsTest.java) for what the service does around the query — how many queries run, what the repository was handed, which check fired first — and [`SchoolSubscriptionRepositoryImplTest`](../../../../../../../test/java/com/orbitastra/backend/repositories/plans/SchoolSubscriptionRepositoryImplTest.java), which captures the Mongo `Query` and reads its criteria, because a dropped filter returns *more* rows and that looks like data rather than a bug.
+- **80 end-to-end assertions** against a real Mongo: every filter alone and in combination, every sortable field in both directions, first/last/beyond-the-end pages, `size=1`, the maximum size, order stability across repeated requests, every refusal, and that two schools never see each other's rows.
 
 <a id="e29"></a>
 **[29](#t29) · `GET /platform/schools/{id}/subscriptions/{no}/history`**

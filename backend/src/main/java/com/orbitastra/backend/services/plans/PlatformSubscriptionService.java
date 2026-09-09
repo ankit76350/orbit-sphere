@@ -8,24 +8,36 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.common.web.Paging;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCancelRequest;
 import com.orbitastra.backend.dto.plans.subscription.response.MySubscriptionResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -69,6 +81,45 @@ public class PlatformSubscriptionService {
 
     /** Written on every history row this service creates. */
     private static final String SOURCE_ADMIN_PORTAL = "ADMIN_PORTAL";
+
+    /**
+     * What #28 may sort on, and what each name means on the document.
+     *
+     * <p>Keyed lowercase so {@code sort=CurrentPeriodStart} works, and an allow-list rather than
+     * a pass-through so a caller cannot order by a field with no index behind it — or learn the
+     * document's shape by guessing field names and watching which ones stop erroring.
+     */
+    private static final Map<String, String> SORTABLE_SUBSCRIPTION_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_SUBSCRIPTION_FIELDS.put("currentperiodstart", "currentPeriodStart");
+        SORTABLE_SUBSCRIPTION_FIELDS.put("currentperiodend", "currentPeriodEnd");
+        SORTABLE_SUBSCRIPTION_FIELDS.put("subscriptionno", "subscriptionNo");
+        SORTABLE_SUBSCRIPTION_FIELDS.put("status", "status");
+        SORTABLE_SUBSCRIPTION_FIELDS.put("createdat", "createdAt");
+        SORTABLE_SUBSCRIPTION_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same names spelled as they should be typed, for the refusal. */
+    private static final String SORTABLE_SUBSCRIPTION_FIELD_NAMES =
+            "currentPeriodStart, currentPeriodEnd, subscriptionNo, status, createdAt, updatedAt";
+
+    /**
+     * #28's default order, and its tiebreaker under whatever a caller asks for.
+     *
+     * <p><b>Newest period first</b>, because a history is read from the end: the question is
+     * almost always "what happened recently", and the row somebody wants is the one at the top.
+     *
+     * <p><b>{@code subscriptionNo} is the stability half, and it is not decoration.</b>
+     * Subscription numbers are sequential within a school and unique within it, so ordering on
+     * one makes the order total — no two rows compare equal. Without that, two subscriptions
+     * sharing a {@code currentPeriodStart} (which #16 produces every time a plan changes on the
+     * day a period begins) could come back in either order per query, and a row would appear on
+     * page one and again on page two while another was never seen at all.
+     */
+    private static final Sort SUBSCRIPTION_HISTORY_ORDER = Sort.by(
+            Sort.Order.desc("currentPeriodStart"),
+            Sort.Order.desc("subscriptionNo"));
 
     /**
      * What to put in the URL instead of a subscription number, to mean "the one this school is
@@ -1761,6 +1812,138 @@ public class PlatformSubscriptionService {
     }
     
     
+
+    //! Endpoint 28 — every subscription this school has ever had ----------------------
+
+    /**
+     * #28 — one school's whole subscription history, filtered, sorted and paged.
+     *
+     * <p><b>What this answers that #27 cannot.</b> #27 returns the row a school is on now, which
+     * is the question a billing screen asks. This one returns every row the school has ever had:
+     * the trial it started on, the plan it moved off, the period that lapsed, the cancellation
+     * from two years ago. A school on its fourth plan has four documents in
+     * {@code school_subscriptions}, and only one of them is {@code current}.
+     *
+     * <p><b>Every status is included by default</b>, and that is the point — a history that
+     * hid the cancelled and expired rows would hide the thing somebody opened it to find. Ask
+     * for {@code ?status=} to narrow it, or {@code ?current=false} for the closed rows alone.
+     *
+     * <h2>Nothing is loaded that is not returned</h2>
+     *
+     * <p>Filtering, sorting and paging are all on the Mongo query, so one page of documents is
+     * read however long the history is. The plans behind that page are then fetched in
+     * <b>one</b> call — {@code findAllById} over the distinct plan ids on the page — rather than
+     * one lookup per row. That is the difference between two queries and twenty-one for a
+     * twenty-row page, and it is why the rows are mapped here instead of each DTO fetching its
+     * own plan.
+     *
+     * <p>Typically it is <b>two</b> plan ids for twenty rows, not twenty: a school's history is
+     * mostly repeated renewals of the same plan version, and each renewal points at the same
+     * document.
+     *
+     * <h2>No new index was added, and that was checked rather than assumed</h2>
+     *
+     * <p>{@code school_subscription_status_period_idx} is
+     * {@code {schoolId: 1, status: 1, currentPeriodEnd: 1}}. Mongo can use an index prefix, so
+     * the school-scoped match every one of these queries starts with is served by its first key,
+     * and {@code ?status=} by its first two. The default sort is on {@code currentPeriodStart},
+     * which that index does not cover — so it is a sort in memory, and deliberately: the
+     * candidate set is one school's subscriptions, which is a handful of documents even for a
+     * school of ten years' standing, and an index earning nothing still costs a write on every
+     * subscription ever created.
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    public PageResponse<SubscriptionSummaryResponse> listSubscriptions(String schoolId,
+            SubscriptionSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no database round trip
+        //! — and a 404 for the school is then only ever the answer to an otherwise valid ask.
+        Pageable pageable = Paging.of(request.page(), request.size(), request.sort(),
+                SORTABLE_SUBSCRIPTION_FIELDS, SORTABLE_SUBSCRIPTION_FIELD_NAMES,
+                SUBSCRIPTION_HISTORY_ORDER);
+
+        //! step 2 - a window that runs backwards is a mistake, not an empty result. Mongo would
+        //! answer it with zero rows quite happily, and the caller would read that as "this
+        //! school has no subscriptions in that range" rather than "you sent from and to the
+        //! wrong way round".
+        if (request.startDateFrom() != null && request.startDateTo() != null
+                && request.startDateFrom().isAfter(request.startDateTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "startDateFrom (" + Dates.readable(request.startDateFrom())
+                            + ") must not be after startDateTo ("
+                            + Dates.readable(request.startDateTo()) + ").");
+        }
+
+        if (request.endDateFrom() != null && request.endDateTo() != null
+                && request.endDateFrom().isAfter(request.endDateTo())) {
+
+            throw ApiException.badRequest("INVALID_DATE_RANGE",
+                    "endDateFrom (" + Dates.readable(request.endDateFrom())
+                            + ") must not be after endDateTo ("
+                            + Dates.readable(request.endDateTo()) + ").");
+        }
+
+        //! step 3 - the school has to exist. A 404 rather than an empty page: "this school has
+        //! no subscriptions" and "there is no such school" are different answers, and a caller
+        //! that cannot tell them apart will report the wrong one.
+        // TODO: read school
+        if (!schools.existsById(schoolId)) {
+            throw ApiException.notFound("SCHOOL_NOT_FOUND",
+                    "No school found with id '" + schoolId + "'.");
+        }
+
+        //! step 4 - resolve a planCode filter to the plan versions it names. The subscription
+        //! stores planDefinitionDocsId, not the code, so this is the only way to filter on one —
+        //! and it is still one query rather than reading subscriptions and sifting them.
+        //!
+        //! NULL means no code was sent, so no plan filter at all. An EMPTY set means a code was
+        //! sent and matched nothing, which has to match nothing rather than everything.
+        Set<String> planIds = null;
+
+        if (request.planCode() != null && !request.planCode().isBlank()) {
+            // Shaped the way a code is on the way in, so ?planCode=premium-plus finds
+            // PREMIUM_PLUS. Deliberately not the validator: a filter of the wrong shape should
+            // match nothing rather than turn a list request into an error.
+            String code = request.planCode().trim().toUpperCase()
+                    .replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+
+            // TODO: read plans (the versions of one code)
+            planIds = planDefinition.findByPlanCodeOrderByPlanVersionDesc(code).stream()
+                    .map(PlanDefinition::getId)
+                    .collect(Collectors.toSet());
+        }
+
+        //! step 5 - one page of subscriptions, filtered and ordered in the database
+        // TODO: search subscriptions
+        Page<SchoolSubscription> page = schoolSubscription.search(schoolId, request, planIds,
+                pageable);
+
+        //! step 6 - the plans behind THIS page, in one query. Distinct ids, so a history of
+        //! twenty renewals of one plan costs one lookup rather than twenty.
+        Set<String> idsOnPage = page.getContent().stream()
+                .map(SchoolSubscription::getPlanDefinitionDocsId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // TODO: read plans (the ones this page points at)
+        Map<String, PlanDefinition> plansById = idsOnPage.isEmpty()
+                ? Map.of()
+                : planDefinition.findAllById(idsOnPage).stream()
+                        .collect(Collectors.toMap(PlanDefinition::getId, Function.identity()));
+
+        //! step 7 - one `now` for the whole page, so periodEnded cannot disagree between the
+        //! first row and the last. Two calls to Instant.now() a millisecond apart can straddle a
+        //! period end, and a page where one row says ended and another says not is unexplainable.
+        Instant now = Instant.now();
+
+        //! step 8 - map, reading each row's plan out of the map rather than fetching it. A plan
+        //! that has since been deleted leaves that row's plan fields null; see the DTO.
+        return PageResponse.from(page, subscription -> SubscriptionSummaryResponse.fromSubscription(
+                subscription, plansById.get(subscription.getPlanDefinitionDocsId()), now));
+    }
 
     //! Endpoint 33 — the school's own billing screen ----------------------------------
     public MySubscriptionResponse getMySubscription(School school) {

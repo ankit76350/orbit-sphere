@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -17,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.web.Paging;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.plans.catalogue.request.PlanCreateRequest;
 import com.orbitastra.backend.dto.plans.catalogue.response.PlanDetailResponse;
@@ -64,11 +64,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PlanCatalogueService {
 
-    /** Used when the caller does not say. Twenty rows is a screen without a scrollbar. */
-    private static final int DEFAULT_PAGE_SIZE = 20;
-
-    /** The most a caller may ask for at once, refused above rather than clamped. */
-    private static final int MAX_PAGE_SIZE = 100;
+    /**
+     * #8's default order, and its tiebreaker under whatever a caller asks for.
+     *
+     * <p>By code, newest version of each first — the catalogue read as a menu. Ending in
+     * {@code planVersion} makes the order total, since {@code planCode + planVersion} is unique,
+     * which is what keeps pagination stable.
+     */
+    private static final Sort CATALOGUE_ORDER = Sort.by(
+            Sort.Order.asc("planCode"),
+            Sort.Order.desc("planVersion"));
 
     /**
      * What #8 may sort on, and what each name means on the document.
@@ -518,58 +523,12 @@ public class PlanCatalogueService {
         */
         public PageResponse<PlanSummaryResponse> listPlans(PlanSearchRequest request) {
 
-        int page = request.page() == null ? 0 : request.page();
-        int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
-
-        if (page < 0) {
-                throw ApiException.badRequest(
-                        "INVALID_PAGE",
-                        "page cannot be negative. Received: " + page);
-        }
-
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-                throw ApiException.badRequest(
-                        "INVALID_PAGE_SIZE",
-                        "size must be between 1 and " + MAX_PAGE_SIZE + ". Received: " + size);
-        }
-
-        Sort sort = Sort.by(
-                Sort.Order.asc("planCode"),
-                Sort.Order.desc("planVersion"));
-
-        String rawSort = request.sort();
-
-        if (rawSort != null && !rawSort.isBlank()) {
-                String[] parts = rawSort.split(",");
-                String requested = parts[0].trim();
-
-                String field = SORTABLE_PLAN_FIELDS.get(requested.toLowerCase());
-
-                if (field == null) {
-                throw ApiException.badRequest(
-                        "INVALID_SORT_FIELD",
-                        "'" + requested + "' cannot be sorted on. Allowed: "
-                                + SORTABLE_PLAN_FIELD_NAMES + ".");
-                }
-
-                Sort.Direction direction = Sort.Direction.ASC;
-
-                if (parts.length > 1 && !parts[1].isBlank()) {
-                String requestedDirection = parts[1].trim();
-
-                if (requestedDirection.equalsIgnoreCase("desc")) {
-                        direction = Sort.Direction.DESC;
-                } else if (!requestedDirection.equalsIgnoreCase("asc")) {
-                        throw ApiException.badRequest(
-                                "INVALID_SORT_DIRECTION",
-                                "'" + requestedDirection + "' is not a direction. Use asc or desc.");
-                }
-                }
-
-                sort = Sort.by(direction, field).and(sort);
-        }
-
-        Pageable pageable = PageRequest.of(page, size, sort);
+        // The paging, the size cap and the sort allow-list are all one shared piece now — see
+        // common/web/Paging. These forty lines lived here first and #28 needed the identical
+        // forty, which is when two copies of "is the page negative" became a thing that could
+        // disagree. The four refusals and their exact wording are unchanged.
+        Pageable pageable = Paging.of(request.page(), request.size(), request.sort(),
+                SORTABLE_PLAN_FIELDS, SORTABLE_PLAN_FIELD_NAMES, CATALOGUE_ORDER);
 
         // TODO: search plans
         Page<PlanDefinition> plansPage = plans.search(request, pageable);

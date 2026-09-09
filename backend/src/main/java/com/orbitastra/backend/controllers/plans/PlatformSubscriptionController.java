@@ -1,10 +1,13 @@
 package com.orbitastra.backend.controllers.plans;
 
 import java.net.URI;
+import java.time.Instant;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,10 +19,15 @@ import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionCreateR
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionPlanChangeRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionRenewRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionResumeRequest;
+import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionSuspendRequest;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionDetailResponse;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionResponse;
+import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionSummaryResponse;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.models.plans.enums.BillingCycle;
+import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.services.plans.PlatformSubscriptionService;
 
 import jakarta.validation.Valid;
@@ -246,5 +254,57 @@ public class PlatformSubscriptionController {
             @PathVariable String schoolId) {
 
         return ResponseEntity.ok(subscriptionService.getSubscription(schoolId));
+    }
+
+    /**
+     * Endpoint #28 — every subscription this school has ever had.
+     *
+     * <p><b>Not the same question as #27.</b> That returns the one row a school is on now; this
+     * returns the history — the trial it started on, the plan it left, the period that lapsed,
+     * the cancellation from two years ago. Every status is included by default, because a
+     * history that hid the cancelled ones would hide what somebody opened it to find.
+     *
+     * <p>A school with no subscriptions gets an <b>empty page</b>, not a 404: the school exists
+     * and the honest answer to "what has it been on" is "nothing yet". A school that does not
+     * exist gets {@code 404 SCHOOL_NOT_FOUND} — different problems, different answers, the same
+     * split #27 makes.
+     *
+     * <pre>
+     * ?page=0&amp;size=20                     the first page, twenty rows
+     * ?status=CANCELLED&amp;status=EXPIRED     the finished ones
+     * ?status=TRIAL                        trials — there is no `trial` field to filter on
+     * ?planCode=PREMIUM&amp;planVersion=2      one version of one plan
+     * ?current=false                       the closed rows, without the live one
+     * ?startDateFrom=2026-04-01T00:00:00Z  periods that began in this academic year
+     * ?sort=currentPeriodEnd,asc           oldest ending first
+     * </pre>
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    @GetMapping("/subscriptions")
+    public ResponseEntity<PageResponse<SubscriptionSummaryResponse>> listSubscriptions(
+            @PathVariable String schoolId,
+            @RequestParam(required = false) List<SubscriptionStatus> status,
+            @RequestParam(required = false) List<BillingCycle> billingCycle,
+            @RequestParam(required = false) String planCode,
+            @RequestParam(required = false) Integer planVersion,
+            @RequestParam(required = false) Boolean autoRenew,
+            @RequestParam(required = false) Boolean current,
+            @RequestParam(required = false) Instant startDateFrom,
+            @RequestParam(required = false) Instant startDateTo,
+            @RequestParam(required = false) Instant endDateFrom,
+            @RequestParam(required = false) Instant endDateTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+
+        // Bound one at a time rather than through @ModelAttribute, so a misspelled status or a
+        // date that is not an instant comes back through the type-mismatch handler naming the
+        // parameter and what it accepts — the same reasoning as #8's list.
+        SubscriptionSearchRequest request = new SubscriptionSearchRequest(
+                status, billingCycle, planCode, planVersion, autoRenew, current,
+                startDateFrom, startDateTo, endDateFrom, endDateTo, page, size, sort);
+
+        return ResponseEntity.ok(subscriptionService.listSubscriptions(schoolId, request));
     }
 }

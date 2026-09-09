@@ -6,7 +6,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 
-public interface SchoolSubscriptionRepository extends MongoRepository<SchoolSubscription, String> {
+public interface SchoolSubscriptionRepository extends MongoRepository<SchoolSubscription, String>,
+        SchoolSubscriptionRepositoryCustom {
 
     /**
      * The school's live subscription, if it has one.
