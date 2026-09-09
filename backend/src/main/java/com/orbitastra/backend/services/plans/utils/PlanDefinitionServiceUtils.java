@@ -84,9 +84,9 @@ public class PlanDefinitionServiceUtils {
      * rather than all of them sharing one vague message.
      *
      * Used by:
-     * - updateDraft()
-     * - replaceFeatures()
      * - publish()
+     * - replaceFeatures()
+     * - updateDraft()
      */
     public void requireDraft(PlanDefinition plan, String what) {
         if (plan.getStatus() != PlanStatus.DRAFT) {
@@ -104,12 +104,12 @@ public class PlanDefinitionServiceUtils {
      * as {@code /plans/premium-plus/versions/1} finds {@code PREMIUM_PLUS} rather than nothing.
      *
      * Used by:
-     * - updateDraft()
-     * - replaceFeatures()
+     * - getVersion()
      * - publish()
+     * - replaceFeatures()
      * - retire()
      * - setAvailability()
-     * - getVersion()
+     * - updateDraft()
      */
     public PlanDefinition loadPlanVersion(String code, Integer version) {
         String planCode = helper.normalizePlanCode(code);

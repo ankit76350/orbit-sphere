@@ -7626,6 +7626,172 @@ untidied.`,
       ],
     },
     {
+      id: "list-school-subscriptions",
+      name: "Get School Subscriptions",
+      method: "GET",
+      path: "/platform/schools/{id}/subscriptions",
+      status: 'live',
+      summary: "Every subscription this school has ever had — live, lapsed, cancelled and superseded.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/schools/{id}/subscriptions\` — the school's whole subscription history.
+
+**Not the same question as #27.** That returns the one row the school is on now; this returns
+every row it has ever had — the trial it started on, the plan it left, the period that lapsed, the
+cancellation from two years ago. A school on its fourth plan has four documents, and exactly one
+of them is \`current\`.
+
+**Every status is included by default**, and that is the point: a history that hid the cancelled
+ones would hide what somebody opened it to find.
+
+A school with **no** subscriptions gets an **empty page**, not a 404. A school that does not exist
+gets \`404 SCHOOL_NOT_FOUND\` — different problems, different answers.
+
+| Parameter | Meaning |
+|---|---|
+| \`status\` | repeatable — \`?status=CANCELLED&status=EXPIRED\` means either. **Also how you ask for trials**: \`?status=TRIAL\` |
+| \`billingCycle\` | repeatable, ORs within itself |
+| \`planCode\` | **exact**, case-insensitive, normalized — \`premium-plus\` finds \`PREMIUM_PLUS\`. A code matching no plan gives an empty page, not an error |
+| \`planVersion\` | one version; only meaningful beside \`planCode\` |
+| \`autoRenew\` | \`true\` or \`false\` |
+| \`current\` | \`true\` is at most one row — the one #27 returns. \`false\` is the history without it |
+| \`startDateFrom\`, \`startDateTo\` | instants, **inclusive** both ends, on \`currentPeriodStart\` |
+| \`endDateFrom\`, \`endDateTo\` | instants, **inclusive** both ends, on \`currentPeriodEnd\` |
+| \`page\`, \`size\` | zero-based; size defaults to 20, max 100 — **refused above it, not clamped** |
+| \`sort\` | \`field,direction\` — \`currentPeriodStart\`, \`currentPeriodEnd\`, \`subscriptionNo\`, \`status\`, \`createdAt\`, \`updatedAt\` |
+
+Filters combine with AND; only \`status\` and \`billingCycle\` OR within themselves.
+
+### There is no \`trial\` filter, deliberately
+
+There is no \`trial\` field on the document — a trial is a **status**. #13 takes a \`trial\` flag on
+the way in and it lands on \`status\`. A boolean here would be a second way to ask one question,
+and two ways to ask one question eventually disagree.
+
+### \`periodEnded\` is computed, and is NOT derivable from \`status\`
+
+Nothing marks a lapsed subscription \`EXPIRED\` yet, so a row can read \`ACTIVE\` with a period that
+finished months ago. It is worked out once for the whole page from a single \`now\`, so no two rows
+can disagree about it.
+
+### Pagination is stable
+
+The default order is \`currentPeriodStart\` descending, tie-broken on \`subscriptionNo\`, which is
+unique within a school — so no two rows compare equal. Without that, two subscriptions sharing a
+start (which #16 produces whenever a plan changes on the day a period begins) could appear on
+page one *and* page two while another was never seen.
+
+> With a stable tiebreaker, \`desc\` is **not** the exact reverse of \`asc\`: tied rows keep their
+> relative order either way. That is the stability working, not a bug.
+
+### What a row does not carry
+
+\`planDefinitionDocsId\` (an internal id — the plan is named instead), \`schoolId\` (it is in the
+URL), \`billingCustomerReference\` (a payment-gateway id, wrong thing to spray across twenty rows)
+and the plan's features (#27 returns those in full).
+
+### The test cases
+
+\`\`\`
+01  BARE LIST                                          -> 200 OK
+    GET /platform/schools/{id}/subscriptions
+    First 20, newest period first. Every status included.
+
+02  A SCHOOL WITH NO SUBSCRIPTIONS                     -> 200 OK
+    An EMPTY page: content [], totalElements 0, totalPages 0.
+    NOT a 404 — the school exists, and "nothing yet" is the honest answer.
+
+03  A SCHOOL THAT DOES NOT EXIST                       -> 404 Not Found
+    { "code": "SCHOOL_NOT_FOUND" }
+
+04  ONE STATUS, THEN TWO                               -> 200 OK
+    ?status=CANCELLED
+    ?status=CANCELLED&status=EXPIRED     both, ORed
+    ?status=TRIAL                        this is the "trial filter"
+
+05  THE LIVE ROW, AND THE HISTORY WITHOUT IT           -> 200 OK
+    ?current=true      at most one row
+    ?current=false     everything else
+
+06  ONE PLAN, ONE VERSION                              -> 200 OK
+    ?planCode=PREMIUM
+    ?planCode=premium-plus     normalized, finds PREMIUM_PLUS
+    ?planCode=NO_SUCH          EMPTY page, not an error
+    ?planCode=PREMIUM&planVersion=2
+
+07  THE PERIOD WINDOWS                                 -> 200 OK
+    ?startDateFrom=2026-04-01T00:00:00Z&startDateTo=2027-03-31T23:59:59Z
+    Both ends apply. Inclusive, so a period starting on the from date is in.
+
+08  PAGING                                             -> 200 OK
+    ?page=0&size=1   then page=1, page=2 ...
+    ?page=99         an empty page, not an error
+    ?size=100        the maximum
+
+09  SORTING                                            -> 200 OK
+    ?sort=currentPeriodEnd,asc
+    ?sort=subscriptionNo,desc
+    ?sort=CurrentPeriodStart,DESC     case-insensitive
+
+10  BAD PAGING                                    -> 400 Bad Request
+    ?page=-1     INVALID_PAGE
+    ?size=0      INVALID_PAGE_SIZE
+    ?size=101    INVALID_PAGE_SIZE — refused, NOT clamped to 100
+
+11  BAD SORTING                                   -> 400 Bad Request
+    ?sort=contractedPrice,desc   INVALID_SORT_FIELD, listing what is allowed
+    ?sort=currentPeriodStart,sideways   INVALID_SORT_DIRECTION
+
+12  A WINDOW THAT RUNS BACKWARDS                  -> 400 Bad Request
+    ?startDateFrom=2027-01-01T00:00:00Z&startDateTo=2026-01-01T00:00:00Z
+    { "code": "INVALID_DATE_RANGE" }
+    A 400 rather than zero rows: zero rows would read as "nothing in that
+    range" instead of "you sent from and to the wrong way round".
+
+13  AN INVALID ENUM OR DATE                       -> 400 Bad Request
+    ?status=NOT_A_STATUS      through the type-mismatch handler
+    ?startDateFrom=not-a-date
+
+14  PARAMETERS ARE CHECKED BEFORE THE SCHOOL IS READ
+    A bad page on a school that does not exist answers 400, not 404 —
+    so a malformed request costs no database round trip.
+\`\`\``,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+      ],
+      queryParams: [
+        { key: "page", value: "0", enabled: true },
+        { key: "size", value: "20", enabled: true },
+        { key: "sort", value: "currentPeriodStart,desc", enabled: false },
+        { key: "status", value: "CANCELLED", enabled: false },
+        { key: "billingCycle", value: "MONTHLY", enabled: false },
+        { key: "planCode", value: "{{planCode}}", enabled: false },
+        { key: "planVersion", value: "1", enabled: false },
+        { key: "autoRenew", value: "true", enabled: false },
+        { key: "current", value: "false", enabled: false },
+        { key: "startDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "startDateTo", value: "2027-03-31T23:59:59Z", enabled: false },
+        { key: "endDateFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "endDateTo", value: "2027-03-31T23:59:59Z", enabled: false },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative" },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size outside 1-100 — refused, not clamped" },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field off the allow-list" },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "Anything but asc or desc" },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "from is after to, on either window" },
+        { status: 400, code: "VALIDATION_FAILED", when: "An unknown enum value, or a date that is not an instant" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+      ],
+      // A GET sends no body, so the fourteen cases are in `docs` above rather than here.
+      examples: [],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.plans.enums.FeatureCode;
 
 /**
@@ -265,8 +266,9 @@ public class PlansHelper {
         }
         if (!effectiveFrom.isBefore(effectiveUntil)) {
             throw ApiException.badRequest("INVALID_SELLING_WINDOW",
-                    "effectiveFrom (" + effectiveFrom + ") must be before effectiveUntil ("
-                            + effectiveUntil + ").");
+                    "effectiveFrom (" + Dates.readable(effectiveFrom)
+                            + ") must be before effectiveUntil ("
+                            + Dates.readable(effectiveUntil) + ").");
         }
     }
 }

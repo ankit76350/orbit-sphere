@@ -185,8 +185,8 @@ public class PlatformSubscriptionServiceUtils {
      * otherwise be read wrongly off a single field.
      *
      * Used by:
-     * - updateSubscription()
      * - getSubscription()
+     * - updateSubscription()
      */
     public String describeSubscriptionState(SchoolSubscription subscription, PlanDefinition plan,
             String zone) {
@@ -399,8 +399,8 @@ public class PlatformSubscriptionServiceUtils {
 
     /** The plan a subscription points at, which must exist for the response to be complete.      *
      * Used by:
-     * - updateSubscription()
      * - getSubscription()
+     * - updateSubscription()
      */
     public PlanDefinition loadPlanBehindSubscription(SchoolSubscription subscription) {
         // TODO: read plan
@@ -519,8 +519,8 @@ public class PlatformSubscriptionServiceUtils {
      * other. #14 is the one place zero means "remove it", and it makes that check itself.
      *
      * Used by:
-     * - createSubscription()
      * - changePlan()
+     * - createSubscription()
      */
     public void validateCapacityOverrideIsAtLeastOne(String label, Long value) {
         if (value != null && value < 1) {
@@ -552,9 +552,9 @@ public class PlatformSubscriptionServiceUtils {
      * to refuse — which on #13 and #16 is every call, because both require the field.
      *
      * Used by:
+     * - changePlan()
      * - createSubscription()
      * - updateSubscription()
-     * - changePlan()
      */
     public void validatePeriodStartIsTodayOrLater(Instant requestedStart, School school) {
         if (requestedStart == null) {

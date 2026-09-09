@@ -310,8 +310,8 @@ public class CoreHelper {
      * <p>The one place this comparison is written. Every caller that needs it delegates here.
      *
      * Used by:
-     * - validateHolidayWithinYear()
      * - validateDateWithinYear()
+     * - validateHolidayWithinYear()
      */
     private boolean isWithinYear(LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
         return !date.isBefore(yearStart) && !date.isAfter(yearEnd);

@@ -374,8 +374,22 @@ console.log('\nThe edit form says what to fill in, and when')
 const subsSourceFull = readFileSync('src/pages/platform/plans/Subscriptions.jsx', 'utf8')
 // EVERY FILE THIS TEST READS, in one place. Declaring each beside the section that first wanted
 // it meant every section added afterwards hit "cannot access before initialization".
-const javaService = readFileSync(
+// THE SUBSCRIPTION CODE, NOW IN THREE FILES. The service holds the endpoints; the helpers it
+// used to carry live in utils/, and what the whole plans module shares lives in helper/ — see
+// memory/backend/code-writing-rules/service. Most checks below are about the behaviour rather
+// than which file it sits in, so they read the three together and go on passing across a move.
+const javaEndpoints = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/services/plans/PlatformSubscriptionService.java',
+  'utf8')
+const javaSubUtils = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/utils/PlatformSubscriptionServiceUtils.java',
+  'utf8')
+const javaPlansHelper = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/helper/PlansHelper.java',
+  'utf8')
+const javaService = javaEndpoints + '\n' + javaSubUtils + '\n' + javaPlansHelper
+const schoolSubUtils = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/services/plans/utils/SchoolSubscriptionServiceUtils.java',
   'utf8')
 const createRequestSource = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/dto/plans/subscription/request/SubscriptionCreateRequest.java',
@@ -421,21 +435,23 @@ const modelSources = (function readModels(dir) {
 // Every service that puts a date in a message, so none of them can quietly go back to
 // concatenating an instant.
 const messageSources = [
-  ['PlatformSubscriptionService', javaService],
+  ['PlatformSubscriptionService', javaEndpoints],
+  ['PlatformSubscriptionServiceUtils', javaSubUtils],
+  ['PlansHelper', javaPlansHelper],
   ['SchoolSubscriptionService', readFileSync(
     '../backend/src/main/java/com/orbitastra/backend/services/plans/SchoolSubscriptionService.java',
     'utf8')],
   ['PlanCatalogueService', readFileSync(
-    '../backend/src/main/java/com/orbitastra/backend/services/plans/PlanCatalogueService.java',
+    '../backend/src/main/java/com/orbitastra/backend/services/plans/PlanDefinitionService.java',
     'utf8')],
   ['AcademicYearService', readFileSync(
     '../backend/src/main/java/com/orbitastra/backend/services/core/AcademicYearService.java',
     'utf8')],
   ['AcademicYearServiceUtils', readFileSync(
-    '../backend/src/main/java/com/orbitastra/backend/services/core/helper/AcademicYearServiceUtils.java',
+    '../backend/src/main/java/com/orbitastra/backend/services/core/utils/AcademicYearServiceUtils.java',
     'utf8')],
   ['CoreValidator', readFileSync(
-    '../backend/src/main/java/com/orbitastra/backend/services/core/helper/CoreValidator.java',
+    '../backend/src/main/java/com/orbitastra/backend/services/core/helper/CoreHelper.java',
     'utf8')],
 ]
 // Scoped to the edit form, because two other modals in the same file have date boxes of their own
@@ -844,8 +860,7 @@ const endChecks = [
   // The gate is what makes "keeps working" true, and it is in a different service.
   ['a cancelled subscription still grants until its period ends',
     /status == SubscriptionStatus\.CANCELLED\) \{[\s\S]{0,400}cancelledEnd\.isAfter\(Instant\.now\(\)\)/
-      .test(readFileSync('../backend/src/main/java/com/orbitastra/backend/services/plans/SchoolSubscriptionService.java',
-        'utf8'))],
+      .test(schoolSubUtils)],
   ['autoRenew is turned off with it',
     /cancelSubscription[\s\S]{0,6000}setAutoRenew\(Boolean\.FALSE\)/.test(javaService)],
   ['the school is not touched',
@@ -1315,22 +1330,38 @@ for (const [label, ok] of dateChecks) {
 }
 
 console.log('\nHelpers stay flat: no helper calls another')
-const privateDecls = [...javaService.matchAll(/\n    private (?:static )?[^\s(]+ (\w+)\(/g)]
-  .map((m) => [m[1], m.index])
-const helperNames = new Set(privateDecls.map(([name]) => name))
+// The helpers are PUBLIC methods on the utils and helper files now — the service has none left.
+// AUDITED PER FILE, which matters: concatenating them makes the method boundaries meaningless,
+// because the last method of one file looks like it contains the whole of the next. What rule 2
+// forbids is one method calling another in the SAME utils file, and rule 3 the same in the helper.
+const helperFiles = [
+  ['PlatformSubscriptionServiceUtils', javaSubUtils],
+  ['SchoolSubscriptionServiceUtils', schoolSubUtils],
+  ['PlansHelper', javaPlansHelper],
+]
 const chained = []
-privateDecls.forEach(([name, at], i) => {
-  const until = i + 1 < privateDecls.length ? privateDecls[i + 1][1] : javaService.length
-  // Comment lines stripped, so a `Used by:` block or a prose mention is not read as a call.
-  const code = javaService.slice(at, until).split('\n')
-    .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line)).join('\n')
-  for (const other of helperNames) {
-    if (other === name) continue
-    if (new RegExp('\\b' + other + '\\s*\\(').test(code)) chained.push(`${name}() -> ${other}()`)
-  }
-})
-const misIndented = [...javaService.matchAll(/\n( {5,})private (?:static )?[^\s(]+ (\w+)\(/g)]
-  .map((m) => m[2])
+let helperCount = 0
+const misIndented = []
+for (const [label, src] of helperFiles) {
+  const decls = [...src.matchAll(/\n    public (?:static )?[^\s(]+ (\w+)\(/g)]
+    .map((m) => [m[1], m.index])
+  const names = new Set(decls.map(([n]) => n))
+  helperCount += names.size
+  decls.forEach(([name, at], i) => {
+    const until = i + 1 < decls.length ? decls[i + 1][1] : src.length
+    const code = src.slice(at, until).split('\n')
+      .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line)).join('\n')
+    for (const other of names) {
+      if (other === name) continue
+      if (new RegExp('\\b' + other + '\\s*\\(').test(code)) {
+        chained.push(`${label}: ${name}() -> ${other}()`)
+      }
+    }
+  })
+  misIndented.push(...[...src.matchAll(/\n( {5,})public (?:static )?[^\s(]+ (\w+)\(/g)]
+    .map((m) => `${label}: ${m[2]}`))
+}
+const helperNames = { size: helperCount }
 const flatChecks = [
   [`${helperNames.size} helpers, none calling another${chained.length ? ': ' + chained.join(', ') : ''}`,
     helperNames.size > 0 && chained.length === 0],
@@ -1347,13 +1378,13 @@ for (const [label, ok] of flatChecks) {
 }
 
 // The helper's own body, from its signature to the blank line after its closing brace.
-const startHelperAt = javaService.indexOf('private void validatePeriodStartIsTodayOrLater(')
-const startHelper = javaService.slice(startHelperAt,
-  javaService.indexOf('\n    }', startHelperAt))
+const startHelperAt = javaSubUtils.indexOf('public void validatePeriodStartIsTodayOrLater(')
+const startHelper = javaSubUtils.slice(startHelperAt,
+  javaSubUtils.indexOf('\n    }', startHelperAt))
 const startChecks = [
   ['the service refuses one on the sale, the edit and the plan change',
-    javaService.includes('private void validatePeriodStartIsTodayOrLater(')
-      && (javaService.match(/validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
+    javaSubUtils.includes('public void validatePeriodStartIsTodayOrLater(')
+      && (javaEndpoints.match(/utils\.validatePeriodStartIsTodayOrLater\(request\.currentPeriodStart\(\), school\)/g)
         || []).length === 3],
   // WHAT it does, not WHERE the code sits. The zone resolution has been inline in this helper
   // and in a second helper it delegated to, and a check pinned to either shape goes red on a
@@ -1363,13 +1394,16 @@ const startChecks = [
   ['it compares against the school\'s own timezone, not UTC',
     startHelper.includes('school.getDefaultTimeZone()')
       && !startHelper.includes('Instant.now()')
-      && javaService.includes('LocalDate.now(zone).atStartOfDay(zone).toInstant()')],
+      // The zone-to-midnight step is Dates.startOfTodayIn now: two utils methods needed it, so
+      // it went to common rather than one utils method calling the other.
+      && startHelper.includes('Dates.startOfTodayIn(school.getDefaultTimeZone())')
+      && datesUtil.includes('LocalDate.now(resolved).atStartOfDay(resolved).toInstant()')],
   // Asserted on the CATCH BLOCK, not on the words appearing somewhere nearby: ZoneOffset.UTC is
   // also the unset-zone branch of the ternary above it, so a looser check passed while the catch
   // had been changed to rethrow.
   ['and falls back to UTC on a zone it cannot read, rather than failing the sale',
-    /catch \(DateTimeException e\) \{\s*\n\s*zone = ZoneOffset\.UTC;\s*\n\s*\}/
-      .test(javaService)],
+    /catch \(DateTimeException e\) \{\s*\n\s*return ZoneOffset\.UTC;\s*\n\s*\}/
+      .test(datesUtil)],
   ['null still means today',
     /if \(requestedStart == null\) \{\s*\n\s*return;/.test(startHelper)],
   ['it refuses only a start strictly before that',
@@ -1378,8 +1412,8 @@ const startChecks = [
   ['it never checks what is already stored',
     !/validatePeriodStartIsTodayOrLater\([^)]*subscription/.test(javaService)],
   ['the helper says which methods use it',
-    /Used by:[\s\S]{0,200}createSubscription\(\)[\s\S]{0,60}updateSubscription\(\)[\s\S]{0,60}changePlan\(\)[\s\S]{0,200}private void validatePeriodStartIsTodayOrLater/
-      .test(javaService)],
+    /Used by:\n     \* - changePlan\(\)\n     \* - createSubscription\(\)\n     \* - updateSubscription\(\)\n     \*\/\n    public void validatePeriodStartIsTodayOrLater/
+      .test(javaSubUtils)],
   // The screen side: only a CHANGED value is flagged, or every running subscription would open
   // with an error on the form.
   ['the edit form flags only a changed start',
@@ -1982,6 +2016,82 @@ const barChecks = [
       && at('/platform-plans/catalogue').includes('Search name or code')],
 ]
 for (const [label, ok] of barChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+// #28 IS ON THE SCREEN, AND SO IS EVERY REFUSAL IT CAN GIVE. This is a testing tool, so a
+// filter that would be rejected has to be reachable: `size` offers 101 and 0 (both refused, not
+// clamped), and the sort list carries a field the API's allow-list does not.
+console.log('\nThe subscription history (#28) is wired to the screen')
+// From the feature's own constants, not from the function: HISTORY_SORTS and HISTORY_STATUSES
+// sit above it, and a slice starting at the function misses the very lists being asserted on.
+const historyStart = subsSourceFull.indexOf('const HISTORY_SORTS')
+// ...to the function that follows the component. Measured from the component, not from the
+// constants: the first `function` after the constants is the component itself.
+const historyFn = subsSourceFull.indexOf('function SubscriptionHistory(')
+const historyEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index).filter((i) => i > historyFn).concat([subsSourceFull.length]))
+const history = subsSourceFull.slice(historyStart, historyEnd)
+const { findEndpoint: lookupEndpoint } = await import('./src/config/endpoints.js')
+const e28 = lookupEndpoint('list-school-subscriptions')
+const historyChecks = [
+  ['the endpoint is in the catalogue, as a GET with the school in the path',
+    Boolean(e28) && e28.method === 'GET'
+      && e28.path === '/platform/schools/{id}/subscriptions'],
+  ['a screen calls it', history.includes("call('list-school-subscriptions'")],
+  ['it is mounted on the subscriptions page',
+    subsSourceFull.includes('<SubscriptionHistory schoolId={schoolId} />')],
+  // Shown even when the school has no current subscription: a cancelled row is exactly what
+  // somebody comes here to find, and #27 answering 404 says nothing about the history.
+  ['and mounted outside the has-a-subscription branch',
+    subsSourceFull.indexOf('<SubscriptionHistory') > subsSourceFull.indexOf('<RenewCustomPeriod')],
+  ['the tag shows the URL it will really send, filters included',
+    /<EndpointTag[\s\S]{0,200}id="list-school-subscriptions"[\s\S]{0,200}query=\{query\}/
+      .test(history)],
+  // The query is built at render, so the tag tracks the filters as they change.
+  ['the query is built at render, not inside the call',
+    /const query = useMemo\(\(\) => \{/.test(history)
+      && history.indexOf('const query = useMemo') < history.indexOf("call('list-school-subscriptions'")],
+  ['an empty filter box sends nothing rather than an empty parameter',
+    history.includes('if (planCode.trim()) out.planCode = planCode.trim()')],
+  // Every filter the API supports, and no filter it does not.
+  [(() => {
+    const supported = ['status', 'billingCycle', 'planCode', 'planVersion', 'autoRenew',
+      'current', 'startDateFrom', 'startDateTo', 'endDateFrom', 'endDateTo', 'page', 'size',
+      'sort']
+    const absent = supported.filter((f) => !history.includes('out.' + f)
+      && !new RegExp('\\{ *' + f + '[,} ]').test(history))
+    return `every filter the API takes is on the screen${absent.length ? ': missing ' + absent.join(', ') : ''}`
+  })(), (() => {
+    const supported = ['status', 'billingCycle', 'planCode', 'planVersion', 'autoRenew',
+      'current', 'startDateFrom', 'startDateTo', 'endDateFrom', 'endDateTo', 'page', 'size',
+      'sort']
+    return supported.every((f) => history.includes('out.' + f)
+      || new RegExp('\\{ *' + f + '[,} ]').test(history))
+  })()],
+  // There is no `trial` field on the document, so there must be no `trial` filter either — the
+  // status row carries TRIAL and that is the whole answer.
+  ['there is no invented trial filter',
+    !history.includes('out.trial') && history.includes("'TRIAL'")],
+  ['the refusals are reachable: a size over the cap and a sort off the allow-list',
+    history.includes("'101'") && history.includes("'contractedPrice,desc'")],
+  ['nothing in it is disabled',
+    !/disabled=|readOnly/.test(history)],
+  // periodEnded is computed by the API precisely because status cannot be trusted alone.
+  ['a row shows current and periodEnded, not just the status',
+    history.includes('row.current') && history.includes('row.periodEnded')
+      && history.includes('row.status')],
+  ['a row whose plan was deleted says so rather than showing a blank',
+    history.includes('row.planCode === null')],
+  ['an empty page reads as "never had one", not as an error',
+    history.includes('never had one')],
+  ['the catalogue entry documents every refusal the endpoint gives',
+    ['INVALID_PAGE', 'INVALID_PAGE_SIZE', 'INVALID_SORT_FIELD', 'INVALID_SORT_DIRECTION',
+      'INVALID_DATE_RANGE', 'SCHOOL_NOT_FOUND']
+      .every((code) => e28.errors.some((e) => e.code === code))],
+]
+for (const [label, ok] of historyChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
