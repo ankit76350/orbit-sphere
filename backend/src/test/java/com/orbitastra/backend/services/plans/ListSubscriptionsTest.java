@@ -41,6 +41,7 @@ import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.plandefinition.PlanDefinitionRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
+import com.orbitastra.backend.services.plans.utils.PlatformSubscriptionServiceUtils;
 
 /**
  * #28 — {@code listSubscriptions}, the decisions the service makes before and after the query.
@@ -65,6 +66,14 @@ class ListSubscriptionsTest {
 
     @Mock
     private SchoolSubscriptionRepository schoolSubscription;
+
+    /**
+     * Mocked although listSubscriptions calls nothing on it. Without it Mockito hands the
+     * service a null for this collaborator, and the first helper call added to this endpoint
+     * would fail as an NPE rather than as the missing stub it really is.
+     */
+    @Mock
+    private PlatformSubscriptionServiceUtils utils;
 
     @InjectMocks
     private PlatformSubscriptionService service;
