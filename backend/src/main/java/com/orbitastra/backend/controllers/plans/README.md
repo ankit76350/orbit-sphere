@@ -192,7 +192,7 @@ own; `TERMS_CHANGED` fits both when they are built. See the note at the end of t
 | <a id="t33"></a>33 — **built** | [`GET /schools/current/subscription`](#e33) | What plan am I on, what does it cost, when does it renew. The school's billing screen. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t34"></a>34 — **built** | [`GET /schools/current/subscription/feature-access`](#e34) | **The one the rest of the product needs.** Answers "is this school allowed to use this feature, and how much of it is left". Every module that gates a feature must ask this instead of reading the plan itself, because the moment two places work out feature access they disagree. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java) |
 | <a id="t35"></a>35 | [`GET /schools/current/subscription/usage`](#e35) | How much of each limit the school has used — students, users, whatever a feature counts. Shown next to the limits so a school can see itself getting close. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java), [`plan_definitions`](../../models/plans/PlanDefinition.java), [`students`](../../models/student/Student.java), [`user_accounts`](../../models/identity/UserAccount.java) |
-| <a id="t36"></a>36 | [`GET /schools/current/subscription/history`](#e36) | The school's own view of its plan changes. Shows what happened, but not the operator's internal notes. | [`subscription_history`](../../models/plans/SubscriptionHistory.java) |
+| <a id="t36"></a>[~~36~~](#e36) **not being built** | ~~`GET /schools/current/subscription/history`~~ | The school's own view of its plan changes. **Dropped 2026-09-09 — it cannot explain anything it shows.** Everything that says *why* a change happened is the operator's internal note: `reason`, `source`, `performedByDocsId`, `sourceEventId`. Withhold those, as this endpoint's own note always said it must, and what is left is a list of dates a school cannot act on. [#29](#e29) is the same trail with its explanations intact, on the surface entitled to read them. | — |
 | <a id="t37"></a>37 | [`PATCH /schools/current/subscription/auto-renew`](#e37) | Lets a school turn off automatic renewal itself, rather than having to email us. | [`school_subscriptions`](../../models/plans/SchoolSubscription.java) |
 | <a id="t38"></a>38 | [`POST /schools/current/subscription/cancel-request`](#e38) | The school asks to cancel. It **requests** — it does not cancel. Cancelling is #21, and it stays with the operator so somebody talks to the school first. | **none — no model holds a cancellation request yet.** See the note at the end of this file. |
 
@@ -283,7 +283,7 @@ the money works until there is something to bill.
 |---|---|---|
 | **1** | We can define what we sell | 1–10 |
 | **2** | A school can have a subscription, and the product can ask what it is allowed to do | 13, 14, 27, 33, **34** |
-| **3** | The subscription can move through its life | 15–26, 28–32, 36 |
+| **3** | The subscription can move through its life | 15–26, 28–32 |
 | **4** | We can bill a school and take money by hand | 39–44, 47–54, 61 |
 | **5** | The school can pay online | 55–58, 62, 66–69 |
 | **6** | It runs without us | 59, 60, 63–65, 70, 71 |
@@ -4076,9 +4076,49 @@ with no features — and those two need different fixing.
 - [`user_accounts`](../../models/identity/UserAccount.java) — *reads*: a count by `schoolId` and `status`
 
 <a id="e36"></a>
-**[36](#t36) · `GET /schools/current/subscription/history`**
+**[~~36~~](#t36) · ~~`GET /schools/current/subscription/history`~~** — not being built
 
-- [`subscription_history`](../../models/plans/SubscriptionHistory.java) — *reads*: `eventType`, `previousStatus`, `newStatus`, `effectiveAt`. **Not** `reason` or `performedByDocsId` — those are the operator's internal notes
+**Dropped on 2026-09-09, before being built.** It would have returned the school's own view of
+[`subscription_history`](../../models/plans/SubscriptionHistory.java): `eventType`,
+`previousStatus`, `newStatus`, `effectiveAt` and the plans either side. **Not** `reason`,
+`source`, `performedByDocsId` or `sourceEventId` — this endpoint's own note said so from the
+start, because those are the operator's internal record.
+
+**That withholding is what leaves nothing worth returning.** Look at what a real row says once
+the internal fields are stripped:
+
+| Field | What the school would see |
+|---|---|
+| `eventType` | `SUSPENDED` |
+| `previousStatus` → `newStatus` | `ACTIVE` → `SUSPENDED` |
+| `effectiveAt` | Friday 12 September 2026 12:00AM |
+| ~~`reason`~~ | *"Non-payment of the September invoice."* — withheld |
+| ~~`source`~~ | `ADMIN_PORTAL` — withheld |
+| ~~`performedByDocsId`~~ | who did it — withheld |
+
+The school is told it was suspended and not told why. **The one field that would answer the only
+question a school opens a history to ask is the one field this endpoint may not show.** A list of
+dated status changes with no explanation is not a feature; it is a support ticket waiting to
+happen, and a worse one than silence because it looks like an answer.
+
+### What a school gets instead
+
+[#33](#e33) already returns the subscription it is on now — plan, price, status, period dates —
+and that is the question a school actually asks. `whyNotActive` on that endpoint carries a
+plain-language sentence when the subscription is not serving, which is the *explanation* rather
+than the audit row.
+
+### What this leaves open, which is the honest cost
+
+**A school cannot see its own past plan changes at all.** If that turns out to matter — "we were
+on Premium last year, prove it" — the answer is not this endpoint. It is a **statement**: a
+deliberate, school-facing summary of the periods a school has been billed for, built from
+`school_subscriptions` rather than from the audit trail, saying what was charged and when. That
+is a billing document, it belongs with the invoice endpoints, and it can be written without ever
+touching an operator's note.
+
+[#29](#e29) remains the full trail for anybody entitled to the explanations.
+
 
 <a id="e37"></a>
 **[37](#t37) · `PATCH /schools/current/subscription/auto-renew`**
