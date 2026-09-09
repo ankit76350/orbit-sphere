@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbitastra.backend.common.access.ActionGate;
+import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.request.GenerateWeeklyOffRequest;
@@ -29,6 +31,7 @@ import com.orbitastra.backend.dto.core.academicyear.response.DayStatusResponse;
 import com.orbitastra.backend.dto.core.academicyear.response.HolidayCalendarResponse;
 import com.orbitastra.backend.dto.core.academicyear.response.WeeklyOffGenerateResponse;
 import com.orbitastra.backend.dto.core.academicyear.response.WorkingDaysResponse;
+import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.HolidayType;
 import com.orbitastra.backend.services.core.AcademicYearService;
 
@@ -65,6 +68,19 @@ import lombok.RequiredArgsConstructor;
 public class AcademicYearController {
 
     private final AcademicYearService academicYearService;
+
+    /**
+     * The two gates, and the resolver they need.
+     *
+     * <p><b>Here rather than inside the service on request.</b> Note that
+     * {@code createAcademicYear} already calls {@code currentSchool.requireUsable()}, which
+     * applies its own school-status rule — and a <b>looser</b> one: it permits
+     * {@code PROVISIONING}, which {@link ActionGate#requireActiveSchool} refuses. Both now run,
+     * the stricter first, so a school still being set up is refused here. Worth consolidating
+     * onto one rule; see the note in the README.
+     */
+    private final CurrentSchoolResolver currentSchool;
+    private final ActionGate gate;
 
     //Get every academic year this school has, newest first. Empty list if it has none.
     @GetMapping
@@ -126,6 +142,17 @@ public class AcademicYearController {
     @PostMapping
     public ResponseEntity<AcademicYearResponse> create(
             @Valid @RequestBody AcademicYearCreateRequest request) {
+
+        //! Gate 1 and Gate 2 — the school has to be live, and it has to be paying, before it
+        //! sets up a year. Resolved once here and handed to both gates, so the school is read
+        //! once for the pair rather than once each.
+        //!
+        //! ORDER MATTERS. The school first: telling a suspended school its subscription is fine
+        //! answers a question it did not ask, and a closed school's subscription is nobody's
+        //! business. The cheaper, more fundamental refusal goes first.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
 
         AcademicYearResponse response = academicYearService.createAcademicYear(request);
         return ResponseEntity

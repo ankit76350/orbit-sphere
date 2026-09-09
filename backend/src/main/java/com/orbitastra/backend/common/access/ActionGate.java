@@ -161,13 +161,29 @@ public class ActionGate {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
-        //! step 2 - the one row it is on now. A school with none has never bought anything.
+        //! step 2 - the subscription, and whether it still grants
+        return requireUsableSubscription(school);
+    }
+
+    /**
+     * The same check for a school already in hand, so a caller that has just resolved one does
+     * not read it again.
+     *
+     * <p>This is the form the school surface wants: {@code CurrentSchoolResolver} has already
+     * produced the school, and it carries both things the refusal messages need — the name and
+     * the timezone.
+     *
+     * @return the subscription, which grants
+     */
+    public SchoolSubscription requireUsableSubscription(School school) {
+        //! step 1 - the one row it is on now. A school with none has never bought anything.
         // TODO: read school subscription
-        SchoolSubscription subscription = subscriptions.findBySchoolIdAndCurrentIsTrue(schoolId)
+        SchoolSubscription subscription = subscriptions
+                .findBySchoolIdAndCurrentIsTrue(school.getId())
                 .orElseThrow(() -> ApiException.notFound("SUBSCRIPTION_NOT_FOUND",
                         "'" + school.getSchoolName() + "' has no subscription."));
 
-        //! step 3 - and it has to still grant
+        //! step 2 - and it has to still grant
         return requireUsableSubscription(subscription, school.getSchoolName(),
                 school.getDefaultTimeZone());
     }
