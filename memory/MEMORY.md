@@ -1,7 +1,7 @@
 - [Backend Foundation Review](backend-foundation-review.md) — 2026-07-18 review: critical gaps (committed DB creds, no auth, no tenant isolation) to fix before new modules
 - [Code Comment & Log Style](backend/code-writing-rules/code-comment-and-log-style.md) — write all comments and logs in simple, plain, beginner-friendly language; no jargon
-- [MongoDB Document ID Naming](mongodb-document-id-naming.md) — fields that store another MongoDB document's ObjectId must use the `DocsId` suffix
-- [Database Call Markers & Two-Step Writes](database-call-markers-and-two-step-writes.md) — mark every DB call with `// TODO: read/insert/update <thing>`; build the object and save it in two separate steps
+- [MongoDB Document ID Naming](backend/code-writing-rules/model/mongodb-document-id-naming.md) — fields that store another MongoDB document's ObjectId must use the `DocsId` suffix
+- [Database Call Markers & Two-Step Writes](backend/code-writing-rules/database-call-markers-and-two-step-writes.md) — mark every DB call with `// TODO: read/insert/update <thing>`; build the object and save it in two separate steps
 - [Backend Service Code Writing Rules](backend/code-writing-rules/service/folder-structure-and-call-rules.md) — each module gets main services + `utils/` + one `helper/` file; service → utils → helper, never chained between utils or between helpers
 - [Backend Repository Code Writing Rules](backend/code-writing-rules/repositories/folder-structure.md) — repositories go module → document/table → files; never loose in the module folder
 - [Backend DTO Folder Structure Rules](backend/code-writing-rules/dto/folder-structure.md) — DTOs go module → feature/document → `request/`+`response/`; never loose in the module folder
