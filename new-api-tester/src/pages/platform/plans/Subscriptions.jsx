@@ -5,7 +5,7 @@ import EndpointTag from '../../../components/EndpointTag.jsx'
 import SchoolPicker from '../../../components/SchoolPicker.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { endOfDay, readableInstant, startOfDay, startOfDayInZone, toDateInput, todayInput, todayInZone } from '../../../lib/dates.js'
+import { endOfDay, readableDateTime, readableInstant, startOfDay, startOfDayInZone, toDateInput, todayInput, todayInZone } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
 import { sellability } from './planFacts.js'
@@ -316,6 +316,7 @@ export default function Subscriptions() {
           or not it has a current subscription, because a school with none may still have a
           history — a cancelled row is exactly what somebody comes here to find. */}
       <SubscriptionHistory schoolId={schoolId} />
+      <SubscriptionTrail schoolId={schoolId} />
 
       <NewSubscription
         timeZone={school?.defaultTimeZone}
@@ -589,7 +590,7 @@ function SubscriptionHistory({ schoolId }) {
                   : ''}
               </span>
               <span className="muted">
-                {readableInstant(row.currentPeriodStart)} → {readableInstant(row.currentPeriodEnd)}
+                {readableDateTime(row.currentPeriodStart)} → {readableDateTime(row.currentPeriodEnd)}
                 {' · '}{money(row.contractedPrice, row.currencyCode)}
               </span>
               {row.reasonForChanges
@@ -598,6 +599,346 @@ function SubscriptionHistory({ schoolId }) {
             </div>
           </div>
         ))}
+      </div>
+    </Card>
+  )
+}
+
+/* ------------------------------------------------------------------ the trail of one subscription */
+
+/** What #29 may sort on, spelled as the API wants it. */
+const TRAIL_SORTS = [
+  '', 'effectiveAt,desc', 'effectiveAt,asc',
+  'createdAt,desc', 'createdAt,asc',
+  'eventType,asc', 'newStatus,desc', 'previousStatus,asc',
+  // Not on the allow-list. Kept so the 400 can be triggered from the screen — this is a testing
+  // tool, and a refusal nobody can reach is a refusal nobody can check.
+  'reason,desc', 'source,asc',
+]
+
+/** Every value SubscriptionEventType can hold. All of them are written by something. */
+const TRAIL_EVENTS = [
+  'CREATED', 'TRIAL_STARTED', 'ACTIVATED', 'PLAN_CHANGED', 'TERMS_CHANGED', 'RENEWED',
+  'PAYMENT_PAST_DUE', 'SUSPENDED', 'RESUMED', 'CANCELLED', 'EXPIRED',
+]
+
+/** What can go in the path segment. The last one is wrong on purpose. */
+const TRAIL_SUBJECTS = [
+  { value: 'current', label: 'current' },
+  { value: 'SUB-nonsense', label: 'a number with no such subscription (404)' },
+  { value: '6aa10000000000000000beef', label: 'an id that does not exist (404)' },
+]
+
+/** Which colour a trail row's outcome gets. Reuses the subscription tones where they overlap. */
+const EVENT_TONE = {
+  CREATED: 'good', TRIAL_STARTED: 'warn', ACTIVATED: 'good', PLAN_CHANGED: 'warn',
+  TERMS_CHANGED: undefined, RENEWED: 'good', PAYMENT_PAST_DUE: 'warn',
+  SUSPENDED: 'bad', RESUMED: 'good', CANCELLED: 'bad', EXPIRED: 'bad',
+}
+
+/**
+ * Endpoint #29 — the audit trail of one subscription.
+ *
+ * WHY IT IS A SEPARATE CARD FROM #28. That one lists the subscriptions a school has had; this
+ * lists what happened *to one of them*. A school on its fourth plan has four rows up there and a
+ * trail down here for whichever of the four you name.
+ *
+ * THE SUBSCRIPTION IS A TEXT BOX, NOT A DROPDOWN OF WHAT EXISTS. A subscription number looks
+ * like `SUB/2026/09/000002` and cannot go in a URL at all, so the API takes `current` or the
+ * subscriptionId — and the quick-set buttons include two values that do not resolve, so the two
+ * 404s can be reached from here. Paste a `subscriptionId` from the list above to read that row's
+ * trail.
+ *
+ * EVERY FILTER IS ON SCREEN, INCLUDING THE ONES THAT MATCH NOTHING TODAY. `performedByDocsId`
+ * and `sourceEventId` are implemented and will always come back empty, because nothing populates
+ * those fields yet. They are here because pretending a filter does not exist is worse than
+ * showing one whose honest answer is zero rows.
+ *
+ * THE TWO DATES ARE BOTH SHOWN AND BOTH FILTERABLE. `effectiveAt` is when the change took effect
+ * and `recordedAt` is when the row was written, and they are genuinely different — a
+ * cancellation agreed today for the end of the period is effective in October and recorded in
+ * September. Showing only one would make the trail look wrong against an invoice.
+ *
+ * NOTHING IS DISABLED. Refusals are the point of the tool.
+ */
+function SubscriptionTrail({ schoolId }) {
+  const { call } = useApi()
+  const { environment } = useApiState()
+
+  const [subject, setSubject] = useState('current')
+  const [events, setEvents] = useState([])
+  const [statuses, setStatuses] = useState([])
+  const [previousStatuses, setPreviousStatuses] = useState([])
+  const [source, setSource] = useState('')
+  const [performedBy, setPerformedBy] = useState('')
+  const [sourceEventId, setSourceEventId] = useState('')
+  const [reason, setReason] = useState('')
+  const [effectiveFrom, setEffectiveFrom] = useState('')
+  const [effectiveTo, setEffectiveTo] = useState('')
+  const [recordedFrom, setRecordedFrom] = useState('')
+  const [recordedTo, setRecordedTo] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Built at render so the endpoint tag shows the URL that will actually be sent, and changes as
+  // the filters change. An empty box sends nothing rather than an empty parameter.
+  const query = useMemo(() => {
+    const out = { page, size }
+    if (events.length) out.eventType = events
+    if (statuses.length) out.status = statuses
+    if (previousStatuses.length) out.previousStatus = previousStatuses
+    if (source.trim()) out.source = source.trim()
+    if (performedBy.trim()) out.performedByDocsId = performedBy.trim()
+    if (sourceEventId.trim()) out.sourceEventId = sourceEventId.trim()
+    if (reason.trim()) out.reason = reason.trim()
+    if (effectiveFrom) out.effectiveFrom = startOfDay(effectiveFrom)
+    if (effectiveTo) out.effectiveTo = endOfDay(effectiveTo)
+    if (recordedFrom) out.recordedFrom = startOfDay(recordedFrom)
+    if (recordedTo) out.recordedTo = endOfDay(recordedTo)
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, events, statuses, previousStatuses, source, performedBy, sourceEventId,
+    reason, effectiveFrom, effectiveTo, recordedFrom, recordedTo, sort])
+
+  const load = useCallback(async () => {
+    if (!schoolId) return
+    setLoading(true)
+    const result = await call('get-subscription-history', {
+      label: 'What has happened to this subscription',
+      pathParams: { id: schoolId, subscriptionNo: subject },
+      query,
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, schoolId, subject, query])
+
+  useEffect(() => { load() }, [load])
+
+  const rows = data?.content ?? []
+
+  const toggle = (list, setList, value) => {
+    setPage(0)
+    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value])
+  }
+
+  return (
+    <Card
+      title="What has happened to it"
+      description="Endpoint #29. The audit trail of one subscription — what changed, when, who changed it and why. Read-only: the collection is append-only, and a correction is a new row."
+      action={<EndpointTag
+        id="get-subscription-history"
+        name="The trail, as filtered"
+        pathParams={{ id: schoolId, subscriptionNo: subject }}
+        query={query}
+      />}
+    >
+      <div className="stack">
+        <div className="toolbar">
+          <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+          <span className="muted">
+            {data
+              ? `${plural(data.totalElements, 'change')} · page ${data.page + 1} of ${Math.max(data.totalPages, 1)}`
+              : 'Not read yet'}
+          </span>
+          <span className="toolbar-spacer" />
+          <Select
+            label="Sort"
+            value={sort}
+            onChange={(value) => { setSort(value); setPage(0) }}
+            options={TRAIL_SORTS.map((one) => one || 'newest effective first (default)')}
+          />
+        </div>
+
+        {/* A subscription number has slashes in it and cannot be written in a URL — hence
+            `current` and the id. Two of the quick-set values deliberately do not resolve. */}
+        <Field
+          label="Which subscription"
+          hint="`current`, or a subscriptionId from the list above. A subscription number contains slashes and cannot go in a URL."
+        >
+          <Input value={subject} onChange={(e) => { setSubject(e.target.value); setPage(0) }} placeholder="current" />
+        </Field>
+        <div className="toolbar">
+          {TRAIL_SUBJECTS.map((one) => (
+            <button
+              key={one.value}
+              type="button"
+              className="segmented-item"
+              data-active={subject === one.value || undefined}
+              onClick={() => { setSubject(one.value); setPage(0) }}
+            >
+              {one.label}
+            </button>
+          ))}
+        </div>
+
+        <Field label="What happened" hint="Repeats the parameter, so several mean either. This is the action filter.">
+          <div className="toolbar">
+            {TRAIL_EVENTS.map((one) => (
+              <button
+                key={one}
+                type="button"
+                className="segmented-item"
+                data-active={events.includes(one) || undefined}
+                onClick={() => toggle(events, setEvents, one)}
+              >
+                {one}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {/* Two ends of one transition, and they answer different questions. */}
+        <Field label="Moved TO this status" hint="`?status=` — when was it suspended.">
+          <div className="toolbar">
+            {HISTORY_STATUSES.map((one) => (
+              <button
+                key={one}
+                type="button"
+                className="segmented-item"
+                data-active={statuses.includes(one) || undefined}
+                onClick={() => toggle(statuses, setStatuses, one)}
+              >
+                {one}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Moved FROM this status" hint="`?previousStatus=` — when did the trial end. Matches nothing on a first row, which has no previous status.">
+          <div className="toolbar">
+            {HISTORY_STATUSES.map((one) => (
+              <button
+                key={one}
+                type="button"
+                className="segmented-item"
+                data-active={previousStatuses.includes(one) || undefined}
+                onClick={() => toggle(previousStatuses, setPreviousStatuses, one)}
+              >
+                {one}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <div className="field-grid">
+          <Field label="Reason contains" hint="Free-text substring, case-insensitive. Escaped, so .* searches for a dot and a star.">
+            <Input value={reason} onChange={(e) => { setReason(e.target.value); setPage(0) }} placeholder="non-payment" />
+          </Field>
+          <Field label="Source" hint="Exact and case-insensitive. ADMIN_PORTAL is the only value written today.">
+            <Input value={source} onChange={(e) => { setSource(e.target.value); setPage(0) }} placeholder="ADMIN_PORTAL" />
+          </Field>
+          <Field label="Performed by" hint="Always empty: nothing populates performedByDocsId yet. The filter is real, its honest answer is zero rows.">
+            <Input value={performedBy} onChange={(e) => { setPerformedBy(e.target.value); setPage(0) }} placeholder="an identity id" />
+          </Field>
+          <Field label="Source event id" hint="Also always empty today — it traces a row back to a webhook or a job run.">
+            <Input value={sourceEventId} onChange={(e) => { setSourceEventId(e.target.value); setPage(0) }} placeholder="billing_event_00004519" />
+          </Field>
+        </div>
+
+        {/* effectiveAt is when the change took effect; createdAt is when the row was written. */}
+        <div className="field-grid">
+          <Field label="Took effect from" hint="Inclusive, on effectiveAt.">
+            <Input type="date" value={effectiveFrom} onChange={(e) => { setEffectiveFrom(e.target.value); setPage(0) }} />
+          </Field>
+          <Field label="Took effect to" hint="From after to is 400 INVALID_DATE_RANGE.">
+            <Input type="date" value={effectiveTo} onChange={(e) => { setEffectiveTo(e.target.value); setPage(0) }} />
+          </Field>
+          <Field label="Recorded from" hint="Inclusive, on createdAt — when the row was WRITTEN, which is not the same date.">
+            <Input type="date" value={recordedFrom} onChange={(e) => { setRecordedFrom(e.target.value); setPage(0) }} />
+          </Field>
+          <Field label="Recorded to">
+            <Input type="date" value={recordedTo} onChange={(e) => { setRecordedTo(e.target.value); setPage(0) }} />
+          </Field>
+        </div>
+
+        {/* 101 is over the cap on purpose: the API refuses it rather than clamping. */}
+        <div className="toolbar">
+          <Field label="Page size" hint="Defaults to 20, capped at 100. 101 is refused, not clamped.">
+            <Select label="Page size" value={size}
+              onChange={(value) => { setSize(value); setPage(0) }}
+              options={['1', '5', '20', '100', '101', '0']} />
+          </Field>
+          <span className="toolbar-spacer" />
+          <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+          <span className="muted">page {page}</span>
+          <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+        </div>
+
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code || `The server answered ${problem.status}`}
+              </span>
+            </div>
+            <pre className="resp-body">
+              {problem.bodyJson?.message || 'Nothing came back.'}
+            </pre>
+          </div>
+        ) : null}
+
+        {!problem && rows.length === 0 ? (
+          <Empty
+            title="No changes match"
+            description={data && data.totalElements === 0 && Object.keys(query).length <= 2
+              ? 'Nothing has happened to this subscription yet. That is an empty page, not a 404 — though in practice every subscription has at least a CREATED row, written in the same transaction as the subscription itself.'
+              : 'The filters match nothing. Clear one and read again.'}
+          />
+        ) : null}
+
+        {rows.map((row) => {
+          const planMoved = row.previousPlanCode !== row.newPlanCode
+          return (
+            <div className="resp" key={row.historyId}>
+              <div className="resp-head">
+                <Badge tone={EVENT_TONE[row.eventType]}>{row.eventType}</Badge>
+                <strong>
+                  {row.previousStatus ?? 'nothing'} → {row.newStatus}
+                </strong>
+                <span className="toolbar-spacer" />
+                <span className="muted">{row.source}</span>
+              </div>
+              <div className="stack" style={{ padding: '10px 12px', gap: 6 }}>
+                <span className="muted">
+                  took effect {readableDateTime(row.effectiveAt)}
+                  {' · recorded '}{readableDateTime(row.recordedAt)}
+                </span>
+                {planMoved ? (
+                  <span>
+                    <strong>{row.previousPlanCode ?? '—'}</strong>
+                    {row.previousPlanVersion ? ` v${row.previousPlanVersion}` : ''}
+                    {' → '}
+                    <strong>{row.newPlanCode ?? '—'}</strong>
+                    {row.newPlanVersion ? ` v${row.newPlanVersion}` : ''}
+                    {row.previousPlanCode === null || row.newPlanCode === null
+                      ? ' · one of these plans has been deleted, so its name cannot be shown'
+                      : ''}
+                  </span>
+                ) : (
+                  <span className="muted">
+                    plan unchanged: {row.newPlanCode ?? '—'}
+                    {row.newPlanVersion ? ` v${row.newPlanVersion}` : ''}
+                    {row.newPlanName ? ` · ${row.newPlanName}` : ''}
+                  </span>
+                )}
+                {row.reason ? <span>“{row.reason}”</span> : <span className="muted">no reason was given</span>}
+                <span className="muted">
+                  {row.subscriptionNo}
+                  {' · who: '}
+                  {row.performedByDocsId
+                    ?? 'not recorded — nothing populates performedByDocsId yet, so the source above is the only answer the record holds'}
+                  {row.sourceEventId ? ` · event ${row.sourceEventId}` : ''}
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </Card>
   )

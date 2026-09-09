@@ -2096,6 +2096,150 @@ for (const [label, ok] of historyChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe audit trail (#29) is wired to the screen')
+// From the feature's own constants down to the function AFTER the component — measured from the
+// component itself, because the first `function` below the constants is the component.
+const trailStart = subsSourceFull.indexOf('const TRAIL_SORTS')
+const trailFn = subsSourceFull.indexOf('function SubscriptionTrail(')
+const trailEnd = Math.min(...[...subsSourceFull.matchAll(/^function \w+\(/gm)]
+  .map((m) => m.index).filter((i) => i > trailFn).concat([subsSourceFull.length]))
+const trail = subsSourceFull.slice(trailStart, trailEnd)
+const e29 = lookupEndpoint('get-subscription-history')
+const datesLib = readFileSync('src/lib/dates.js', 'utf8')
+const trailChecks = [
+  ['the endpoint is in the catalogue, as a GET with both path parts',
+    Boolean(e29) && e29.method === 'GET'
+      && e29.path === '/platform/schools/{id}/subscriptions/{subscriptionNo}/history'],
+  ['a screen calls it', trail.includes("call('get-subscription-history'")],
+  ['it is mounted on the subscriptions page',
+    subsSourceFull.includes('<SubscriptionTrail schoolId={schoolId} />')],
+  // Beside #28 and outside the has-a-subscription branch: a cancelled subscription's trail is
+  // exactly what somebody comes here for, and #27 answering 404 says nothing about it.
+  ['and mounted outside the has-a-subscription branch',
+    subsSourceFull.indexOf('<SubscriptionTrail') > subsSourceFull.indexOf('<RenewCustomPeriod')],
+  ['it names the subscription in the path, not just the school',
+    /<EndpointTag[\s\S]{0,300}id="get-subscription-history"[\s\S]{0,300}subscriptionNo: subject/
+      .test(trail)],
+  ['the tag shows the URL it will really send, filters included',
+    /<EndpointTag[\s\S]{0,300}id="get-subscription-history"[\s\S]{0,300}query=\{query\}/
+      .test(trail)],
+  ['the query is built at render, not inside the call',
+    /const query = useMemo\(\(\) => \{/.test(trail)
+      && trail.indexOf('const query = useMemo') < trail.indexOf("call('get-subscription-history'")],
+  ['an empty filter box sends nothing rather than an empty parameter',
+    trail.includes('if (reason.trim()) out.reason = reason.trim()')],
+  // Every filter the API supports, and no filter it does not.
+  [(() => {
+    const supported = ['eventType', 'status', 'previousStatus', 'source', 'performedByDocsId',
+      'sourceEventId', 'reason', 'effectiveFrom', 'effectiveTo', 'recordedFrom', 'recordedTo',
+      'page', 'size', 'sort']
+    const absent = supported.filter((f) => !trail.includes('out.' + f)
+      && !new RegExp('\\{ *' + f + '[,} ]').test(trail))
+    return `every filter the API takes is on the screen${absent.length ? ': missing ' + absent.join(', ') : ''}`
+  })(), (() => {
+    const supported = ['eventType', 'status', 'previousStatus', 'source', 'performedByDocsId',
+      'sourceEventId', 'reason', 'effectiveFrom', 'effectiveTo', 'recordedFrom', 'recordedTo',
+      'page', 'size', 'sort']
+    return supported.every((f) => trail.includes('out.' + f)
+      || new RegExp('\\{ *' + f + '[,} ]').test(trail))
+  })()],
+  // There is no plan-code filter on #29: a row stores TWO plan links, so the filter would have
+  // to guess whether the caller means moved-off or moved-to.
+  ['no plan-code filter is invented, unlike #28',
+    !trail.includes('out.planCode')],
+  // The two dates are different questions and both windows must be present and named apart.
+  ['both date windows are on the screen, named after what they mean',
+    trail.includes('out.effectiveFrom') && trail.includes('out.recordedFrom')
+      && trail.includes('Took effect from') && trail.includes('Recorded from')],
+  ['a row shows BOTH dates, because they are not the same date',
+    trail.includes('row.effectiveAt') && trail.includes('row.recordedAt')],
+  // Both ends of a transition, which no single filter can express.
+  ['both ends of a transition are filterable',
+    trail.includes('out.status') && trail.includes('out.previousStatus')
+      && trail.includes('Moved TO this status') && trail.includes('Moved FROM this status')],
+  ['every event type the enum holds is on the screen',
+    ['CREATED', 'TRIAL_STARTED', 'ACTIVATED', 'PLAN_CHANGED', 'TERMS_CHANGED', 'RENEWED',
+      'PAYMENT_PAST_DUE', 'SUSPENDED', 'RESUMED', 'CANCELLED', 'EXPIRED']
+      .every((one) => trail.includes(`'${one}'`))],
+  // A subscription number cannot go in a URL, so the two forms that work must both be offered.
+  ['the path segment offers `current` and takes a pasted id',
+    trail.includes("useState('current')") && /subscriptionId from the list above/.test(trail)],
+  ['the two 404s are reachable from the screen',
+    trail.includes("'SUB-nonsense'") && trail.includes("'6aa10000000000000000beef'")],
+  ['the refusals are reachable: a size over the cap and a sort off the allow-list',
+    trail.includes("'101'") && trail.includes("'reason,desc'")],
+  ['nothing in it is disabled', !/disabled=|readOnly/.test(trail)],
+  // The honest state of two filters that will always come back empty.
+  ['the two filters that match nothing today say so rather than being hidden',
+    trail.includes('out.performedByDocsId') && trail.includes('out.sourceEventId')
+      && /nothing populates performedByDocsId yet/.test(trail)],
+  ['a row says who is not recorded rather than showing a blank',
+    /not recorded/.test(trail) && trail.includes('row.performedByDocsId')],
+  ['a row whose plan was deleted says so rather than showing a blank',
+    trail.includes('row.previousPlanCode === null')],
+  ['a row with no reason says so rather than showing empty quotes',
+    trail.includes('no reason was given')],
+  ['an empty page reads as "nothing has happened", not as an error',
+    trail.includes('Nothing has happened to this subscription yet')],
+  ['the catalogue entry documents every refusal the endpoint gives',
+    ['INVALID_PAGE', 'INVALID_PAGE_SIZE', 'INVALID_SORT_FIELD', 'INVALID_SORT_DIRECTION',
+      'INVALID_DATE_RANGE', 'SCHOOL_NOT_FOUND', 'SUBSCRIPTION_NOT_FOUND']
+      .every((code) => e29.errors.some((e) => e.code === code))],
+  ['the catalogue offers every query parameter the API takes',
+    ['page', 'size', 'sort', 'eventType', 'status', 'previousStatus', 'source',
+      'performedByDocsId', 'sourceEventId', 'reason', 'effectiveFrom', 'effectiveTo',
+      'recordedFrom', 'recordedTo']
+      .every((key) => e29.queryParams.some((q) => q.key === key))],
+  ['and names both path parameters',
+    ['id', 'subscriptionNo'].every((n) => e29.pathParams.some((p) => p.name === n))],
+]
+for (const [label, ok] of trailChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nDates on screen are readable, per the project rule')
+const dateRuleChecks = [
+  ['there is one helper for it, in lib/dates.js',
+    /export function readableDateTime\(/.test(datesLib)],
+  // "Friday 8 October 2027 11:59 PM" — weekday, day, month, year, 12-hour clock, AM/PM.
+  ['it renders a weekday, a full month and a 12-hour clock',
+    /weekday: 'long'/.test(datesLib) && /month: 'long'/.test(datesLib)
+      && /hour12: true/.test(datesLib)],
+  // Scoped to readableDateTime's OWN body: startOfDayInZone also builds an Intl formatter, and
+  // a whole-file check passed happily while this function was switched to the browser's locale.
+  ['the locale is pinned, not taken from the browser',
+    (() => {
+      const from = datesLib.indexOf('export function readableDateTime(')
+      const to = datesLib.indexOf('\nexport function', from + 1)
+      const body = datesLib.slice(from, to === -1 ? undefined : to)
+      return /Intl\.DateTimeFormat\('en-GB'/.test(body)
+        && !/DateTimeFormat\(undefined/.test(body)
+        && !/toLocaleString|toLocaleDateString|toLocaleTimeString/.test(body)
+    })()],
+  ['AM and PM are upper case, with a space before them',
+    /dayPeriod \|\| ''\)\.toUpperCase\(\)/.test(datesLib)
+      && /\$\{at_\.minute\} \$\{/.test(datesLib)],
+  ['a null date reads as a dash rather than the word null',
+    /if \(!instant\) return '—'/.test(datesLib)],
+  ['the trail renders its dates through it, not raw',
+    trail.includes('readableDateTime(row.effectiveAt)')
+      && trail.includes('readableDateTime(row.recordedAt)')
+      && !/\{row\.effectiveAt\}/.test(trail)],
+  // Both tables sit on one screen, so they must not disagree about the format.
+  ['#28 renders its period dates through it too',
+    history.includes('readableDateTime(row.currentPeriodStart)')],
+  // The raw instant is still available on purpose: this is an API testing tool, and next to a
+  // date picker the exact value on the wire is the thing somebody needs.
+  ['the exact stored instant is still available for "stored as" hints',
+    /export function readableInstant\(/.test(datesLib)
+      && /API testing tool/.test(datesLib)],
+]
+for (const [label, ok] of dateRuleChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nEndpoint coverage')
 const catalogue = readFileSync('src/config/endpoints.js', 'utf8')
 const allIds = [...catalogue.matchAll(/\bid:\s*"([a-z][a-z0-9-]+)",\s*\n\s*name:/g)].map((m) => m[1])

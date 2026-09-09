@@ -7792,6 +7792,243 @@ and the plan's features (#27 returns those in full).
       examples: [],
     },
     {
+      id: "get-subscription-history",
+      name: "Get Subscription History",
+      method: "GET",
+      path: "/platform/schools/{id}/subscriptions/{subscriptionNo}/history",
+      status: 'live',
+      summary: "The audit trail of one subscription: what changed, when, who changed it and why.",
+      schoolSurface: false,
+      docs: `**GET** \`/platform/schools/{id}/subscriptions/{subscriptionNo}/history\` — one subscription's audit trail.
+
+**The answer to "why did this school get suspended"**, months after whoever did it has forgotten.
+Every endpoint that moves a subscription writes a history row *in the same transaction as the
+change*, so the trail cannot be missing the one event that explains the state.
+
+Read-only, and the collection is append-only. A correction is a new row written by whichever
+endpoint made the change; nothing here can alter one.
+
+### Naming the subscription in the path
+
+A subscription number looks like \`SUB/2026/09/000002\` and **cannot be written in a URL** — the
+slashes are path separators, and Tomcat rejects them encoded. Three forms are accepted:
+
+| In the path | What it means |
+|---|---|
+| \`current\` | the subscription the school is on now |
+| \`6aa100755e32971b99de6109\` | its **id** — what #28 returns as \`subscriptionId\` |
+| \`SUB-with-no-slashes\` | the number itself, for a caller that can send it |
+
+The school id is in all three lookups, so another school's subscription is a **404**, not its
+audit trail.
+
+| Parameter | Meaning |
+|---|---|
+| \`eventType\` | repeatable — \`?eventType=SUSPENDED&eventType=RESUMED\` means either. This is the "action" filter |
+| \`status\` | repeatable. The status the change moved the subscription **to** — "when was it suspended" |
+| \`previousStatus\` | repeatable. The status it moved **from** — "when did the trial end". Matches nothing on a first row |
+| \`source\` | **exact**, case-insensitive. \`ADMIN_PORTAL\` is the only value written today |
+| \`performedByDocsId\` | the acting identity. **Matches nothing today** — see below |
+| \`sourceEventId\` | the external event that caused it, for tracing a row back to a webhook or job run |
+| \`reason\` | free-text **substring**, case-insensitive. Escaped, so \`.*\` searches for those two characters |
+| \`effectiveFrom\`, \`effectiveTo\` | instants, **inclusive** both ends, on \`effectiveAt\` |
+| \`recordedFrom\`, \`recordedTo\` | instants, **inclusive** both ends, on \`createdAt\` |
+| \`page\`, \`size\` | zero-based; size defaults to 20, max 100 — **refused above it, not clamped** |
+| \`sort\` | \`field,direction\` — \`effectiveAt\`, \`createdAt\`, \`eventType\`, \`newStatus\`, \`previousStatus\` |
+
+Filters combine with AND; only \`eventType\`, \`status\` and \`previousStatus\` OR within themselves.
+
+### \`effectiveAt\` and \`createdAt\` are different dates
+
+\`effectiveAt\` is when the change **took effect**; \`createdAt\` is when the row was **written**. A
+cancellation agreed today for the end of the period is effective at the end of the period and
+recorded today. Filtering the wrong one silently answers a different question, so each window is
+named after what it means, and the response returns both — \`effectiveAt\` and \`recordedAt\`.
+
+The default order is newest **effective** first, so a future-dated cancellation sits above events
+that already happened. Use \`?sort=createdAt,desc\` for write order.
+
+### There is no plan-code filter, unlike #28
+
+A history row stores **two** plan links, so "rows involving PREMIUM" would have to guess whether
+you mean moved-off or moved-to. \`?eventType=PLAN_CHANGED\` is the question that actually gets
+asked, and the response names both plans so you can see which.
+
+### A gap is left as a gap
+
+An audit trail is read to settle what actually happened, so a field the endpoint cannot answer is
+\`null\` rather than filled in with something plausible:
+
+- \`previousStatus\` is null on a subscription's first row — there was no previous status. It does
+  **not** mean "unknown".
+- **\`performedByDocsId\` is null on every row that exists today.** Nothing populates it yet — #13
+  does not resolve the acting account — so \`source\` is the only answer to "who" the record holds.
+  The filter for it is implemented and matches nothing; that is the honest state, not a bug.
+- \`reason\` is null when whoever made the change gave none.
+- A plan whose document has since been deleted leaves that side's three plan fields null rather
+  than failing the page. A history is exactly where a deleted plan turns up.
+
+An event where the plan did **not** move shows the same plan on both sides, because that is what
+#19/#20/#21 write — recording which plan was in force when the school was cut off is the point.
+
+### Pagination is stable even when two rows share an instant
+
+The default order ends in the **row id**, the only unique key. Two rows really can share both
+dates — #13 and #16 can write in the same millisecond — and tied rows may come back in either
+order, so one could appear on page one *and* page two while another was never seen. An audit
+trail that loses a row when you page through it is worse than useless.
+
+### What a row does not carry
+
+\`schoolSubscriptionDocsId\` — you named the subscription in the URL, so echoing its internal id
+back on all twenty rows says nothing. \`subscriptionNo\` is there instead, so a row copied out of a
+page still says what it belongs to.
+
+### The test cases
+
+\`\`\`
+01  BARE TRAIL                                         -> 200 OK
+    GET /platform/schools/{id}/subscriptions/current/history
+    First 20, newest EFFECTIVE change first.
+
+02  BY ID INSTEAD OF \`current\`                         -> 200 OK
+    .../subscriptions/{subscriptionId}/history
+    The subscriptionId from #28. Same trail.
+
+03  A SUBSCRIPTION WITH ONE CHANGE                     -> 200 OK
+    A freshly created subscription has exactly one row: CREATED.
+    No subscription can have an EMPTY trail — #13 writes CREATED in the
+    same transaction as the subscription itself.
+
+04  A SCHOOL THAT DOES NOT EXIST                       -> 404 Not Found
+    { "code": "SCHOOL_NOT_FOUND" }
+
+05  A SCHOOL WITH NO SUBSCRIPTION                      -> 404 Not Found
+    { "code": "SUBSCRIPTION_NOT_FOUND" }  "...has no subscription yet."
+
+06  ANOTHER SCHOOL'S SUBSCRIPTION ID                   -> 404 Not Found
+    { "code": "SUBSCRIPTION_NOT_FOUND" }
+    A 404 and not a 403: confirming somebody else's subscription exists
+    is itself a disclosure about the other school.
+
+07  A NUMBER WITH SLASHES IN IT                        -> 404 Not Found
+    .../subscriptions/SUB-nonsense/history
+    The message explains that a number cannot go in a URL — use
+    \`current\`, or the subscriptionId.
+
+08  THE ACTION FILTER                                  -> 200 OK
+    ?eventType=SUSPENDED
+    ?eventType=SUSPENDED&eventType=RESUMED    both, ORed
+    ?eventType=RENEWED                        empty page, not an error
+
+09  BOTH ENDS OF A TRANSITION                          -> 200 OK
+    ?status=SUSPENDED           moved TO suspended
+    ?previousStatus=TRIAL       moved FROM trial — when the trial ended
+    ?status=CANCELLED&previousStatus=ACTIVE   one specific move
+
+10  SOURCE, EXACT AND CASE-INSENSITIVE                 -> 200 OK
+    ?source=ADMIN_PORTAL     every row today
+    ?source=admin_portal     same rows
+    ?source=PORTAL           NONE — it is exact, not a substring
+
+11  FREE-TEXT REASON                                   -> 200 OK
+    ?reason=non-payment      matches anywhere in the reason
+    ?reason=NON-PAYMENT      case-insensitive
+    ?reason=.*               ZERO rows — the text is escaped, so this
+                             searches for a dot and a star
+
+12  THE FILTERS THAT MATCH NOTHING TODAY               -> 200 OK
+    ?performedByDocsId=6aa10000000000000000abcd
+    ?sourceEventId=billing_event_00004519
+    Both implemented, both empty: nothing populates those fields yet.
+
+13  THE TWO DATE WINDOWS                               -> 200 OK
+    ?effectiveFrom=2026-09-01T00:00:00Z&effectiveTo=2026-09-30T00:00:00Z
+    ?recordedFrom=2026-01-01T00:00:00Z&recordedTo=2027-01-01T00:00:00Z
+    Both ends apply, inclusive. They are DIFFERENT dates — a cancellation
+    can be recorded in September and effective in October.
+
+14  PAGING                                             -> 200 OK
+    ?page=0&size=1   then page=1, page=2 ...
+    ?page=99         an empty page, not an error
+    ?size=100        the maximum
+
+15  SORTING                                            -> 200 OK
+    ?sort=effectiveAt,asc      oldest change first
+    ?sort=createdAt,desc       write order rather than effective order
+    ?sort=eventType,asc
+    ?sort=newStatus,desc
+    ?sort=previousStatus,asc
+
+16  BAD PAGING                                    -> 400 Bad Request
+    ?page=-1     INVALID_PAGE
+    ?size=0      INVALID_PAGE_SIZE
+    ?size=101    INVALID_PAGE_SIZE — refused, NOT clamped to 100
+
+17  BAD SORTING                                   -> 400 Bad Request
+    ?sort=reason,desc          INVALID_SORT_FIELD, listing what is allowed
+    ?sort=source,asc           INVALID_SORT_FIELD — off the allow-list
+    ?sort=effectiveAt,sideways INVALID_SORT_DIRECTION
+
+18  A WINDOW THAT RUNS BACKWARDS                  -> 400 Bad Request
+    ?effectiveFrom=2027-01-01T00:00:00Z&effectiveTo=2026-01-01T00:00:00Z
+    { "code": "INVALID_DATE_RANGE" }, with both dates spelled out
+    Also on the recorded window. A 400 rather than zero rows, which on an
+    audit trail is the difference between a clean record and a lost one.
+
+19  AN INVALID ENUM OR DATE                       -> 400 Bad Request
+    ?eventType=NOT_A_THING
+    ?status=NOT_A_STATUS
+    ?effectiveFrom=not-a-date
+
+20  PARAMETERS ARE CHECKED BEFORE ANYTHING IS READ
+    A bad page on a school that does not exist answers 400, not 404 —
+    so a malformed request costs no database round trip.
+
+21  READING NEVER WRITES                          -> 405 / 404
+    POST, PUT, PATCH and DELETE on this URL are not mapped.
+    Read the trail repeatedly: it is byte-identical every time.
+\`\`\``,
+      pathParams: [
+        { name: "id", value: "{{createdSchoolId}}", note: "The school's id." },
+        { name: "subscriptionNo", value: "current", note: "`current`, or the subscriptionId from #28. A subscription number has slashes and cannot go in a URL." },
+      ],
+      queryParams: [
+        { key: "page", value: "0", enabled: true },
+        { key: "size", value: "20", enabled: true },
+        { key: "sort", value: "effectiveAt,desc", enabled: false },
+        { key: "eventType", value: "SUSPENDED", enabled: false },
+        { key: "status", value: "SUSPENDED", enabled: false },
+        { key: "previousStatus", value: "ACTIVE", enabled: false },
+        { key: "source", value: "ADMIN_PORTAL", enabled: false },
+        { key: "performedByDocsId", value: "", enabled: false },
+        { key: "sourceEventId", value: "", enabled: false },
+        { key: "reason", value: "non-payment", enabled: false },
+        { key: "effectiveFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "effectiveTo", value: "2027-03-31T23:59:59Z", enabled: false },
+        { key: "recordedFrom", value: "2026-04-01T00:00:00Z", enabled: false },
+        { key: "recordedTo", value: "2027-03-31T23:59:59Z", enabled: false },
+      ],
+      headers: [],
+      bodyAllowed: false,
+      body: ``,
+      successStatus: 200,
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative" },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size outside 1-100 — refused, not clamped" },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A field off the allow-list" },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "Anything but asc or desc" },
+        { status: 400, code: "INVALID_DATE_RANGE", when: "from is after to, on either window" },
+        { status: 400, code: "VALIDATION_FAILED", when: "An unknown enum value, or a date that is not an instant" },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No such school" },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "No such subscription in this school — including another school's" },
+      ],
+      // A GET sends no body, so the twenty-one cases are in `docs` above rather than here.
+      examples: [],
+    },
+    {
       id: "get-subscription",
       name: "Get Subscription",
       method: "GET",

@@ -96,7 +96,51 @@ export function todayInZone(zone) {
   }
 }
 
-/** A stored instant as something readable next to a picker that can only show the day. */
+/**
+ * An instant as a person reads it: "Friday 8 October 2027 11:59 PM".
+ *
+ * THE PROJECT RULE FOR ANYTHING ON SCREEN. A raw `2027-10-08T23:59:59Z` in a table row is
+ * correct and nobody reads it, and the backend already spells out every date inside its
+ * messages — a screen that prints the raw field beside one of those messages undoes that.
+ *
+ * THE TIME IS ALWAYS SHOWN, even when it looks redundant, for the same reason the backend shows
+ * it: these dates get compared against each other and both ends can fall on the same day.
+ *
+ * THE LOCALE IS PINNED, not taken from the browser. `undefined` makes the format a property of
+ * whoever opened the page, and a screenshot in a bug report has to mean the same thing as what
+ * the next person sees.
+ *
+ * UTC, matching the `Z` the API sends. The school's own zone would name a different day for the
+ * same instant — see the note at the top of this module — and that choice is not settled; where
+ * it matters, the screen shows the stored instant next to this via `readableInstant`.
+ */
+export function readableDateTime(instant) {
+  if (!instant) return '—'
+  const at = new Date(instant)
+  if (Number.isNaN(at.getTime())) return String(instant)
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).formatToParts(at)
+  const at_ = Object.fromEntries(parts.filter((p) => p.type !== 'literal')
+    .map((p) => [p.type, p.value]))
+
+  // Assembled rather than taken from the formatter's own joining, so the shape is ours: no comma
+  // after the weekday, and AM/PM upper case with one space before it.
+  return `${at_.weekday} ${at_.day} ${at_.month} ${at_.year} `
+    + `${at_.hour}:${at_.minute} ${(at_.dayPeriod || '').toUpperCase()}`
+}
+
+/**
+ * The exact stored instant, unchanged.
+ *
+ * KEPT ALONGSIDE `readableDateTime` ON PURPOSE, and it is not a violation of the readable-date
+ * rule. This is an API testing tool: next to a date picker that can only show a day, the thing
+ * somebody needs to see is the precise value on the wire, including the seconds and the `Z`.
+ * Use this for "stored as ..." hints; use `readableDateTime` for anything presented as
+ * information.
+ */
 export function readableInstant(instant) {
   if (!instant) return null
   const at = new Date(instant)

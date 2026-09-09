@@ -45,30 +45,64 @@ Same reasoning as `Locale.ENGLISH` on the backend. A screenshot in a bug report 
 same thing as what the next person sees, and `undefined` makes the format a property of whoever
 happened to open the page.
 
-## Where it stands — three places break it today
+## The helper
 
-1. **`new-api-tester/src/lib/dates.js` — `readableInstant()` returns the raw ISO string**, despite
-   the name, and there are **11 call sites** in
-   [Subscriptions.jsx](../../new-api-tester/src/pages/platform/plans/Subscriptions.jsx). This is
-   the main one to fix: the function is already the single place every screen goes through, so the
-   rule lands in one edit.
-2. **`api-battleground/src/lib/format.js` — `formatDateTime()`** uses
-   `toLocaleString(undefined, …)`, so the format follows the viewer's machine, and it omits the
-   year entirely.
-3. **`formatClock()`** in the same file is a 24-hour clock. That one is arguably fine as it is —
-   it timestamps API calls in an activity log to the millisecond, which is a different job from
-   showing a subscription date — but it is the third place a time is formatted, and three
-   formatters is how two of them drift.
+[`new-api-tester/src/lib/dates.js`](../../new-api-tester/src/lib/dates.js) — `readableDateTime(instant)`:
+
+```
+2027-10-08T23:59:59Z      ->  Friday 8 October 2027 11:59 PM
+2026-09-10T00:00:00Z      ->  Thursday 10 September 2026 12:00 AM
+2026-09-09T06:45:09.751Z  ->  Wednesday 9 September 2026 6:45 AM
+null                      ->  —
+"nonsense"                ->  "nonsense"   (returned as given, not swallowed)
+```
+
+Built with `Intl.DateTimeFormat('en-GB', …).formatToParts` and reassembled by hand, so the shape
+is ours rather than the formatter's: no comma after the weekday, AM/PM upper case, one space
+before it.
+
+## `readableInstant` stays, and that is not a loophole
+
+The same module keeps `readableInstant`, which returns the exact stored instant. **This is an API
+testing tool**, and next to a date picker that can only show a day, the thing somebody needs to
+see is the precise value on the wire — seconds, milliseconds and the `Z`. So:
+
+| Function | For |
+|---|---|
+| `readableDateTime` | anything presented as **information** — a row, a note, a heading |
+| `readableInstant` | **"stored as …" hints** beside an input, where the wire value is the point |
+
+Both are documented in the module with that split spelled out, so the next person does not "fix"
+one into the other.
+
+## Where it stands
+
+- **Done** — the `#29` audit trail renders both its dates through it, and `#28`'s subscription
+  rows do too. Those two tables sit on one screen, so they had to agree.
+- **Guarded** — eight checks in `new-api-tester/smoke-test.mjs` under *"Dates on screen are
+  readable, per the project rule"*: the helper exists, it renders a weekday and a full month on a
+  12-hour clock, the locale is pinned, AM/PM is upper case with a space, null reads as a dash, the
+  trail and `#28` both go through it, and `readableInstant` is still there for hints. The
+  locale check is scoped to the function's own body — a whole-file version passed happily while
+  the function was switched to the browser's locale, because `startOfDayInZone` also builds an
+  `Intl` formatter.
+- **Still open** — `api-battleground/src/lib/format.js`. `formatDateTime()` uses
+  `toLocaleString(undefined, …)`, so its format follows the viewer's machine, and it drops the
+  year. `formatClock()` is a 24-hour clock; that one is arguably fine as it is, since it
+  timestamps API calls in an activity log to the millisecond rather than showing a subscription
+  date — but it is a third place a time gets formatted, and three formatters is how two of them
+  drift.
+- **Not touched** — the eleven `readableInstant` call sites in `Subscriptions.jsx` that are
+  "stored as …" hints. Per the split above, those are correct as they are.
 
 ## Two things to settle
 
-**1. The space before AM/PM.** This rule was given as `10:90 AM/PM`, so `11:59 PM` with a space.
-The backend's `Dates.readable` produces `11:59PM` with none. Both are fine on their own; the same
-instant rendered both ways on one screen is not. Say which wins and both sides get it — my
-suggestion is to match the backend, since its output travels inside API messages the frontend
-cannot reformat.
+**The space before AM/PM.** Implemented as given — `11:59 PM`, with a space. The backend's
+`Dates.readable` produces `11:59PM` with none. Both are fine on their own; the same instant
+rendered both ways on one screen is not, and the backend's version travels inside API messages
+the frontend cannot reformat. Changing either is a one-line edit — say which wins.
 
-**2. Which zone the screen renders in.** There are three candidate answers and they name
+**Which zone the screen renders in.** There are three candidate answers and they name
 different days for the same instant:
 
 - the **school's** zone — what the backend uses, and what the school means by its own dates
