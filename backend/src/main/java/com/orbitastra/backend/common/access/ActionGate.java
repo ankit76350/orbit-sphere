@@ -13,6 +13,7 @@ import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
+import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
 import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscriptionRepository;
 
@@ -46,6 +47,7 @@ public class ActionGate {
 
     private final SchoolRepository schools;
     private final SchoolSubscriptionRepository subscriptions;
+    private final AcademicYearRepository academicYears;
 
     //! Gate 1 — is the school itself live ---------------------------------------------
     /** Refuses unless the school is {@code ACTIVE} and returns the school. */
@@ -216,5 +218,22 @@ public class ActionGate {
 
         //! step 2 - marked as running
         return year;
+    }
+
+    /**
+     * The same check for a year the caller has only the name of. For the controllers, which have
+     * the name from the URL and do not load documents.
+     */
+    public AcademicYear requireYearMarkedAsRunning(School school, String name) {
+        //! step 1 - the year has to exist in this school. Scoped by schoolId, never by name
+        //! alone: two schools may both have a "2026-2027".
+        // TODO: read academic year
+        AcademicYear year = academicYears
+                .findBySchoolIdAndName(school.getId(), name == null ? null : name.trim())
+                .orElseThrow(() -> ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                        "No academic year called '" + name + "' in this school."));
+
+        //! step 2 - and be the one the school is running
+        return requireYearMarkedAsRunning(year);
     }
 }

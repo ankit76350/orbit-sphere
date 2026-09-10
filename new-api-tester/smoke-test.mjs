@@ -398,6 +398,15 @@ const editBodySource = readFileSync('src/pages/platform/plans/subscriptionEdit.j
 const css = readFileSync('src/styles/components.css', 'utf8')
 const plansReadme = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md', 'utf8')
+// THE GATES. The controller is where they are called and ActionGate is where they are decided,
+// so a check that only read one of the two would pass while the other was gutted.
+const yearController = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/controllers/core/AcademicYearController.java',
+  'utf8')
+const actionGateSrc = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/common/access/ActionGate.java', 'utf8')
+const coreReadme = readFileSync(
+  '../backend/src/main/java/com/orbitastra/backend/controllers/core/README.md', 'utf8')
 const statusEnum = readFileSync(
   '../backend/src/main/java/com/orbitastra/backend/models/plans/enums/SubscriptionStatus.java',
   'utf8')
@@ -2762,6 +2771,97 @@ console.log(unreached.length === 0
   ? `  ok     all ${allIds.length} endpoints are reachable from a screen`
   : `  MISS   ${unreached.length} unreachable: ${unreached.join(', ')}`)
 if (unreached.length) fail++
+
+console.log('\nThe gates on the academic-year writes')
+// Each write is checked by the text of its own method body rather than by counting calls across
+// the file: a count of 33 stays 33 if one endpoint loses its gate and another gains it twice.
+const gateWrites = [
+  ['updateDates', 'PATCH  /{name}/dates'],
+  ['replaceCalendar', 'PUT    /{name}/holidays'],
+  ['addHoliday', 'POST   /{name}/holidays'],
+  ['updateHoliday', 'PATCH  /{name}/holidays/{date}'],
+  ['removeHoliday', 'DELETE /{name}/holidays/{date}'],
+  ['removeHolidaysByType', 'DELETE /{name}/holidays?type='],
+  ['generateWeeklyOff', 'POST   /{name}/holidays/generate-weekly-off'],
+  ['enableEnrollment', 'POST   /{name}/enrollment/enable'],
+  ['disableEnrollment', 'POST   /{name}/enrollment/disable'],
+  ['lockResults', 'POST   /{name}/results/lock'],
+  ['unlockResults', 'POST   /{name}/results/unlock'],
+]
+// The reads must stay ungated: looking at a calendar is not an action on it, and a school that
+// has stopped paying still has to be able to read its own records.
+const yearReads = ['list', 'current', 'getOne', 'getHolidays', 'getDay', 'workingDays']
+
+// Comments are stripped before anything is checked. `includes('gate.requireActiveSchool')`
+// matches a COMMENTED-OUT call exactly as happily as a live one, so without this every check
+// below passes on a gate somebody disabled with two slashes. Found by mutation: prefixing
+// `// X ` to one gate call left the whole suite green.
+const bodyOf = (name) => {
+  const at = yearController.indexOf(` ${name}(`)
+  if (at < 0) return ''
+  const open = yearController.indexOf('{', at)
+  return yearController.slice(open, yearController.indexOf('\n    }', open))
+    .split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n')
+}
+
+const gateChecks = []
+for (const [method, route] of gateWrites) {
+  const body = bodyOf(method)
+  gateChecks.push(
+    [`${route} runs gate 1`, body.includes('gate.requireActiveSchool(school)')],
+    [`${route} runs gate 2`, body.includes('gate.requireUsableSubscription(school)')],
+    [`${route} runs gate 4`, body.includes('gate.requireYearMarkedAsRunning(school, name)')],
+    // Gate 3 adds "today is inside the year's dates" to gate 4. It would refuse the ordinary
+    // use of every one of these: next year's holiday calendar is built in February, admissions
+    // open months ahead, and marks are published after the last school day. See the README.
+    [`${route} does NOT run gate 3`, !body.includes('requireRunningAcademicYear')],
+    // School, then subscription, then year. A closed school's billing state is nobody's
+    // business, so the cheaper and more fundamental refusal has to come first.
+    [`${route} asks the school before the subscription`,
+      body.indexOf('requireActiveSchool') < body.indexOf('requireUsableSubscription')],
+    [`${route} asks the subscription before the year`,
+      body.indexOf('requireUsableSubscription') < body.indexOf('requireYearMarkedAsRunning')],
+  )
+}
+for (const read of yearReads) {
+  gateChecks.push([`GET ${read} stays ungated`, !bodyOf(read).includes('gate.require')])
+}
+gateChecks.push(
+  // #18 has no year to check yet, so it runs 1 and 2 and stops there.
+  ['POST /academic-years runs gates 1 and 2',
+    bodyOf('create').includes('gate.requireActiveSchool(school)')
+    && bodyOf('create').includes('gate.requireUsableSubscription(school)')],
+  ['and not gate 4, because no year exists yet',
+    !bodyOf('create').includes('requireYearMarkedAsRunning')],
+  // The overload the controller needs: it has the name from the URL and does not load documents.
+  ['ActionGate can gate a year by name',
+    actionGateSrc.includes('requireYearMarkedAsRunning(School school, String name)')],
+  ['and it scopes the lookup to the school, not the name alone',
+    actionGateSrc.includes('findBySchoolIdAndName(school.getId()')],
+  ['an unknown year is a 404, not a not-running 409',
+    actionGateSrc.includes("ApiException.notFound(\"ACADEMIC_YEAR_NOT_FOUND\"")],
+  // Gate 3 delegates to gate 4 so the flag rule has one home. If that ever stops being true,
+  // "does NOT run gate 3" above would no longer mean the flag is unchecked.
+  ['gate 3 still delegates its flag check to gate 4',
+    actionGateSrc.includes('requireYearMarkedAsRunning(year);')],
+  ['a null flag is a refusal, so the gate fails closed',
+    actionGateSrc.includes('!Boolean.TRUE.equals(year.getIsThisYearRunning())')],
+  // The README is the only place that records WHY gate 3 is absent. Without it the next reader
+  // sees eleven endpoints missing a gate that exists.
+  ['the README says which gates run where', coreReadme.includes('Every write runs gates 1, 2 and 4')],
+  ['and why gate 3 is on none of them', coreReadme.includes('Gate 4 and not gate 3')],
+  ['and warns to lock results before ending the year',
+    coreReadme.includes('Lock results before ending the year')],
+  ['and records the two-codes-for-one-condition overlap',
+    coreReadme.includes('SCHOOL_NOT_EDITABLE') && coreReadme.includes('SCHOOL_NOT_ACTIVE')],
+  // Fixed 2026-09-10. The README claimed this was still broken until then.
+  ['the README no longer says the server clock decides "today"',
+    !coreReadme.includes('### The server clock decides what "today" is')],
+)
+for (const [label, ok] of gateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
 
 console.log('\nNavigation')
 const html = at('/platform-plans/subscriptions')

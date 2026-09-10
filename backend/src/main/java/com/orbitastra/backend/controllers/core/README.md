@@ -253,6 +253,93 @@ exist only [`CurrentSchoolResolver`](../../common/current/CurrentSchoolResolver.
 controllers, services and DTOs stay exactly as they are. That is the whole reason it is one class
 rather than a check in each endpoint.
 
+### Which gates run on the academic-year endpoints
+
+[`ActionGate`](../../common/access/ActionGate.java) is wired into this controller as of
+2026-09-10. **Every write runs gates 1, 2 and 4. Every read runs none.**
+
+| Endpoint | Gates |
+| --- | --- |
+| `POST /schools/current/academic-years` | 1, 2 |
+| `PATCH /academic-years/{name}/dates` | 1, 2, 4 |
+| `PUT /academic-years/{name}/holidays` | 1, 2, 4 |
+| `POST /academic-years/{name}/holidays` | 1, 2, 4 |
+| `PATCH /academic-years/{name}/holidays/{date}` | 1, 2, 4 |
+| `DELETE /academic-years/{name}/holidays/{date}` | 1, 2, 4 |
+| `DELETE /academic-years/{name}/holidays?type=` | 1, 2, 4 |
+| `POST /academic-years/{name}/holidays/generate-weekly-off` | 1, 2, 4 |
+| `POST /academic-years/{name}/enrollment/enable` | 1, 2, 4 |
+| `POST /academic-years/{name}/enrollment/disable` | 1, 2, 4 |
+| `POST /academic-years/{name}/results/lock` | 1, 2, 4 |
+| `POST /academic-years/{name}/results/unlock` | 1, 2, 4 |
+| `POST /academic-years/{name}/end` | none — see below |
+| every `GET` | none |
+
+**#18 runs 1 and 2 only** because there is no year yet to check. **Reads run none:** looking at a
+calendar is not an action on it, and a school that has stopped paying still has to be able to read
+its own records — a suspended school's `GET /academic-years` answers `200`.
+
+**School, then subscription, then year.** The cheapest and most fundamental refusal first. Telling
+a suspended school its subscription is fine answers a question it did not ask, and a closed
+school's billing state is nobody's business. With all three wrong, the answer is
+`SCHOOL_NOT_ACTIVE`.
+
+#### Gate 4 and not gate 3, on all of them
+
+`requireRunningAcademicYear` (gate 3) is `requireYearMarkedAsRunning` (gate 4) **plus** "today is
+inside the year's dates", and it calls gate 4 itself — so writing both would check the flag twice.
+Gate 3 belongs on actions that record something that happened **today**: attendance, a fee taken
+this morning. Nothing in this package is that. These endpoints *configure* a year, and each is
+normally used while today is **outside** the year it names:
+
+| Endpoint | What gate 3 would have forbidden |
+| --- | --- |
+| `PATCH /dates` | fixing a year whose dates are wrong — the wrongness is what puts today outside them |
+| the holiday calendar | building next year's calendar in February and March, which is when a school builds it |
+| enrollment | opening admissions for next year, which is the only time you would open them |
+| results | publishing marks after the last school day |
+
+That last one is the example in gate 4's own javadoc. This is not a guess: swapping gate 4 for
+gate 3 on `enrollment/enable` and running the suite gives
+`ACADEMIC_YEAR_NOT_RUNNING — Academic year '2027-2028' has not started yet`, on the one call a
+school would actually make.
+
+**So gate 4 here means: the year has not been ended.** `POST .../end` is the only thing that
+writes `isThisYearRunning = false`, and the field defaults to `true`, so a year created for next
+June passes and a closed year does not.
+
+#### Lock results before ending the year
+
+The consequence of the above, and the one thing to know: **after `POST .../end`, the calendar and
+both flags are frozen.** Results cannot be locked or unlocked, holidays cannot be edited.
+
+Correcting a mark two months later needs a way to reopen a year, and there is none — nothing
+writes `isThisYearRunning = true` back onto an ended year. That is a missing endpoint, not
+something to work around by loosening the gate.
+
+#### Two overlaps, both still open
+
+**1. `requireUsable()` and gate 1 both check school status, and disagree.** The service methods
+these endpoints call still start with `currentSchool.requireUsable()`, which permits
+`PROVISIONING`; `ActionGate.requireActiveSchool` refuses it. The gate runs first, so that check is
+now dead weight rather than wrong — but the divergence is visible on the one endpoint with no
+gate: a suspended school's `POST .../end` is refused as **`SCHOOL_NOT_EDITABLE`**, where every
+gated endpoint refuses the same school as **`SCHOOL_NOT_ACTIVE`**. Two codes for one condition.
+They want consolidating onto one rule.
+
+**2. Gate 4 reads the year, and the service then reads it again.** One extra lookup per write.
+That is the price of gating in the controller rather than after the service's own `loadYear`, and
+it buys the gates being visible at the endpoint they protect — where somebody adding an endpoint
+will see them. `ActionGate.requireYearMarkedAsRunning(School, String)` exists for exactly this: a
+controller has the year's name from the URL and does not load documents, and the alternative was
+each controller method reaching into a repository.
+
+#### `isThisYearRunning` has no one-per-school constraint
+
+The field defaults to `true` and nothing stops several years reading `true` at once, so gate 4
+refuses only what `POST .../end` has closed. Before anything relies on the flag to *pick* between
+two years, it wants a partial unique index on `{schoolId, isThisYearRunning}` filtered to `true`.
+
 ### #27 records nothing about who unlocked results, or why
 
 All four gates are idempotent and flip freely, and none of them writes an audit row. Unlocking
@@ -260,13 +347,30 @@ published results is the most consequential thing in this package, and today it 
 Before results are real, #27 needs a reason on the request and an `AuditEvent` written — which
 needs a writer, not just a repository.
 
-### The server clock decides what "today" is
+### The server clock used to decide what "today" is — fixed 2026-09-10
 
-G6, G10, `AcademicYearResponse.current` and #8's year-in-progress guard all call
-`LocalDate.now()`, which uses the server's zone rather than the school's `defaultTimeZone`. For a
-school in a different zone that is wrong for a few hours around midnight. **It is one change
-everywhere or none** — fixing it in a single place would make an endpoint pick a year against one
-date and then report `current` against another.
+G6, `AcademicYearResponse.current` and #8's year-in-progress guard all called `LocalDate.now()`,
+which reads the **server's** zone rather than the school's `defaultTimeZone`. Three real bugs, all
+around midnight:
+
+| Where | What it got wrong |
+| --- | --- |
+| `AcademicYearResponse.current` | a year starting today read **not current** for the first 5½ hours of its own first day |
+| G6 `getCurrentAcademicYear` | "which year is today in" answered the **previous** year for the last 5½ hours of every day |
+| #8's zone-change guard | could wave a zone change through while a year really was running |
+
+All three now go through `Dates.todayIn(schoolZone.of(school))`. There is no `LocalDate.now()` left
+in `main` — the two hits a search finds are comments recording this change.
+
+**`AcademicYearResponse.fromAcademicYear` requires a `SchoolTimeZone`** and has no defaulting
+overload, deliberately: a `current` flag computed in the wrong zone is exactly the bug, so it must
+not be possible to call the factory without saying whose calendar. That is what makes the fix
+stick rather than being reintroduced by the next call site.
+
+Proved with two schools 25 hours apart — Pacific/Kiritimati (UTC+14) and Pacific/Midway (UTC−11),
+which are never on the same calendar date. One year document, identical dates, `current: true` for
+the Midway school and `current: false` for the Kiritimati one. Kolkata-vs-UTC tests silently pass
+either way for most of the day, which is why the bug survived this long.
 
 ### A year could once be named `current`
 

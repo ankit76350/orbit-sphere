@@ -70,14 +70,44 @@ public class AcademicYearController {
     private final AcademicYearService academicYearService;
 
     /**
-     * The two gates, and the resolver they need.
+     * The gates, and the resolver they need.
      *
-     * <p><b>Here rather than inside the service on request.</b> Note that
-     * {@code createAcademicYear} already calls {@code currentSchool.requireUsable()}, which
-     * applies its own school-status rule — and a <b>looser</b> one: it permits
-     * {@code PROVISIONING}, which {@link ActionGate#requireActiveSchool} refuses. Both now run,
-     * the stricter first, so a school still being set up is refused here. Worth consolidating
-     * onto one rule; see the note in the README.
+     * <p>Every <b>write</b> below runs gates 1, 2 and 4. Reads run none: looking at a calendar is
+     * not an action on it, and a school that has stopped paying can still read its own records.
+     * {@code POST /academic-years} runs 1 and 2 only, because no year exists yet to check.
+     *
+     * <p><b>School, then subscription, then year</b> — the cheapest and most fundamental refusal
+     * first. Telling a suspended school its subscription is fine answers a question it did not
+     * ask.
+     *
+     * <h2>Gate 4 and not gate 3, on all of them</h2>
+     *
+     * <p>Gate 3 is gate 4 <b>plus</b> "today is inside the year's dates", and it calls gate 4
+     * itself, so running both would check the flag twice. Gate 3 is for recording something that
+     * happened <b>today</b> — attendance, a fee taken this morning. Nothing here is that. These
+     * endpoints configure a year, and each is normally used while today is <b>outside</b> it:
+     *
+     * <ul>
+     * <li><b>{@code PATCH /dates}</b> — a year with wrong dates has today outside them by
+     *     definition, so gate 3 would make them impossible to correct.</li>
+     * <li><b>holidays</b> — next year's calendar is built in February and March.</li>
+     * <li><b>enrollment</b> — admissions open months ahead, which is why it is a flag and not a
+     *     date range.</li>
+     * <li><b>results</b> — marks are published after the last school day.</li>
+     * </ul>
+     *
+     * <p><b>So gate 4 here means: the year has not been ended.</b> {@code POST .../end} is the
+     * only thing that writes {@code isThisYearRunning = false} and the field defaults to true, so
+     * a future year passes and a closed one does not. The consequence: after {@code .../end} the
+     * calendar and both flags are frozen, so <b>lock results before ending the year</b>.
+     * Correcting a mark afterwards needs a way to reopen a year, which does not exist yet.
+     *
+     * <p><b>Two overlaps, both noted in the README rather than worked around here.</b> The
+     * services still start with {@code currentSchool.requireUsable()}, which permits
+     * {@code PROVISIONING} where {@link ActionGate#requireActiveSchool} refuses it — the stricter
+     * gate runs first, so that check is dead weight rather than wrong. And gate 4 reads the year
+     * the service then reads again: one extra lookup per write, in exchange for the gates being
+     * visible at the endpoint they protect.
      */
     private final CurrentSchoolResolver currentSchool;
     private final ActionGate gate;
@@ -202,6 +232,13 @@ public class AcademicYearController {
     public ResponseEntity<AcademicYearResponse> updateDates(
             @PathVariable String name,
             @Valid @RequestBody AcademicYearDatesRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.updateDates(name, request));
     }
@@ -215,6 +252,13 @@ public class AcademicYearController {
     public ResponseEntity<HolidayCalendarResponse> replaceCalendar(
             @PathVariable String name,
             @Valid @RequestBody HolidayCalendarRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.replaceCalendar(name, request.holidays()));
     }
@@ -227,6 +271,13 @@ public class AcademicYearController {
     public ResponseEntity<HolidayCalendarResponse> addHoliday(
             @PathVariable String name,
             @Valid @RequestBody HolidayRequest holiday) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.addHoliday(name, holiday));
     }
@@ -241,6 +292,13 @@ public class AcademicYearController {
             @PathVariable LocalDate date,
             @RequestParam(required = false) HolidayType type,
             @Valid @RequestBody HolidayUpdateRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.updateHoliday(name, date, type, request));
     }
@@ -254,6 +312,13 @@ public class AcademicYearController {
             @PathVariable String name,
             @PathVariable LocalDate date,
             @RequestParam(required = false) HolidayType type) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.removeHoliday(name, date, type));
     }
@@ -266,6 +331,13 @@ public class AcademicYearController {
     public ResponseEntity<WeeklyOffGenerateResponse> generateWeeklyOff(
             @PathVariable String name,
             @Valid @RequestBody GenerateWeeklyOffRequest request) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.generateWeeklyOff(name, request));
     }
@@ -277,6 +349,13 @@ public class AcademicYearController {
     public ResponseEntity<HolidayCalendarResponse> removeHolidaysByType(
             @PathVariable String name,
             @RequestParam HolidayType type) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
 
         return ResponseEntity.ok(academicYearService.removeHolidaysByType(name, type));
     }
@@ -290,6 +369,14 @@ public class AcademicYearController {
      */
     @PostMapping("/{name}/enrollment/enable")
     public ResponseEntity<AcademicYearResponse> enableEnrollment(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
         return ResponseEntity.ok(academicYearService.enableEnrollment(name));
     }
 
@@ -300,6 +387,14 @@ public class AcademicYearController {
      */
     @PostMapping("/{name}/enrollment/disable")
     public ResponseEntity<AcademicYearResponse> disableEnrollment(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
         return ResponseEntity.ok(academicYearService.disableEnrollment(name));
     }
 
@@ -310,6 +405,14 @@ public class AcademicYearController {
      */
     @PostMapping("/{name}/results/lock")
     public ResponseEntity<AcademicYearResponse> lockResults(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
         return ResponseEntity.ok(academicYearService.lockResults(name));
     }
 
@@ -322,6 +425,14 @@ public class AcademicYearController {
      */
     @PostMapping("/{name}/results/unlock")
     public ResponseEntity<AcademicYearResponse> unlockResults(@PathVariable String name) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, name);
+
         return ResponseEntity.ok(academicYearService.unlockResults(name));
     }
 }
