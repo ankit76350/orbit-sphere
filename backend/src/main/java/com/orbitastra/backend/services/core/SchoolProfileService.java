@@ -19,7 +19,6 @@ import com.orbitastra.backend.dto.core.profile.request.SchoolProfileUpdateReques
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.core.school.SchoolRepository;
-import com.orbitastra.backend.services.core.helper.CoreHelper;
 import com.orbitastra.backend.common.text.TextHelper;
 
 import lombok.RequiredArgsConstructor;
@@ -48,7 +47,6 @@ public class SchoolProfileService {
     private final SchoolRepository schools;
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
-    private final CoreHelper helper;
     private final SchoolZone schoolZone;
 
     //! G4 — read the school's own profile ---------------------------------------------
