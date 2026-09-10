@@ -71,7 +71,7 @@ public class AcademicYear extends SchoolBase {
     // Controls whether new enrollments may be assigned to this year. Example: true
     @NotNull
     @Builder.Default
-    private Boolean enrollmentEnabled = false;
+    private Boolean enrollmentEnabled = true;
 
     // Prevents result changes after publication/finalization. Example: false
     @NotNull
