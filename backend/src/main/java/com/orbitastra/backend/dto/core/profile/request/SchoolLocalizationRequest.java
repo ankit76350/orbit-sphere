@@ -1,9 +1,9 @@
 package com.orbitastra.backend.dto.core.profile.request;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 /**
  * The school's language and time zone. Endpoint #8.
@@ -32,7 +32,8 @@ public record SchoolLocalizationRequest(
         /** IETF language tag. Example: "en-IN", "hi-IN" */
         @Pattern(regexp = "^$|^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$",
                 message = "must be an IETF language tag such as en-IN")
-        @Size(max = 35) String defaultLocale,
+        /** Optional: absent means leave the locale alone. */
+        SchoolLocale defaultLocale,
 
         /**
          * IANA zone id. Example: SchoolTimeZone.ASIA_KOLKATA

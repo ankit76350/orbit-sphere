@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.time.SchoolZone;
+import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.profile.request.SchoolAddressRequest;
 import com.orbitastra.backend.dto.core.profile.request.SchoolLocalizationRequest;
@@ -47,6 +49,7 @@ public class SchoolProfileService {
     private final AcademicYearRepository academicYears;
     private final CurrentSchoolResolver currentSchool;
     private final CoreHelper helper;
+    private final SchoolZone schoolZone;
 
     //! G4 — read the school's own profile ---------------------------------------------
 
@@ -180,14 +183,11 @@ public class SchoolProfileService {
                     "Send defaultLocale, defaultTimeZone, or both.");
         }
 
-        //! step 3 - locale, if sent
+        //! step 3 - locale, if sent. The blank-string check that used to live here is gone:
+        //! a SchoolLocale is either absent or a supported locale, and "" is neither — the binder
+        //! refuses it with the list of what is supported.
         if (request.defaultLocale() != null) {
-            String locale = request.defaultLocale().trim();
-            if (locale.isEmpty()) {
-                throw ApiException.badRequest("LOCALE_REQUIRED",
-                        "A default locale cannot be removed. Send a new one, or omit the field.");
-            }
-            school.setDefaultLocale(locale);
+            school.setDefaultLocale(request.defaultLocale());
         }
 
         //! step 4 - time zone, if sent, and only with both guards satisfied
@@ -207,7 +207,12 @@ public class SchoolProfileService {
                 // The guard that actually protects the data. Once a year is running, its
                 // attendance and holidays are already anchored to the old zone, and moving it
                 // shifts them with no error anywhere.
-                LocalDate today = LocalDate.now();
+                // The school's own today. Using the server's meant that for part of every day
+                // a year that IS running read as not running, and the guard this comment calls
+                // "the guard that actually protects the data" would have waved the change
+                // through. Read against the CURRENT zone, which is the one those dates are
+                // anchored to — not the one being moved to.
+                LocalDate today = Dates.todayIn(schoolZone.of(school));
                 // TODO: check academic year exists
                 boolean yearInProgress = academicYears
                         .existsBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(

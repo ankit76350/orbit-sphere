@@ -9,6 +9,7 @@ import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.convert.WritingConverter;
 import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 
 /**
@@ -40,7 +41,9 @@ public class EnumCodeConfig {
     MongoCustomConversions mongoCustomConversions() {
         return new MongoCustomConversions(List.of(
                 new SchoolTimeZoneWriter(),
-                new SchoolTimeZoneReader()));
+                new SchoolTimeZoneReader(),
+                new SchoolLocaleWriter(),
+                new SchoolLocaleReader()));
     }
 
     /** Enum -> the IANA id, which is what the collection already holds. */
@@ -58,6 +61,31 @@ public class EnumCodeConfig {
         @Override
         public SchoolTimeZone convert(String source) {
             return SchoolTimeZone.fromId(source);
+        }
+    }
+
+    /**
+     * Enum -> the IETF tag, for the same reason as the zone: {@code EN_IN} is the constant and
+     * {@code "en-IN"} is what every document holds.
+     *
+     * <p><b>{@code CountryCode} needs no pair of these</b>, and that is worth saying out loud so
+     * nobody adds one for symmetry: "IN" is a legal constant name, so Spring Data's default
+     * {@code name()} handling already writes and reads exactly what is stored.
+     */
+    @WritingConverter
+    static class SchoolLocaleWriter implements Converter<SchoolLocale, String> {
+        @Override
+        public String convert(SchoolLocale source) {
+            return source.getTag();
+        }
+    }
+
+    /** The IETF tag -> enum. Strict, like the zone's. */
+    @ReadingConverter
+    static class SchoolLocaleReader implements Converter<String, SchoolLocale> {
+        @Override
+        public SchoolLocale convert(String source) {
+            return SchoolLocale.fromTag(source);
         }
     }
 }

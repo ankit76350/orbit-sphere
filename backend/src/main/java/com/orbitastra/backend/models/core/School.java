@@ -5,6 +5,8 @@ import java.time.Instant;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.base.AuditedDocument;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
@@ -68,9 +70,15 @@ public class School extends AuditedDocument {
     // KMS or key-vault key identifier, never the key itself. Example: "kms://school/67aa15d9"
     private String encryptionKeyReference;
 
-    // IETF language tag used by default. Example: "en-IN"
-    @NotBlank
-    private String defaultLocale;
+    /**
+     * IETF language tag used by default. Example: SchoolLocale.EN_IN
+     *
+     * <p>An enum since 2026-09-10, and it still stores {@code "en-IN"} — see
+     * {@code config/EnumCodeConfig}. Curated rather than exhaustive: the set is a promise that
+     * the product has strings in that language.
+     */
+    @NotNull
+    private SchoolLocale defaultLocale;
 
     /**
      * IANA time-zone id used for school-local operations. Example: SchoolTimeZone.ASIA_KOLKATA
@@ -93,9 +101,14 @@ public class School extends AuditedDocument {
     // Stored as text to support leading zeros and international formats. Example: "411001"
     private String postalCode;
 
-    // ISO 3166-1 alpha-2 country code. Example: "IN"
-    @NotBlank
-    private String countryCode;
+    /**
+     * ISO 3166-1 alpha-2 country code. Example: CountryCode.IN
+     *
+     * <p>An enum since 2026-09-10. It needs no Mongo converter, unlike the locale and the zone:
+     * the constant name and the stored value are both {@code "IN"}.
+     */
+    @NotNull
+    private CountryCode countryCode;
 
     // Operational tenant lifecycle. Example: SchoolStatus.ACTIVE
     @NotNull

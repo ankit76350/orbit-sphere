@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.core.platform.response;
 
 import java.time.Instant;
 
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
@@ -34,7 +35,7 @@ public record SchoolSummaryResponse(
         String emailAddress,
         String phoneNumber,
         String city,
-        String countryCode,
+        CountryCode countryCode,
         Instant createdAt,
         Instant activatedAt,
         Instant suspendedAt) {

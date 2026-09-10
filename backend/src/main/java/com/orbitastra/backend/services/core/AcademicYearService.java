@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
+import com.orbitastra.backend.common.time.SchoolZone;
 import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearCreateRequest;
 import com.orbitastra.backend.dto.core.academicyear.request.AcademicYearDatesRequest;
 import com.orbitastra.backend.dto.core.academicyear.request.GenerateWeeklyOffRequest;
@@ -67,6 +68,7 @@ public class AcademicYearService {
     private final CurrentSchoolResolver currentSchool;
     private final CoreHelper helper;
     private final AcademicYearServiceUtils yearUtils;
+    private final SchoolZone schoolZone;
 
     //! G5 — list the school's years ----------------------------------------------------
 
@@ -76,7 +78,7 @@ public class AcademicYearService {
 
         // TODO: read academic year
         return academicYears.findBySchoolIdOrderByStartDateDesc(school.getId()).stream()
-                .map(AcademicYearResponse::fromAcademicYear)
+                .map(year -> AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school)))
                 .toList();
     }
 
@@ -86,13 +88,18 @@ public class AcademicYearService {
 
     public AcademicYearResponse getCurrentAcademicYear() {
         School school = currentSchool.require();
-        LocalDate today = LocalDate.now();
+
+        // THE SCHOOL'S TODAY, NOT THE SERVER'S. This was LocalDate.now() until 2026-09-10, which
+        // is the server's day: at 23:00 in Asia/Kolkata a UTC server is still on yesterday, so
+        // "which year is today in" answered the previous year for the last five and a half hours
+        // of every day — and on 1 April it answered the OLD year for that whole window.
+        LocalDate today = Dates.todayIn(schoolZone.of(school));
 
         // TODO: read academic year
         return academicYears
                 .findFirstBySchoolIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
                         school.getId(), today, today)
-                .map(AcademicYearResponse::fromAcademicYear)
+                .map(year -> AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school)))
                 .orElseThrow(() -> ApiException.notFound("NO_CURRENT_ACADEMIC_YEAR",
                         // TODO: read academic years
                         academicYears.findBySchoolId(school.getId()).isEmpty()
@@ -104,9 +111,10 @@ public class AcademicYearService {
     //! G7 — read one year by name -------------------------------------------------------
 
     public AcademicYearResponse getAcademicYear(String name) {
-        AcademicYear year = yearUtils.loadYear(currentSchool.require(), name);
+        School school = currentSchool.require();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
-        return AcademicYearResponse.fromAcademicYear(year);
+        return AcademicYearResponse.fromAcademicYear(year, schoolZone.of(school));
     }
 
     //! G8 — read a year's whole calendar -------------------------------------------------
@@ -186,11 +194,10 @@ public class AcademicYearService {
      * response tells the caller to go and fill it in.
      */
     @Transactional
-
-
     public AcademicYearResponse createAcademicYear(AcademicYearCreateRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
+
         String name = request.name().trim();
 
         //! step 2 - the name must be one a URL can point at, must be free, and can never
@@ -229,9 +236,10 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "The year has no calendar yet. Add holidays next — and use "
+"The year has no calendar yet. Add holidays next — and use "
                         + "generate-weekly-off for the weekly offs rather than entering ~52 "
-                        + "dates by hand, because every non-working day is a dated entry.");
+                        + "dates by hand, because every non-working day is a dated entry.",
+                                schoolZone.of(school));
     }
 
     //! endpoint 19 — move the boundaries ----------------------------------------------
@@ -253,8 +261,6 @@ public class AcademicYearService {
      * complain.
      */
     @Transactional
-
-
     public AcademicYearResponse updateDates(String name, AcademicYearDatesRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
@@ -303,8 +309,9 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "Dates updated. Note that records in other collections reference this year by "
-                        + "name and are not checked against the new range yet.");
+"Dates updated. Note that records in other collections reference this year by "
+                        + "name and are not checked against the new range yet.",
+                                schoolZone.of(school));
     }
 
     //! endpoint — end the academic year -----------------------------------------------
@@ -412,7 +419,7 @@ public class AcademicYearService {
 
         //! step 9 - say what happened, including when it did not
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost));
+yearUtils.describeYearEnding(savedYear, wasRunning, datesMove, daysLost), schoolZone.of(school));
     }
 
     //! endpoint 20 — replace the whole calendar ---------------------------------------
@@ -434,11 +441,11 @@ public class AcademicYearService {
      * duplicated row rather than a second reason.
      */
     @Transactional
-
-
     public HolidayCalendarResponse replaceCalendar(String name, List<HolidayRequest> requests) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
         List<HolidayRequest> incoming = requests == null ? List.of() : requests;
 
         //! step 2 - group the flat rows by date, keeping the order they arrived in
@@ -487,11 +494,11 @@ public class AcademicYearService {
      * already has one is a repeated request or a mistake, never a second reason.
      */
     @Transactional
-
-
     public HolidayCalendarResponse addHoliday(String name, HolidayRequest request) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - inside the year, and this reason not already on that day
         helper.validateHolidayWithinYear(
@@ -538,13 +545,13 @@ public class AcademicYearService {
      * the day has several, because picking one for the caller would be wrong half the time.
      */
     @Transactional
-
-
     public HolidayCalendarResponse updateHoliday(String name, LocalDate date, HolidayType type,
             HolidayUpdateRequest request) {
 
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - refuse a request that asks for nothing
         if (request.isEmpty()) {
@@ -607,11 +614,11 @@ public class AcademicYearService {
      * <p>A date with nothing on it is a 404, not a silent 200.
      */
     @Transactional
-
-
     public HolidayCalendarResponse removeHoliday(String name, LocalDate date, HolidayType type) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - the day has to be there
         HolidayDetail day = yearUtils.findDayInCalendar(year, date)
@@ -665,11 +672,11 @@ public class AcademicYearService {
      * That is also what makes running this twice safe: the second run generates nothing.
      */
     @Transactional
-
-
     public WeeklyOffGenerateResponse generateWeeklyOff(String name, GenerateWeeklyOffRequest request) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - the window, defaulting to the whole year
         LocalDate from = request.fromDate() == null ? year.getStartDate() : request.fromDate();
@@ -749,11 +756,11 @@ public class AcademicYearService {
      * parameter was forgotten would be the most destructive accident in this package.
      */
     @Transactional
-
-
     public HolidayCalendarResponse removeHolidaysByType(String name, HolidayType type) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - strip that reason everywhere, then drop the days it emptied
         List<HolidayDetail> holidays = yearUtils.mutableHolidayList(year);
@@ -787,17 +794,17 @@ public class AcademicYearService {
      * check first and race.
      */
     @Transactional
-
-
     public AcademicYearResponse enableEnrollment(String name) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - nothing to do if it is already open
         if (Boolean.TRUE.equals(year.getEnrollmentEnabled())) {
             return AcademicYearResponse.fromAcademicYear(year,
-                    "Enrollment was already enabled for '" + year.getName() + "'. "
-                            + NO_AUTHORIZATION_YET);
+"Enrollment was already enabled for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
 
         //! step 3 - open it and save
@@ -806,7 +813,8 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "Enrollment enabled for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
+"Enrollment enabled for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET,
+        schoolZone.of(school));
     }
 
     //! endpoint 25 — close the year to enrollments ------------------------------------
@@ -818,18 +826,18 @@ public class AcademicYearService {
      * withdrawal: anything already in the year stays exactly as it is.
      */
     @Transactional
-
-
     public AcademicYearResponse disableEnrollment(String name) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - nothing to do if it is already closed
         if (Boolean.FALSE.equals(year.getEnrollmentEnabled())) {
             return AcademicYearResponse.fromAcademicYear(year,
-                    "Enrollment was already disabled for '" + year.getName()
+"Enrollment was already disabled for '" + year.getName()
                             + "'. Students already enrolled are unaffected. "
-                            + NO_AUTHORIZATION_YET);
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
 
         //! step 3 - close it and save
@@ -838,8 +846,9 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "Enrollment disabled for '" + savedYear.getName()
-                        + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET);
+"Enrollment disabled for '" + savedYear.getName()
+                        + "'. Students already enrolled are unaffected. " + NO_AUTHORIZATION_YET,
+                                schoolZone.of(school));
     }
 
     //! endpoint 26 — freeze the year's results ----------------------------------------
@@ -850,17 +859,17 @@ public class AcademicYearService {
      * <p>Idempotent, like the enrollment gates.
      */
     @Transactional
-
-
     public AcademicYearResponse lockResults(String name) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - nothing to do if it is already locked
         if (Boolean.TRUE.equals(year.getResultsLocked())) {
             return AcademicYearResponse.fromAcademicYear(year,
-                    "Results were already locked for '" + year.getName() + "'. "
-                            + NO_AUTHORIZATION_YET);
+"Results were already locked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
 
         //! step 3 - lock it and save
@@ -870,7 +879,7 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "Results locked for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET);
+"Results locked for '" + savedYear.getName() + "'. " + NO_AUTHORIZATION_YET, schoolZone.of(school));
     }
 
     //! endpoint 27 — reopen the year's results ----------------------------------------
@@ -880,17 +889,17 @@ public class AcademicYearService {
          * Safe to call when results are already unlocked.
         */
     @Transactional
-
-
     public AcademicYearResponse unlockResults(String name) {
-        //! step 1 - find the year
-        AcademicYear year = yearUtils.loadYear(name);
+        //! step 1 - who is asking, and the year. loadYear(name) resolved the school and threw
+        //! it away; taking it here costs nothing extra and is what the zone comes from.
+        School school = currentSchool.requireUsable();
+        AcademicYear year = yearUtils.loadYear(school, name);
 
         //! step 2 - nothing to do if it is already unlocked
         if (Boolean.FALSE.equals(year.getResultsLocked())) {
             return AcademicYearResponse.fromAcademicYear(year,
-                    "Results were already unlocked for '" + year.getName() + "'. "
-                            + NO_AUTHORIZATION_YET);
+"Results were already unlocked for '" + year.getName() + "'. "
+                            + NO_AUTHORIZATION_YET, schoolZone.of(school));
         }
 
         //! step 3 - unlock it and save
@@ -899,7 +908,7 @@ public class AcademicYearService {
         AcademicYear savedYear = academicYears.save(year);
 
         return AcademicYearResponse.fromAcademicYear(savedYear,
-                "Results unlocked for '" + savedYear.getName() + "'. Lock them again as soon as "
-                        + "the corrections are in. " + NO_AUTHORIZATION_YET);
+"Results unlocked for '" + savedYear.getName() + "'. Lock them again as soon as "
+                        + "the corrections are in. " + NO_AUTHORIZATION_YET, schoolZone.of(school));
     }
 }

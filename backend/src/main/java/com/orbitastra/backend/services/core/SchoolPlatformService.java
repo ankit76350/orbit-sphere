@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.core.platform.request.SchoolSearchRequest;
@@ -144,7 +145,9 @@ public class SchoolPlatformService {
         // was refused by the binder before this method ran. The old String + service check was
         // two places to state one rule, and only the second one produced the refusal.
         SchoolTimeZone timeZone = request.defaultTimeZone();
-        String countryCode = TextHelper.uppercaseOrNull(request.countryCode());
+        // No uppercasing: CountryCode.fromCode already normalised it, and the enum
+        // cannot hold a lower-case variant.
+        CountryCode countryCode = request.countryCode();
 
         // Checked before writing so the caller gets a clear message. The unique index is still
         // the real guard: two simultaneous requests both pass this, and the loser surfaces as a
@@ -162,7 +165,7 @@ public class SchoolPlatformService {
                 .subdomain(subdomain)
                 .phoneNumber(TextHelper.blankToNull(request.phoneNumber()))
                 .emailAddress(TextHelper.lowercaseOrNull(request.emailAddress()))
-                .defaultLocale(request.defaultLocale().trim())
+                .defaultLocale(request.defaultLocale())
                 .defaultTimeZone(timeZone)
                 .addressLine(TextHelper.blankToNull(request.addressLine()))
                 .city(TextHelper.blankToNull(request.city()))

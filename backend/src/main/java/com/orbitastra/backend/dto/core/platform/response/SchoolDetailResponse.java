@@ -2,6 +2,8 @@ package com.orbitastra.backend.dto.core.platform.response;
 
 import java.time.Instant;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
@@ -37,13 +39,13 @@ public record SchoolDetailResponse(
         String logoUrl,
         String phoneNumber,
         String emailAddress,
-        String defaultLocale,
+        SchoolLocale defaultLocale,
         SchoolTimeZone defaultTimeZone,
         String addressLine,
         String city,
         String stateOrProvince,
         String postalCode,
-        String countryCode,
+        CountryCode countryCode,
         SchoolStatus status,
         String statusReason,
         Instant activatedAt,

@@ -1,12 +1,13 @@
 package com.orbitastra.backend.dto.core.platform.request;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -47,10 +48,14 @@ public record SchoolCreateRequest(
 
         @Email @Size(max = 254) String emailAddress,
 
-        /** IETF language tag, such as "en-IN". */
-        @NotBlank @Pattern(regexp = "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$",
-                message = "must be an IETF language tag such as en-IN")
-        String defaultLocale,
+        /**
+         * IETF language tag, such as "en-IN".
+         *
+         * <p><b>An enum since 2026-09-10.</b> The {@code @Pattern} it replaces matched the SHAPE
+         * of a tag and nothing else, so {@code zz-ZZ} passed happily and became a locale the
+         * product has no strings for. The enum is a list of what is actually supported.
+         */
+        @NotNull SchoolLocale defaultLocale,
 
         /**
          * IANA zone id, such as "Asia/Kolkata".
@@ -62,10 +67,13 @@ public record SchoolCreateRequest(
          */
         @NotNull SchoolTimeZone defaultTimeZone,
 
-        /** ISO 3166-1 alpha-2. Settable only here — see the controller README. */
-        @NotBlank @Pattern(regexp = "^[A-Za-z]{2}$",
-                message = "must be a two-letter ISO 3166-1 alpha-2 country code")
-        String countryCode,
+        /**
+         * ISO 3166-1 alpha-2 country code, such as "IN".
+         *
+         * <p><b>An enum since 2026-09-10</b>, replacing a two-letter {@code @Pattern} that
+         * accepted any two letters — {@code XX} included.
+         */
+        @NotNull CountryCode countryCode,
 
         @Size(max = 200) String addressLine,
         @Size(max = 100) String city,

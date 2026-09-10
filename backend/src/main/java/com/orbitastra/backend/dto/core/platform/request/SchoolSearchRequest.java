@@ -36,7 +36,15 @@ public record SchoolSearchRequest(
          */
         String search,
 
-        /** Exact, case-insensitive. Example: "IN" */
+        /**
+         * Exact, case-insensitive. Example: "IN"
+         *
+         * <p><b>Deliberately still a String, not {@link CountryCode}.</b> This is a filter, and a
+         * filter naming something that does not exist should answer an empty page rather than a
+         * 400 — the same rule {@code planCode} follows on #28. Typing it would turn "show me
+         * schools in XX" into a validation error, which tells a caller nothing they did not
+         * already know.
+         */
         String countryCode,
 
         /** Exact, case-insensitive. Example: "Pune" */

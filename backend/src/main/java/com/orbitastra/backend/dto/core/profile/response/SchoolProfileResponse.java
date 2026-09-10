@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.core.profile.response;
 
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
@@ -26,13 +28,13 @@ public record SchoolProfileResponse(
         String phoneNumber,
         String emailAddress,
         String logoUrl,
-        String defaultLocale,
+        SchoolLocale defaultLocale,
         SchoolTimeZone defaultTimeZone,
         String addressLine,
         String city,
         String stateOrProvince,
         String postalCode,
-        String countryCode) {
+        CountryCode countryCode) {
 
     public static SchoolProfileResponse fromSchool(School school) {
         return new SchoolProfileResponse(
