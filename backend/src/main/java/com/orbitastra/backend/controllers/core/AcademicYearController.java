@@ -178,13 +178,8 @@ public class AcademicYearController {
     public ResponseEntity<AcademicYearResponse> create(
             @Valid @RequestBody AcademicYearCreateRequest request) {
 
-        //! Gate 1 and Gate 2 — the school has to be live, and it has to be paying, before it
-        //! sets up a year. Resolved once here and handed to both gates, so the school is read
-        //! once for the pair rather than once each.
-        //!
-        //! ORDER MATTERS. The school first: telling a suspended school its subscription is fine
-        //! answers a question it did not ask, and a closed school's subscription is nobody's
-        //! business. The cheaper, more fundamental refusal goes first.
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
         School school = currentSchool.require();
         gate.requireActiveSchool(school);
         gate.requireUsableSubscription(school);
