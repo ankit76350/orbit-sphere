@@ -2492,6 +2492,55 @@ for (const [label, ok] of exposeChecks) {
   if (!ok) fail++
 }
 
+console.log('\nEvery capped dropdown can search past its cap')
+const planOptions = readFileSync('src/pages/platform/plans/planOptions.js', 'utf8')
+const planRow = readFileSync('src/pages/platform/plans/PlanSearchRow.jsx', 'utf8')
+const yearPickerSource = readFileSync('src/components/AcademicYearPicker.jsx', 'utf8')
+const everyDropdownChecks = [
+  // The two subscription modals asked the same question with the same copied call. One shared
+  // hook means the cap gets fixed in one place, not two.
+  ['the plan list and its search are shared, not copied into both modals',
+    /export function usePlanOptions/.test(planOptions)
+      && (subsSourceFull.match(/usePlanOptions\(open\)/g) || []).length === 2],
+  ['and neither modal still has its own list-plans call',
+    !/call\('list-plans'/.test(subsSourceFull)],
+  ['the shared loader is still capped at 100',
+    /status: 'ACTIVE', page: 0, size: 100 \}/.test(planOptions)],
+  ['and there is a second call that sends ?search=',
+    /size: 100, search: needle/.test(planOptions)],
+  ['both modals render the search row',
+    (subsSourceFull.match(/<PlanSearchRow picker=\{picker\} \/>/g) || []).length === 2],
+  ['the row has a button and Enter runs it',
+    /Search all plans/.test(planRow)
+      && /event\.key === 'Enter'[\s\S]{0,80}runSearch\(\)/.test(planRow)],
+  // A native select cannot hold a search box, so typing does nothing until the button is
+  // pressed. Saying so beats leaving somebody typing into a box that looks broken.
+  ['it says typing filters nothing, because a native select cannot hold a search',
+    /Typing filters nothing here/.test(planRow) && /cannot hold a search/i.test(planRow)],
+  ['editing the box drops the previous answer',
+    /if \(found\) setFound\(null\)/.test(planOptions)],
+  ['a server answer replaces the loaded page rather than being re-filtered',
+    /found \?\? loaded/.test(planOptions)],
+  ['you can get back to the loaded page',
+    /Back to the first hundred/.test(planRow)],
+  ['the note says which list it is describing',
+    /found across every published plan/.test(planRow)
+      && /Showing the first \$\{loadedCount\} published plans/.test(planRow)],
+  ['nothing in the row is disabled', !/disabled=|readOnly/.test(planRow)],
+  // The year picker is the one dropdown that needs none of this, and the reason is worth
+  // pinning: list-academic-years returns every year for the school, with no page and no cap.
+  ['the year picker sends no page or size, because that endpoint returns them all',
+    /call\('list-academic-years', \{ label: 'Years to choose from' \}\)/.test(yearPickerSource)
+      && !/size: \d+/.test(yearPickerSource)],
+  ['and the backend really does return every year, uncapped',
+    /findBySchoolIdOrderByStartDateDesc\(school\.getId\(\)\)/.test(
+      readFileSync('../backend/src/main/java/com/orbitastra/backend/services/core/AcademicYearService.java', 'utf8'))],
+]
+for (const [label, ok] of everyDropdownChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe school picker can search past the hundred it loads')
 const schoolPicker = readFileSync('src/components/SchoolPicker.jsx', 'utf8')
 const pickerCss = readFileSync('src/styles/components.css', 'utf8')

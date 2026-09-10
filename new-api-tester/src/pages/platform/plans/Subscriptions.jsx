@@ -8,6 +8,8 @@ import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../compon
 import { endOfDay, readableDateTime, readableInstant, startOfDay, startOfDayInZone, toDateInput, todayInput, todayInZone } from '../../../lib/dates.js'
 import { money, plural } from '../../../lib/money.js'
 import { METRIC_LABEL } from './features.js'
+import PlanSearchRow from './PlanSearchRow.jsx'
+import { usePlanOptions } from './planOptions.js'
 import { sellability } from './planFacts.js'
 import { asText, changedFields, patchBody, storedForm } from './subscriptionEdit.js'
 
@@ -1853,7 +1855,10 @@ function EditForm({ schoolId, subscription, onClose, onSaved }) {
  */
 function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged }) {
   const { call } = useApi()
-  const [plans, setPlans] = useState(null)
+  // The list and its search are shared with New Subscription — see planOptions. `plans` keeps
+  // its name so everything below reads unchanged; only where it comes from has moved.
+  const picker = usePlanOptions(open)
+  const plans = picker.options
   const [picked, setPicked] = useState('')
   const [reason, setReason] = useState('')
   const [price, setPrice] = useState('')
@@ -1866,19 +1871,6 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!open || plans) return
-    let alive = true
-    call('list-plans', {
-      label: 'Plans this school could move to',
-      query: { status: 'ACTIVE', page: 0, size: 100 },
-    }).then((result) => {
-      if (alive) setPlans(result.ok ? (result.bodyJson?.content ?? []) : [])
-    })
-    return () => { alive = false }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, plans])
 
   if (!open || !subscription) return null
 
@@ -2053,7 +2045,10 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
               + (cycleDays ? ` · the period would run ${cycleDays} days from today` : '')
             : `On ${subscription.planCode} v${subscription.planVersion} now. Only published plans are offered.`}
         >
-          <span className="select" style={{ width: '100%' }}>
+          <div className="stack" style={{ gap: 8 }}>
+            {/* A native select cannot hold a search, so it sits above — see planOptions. */}
+            <PlanSearchRow picker={picker} />
+            <span className="select" style={{ width: '100%' }}>
             <select className="select-input" style={{ width: '100%' }}
               value={picked} onChange={(event) => choosePlan(event.target.value)}>
               <option value="">{plans ? 'Choose a plan…' : 'Loading the plans…'}</option>
@@ -2068,7 +2063,8 @@ function ChangePlan({ open, schoolId, subscription, timeZone, onClose, onChanged
                   </option>
                 ))}
             </select>
-          </span>
+            </span>
+          </div>
         </Field>
 
         {/* Which direction this is, worked out from the two list prices, because "upgrade" and
@@ -2624,7 +2620,10 @@ function RenewCustomPeriod({ open, subscription, schoolId, busy, onClose, onRene
 
 function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   const { call } = useApi()
-  const [plans, setPlans] = useState(null)
+  // The list and its search are shared with New Subscription — see planOptions. `plans` keeps
+  // its name so everything below reads unchanged; only where it comes from has moved.
+  const picker = usePlanOptions(open)
+  const plans = picker.options
   const [picked, setPicked] = useState('')
   const [trial, setTrial] = useState(false)
   const [price, setPrice] = useState('')
@@ -2635,19 +2634,6 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
   const [periodEnd, setPeriodEnd] = useState('')
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!open || plans) return
-    let alive = true
-    call('list-plans', {
-      label: 'Plans a school could be put on',
-      query: { status: 'ACTIVE', page: 0, size: 100 },
-    }).then((result) => {
-      if (alive) setPlans(result.ok ? (result.bodyJson?.content ?? []) : [])
-    })
-    return () => { alive = false }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, plans])
 
   const chosen = (plans ?? []).find((one) => `${one.planCode}@${one.planVersion}` === picked)
   const chosenSellability = chosen ? sellability(chosen) : null
@@ -2798,7 +2784,10 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
               + (derivedEnd ? ` · sold today the period runs ${cycleDays} days, to ${derivedEnd}` : '')
             : 'Only published plans are offered — a draft would be refused.'}
         >
-          <span className="select" style={{ width: '100%' }}>
+          <div className="stack" style={{ gap: 8 }}>
+            {/* A native select cannot hold a search, so it sits above — see planOptions. */}
+            <PlanSearchRow picker={picker} />
+            <span className="select" style={{ width: '100%' }}>
             <select
               className="select-input"
               style={{ width: '100%' }}
@@ -2818,7 +2807,8 @@ function NewSubscription({ open, schoolId, timeZone, onClose, onCreated }) {
                 </option>
               ))}
             </select>
-          </span>
+            </span>
+          </div>
         </Field>
 
         {/* Said again under the field, because the option text is one line and the difference
