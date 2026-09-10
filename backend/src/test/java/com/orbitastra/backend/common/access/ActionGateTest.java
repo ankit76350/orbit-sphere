@@ -461,4 +461,148 @@ class ActionGateTest {
                     .hasMessageNotContaining("2021-03-31");
         }
     }
+
+    // ============================================================ gate 4: the flag on its own
+
+    @Nested
+    @DisplayName("the year has to be the school's working year, whatever the calendar says")
+    class TheWorkingYear {
+
+        private LocalDate todayThere() {
+            return LocalDate.now(ZoneId.of(KOLKATA));
+        }
+
+        @Test
+        @DisplayName("marked as running passes")
+        void markedRunningPasses() {
+            AcademicYear running =
+                    year(true, todayThere().minusMonths(5), todayThere().plusMonths(5));
+
+            assertThat(gate.requireYearMarkedAsRunning(running)).isSameAs(running);
+        }
+
+        @Test
+        @DisplayName("not marked as running is refused")
+        void notRunningIsRefused() {
+            AcademicYear notRunning =
+                    year(false, todayThere().minusMonths(5), todayThere().plusMonths(5));
+
+            assertThatThrownBy(() -> gate.requireYearMarkedAsRunning(notRunning))
+                    .isInstanceOf(ApiException.class)
+                    .hasMessageContaining("is not the year this school is running")
+                    .extracting(e -> ((ApiException) e).getCode())
+                    .isEqualTo("ACADEMIC_YEAR_NOT_RUNNING");
+        }
+
+        @Test
+        @DisplayName("a null flag is refused too — the record not saying is not a yes")
+        void nullIsRefused() {
+            AcademicYear unset = AcademicYear.builder()
+                    .name("2026-2027")
+                    .startDate(todayThere().minusMonths(5))
+                    .endDate(todayThere().plusMonths(5))
+                    .isThisYearRunning(null)
+                    .build();
+
+            assertThatThrownBy(() -> gate.requireYearMarkedAsRunning(unset))
+                    .isInstanceOf(ApiException.class);
+        }
+
+        @Test
+        @DisplayName("and a null says so, rather than reading as a plain refusal")
+        void nullExplainsItself() {
+            AcademicYear unset = AcademicYear.builder()
+                    .name("2026-2027")
+                    .startDate(todayThere().minusMonths(5))
+                    .endDate(todayThere().plusMonths(5))
+                    .isThisYearRunning(null)
+                    .build();
+
+            // "Not running" and "nobody has said" are different situations for whoever reads it.
+            assertThatThrownBy(() -> gate.requireYearMarkedAsRunning(unset))
+                    .hasMessageContaining("predates the flag")
+                    .hasMessageContaining("mark it as running first");
+        }
+
+        @Test
+        @DisplayName("a false flag does NOT get the null explanation")
+        void falseDoesNotClaimToPredateTheField() {
+            AcademicYear notRunning =
+                    year(false, todayThere().minusMonths(5), todayThere().plusMonths(5));
+
+            assertThatThrownBy(() -> gate.requireYearMarkedAsRunning(notRunning))
+                    .hasMessageNotContaining("predates the flag");
+        }
+
+        // ------------------------------------------------ the difference from gate 3
+
+        @Test
+        @DisplayName("it ignores the dates: a FINISHED year still passes if it is marked running")
+        void aFinishedYearStillPasses() {
+            // THIS IS THE WHOLE REASON GATE 4 EXISTS. Publishing results in April for a year
+            // that ended on 31 March is work belonging to that year, done after its dates. Gate
+            // 3 refuses it, correctly, because nothing that happens TODAY belongs to that year.
+            AcademicYear finished =
+                    year(true, todayThere().minusMonths(13), todayThere().minusDays(1));
+
+            assertThatCode(() -> gate.requireYearMarkedAsRunning(finished))
+                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> gate.requireRunningAcademicYear(finished, KOLKATA))
+                    .hasMessageContaining("finished on");
+        }
+
+        @Test
+        @DisplayName("and a year that has NOT started passes too")
+        void aFutureYearStillPasses() {
+            AcademicYear future =
+                    year(true, todayThere().plusDays(10), todayThere().plusMonths(12));
+
+            assertThatCode(() -> gate.requireYearMarkedAsRunning(future))
+                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> gate.requireRunningAcademicYear(future, KOLKATA))
+                    .hasMessageContaining("has not started yet");
+        }
+
+        @Test
+        @DisplayName("so gate 4 is strictly looser than gate 3, never the other way round")
+        void gateFourIsStrictlyLooser() {
+            LocalDate today = todayThere();
+            AcademicYear[] cases = {
+                year(true, today.minusMonths(5), today.plusMonths(5)),   // open
+                year(true, today.minusMonths(13), today.minusDays(1)),   // finished
+                year(true, today.plusDays(10), today.plusMonths(12)),    // not started
+                year(false, today.minusMonths(5), today.plusMonths(5)),  // not running
+            };
+
+            for (AcademicYear one : cases) {
+                boolean gate3 = passes(() -> gate.requireRunningAcademicYear(one, KOLKATA));
+                boolean gate4 = passes(() -> gate.requireYearMarkedAsRunning(one));
+                // Anything gate 3 lets through, gate 4 must let through. Never the reverse.
+                assertThat(!gate3 || gate4)
+                        .as("gate 3 passed but gate 4 refused, for %s", one.getName())
+                        .isTrue();
+            }
+        }
+
+        @Test
+        @DisplayName("gate 3 still applies the flag rule, through gate 4")
+        void gateThreeStillChecksTheFlag() {
+            // Gate 3 delegates its flag check, so the rule has one home. If that delegation were
+            // dropped, a not-running year inside its dates would sail through gate 3.
+            AcademicYear notRunning =
+                    year(false, todayThere().minusMonths(5), todayThere().plusMonths(5));
+
+            assertThatThrownBy(() -> gate.requireRunningAcademicYear(notRunning, KOLKATA))
+                    .hasMessageContaining("is not the year this school is running");
+        }
+
+        private boolean passes(Runnable action) {
+            try {
+                action.run();
+                return true;
+            } catch (ApiException e) {
+                return false;
+            }
+        }
+    }
 }

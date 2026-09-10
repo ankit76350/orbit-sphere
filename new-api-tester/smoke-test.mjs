@@ -2395,6 +2395,36 @@ for (const [label, ok] of dateRuleChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe year detail header shows the stored running flag')
+const yearHeaderSource = readFileSync('src/pages/school/core/AcademicYearDetail.jsx', 'utf8')
+const header = yearHeaderSource.slice(yearHeaderSource.indexOf('<h1 className="page-title mono">'),
+  yearHeaderSource.indexOf('<span className="toolbar-spacer" />'))
+const headerChecks = [
+  ['the header badges include the running flag', header.includes('year.isThisYearRunning')],
+  // Beside `current`, which is derived from the dates, because the two can disagree.
+  ['and it sits between `current` and `results`',
+    header.indexOf('year.current ?') < header.indexOf('year.isThisYearRunning')
+      && header.indexOf('year.isThisYearRunning') < header.indexOf('year.resultsLocked')],
+  ['true, false and null each read differently',
+    /'running'/.test(header) && /'not running'/.test(header) && /'running not set'/.test(header)],
+  ['null is told apart from false, not folded into it',
+    /year\.isThisYearRunning === false \?/.test(header)],
+  ['the hover says which way a disagreement runs',
+    /Marked as running, but today is outside its dates/.test(header)
+      && /the school is not using it/.test(header)],
+  ['and says so when the record simply does not know',
+    /predates the field/.test(header)],
+  // The same three states as the list table, so one screen never contradicts the other.
+  ['the list table and the header agree on the three labels',
+    ['running', 'not running'].every((word) =>
+      header.includes(`'${word}'`)
+        && readFileSync('src/pages/school/core/AcademicYears.jsx', 'utf8').includes(`'${word}'`))],
+]
+for (const [label, ok] of headerChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nEnding the academic year is wired to the screen')
 const yearDetail = readFileSync('src/pages/school/core/AcademicYearDetail.jsx', 'utf8')
 const eEnd = lookupEndpoint('end-academic-year')

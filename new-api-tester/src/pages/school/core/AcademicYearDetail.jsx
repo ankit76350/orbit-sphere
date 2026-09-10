@@ -125,7 +125,29 @@ export default function AcademicYearDetail() {
           <Badge tone={year.enrollmentEnabled ? 'good' : undefined}>
             enrollment {year.enrollmentEnabled ? 'open' : 'closed'}
           </Badge>
+          {/* `current` is DERIVED from the dates: today is inside them. */}
           {year.current ? <Badge tone="brand">current</Badge> : null}
+          {/*
+            `isThisYearRunning` is STORED, and sits next to `current` on purpose — the two
+            answer different questions and can disagree in either direction. Same three states
+            as the list table: null is its own case, because every year written before the field
+            existed reads that way and calling it "not running" would state something the record
+            does not say.
+          */}
+          <Badge
+            tone={year.isThisYearRunning ? 'good'
+              : year.isThisYearRunning === false ? undefined : 'warn'}
+            title={year.isThisYearRunning == null
+              ? 'This year predates the field, so the record does not say either way.'
+              : year.isThisYearRunning === year.current
+                ? 'Agrees with the dates.'
+                : year.isThisYearRunning
+                  ? 'Marked as running, but today is outside its dates.'
+                  : 'Today is inside its dates, but the school is not using it — End the year does this.'}
+          >
+            {year.isThisYearRunning ? 'running'
+              : year.isThisYearRunning === false ? 'not running' : 'running not set'}
+          </Badge>
           <Badge tone={year.resultsLocked ? 'bad' : 'good'}>
             results {year.resultsLocked ? 'locked' : 'unlocked'}
           </Badge>

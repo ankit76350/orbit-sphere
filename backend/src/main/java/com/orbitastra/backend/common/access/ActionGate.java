@@ -143,7 +143,7 @@ public class ActionGate {
                 "'" + name + "' cannot do this because " + because);
     }
 
-    //! Gate 2 — is the school paying ---------------------------------------------------
+    //! Gate 2 — is the school paying --------------------------------------------------
 
     /**
      * Refuses unless the school's current subscription still grants the product.
@@ -307,12 +307,10 @@ public class ActionGate {
      * @throws ApiException 409 {@code ACADEMIC_YEAR_NOT_RUNNING}
      */
     public AcademicYear requireRunningAcademicYear(AcademicYear year, String zone) {
-        //! step 1 - the school has to have marked this year as the one it is operating in
-        if (!Boolean.TRUE.equals(year.getIsThisYearRunning())) {
-            throw ApiException.conflict("ACADEMIC_YEAR_NOT_RUNNING",
-                    "Academic year '" + year.getName() + "' is not the year this school is "
-                            + "running, so this cannot be recorded against it.");
-        }
+        //! step 1 - the school has to have marked this year as the one it is operating in.
+        //! Through gate 4 rather than repeated here, so the flag rule has exactly one home and
+        //! the two gates can never come to disagree about what "running" means.
+        requireYearMarkedAsRunning(year);
 
         LocalDate today = Dates.todayIn(zone);
 
@@ -331,6 +329,64 @@ public class ActionGate {
         }
 
         //! step 3 - marked as running, and today is inside its dates
+        return year;
+    }
+
+    //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+
+    /**
+     * Refuses unless the school has marked this year as the one it is working in. Nothing else.
+     *
+     * <p><b>The flag on its own, with no date check</b> — that is the whole difference from
+     * {@link #requireRunningAcademicYear}, and it is why both exist:
+     *
+     * <table border="1">
+     * <tr><th>Gate</th><th>Allows</th><th>Use it for</th></tr>
+     * <tr><td>{@link #requireRunningAcademicYear}</td>
+     *     <td>flag true <b>and</b> today inside the dates</td>
+     *     <td>recording something that happens <b>today</b> — attendance, a fee taken this
+     *         morning. If today is outside the year, today's event does not belong to it.</td></tr>
+     * <tr><td>this one</td>
+     *     <td>flag true, whatever the calendar says</td>
+     *     <td>work that <b>belongs to</b> that year and is finished afterwards — publishing
+     *         results in April for a year that ended on 31 March. The dates have passed and the
+     *         work is still that year's.</td></tr>
+     * </table>
+     *
+     * <p><b>So the looser gate is not the weaker one</b>, and picking it is a statement about the
+     * action rather than a shortcut. Ask which year the record belongs to: if the answer is
+     * "whichever one today is in", the dates matter and the other gate is the right one. If the
+     * answer is "the year named in the request", they do not.
+     *
+     * <p><b>A null flag counts as not running.</b> Every year written before the field existed
+     * reads null, and a gate should fail closed — the record not saying is not the same as the
+     * record saying yes.
+     *
+     * <p><b>The field defaults to true on create</b>, and nothing enforces one-per-school, so
+     * several years can read true at once. Until something writes {@code false} — today only
+     * {@code POST .../end} — this gate refuses almost nothing. That is worth knowing before
+     * relying on it to pick between two years; it wants a partial unique index on
+     * {@code {schoolId, isThisYearRunning}} filtered to true first.
+     *
+     * <p>Shares the refusal code with {@link #requireRunningAcademicYear}, because the condition
+     * a caller would branch on is the same one: this is not the year the school is running.
+     *
+     * @return the year it was given, which is marked as running
+     * @throws ApiException 409 {@code ACADEMIC_YEAR_NOT_RUNNING}
+     */
+    public AcademicYear requireYearMarkedAsRunning(AcademicYear year) {
+        //! step 1 - true and nothing else. Null and false are both refusals.
+        if (!Boolean.TRUE.equals(year.getIsThisYearRunning())) {
+            throw ApiException.conflict("ACADEMIC_YEAR_NOT_RUNNING",
+                    "Academic year '" + year.getName() + "' is not the year this school is "
+                            + "running, so this cannot be recorded against it."
+                            + (year.getIsThisYearRunning() == null
+                                    ? " That year predates the flag, so the record does not say"
+                                            + " either way — mark it as running first."
+                                    : ""));
+        }
+
+        //! step 2 - marked as running
         return year;
     }
 }
