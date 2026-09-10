@@ -2492,6 +2492,57 @@ for (const [label, ok] of exposeChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe school picker can search past the hundred it loads')
+const schoolPicker = readFileSync('src/components/SchoolPicker.jsx', 'utf8')
+const pickerCss = readFileSync('src/styles/components.css', 'utf8')
+const searchChecks = [
+  // The list endpoint caps a page at 100. On a platform with 3091 schools that is 3% of them,
+  // so a name outside the page looks exactly like a name that does not exist.
+  ['the loaded page is still capped at 100',
+    /size: 100, sort: 'name,asc' \},/.test(schoolPicker)],
+  ['there is a second call that sends ?search=',
+    /search: needle/.test(schoolPicker)
+      && /call\('list-schools'[\s\S]{0,200}search: needle/.test(schoolPicker)],
+  ['and a button that runs it',
+    /onClick=\{runSearch\}/.test(schoolPicker) && /Search all schools/.test(schoolPicker)],
+  ['Enter runs the server search too',
+    /event\.key === 'Enter'[\s\S]{0,160}runSearch\(\)/.test(schoolPicker)],
+  // A server answer is already filtered by name AND subdomain; filtering it again locally would
+  // drop rows the API deliberately matched.
+  ['a server answer is not re-filtered locally',
+    /if \(found\) return found/.test(schoolPicker)],
+  // Results that no longer match the box are worse than none.
+  ['editing the box drops the previous answer',
+    /const retype = \(next\) => \{[\s\S]{0,140}if \(found\) setFound\(null\)/.test(schoolPicker)],
+  ['and the input goes through it', /onChange=\{\(event\) => retype\(event\.target\.value\)\}/
+    .test(schoolPicker)],
+  ['you can get back to the loaded list',
+    /Back to the loaded list/.test(schoolPicker)],
+  // The two empty states mean different things and must not share wording.
+  ['a local miss says the list only holds the first hundred',
+    /only holds the first hundred/.test(schoolPicker.replace(/\s+/g, ' '))],
+  ['a server miss says it checked every school',
+    /That is the API&rsquo;s answer\s+for every school/.test(schoolPicker.replace(/\s+/g, ' '))
+      || /answer for every school/.test(schoolPicker.replace(/\s+/g, ' '))],
+  ['the footer says which list it is counting',
+    /found across every school/.test(schoolPicker)
+      && /of \$\{schools\.length\} loaded/.test(schoolPicker)],
+  ['and warns when the loaded page is full',
+    /search to reach the rest/.test(schoolPicker)],
+  // The typed-subdomain escape hatch survived Enter being repurposed.
+  ['the typed-subdomain escape hatch is still reachable, as a click',
+    /use &ldquo;\{query\.trim\(\)\}&rdquo; as the subdomain anyway/.test(schoolPicker)],
+  ['the trigger can name a school that came from a search, not just the loaded page',
+    /\[\.\.\.\(found \?\? \[\]\), \.\.\.\(schools \?\? \[\]\)\]/.test(schoolPicker)],
+  ['nothing in the picker is disabled', !/disabled=|readOnly/.test(schoolPicker)],
+  ['the search row has a style of its own',
+    /\.picker-search-actions \{/.test(pickerCss)],
+]
+for (const [label, ok] of searchChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe year list labels the stored running flag')
 const yearsList = readFileSync('src/pages/school/core/AcademicYears.jsx', 'utf8')
 const listHead = yearsList.slice(yearsList.indexOf('<thead>'), yearsList.indexOf('</thead>'))
