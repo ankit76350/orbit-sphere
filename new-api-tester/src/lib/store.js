@@ -11,6 +11,7 @@ const PREFIX = 'orbit.tester.';
 const KEYS = {
   activeEnvironment: `${PREFIX}activeEnvironment`,
   actingSubdomain: `${PREFIX}actingSubdomain`,
+  actingAcademicYear: `${PREFIX}actingAcademicYear`,
   timeout: `${PREFIX}timeout`,
 };
 
@@ -71,6 +72,25 @@ export const store = {
   },
   saveActingSubdomain(subdomain) {
     write(KEYS.actingSubdomain, subdomain || null);
+  },
+
+  /**
+   * Which academic year the school surface is working in.
+   *
+   * Saved for the same reason the school is: everything under `School` that acts on a year needs
+   * one, and re-picking it per screen is how somebody ends up writing to last year.
+   *
+   * STORED SEPARATELY FROM THE SCHOOL, AND CLEARED WHEN THE SCHOOL CHANGES. A year is identified
+   * by its NAME, which is only unique within one school — "2026-2027" means a different document
+   * for every tenant. Keeping a name across a school switch would silently point every call at a
+   * year the new school may not even have, and the 404 would look like a bug in the endpoint.
+   */
+  loadActingAcademicYear() {
+    const saved = read(KEYS.actingAcademicYear, null);
+    return typeof saved === 'string' && saved.trim() ? saved.trim() : null;
+  },
+  saveActingAcademicYear(name) {
+    write(KEYS.actingAcademicYear, name || null);
   },
 
   loadTimeout() {

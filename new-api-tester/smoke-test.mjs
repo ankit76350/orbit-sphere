@@ -2492,6 +2492,66 @@ for (const [label, ok] of exposeChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe academic-year picker is a mode beside the school')
+const yearPicker = readFileSync('src/components/AcademicYearPicker.jsx', 'utf8')
+const topbar = readFileSync('src/components/Topbar.jsx', 'utf8')
+const provider = readFileSync('src/api/ApiProvider.jsx', 'utf8')
+const storeSource = readFileSync('src/lib/store.js', 'utf8')
+const pickerChecks = [
+  ['it is in the top bar, next to the school',
+    topbar.includes('<AcademicYearPicker />')
+      && topbar.indexOf('<ActingAs />') < topbar.indexOf('<AcademicYearPicker />')],
+  // No platform endpoint reads the tenant header and none names a year, so up there it would be
+  // a control that changes nothing.
+  ['and only on the school surface',
+    /onSchoolSurface \? <AcademicYearPicker \/> : null/.test(topbar)],
+  ['it reads the years from the school-surface list endpoint',
+    yearPicker.includes("call('list-academic-years'")],
+  // The list is one request most screens never use, and on a platform screen it would 400.
+  ['the list loads when the popover first opens, not on mount',
+    /onClick=\{\(\) => \{ setOpen\(!open\); if \(!open\) load\(false\) \}\}/.test(yearPicker)],
+  ['the chosen year lives in the provider, not in a screen',
+    /const \[actingAcademicYear, setActingAcademicYear\]/.test(provider)
+      && /actingAcademicYear \}\)/.test(provider.replace(/\s+/g, ' '))],
+  ['and is remembered between reloads',
+    /loadActingAcademicYear\(\)/.test(storeSource)
+      && /saveActingAcademicYear\(name\)/.test(storeSource)],
+  // THE ONE THAT MATTERS. A year is identified by NAME, and a name is unique only within a
+  // school — "2026-2027" is a different document per tenant. Keeping it across a school switch
+  // would point every year-scoped call at a year the new school may not have.
+  ['choosing a school CLEARS the year',
+    /chooseSchool = useCallback[\s\S]{0,900}setActingAcademicYear\(null\)[\s\S]{0,120}saveActingAcademicYear\(null\)/
+      .test(provider)],
+  // Flatten the comment markers as well as the whitespace: a wrapped `//` line leaves a `//`
+  // in the middle of the sentence, which is what made the first version of this check miss.
+  ['and the code says why a name cannot survive a school change',
+    /a name is unique only within a school/
+      .test(provider.replace(/^\s*\/\/ ?/gm, '').replace(/\s+/g, ' '))],
+  // Loaded years belong to the school that was current when they were read.
+  ['a stale list is not shown after a school switch',
+    /cache\.subdomain === actingSubdomain \? cache\.years : null/.test(yearPicker)],
+  ['and that staleness is derived, not reset in an effect',
+    !/useEffect\(\(\) => \{ setYears/.test(yearPicker)
+      && /worked out during render rather than reset in an effect/
+        .test(yearPicker.replace(/^\s*\/\/ ?/gm, '').replace(/\s+/g, ' '))],
+  ['with no school it explains itself rather than disappearing',
+    /Choose a school first/.test(yearPicker)],
+  ['a school with no years says so',
+    /has no academic years yet/.test(yearPicker)],
+  ['nothing in it is disabled', !/disabled=|readOnly/.test(yearPicker)],
+  // `current` is derived from the dates and isThisYearRunning is stored; they can disagree, and
+  // a picker that showed only one would hide that.
+  ['a row shows both `today` and `running`, because the two can disagree',
+    yearPicker.includes('year.current') && yearPicker.includes('year.isThisYearRunning')],
+  ['it shows each year\'s dates, not just its name',
+    yearPicker.includes('year.startDate') && yearPicker.includes('year.endDate')],
+  ['it can be cleared', /onClick=\{\(\) => pick\(null\)\}/.test(yearPicker)],
+]
+for (const [label, ok] of pickerChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nEndpoint coverage')
 const catalogue = readFileSync('src/config/endpoints.js', 'utf8')
 const allIds = [...catalogue.matchAll(/\bid:\s*"([a-z][a-z0-9-]+)",\s*\n\s*name:/g)].map((m) => m[1])

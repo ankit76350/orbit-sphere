@@ -2,6 +2,7 @@ import { Menu, Moon, Sun } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useTheme } from '../theme/themeContext.js'
 import { surfaceOf } from '../paths.js'
+import AcademicYearPicker from './AcademicYearPicker.jsx'
 import ActingAs from './ActingAs.jsx'
 
 /**
@@ -17,7 +18,7 @@ import ActingAs from './ActingAs.jsx'
  * two screens that do have a search have their own, next to the list it filters, which is where
  * a search belongs — filtering something you can see.
  *
- * `ActingAs` ONLY SHOWS ON THE SCHOOL SURFACE. It names the tenant for the `X-School-Subdomain`
+ * `ActingAs` AND `AcademicYearPicker` ONLY SHOW ON THE SCHOOL SURFACE. It names the tenant for the `X-School-Subdomain`
  * header, and no platform endpoint reads that header: they all name their school in the URL. On
  * a platform screen it was a control that changed nothing, and worse, one that implied the
  * screen in front of you was scoped to it. The platform's subscription screen has its own school
@@ -36,6 +37,10 @@ export default function Topbar({ onMenuClick }) {
 
       <div className="topbar-actions">
         {onSchoolSurface ? <ActingAs /> : null}
+        {/* The year is the second half of the same mode, so it sits next to the school and is
+            hidden on the platform surface for the same reason: no platform endpoint reads the
+            tenant header, and none of them name a year. */}
+        {onSchoolSurface ? <AcademicYearPicker /> : null}
         <button
           type="button"
           className="theme-toggle"

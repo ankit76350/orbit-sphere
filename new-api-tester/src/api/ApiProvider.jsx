@@ -61,6 +61,11 @@ export default function ApiProvider({ children }) {
   // school in the URL and ignores this entirely.
   const [actingSubdomain, setActingSubdomain] = useState(() => store.loadActingSubdomain());
 
+  // Which academic year the school surface is working in. A year is named, and a name is only
+  // unique within one school, so this is cleared whenever the school changes — see chooseSchool.
+  const [actingAcademicYear, setActingAcademicYear] =
+    useState(() => store.loadActingAcademicYear());
+
   const environment = useMemo(
     () => environments.find((one) => one.id === environmentId) || environments[0],
     [environments, environmentId],
@@ -91,6 +96,19 @@ export default function ApiProvider({ children }) {
     const next = subdomain ? subdomain.trim() : null;
     setActingSubdomain(next);
     store.saveActingSubdomain(next);
+
+    // THE YEAR GOES WITH IT. Academic years are identified by name, and a name is unique only
+    // within a school: "2026-2027" is a different document for every tenant. Keeping the old
+    // name would point every year-scoped call at a year the new school may not have, and the
+    // 404 would read as a broken endpoint rather than a stale choice.
+    setActingAcademicYear(null);
+    store.saveActingAcademicYear(null);
+  }, []);
+
+  const chooseAcademicYear = useCallback((name) => {
+    const next = name ? name.trim() : null;
+    setActingAcademicYear(next);
+    store.saveActingAcademicYear(next);
   }, []);
 
   const call = useCallback(
@@ -145,13 +163,14 @@ export default function ApiProvider({ children }) {
   const clearLog = useCallback(() => setLog([]), []);
 
   const actions = useMemo(
-    () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment, chooseSchool }),
-    [call, clearLog, chooseEnvironment, chooseSchool],
+    () => ({ call, inspect: setInspecting, clearLog, chooseEnvironment, chooseSchool,
+      chooseAcademicYear }),
+    [call, clearLog, chooseEnvironment, chooseSchool, chooseAcademicYear],
   );
 
   const state = useMemo(
-    () => ({ log, inspecting, environment, environments, actingSubdomain }),
-    [log, inspecting, environment, environments, actingSubdomain],
+    () => ({ log, inspecting, environment, environments, actingSubdomain, actingAcademicYear }),
+    [log, inspecting, environment, environments, actingSubdomain, actingAcademicYear],
   );
 
   return (
