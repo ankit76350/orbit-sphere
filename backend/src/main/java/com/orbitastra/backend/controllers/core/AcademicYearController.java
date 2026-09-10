@@ -69,46 +69,7 @@ public class AcademicYearController {
 
     private final AcademicYearService academicYearService;
 
-    /**
-     * The gates, and the resolver they need.
-     *
-     * <p>Every <b>write</b> below runs gates 1, 2 and 4. Reads run none: looking at a calendar is
-     * not an action on it, and a school that has stopped paying can still read its own records.
-     * {@code POST /academic-years} runs 1 and 2 only, because no year exists yet to check.
-     *
-     * <p><b>School, then subscription, then year</b> — the cheapest and most fundamental refusal
-     * first. Telling a suspended school its subscription is fine answers a question it did not
-     * ask.
-     *
-     * <h2>Gate 4 and not gate 3, on all of them</h2>
-     *
-     * <p>Gate 3 is gate 4 <b>plus</b> "today is inside the year's dates", and it calls gate 4
-     * itself, so running both would check the flag twice. Gate 3 is for recording something that
-     * happened <b>today</b> — attendance, a fee taken this morning. Nothing here is that. These
-     * endpoints configure a year, and each is normally used while today is <b>outside</b> it:
-     *
-     * <ul>
-     * <li><b>{@code PATCH /dates}</b> — a year with wrong dates has today outside them by
-     *     definition, so gate 3 would make them impossible to correct.</li>
-     * <li><b>holidays</b> — next year's calendar is built in February and March.</li>
-     * <li><b>enrollment</b> — admissions open months ahead, which is why it is a flag and not a
-     *     date range.</li>
-     * <li><b>results</b> — marks are published after the last school day.</li>
-     * </ul>
-     *
-     * <p><b>So gate 4 here means: the year has not been ended.</b> {@code POST .../end} is the
-     * only thing that writes {@code isThisYearRunning = false} and the field defaults to true, so
-     * a future year passes and a closed one does not. The consequence: after {@code .../end} the
-     * calendar and both flags are frozen, so <b>lock results before ending the year</b>.
-     * Correcting a mark afterwards needs a way to reopen a year, which does not exist yet.
-     *
-     * <p><b>Two overlaps, both noted in the README rather than worked around here.</b> The
-     * services still start with {@code currentSchool.requireUsable()}, which permits
-     * {@code PROVISIONING} where {@link ActionGate#requireActiveSchool} refuses it — the stricter
-     * gate runs first, so that check is dead weight rather than wrong. And gate 4 reads the year
-     * the service then reads again: one extra lookup per write, in exchange for the gates being
-     * visible at the endpoint they protect.
-     */
+    /** Provides the school resolver and access gates used by the write operations below. */
     private final CurrentSchoolResolver currentSchool;
     private final ActionGate gate;
 
