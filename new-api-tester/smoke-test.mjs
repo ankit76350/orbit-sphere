@@ -2492,6 +2492,49 @@ for (const [label, ok] of exposeChecks) {
   if (!ok) fail++
 }
 
+console.log('\nThe year list labels the stored running flag')
+const yearsList = readFileSync('src/pages/school/core/AcademicYears.jsx', 'utf8')
+const listHead = yearsList.slice(yearsList.indexOf('<thead>'), yearsList.indexOf('</thead>'))
+const listBody = yearsList.slice(yearsList.indexOf('<tbody>'), yearsList.indexOf('</tbody>'))
+// Strip JSX comments before counting cells: a <td> mentioned inside one is not a column.
+const listBodyCode = listBody.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+const listChecks = [
+  ['the table has a Running column', /<th>Running<\/th>/.test(listHead)],
+  // Next to `current`, because the whole point is that the two can disagree.
+  ['and it sits beside the Year column, where the `current` badge is',
+    listHead.indexOf('<th>Year</th>') < listHead.indexOf('<th>Running</th>')
+      && listHead.indexOf('<th>Running</th>') < listHead.indexOf('<th>Runs</th>')],
+  [(() => {
+    const th = (listHead.match(/<th[ />]/g) || []).length
+    const td = (listBodyCode.match(/<td[ >]/g) || []).length
+    return `every header cell has a body cell (${th} vs ${td})`
+  })(), (listHead.match(/<th[ />]/g) || []).length
+    === (listBodyCode.match(/<td[ >]/g) || []).length],
+  ['the cell reads the stored flag', listBodyCode.includes('year.isThisYearRunning')],
+  ['true, false and null each read differently',
+    /'running'/.test(listBodyCode) && /'not running'/.test(listBodyCode)
+      && /'not set'/.test(listBodyCode)],
+  // Null is not false. Every year written before the field existed reads null, and calling that
+  // "not running" would state something the record does not say.
+  ['null is told apart from false, not folded into it',
+    /year\.isThisYearRunning === false \? /.test(listBodyCode)],
+  // The disagreement is the state somebody opens this table to check.
+  ['a row where the flag and the dates disagree says so',
+    /year\.isThisYearRunning !== year\.current/.test(listBodyCode)
+      && /≠ dates/.test(listBodyCode)],
+  ['and the hover explains which way round it is',
+    /Marked as running, but today is outside its dates/.test(listBodyCode)
+      && /the school is not using it/.test(listBodyCode)],
+  ['a null flag is not reported as a disagreement',
+    /year\.isThisYearRunning != null/.test(listBodyCode)],
+  ['`current` is still shown, and still derived',
+    /year\.current \? <Badge tone="brand">current<\/Badge>/.test(listBodyCode)],
+]
+for (const [label, ok] of listChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 console.log('\nThe academic-year picker is a mode beside the school')
 const yearPicker = readFileSync('src/components/AcademicYearPicker.jsx', 'utf8')
 const topbar = readFileSync('src/components/Topbar.jsx', 'utf8')

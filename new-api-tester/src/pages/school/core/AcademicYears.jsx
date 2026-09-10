@@ -114,6 +114,7 @@ export default function AcademicYears() {
               <thead>
                 <tr>
                   <th>Year</th>
+                  <th>Running</th>
                   <th>Runs</th>
                   <th>Enrollment</th>
                   <th>Results</th>
@@ -126,7 +127,42 @@ export default function AcademicYears() {
                   <tr key={year.name}>
                     <td>
                       <span className="mono">{year.name}</span>
+                      {/* `current` is DERIVED from the dates — today is inside them. */}
                       {year.current ? <Badge tone="brand">current</Badge> : null}
+                    </td>
+                    {/*
+                      `isThisYearRunning` is STORED, and it is next to `current` on purpose:
+                      the two answer different questions and can disagree in both directions.
+
+                        running, not current  — the school switched to a year the calendar has
+                                                not reached, or has already passed
+                        current, not running  — today is inside it, but the school is not using
+                                                it: End the year sets this false and leaves the
+                                                dates alone until today
+
+                      Neither is a mistake, and a table that showed only one would hide the
+                      state somebody came here to check. Null is its own case: every year
+                      written before the field existed reads that way.
+                    */}
+                    <td>
+                      <Badge
+                        tone={year.isThisYearRunning ? 'good'
+                          : year.isThisYearRunning === false ? undefined : 'warn'}
+                      >
+                        {year.isThisYearRunning ? 'running'
+                          : year.isThisYearRunning === false ? 'not running' : 'not set'}
+                      </Badge>
+                      {year.isThisYearRunning != null
+                        && year.isThisYearRunning !== year.current ? (
+                          <span
+                            className="muted"
+                            title={year.isThisYearRunning
+                              ? 'Marked as running, but today is outside its dates.'
+                              : 'Today is inside its dates, but the school is not using it — End the year does this.'}
+                          >
+                            {' '}≠ dates
+                          </span>
+                        ) : null}
                     </td>
                     <td className="muted">{year.startDate} → {year.endDate}</td>
                     <td>
