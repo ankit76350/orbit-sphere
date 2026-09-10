@@ -190,31 +190,7 @@ public class AcademicYearController {
                 .body(response);
     }
 
-    /**
-     * Ends an academic year today.
-     *
-     * <p>Stops it being the year the school is running, and closes its dates on today — in the
-     * school's own timezone, so a school working late does not lose its last day.
-     *
-     * <p><b>A POST because it is an event, not an edit.</b> "The year ended" is something that
-     * happened; {@code PATCH .../dates} is somebody deciding when it should end. They also refuse
-     * different things: this one allows a year cut short after two weeks, which the date editor
-     * rejects as an implausible range, and this one refuses to extend a year that has already
-     * finished, which the date editor is entitled to do.
-     *
-     * <pre>
-     * 409 ACADEMIC_YEAR_NOT_STARTED      today is before its first day
-     * 409 ACADEMIC_YEAR_ALREADY_ENDED    it finished in the past; ending it would extend it
-     * 409 HOLIDAYS_OUTSIDE_NEW_RANGE     closed days after today would be stranded outside it
-     * 404 ACADEMIC_YEAR_NOT_FOUND        this school has no year by that name
-     * </pre>
-     *
-     * <p>Ending an already-ended year is a <b>200 that says nothing changed</b>, not a refusal.
-     *
-     * <p>Leaves {@code enrollmentEnabled} and {@code resultsLocked} alone: both are arguably
-     * implied, and a write that changed three flags when asked to change one is worse than a
-     * second call.
-     */
+   /** Ends the academic year today and marks it as no longer running. */
     @PostMapping("/{name}/end")
     public ResponseEntity<AcademicYearResponse> end(@PathVariable String name) {
         return ResponseEntity.ok(academicYearService.endAcademicYear(name));
