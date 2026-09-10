@@ -1,7 +1,6 @@
 package com.orbitastra.backend.services.core.helper;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -132,31 +131,6 @@ public class CoreHelper {
         }
     }
 
-
-    //! time zone — used by endpoints 1 and 8 ------------------------------------------
-
-    /**
-     * Validates the school time zone.
-     *
-     * <p>Checks that the time zone is valid and supported by the JVM.
-     *
-     * @return the trimmed time zone
-     *
-     * Used by:
-     * - createNewSchool()
-     * - updateLocalization()
-     */
-    public String validateTimeZone(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw ApiException.badRequest("TIME_ZONE_REQUIRED", "A time zone is required.");
-        }
-        String candidate = raw.trim();
-        if (!ZoneId.getAvailableZoneIds().contains(candidate)) {
-            throw ApiException.conflict("TIME_ZONE_INVALID",
-                    "'" + candidate + "' is not a known IANA time zone id.");
-        }
-        return candidate;
-    }
 
     //! academic year dates — used by endpoints 18 and 19 ------------------------------
 

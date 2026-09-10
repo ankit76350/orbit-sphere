@@ -31,6 +31,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionHistorySearchRequest;
 import com.orbitastra.backend.dto.plans.subscription.response.SubscriptionHistoryEntryResponse;
@@ -82,7 +83,7 @@ class GetSubscriptionHistoryTest {
         School s = new School();
         s.setId(SCHOOL);
         s.setSchoolName("Test School");
-        s.setDefaultTimeZone("Asia/Kolkata");
+        s.setDefaultTimeZone(SchoolTimeZone.ASIA_KOLKATA);
         return s;
     }
 

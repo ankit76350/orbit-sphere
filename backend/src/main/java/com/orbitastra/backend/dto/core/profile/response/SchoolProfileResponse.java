@@ -1,5 +1,6 @@
 package com.orbitastra.backend.dto.core.profile.response;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
@@ -26,7 +27,7 @@ public record SchoolProfileResponse(
         String emailAddress,
         String logoUrl,
         String defaultLocale,
-        String defaultTimeZone,
+        SchoolTimeZone defaultTimeZone,
         String addressLine,
         String city,
         String stateOrProvince,

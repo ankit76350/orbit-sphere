@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.core.profile.request;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -32,8 +34,14 @@ public record SchoolLocalizationRequest(
                 message = "must be an IETF language tag such as en-IN")
         @Size(max = 35) String defaultLocale,
 
-        /** IANA zone id, checked against the JVM's zone set. Example: "Asia/Kolkata" */
-        @Size(max = 64) String defaultTimeZone,
+        /**
+         * IANA zone id. Example: SchoolTimeZone.ASIA_KOLKATA
+         *
+         * <p>Optional here — absent means "leave the zone alone", which is why it is not
+         * {@code @NotNull}. An unknown value is now refused by the binder rather than by the
+         * service's own zone check.
+         */
+        SchoolTimeZone defaultTimeZone,
 
         /**
          * Must be true to change the time zone. Ignored when only the locale is being changed.

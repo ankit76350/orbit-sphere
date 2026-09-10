@@ -1305,9 +1305,13 @@ const dateChecks = [
     datesUtil.includes('NOT_SET = "(not set)"')],
   // THE ZONE DECIDES THE CALENDAR DAY: midnight in Asia/Kolkata is 18:30Z the day before, so a
   // school-owned date rendered in UTC names the wrong day.
+  // The zone became a SchoolTimeZone on 2026-09-10. The behaviour is identical; the type is not,
+  // and this guard was matching the old String declaration.
   ['a school-owned date is rendered in the school\'s zone',
-    javaService.includes('String zone = school.getDefaultTimeZone();')
+    javaService.includes('SchoolTimeZone zone = school.getDefaultTimeZone();')
       && (javaService.match(/Dates\.readable\([^)]*, zone\)/g) || []).length >= 10],
+  ['and the zone it threads through is the enum, not a String',
+    !/String zone = school\.getDefaultTimeZone\(\)/.test(javaService)],
   ['the school surface passes its own school\'s zone too',
     messageSources.find(([n]) => n === 'SchoolSubscriptionService')[1]
       .includes('whyNotActive(subscription, school.getDefaultTimeZone())')],
@@ -1401,9 +1405,17 @@ const startChecks = [
   // Asserted on the CATCH BLOCK, not on the words appearing somewhere nearby: ZoneOffset.UTC is
   // also the unset-zone branch of the ternary above it, so a looser check passed while the catch
   // had been changed to rethrow.
-  ['and falls back to UTC on a zone it cannot read, rather than failing the sale',
-    /catch \(DateTimeException e\) \{\s*\n\s*return ZoneOffset\.UTC;\s*\n\s*\}/
-      .test(datesUtil)],
+  // THIS GUARD USED TO ASSERT A try/catch THAT NO LONGER EXISTS, and removing it was the point.
+  // `zoneOrUtc` parsed a String and caught DateTimeException because the field could hold
+  // anything; SchoolTimeZone is generated from ZoneId.getAvailableZoneIds(), so a malformed zone
+  // is unrepresentable and there is nothing left to catch. What still has to hold is the null
+  // case, which the platform surface really does pass for dates no school owns.
+  ['a missing zone still means UTC, and there is no parse to fail any more',
+    /return zone == null \? ZoneOffset\.UTC : zone\.toZoneId\(\);/.test(datesUtil)
+      && !/catch \(DateTimeException/.test(datesUtil)],
+  ['and the enum is what makes a malformed zone impossible',
+    /Generated from \{@code ZoneId\.getAvailableZoneIds\(\)\}/
+      .test(readFileSync('../backend/src/main/java/com/orbitastra/backend/models/common/enums/SchoolTimeZone.java', 'utf8'))],
   ['null still means today',
     /if \(requestedStart == null\) \{\s*\n\s*return;/.test(startHelper)],
   ['it refuses only a start strictly before that',

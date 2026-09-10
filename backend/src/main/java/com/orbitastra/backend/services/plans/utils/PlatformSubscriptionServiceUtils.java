@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.dto.plans.subscription.request.SubscriptionUpdateRequest;
@@ -136,7 +137,7 @@ public class PlatformSubscriptionServiceUtils {
      * - renewSubscription()
      */
     public Instant calculateSubscriptionPeriodEnd(Instant requested, Instant periodStart,
-            BillingCycle cycle, String zone) {
+            BillingCycle cycle, SchoolTimeZone zone) {
 
         // CUSTOM has no length of its own, so it is the ONE cadence whose end date is somebody's
         // decision rather than arithmetic. Refused rather than guessed: inventing a year, or
@@ -199,7 +200,7 @@ public class PlatformSubscriptionServiceUtils {
      * - updateSubscription()
      */
     public String describeSubscriptionState(SchoolSubscription subscription, PlanDefinition plan,
-            String zone) {
+            SchoolTimeZone zone) {
         List<String> notes = new ArrayList<>();
 
         Instant end = subscription.getCurrentPeriodEnd();
@@ -512,7 +513,7 @@ public class PlatformSubscriptionServiceUtils {
      * - changePlan()
      */
     public String describePlanMove(PlanDefinition previousPlan, PlanDefinition newPlan,
-            SchoolSubscription saved, String previousSubscriptionNo, String zone) {
+            SchoolSubscription saved, String previousSubscriptionNo, SchoolTimeZone zone) {
 
         String direction = newPlan.getListPrice().compareTo(previousPlan.getListPrice()) > 0
                 ? "Upgraded"
@@ -702,7 +703,7 @@ public class PlatformSubscriptionServiceUtils {
      * - createSubscription()
      */
     public String describeCreateOutcome(SchoolSubscription subscription, boolean trial,
-            String activation, String zone) {
+            String activation, SchoolTimeZone zone) {
         String base = trial
                 ? "Trial started, running to "
                         + Dates.readable(subscription.getCurrentPeriodEnd(), zone) + "."

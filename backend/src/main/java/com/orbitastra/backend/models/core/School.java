@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.AuditedDocument;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
 import jakarta.validation.constraints.NotBlank;
@@ -71,9 +72,14 @@ public class School extends AuditedDocument {
     @NotBlank
     private String defaultLocale;
 
-    // IANA time-zone id used for school-local operations. Example: "Asia/Kolkata"
-    @NotBlank
-    private String defaultTimeZone;
+    /**
+     * IANA time-zone id used for school-local operations. Example: SchoolTimeZone.ASIA_KOLKATA
+     *
+     * <p><b>An enum since 2026-09-10, and it still stores {@code "Asia/Kolkata"}</b> — see
+     * {@code config/EnumCodeConfig}. The type is what changed; the bytes on disk are not.
+     */
+    @NotNull
+    private SchoolTimeZone defaultTimeZone;
 
     // Example: "12, MG Road"
     private String addressLine;

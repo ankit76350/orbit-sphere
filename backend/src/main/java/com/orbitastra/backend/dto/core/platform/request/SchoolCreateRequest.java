@@ -1,9 +1,11 @@
 package com.orbitastra.backend.dto.core.platform.request;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -50,8 +52,15 @@ public record SchoolCreateRequest(
                 message = "must be an IETF language tag such as en-IN")
         String defaultLocale,
 
-        /** IANA zone id, such as "Asia/Kolkata". Validated as a real zone by the service. */
-        @NotBlank @Size(max = 64) String defaultTimeZone,
+        /**
+         * IANA zone id, such as "Asia/Kolkata".
+         *
+         * <p><b>An enum since 2026-09-10.</b> It was a {@code @Size(max = 64)} String the service
+         * then checked against the JVM's zone set — two places, and the second one is where the
+         * refusal actually came from. Now an unknown zone is refused by the binder, before any
+         * service sees the request, and the wire value is unchanged.
+         */
+        @NotNull SchoolTimeZone defaultTimeZone,
 
         /** ISO 3166-1 alpha-2. Settable only here — see the controller README. */
         @NotBlank @Pattern(regexp = "^[A-Za-z]{2}$",

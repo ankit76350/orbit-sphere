@@ -6,6 +6,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.core.profile.request.SchoolAddressRequest;
@@ -191,9 +192,11 @@ public class SchoolProfileService {
 
         //! step 4 - time zone, if sent, and only with both guards satisfied
         if (request.defaultTimeZone() != null) {
-            String zone = helper.validateTimeZone(request.defaultTimeZone());
+            // Already a known zone: the binder refused anything else. See the note in
+            // SchoolPlatformService.createNewSchool.
+            SchoolTimeZone zone = request.defaultTimeZone();
 
-            if (!zone.equals(school.getDefaultTimeZone())) {
+            if (zone != school.getDefaultTimeZone()) {
                 if (!Boolean.TRUE.equals(request.confirmTimeZoneChange())) {
                     throw ApiException.conflict("TIME_ZONE_CHANGE_NOT_CONFIRMED",
                             "Changing the time zone from " + school.getDefaultTimeZone() + " to "

@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.AcademicYear;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
@@ -44,7 +45,7 @@ import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscr
 class ActionGateTest {
 
     private static final String SCHOOL_ID = "6aa15d9dc3f7d0033333333a";
-    private static final String KOLKATA = "Asia/Kolkata";
+    private static final SchoolTimeZone KOLKATA = SchoolTimeZone.ASIA_KOLKATA;
 
     @Mock private SchoolRepository schools;
     @Mock private SchoolSubscriptionRepository subscriptions;
@@ -341,7 +342,7 @@ class ActionGateTest {
     class TheAcademicYear {
 
         private LocalDate todayThere() {
-            return LocalDate.now(ZoneId.of(KOLKATA));
+            return LocalDate.now(KOLKATA.toZoneId());
         }
 
         @Test
@@ -416,10 +417,10 @@ class ActionGateTest {
             //
             // Kiritimati (UTC+14) and Midway (UTC-11) are 25 hours apart, so they are NEVER on
             // the same calendar date. That makes this deterministic at any hour.
-            String ahead = "Pacific/Kiritimati";
-            String behind = "Pacific/Midway";
-            LocalDate aheadToday = LocalDate.now(ZoneId.of(ahead));
-            LocalDate behindToday = LocalDate.now(ZoneId.of(behind));
+            SchoolTimeZone ahead = SchoolTimeZone.PACIFIC_KIRITIMATI;
+            SchoolTimeZone behind = SchoolTimeZone.PACIFIC_MIDWAY;
+            LocalDate aheadToday = LocalDate.now(ahead.toZoneId());
+            LocalDate behindToday = LocalDate.now(behind.toZoneId());
             assertThat(behindToday).isBefore(aheadToday);
 
             // A year whose last day is "today" as the western zone sees it.
@@ -439,13 +440,18 @@ class ActionGateTest {
         }
 
         @Test
-        @DisplayName("an unusable zone falls back to UTC rather than throwing")
+        @DisplayName("no zone at all falls back to UTC rather than throwing")
         void aBadZoneDoesNotThrow() {
+            // THIS TEST SHRANK ON 2026-09-10, and that is the enum doing its job. It used to pass
+            // "Not/AZone" as well, because the field was a String and a malformed zone was a real
+            // possibility the code had to survive. SchoolTimeZone cannot hold one, so the only
+            // case left is null — which the platform surface really does pass, for dates no
+            // school owns.
             AcademicYear open = year(true, LocalDate.now(ZoneId.of("UTC")).minusMonths(5),
                     LocalDate.now(ZoneId.of("UTC")).plusMonths(5));
 
             // A gate that blew up on a bad zone string would refuse everything for that school.
-            assertThatCode(() -> gate.requireRunningAcademicYear(open, "Not/AZone"))
+            assertThatCode(() -> gate.requireRunningAcademicYear(open, null))
                     .doesNotThrowAnyException();
             assertThatCode(() -> gate.requireRunningAcademicYear(open, null))
                     .doesNotThrowAnyException();
@@ -469,7 +475,7 @@ class ActionGateTest {
     class TheWorkingYear {
 
         private LocalDate todayThere() {
-            return LocalDate.now(ZoneId.of(KOLKATA));
+            return LocalDate.now(KOLKATA.toZoneId());
         }
 
         @Test

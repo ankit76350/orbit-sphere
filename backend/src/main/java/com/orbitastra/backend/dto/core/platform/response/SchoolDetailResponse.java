@@ -2,6 +2,7 @@ package com.orbitastra.backend.dto.core.platform.response;
 
 import java.time.Instant;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.core.enums.SchoolStatus;
 
@@ -37,7 +38,7 @@ public record SchoolDetailResponse(
         String phoneNumber,
         String emailAddress,
         String defaultLocale,
-        String defaultTimeZone,
+        SchoolTimeZone defaultTimeZone,
         String addressLine,
         String city,
         String stateOrProvince,

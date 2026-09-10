@@ -18,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.common.web.PageResponse;
@@ -214,7 +215,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         if (school.getStatus() == SchoolStatus.DELETED
                 || school.getStatus() == SchoolStatus.DELETION_PENDING
                 || school.getStatus() == SchoolStatus.CLOSED) {
@@ -364,7 +365,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         // CLOSED is deliberately allowed: a school that has left still has a subscription whose
         // record can need correcting, and refusing would leave the wrong figure in place for
         // ever. A deleted one is different — there is nothing left to be right about.
@@ -586,7 +587,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         //! An allow-list, not a deny-list: the three running states are named and everything
         //! else is refused, so a status added to SchoolStatus later cannot quietly become one
         //! in which plans may be changed. A conflict rather than a 400 — nothing about the
@@ -888,7 +889,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1130,7 +1131,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1259,7 +1260,7 @@ public class PlatformSubscriptionService {
         // Every date this method puts in a message or a note is rendered in the SCHOOL's
         // zone, not UTC: a period starting at midnight in Asia/Kolkata is stored as
         // 18:30Z the day before, so UTC would name the wrong calendar day.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
         boolean schoolIsStillRunning = school.getStatus() == SchoolStatus.PROVISIONING
                 || school.getStatus() == SchoolStatus.ACTIVE
                 || school.getStatus() == SchoolStatus.SUSPENDED;
@@ -1388,7 +1389,7 @@ public class PlatformSubscriptionService {
         SubscriptionStatus previousStatus = subscription.getStatus();
         // As everywhere else here: the dates below read in the SCHOOL's zone, because a period
         // end stored as 18:30Z is midnight the next day on that school's own calendar.
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
 
         Instant paidUntil = subscription.getCurrentPeriodEnd();
         boolean periodStillRunning = paidUntil != null && paidUntil.isAfter(Instant.now());
@@ -1518,7 +1519,7 @@ public class PlatformSubscriptionService {
                 .orElseThrow(() -> ApiException.notFound("SCHOOL_NOT_FOUND",
                         "No school found with id '" + schoolId + "'."));
 
-        String zone = school.getDefaultTimeZone();
+        SchoolTimeZone zone = school.getDefaultTimeZone();
 
         //! step 2 - the school's current subscription
         // TODO: read subscription

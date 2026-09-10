@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.ValueInstantiationException;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -77,6 +78,29 @@ public class GlobalExceptionHandler {
                                                                         + "."));
                 }
 
+                // AN ENUM WITH A @JsonCreator FAILS DIFFERENTLY, and it fell through to the
+                // generic message below until 2026-09-10. A plain enum gives Jackson an
+                // InvalidFormatException, caught above; one whose factory method throws — which is
+                // how SchoolTimeZone, CountryCode and SchoolLocale reject a value — arrives as a
+                // ValueInstantiationException wrapping the IllegalArgumentException.
+                //
+                // That distinction matters because those three enums are the ones where listing
+                // the accepted values is useless: there are 603 IANA zones. Their own messages say
+                // what was wrong and give an example, which is the whole reason they throw with a
+                // sentence rather than letting Jackson generate one. Surfacing it beats both the
+                // generic text and a 603-item list.
+                if (exception.getCause() instanceof ValueInstantiationException bad
+                                && bad.getCause() instanceof IllegalArgumentException reason
+                                && reason.getMessage() != null) {
+
+                        String where = fieldPath(bad);
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiError.createError("INVALID_VALUE",
+                                                        reason.getMessage()
+                                                                        + (where.isEmpty() ? ""
+                                                                                        : " Sent as '" + where + "'.")));
+                }
+
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiError.createError("MALFORMED_REQUEST",
                                 "The request body could not be read. Check that it is valid JSON and that every "
                                                 + "field has the expected type."));
@@ -88,7 +112,7 @@ public class GlobalExceptionHandler {
          * <p>Jackson records the path it was walking when it gave up. Rebuilding it matters most
          * exactly where it is hardest to work out by eye: one wrong value in a list of twenty.
          */
-        private String fieldPath(InvalidFormatException invalid) {
+        private String fieldPath(tools.jackson.databind.DatabindException invalid) {
                 StringBuilder path = new StringBuilder();
                 for (tools.jackson.core.JacksonException.Reference step : invalid.getPath()) {
                         if (step.getPropertyName() != null) {

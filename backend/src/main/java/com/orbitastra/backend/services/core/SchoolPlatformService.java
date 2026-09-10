@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.core.platform.request.SchoolSearchRequest;
 import com.orbitastra.backend.dto.core.platform.response.SchoolSummaryResponse;
@@ -139,7 +140,10 @@ public class SchoolPlatformService {
     public SchoolCreateResponse createNewSchool(SchoolCreateRequest request) {
         //! validating subdomain
         String subdomain = helper.validateSubdomain(request.subdomain());
-        String timeZone = helper.validateTimeZone(request.defaultTimeZone());
+        // No validateTimeZone call any more: the field is a SchoolTimeZone, so an unknown zone
+        // was refused by the binder before this method ran. The old String + service check was
+        // two places to state one rule, and only the second one produced the refusal.
+        SchoolTimeZone timeZone = request.defaultTimeZone();
         String countryCode = TextHelper.uppercaseOrNull(request.countryCode());
 
         // Checked before writing so the caller gets a clear message. The unique index is still

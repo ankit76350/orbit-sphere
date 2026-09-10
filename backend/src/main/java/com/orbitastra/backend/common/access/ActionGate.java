@@ -5,6 +5,7 @@ import java.time.LocalDate;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.core.AcademicYear;
@@ -228,7 +229,7 @@ public class ActionGate {
      * @return the subscription it was given, which grants
      */
     public SchoolSubscription requireUsableSubscription(SchoolSubscription subscription,
-            String schoolName, String zone) {
+            String schoolName, SchoolTimeZone zone) {
 
         SubscriptionStatus status = subscription.getStatus();
         Instant periodEnd = subscription.getCurrentPeriodEnd();
@@ -306,7 +307,7 @@ public class ActionGate {
      * @return the year it was given, which is open
      * @throws ApiException 409 {@code ACADEMIC_YEAR_NOT_RUNNING}
      */
-    public AcademicYear requireRunningAcademicYear(AcademicYear year, String zone) {
+    public AcademicYear requireRunningAcademicYear(AcademicYear year, SchoolTimeZone zone) {
         //! step 1 - the school has to have marked this year as the one it is operating in.
         //! Through gate 4 rather than repeated here, so the flag rule has exactly one home and
         //! the two gates can never come to disagree about what "running" means.

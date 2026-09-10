@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Component;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
 import com.orbitastra.backend.common.time.Dates;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.SubscriptionStatus;
@@ -33,7 +34,7 @@ public class SchoolSubscriptionServiceUtils {
      * Used by:
      * - featureAccessFor()
      */
-    public String whyNotActive(SchoolSubscription subscription, String zone) {
+    public String whyNotActive(SchoolSubscription subscription, SchoolTimeZone zone) {
         SubscriptionStatus status = subscription.getStatus();
 
         // PAST_DUE still grants. An unpaid invoice is a conversation, not a reason to lock a

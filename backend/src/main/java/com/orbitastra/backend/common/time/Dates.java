@@ -8,6 +8,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import com.orbitastra.backend.models.common.enums.SchoolTimeZone;
+
 /**
  * Dates as a person reads them, for anything a person is going to read.
  *
@@ -79,7 +81,7 @@ public final class Dates {
      * falls back to UTC rather than throwing: a message explaining a refusal must not itself fail,
      * and a wrong-by-hours date still tells the caller more than a 500 does.
      */
-    public static String readable(Instant instant, String zone) {
+    public static String readable(Instant instant, SchoolTimeZone zone) {
         if (instant == null) {
             return NOT_SET;
         }
@@ -95,7 +97,7 @@ public final class Dates {
      * for itself.
      */
     public static String readable(Instant instant) {
-        return readable(instant, null);
+        return readable(instant, (SchoolTimeZone) null);
     }
 
     /**
@@ -124,7 +126,7 @@ public final class Dates {
      * answers: which day is this, for this school. It reuses the same zone fallback, so a
      * rendered date and a date comparison can never disagree about the zone.
      */
-    public static Instant startOfTodayIn(String zone) {
+    public static Instant startOfTodayIn(SchoolTimeZone zone) {
         ZoneId resolved = zoneOrUtc(zone);
 
         return LocalDate.now(resolved).atStartOfDay(resolved).toInstant();
@@ -143,26 +145,23 @@ public final class Dates {
      * same zone fallback as everything else in this class, so a rendered date and a date
      * comparison can never disagree about the zone.
      */
-    public static LocalDate todayIn(String zone) {
+    public static LocalDate todayIn(SchoolTimeZone zone) {
         return LocalDate.now(zoneOrUtc(zone));
     }
 
     /**
-     * The school's zone, or UTC when it is unset or unusable.
+     * The school's zone, or UTC when there is none.
      *
-     * <p>Inline in each method rather than shared with the callers that also need a ZoneId: this
-     * one is about rendering, and a formatter that quietly failed on a bad zone string would take
-     * a refusal message down with it.
+     * <p><b>This used to parse a String and catch {@link DateTimeException}.</b> It cannot fail
+     * any more: {@link SchoolTimeZone} is generated from {@code ZoneId.getAvailableZoneIds()}, so
+     * every constant is a zone the JDK accepts and there is no such thing as a malformed value to
+     * defend against. That defensive branch was the cost of the field being a String, and making
+     * it an enum is what removed it.
+     *
+     * <p>Null still has to be handled — the platform surface renders dates no school owns, and
+     * passes none.
      */
-    private static ZoneId zoneOrUtc(String zone) {
-        if (zone == null || zone.isBlank()) {
-            return ZoneOffset.UTC;
-        }
-
-        try {
-            return ZoneId.of(zone.trim());
-        } catch (DateTimeException e) {
-            return ZoneOffset.UTC;
-        }
+    private static ZoneId zoneOrUtc(SchoolTimeZone zone) {
+        return zone == null ? ZoneOffset.UTC : zone.toZoneId();
     }
 }
