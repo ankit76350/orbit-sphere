@@ -19,41 +19,26 @@ import com.orbitastra.backend.repositories.plans.schoolsubscription.SchoolSubscr
 import lombok.RequiredArgsConstructor;
 
 /**
- * The three questions that come before any school action: is the school live, is it paying, and
- * is its year open.
+ * Central access gate for school actions.
  *
- * <p><b>NOT WIRED IN ANYWHERE YET.</b> Nothing calls these methods. They are here so that when
- * the modules that need gating arrive, the answer is one shared decision instead of one per
- * module — which is the whole point, because three modules that each work out "may this school
- * act" will eventually disagree, and the disagreement will look like a bug in whichever one is
- * stricter.
+ * <p>Checks three conditions before an action is allowed:
+ * whether the school is active, whether its current subscription is usable, and whether the
+ * academic year is running.
  *
- * <p>In {@code common} rather than in a service because none of the three modules owns the
- * question. {@code CurrentSchoolResolver} sits here for the same reason.
+ * <p>Each {@code require...} method either returns the valid object or throws an
+ * {@link ApiException} with the reason the action is not allowed.
  *
- * <h2>They throw rather than answer</h2>
+ * <p>This class is kept in {@code common.access} because these checks are shared across modules
+ * and should follow the same rules everywhere.
  *
- * <p>Each {@code require...} method returns normally or throws. That is deliberate: a gate whose
- * answer can be ignored is a gate somebody forgets to check, and {@code if (!gate.ok(x)) return;}
- * is one missing {@code !} away from letting everything through. The refusal carries the reason,
- * so a caller never has to build the message.
+ * <p>Subscription and school status checks use {@code 409 Conflict} when the current state
+ * prevents the action. Missing schools or subscriptions return {@code 404 Not Found}.
  *
- * <p><b>409 rather than 403</b>, matching what this project already returns for "the state
- * forbids this" — {@code SCHOOL_NOT_SUBSCRIBABLE}, {@code PLAN_UNCHANGED},
- * {@code PERIOD_NOT_ENDED} are all conflicts. Nothing here is about who the caller is, which is
- * what 403 would say; it is about what the record currently permits.
+ * <p>Date-based checks use the school's {@code defaultTimeZone} through {@link Dates} so that
+ * dates and periods are evaluated using the school's local calendar.
  *
- * <h2>Every date in a refusal is spelled out</h2>
- *
- * <p>Through {@link Dates}, in the <b>school's own timezone</b>, because a period that ends at
- * midnight in Asia/Kolkata is stored as 18:30Z the day before and UTC would name the wrong day.
- * See the project rule beside {@code Dates}.
- *
- * <h2>What this does NOT do</h2>
- *
- * <p>It does not check feature access or limits — that is #34, and it is a different question
- * with a different answer per feature. These three are the gate in front of it: there is no point
- * asking whether a school may use a feature if the school is closed.
+ * <p>This class only checks school, subscription, and academic-year access. Feature access and
+ * usage limits are handled separately by #34.
  */
 @Component
 @RequiredArgsConstructor
@@ -63,28 +48,7 @@ public class ActionGate {
     private final SchoolSubscriptionRepository subscriptions;
 
     //! Gate 1 — is the school itself live ---------------------------------------------
-
-    /**
-     * Refuses unless the school is {@code ACTIVE}.
-     *
-     * <p>Reads the school, so the caller gets it back rather than loading it twice — every caller
-     * of this needs the school for something anyway.
-     *
-     * <p><b>{@code PROVISIONING} is told apart from the rest on purpose</b>, and gets its own
-     * code and a different tone. It is the state every school starts in and the only one that
-     * ends by itself: setup finishes, the school goes live, and the action the caller just tried
-     * starts working. Telling somebody "not allowed" for a state that resolves on its own reads
-     * as a rejection when it is a wait.
-     *
-     * <p>The other five are refusals, and each says which one it is, because they mean genuinely
-     * different things to whoever reads them — {@code SUSPENDED} comes back, {@code DELETED} does
-     * not.
-     *
-     * @return the school, which is {@code ACTIVE}
-     * @throws ApiException 404 {@code SCHOOL_NOT_FOUND} when there is no such school,
-     *                      409 {@code SCHOOL_NOT_READY} while it is still being set up,
-     *                      409 {@code SCHOOL_NOT_ACTIVE} for the five blocked states
-     */
+    /** Refuses unless the school is {@code ACTIVE} and returns the school. */
     public School requireActiveSchool(String schoolId) {
         //! step 1 - the school has to exist at all
         // TODO: read school
@@ -96,16 +60,7 @@ public class ActionGate {
         return requireActiveSchool(school);
     }
 
-    /**
-     * The same check on a school already in hand, so a caller that has just read one does not
-     * read it again.
-     *
-     * <p>Both forms exist because the callers differ: a platform endpoint has the id from its
-     * URL, and a school-surface endpoint already has the school from
-     * {@code CurrentSchoolResolver}.
-     *
-     * @return the school it was given, which is {@code ACTIVE}
-     */
+    /** Checks whether the given school is {@code ACTIVE}. */
     public School requireActiveSchool(School school) {
         SchoolStatus status = school.getStatus();
 
@@ -145,16 +100,7 @@ public class ActionGate {
     }
 
     //! Gate 2 — is the school paying --------------------------------------------------
-
-    /**
-     * Refuses unless the school's current subscription still grants the product.
-     *
-     * <p>Reads the school for its name and timezone, then its current subscription.
-     *
-     * @return the subscription, which grants
-     * @throws ApiException 404 {@code SCHOOL_NOT_FOUND} / {@code SUBSCRIPTION_NOT_FOUND},
-     *                      409 {@code SUBSCRIPTION_NOT_USABLE}
-     */
+    /** Checks whether the school's current subscription is usable. */
     public SchoolSubscription requireUsableSubscription(String schoolId) {
         //! step 1 - the school, for the name and the zone the dates are read in
         // TODO: read school
@@ -166,16 +112,7 @@ public class ActionGate {
         return requireUsableSubscription(school);
     }
 
-    /**
-     * The same check for a school already in hand, so a caller that has just resolved one does
-     * not read it again.
-     *
-     * <p>This is the form the school surface wants: {@code CurrentSchoolResolver} has already
-     * produced the school, and it carries both things the refusal messages need — the name and
-     * the timezone.
-     *
-     * @return the subscription, which grants
-     */
+    /** Checks whether the given school's current subscription is usable. */
     public SchoolSubscription requireUsableSubscription(School school) {
         //! step 1 - the one row it is on now. A school with none has never bought anything.
         // TODO: read school subscription
@@ -189,45 +126,7 @@ public class ActionGate {
                 school.getDefaultTimeZone());
     }
 
-    /**
-     * The same check on a subscription already in hand.
-     *
-     * <h2>What grants, and why</h2>
-     *
-     * <p><b>{@code TRIAL} and {@code ACTIVE}</b> grant. Nothing to explain.
-     *
-     * <p><b>{@code PAST_DUE} grants</b>, and this is the one worth stating. An unpaid invoice is a
-     * conversation, not a reason to lock a school out of its attendance register in the middle of
-     * the morning. It is also what the rest of the codebase already decided: see the javadoc on
-     * {@link SubscriptionStatus#PAST_DUE} and {@code SchoolSubscriptionServiceUtils.whyNotActive},
-     * which grants it too. If it should ever stop granting, the right shape is a <b>grace
-     * period</b> — "past due for more than N days" — not a status check, because the status alone
-     * cannot tell an invoice a week late from one six months late.
-     *
-     * <p><b>{@code CANCELLED} grants until its period runs out.</b> A school cancelling mid-month
-     * has bought that month, and refusing it the same afternoon would be keeping its money and
-     * taking the product away. So a cancellation is not checked as a status at all — it falls
-     * through to the period check below. #21's immediate shape works by trimming
-     * {@code currentPeriodEnd} to now, which is what makes that check bite at once; no extra
-     * field says "cancelled but still running", because the status says cancelled and the dates
-     * say how long for.
-     *
-     * <p><b>{@code SUSPENDED} and {@code EXPIRED} refuse outright.</b>
-     *
-     * <p><b>A period that has ended refuses whatever the status says</b>, and that check is last
-     * so it catches everything. It has to exist separately, because nothing marks a lapsed
-     * subscription {@code EXPIRED} yet — a row can read {@code ACTIVE} with a period that
-     * finished months ago, and trusting the status alone would grant it.
-     *
-     * <p><b>The rules here are the same ones {@code whyNotActive} applies</b>, which returns them
-     * as a sentence for #33's response rather than throwing. They must not drift: when this gate
-     * is wired in, that method should call it rather than keep its own copy. Left alone for now
-     * because nothing may be rewired yet.
-     *
-     * @param schoolName for the message; a refusal that does not name the school is hard to act on
-     * @param zone       the school's {@code defaultTimeZone}, so a date reads as its own calendar
-     * @return the subscription it was given, which grants
-     */
+    /** Checks whether the subscription is usable and its period is still active. */
     public SchoolSubscription requireUsableSubscription(SchoolSubscription subscription,
             String schoolName, SchoolTimeZone zone) {
 
@@ -274,39 +173,7 @@ public class ActionGate {
     }
 
     //! Gate 3 — is the school's year open ---------------------------------------------
-
-    /**
-     * Refuses unless the academic year is the one the school is running, and today is inside it.
-     *
-     * <p><b>Both conditions, and the order of that sentence matters.</b> The dates are
-     * authoritative — #18 and #19 refuse overlapping years, so at most one year contains any
-     * given date. The flag only ever <b>narrows</b> what the dates already permit: it says the
-     * school has switched over to a year the calendar says has begun, which the dates cannot say
-     * on their own. Reading the flag alone would be the mistake, because one left true after its
-     * year ended would keep a finished year live indefinitely. See the note on
-     * {@code AcademicYear.isThisYearRunning}, which records the objection to storing this at all.
-     *
-     * <p><b>A null flag counts as not running</b>, which is what the documents predating the
-     * field read as. A gate should fail closed.
-     *
-     * <p><b>The field defaults to true on create</b>, and nothing enforces one-per-school, so
-     * several years can read true at once. That means this gate currently adds nothing to the
-     * date check for a freshly created year — it only bites once something sets it false, which
-     * today is only {@code POST .../end}. Worth a partial unique index before anything relies on
-     * the flag to pick between years.
-     *
-     * <p><b>Today is today in the school's own zone.</b> At 23:00 in Asia/Kolkata it is still
-     * yesterday in UTC, so a year ending today would already read as finished — which is a whole
-     * day of the school's work refused.
-     *
-     * <p>Both boundaries are <b>inclusive</b>: {@code startDate} is the first school day and
-     * {@code endDate} the last, so a year running 1 April to 31 March grants on both of those
-     * days.
-     *
-     * @param zone the school's {@code defaultTimeZone}
-     * @return the year it was given, which is open
-     * @throws ApiException 409 {@code ACADEMIC_YEAR_NOT_RUNNING}
-     */
+    /** Checks whether the academic year is currently running and today's date is within its range. */
     public AcademicYear requireRunningAcademicYear(AcademicYear year, SchoolTimeZone zone) {
         //! step 1 - the school has to have marked this year as the one it is operating in.
         //! Through gate 4 rather than repeated here, so the flag rule has exactly one home and
@@ -334,47 +201,7 @@ public class ActionGate {
     }
 
     //! Gate 4 — is this the school's working year, whatever the calendar says ---------
-
-    /**
-     * Refuses unless the school has marked this year as the one it is working in. Nothing else.
-     *
-     * <p><b>The flag on its own, with no date check</b> — that is the whole difference from
-     * {@link #requireRunningAcademicYear}, and it is why both exist:
-     *
-     * <table border="1">
-     * <tr><th>Gate</th><th>Allows</th><th>Use it for</th></tr>
-     * <tr><td>{@link #requireRunningAcademicYear}</td>
-     *     <td>flag true <b>and</b> today inside the dates</td>
-     *     <td>recording something that happens <b>today</b> — attendance, a fee taken this
-     *         morning. If today is outside the year, today's event does not belong to it.</td></tr>
-     * <tr><td>this one</td>
-     *     <td>flag true, whatever the calendar says</td>
-     *     <td>work that <b>belongs to</b> that year and is finished afterwards — publishing
-     *         results in April for a year that ended on 31 March. The dates have passed and the
-     *         work is still that year's.</td></tr>
-     * </table>
-     *
-     * <p><b>So the looser gate is not the weaker one</b>, and picking it is a statement about the
-     * action rather than a shortcut. Ask which year the record belongs to: if the answer is
-     * "whichever one today is in", the dates matter and the other gate is the right one. If the
-     * answer is "the year named in the request", they do not.
-     *
-     * <p><b>A null flag counts as not running.</b> Every year written before the field existed
-     * reads null, and a gate should fail closed — the record not saying is not the same as the
-     * record saying yes.
-     *
-     * <p><b>The field defaults to true on create</b>, and nothing enforces one-per-school, so
-     * several years can read true at once. Until something writes {@code false} — today only
-     * {@code POST .../end} — this gate refuses almost nothing. That is worth knowing before
-     * relying on it to pick between two years; it wants a partial unique index on
-     * {@code {schoolId, isThisYearRunning}} filtered to true first.
-     *
-     * <p>Shares the refusal code with {@link #requireRunningAcademicYear}, because the condition
-     * a caller would branch on is the same one: this is not the year the school is running.
-     *
-     * @return the year it was given, which is marked as running
-     * @throws ApiException 409 {@code ACADEMIC_YEAR_NOT_RUNNING}
-     */
+    /** Checks whether the academic year is marked as the school's current working year. */
     public AcademicYear requireYearMarkedAsRunning(AcademicYear year) {
         //! step 1 - true and nothing else. Null and false are both refusals.
         if (!Boolean.TRUE.equals(year.getIsThisYearRunning())) {
