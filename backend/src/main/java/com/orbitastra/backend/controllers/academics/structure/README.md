@@ -1,7 +1,8 @@
 # controllers/academics/structure — API plan
 
-**None of the 36 are built.** This is the full set of endpoints the academic-structure feature
-needs, written before any of them, so they can be built and reviewed one at a time — the same way
+**One of 36 is built — #12.** A class can be created for an academic year. Everything else below
+is the full set of endpoints the academic-structure feature needs, written before any of them, so
+they can be built and reviewed one at a time — the same way
 [`controllers/core`](../../core/README.md) and [`controllers/plans`](../../plans/README.md) were
 done.
 
@@ -10,13 +11,16 @@ and a request to it returns a 404.
 
 Mirrors [`models/academics/structure`](../../../models/academics/structure), whose README already
 describes the two documents, the two embedded types and the reference rules. **These endpoints
-enforce that file. They do not invent new rules** — with one exception that file itself asks for,
-the missing `classCode`; see [To settle before building](#to-settle-before-building).
+enforce that file. They do not invent new rules** — with one exception that file itself asked
+for: the index naming a `classCode` no model declared, now settled. See
+[To settle before building](#to-settle-before-building).
 
-> **One thing blocks every write below.** `SchoolClass` has a unique index on a field it does not
-> declare, which allows exactly **one class per school per academic year**. Nothing here can be
-> built until that is settled. It is the first item in
-> [To settle before building](#to-settle-before-building), and it is not a big change.
+> **The blocker is settled — 2026-09-10.** `SchoolClass` had a unique index on `classCode`, a
+> field it never declared, which allowed exactly **one class per school per academic year**. The
+> index is now `school_year_class_name_uniq` on `name`, and there is no code field: a class is
+> addressed and referenced by its **document id**, which is what twelve other documents already
+> store as `classDocsId`. See
+> [open item 1](#1-classcode-did-not-exist--settled-2026-09-10).
 
 ---
 
@@ -84,38 +88,55 @@ same reason `controllers/core` gives no platform surface for academic years.
 Neither code is unique per school. Both are unique per **school and year**:
 
 ```text
-school_year_class_code_uniq   {schoolId, academicYear, classCode}   unique
+school_year_class_name_uniq   {schoolId, academicYear, name}       unique
 school_year_term_code_uniq    {schoolId, academicYear, termCode}    unique
 ```
 
-So `/schools/current/classes/GRADE_7` names nothing — every school has a `GRADE_7` in every year
-it has ever run. The year has to be in the URL for the rest of the path to identify a document,
-and putting it in a query parameter instead would mean a `PATCH` whose target is half in the path
-and half in the query.
+A class **id** is globally unique on its own, so the year is not needed to *find* one. It is in
+the path so that an id pasted from last year's URL answers `404` rather than quietly editing last
+year's structure, and so the path reads as what it is — a year, and something inside it. A
+`termCode` genuinely needs it, being unique only per year.
 
 ```text
-/schools/current/academic-years/2026-2027/classes/GRADE_7/sections/A
-                               ^^^^^^^^^         ^^^^^^^          ^
-                               parent key        the class    the section
+/schools/current/academic-years/2026-2027/classes/6aa29f6d5fb6199794c87e87/sections/A
+                               ^^^^^^^^^         ^^^^^^^^^^^^^^^^^^^^^^^^          ^
+                               the year          the class id                the section
 ```
 
 Long, and correct. Each segment names one real thing, and the whole path is the document plus the
 two keys inside it.
 
-### Addressed by code, never by id
+### Addressed by id, except where the thing has no id
 
-Same rule the academic year established: `sectionNo`, `subjectCode`, `termCode` and `classCode`
-are what other collections store, so they are what the URL says. Using ids in the URL would mean
-one vocabulary in the database and a different one in the API.
+**Settled 2026-09-10, and it went the other way from this file's first draft.** The rule is not
+"prefer codes" — it is *use whatever other collections already store*, and for the two top-level
+documents here that is the document id:
 
-**And there is no rename endpoint for any of the four codes.** The counts are the reason:
+| Thing | Referenced by | Addressed in the URL by |
+|---|---|---|
+| a class | `classDocsId`, in **12** documents | its **id** |
+| a term | `termDocsId`, in **6** documents | its **id** |
+| a section | `sectionNo`, in **8** collections | `sectionNo` |
+| a subject assignment | `subjectCode`, in **7** collections | `subjectCode` + `?sectionNo=` |
+
+**A section and a subject are codes only because they are embedded** and so have no id to be
+referenced by. A top-level document has one, and twelve consumers were already using it — an
+earlier draft of this plan invented a `classCode` for consistency with `sectionNo`, and that was
+the wrong half of the design to be consistent with.
+
+**Which is what keeps `name` editable.** A class is its id, so renaming it joins nothing and
+breaks nothing; the name only has to stay unique inside the year, which
+`school_year_class_name_uniq` enforces. Contrast the academic year, which *is* its name to every
+other collection and therefore can never be renamed.
+
+**There is still no rename for `sectionNo` or `subjectCode`.** The counts are the reason:
 
 | Key | Stored as a plain string by | A rename would |
 |---|---|---|
 | `sectionNo` | **8** collections — `attendance_sessions`, `exam_schedules`, `homework`, `report_cards`, `holistic_progress_cards`, `student_academic_records`, `fee_invoices` directly, and `daily_timetables` through its embedded `TimetableEntry` | leave all eight pointing at a section that no longer answers to it |
 | `subjectCode` | **7** — `attendance_sessions`, `curriculum_documents`, `homework`, `student_marks`, `exam_schedules` directly, plus `report_cards` and `daily_timetables` through embedded rows | orphan every mark and register for that subject |
-| `termCode` | referenced by **id**, so a rename is safe — which is exactly why `AcademicTerm` is a collection and not a string. See its model README. | be safe, and is still not offered: `name` is the display field, so nothing needs it |
-| `classCode` | does not exist yet | — |
+| `termCode` | nothing — consumers store `termDocsId`. It is a school-facing label, not a join key. | be safe. #3 may edit it. |
+| a class's `name` | nothing — consumers store `classDocsId` | be safe. #13 edits it. |
 
 None of those references is a foreign key. Nothing would fail, nothing would cascade, and every
 row would still look valid — the same trap `controllers/core` documents for the academic year
@@ -182,12 +203,12 @@ A term is the unit a report card is issued for. Six other documents point at one
 |---|---|---|---|
 | <a id="t1"></a>1 | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t3"></a>3 | [`PATCH /terms/{termCode}`](#e3) | Fix one term's name, dates or weight. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t3"></a>3 | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t5"></a>5 | [`POST /terms/{termCode}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t6"></a>6 | [`POST /terms/{termCode}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t7"></a>7 | [`POST /terms/{termCode}/deactivate`](#e7) | Take a term out of use without deleting it, so the exams and cards that reference it stay resolvable. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t8"></a>8 | [`POST /terms/{termCode}/reactivate`](#e8) | Put it back. The pair exists because there is no `DELETE`. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t5"></a>5 | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t6"></a>6 | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t7"></a>7 | [`POST /terms/{termId}/deactivate`](#e7) | Take a term out of use without deleting it, so the exams and cards that reference it stay resolvable. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t8"></a>8 | [`POST /terms/{termId}/reactivate`](#e8) | Put it back. The pair exists because there is no `DELETE`. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
 ## 2. The terms — reads · [Build order ↓](#build-order)
 
@@ -195,17 +216,17 @@ A term is the unit a report card is issued for. Six other documents point at one
 |---|---|---|---|
 | <a id="t9"></a>9 | [`GET /terms`](#e9) | Every term in the year, in `sequence` order. Filter by `active`. Empty list if the year has none. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t10"></a>10 | [`GET /terms/current`](#e10) | Which term today falls in. What a mark-entry screen opens on, so a teacher does not pick the period by hand. `404` when no term covers today — a legitimate answer during a holiday between terms. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t11"></a>11 | [`GET /terms/{termCode}`](#e11) | One term in full. `404` when the year has no term by that code. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t11"></a>11 | [`GET /terms/{termId}`](#e11) | One term in full. `404` when the year has no term by that code. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
 ## 3. The classes — writes · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t12"></a>12 | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t13"></a>13 | [`PATCH /classes/{classCode}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Not `classCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
+| <a id="t12"></a>12 — **built** | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t13"></a>13 | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Not `classCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
 | <a id="t14"></a>14 | [`PUT /classes/order`](#e14) | Set `displayOrder` across the year's classes in one write, so "Nursery, LKG, UKG, 1, 2, …" comes out in the order a school reads it rather than alphabetically. Unlike #4 this is a convenience, not a necessity — `displayOrder` has no unique index. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t15"></a>15 | [`POST /classes/{classCode}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t16"></a>16 | [`POST /classes/{classCode}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t15"></a>15 | [`POST /classes/{id}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t16"></a>16 | [`POST /classes/{id}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 4. The sections inside a class · [Build order ↓](#build-order)
 
@@ -215,11 +236,11 @@ models, and one more than the [model README's own "six"](../../../models/academi
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t17"></a>17 | [`POST /classes/{classCode}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t18"></a>18 | [`PUT /classes/{classCode}/sections`](#e18) | Replace the class's whole section list. For setup — "Grade 7 has A, B, C, D" in one call. Must refuse to drop a section anything already references. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t19"></a>19 | [`PATCH /classes/{classCode}/sections/{sectionNo}`](#e19) | Change a section's capacity or class teacher. **Never its `sectionNo`.** | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t20"></a>20 | [`POST /classes/{classCode}/sections/{sectionNo}/deactivate`](#e20) | Stop using a section without removing it. This is what a school does with a section that has emptied out, and it is the **only** way to retire one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t21"></a>21 | [`POST /classes/{classCode}/sections/{sectionNo}/reactivate`](#e21) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t17"></a>17 | [`POST /classes/{id}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t18"></a>18 | [`PUT /classes/{id}/sections`](#e18) | Replace the class's whole section list. For setup — "Grade 7 has A, B, C, D" in one call. Must refuse to drop a section anything already references. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t19"></a>19 | [`PATCH /classes/{id}/sections/{sectionNo}`](#e19) | Change a section's capacity or class teacher. **Never its `sectionNo`.** | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t20"></a>20 | [`POST /classes/{id}/sections/{sectionNo}/deactivate`](#e20) | Stop using a section without removing it. This is what a school does with a section that has emptied out, and it is the **only** way to retire one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t21"></a>21 | [`POST /classes/{id}/sections/{sectionNo}/reactivate`](#e21) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 5. The subjects taught in a class · [Build order ↓](#build-order)
 
@@ -230,21 +251,21 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t22"></a>22 | [`POST /classes/{classCode}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t23"></a>23 | [`PUT /classes/{classCode}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t24"></a>24 | [`PATCH /classes/{classCode}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t25"></a>25 | [`PUT /classes/{classCode}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
-| <a id="t26"></a>26 | [`POST /classes/{classCode}/subjects/{subjectCode}/deactivate?sectionNo=`](#e26) | A subject this class has stopped teaching. Deactivated, not removed, because seven collections store `subjectCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t27"></a>27 | [`POST /classes/{classCode}/subjects/{subjectCode}/reactivate?sectionNo=`](#e27) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t22"></a>22 | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t23"></a>23 | [`PUT /classes/{id}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t24"></a>24 | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t25"></a>25 | [`PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t26"></a>26 | [`POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`](#e26) | A subject this class has stopped teaching. Deactivated, not removed, because seven collections store `subjectCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t27"></a>27 | [`POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`](#e27) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 6. The reads · [Build order ↓](#build-order)
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t28"></a>28 | [`GET /classes`](#e28) | The year's classes in `displayOrder`, filtered by `active` and searchable by name. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t29"></a>29 | [`GET /classes/{classCode}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t30"></a>30 | [`GET /classes/{classCode}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t31"></a>31 | [`GET /classes/{classCode}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t29"></a>29 | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t30"></a>30 | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t31"></a>31 | [`GET /classes/{id}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t33"></a>33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t34"></a>34 | [`GET /structure`](#e34) | The year's whole skeleton in one response: terms, then classes with their sections and subjects. What a mobile app fetches once on login instead of making twenty calls. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -270,7 +291,7 @@ section exists, so sections come before everything that is merely useful.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **0** | `classCode` settled — nothing below compiles into a working collection without it | *no endpoint; see below* |
+| **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | 12, 17, 28, 29, 30 |
 | **2** | Subjects are assigned, so marks and registers have something to be about | 22, 24, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
@@ -303,8 +324,10 @@ and sections have eight collections waiting.
   carries the field, in three modules. Until that is cheap, everything is **deactivated**. This is
   the same decision, for the same reason, that left `controllers/core` with no `DELETE` on an
   academic year.
-- **No rename of `classCode`, `termCode`, `sectionNo` or `subjectCode`.** A rename would not fail
-  and would not cascade. See [the table above](#addressed-by-code-never-by-id).
+- **No rename of `sectionNo` or `subjectCode`.** Eight and seven collections store them as plain
+  strings, so a rename would neither fail nor cascade. See
+  [the table above](#addressed-by-id-except-where-the-thing-has-no-id). A class `name` and a
+  `termCode` *are* editable — nothing joins on either.
 - **No moving a subject assignment between sections.** `(subjectCode, sectionNo)` is the key, so a
   move is a delete and an add, and there is no delete. Deactivate the old assignment and add the
   new one — two calls, and the history reads correctly.
@@ -325,7 +348,7 @@ and sections have eight collections waiting.
 
 # To settle before building
 
-## 1. `classCode` does not exist — and this blocks everything
+## 1. `classCode` did not exist — settled 2026-09-10
 
 `SchoolClass` carries a **unique** index on a field it never declares:
 
@@ -342,17 +365,41 @@ plan can be built.
 
 The two options that README names, and what each costs:
 
-| Option | What it means | Cost |
-|---|---|---|
-| **Add `classCode`** *(recommended)* | A stable business key beside `name`, exactly like `termCode` beside its own `name`. Derived from the name on create — "Grade 7" → `GRADE_7` — the way `planCode` already is, with an explicit code accepted when the derived one is taken. | One field, one derivation, consistent with `termCode`, `programmeCode` and `examCode`. |
-| **Repoint the index at `name`** | Uniqueness on the display name; `/classes/Grade%207` in every URL. | Renaming a class becomes impossible for the same reasons a code rename is, so `name` stops being a display field and the module loses the one field it could safely edit. |
+**Neither option was taken. A third one was, and it is better than both.** The premise was
+wrong: a class does not need a code at all. **Twelve documents already reference a class by
+`classDocsId`** and not one stores a class code, so the index was repointed at `name` and the
+class is addressed by its id.
 
-**Recommended: add `classCode`.** It is the only option that leaves `name` editable, and this
-whole plan is written assuming it — every path above says `{classCode}`. If the index is
-repointed at `name` instead, the URLs change and #13 loses half its body.
+```
+school_year_class_code_uniq  {schoolId, academicYear, classCode}  ->  DROPPED
+school_year_class_name_uniq  {schoolId, academicYear, name}       ->  CREATED, unique
+```
 
-*Note: `app.mongo.sync-indexes=true` builds indexes on demand, so the collision will not appear
-until the index is actually built. It will not show up in a first test.*
+| Option considered | Why not |
+|---|---|
+| Add a `classCode` business key | It was added, then removed the same day. `sectionNo` and `subjectCode` are codes because they are **embedded** and have no id to be referenced by; a top-level document has one. Inventing a code for a class was being consistent with the wrong half of the design. |
+| Repoint the index at `name`, keeping code-addressed URLs | Half right. Repointing the index was correct; keeping `name` in the URL was not, because it would make the name a join key and therefore immutable. |
+| **Repoint at `name`, address by id** | Taken. `name` carries a real uniqueness guarantee and stays editable, because nothing joins on it. |
+
+Uniqueness on `name` does **not** make the name immutable, which is the objection that made
+repointing look bad at first. That would only be true if the name were the join key — and it is
+not, because the id is. #13 edits it freely.
+
+**Both index changes were applied to `edusphere_dev` by hand**, because `app.mongo.sync-indexes`
+is `false` in dev and building all 707 indexes costs about six minutes. **Anyone with their own
+database has to do the same**, or the dropped index keeps enforcing uniqueness on a field that no
+longer exists:
+
+```js
+db.school_classes.dropIndex("school_year_class_code_uniq")
+db.school_classes.createIndex({schoolId: 1, academicYear: 1, name: 1},
+                              {name: "school_year_class_name_uniq", unique: true})
+```
+
+*This is also why the bug survived design review: with `sync-indexes` off, the index is absent on
+a fresh database and the collision appears only where it has been built once. It was live in
+`edusphere_dev`.*
+
 
 ## 2. Three referenced collections have no repository, so no reference can be validated
 
@@ -534,8 +581,8 @@ Two things are left out of every entry because they are true of all of them:
 | Field | Type | What can be in it |
 |---|---|---|
 | `academicYear` | String, required | As above. From the path, never the body. **Never changes.** |
-| `classCode` | String, required | **Does not exist on the model yet** — [open item 1](#1-classcode-does-not-exist--and-this-blocks-everything), and the whole plan waits on it. Intended: unique with `schoolId + academicYear`, derived from `name` — "Grade 7" → `GRADE_7`. **Never changes.** |
-| `name` | String, required | **Open** — `@NotBlank`. `"Grade 7"`, `"Nursery"`, `"XII Science"`. Editable through #13, and safe to edit only because `classCode` carries the identity. |
+| `_id` | ObjectId | The identity, and what **12** other documents store as `classDocsId`. There is no code field — see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10). |
+| `name` | String, required | **Open** — `@NotBlank`, max 120, **unique within the year** (`school_year_class_name_uniq`). `"Grade 7"`, `"Nursery"`, `"XII Science"`. Editable through #13, and safe to edit because the id carries the identity, not this. |
 | `affiliationProgrammeDocsId` | String, optional | `AffiliationProgramme.id`, or null. **Open, and unvalidatable today** — no repository. See [open item 2](#2-three-referenced-collections-have-no-repository-so-no-reference-can-be-validated). |
 | `displayOrder` | Integer, optional | Sort order for the UI. **Not unique**, deliberately — so #14 is a convenience where #4 is a necessity. Null sorts last. |
 | `sections` | List, required | `[]` at create (#12). #17 adds one, #18 replaces the list. Rows below. |
@@ -546,7 +593,7 @@ Two things are left out of every entry because they are true of all of them:
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `sectionNo` | String, required | `@NotBlank`, unique inside the owning class. `"A"`, `"B"`, `"Blue"` — it is both the reference and the display value, so there is no separate name field and there must not be one. **Never changes**: [eight collections](#addressed-by-code-never-by-id) store it. |
+| `sectionNo` | String, required | `@NotBlank`, unique inside the owning class. `"A"`, `"B"`, `"Blue"` — it is both the reference and the display value, so there is no separate name field and there must not be one. **Never changes**: [eight collections](#addressed-by-id-except-where-the-thing-has-no-id) store it. |
 | `classTeacherDocsId` | String, optional | `Staff.id`, or null. **Open, unvalidatable today.** Null means no class teacher assigned, which is a normal state before staff are onboarded. |
 | `capacity` | Integer, optional | Planned student count, or null for no plan. **Not enforced anywhere** — refusing the 41st student belongs to the student module, where the count lives. `0` should be a `400`: a section nobody can be placed in is not a section. |
 | `active` | Boolean, required | `true` at create; `false` from #20, `true` from #21. The only way to retire a section. |
@@ -574,11 +621,11 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | Code | Status | When |
 |---|---|---|
 | `ACADEMIC_YEAR_NOT_FOUND` | 404 | the `{year}` in the path is not a year of this school — reuses core's code and sentence |
-| `CLASS_NOT_FOUND` | 404 | no class with that `classCode` in that year |
+| `CLASS_NOT_FOUND` | 404 | no class with that id in that year, or it belongs to another school |
 | `TERM_NOT_FOUND` | 404 | no term with that `termCode` in that year |
 | `SECTION_NOT_FOUND` | 404 | that class has no such `sectionNo` |
 | `SUBJECT_NOT_FOUND` | 404 | that class has no such `(subjectCode, sectionNo)` |
-| `CLASS_CODE_TAKEN` | 409 | that year already has that `classCode` |
+| `CLASS_NAME_TAKEN` | 409 | that year already has a class with that `name` |
 | `TERM_CODE_TAKEN` | 409 | that year already has that `termCode` |
 | `SECTION_ALREADY_EXISTS` | 409 | that class already has that `sectionNo` |
 | `SUBJECT_ALREADY_ASSIGNED` | 409 | that class already has that `(subjectCode, sectionNo)` pair |
@@ -643,12 +690,12 @@ class, because a section has no document of its own.
 - **The only endpoint that can check the weight sum**, because it is the only one holding every row at once. `409 TERM_WEIGHTS_INVALID`.
 
 <a id="e3"></a>
-**[3](#t3) · `PATCH /terms/{termCode}`**
+**[3](#t3) · `PATCH /terms/{termId}`**
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — only when dates are sent
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the other active terms' `startDate`, `endDate` — only when dates are sent
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `startDate`, `endDate`, `weightPercent`
-- **Never `termCode`** — six documents point at this term, and see [the rename table](#addressed-by-code-never-by-id). **Never `sequence`** either: it is unique per year, so it moves through #4.
+- **Never `termCode`** — six documents point at this term, and see [the rename table](#addressed-by-id-except-where-the-thing-has-no-id). **Never `sequence`** either: it is unique per year, so it moves through #4.
 - **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). Refusing here makes 20/80 → 30/70 impossible.
 
 <a id="e4"></a>
@@ -659,21 +706,21 @@ class, because a section has no document of its own.
 - **`school_year_term_sequence_uniq` is the reason this endpoint exists.** Swapping 1 and 2 by two `PATCH`es fails on the first. Even here the writes cannot go straight in: moving every term to a free range first, then to its target, is what keeps the unique index satisfied at every point in between. One transaction.
 
 <a id="e5"></a>
-**[5](#t5) · `POST /terms/{termCode}/results/lock`**
+**[5](#t5) · `POST /terms/{termId}/results/lock`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked` — already `true` is a `200` saying so, not a refusal
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `true`
 - **Does not touch `AcademicYear.resultsLocked`.** That is the stronger, wider control and this is the narrow one; see [open item 7](#7-academictermresultslocked-and-academicyearresultslocked-both-exist).
 
 <a id="e6"></a>
-**[6](#t6) · `POST /terms/{termCode}/results/unlock`**
+**[6](#t6) · `POST /terms/{termId}/results/unlock`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked`
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `false`
 - **Records nothing about who unlocked, or why.** The same hole core's #27 carries, and the same answer: it needs a reason on the request and an `AuditEvent`, which needs an audit writer. Do not build this on real results without one.
 
 <a id="e7"></a>
-**[7](#t7) · `POST /terms/{termCode}/deactivate`**
+**[7](#t7) · `POST /terms/{termId}/deactivate`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, and `weightPercent` — deactivating a weighted term changes what the remaining weights sum to
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `false`
@@ -681,7 +728,7 @@ class, because a section has no document of its own.
 - **Frees its `sequence` and its `termCode`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated `TERM_1` means the year can never have another.
 
 <a id="e8"></a>
-**[8](#t8) · `POST /terms/{termCode}/reactivate`**
+**[8](#t8) · `POST /terms/{termId}/reactivate`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, `sequence`, `startDate`, `endDate` — the year may have moved on since, so the overlap and sequence checks run again
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `true`
@@ -702,44 +749,47 @@ class, because a section has no document of its own.
 - **`404` is a real answer**, not an error to design around: a school between terms is genuinely in no term. Say which two it falls between.
 
 <a id="e11"></a>
-**[11](#t11) · `GET /terms/{termCode}`**
+**[11](#t11) · `GET /terms/{termId}`**
 
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field. `404 TERM_NOT_FOUND` when the year has no term by that code.
 
 ## The classes — writes  ·  12–16
 
 <a id="e12"></a>
-**[12](#t12) · `POST /classes`**
+**[12](#t12) · `POST /classes`** — built
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `classCode` for uniqueness in the year. Served by `school_year_class_code_uniq` — **the index this whole plan is blocked on**; see [open item 1](#1-classcode-does-not-exist--and-this-blocks-everything).
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` for uniqueness in the year. Served by `school_year_class_name_uniq`, which **replaced** the index this plan was blocked on; see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10).
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — **cannot be checked today**, no repository
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: `academicYear` = the `{year}` path segment, `classCode` derived from `name`, `name`, `affiliationProgrammeDocsId`, `displayOrder`, `sections` = `[]`, `subjects` = `[]`, `active` = `true`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: `academicYear` = the `{year}` path segment, `name` trimmed, `affiliationProgrammeDocsId`, `displayOrder`, `sections` = `[]`, `subjects` = `[]`, `active` = `true`
+- [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence **and `schoolId`**, only when the field is sent. `AffiliationProgrammeRepository` was created with this endpoint; the id is real but another school's is a `404`.
+- **`sections` and `subjects` are written as empty arrays, not left absent.** The response reports `0` either way — its counts are null-safe — so only the stored document shows the difference, and a mutation test is the only thing that catches it.
+- **The service's own year check is unreachable through HTTP.** Gate 4 loads the same year and throws the same `404 ACADEMIC_YEAR_NOT_FOUND` first. It stays because #35 and #36 will call the service with a year no gate saw.
 - **`sections` and `subjects` are not accepted from the caller.** Both start empty and #17 and #22 fill them — the shape an academic year already uses for holidays and a plan for features.
 
 <a id="e13"></a>
-**[13](#t13) · `PATCH /classes/{classCode}`**
+**[13](#t13) · `PATCH /classes/{id}`**
 
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — only when the field is sent, and unvalidatable today
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `name`, `displayOrder`, `affiliationProgrammeDocsId`
-- **Never `classCode`**, and this is the endpoint that makes adding `classCode` worth it: with the index repointed at `name` instead, `name` becomes immutable and this request has one field left.
+- **The `name` is editable, and this endpoint is why the id-addressed design matters.** Had the URL kept a code derived from the name, or had `name` become the join key, this request would have one field left. Nothing joins on either, so both are free to change — the name only has to stay unique in the year, else `409 CLASS_NAME_TAKEN`.
 - `""` on `affiliationProgrammeDocsId` clears it; absent leaves it. The distinction core's `PATCH` endpoints already draw.
 
 <a id="e14"></a>
 **[14](#t14) · `PUT /classes/order`**
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every `classCode` in the year
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every class id in the year
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `displayOrder`, on each class named
 - **No two-phase write, unlike #4.** `displayOrder` has no unique index, so duplicates are legal and a straight write is safe. Whether two classes *should* share a sort position is a UI question, not an integrity one — so this endpoint permits it and does not pretend otherwise.
 
 <a id="e15"></a>
-**[15](#t15) · `POST /classes/{classCode}/deactivate`**
+**[15](#t15) · `POST /classes/{id}/deactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `false`
 - **Leaves every `sections[].active` and `subjects[].active` alone.** Arguably they are implied, but a write that changed forty flags when asked to change one is worse than a second call — the same rule core's `POST .../end` follows.
 
 <a id="e16"></a>
-**[16](#t16) · `POST /classes/{classCode}/reactivate`**
+**[16](#t16) · `POST /classes/{id}/reactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `active` = `true`
@@ -750,7 +800,7 @@ Every write here is a positional update on **`school_classes`**. A section is em
 no section document to write — the document saved is always its class.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /classes/{classCode}/sections`**
+**[17](#t17) · `POST /classes/{id}/sections`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — the new one must not already be there, `active` or not
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of `classTeacherDocsId` — **cannot be checked today**, no repository. A teacher id from another school would be accepted.
@@ -759,7 +809,7 @@ no section document to write — the document saved is always its class.
 - **A duplicate is `409 SECTION_ALREADY_EXISTS`, checked in the service.** Mongo cannot enforce uniqueness *inside* an array, so nothing but this check stands between the class and two sections both called `A`.
 
 <a id="e18"></a>
-**[18](#t18) · `PUT /classes/{classCode}/sections`**
+**[18](#t18) · `PUT /classes/{id}/sections`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `sections[].sectionNo`, to tell an edit from an addition from a removal
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `classTeacherDocsId` in the body — unvalidatable today
@@ -768,7 +818,7 @@ no section document to write — the document saved is always its class.
 - **`active` is preserved, not reset.** A row already deactivated stays deactivated unless the body says otherwise, or a setup replace would silently switch retired sections back on.
 
 <a id="e19"></a>
-**[19](#t19) · `PATCH /classes/{classCode}/sections/{sectionNo}`**
+**[19](#t19) · `PATCH /classes/{id}/sections/{sectionNo}`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — to find the row, `404 SECTION_NOT_FOUND` otherwise
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: `classTeacherDocsId` when sent — unvalidatable today
@@ -777,7 +827,7 @@ no section document to write — the document saved is always its class.
 - **`capacity` is not checked against anything.** Lowering it below the number of students already placed is allowed, because this module cannot count students. The count lives in `student`, and so does the refusal.
 
 <a id="e20"></a>
-**[20](#t20) · `POST /classes/{classCode}/sections/{sectionNo}/deactivate`**
+**[20](#t20) · `POST /classes/{id}/sections/{sectionNo}/deactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo`, `sections[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].active` = `false`
@@ -785,7 +835,7 @@ no section document to write — the document saved is always its class.
 - **Leaves `subjects[]` alone**, including the per-section assignments pointing at this `sectionNo`. They are still true — that section was taught that subject — and #26 retires them if a school wants them gone.
 
 <a id="e21"></a>
-**[21](#t21) · `POST /classes/{classCode}/sections/{sectionNo}/reactivate`**
+**[21](#t21) · `POST /classes/{id}/sections/{sectionNo}/reactivate`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo`, `sections[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].active` = `true`
@@ -809,7 +859,7 @@ subject identity on the class, teachers on the section — avoids both, and was 
 in #22 is what keeps them from becoming data problems.
 
 <a id="e22"></a>
-**[22](#t22) · `POST /classes/{classCode}/subjects`**
+**[22](#t22) · `POST /classes/{id}/subjects`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[].subjectCode` with `subjects[].sectionNo` — the pair must be free, `409 SUBJECT_ALREADY_ASSIGNED` otherwise
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — a non-null `sectionNo` in the body has to be a section this class actually has
@@ -819,7 +869,7 @@ in #22 is what keeps them from becoming data problems.
 - **A class-wide row and a per-section row for one subject may both exist.** Nothing here forbids `MATHEMATICS` with `sectionNo: null` alongside `MATHEMATICS` with `sectionNo: "A"`, and which one wins is undefined. Worth settling before mark entry reads this list — it is not in [To settle](#to-settle-before-building) because it only becomes a bug when something consumes it.
 
 <a id="e23"></a>
-**[23](#t23) · `PUT /classes/{classCode}/subjects`**
+**[23](#t23) · `PUT /classes/{id}/subjects`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `(subjectCode, sectionNo)` pair, and `sections[].sectionNo`
 - [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every referenced id — unvalidatable today
@@ -828,7 +878,7 @@ in #22 is what keeps them from becoming data problems.
 - **The only endpoint that sees the whole list**, so the only one that can catch a duplicate pair *within the body* rather than against what is stored.
 
 <a id="e24"></a>
-**[24](#t24) · `PATCH /classes/{classCode}/subjects/{subjectCode}?sectionNo=`**
+**[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `404 SUBJECT_NOT_FOUND` otherwise
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` when sent — unvalidatable today
@@ -837,7 +887,7 @@ in #22 is what keeps them from becoming data problems.
 - **Not `teacherDocsIds` either** — that is #25, because it replaces a list rather than setting a field.
 
 <a id="e25"></a>
-**[25](#t25) · `PUT /classes/{classCode}/subjects/{subjectCode}/teachers?sectionNo=`**
+**[25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of every id in the body — unvalidatable today, and the most consequential of the three gaps: this is the field that decides who can enter marks
@@ -846,13 +896,13 @@ in #22 is what keeps them from becoming data problems.
 - **Changes nothing already recorded.** Marks and registers store `subjectCode`, not the teacher, so replacing this list does not rewrite history — which is why it can be a plain `PUT` and not an event.
 
 <a id="e26"></a>
-**[26](#t26) · `POST /classes/{classCode}/subjects/{subjectCode}/deactivate?sectionNo=`**
+**[26](#t26) · `POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `false`
 
 <a id="e27"></a>
-**[27](#t27) · `POST /classes/{classCode}/subjects/{subjectCode}/reactivate?sectionNo=`**
+**[27](#t27) · `POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `subjects[…].active`, and `sections[].sectionNo` — the section it belongs to may have been retired since
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].active` = `true`
@@ -864,26 +914,26 @@ None of these runs a gate, and none of them writes anything.
 <a id="e28"></a>
 **[28](#t28) · `GET /classes`**
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `classCode`, `name`, `displayOrder`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
-- **Sorted by `displayOrder`, then `classCode`.** `displayOrder` is optional and not unique, so it cannot be the whole sort — a tiebreaker is required or the page order changes between two identical requests. The same `_id`-tiebreaker problem #30 and #31 of the plans module hit.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name`, `displayOrder`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
+- **Sorted by `displayOrder`, then `_id`.** `displayOrder` is optional and not unique, so it cannot be the whole sort — a tiebreaker is required or the page order changes between two identical requests. The same `_id`-tiebreaker problem #30 and #31 of the plans module hit.
 - **Does not return the embedded lists**, only their sizes. A year of twelve classes with four sections and ten subjects each is 168 embedded rows in one response nobody reads. #29 is for one class in full.
 - Filters: `?active=`, `?search=` on `name`. Served by `school_year_class_active_order_idx`.
 
 <a id="e29"></a>
-**[29](#t29) · `GET /classes/{classCode}`**
+**[29](#t29) · `GET /classes/{id}`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every field, `sections[]` and `subjects[]` in full
 - **One document, one query, no joins** — which is the entire reason sections and subjects are embedded rather than collections of their own.
 - **The staff and grading-scheme ids come back raw**, not resolved to names. Resolving them needs the two repositories that do not exist; when they do, decide whether this endpoint resolves them or the caller does — do not do both.
 
 <a id="e30"></a>
-**[30](#t30) · `GET /classes/{classCode}/sections`**
+**[30](#t30) · `GET /classes/{id}/sections`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]` — `sectionNo`, `classTeacherDocsId`, `capacity`, `active`
 - A projection of #29, existing because a "move this student" dropdown wants four fields and not a class with forty embedded rows behind them. `?active=true` is what that dropdown actually sends.
 
 <a id="e31"></a>
-**[31](#t31) · `GET /classes/{classCode}/subjects`**
+**[31](#t31) · `GET /classes/{id}/subjects`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[]`, optionally filtered to one `?sectionNo=`
 - **`?sectionNo=A` returns the class-wide rows too**, and this is the one place that parameter does not mean "the row whose `sectionNo` is A". A section is taught its own assignments *and* the class's — so filtering to `sectionNo == "A"` alone would hide most of what section A studies. Say so in the response, because it contradicts #24's reading of the same parameter name.
@@ -931,7 +981,8 @@ Both read one year and write another, so both name **two** `{year}` values and m
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of both years
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every active class of `{sourceYear}` with its `sections[]` and `subjects[]`. `409 SOURCE_YEAR_EMPTY` when there are none, `409 TARGET_YEAR_NOT_EMPTY` when the target already has classes.
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: one document per source class — `classCode`, `name`, `displayOrder`, `affiliationProgrammeDocsId` copied; `sections[]` copied with `sectionNo` and `capacity`; `subjects[]` copied with `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `gradingSchemeDocsId`; every `active` reset to `true`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: one document per source class, **each with a new id** — `name`, `displayOrder`, `affiliationProgrammeDocsId` copied; `sections[]` copied with `sectionNo` and `capacity`; `subjects[]` copied with `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `gradingSchemeDocsId`; every `active` reset to `true`
+- **New ids, so nothing that referenced last year's class now points at this year's.** That is the whole reason a copy is safe: `classDocsId` on a report card still resolves to the year it was issued in.
 - **`classTeacherDocsId` and `teacherDocsIds` are dropped unless `includeTeachers` is `true`, and the default is `false`.** This is the one real decision in the endpoint. Copying them silently assigns staff who may have resigned, and a teacher who left in March would be class teacher of a section in June with nobody having said so. Dropping them leaves a school re-assigning teachers — which it was going to do anyway, because that is what changes between years.
 - **Copies only `active` rows**, so last year's retired sections do not come back to life in a fresh year.
 - **Not a link, a copy.** The new year's documents are independent from the moment they are written; editing Grade 7 in 2027-2028 does not touch 2026-2027. That is what makes the per-year model safe, and it is also why nothing keeps the two in step afterwards.
