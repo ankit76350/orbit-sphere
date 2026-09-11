@@ -150,11 +150,12 @@ public class SchoolClassController {
     /**
      * Endpoint #28 — one year's classes, filtered, sorted and paged.
      *
-     * <p>The screen a school opens to see its own structure. Default order is
-     * {@code displayOrder} ascending, which is the order a school reads its classes in.
+     * <p>The screen a school opens to see its own structure. Default order is {@code name}
+     * ascending — a class carries no school-defined position, {@code displayOrder} having been
+     * removed on 2026-09-11.
      *
      * <pre>
-     * ?page=0&amp;size=20                    the first page, in displayOrder
+     * ?page=0&amp;size=20                    the first page, by name
      * ?active=true                        only the classes in use
      * ?search=grade                       name contains "grade", case-insensitive
      * ?hasSections=false                  THE SETUP CHECKLIST — classes nothing can be placed in

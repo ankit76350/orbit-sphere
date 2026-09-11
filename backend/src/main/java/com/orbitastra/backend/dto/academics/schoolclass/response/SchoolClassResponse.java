@@ -22,7 +22,6 @@ public record SchoolClassResponse(
 
         String academicYear,
         String name,
-        Integer displayOrder,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String affiliationProgrammeDocsId,
@@ -51,7 +50,6 @@ public record SchoolClassResponse(
                 schoolClass.getId(),
                 schoolClass.getAcademicYear(),
                 schoolClass.getName(),
-                schoolClass.getDisplayOrder(),
                 schoolClass.getAffiliationProgrammeDocsId(),
                 // Null-safe on both, because the builder default does not apply to what comes
                 // back from the database: a document written before either field existed reads

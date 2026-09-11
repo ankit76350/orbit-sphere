@@ -43,7 +43,7 @@ AcademicYear  "2026-2027"   2026-04-01 .. 2027-03-31      <- core, built
   |     "TERM_2"  sequence 2  2026-10-01..2027-03-31  weight 80%
   |
   └── SchoolClass[]      what is taught in the year
-        "GRADE_7"  displayOrder 7
+        "Grade 7"
           ├── sections[]   A (cap 40, teacher X) · B · C      embedded
           └── subjects[]   MATHEMATICS · SCIENCE · HINDI       embedded
 ```
@@ -230,7 +230,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 |---|---|---|---|
 | <a id="t12"></a>12 — **built** | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t13"></a>13 — **built** | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Nothing structural — no section, no subject, no `active`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
-| <a id="t14"></a>14 | [`PUT /classes/order`](#e14) | Set `displayOrder` across the year's classes in one write, so "Nursery, LKG, UKG, 1, 2, …" comes out in the order a school reads it rather than alphabetically. Unlike #4 this is a convenience, not a necessity — `displayOrder` has no unique index. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t14"></a>[~~14~~](#e14) **removed** | `PUT /classes/order` | **Dropped 2026-09-11 with `displayOrder`.** There is no per-class position left to set, so there is nothing for this endpoint to reorder. | — |
 | <a id="t15"></a>15 | [`POST /classes/{id}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t16"></a>16 | [`POST /classes/{id}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
@@ -268,7 +268,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes in `displayOrder`, filtered by `active` and searchable by name. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t29"></a>29 | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t30"></a>30 | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t31"></a>31 | [`GET /classes/{id}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -597,7 +597,7 @@ Two things are left out of every entry because they are true of all of them:
 | `_id` | ObjectId | The identity, and what **12** other documents store as `classDocsId`. There is no code field — see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10). |
 | `name` | String, required | **Open** — `@NotBlank`, max 120, **unique within the year** (`school_year_class_name_uniq`). `"Grade 7"`, `"Nursery"`, `"XII Science"`. Editable through #13, and safe to edit because the id carries the identity, not this. |
 | `affiliationProgrammeDocsId` | String, optional | `AffiliationProgramme.id`, or null. **Open, and unvalidatable today** — no repository. See [open item 2](#2-three-referenced-collections-have-no-repository-so-no-reference-can-be-validated). |
-| `displayOrder` | Integer, optional | Sort order for the UI. **Not unique**, deliberately — so #14 is a convenience where #4 is a necessity. **Null sorts FIRST** ascending, not last: Mongo orders a missing field before numbers. Measured 2026-09-11; this row said "last" until then. |
+| ~~`displayOrder`~~ | — | **Removed 2026-09-11.** It went through three designs in two days — optional and repeatable, then required and unique as a dense 1..N — before being dropped entirely. A class now carries no school-defined position, and #28 orders by `name`. |
 | `sections` | List, required | `[]` at create (#12). #17 adds one, #18 replaces the list. Rows below. |
 | `subjects` | List, required | `[]` at create (#12). #22 adds one, #23 replaces the list. Rows below. |
 | `active` | Boolean, required | `true` at create; `false` from #15, `true` from #16. |
@@ -774,7 +774,7 @@ class, because a section has no document of its own.
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` for uniqueness in the year. Served by `school_year_class_name_uniq`, which **replaced** the index this plan was blocked on; see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10).
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — **cannot be checked today**, no repository
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: `academicYear` = the `{year}` path segment, `name` trimmed, `affiliationProgrammeDocsId`, `displayOrder`, `sections` = `[]`, `subjects` = `[]`, `active` = `true`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: `academicYear` = the `{year}` path segment, `name` trimmed, `affiliationProgrammeDocsId`, `sections` = `[]`, `subjects` = `[]`, `active` = `true`
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence **and `schoolId`**, only when the field is sent. `AffiliationProgrammeRepository` was created with this endpoint; the id is real but another school's is a `404`.
 - **`sections` and `subjects` are written as empty arrays, not left absent.** The response reports `0` either way — its counts are null-safe — so only the stored document shows the difference, and a mutation test is the only thing that catches it.
 - **The service's own year check is unreachable through HTTP.** Gate 4 loads the same year and throws the same `404 ACADEMIC_YEAR_NOT_FOUND` first. It stays because #35 and #36 will call the service with a year no gate saw.
@@ -787,19 +787,18 @@ class, because a section has no document of its own.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — all three, because the id alone is globally unique and would otherwise find another school's class, or last year's
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class holding the new `name` in that year, when a rename is sent
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence **and `schoolId`**, only when the field is sent and non-blank
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `name`, `displayOrder`, `affiliationProgrammeDocsId` — whichever were sent
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `name`, `affiliationProgrammeDocsId` — whichever were sent
 - **The `name` is editable, and this endpoint is why the id-addressed design matters.** Had the URL kept a code derived from the name, or had `name` become the join key, this request would have one field left. Nothing joins on either, so both are free to change — the name only has to stay unique in the year, else `409 CLASS_NAME_TAKEN`.
-- **A class may keep its own name.** The check compares **ids**, not names, so `{"name": "Grade 7", "displayOrder": 3}` on the class already called Grade 7 is not a conflict with itself. Using the cheaper `exists` here — which #12 does use — would have refused every request that resent an unchanged name.
+- **A class may keep its own name.** The check compares **ids**, not names, so `{"name": "Grade 7"}` on the class already called Grade 7 is not a conflict with itself. Using the cheaper `exists` here — which #12 does use — would have refused every request that resent an unchanged name.
 - **What can be cleared is not symmetric, and JSON is the reason:**
 
   ```
   "affiliationProgrammeDocsId": ""     clears it
   "affiliationProgrammeDocsId": null   leaves it       (same as absent)
   "name": ""                           400 CLASS_NAME_REQUIRED
-  "displayOrder": null                 leaves it       (same as absent)
   ```
 
-  So **`displayOrder` cannot be cleared** — a limitation, not a decision. A record field cannot tell an absent key from an explicit `null`, and a number has no empty string. `0` sets it to 0, which sorts *first* rather than last. Clearing it would need a wrapper type that holds the distinction, not a sentinel.
+  **There is no ordering field.** `displayOrder` was removed on 2026-09-11, so a class has no position to set or clear.
 - **A blank name is refused rather than treated as a clear**, matching `HOLIDAY_NAME_REQUIRED` in the core module: a required field sent empty is a client bug, and silently keeping the old value hides it.
 - **Nothing structural is reachable.** `sections`, `subjects` and `active` are not on the request, so sending them does nothing. An edit that could replace forty embedded rows while looking like a rename is the shape this avoids; `active` is #15 and #16.
 - **An empty body is `400 NOTHING_TO_UPDATE`**, not a 200. A `PATCH` that changes nothing and reports success lets a client with a broken form look healthy.
@@ -807,9 +806,6 @@ class, because a section has no document of its own.
 <a id="e14"></a>
 **[14](#t14) · `PUT /classes/order`**
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every class id in the year
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `displayOrder`, on each class named
-- **No two-phase write, unlike #4.** `displayOrder` has no unique index, so duplicates are legal and a straight write is safe. Whether two classes *should* share a sort position is a UI question, not an integrity one — so this endpoint permits it and does not pretend otherwise.
 
 <a id="e15"></a>
 **[15](#t15) · `POST /classes/{id}/deactivate`**
@@ -945,39 +941,42 @@ None of these runs a gate, and none of them writes anything.
 **[28](#t28) · `GET /classes`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. **This is the one endpoint where that check actually fires**: no gate runs on a read, so unlike #12 and #13 — where gate 4 answers first and their own checks are unreachable — this is what returns `404 ACADEMIC_YEAR_NOT_FOUND`.
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name`, `displayOrder`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
 - **Filters, all optional and all AND-ed:** `?active=` · `?search=` (name, case-insensitive, contains) · `?affiliationProgrammeDocsId=` · `?hasSections=` · `?hasSubjects=`
 - **`?hasSections=false` is the setup checklist**, and the reason that filter exists: a class with no section cannot hold a student, because `StudentAcademicRecord` stores `sectionNo`. "What have I not finished setting up" is the question a school asks during year setup, and nothing else on this endpoint answers it. Asked of `sections.0` rather than a stored count, so there is no second field to keep in step with the list.
-- **Sorted by `displayOrder`, then `_id`.** `displayOrder` is optional and not unique, so it cannot be the whole sort — a tiebreaker is required or the page order changes between two identical requests. The same `_id`-tiebreaker problem #30 and #31 of the plans module hit.
-- **A missing `displayOrder` sorts FIRST**, not last. Mongo orders a missing field before numbers ascending. Measured against the live database 2026-09-11; four places in this repository claimed the opposite until then, including the row in this file's own appendix.
+- **Sorted by `name`, with no tiebreaker — and that is safe only because `name` is unique within the year.** `displayOrder` was removed on 2026-09-11, so there is no school-defined order to sort by. **Alphabetical is a real downgrade:** "Grade 10" sorts before "Grade 2", and "Nursery, LKG, UKG, 1, 2, 3" cannot be expressed at all. What it buys is a total order that `school_year_class_name_uniq` serves, so no blocking in-memory sort.
 - **Does not return the embedded lists**, only their sizes. A year of twelve classes with four sections and ten subjects each is 168 embedded rows in one response nobody reads. #29 is for one class in full.
 - **Refused, never clamped:** `?size=101` is a `400 INVALID_PAGE_SIZE`. A caller who asked for 5000 rows and silently got 100 has been handed a page they will read as the whole answer.
 - **A year with no classes is an empty page; an unknown year is a 404.** Those are different answers, and a school acting on the first would wait for classes that can never appear.
 - **No `@Transactional` and no gates.** A suspended school can still read its structure and cannot write to it — that asymmetry has a test.
 
-#### What the indexes actually do — measured, not assumed
+#### What the indexes actually do — measured, and it changed twice in two days
 
 ```
-bare list            IXSCAN school_year_class_name_uniq          + SORT
-?active=true         IXSCAN school_year_class_active_order_idx   + SORT
-?search=grade        IXSCAN school_year_class_name_uniq          + SORT   (4 returned, 11 keys)
-?hasSections=false   IXSCAN school_year_class_name_uniq          + SORT
-?sort=name           IXSCAN school_year_class_name_uniq          + SORT
+bare list            IXSCAN school_year_class_name_uniq   index-ordered
+?active=true         IXSCAN school_year_class_active_idx  + SORT
+?search=grade        IXSCAN school_year_class_name_uniq   index-ordered
 ```
 
-**No index was added for #28.** Every filter is an index scan — never a COLLSCAN, because
-`schoolId` and `academicYear` are always pinned and both existing indexes begin with that pair.
+**No index was added for #28.** The filter is always an index scan, never a COLLSCAN, because
+`schoolId` and `academicYear` are pinned and every index begins with that pair. The default order
+is `name`, which `school_year_class_name_uniq` already serves — so the ordinary list sorts from
+the index.
 
-**Every sort is a blocking one**, and that is worth stating because an earlier draft of this entry
-claimed `school_year_class_active_order_idx` served the order. It cannot: the index ends at
-`displayOrder` and the order ends at the `_id` tiebreaker. The sort therefore orders tens of
-documents in memory — a school has around a dozen classes in a year — which is the right trade
-against unstable pagination. **If a collection ever sorts thousands this way, the fix is an index
-ending in the tiebreaker, not dropping it.**
+**The history is worth keeping, because the same query was measured three ways.** While
+`displayOrder` was optional and repeatable, the order needed an `_id` tiebreaker that no index
+carried, so every list did a blocking sort. Making the field unique removed the tiebreaker and an
+index served the order. Removing the field moved that job to `name`, which was unique all along —
+so the outcome is the same as the middle state, reached by deleting a field rather than
+constraining one.
 
-`?search=` and `?affiliationProgrammeDocsId=` have no index and want none: both are applied after
-the query is pinned to one school and one year. A case-insensitive *contains* regex cannot use an
-index in any case, and the same shape would be wrong on a student collection.
+`?active=` is the one case that still sorts in memory: `school_year_class_active_idx` ends at
+`active`, so it filters from the index and orders afterwards. Tens of documents per year, and the
+alternative is a fourth index on a collection that already has six.
+
+`?search=` and `?affiliationProgrammeDocsId=` have nothing of their own and want nothing: both
+are applied after the query is pinned to one school and one year, and a case-insensitive
+*contains* regex cannot use an index in any case.
 
 <a id="e29"></a>
 **[29](#t29) · `GET /classes/{id}`**
@@ -1041,7 +1040,7 @@ Both read one year and write another, so both name **two** `{year}` values and m
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of both years
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every active class of `{sourceYear}` with its `sections[]` and `subjects[]`. `409 SOURCE_YEAR_EMPTY` when there are none, `409 TARGET_YEAR_NOT_EMPTY` when the target already has classes.
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: one document per source class, **each with a new id** — `name`, `displayOrder`, `affiliationProgrammeDocsId` copied; `sections[]` copied with `sectionNo` and `capacity`; `subjects[]` copied with `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `gradingSchemeDocsId`; every `active` reset to `true`
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: one document per source class, **each with a new id** — `name`, `affiliationProgrammeDocsId` copied; `sections[]` copied with `sectionNo` and `capacity`; `subjects[]` copied with `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `gradingSchemeDocsId`; every `active` reset to `true`
 - **New ids, so nothing that referenced last year's class now points at this year's.** That is the whole reason a copy is safe: `classDocsId` on a report card still resolves to the year it was issued in.
 - **`classTeacherDocsId` and `teacherDocsIds` are dropped unless `includeTeachers` is `true`, and the default is `false`.** This is the one real decision in the endpoint. Copying them silently assigns staff who may have resigned, and a teacher who left in March would be class teacher of a section in June with nobody having said so. Dropping them leaves a school re-assigning teachers — which it was going to do anyway, because that is what changes between years.
 - **Copies only `active` rows**, so last year's retired sections do not come back to life in a fresh year.

@@ -29,26 +29,13 @@ import lombok.experimental.SuperBuilder;
  */
 @Document(collection = "school_classes")
 @CompoundIndexes({
-        // REPOINTED 2026-09-10, from 'classCode' to 'name'. It named classCode, which this
-        // model never declared - so every document indexed a MISSING value, they all collided,
-        // and a school could hold exactly one class per academic year. The index was live in
-        // edusphere_dev and the collection was empty, so the first two classes ever created
-        // would have hit it.
-        //
-        // 'name' rather than a new code field, because a class is addressed and referenced by
-        // its document id: twelve other documents store classDocsId, and not one stores a class
-        // code. sectionNo and subjectCode are codes only because they are EMBEDDED and have no
-        // id to reference - a top-level document does not need one.
-        //
-        // Unique on 'name' does NOT make the name immutable, which it would if the name were the
-        // join key. Nothing joins on it, so a rename only has to not collide.
         @CompoundIndex(
                 name = "school_year_class_name_uniq",
                 def = "{'schoolId': 1, 'academicYear': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
-                name = "school_year_class_active_order_idx",
-                def = "{'schoolId': 1, 'academicYear': 1, 'active': 1, 'displayOrder': 1}"),
+                name = "school_year_class_active_idx",
+                def = "{'schoolId': 1, 'academicYear': 1, 'active': 1}"),
         @CompoundIndex(
                 name = "school_year_class_teacher_idx",
                 def = "{'schoolId': 1, 'academicYear': 1, 'sections.classTeacherDocsId': 1}"),
@@ -77,9 +64,6 @@ public class SchoolClass extends SchoolBase {
     // Optionally links to AffiliationProgramme.id.
     // Example: "67aa15d9dc3f7d0011111111"
     private String affiliationProgrammeDocsId;
-
-    //! Sorting order used by the UI. Example: 7
-    private Integer displayOrder;
 
     // Sections owned by this class. Example: [{"sectionNo": "A"}, {"sectionNo": "B"}]
     @Builder.Default

@@ -66,10 +66,16 @@ public class SchoolClassService {
      * <p>A {@link LinkedHashMap} so the refusal lists them in this order rather than a hash
      * order that changes between runs.
      */
+    /**
+     * The fields #28 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>An allow-list, not a pass-through.</b> Anything else is a 400 naming what is
+     * accepted, so nobody can order by a field with nothing behind it and nobody can learn the
+     * document's shape by guessing names. Keys are lowercase because the lookup is.
+     */
     private static final Map<String, String> SORTABLE_CLASS_FIELDS = new LinkedHashMap<>();
 
     static {
-        SORTABLE_CLASS_FIELDS.put("displayorder", "displayOrder");
         SORTABLE_CLASS_FIELDS.put("name", "name");
         SORTABLE_CLASS_FIELDS.put("createdat", "createdAt");
         SORTABLE_CLASS_FIELDS.put("updatedat", "updatedAt");
@@ -80,36 +86,18 @@ public class SchoolClassService {
             SORTABLE_CLASS_FIELDS.values().stream().collect(Collectors.joining(", "));
 
     /**
-     * The default order, and the tiebreaker under whatever the caller asked for.
+     * The default order for #28.
      *
-     * <p>{@code displayOrder} is the order a school reads its own classes in — "Nursery, LKG,
-     * UKG, 1, 2, 3" is neither alphabetical nor derivable from the name, which is the whole
-     * reason the field exists.
+     * <p><b>{@code name}, since 2026-09-11.</b> It was a school-defined {@code displayOrder}
+     * until that field was removed, and the loss is real: alphabetical puts "Grade 10" before
+     * "Grade 2", and an order like "Nursery, LKG, UKG, 1, 2, 3" cannot be expressed at all.
      *
-     * <p><b>{@code id} is here because pagination is not stable without it.</b> {@code
-     * displayOrder} is optional and not unique, so two classes sharing one — or both missing it —
-     * compare equal, and equal rows may come back in either order: one can appear on page 1 and
-     * again on page 2 while another is never seen at all.
-     *
-     * <p><b>And that tiebreaker means no index can serve this sort</b>, which is worth stating
-     * because an earlier draft of this javadoc claimed the opposite.
-     * {@code school_year_class_active_order_idx} ends at {@code displayOrder}, so
-     * {@code {displayOrder, _id}} needs a blocking sort — {@code explain} shows
-     * {@code SORT <- FETCH <- IXSCAN} for both the bare list and {@code ?active=true}.
-     *
-     * <p><b>It is the right trade at this size and the wrong one at any other.</b> The query is
-     * pinned to one school and one year before the sort runs, so it orders tens of documents; a
-     * school has around a dozen classes in a year. Dropping {@code id} would let the index serve
-     * the order and would make paging unstable, which is a correctness bug traded for an
-     * optimisation nothing needs. <b>If a collection ever sorts thousands this way, the answer is
-     * an index ending in the tiebreaker, not removing it.</b>
-     *
-     * <p><b>A class with no {@code displayOrder} sorts FIRST.</b> Mongo orders missing before
-     * numbers ascending. Measured, not assumed — and it is the opposite of what an earlier draft
-     * of this module's README claimed.
+     * <p>What it buys is that the order needs no tiebreaker — {@code name} is unique within the
+     * year, so it is a total order and pagination is stable — and that
+     * {@code school_year_class_name_uniq} serves it, so the sort comes from an index rather than
+     * a blocking in-memory pass.
      */
-    private static final Sort CLASS_ORDER = Sort.by(Sort.Order.asc("displayOrder"),
-            Sort.Order.asc("id"));
+    private static final Sort CLASS_ORDER = Sort.by(Sort.Order.asc("name"));
 
     private final SchoolClassRepository schoolClasses;
     private final AcademicYearRepository academicYears;
@@ -186,7 +174,6 @@ public class SchoolClassService {
                 .schoolId(school.getId())
                 .academicYear(year)
                 .name(name)
-                .displayOrder(request.displayOrder())
                 .affiliationProgrammeDocsId(programmeId)
                 .sections(new ArrayList<>())
                 .subjects(new ArrayList<>())
@@ -232,7 +219,7 @@ public class SchoolClassService {
         //! that changes nothing and answers 200 lets a client with a broken form look healthy.
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send name, displayOrder, or affiliationProgrammeDocsId.");
+                    "Send name or affiliationProgrammeDocsId.");
         }
 
         //! step 3 - the year has to exist, for the same reason #12 checks it and with the same
@@ -273,13 +260,7 @@ public class SchoolClassService {
             schoolClass.setName(newName);
         }
 
-        //! step 6 - the sort order. Cannot be cleared: absent and null are the same thing on a
-        //! record, and 0 is a real position rather than "no position". See the request DTO.
-        if (request.displayOrder() != null) {
-            schoolClass.setDisplayOrder(request.displayOrder());
-        }
-
-        //! step 7 - the programme. "" detaches it; a value is checked with schoolId in the
+        //! step 6 - the programme. "" detaches it; a value is checked with schoolId in the
         //! query, because another school's id is real and would otherwise be accepted.
         if (request.affiliationProgrammeDocsId() != null) {
             String programmeId = TextHelper.blankToNull(request.affiliationProgrammeDocsId());
@@ -293,7 +274,7 @@ public class SchoolClassService {
             schoolClass.setAffiliationProgrammeDocsId(programmeId);
         }
 
-        //! step 8 - save
+        //! step 7 - save
         // TODO: update school class
         SchoolClass saved = schoolClasses.save(schoolClass);
 
@@ -354,4 +335,5 @@ public class SchoolClassService {
                 // decide whether to trust.
                 SchoolClassResponse::fromSchoolClass);
     }
+
 }

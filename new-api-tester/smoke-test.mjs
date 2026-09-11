@@ -2928,10 +2928,11 @@ classChecks.push(
     editEntry.includes('NOTHING_TO_UPDATE')],
   ['a blank name is documented as refused rather than a clear',
     editEntry.includes('CLASS_NAME_REQUIRED')],
-  ['the asymmetry of clearing is written down', editEntry.includes('cannot be cleared')],
+  ['the clearing rule is written down — only the programme can be cleared',
+    editEntry.includes('clears it') && editEntry.includes('CLASS_NAME_REQUIRED')],
   ['a real id under the wrong year is a documented case',
     editEntry.includes('A REAL ID UNDER THE WRONG YEAR')],
-  ['and keeping your own name is too', editEntry.includes('KEEP THE NAME, CHANGE THE ORDER')],
+  ['and resending your own name is too', editEntry.includes('RESEND THE SAME NAME')],
 
   // The form must send only what changed, or "detach the programme" and "leave it alone" become
   // the same request.
@@ -2980,10 +2981,8 @@ classChecks.push(
   ['and the read-vs-write asymmetry is a case too',
     listEntry.includes('A SUSPENDED SCHOOL CAN STILL READ')],
   // Four places in this repo said "sorts last". Mongo puts a missing field FIRST.
-  ['the catalogue says a missing displayOrder sorts FIRST',
-    listEntry.includes('sorts FIRST')],
-  ['and nothing in src still claims it sorts last',
-    !sources.includes('sorts last')],
+  ['nothing in src still has an ordering field at all',
+    !/displayOrder["':]/.test(sources)],
 
   // The screen
   ['the screen offers a server-side search with its own button',
@@ -3000,8 +2999,18 @@ classChecks.push(
     classesScreen.includes("'sections',")],
   ['the pager is always usable — nothing is disabled',
     classesScreen.includes('setPage((p) => p - 1)') && classesScreen.includes('setPage((p) => p + 1)')],
-  ['the table says a missing order sorts first',
-    classesScreen.includes('none — sorts first')],
+  // displayOrder was REMOVED on 2026-09-11, so nothing may offer it, sort by it or refuse on
+  // it. It had been guarded three different ways in one day - optional, then required and
+  // unique, now gone - so these check the absence rather than any of those.
+  ['no screen field offers an order', !classesScreen.includes('Sort order')],
+  ['the table has no order column', !classesScreen.includes('<th>Order</th>')],
+  ['no sort option names it', !/'displayOrder/.test(classesScreen)],
+  ['the list says alphabetical is all there is',
+    classesScreen.includes('Grade 10 comes before Grade 2')],
+  ['no catalogue entry refuses on it',
+    !classEntry.includes('DISPLAY_ORDER') && !editEntry.includes('DISPLAY_ORDER')
+    && !listEntry.includes('DISPLAY_ORDER')],
+  ['#28 says what ordering by name costs', listEntry.includes('a downgrade worth knowing')],
 )
 
 for (const [label, ok] of classChecks) {

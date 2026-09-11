@@ -1,6 +1,5 @@
 package com.orbitastra.backend.dto.academics.schoolclass.request;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -32,19 +31,6 @@ public record SchoolClassCreateRequest(
          * and imposing one would be this platform deciding something that is not its business.
          */
         @NotBlank @Size(max = 120) String name,
-
-        /**
-         * Sort order for the UI, or absent. Example: 7
-         *
-         * <p>Not unique and not required: "Nursery, LKG, UKG, 1, 2, 3" is the order a school
-         * reads, and it is neither alphabetical nor derivable from the name.
-         *
-         * <p><b>Absent sorts FIRST, not last.</b> Mongo orders a missing field before numbers
-         * ascending — measured against the live database on 2026-09-11, after this javadoc had
-         * claimed the opposite. #28 documents it rather than fighting it: pushing nulls to the
-         * end needs an aggregation with {@code $ifNull}, which no index can serve.
-         */
-        @Min(0) Integer displayOrder,
 
         /**
          * Which board programme this class runs under, or absent. Example:

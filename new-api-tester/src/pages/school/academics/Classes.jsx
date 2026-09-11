@@ -38,8 +38,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * about.
  */
 const SORTS = [
-  '', 'displayOrder,asc', 'displayOrder,desc', 'name,asc', 'name,desc',
-  'createdAt,desc', 'updatedAt,desc',
+  '', 'name,asc', 'name,desc', 'createdAt,desc', 'updatedAt,desc',
   'sections',
 ]
 
@@ -187,7 +186,7 @@ export default function Classes() {
 
       <Card
         title="The year's classes"
-        description="In displayOrder, as the API returns them. A class with no order sorts FIRST — Mongo puts a missing field before numbers."
+        description="In name order, as the API returns them. A class carries no school-defined position, so alphabetical is all there is: Grade 10 comes before Grade 2."
       >
         {problem ? (
           <Empty
@@ -209,7 +208,6 @@ export default function Classes() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Order</th>
                   <th>Sections</th>
                   <th>Subjects</th>
                   <th>Programme</th>
@@ -223,9 +221,6 @@ export default function Classes() {
                     <td>
                       {row.name}
                       {row.active ? <Badge tone="good">active</Badge> : <Badge>retired</Badge>}
-                    </td>
-                    <td>
-                      {row.displayOrder ?? <span className="muted">none — sorts first</span>}
                     </td>
                     {/* Both are 0 until #17 and #22 exist. The list returns COUNTS, never the
                         embedded rows: 168 of them for a twelve-class year. */}
@@ -280,7 +275,7 @@ export default function Classes() {
  */
 function CreateClass({ open, year, onClose, onCreated }) {
   const { call } = useApi()
-  const [form, setForm] = useState({ name: '', displayOrder: '', affiliationProgrammeDocsId: '' })
+  const [form, setForm] = useState({ name: '', affiliationProgrammeDocsId: '' })
   // null means "whatever the top bar is on". Typing takes over, and clearing the box sends an
   // empty year on purpose — that is how the 404 is tested without changing the top bar.
   // Derived during render rather than copied in an effect, so there is no stale first paint.
@@ -300,10 +295,9 @@ function CreateClass({ open, year, onClose, onCreated }) {
     setErrors({})
     setRefused(null)
     setSaving(true)
-    // Empty optional fields are dropped rather than sent as "". displayOrder is a number on the
-    // request, and "" would be a type error before the server ever read it.
+    // An empty optional field is dropped rather than sent as "", which the API would read as
+    // an instruction to clear rather than as "not provided".
     const body = { name: form.name }
-    if (form.displayOrder !== '') body.displayOrder = Number(form.displayOrder)
     if (form.affiliationProgrammeDocsId.trim() !== '') {
       body.affiliationProgrammeDocsId = form.affiliationProgrammeDocsId.trim()
     }
@@ -316,7 +310,7 @@ function CreateClass({ open, year, onClose, onCreated }) {
     })
     setSaving(false)
     if (result.ok) {
-      setForm({ name: '', displayOrder: '', affiliationProgrammeDocsId: '' })
+      setForm({ name: '', affiliationProgrammeDocsId: '' })
       // The year is NOT reset: making several classes in one year is the normal next action.
       onCreated(result.bodyJson)
       return
@@ -377,19 +371,6 @@ function CreateClass({ open, year, onClose, onCreated }) {
 
         <div className="field-grid">
           <Field
-            label="Sort order"
-            hint="Optional. Absent sorts FIRST in the list — Mongo orders a missing field before numbers."
-            error={errors.displayOrder}
-          >
-            <Input
-              type="number"
-              value={form.displayOrder}
-              error={errors.displayOrder}
-              onChange={set('displayOrder')}
-              placeholder="7"
-            />
-          </Field>
-          <Field
             label="Affiliation programme id"
             hint="Optional. Checked against this school — another school's real id is a 404."
             error={errors.affiliationProgrammeDocsId}
@@ -435,7 +416,6 @@ function EditForm({ row, onClose, onSaved }) {
   const { call } = useApi()
   const [form, setForm] = useState({
     name: row.name ?? '',
-    displayOrder: row.displayOrder ?? '',
     affiliationProgrammeDocsId: row.affiliationProgrammeDocsId ?? '',
   })
   // What the PATCH is AIMED at, as opposed to what it sends. Both start from the row and both
@@ -458,9 +438,6 @@ function EditForm({ row, onClose, onSaved }) {
   const changed = () => {
     const body = {}
     if (form.name !== (row.name ?? '')) body.name = form.name
-    if (String(form.displayOrder) !== String(row.displayOrder ?? '')) {
-      body.displayOrder = form.displayOrder === '' ? null : Number(form.displayOrder)
-    }
     if (form.affiliationProgrammeDocsId !== (row.affiliationProgrammeDocsId ?? '')) {
       body.affiliationProgrammeDocsId = form.affiliationProgrammeDocsId.trim()
     }
@@ -543,18 +520,6 @@ function EditForm({ row, onClose, onSaved }) {
         </Field>
 
         <div className="field-grid">
-          <Field
-            label="Sort order"
-            hint="0 is a real position and sorts first. Clearing the box sends null, which the API leaves alone."
-            error={errors.displayOrder}
-          >
-            <Input
-              type="number"
-              value={form.displayOrder}
-              error={errors.displayOrder}
-              onChange={set('displayOrder')}
-            />
-          </Field>
           <Field
             label="Affiliation programme id"
             hint='Empty it to detach — that sends "", which is the only clear this endpoint has.'

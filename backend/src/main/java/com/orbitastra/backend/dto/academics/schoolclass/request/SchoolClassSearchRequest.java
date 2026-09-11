@@ -21,10 +21,7 @@ public record SchoolClassSearchRequest(
          * Only the classes in use, or only the retired ones. Example: true
          *
          * <p>The headline filter, and the one with an index behind it:
-         * {@code school_year_class_active_order_idx} is
-         * {@code {schoolId, academicYear, active, displayOrder}}, and {@code explain} shows
-         * {@code ?active=} selecting it. <b>The sort is still a blocking one</b> — see the note on
-         * {@code sort} below.
+         * {@code school_year_class_active_idx} is {@code {schoolId, academicYear, active}}.
          *
          * <p><b>Not defaulted to {@code true}.</b> A list endpoint that quietly hid rows would
          * make {@code totalElements} disagree with the collection, and a school wondering where
@@ -89,20 +86,19 @@ public record SchoolClassSearchRequest(
         /**
          * {@code field,direction} — for example {@code name,desc}.
          *
-         * <p>Sortable on {@code displayOrder}, {@code name}, {@code createdAt} and
-         * {@code updatedAt}. An allow-list, so a caller cannot order by a field with nothing
-         * behind it or probe the document's shape by guessing names.
+         * <p>Sortable on {@code name}, {@code createdAt} and {@code updatedAt}. An allow-list, so
+         * a caller cannot order by a field with nothing behind it or probe the document's shape
+         * by guessing names.
          *
-         * <p>Defaults to {@code displayOrder} ascending, which is the order a school reads its
-         * own classes in — "Nursery, LKG, UKG, 1, 2, 3" is neither alphabetical nor derivable
-         * from the name, which is the whole reason the field exists.
+         * <p><b>Defaults to {@code name} ascending</b>, and that needs saying because it used to
+         * default to a school-defined {@code displayOrder}, which was removed on 2026-09-11.
+         * Alphabetical is not the order a school reads its classes in — "Grade 10" sorts before
+         * "Grade 2", and "Nursery, LKG, UKG, 1, 2, 3" cannot be expressed at all. That is the
+         * cost of dropping the field, and it is a real one.
          *
-         * <p><b>A class with no {@code displayOrder} sorts FIRST, not last.</b> Mongo orders null
-         * and missing before numbers, and this endpoint does not fight it: pushing them to the
-         * end would need an aggregation with {@code $ifNull}, which cannot use
-         * {@code school_year_class_active_order_idx} and would turn the ordinary list into an
-         * in-memory sort. Documented rather than worked around — and note it is the opposite of
-         * what an earlier draft of this plan claimed.
+         * <p>It needs no tiebreaker: {@code name} is unique within the year, so it is a total
+         * order — and {@code school_year_class_name_uniq} serves it, so the sort comes from the
+         * index rather than a blocking in-memory pass.
          */
         String sort) {
 }

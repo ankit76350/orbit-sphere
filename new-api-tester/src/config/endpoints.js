@@ -668,7 +668,7 @@ edit.
 The selector is in the query string, the new value in the body. Two different things, two
 different names.
 
-### The eleven test cases are in the request body as comments
+### The nine test cases are in the request body as comments
 `,
       bodyNotes: `?type= SAYS WHICH REASON TO EDIT. A day can hold several, so the date alone
  no longer identifies one.
@@ -5002,7 +5002,7 @@ comes back \`200\` saying so.
 \`409\` — advertising it would put something on the pricing page that every purchase would refuse.
 Taking a retired plan **off** the list is allowed; that direction is only tidying up.
 
-### The ten test cases are in the request body as comments
+### The nine test cases are in the request body as comments
 `,
       bodyNotes: `Platform surface.
 
@@ -6003,7 +6003,7 @@ is allowed — that is exactly a private quote.
 
 A second is a \`409\` telling you to change the plan on the existing one.
 
-### The eleven test cases are in the request body as comments
+### The nine test cases are in the request body as comments
 `,
       bodyNotes: `Platform surface. Needs {{schoolId}} and a PUBLISHED plan.
 
@@ -8733,17 +8733,16 @@ February, before that year starts.
       ],
       bodyAllowed: true,
       body: `{
-  "name": "Grade 7",
-  "displayOrder": 7
+  "name": "Grade 7"
 }`,
       successStatus: 201,
       successNote: "Also sends a Location header: /schools/current/academic-years/{year}/classes/{id}",
-      responseFields: ["schoolClassId", "academicYear", "name", "displayOrder", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
+      responseFields: ["schoolClassId", "academicYear", "name", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
       captures: [
         { variable: "schoolClassId", from: "schoolClassId" },
       ],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "No name, a blank name, one over 120 characters, or a negative displayOrder." },
+        { status: 400, code: "VALIDATION_FAILED", when: "No name, a blank name, or one over 120 characters." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
@@ -8813,22 +8812,11 @@ February, before that year starts.
           expect: "400 Bad Request",
           notes: `OUT: { "code": "VALIDATION_FAILED", fieldErrors: { name: ... } }`,
           body: `{
-  "displayOrder": 7
+  "name": "Grade 7"
 }`,
         },
         {
           id: "07",
-          name: "A NEGATIVE SORT ORDER",
-          expect: "400 Bad Request",
-          notes: `displayOrder is @Min(0). Absent is fine; negative is not.
-    Absent sorts FIRST in #28, not last — Mongo orders missing before numbers.`,
-          body: `{
-  "name": "Backwards",
-  "displayOrder": -1
-}`,
-        },
-        {
-          id: "08",
           name: "AN UNKNOWN YEAR",
           expect: "404 Not Found",
           notes: `Set the year path parameter to 2099-2100.
@@ -8837,7 +8825,7 @@ February, before that year starts.
           body: null,
         },
         {
-          id: "09",
+          id: "08",
           name: "ANOTHER SCHOOL'S AFFILIATION PROGRAMME",
           expect: "404 Not Found",
           notes: `A REAL programme id, belonging to a different school.
@@ -8849,7 +8837,7 @@ February, before that year starts.
 }`,
         },
         {
-          id: "10",
+          id: "09",
           name: "A YEAR THAT HAS BEEN ENDED",
           expect: "409 Conflict",
           notes: `Run POST /academic-years/{name}/end first.
@@ -8892,11 +8880,9 @@ exist" check would have refused it.
     "affiliationProgrammeDocsId": ""     clears it
     "affiliationProgrammeDocsId": null   leaves it       (same as absent)
     "name": ""                           400 CLASS_NAME_REQUIRED
-    "displayOrder": null                 leaves it       (same as absent)
 
-**\`displayOrder\` cannot be cleared**, and that is a limitation rather than a decision: a record
-field cannot tell an absent key from an explicit \`null\`, and a number has no empty string. \`0\`
-sets it to 0, which sorts *first* rather than last.
+**There is no ordering field.** \`displayOrder\` was removed on 2026-09-11, so a class carries no
+school-defined position and there is nothing here to reorder.
 
 ### Nothing structural is reachable
 
@@ -8908,7 +8894,7 @@ edit that could replace forty embedded rows while looking like a rename is what 
 
 Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** the year is running.
 
-### The eleven test cases are in the request body as comments
+### The nine test cases are in the request body as comments
 `,
       bodyNotes: `Needs X-School-Subdomain, a year, and a class id from Create Class.
 
@@ -8920,9 +8906,8 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
  400 CLASS_NAME_REQUIRED — the same rule HOLIDAY_NAME_REQUIRED follows in the
  core module. Silently keeping the old value would hide the client bug.
 
- displayOrder CANNOT BE CLEARED. Absent and null are the same thing on the
- wire, and 0 is a real position that sorts FIRST. Clearing it would need a
- wrapper type, not a sentinel.
+ THERE IS NO ORDERING FIELD. displayOrder was removed on 2026-09-11. A class
+ has no school-defined position, and #28 lists a year by name.
 
  NOTHING STRUCTURAL IS HERE. No section, no subject, no active flag. Send
  them and they are dropped.`,
@@ -8938,16 +8923,15 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
       ],
       bodyAllowed: true,
       body: `{
-  "name": "Grade Seven",
-  "displayOrder": 7
+  "name": "Grade Seven"
 }`,
       successStatus: 200,
-      responseFields: ["schoolClassId", "academicYear", "name", "displayOrder", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
+      responseFields: ["schoolClassId", "academicYear", "name", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
       captures: [],
       errors: [
         { status: 400, code: "NOTHING_TO_UPDATE", when: "The body sends none of the three fields." },
         { status: 400, code: "CLASS_NAME_REQUIRED", when: "\"name\": \"\" — a name cannot be removed, only replaced." },
-        { status: 400, code: "VALIDATION_FAILED", when: "A name over 120 characters, or a negative displayOrder." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A name over 120 characters." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
@@ -8969,36 +8953,17 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
         },
         {
           id: "02",
-          name: "KEEP THE NAME, CHANGE THE ORDER",
+          name: "RESEND THE SAME NAME",
           expect: "200 OK",
           notes: `Sending an unchanged name is NOT a conflict with itself — the check
-    compares ids, not names.`,
+    compares ids, not names. A cheaper "does this name exist" check would
+    have refused it.`,
           body: `{
-  "name": "Grade Seven",
-  "displayOrder": 3
+  "name": "Grade 7 Renamed"
 }`,
         },
         {
           id: "03",
-          name: "ORDER ONLY",
-          expect: "200 OK",
-          notes: `The name is left exactly as it was.`,
-          body: `{
-  "displayOrder": 70
-}`,
-        },
-        {
-          id: "04",
-          name: "ZERO IS A REAL POSITION",
-          expect: "200 OK",
-          notes: `Not a clear. Both 0 and absent sort before any positive order —
-    Mongo puts a missing field first ascending, and 0 is simply the lowest number.`,
-          body: `{
-  "displayOrder": 0
-}`,
-        },
-        {
-          id: "05",
           name: "ATTACH A PROGRAMME",
           expect: "200 OK",
           notes: `Checked against THIS school. Another school's real id is a 404.`,
@@ -9007,7 +8972,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
 }`,
         },
         {
-          id: "06",
+          id: "04",
           name: "DETACH IT",
           expect: "200 OK",
           notes: `"" clears it; null would leave it alone.
@@ -9017,7 +8982,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
 }`,
         },
         {
-          id: "07",
+          id: "05",
           name: "AN EMPTY BODY",
           expect: "400 Bad Request",
           notes: `OUT: { "code": "NOTHING_TO_UPDATE" }
@@ -9026,7 +8991,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
 }`,
         },
         {
-          id: "08",
+          id: "06",
           name: "A BLANK NAME",
           expect: "400 Bad Request",
           notes: `OUT: { "code": "CLASS_NAME_REQUIRED" }
@@ -9036,7 +9001,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
 }`,
         },
         {
-          id: "09",
+          id: "07",
           name: "A NAME ANOTHER CLASS HAS",
           expect: "409 Conflict",
           notes: `Create two classes, then rename one to the other's name.
@@ -9044,7 +9009,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
           body: null,
         },
         {
-          id: "10",
+          id: "08",
           name: "A REAL ID UNDER THE WRONG YEAR",
           expect: "404 Not Found",
           notes: `Set year to another year this school has, keeping the same class id.
@@ -9052,7 +9017,7 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
           body: null,
         },
         {
-          id: "11",
+          id: "09",
           name: "SECTIONS AND SUBJECTS ARE IGNORED",
           expect: "200 OK",
           notes: `Neither field is on the request.
@@ -9071,12 +9036,12 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
       method: "GET",
       path: "/schools/current/academic-years/{year}/classes",
       status: 'live',
-      summary: "One year's classes in displayOrder, filtered, searched and paged.",
+      summary: "One year's classes by name, filtered, searched and paged.",
       schoolSurface: true,
       docs: `**GET** \`/schools/current/academic-years/{year}/classes\` — endpoint #28.
 
 The screen a school opens to see its own structure. Every filter is optional; a bare call is the
-first page in \`displayOrder\`.
+first page in \`name\` order.
 
 ### The filters, all AND-ed
 
@@ -9091,11 +9056,15 @@ student — \`StudentAcademicRecord\` stores \`sectionNo\` — so that is how a 
 has not finished setting up. Asked of \`sections.0\`, not a stored count, so there is no second
 field to keep in step with the list.
 
-### A missing displayOrder sorts FIRST
+### Ordered by name, and that is a downgrade worth knowing
 
-Mongo orders a missing field **before** numbers ascending. Measured against the live database;
-four places in this repository claimed the opposite until 2026-09-11. Pushing nulls last would
-need an aggregation with \`$ifNull\`, which no index can serve.
+\`displayOrder\` was removed on 2026-09-11, so a class has no school-defined position and this
+endpoint defaults to \`name\` ascending. Alphabetical is **not** the order a school reads its
+classes in: "Grade 10" sorts before "Grade 2", and "Nursery, LKG, UKG, 1, 2, 3" cannot be
+expressed at all.
+
+What it buys is a sort that needs no tiebreaker — \`name\` is unique within the year, so it is a
+total order — served by \`school_year_class_name_uniq\` rather than a blocking in-memory pass.
 
 ### Rows carry counts, not the embedded lists
 
@@ -9119,16 +9088,10 @@ answers it first.
 `,
       bodyNotes: `A GET, so there is no body. Everything is a query parameter.
 
- A MISSING displayOrder SORTS FIRST, not last. Mongo puts a missing field
- before numbers ascending. This was documented backwards in four places
- until it was measured on 2026-09-11.
-
- EVERY SORT IS A BLOCKING SORT, and that is the right trade here. The order
- ends in the _id tiebreaker, which no index carries, so Mongo sorts in
- memory — but the query is pinned to one school and one year first, so it
- orders tens of documents. Dropping the tiebreaker would let the index serve
- the order and make paging unstable: a row could appear on page 1 and again
- on page 2 while another was never seen.
+ THE DEFAULT ORDER IS name, NOT A SCHOOL-DEFINED ONE. displayOrder was
+ removed on 2026-09-11, so alphabetical is all there is: "Grade 10" comes
+ before "Grade 2". The sort needs no tiebreaker, name being unique within
+ the year, and school_year_class_name_uniq serves it.
 
  SIZE IS REFUSED, NEVER CLAMPED. 101 is a 400. Try it.
 
@@ -9145,7 +9108,7 @@ answers it first.
         { key: "hasSubjects", value: "", enabled: false, description: "false is 'nothing is taught in this class yet'." },
         { key: "page", value: "0", enabled: false, description: "Zero-based. Negative is a 400." },
         { key: "size", value: "20", enabled: false, description: "Defaults to 20, capped at 100. Above that is a 400, never a clamp." },
-        { key: "sort", value: "", enabled: false, description: "field,direction. displayOrder, name, createdAt, updatedAt only." },
+        { key: "sort", value: "", enabled: false, description: "field,direction. name, createdAt, updatedAt only." },
       ],
       headers: [
         { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
@@ -9172,7 +9135,7 @@ answers it first.
           expect: "200 OK",
           notes: `No parameters.
     OUT: content[], page: 0, size: 20, totalElements, totalPages,
-         hasNext, hasPrevious — and a class with NO displayOrder first.`,
+         hasNext, hasPrevious — rows in name order.`,
           body: null,
         },
         {
@@ -9226,7 +9189,7 @@ answers it first.
           expect: "400 Bad Request",
           notes: `?sort=sections
     OUT: { "code": "INVALID_SORT_FIELD",
-           "message": "... Allowed: displayOrder, name, createdAt, updatedAt." }`,
+           "message": "... Allowed: name, createdAt, updatedAt." }`,
           body: null,
         },
         {

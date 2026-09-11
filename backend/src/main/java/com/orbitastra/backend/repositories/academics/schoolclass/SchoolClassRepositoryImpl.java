@@ -30,26 +30,14 @@ import lombok.RequiredArgsConstructor;
  *
  * <h2>The index behind it</h2>
  *
- * <p><b>No index was added for #28</b>, and {@code explain} says what the existing ones do:
+ * <p>Every filter is an index scan and never a COLLSCAN, because {@code schoolId} and
+ * {@code academicYear} are always pinned and every index on the collection begins with that
+ * pair. The default order is {@code name}, which {@code school_year_class_name_uniq} serves —
+ * so the sort comes from the index rather than a blocking in-memory pass.
  *
- * <pre>
- * bare list            IXSCAN school_year_class_name_uniq          + SORT
- * ?active=true         IXSCAN school_year_class_active_order_idx   + SORT
- * ?search=grade        IXSCAN school_year_class_name_uniq          + SORT   (4 returned, 11 keys)
- * ?hasSections=false   IXSCAN school_year_class_name_uniq          + SORT
- * ?sort=name           IXSCAN school_year_class_name_uniq          + SORT
- * </pre>
- *
- * <p><b>Every filter is an index scan and every sort is a blocking one.</b> The scan is never a
- * COLLSCAN because {@code schoolId} and {@code academicYear} are always pinned, and both existing
- * indexes begin with that pair. The sort cannot come from an index because the order ends in the
- * {@code _id} tiebreaker, which neither index carries — see the note on {@code CLASS_ORDER} in
- * the service for why keeping it is the right trade on tens of documents.
- *
- * <p>{@code search} and {@code affiliationProgrammeDocsId} have nothing behind them and do not
- * want anything: both are applied <i>after</i> the query is pinned to one school and one year, so
- * they filter tens of documents. A case-insensitive contains regex cannot use an index in any
- * case. See the request DTO.
+ * <p>{@code search} and {@code affiliationProgrammeDocsId} have nothing behind them and want
+ * nothing: both are applied after the query is pinned to one school and one year, so they filter
+ * tens of documents. A case-insensitive contains regex cannot use an index in any case.
  */
 @RequiredArgsConstructor
 public class SchoolClassRepositoryImpl implements SchoolClassRepositoryCustom {

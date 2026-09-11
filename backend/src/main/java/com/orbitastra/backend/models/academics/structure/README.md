@@ -142,7 +142,7 @@ operation.
 | `academicYear` | `AcademicYear.name`. |
 | `name` | Display name, for example `Grade 7`. |
 | `affiliationProgrammeDocsId` | Optional link to `AffiliationProgramme.id`. |
-| `displayOrder` | Sorting order used by the UI. |
+| ~~`displayOrder`~~ | **Removed 2026-09-11.** A class carries no school-defined position; `GET /classes` lists a year by `name`. |
 | `sections` | Embedded `ClassSection` values. |
 | `subjects` | Embedded `ClassSubject` values. |
 | `active` | Whether the class is in use. |
