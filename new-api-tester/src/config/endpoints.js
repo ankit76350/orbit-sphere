@@ -8659,6 +8659,413 @@ would be indistinguishable from a plan published with no features.
   ],
 };
 
+const GROUP_ACADEMICS_CLASSES = {
+  id: "academics-classes",
+  module: "Academics / Classes",
+  endpoints: [
+    {
+      id: "create-school-class",
+      name: "Create Class",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/classes",
+      status: 'live',
+      summary: "Makes a class for one year, with no sections and no subjects.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/classes\` — endpoint #12 of
+\`controllers/academics/structure\`.
+
+### A class is addressed by its id, not by a code
+
+**Twelve** other documents reference a class as \`classDocsId\`, and not one stores a class code —
+so the id is what the URL uses, and the \`Location\` header returns it. \`sectionNo\` and
+\`subjectCode\` are codes only because they are *embedded* and have no id to be referenced by.
+
+**Which is why the name is editable** (#13, not built). A year *is* its name to every other
+collection and can never be renamed; a class is its id, so a rename joins nothing. The name only
+has to stay unique inside the year.
+
+### It fixed a bug that would have hit the second class ever created
+
+\`school_year_class_code_uniq\` indexed a \`classCode\` the model never declared, so every document
+indexed a **missing** value, they all collided, and a school could hold exactly **one class per
+academic year**. The index is now \`school_year_class_name_uniq\` on \`name\`.
+
+### Sections and subjects are not accepted here
+
+A class is always created **empty**. Both are their own resources — #17 and #22, neither built.
+Sending them does nothing: the fields are not on the request.
+
+### The year comes from the path
+
+Not the body. A class belongs to one year, and having the year in two places is two places that
+can disagree.
+
+### The gates
+
+Writes run **1** (school is ACTIVE) · **2** (subscription usable) · **4** (the year is the
+school's working year). Gate 3 is deliberately not used: next year's classes are built in
+February, before that year starts.
+`,
+      bodyNotes: `Needs the X-School-Subdomain header, and a year that exists.
+ Run Create School and Create Academic Year first.
+
+ SECTIONS AND SUBJECTS ARE NOT ACCEPTED HERE. The class is created empty and
+ both go on afterwards through #17 and #22, neither of which is built. A
+ create that could fail on either a bad class name or a stray subject leaves
+ the caller working out which, and a half-written subject list is worse than
+ an empty one. Same shape as an academic year created with no holidays.
+
+ THERE IS NO CODE FIELD. A class is addressed and referenced by its document
+ id. An earlier draft of this endpoint had a classCode derived from the name;
+ it was removed the same day, because twelve documents already store
+ classDocsId and none stores a code.
+
+ THE NAME IS UNIQUE PER YEAR, NOT PER SCHOOL. "Grade 7" in 2026-2027 and
+ "Grade 7" in 2027-2028 are two different classes, and both are allowed.`,
+      requiredFields: ["name"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year this class belongs to, such as 2026-2027. It must already exist." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Grade 7",
+  "displayOrder": 7
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header: /schools/current/academic-years/{year}/classes/{id}",
+      responseFields: ["schoolClassId", "academicYear", "name", "displayOrder", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
+      captures: [
+        { variable: "schoolClassId", from: "schoolClassId" },
+      ],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No name, a blank name, one over 120 characters, or a negative displayOrder." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "AFFILIATION_PROGRAMME_NOT_FOUND", when: "No such programme in this school — including a real id belonging to another school." },
+        { status: 409, code: "CLASS_NAME_TAKEN", when: "That year already has a class with that name." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SCHOOL_NOT_READY", when: "Gate 1 — the school is still PROVISIONING." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 404, code: "SUBSCRIPTION_NOT_FOUND", when: "Gate 2 — the school has never had a subscription." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "CREATE A CLASS",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: schoolClassId, sectionCount: 0, subjectCount: 0, active: true
+    Header: Location: /schools/current/academic-years/2026-2027/classes/{id}`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "DUPLICATE NAME IN THE SAME YEAR",
+          expect: "409 Conflict",
+          notes: `Send case 01 again.
+    OUT: { "code": "CLASS_NAME_TAKEN",
+           "message": "'2026-2027' already has a class called 'Grade 7'." }`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "THE SAME NAME IN ANOTHER YEAR",
+          expect: "201 Created",
+          notes: `Create 2027-2028 first, then send case 01 against it.
+    The name is unique per YEAR, not per school, so this is allowed and is a
+    different document with a different id.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "MANY CLASSES IN ONE YEAR",
+          expect: "201 Created, every time",
+          notes: `Grade 8, Grade 9, Nursery, XII Science.
+    This is the case the old index broke: it indexed a classCode no model
+    declared, so every document indexed a MISSING value and the SECOND class
+    was a duplicate-key error.`,
+          body: `{
+  "name": "Grade 8"
+}`,
+        },
+        {
+          id: "05",
+          name: "SECTIONS AND SUBJECTS ARE IGNORED",
+          expect: "201 Created",
+          notes: `Neither field is on the request, so both are dropped rather than honoured.
+    OUT: sectionCount: 0, subjectCount: 0`,
+          body: `{
+  "name": "Ignored extras",
+  "sections": [{ "sectionNo": "A" }],
+  "subjects": [{ "subjectCode": "MATHEMATICS" }]
+}`,
+        },
+        {
+          id: "06",
+          name: "NO NAME",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "VALIDATION_FAILED", fieldErrors: { name: ... } }`,
+          body: `{
+  "displayOrder": 7
+}`,
+        },
+        {
+          id: "07",
+          name: "A NEGATIVE SORT ORDER",
+          expect: "400 Bad Request",
+          notes: `displayOrder is @Min(0). Absent is fine and sorts last; negative is not.`,
+          body: `{
+  "name": "Backwards",
+  "displayOrder": -1
+}`,
+        },
+        {
+          id: "08",
+          name: "AN UNKNOWN YEAR",
+          expect: "404 Not Found",
+          notes: `Set the year path parameter to 2099-2100.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }
+    Gate 4 answers this before the service does — both give the same code.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "ANOTHER SCHOOL'S AFFILIATION PROGRAMME",
+          expect: "404 Not Found",
+          notes: `A REAL programme id, belonging to a different school.
+    OUT: { "code": "AFFILIATION_PROGRAMME_NOT_FOUND" }
+    The lookup is findByIdAndSchoolId — the id existing is not enough.`,
+          body: `{
+  "name": "Borrowed programme",
+  "affiliationProgrammeDocsId": "6aa2a107c7cc53f3111217bf"
+}`,
+        },
+        {
+          id: "10",
+          name: "A YEAR THAT HAS BEEN ENDED",
+          expect: "409 Conflict",
+          notes: `Run POST /academic-years/{name}/end first.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_RUNNING" }
+    Gate 4. Classes cannot be added to a year the school has closed.`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "update-school-class",
+      name: "Update Class",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/classes/{id}",
+      status: 'live',
+      summary: "Edits a class's name, sort order, or affiliation programme. Nothing structural.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/classes/{id}\` — endpoint #13.
+
+Three fields, all optional. A body that sends none of them is a **400**, not a silent success.
+
+### The class is named by its MongoDB document id
+
+The id is globally unique, so \`{year}\` is not needed to *find* the class — it is in the path so
+that an id pasted from last year's URL answers **404** instead of quietly editing last year's
+structure. A real id under the wrong year, or from another school, is a \`CLASS_NOT_FOUND\`.
+
+### The name is editable — an academic year's is not
+
+A year **is** its name to every other collection, so it can never be renamed. A class is its
+**id** — twelve documents store \`classDocsId\` — so nothing joins on the name and a rename
+cascades nowhere. It only has to stay unique inside the year.
+
+**And a class may keep its own name.** The check compares ids, not names, so sending an unchanged
+name beside a new sort order is not a conflict with itself. Using the cheaper "does this name
+exist" check would have refused it.
+
+### What can be cleared is not symmetric
+
+    "affiliationProgrammeDocsId": ""     clears it
+    "affiliationProgrammeDocsId": null   leaves it       (same as absent)
+    "name": ""                           400 CLASS_NAME_REQUIRED
+    "displayOrder": null                 leaves it       (same as absent)
+
+**\`displayOrder\` cannot be cleared**, and that is a limitation rather than a decision: a record
+field cannot tell an absent key from an explicit \`null\`, and a number has no empty string. \`0\`
+sets it to 0, which sorts *first* rather than last.
+
+### Nothing structural is reachable
+
+\`sections\`, \`subjects\` and \`active\` are not on the request, so sending them does nothing. An
+edit that could replace forty embedded rows while looking like a rename is what this avoids;
+\`active\` is #15 and #16, neither built.
+
+### The gates
+
+Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** the year is running.
+
+### The eleven test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain, a year, and a class id from Create Class.
+
+ EVERY FIELD IS OPTIONAL AND ABSENT MEANS "LEAVE IT ALONE". Sending {} is a
+ 400 NOTHING_TO_UPDATE rather than a no-op 200, so a client with a broken
+ form finds out.
+
+ A BLANK NAME IS REFUSED, NOT A CLEAR. "name": "" answers
+ 400 CLASS_NAME_REQUIRED — the same rule HOLIDAY_NAME_REQUIRED follows in the
+ core module. Silently keeping the old value would hide the client bug.
+
+ displayOrder CANNOT BE CLEARED. Absent and null are the same thing on the
+ wire, and 0 is a real position that sorts FIRST. Clearing it would need a
+ wrapper type, not a sentinel.
+
+ NOTHING STRUCTURAL IS HERE. No section, no subject, no active flag. Send
+ them and they are dropped.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id — what Create Class returned, and what twelve other documents store as classDocsId." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Grade Seven",
+  "displayOrder": 7
+}`,
+      successStatus: 200,
+      responseFields: ["schoolClassId", "academicYear", "name", "displayOrder", "affiliationProgrammeDocsId", "sectionCount", "subjectCount", "active", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body sends none of the three fields." },
+        { status: 400, code: "CLASS_NAME_REQUIRED", when: "\"name\": \"\" — a name cannot be removed, only replaced." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A name over 120 characters, or a negative displayOrder." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "AFFILIATION_PROGRAMME_NOT_FOUND", when: "No such programme in this school, including another school's real id." },
+        { status: 409, code: "CLASS_NAME_TAKEN", when: "Another class in that year already has that name." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "RENAME IT",
+          expect: "200 OK",
+          notes: `The body above.
+    OUT: name: "Grade Seven", and the SAME schoolClassId.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "KEEP THE NAME, CHANGE THE ORDER",
+          expect: "200 OK",
+          notes: `Sending an unchanged name is NOT a conflict with itself — the check
+    compares ids, not names.`,
+          body: `{
+  "name": "Grade Seven",
+  "displayOrder": 3
+}`,
+        },
+        {
+          id: "03",
+          name: "ORDER ONLY",
+          expect: "200 OK",
+          notes: `The name is left exactly as it was.`,
+          body: `{
+  "displayOrder": 70
+}`,
+        },
+        {
+          id: "04",
+          name: "ZERO IS A REAL POSITION",
+          expect: "200 OK",
+          notes: `Not a clear. 0 sorts FIRST; absent sorts last.`,
+          body: `{
+  "displayOrder": 0
+}`,
+        },
+        {
+          id: "05",
+          name: "ATTACH A PROGRAMME",
+          expect: "200 OK",
+          notes: `Checked against THIS school. Another school's real id is a 404.`,
+          body: `{
+  "affiliationProgrammeDocsId": "6aa2a107c7cc53f3111217bf"
+}`,
+        },
+        {
+          id: "06",
+          name: "DETACH IT",
+          expect: "200 OK",
+          notes: `"" clears it; null would leave it alone.
+    OUT: the field drops out of the response.`,
+          body: `{
+  "affiliationProgrammeDocsId": ""
+}`,
+        },
+        {
+          id: "07",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }
+    A PATCH that changes nothing must not report success.`,
+          body: `{
+}`,
+        },
+        {
+          id: "08",
+          name: "A BLANK NAME",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "CLASS_NAME_REQUIRED" }
+    Refused, not treated as a clear.`,
+          body: `{
+  "name": ""
+}`,
+        },
+        {
+          id: "09",
+          name: "A NAME ANOTHER CLASS HAS",
+          expect: "409 Conflict",
+          notes: `Create two classes, then rename one to the other's name.
+    OUT: { "code": "CLASS_NAME_TAKEN" }`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "A REAL ID UNDER THE WRONG YEAR",
+          expect: "404 Not Found",
+          notes: `Set year to another year this school has, keeping the same class id.
+    OUT: { "code": "CLASS_NOT_FOUND" } — the year scopes the lookup.`,
+          body: null,
+        },
+        {
+          id: "11",
+          name: "SECTIONS AND SUBJECTS ARE IGNORED",
+          expect: "200 OK",
+          notes: `Neither field is on the request.
+    OUT: sectionCount: 0, subjectCount: 0, active still true`,
+          body: `{
+  "name": "Grade Seven",
+  "sections": [{ "sectionNo": "A" }],
+  "active": false
+}`,
+        },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
@@ -8666,6 +9073,7 @@ export const API_CATALOG = [
   GROUP_PLANS_PLAN_CATALOGUE,
   GROUP_PLANS_SUBSCRIPTIONS,
   GROUP_PLANS_SUBSCRIPTION_THE_SCHOOL_S_OWN_VIEW,
+  GROUP_ACADEMICS_CLASSES,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */

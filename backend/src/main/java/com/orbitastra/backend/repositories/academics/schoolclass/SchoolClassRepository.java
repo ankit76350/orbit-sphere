@@ -32,4 +32,18 @@ public interface SchoolClassRepository extends MongoRepository<SchoolClass, Stri
      */
     boolean existsBySchoolIdAndAcademicYearAndName(
             String schoolId, String academicYear, String name);
+
+    /**
+     * The class holding that name in that year, if any — for the rename in #13.
+     *
+     * <p><b>Why not the {@code exists} check above.</b> A rename has to allow a class to keep its
+     * own name: {@code exists} answers true for the row being edited, so it would refuse
+     * {@code PATCH {"name": "Grade 7"}} on the class already called Grade 7, and refuse every
+     * request that sends the name unchanged alongside a new sort order. This returns the holder
+     * so the caller can compare ids.
+     *
+     * <p>#12 keeps the cheaper {@code exists} because a create has no row to be its own conflict.
+     */
+    Optional<SchoolClass> findBySchoolIdAndAcademicYearAndName(
+            String schoolId, String academicYear, String name);
 }

@@ -9,6 +9,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.core.School;
@@ -19,7 +20,7 @@ import com.orbitastra.backend.repositories.institution.affiliationprogramme.Affi
 import lombok.RequiredArgsConstructor;
 
 /**
- * The classes taught in one academic year. Endpoint #12 of the plan in
+ * The classes taught in one academic year. Endpoints #12 and #13 of the plan in
  * {@code controllers/academics/structure/README.md}.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
@@ -138,5 +139,105 @@ public class SchoolClassService {
                 "'" + saved.getName() + "' has no sections and no subjects yet. Add a section "
                         + "next — nothing can be placed in this class until one exists, because "
                         + "a student record stores sectionNo. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! Endpoint 13 — edit a class -----------------------------------------------------
+
+    /**
+     * Changes a class's display name, sort order, or the programme it runs under.
+     *
+     * <p><b>Nothing structural is touched.</b> No section, no subject, no {@code active} flag —
+     * #15 and #16 own that, and #17 to #27 own the embedded lists. This edits three fields and
+     * refuses to be a way of doing anything else.
+     *
+     * <p><b>The rename is the reason this endpoint is small.</b> It is allowed at all only
+     * because a class is addressed and referenced by its document id: twelve documents store
+     * {@code classDocsId} and none stores a name or a code, so a rename joins nothing. Compare
+     * {@code AcademicYear}, which has no rename endpoint and must never have one.
+     *
+     * <p><b>A class may keep its own name.</b> The uniqueness check compares ids, not just
+     * names, so sending the name unchanged beside a new sort order is not a conflict with itself.
+     */
+    @Transactional
+    public SchoolClassResponse updateClass(String academicYear, String classId,
+            SchoolClassUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+        String year = academicYear.trim();
+
+        //! step 2 - refuse a request that asks for nothing, before reading anything. A PATCH
+        //! that changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, displayOrder, or affiliationProgrammeDocsId.");
+        }
+
+        //! step 3 - the year has to exist, for the same reason #12 checks it and with the same
+        //! caveat: gate 4 in the controller answers this first, so it is unreachable through
+        //! HTTP. It is here because WITHOUT it the two endpoints in this service disagree — a
+        //! bad year gives #12 an ACADEMIC_YEAR_NOT_FOUND and #13 a CLASS_NOT_FOUND, which is
+        //! true but says the wrong thing about what is wrong. Found by removing gate 4.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 4 - the class, scoped to the school AND the year. The id alone is globally
+        //! unique, so querying by it alone would find another school's class, and an id pasted
+        //! from last year's URL would edit last year's structure.
+        // TODO: read school class
+        SchoolClass schoolClass = schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
+                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
+                        "No class with id '" + classId + "' in '" + year + "'."));
+
+        //! step 5 - a new name has to be usable, and free. Comparing ids rather than names is
+        //! what lets a class keep the name it already has.
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("CLASS_NAME_REQUIRED",
+                        "A class name cannot be removed. Send a new one, or omit the field.");
+            }
+            // TODO: read school class
+            schoolClasses.findBySchoolIdAndAcademicYearAndName(school.getId(), year, newName)
+                    .filter(other -> !other.getId().equals(schoolClass.getId()))
+                    .ifPresent(other -> {
+                        throw ApiException.conflict("CLASS_NAME_TAKEN",
+                                "'" + year + "' already has a class called '" + newName + "'.");
+                    });
+            schoolClass.setName(newName);
+        }
+
+        //! step 6 - the sort order. Cannot be cleared: absent and null are the same thing on a
+        //! record, and 0 is a real position rather than "no position". See the request DTO.
+        if (request.displayOrder() != null) {
+            schoolClass.setDisplayOrder(request.displayOrder());
+        }
+
+        //! step 7 - the programme. "" detaches it; a value is checked with schoolId in the
+        //! query, because another school's id is real and would otherwise be accepted.
+        if (request.affiliationProgrammeDocsId() != null) {
+            String programmeId = TextHelper.blankToNull(request.affiliationProgrammeDocsId());
+            if (programmeId != null) {
+                // TODO: read affiliation programme
+                affiliationProgrammes.findByIdAndSchoolId(programmeId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound("AFFILIATION_PROGRAMME_NOT_FOUND",
+                                "No affiliation programme with id '" + programmeId
+                                        + "' in this school."));
+            }
+            schoolClass.setAffiliationProgrammeDocsId(programmeId);
+        }
+
+        //! step 8 - save
+        // TODO: update school class
+        SchoolClass saved = schoolClasses.save(schoolClass);
+
+        return SchoolClassResponse.fromSchoolClass(saved,
+                "'" + saved.getName() + "' updated. Sections and subjects are untouched — they "
+                        + "have their own endpoints, none of which is built. "
+                        + NO_AUTHORIZATION_YET);
     }
 }

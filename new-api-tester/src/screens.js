@@ -1,4 +1,4 @@
-import { Building2, CreditCard, Package, Settings2 } from 'lucide-react'
+import { Building2, CreditCard, GraduationCap, Package, Settings2 } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
 import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
@@ -9,6 +9,7 @@ import Schools from './pages/platform/core/Schools.jsx'
 import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
 import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
+import Classes from './pages/school/academics/Classes.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -130,6 +131,26 @@ export const SURFACES = [
             endpoints: 2,
             group: "Plans / Subscription — the school's own view",
             screen: MySubscription,
+          },
+        ],
+      },
+      {
+        // The third module, and the first one whose plan is mostly unbuilt: 36 endpoints are
+        // designed in controllers/academics/structure/README.md and exactly one exists. The
+        // badge counts what is BUILT, like every other badge here, so it reads 1 and will climb.
+        id: 'academics',
+        label: 'Academics',
+        icon: GraduationCap,
+        submodules: [
+          {
+            id: 'classes',
+            label: 'Classes',
+            endpoints: 1,
+            group: 'Academics / Classes',
+            screen: Classes,
+            // No `detail` yet. A class IS addressed by id, so the address would be
+            // /school-academics/classes/:id — but the endpoint behind it is #29, and a route
+            // whose screen could only ever say "not built" is worse than no route.
           },
         ],
       },

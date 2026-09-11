@@ -1,6 +1,11 @@
 # controllers/academics/structure — API plan
 
-**One of 36 is built — #12.** A class can be created for an academic year. Everything else below
+**Two of 36 are built — #12 and #13.** A class can be created for an academic year, and its
+name, sort order and affiliation programme can be edited.
+
+**#13 was brought forward from phase 7**, on request, because nothing depends on it and it is the
+endpoint that proves the id-addressed design: a class can be renamed, which an academic year
+never can. Everything else below
 is the full set of endpoints the academic-structure feature needs, written before any of them, so
 they can be built and reviewed one at a time — the same way
 [`controllers/core`](../../core/README.md) and [`controllers/plans`](../../plans/README.md) were
@@ -223,7 +228,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t12"></a>12 — **built** | [`POST /classes`](#e12) | Create a grade for this year. **Sections and subjects cannot be supplied here** — they go on afterwards through #17 and #22. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t13"></a>13 | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Not `classCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
+| <a id="t13"></a>13 — **built** | [`PATCH /classes/{id}`](#e13) | Fix the class's display name, sort order, or the affiliation programme it runs under. Nothing structural — no section, no subject, no `active`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) |
 | <a id="t14"></a>14 | [`PUT /classes/order`](#e14) | Set `displayOrder` across the year's classes in one write, so "Nursery, LKG, UKG, 1, 2, …" comes out in the order a school reads it rather than alphabetically. Unlike #4 this is a convenience, not a necessity — `displayOrder` has no unique index. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t15"></a>15 | [`POST /classes/{id}/deactivate`](#e15) | A grade this school no longer runs. Its sections stay resolvable for the records that reference them. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t16"></a>16 | [`POST /classes/{id}/reactivate`](#e16) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -298,7 +303,7 @@ section exists, so sections come before everything that is merely useful.
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
-| **7** | The reads nothing is blocked on | 13, 32, 33, 34 |
+| **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, 32, 33, 34 |
 
 **Phase 1 is the whole point of picking this module.** `StudentAcademicRecord.sectionNo` is the
 join between a student and everything academic, and `sectionNo` does not exist anywhere until #17
@@ -410,9 +415,16 @@ programme". None of the three is reachable:
 |---|---|---|
 | `ClassSection.classTeacherDocsId`, `ClassSubject.teacherDocsIds` | `staff` | **none** |
 | `ClassSubject.gradingSchemeDocsId` | `grading_schemes` | **none** |
-| `SchoolClass.affiliationProgrammeDocsId` | `affiliation_programmes` | **none** |
+| `SchoolClass.affiliationProgrammeDocsId` | `affiliation_programmes` | `AffiliationProgrammeRepository` — **built 2026-09-10 with #12** |
 
-So #17, #19, #22, #23 and #25 cannot check that a staff id belongs to this school, or exists.
+**One of the three is done.** `AffiliationProgrammeRepository.findByIdAndSchoolId` was written with
+#12, so #12 and #13 do check the programme — and a *real* id belonging to another school is a
+`404`, which is the case worth testing and the one a plain `findById` would have accepted. Both
+endpoints have a test for exactly that, because a mutation swapping the lookup for `findById` left
+every other assertion green.
+
+The two that remain block #17, #19, #22, #23 and #25: they cannot check that a staff id belongs to
+this school, or exists.
 Two honest options, and one dishonest one:
 
 - **Build the three repositories** as part of phase 1. Each is one interface plus a
@@ -637,6 +649,7 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | `SECTION_STILL_REFERENCED` | 409 | a replace (#18) would drop a `sectionNo` something stores |
 | `SUBJECT_STILL_REFERENCED` | 409 | a replace (#23) would drop a `subjectCode` something stores |
 | `NOTHING_TO_UPDATE` | 400 | a `PATCH` body that asks for nothing — reuses core's code |
+| `CLASS_NAME_REQUIRED` | 400 | `"name": ""` — a name cannot be removed, only replaced |
 | `SOURCE_YEAR_EMPTY` | 409 | #35 or #36 asked to copy from a year with nothing in it |
 | `TARGET_YEAR_NOT_EMPTY` | 409 | #35 or #36 would overwrite a structure that already exists |
 
@@ -767,12 +780,28 @@ class, because a section has no document of its own.
 - **`sections` and `subjects` are not accepted from the caller.** Both start empty and #17 and #22 fill them — the shape an academic year already uses for holidays and a plan for features.
 
 <a id="e13"></a>
-**[13](#t13) · `PATCH /classes/{id}`**
+**[13](#t13) · `PATCH /classes/{id}`** — built
 
-- [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — only when the field is sent, and unvalidatable today
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `name`, `displayOrder`, `affiliationProgrammeDocsId`
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. Unreachable through HTTP, like #12's — gate 4 answers first — and kept because **without it the two endpoints disagree**: a bad year gives #12 an `ACADEMIC_YEAR_NOT_FOUND` and #13 a `CLASS_NOT_FOUND`, which is true but says the wrong thing about what is wrong. Found by removing gate 4 and watching the codes diverge.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — all three, because the id alone is globally unique and would otherwise find another school's class, or last year's
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class holding the new `name` in that year, when a rename is sent
+- [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence **and `schoolId`**, only when the field is sent and non-blank
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `name`, `displayOrder`, `affiliationProgrammeDocsId` — whichever were sent
 - **The `name` is editable, and this endpoint is why the id-addressed design matters.** Had the URL kept a code derived from the name, or had `name` become the join key, this request would have one field left. Nothing joins on either, so both are free to change — the name only has to stay unique in the year, else `409 CLASS_NAME_TAKEN`.
-- `""` on `affiliationProgrammeDocsId` clears it; absent leaves it. The distinction core's `PATCH` endpoints already draw.
+- **A class may keep its own name.** The check compares **ids**, not names, so `{"name": "Grade 7", "displayOrder": 3}` on the class already called Grade 7 is not a conflict with itself. Using the cheaper `exists` here — which #12 does use — would have refused every request that resent an unchanged name.
+- **What can be cleared is not symmetric, and JSON is the reason:**
+
+  ```
+  "affiliationProgrammeDocsId": ""     clears it
+  "affiliationProgrammeDocsId": null   leaves it       (same as absent)
+  "name": ""                           400 CLASS_NAME_REQUIRED
+  "displayOrder": null                 leaves it       (same as absent)
+  ```
+
+  So **`displayOrder` cannot be cleared** — a limitation, not a decision. A record field cannot tell an absent key from an explicit `null`, and a number has no empty string. `0` sets it to 0, which sorts *first* rather than last. Clearing it would need a wrapper type that holds the distinction, not a sentinel.
+- **A blank name is refused rather than treated as a clear**, matching `HOLIDAY_NAME_REQUIRED` in the core module: a required field sent empty is a client bug, and silently keeping the old value hides it.
+- **Nothing structural is reachable.** `sections`, `subjects` and `active` are not on the request, so sending them does nothing. An edit that could replace forty embedded rows while looking like a rename is the shape this avoids; `active` is #15 and #16.
+- **An empty body is `400 NOTHING_TO_UPDATE`**, not a 200. A `PATCH` that changes nothing and reports success lets a client with a broken form look healthy.
 
 <a id="e14"></a>
 **[14](#t14) · `PUT /classes/order`**

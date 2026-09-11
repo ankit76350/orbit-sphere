@@ -68,6 +68,8 @@ const ROUTES = [
   ['/school-core/profile', ['School', 'Profile', 'No school chosen']],
   ['/school-core/academic-years', ['Academic years', 'No school chosen']],
   ['/school-plans/subscription', ['Subscription', 'No school chosen']],
+  // The third module on the school surface. Its plan has 36 endpoints and exactly one exists.
+  ['/school-academics/classes', ['Academics', 'Classes', 'No school chosen']],
   // Opening a row is its own address. First paint is the read, because renderToString does not
   // run effects — which is the point: the page reads the school itself rather than being handed
   // a row from a list that may already be stale.
@@ -2859,6 +2861,145 @@ gateChecks.push(
     !coreReadme.includes('### The server clock decides what "today" is')],
 )
 for (const [label, ok] of gateChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nAcademics — classes (#12)')
+const classesScreen = readFileSync('src/pages/school/academics/Classes.jsx', 'utf8')
+const classCatalogue = catalogue.slice(catalogue.indexOf('GROUP_ACADEMICS_CLASSES'))
+const classEntry = classCatalogue.slice(0, classCatalogue.indexOf('export const API_CATALOG'))
+const classChecks = [
+  // A class is addressed by its document id. Twelve other documents store classDocsId and not
+  // one stores a code, so a code anywhere here would be reintroducing the field that was removed.
+  ['no classCode survives in the catalogue entry', !/classCode["':]/.test(classEntry)],
+  ['nor on the screen', !/classCode["':]/.test(classesScreen)],
+  ['the response carries the id', classEntry.includes('"schoolClassId"')],
+  ['and the screen shows it, since there is no code to show instead',
+    classesScreen.includes('row.schoolClassId')],
+  ['the id is captured for later calls', classEntry.includes('variable: "schoolClassId"')],
+
+  // The year is a path parameter. Putting it in the body would be two places to say one thing.
+  ['the year is a path parameter', classEntry.includes('name: "year"')],
+  ['and the screen sends it as one', classesScreen.includes('pathParams: { year: sendYear }')],
+  ['the body does not carry a year', !/"academicYear":/.test(classEntry)],
+
+  // The class is created empty. Both fields are absent from the request on purpose.
+  ['the catalogue says sections and subjects are not accepted',
+    classEntry.includes('SECTIONS AND SUBJECTS ARE NOT ACCEPTED HERE')],
+  ['and proves it with a case that sends them anyway',
+    classEntry.includes('SECTIONS AND SUBJECTS ARE IGNORED')],
+  ['the screen says the counts are always zero',
+    classesScreen.includes('#12 cannot accept sections or subjects')],
+
+  // The refusals a tester needs to be able to reach.
+  ['CLASS_NAME_TAKEN is documented', classEntry.includes('CLASS_NAME_TAKEN')],
+  ['and the per-year scoping it implies', classEntry.includes('THE SAME NAME IN ANOTHER YEAR')],
+  ["another school's programme is a documented case",
+    classEntry.includes("ANOTHER SCHOOL'S AFFILIATION PROGRAMME")],
+  ['all three gates are listed', ['SCHOOL_NOT_ACTIVE', 'SUBSCRIPTION_NOT_USABLE',
+    'ACADEMIC_YEAR_NOT_RUNNING'].every((code) => classEntry.includes(code))],
+  ['the index bug is recorded, since it would have hit the second class ever created',
+    classEntry.includes('one class per')],
+
+  // The screen must not pretend to list what it cannot read: #28 is not built.
+  ['the screen says its table is session-only, not a read',
+    classesScreen.includes('not a read of the')],
+  ['and names the endpoint that would make it real', classesScreen.includes('#28')],
+
+  // The year box starts from the top bar but must stay typeable - clearing it is how the 404
+  // is tested, and a locked field would make that refusal unreachable.
+  ['the year box can be typed over',
+    /onChange=\{\(event\) => setYearOverride\(event\.target\.value\)\}/.test(classesScreen)],
+  ['and falls back to the top bar', classesScreen.includes('yearOverride ?? year ?? ')],
+]
+
+// #13 — the edit. Everything here exists because a class is addressed by id.
+const editEntry = classCatalogue.slice(classCatalogue.indexOf('update-school-class'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#13 is a PATCH on the id', /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}"/.test(editEntry)],
+  ['it takes both the year and the id as path parameters',
+    editEntry.includes('name: "year"') && editEntry.includes('name: "id"')],
+  ['no field is required — every one is optional', editEntry.includes('requiredFields: [],')],
+  ['an empty body is documented as a refusal, not a no-op',
+    editEntry.includes('NOTHING_TO_UPDATE')],
+  ['a blank name is documented as refused rather than a clear',
+    editEntry.includes('CLASS_NAME_REQUIRED')],
+  ['the asymmetry of clearing is written down', editEntry.includes('cannot be cleared')],
+  ['a real id under the wrong year is a documented case',
+    editEntry.includes('A REAL ID UNDER THE WRONG YEAR')],
+  ['and keeping your own name is too', editEntry.includes('KEEP THE NAME, CHANGE THE ORDER')],
+
+  // The form must send only what changed, or "detach the programme" and "leave it alone" become
+  // the same request.
+  ['the edit form sends only what changed', classesScreen.includes('const changed = ()')],
+  ['it replaces the row by id, which survives a rename',
+    classesScreen.includes('r.schoolClassId === saved.schoolClassId')],
+  ['it remounts per class rather than copying the row in an effect',
+    classesScreen.includes('key={row.schoolClassId}')],
+  ['an unchanged form still submits, so the 400 stays reachable',
+    classesScreen.includes('sends {} on purpose')],
+  // Both halves of the URL stay typeable: two of #13's refusals are only reachable that way.
+  ['the year it aims at can be retyped', classesScreen.includes("aim('year')")],
+  ['and so can the class id', classesScreen.includes("aim('id')")],
+  ['and both are what the request uses',
+    classesScreen.includes('pathParams: { year: target.year, id: target.id }')],
+)
+
+for (const [label, ok] of classChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
+console.log('\nEvery onChange unwraps the event')
+// THE TRAP IS THAT THE TWO KIT COMPONENTS DISAGREE, and both are correct:
+//
+//   Input / TextArea  pass everything through to a plain <input>, so onChange gets the EVENT
+//   Select            already does onChange(e.target.value), so its handler gets the VALUE
+//
+// So `onChange={setSort}` on a Select is right and `onChange={setYear}` on an Input is a bug
+// that stores the whole React event object in state and posts it as the field. That is what
+// happened on the Classes screen, and nothing caught it: the static checks read source text and
+// the screen replays build their own request bodies, so neither renders a form and types in it.
+//
+// Which is why this check has to know the tag, not just the handler - an earlier version flagged
+// five correct Select call sites.
+const RAW_EVENT_TAGS = /^(Input|TextArea|input|textarea)$/
+const eventChecks = []
+for (const file of sourceFiles('src')) {
+  if (file.endsWith('Kit.jsx') || file.endsWith('Select.jsx')) continue
+  const body = readFileSync(file, 'utf8')
+  const where = file.replace('src/', '')
+
+  // A curried field setter must read .target.value off its own argument.
+  for (const m of body.matchAll(/const \w+ = \(\w+\) => \((\w+)\) =>([^\n]*)/g)) {
+    const [, arg, rest] = m
+    if (/setForm|setState|set[A-Z]/.test(rest) && !rest.includes(`${arg}.target`)) {
+      eventChecks.push([`${where}: a field setter ignores the event`, false])
+    }
+  }
+
+  // A no-op handler is readOnly by another name, and it slips past both the disabled check
+  // above and the unwrapping check below. Caught once on the Classes edit form.
+  for (const m of body.matchAll(/onChange=\{\(\) => \{\}\}/g)) {
+    eventChecks.push([`${where}: onChange={() => {}} is readOnly by another name`, false])
+  }
+
+  // onChange={setSomething} is only wrong on a tag that passes the raw event through.
+  for (const m of body.matchAll(/onChange=\{(set[A-Z]\w*)\}/g)) {
+    const before = body.slice(0, m.index)
+    const tag = [...before.matchAll(/<([A-Za-z][\w.]*)/g)].pop()?.[1] ?? ''
+    if (RAW_EVENT_TAGS.test(tag)) {
+      eventChecks.push([`${where}: <${tag} onChange={${m[1]}}> stores the event, not the value`,
+        false])
+    }
+  }
+}
+if (eventChecks.length === 0) {
+  eventChecks.push(['no Input or TextArea hands a raw event to a state setter', true])
+}
+for (const [label, ok] of eventChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++
 }
