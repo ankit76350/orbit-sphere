@@ -26,9 +26,9 @@ import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
-import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.institution.affiliationprogramme.AffiliationProgrammeRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
+import com.orbitastra.backend.services.academics.utils.SchoolClassServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -107,10 +107,10 @@ public class SchoolClassService {
     private static final Sort CLASS_ORDER = Sort.by(Sort.Order.asc("name"));
 
     private final SchoolClassRepository schoolClasses;
-    private final AcademicYearRepository academicYears;
     private final AffiliationProgrammeRepository affiliationProgrammes;
     private final StaffRepository staff;
     private final CurrentSchoolResolver currentSchool;
+    private final SchoolClassServiceUtils utils;
 
     //! Endpoint 12 — create a class ---------------------------------------------------
 
@@ -132,23 +132,8 @@ public class SchoolClassService {
     public SchoolClassResponse createClass(String academicYear, SchoolClassCreateRequest request) {
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
-        String year = academicYear.trim();
-
-        //! step 2 - the year in the path has to be a year this school actually has. A class
-        //! written against a year that does not exist is an orphan the moment it is saved, and
-        //! nothing downstream would report it: every consumer joins on the string.
-        //!
-        //! UNREACHABLE THROUGH HTTP TODAY, and worth saying so rather than letting somebody
-        //! discover it. Gate 4 in the controller loads the same year to read isThisYearRunning,
-        //! and throws the same ACADEMIC_YEAR_NOT_FOUND first - so mutating this check to
-        //! `if (false)` leaves every test passing. It stays because a service must not depend on
-        //! a controller having run a gate: #35 and #36 copy a structure between two years and
-        //! will call in here with a year the gate never saw.
-        // TODO: check academic year exists
-        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
-            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
-                    "No academic year called '" + year + "' in this school.");
-        }
+        //! step 2 - the year in the path has to be a year this school actually has
+        String year = utils.requireAcademicYear(school, academicYear);
 
         //! step 3 - the name has to be free in this year. Two classes both called "Grade 7"
         //! would leave every screen showing the same class twice with nothing to tell them
@@ -221,7 +206,6 @@ public class SchoolClassService {
 
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
-        String year = academicYear.trim();
 
         //! step 2 - refuse a request that asks for nothing, before reading anything. A PATCH
         //! that changes nothing and answers 200 lets a client with a broken form look healthy.
@@ -230,25 +214,13 @@ public class SchoolClassService {
                     "Send name or affiliationProgrammeDocsId.");
         }
 
-        //! step 3 - the year has to exist, for the same reason #12 checks it and with the same
-        //! caveat: gate 4 in the controller answers this first, so it is unreachable through
-        //! HTTP. It is here because WITHOUT it the two endpoints in this service disagree — a
-        //! bad year gives #12 an ACADEMIC_YEAR_NOT_FOUND and #13 a CLASS_NOT_FOUND, which is
-        //! true but says the wrong thing about what is wrong. Found by removing gate 4.
-        // TODO: check academic year exists
-        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
-            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
-                    "No academic year called '" + year + "' in this school.");
-        }
+        //! step 3 - the year has to exist. Before the class, so a bad year says so rather than
+        //! answering CLASS_NOT_FOUND - which is true and says the wrong thing about what is
+        //! wrong. Found by removing gate 4 and watching the two endpoints' codes diverge.
+        String year = utils.requireAcademicYear(school, academicYear);
 
-        //! step 4 - the class, scoped to the school AND the year. The id alone is globally
-        //! unique, so querying by it alone would find another school's class, and an id pasted
-        //! from last year's URL would edit last year's structure.
-        // TODO: read school class
-        SchoolClass schoolClass = schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
-                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
-                        "No class with id '" + classId + "' in '" + year + "'."));
+        //! step 3 - the class, scoped to the school AND the year
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
 
         //! step 5 - a new name has to be usable, and free. Comparing ids rather than names is
         //! what lets a class keep the name it already has.
@@ -323,15 +295,8 @@ public class SchoolClassService {
         //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
         //! can still read its own structure.
         School school = currentSchool.require();
-        String year = academicYear.trim();
-
-        //! step 3 - the year has to exist. See the note above: no gate runs on a read, so this
-        //! is the only thing standing between a typo and an empty page that looks like an answer.
-        // TODO: check academic year exists
-        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
-            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
-                    "No academic year called '" + year + "' in this school.");
-        }
+        //! step 2 - the year in the path has to be a year this school actually has
+        String year = utils.requireAcademicYear(school, academicYear);
 
         //! step 4 - one page, filtered and ordered in the database. The tenant and the year are
         //! passed separately from the request because they are the boundary, not filters.
@@ -368,23 +333,11 @@ public class SchoolClassService {
 
         //! step 1 - who is asking
         School school = currentSchool.requireUsable();
-        String year = academicYear.trim();
-
-        //! step 2 - the year has to exist. Unreachable through HTTP — gate 4 answers first — and
-        //! here for the same reason as #12 and #13: a service must not depend on a controller
-        //! having run a gate.
-        // TODO: check academic year exists
-        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
-            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
-                    "No academic year called '" + year + "' in this school.");
-        }
+        //! step 2 - the year in the path has to be a year this school actually has
+        String year = utils.requireAcademicYear(school, academicYear);
 
         //! step 3 - the class, scoped to the school AND the year
-        // TODO: read school class
-        SchoolClass schoolClass = schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
-                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
-                        "No class with id '" + classId + "' in '" + year + "'."));
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
 
         //! step 4 - the value to store, exactly as typed. sectionNo is the display value as well
         //! as the reference, so it is trimmed and nothing else: a school naming its sections by
@@ -465,7 +418,16 @@ public class SchoolClassService {
      * {@code 404 ACADEMIC_YEAR_NOT_FOUND} here — on the writes, gate 4 answers first.
      */
     public SchoolClassDetailResponse getClass(String academicYear, String classId) {
-        return SchoolClassDetailResponse.fromSchoolClass(loadForRead(academicYear, classId));
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure, which is the whole point of reads running no gates.
+        School school = currentSchool.require();
+
+        //! step 2 - the year, then the class. In that order, and never the other way: an unknown
+        //! year answering CLASS_NOT_FOUND is true and says the wrong thing about what is wrong.
+        String year = utils.requireAcademicYear(school, academicYear);
+
+        //! step 3 - one document, and everything this returns is already in it
+        return SchoolClassDetailResponse.fromSchoolClass(utils.loadClass(school, year, classId));
     }
 
     //! Endpoint 30 — just the sections -------------------------------------------------
@@ -487,45 +449,13 @@ public class SchoolClassService {
      * @param active {@code null} for every section, which is not the same as {@code false}
      */
     public SectionListResponse listSections(String academicYear, String classId, Boolean active) {
-        return SectionListResponse.forRead(loadForRead(academicYear, classId), active);
-    }
-
-    /**
-     * The class both reads need, scoped to the school and the year.
-     *
-     * <p>Exists because #29 and #30 do the identical lookup and differ only in what they return.
-     * Two call sites, so it is a method rather than inline — and it is private rather than in
-     * {@code utils/} because nothing outside this service reads a class this way.
-     *
-     * <p><b>{@code require}, not {@code requireUsable}.</b> A suspended or closed school can
-     * still read its own structure; the difference from the writes is the whole point of reads
-     * running no gates.
-     *
-     * Used by:
-     * - getClass()
-     * - listSections()
-     */
-    private SchoolClass loadForRead(String academicYear, String classId) {
-        //! step 1 - who is asking
+        //! step 1 - who is asking. `require`, as #29.
         School school = currentSchool.require();
-        String year = academicYear.trim();
 
-        //! step 2 - the year has to exist. No gate runs on a read, so unlike #12, #13 and #17
-        //! this is the check that actually fires — and an unknown year is a 404 rather than an
-        //! empty answer, because "no such year" and "that class is not in it" differ.
-        // TODO: check academic year exists
-        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
-            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
-                    "No academic year called '" + year + "' in this school.");
-        }
+        //! step 2 - the year, then the class, in that order
+        String year = utils.requireAcademicYear(school, academicYear);
 
-        //! step 3 - the class, scoped to both. The id alone is globally unique, so querying by
-        //! it alone would read another school's class, and an id from last year's URL would read
-        //! last year's structure.
-        // TODO: read school class
-        return schoolClasses
-                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
-                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
-                        "No class with id '" + classId + "' in '" + year + "'."));
+        //! step 3 - the same document #29 reads. What differs is the response, not the query.
+        return SectionListResponse.forRead(utils.loadClass(school, year, classId), active);
     }
 }
