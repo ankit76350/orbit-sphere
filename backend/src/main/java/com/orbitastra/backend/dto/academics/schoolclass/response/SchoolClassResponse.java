@@ -51,9 +51,9 @@ public record SchoolClassResponse(
                 schoolClass.getAcademicYear(),
                 schoolClass.getName(),
                 schoolClass.getAffiliationProgrammeDocsId(),
-                // Null-safe on both, because the builder default does not apply to what comes
-                // back from the database: a document written before either field existed reads
-                // null, not an empty list.
+                // Null-safe on both. NOT for the reason this comment used to give: an absent
+                // collection reads as an EMPTY LIST, because Spring Data supplies one. It is a
+                // field stored as an explicit null that reads null. Measured 2026-09-11.
                 schoolClass.getSections() == null ? 0 : schoolClass.getSections().size(),
                 schoolClass.getSubjects() == null ? 0 : schoolClass.getSubjects().size(),
                 schoolClass.getActive(),

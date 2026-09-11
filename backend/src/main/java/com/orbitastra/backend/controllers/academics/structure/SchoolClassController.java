@@ -17,8 +17,10 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.SchoolClassService;
 
@@ -27,7 +29,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13 and #28 are built.
+ * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17 and #28 are
+ * built.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.
@@ -209,5 +212,55 @@ public class SchoolClassController {
                 page, size, sort);
 
         return ResponseEntity.ok(schoolClassService.listClasses(year, request));
+    }
+
+    //! the sections inside a class — #17 to #21 ---------------------------------------
+
+    /**
+     * Endpoint #17 — adds one section to a class.
+     *
+     * <p><b>The endpoint the student module is waiting for.</b>
+     * {@code StudentAcademicRecord} stores {@code sectionNo} as a plain string, so no student can
+     * be placed anywhere until a section exists.
+     *
+     * <p><b>A section is embedded in its class</b>, so the document written is the class and the
+     * response is the class's whole section list — the same shape every calendar endpoint in
+     * {@code core} returns for a holiday.
+     *
+     * <p><b>{@code sectionNo} can never be changed.</b> Eight collections store it as a plain
+     * string and a section has no id for them to reference instead, being embedded. There is no
+     * rename endpoint and there must not be one.
+     *
+     * <p><b>Uniqueness is the service's job alone.</b> Mongo cannot make an array's contents
+     * unique, so unlike a class name there is no index to fall back on. It is checked
+     * case-insensitively: "A" and "a" in one class is a typo, not two sections.
+     *
+     * <pre>
+     * 400 VALIDATION_FAILED        no sectionNo, one over 20 characters, or capacity below 1
+     * 404 ACADEMIC_YEAR_NOT_FOUND  the {year} in the path is not a year of this school
+     * 404 CLASS_NOT_FOUND          no class with that id in that year
+     * 404 STAFF_NOT_FOUND          no such staff in this school — another school's real id too
+     * 409 SECTION_ALREADY_EXISTS   that class already has a section with that number
+     * </pre>
+     */
+    @PostMapping("/{id}/sections")
+    public ResponseEntity<SectionListResponse> addSection(
+            @PathVariable String year,
+            @PathVariable String id,
+            @Valid @RequestBody SectionCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        SectionListResponse response = schoolClassService.addSection(year, id, request);
+        return ResponseEntity
+                .created(URI.create("/schools/current/academic-years/" + year + "/classes/" + id
+                        + "/sections"))
+                .body(response);
     }
 }

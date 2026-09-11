@@ -9228,6 +9228,211 @@ answers it first.
         },
       ],
     },
+    {
+      id: "add-class-section",
+      name: "Add Section",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/classes/{id}/sections",
+      status: 'live',
+      summary: "Adds one section to a class. The endpoint the student module was waiting for.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/classes/{id}/sections\` — endpoint #17.
+
+### The endpoint another module was blocked on
+
+\`StudentAcademicRecord\` stores \`sectionNo\` as a plain string, so **no student could be placed
+anywhere until a section existed.** Six documents in \`models/academics\` were behind the same
+wall — attendance sessions, exam schedules, homework, report cards.
+
+### A section is embedded, so the document written is the class
+
+No section collection, no section id, no \`schoolId\` of its own — it inherits all three from its
+class. The response is therefore the class's **whole section list**, not the one row added: the
+same shape every calendar endpoint in \`core\` returns for a holiday.
+
+### sectionNo can never change
+
+**Eight collections store it as a plain string**, and a section has no id for them to reference
+instead. A rename would not fail and would not cascade — every one of those strings would name a
+section that no longer answers to it, and every row would still look valid.
+
+### Unique in the class, case-insensitively — but stored as typed
+
+"A" and "a" in one class is a typo every time, not two sections, and the two would be
+indistinguishable on screen. So the check folds case. What a school typed is what is kept, and no
+shape is imposed: "Blue" and "Red" are legitimate section names.
+
+**This check is the only guard there is.** Mongo cannot enforce uniqueness *inside* an array, so
+unlike a class name there is no index behind it.
+
+### capacity is a plan, not a limit
+
+Nothing enforces it — this module cannot count students, and the refusal for the 41st belongs to
+the student module. \`0\` is a **400**: a section nobody can be placed in is not a section.
+Absent means no plan was recorded, which is not the same as a plan of zero.
+
+### The gates
+
+Same three as every write here — **1** school ACTIVE · **2** subscription usable · **4** the year
+is running.
+
+### The eleven test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain, a year, and a class id from Create Class.
+
+ sectionNo CAN NEVER BE CHANGED. There is no rename endpoint and there must
+ not be one: eight collections store it as a plain string, and a section is
+ EMBEDDED so it has no id for them to reference instead.
+
+ IT IS BOTH THE REFERENCE AND THE DISPLAY VALUE, which is why ClassSection
+ has no separate name field. Uniqueness folds case; storage does not.
+
+ THE DUPLICATE CHECK IS THE ONLY GUARD. Mongo cannot make an array's
+ contents unique, so there is no index to fall back on.
+
+ capacity IS A PLAN, NOT A LIMIT. Nothing enforces it. 0 is refused.
+
+ classTeacherDocsId IS CHECKED AGAINST THIS SCHOOL. Another school's real
+ staff id is a 404, not an accepted teacher.`,
+      requiredFields: ["sectionNo"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "sectionNo": "A",
+  "capacity": 40
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the class's section list.",
+      responseFields: ["schoolClassId", "className", "academicYear", "sectionCount", "activeCount", "sections", "changeSummary"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No sectionNo, a blank one, one over 20 characters, or a capacity below 1." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No such staff in this school, including another school's real id." },
+        { status: 409, code: "SECTION_ALREADY_EXISTS", when: "That class already has a section with that number, case folded. A retired one counts." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "ADD A SECTION",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: the class's WHOLE section list, with sectionCount and activeCount.
+    A student can be placed in it as soon as the student module exists.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "JUST A NUMBER",
+          expect: "201 Created",
+          notes: `capacity and classTeacherDocsId are both optional. A section with no
+    class teacher is a real state, not an incomplete one.`,
+          body: `{
+  "sectionNo": "B"
+}`,
+        },
+        {
+          id: "03",
+          name: "A DUPLICATE",
+          expect: "409 Conflict",
+          notes: `Send case 01 again.
+    OUT: { "code": "SECTION_ALREADY_EXISTS" }
+    Checked in the service — Mongo cannot make an array unique.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "THE SAME NUMBER IN LOWER CASE",
+          expect: "409 Conflict",
+          notes: `"a" is not a second section. Uniqueness folds case; storage does not.`,
+          body: `{
+  "sectionNo": "a"
+}`,
+        },
+        {
+          id: "05",
+          name: "A SECTION NAMED BY COLOUR",
+          expect: "201 Created",
+          notes: `No shape is imposed. sectionNo is the display value as well as the
+    reference, so it is stored exactly as typed — trimmed, nothing else.`,
+          body: `{
+  "sectionNo": "Blue",
+  "capacity": 35
+}`,
+        },
+        {
+          id: "06",
+          name: "A CAPACITY OF ZERO",
+          expect: "400 Bad Request",
+          notes: `@Min(1). A section nobody can be placed in is not a section.
+    Absent is fine and means no plan was recorded.`,
+          body: `{
+  "sectionNo": "Z",
+  "capacity": 0
+}`,
+        },
+        {
+          id: "07",
+          name: "A CLASS TEACHER",
+          expect: "201 Created",
+          notes: `A real Staff.id belonging to THIS school. There is no API that creates
+    staff yet — the people module has none — so insert one directly to try it.`,
+          body: `{
+  "sectionNo": "C",
+  "classTeacherDocsId": "67aa15d9dc3f7d0011111111"
+}`,
+        },
+        {
+          id: "08",
+          name: "ANOTHER SCHOOL'S TEACHER",
+          expect: "404 Not Found",
+          notes: `A REAL staff id belonging to a different school.
+    OUT: { "code": "STAFF_NOT_FOUND" }
+    The lookup is findByIdAndSchoolId — existing is not enough.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "NO SECTION NUMBER",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "VALIDATION_FAILED", fieldErrors: { sectionNo: ... } }`,
+          body: `{
+  "capacity": 40
+}`,
+        },
+        {
+          id: "10",
+          name: "A REAL CLASS ID UNDER THE WRONG YEAR",
+          expect: "404 Not Found",
+          notes: `Keep the class id, change the year to another this school has.
+    OUT: { "code": "CLASS_NOT_FOUND" } — the year scopes the lookup.`,
+          body: null,
+        },
+        {
+          id: "11",
+          name: "A YEAR THAT HAS BEEN ENDED",
+          expect: "409 Conflict",
+          notes: `Run POST /academic-years/{name}/end first.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_RUNNING" } — gate 4.
+    Then list the classes: a suspended or closed year still READS fine.`,
+          body: null,
+        },
+      ],
+    },
   ],
 };
 

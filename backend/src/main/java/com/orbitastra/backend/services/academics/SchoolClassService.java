@@ -1,6 +1,7 @@
 package com.orbitastra.backend.services.academics;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,18 +17,23 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.core.academicyear.AcademicYearRepository;
 import com.orbitastra.backend.repositories.institution.affiliationprogramme.AffiliationProgrammeRepository;
+import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * The classes taught in one academic year. Endpoints #12, #13 and #28 of the plan in
+ * The classes taught in one academic year, and the sections inside them. Endpoints #12, #13,
+ * #17 and #28 of the plan in
  * {@code controllers/academics/structure/README.md}.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
@@ -102,6 +108,7 @@ public class SchoolClassService {
     private final SchoolClassRepository schoolClasses;
     private final AcademicYearRepository academicYears;
     private final AffiliationProgrammeRepository affiliationProgrammes;
+    private final StaffRepository staff;
     private final CurrentSchoolResolver currentSchool;
 
     //! Endpoint 12 — create a class ---------------------------------------------------
@@ -336,4 +343,110 @@ public class SchoolClassService {
                 SchoolClassResponse::fromSchoolClass);
     }
 
+    //! Endpoint 17 — add a section to a class -----------------------------------------
+
+    /**
+     * Adds one section to a class.
+     *
+     * <p><b>The endpoint the student module is waiting for.</b>
+     * {@code StudentAcademicRecord.sectionNo} has nothing to point at until this runs, and six of
+     * {@code models/academics}' own documents are behind the same wall.
+     *
+     * <p><b>A section is embedded, so the document written is the class.</b> There is no section
+     * collection, no section id and no {@code schoolId} on a section — it inherits all three from
+     * its parent. That is also why {@code sectionNo} can never change: eight collections store it
+     * as a plain string, and an embedded value has no id for them to reference instead.
+     *
+     * <p><b>Mongo cannot enforce uniqueness inside an array</b>, so the check in step 5 is the
+     * only thing standing between a class and two sections both called "A". There is no index to
+     * fall back on here, unlike the class name.
+     */
+    @Transactional
+    public SectionListResponse addSection(String academicYear, String classId,
+            SectionCreateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+        String year = academicYear.trim();
+
+        //! step 2 - the year has to exist. Unreachable through HTTP — gate 4 answers first — and
+        //! here for the same reason as #12 and #13: a service must not depend on a controller
+        //! having run a gate.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 3 - the class, scoped to the school AND the year
+        // TODO: read school class
+        SchoolClass schoolClass = schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
+                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
+                        "No class with id '" + classId + "' in '" + year + "'."));
+
+        //! step 4 - the value to store, exactly as typed. sectionNo is the display value as well
+        //! as the reference, so it is trimmed and nothing else: a school naming its sections by
+        //! colour is not making a mistake.
+        String sectionNo = request.sectionNo().trim();
+
+        //! step 5 - and it has to be free in this class. Checked case-insensitively: "A" and "a"
+        //! in one class is a typo every time, and the two would be indistinguishable on screen.
+        //! This check is the ONLY guard — Mongo cannot make an array's contents unique.
+        List<ClassSection> sections = schoolClass.getSections() == null
+                ? new ArrayList<>()
+                : schoolClass.getSections();
+
+        boolean taken = sections.stream()
+                .anyMatch(existing -> existing.getSectionNo() != null
+                        && existing.getSectionNo().equalsIgnoreCase(sectionNo));
+
+        if (taken) {
+            throw ApiException.conflict("SECTION_ALREADY_EXISTS",
+                    "'" + schoolClass.getName() + "' already has a section '" + sectionNo
+                            + "'. Section numbers are unique within a class, and cannot be "
+                            + "changed once records reference them.");
+        }
+
+        //! step 6 - the class teacher, when one was named. Checked with schoolId in the query,
+        //! not by id alone: another school's staff id is real, and a lookup without the tenant
+        //! would accept them as this class's teacher.
+        String teacherId = TextHelper.blankToNull(request.classTeacherDocsId());
+        if (teacherId != null) {
+            // TODO: read staff
+            staff.findByIdAndSchoolId(teacherId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                            "No staff member with id '" + teacherId + "' in this school."));
+        }
+
+        //! step 7 - append it, and set the list back on the document.
+        //!
+        //! MEASURED 2026-09-11, because the obvious reason is the wrong one. An ABSENT
+        //! `sections` field does NOT read as null: Spring Data supplies an empty list for a
+        //! missing collection property, so both the guard above and this line are no-ops for it.
+        //! What they are for is a field stored as an explicit `null`, which does read as null -
+        //! without them that is a 500. Verified both ways against the live database; three
+        //! comments in this repository claimed the absent case, and none of them was right.
+        sections.add(ClassSection.builder()
+                .sectionNo(sectionNo)
+                .classTeacherDocsId(teacherId)
+                .capacity(request.capacity())
+                // Stated here as well as on the model. ClassSection carries
+                // @Builder.Default active = true, so this line is redundant TODAY - removing it
+                // changes nothing, which a mutation test confirmed by surviving. It stays
+                // because a section starting active is this endpoint's decision, not the
+                // model's default's to make, and the two can be changed independently.
+                .active(true)
+                .build());
+        schoolClass.setSections(sections);
+
+        //! step 8 - save
+        // TODO: update school class (append a section)
+        SchoolClass saved = schoolClasses.save(schoolClass);
+
+        return SectionListResponse.fromSchoolClass(saved,
+                "Section '" + sectionNo + "' added to '" + saved.getName() + "'. A student can "
+                        + "be placed in it as soon as the student module exists — nothing else "
+                        + "in this class is affected. " + NO_AUTHORIZATION_YET);
+    }
 }

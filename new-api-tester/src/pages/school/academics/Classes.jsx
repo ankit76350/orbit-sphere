@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Layers, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
+import { Info, Layers, Pencil, Plus, RefreshCw, Search, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -9,7 +9,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * School / Academics — the classes taught in one academic year. Two of the group's 36 endpoints.
  *
- * THREE ENDPOINTS: #12 create, #13 edit, #28 list. The table is now a real read of the server
+ * FOUR ENDPOINTS: #12 create, #13 edit, #17 add a section, #28 list.
+ *
+ * #17 IS THE ONE THAT UNBLOCKED ANOTHER MODULE. A student record stores sectionNo, so nothing
+ * could be placed in a class until a section existed. The Sections button on each row is how it
+ * is reached, and the count in the row is how you see it worked. The table is now a real read of the server
  * rather than the session record it was while #28 was unbuilt — so a refresh keeps it, and a
  * class created in another tab appears.
  *
@@ -54,6 +58,7 @@ export default function Classes() {
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [sectioning, setSectioning] = useState(null)
 
   const [active, setActive] = useState('')
   const [hasSections, setHasSections] = useState('')
@@ -235,7 +240,12 @@ export default function Classes() {
                         #13 addresses — there is no code to show instead. */}
                     <td><span className="mono">{row.schoolClassId}</span></td>
                     <td>
-                      <Button icon={Pencil} onClick={() => setEditing(row)}>Edit</Button>
+                      <div className="btn-row">
+                        <Button icon={Pencil} onClick={() => setEditing(row)}>Edit</Button>
+                        {/* #17. The section count beside it is how you see the add worked —
+                            there is no section read yet, #30 being unbuilt. */}
+                        <Button icon={Users} onClick={() => setSectioning(row)}>Sections</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -249,6 +259,12 @@ export default function Classes() {
           list and cannot add to it.
         </p>
       </Card>
+
+      <AddSection
+        row={sectioning}
+        onClose={() => setSectioning(null)}
+        onAdded={() => load()}
+      />
 
       <EditClass
         row={editing}
@@ -540,6 +556,165 @@ function EditForm({ row, onClose, onSaved }) {
             left reachable on purpose.
           </p>
         ) : null}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Adding a section — #17.
+ *
+ * KEYED ON THE CLASS so it remounts per row rather than copying the row into state in an effect,
+ * which would paint the previous class for one frame.
+ *
+ * THE MODAL STAYS OPEN AFTER A SUCCESSFUL ADD, and that is deliberate: a class gets A, B, C and D
+ * in one sitting, and closing after each one would mean reopening three times. The response is
+ * the class's whole section list, so the panel shows what the class now has.
+ */
+function AddSection({ row, onClose, onAdded }) {
+  if (!row) return null
+  return <AddSectionForm key={row.schoolClassId} row={row} onClose={onClose} onAdded={onAdded} />
+}
+
+function AddSectionForm({ row, onClose, onAdded }) {
+  const { call } = useApi()
+  const [form, setForm] = useState({ sectionNo: '', capacity: '', classTeacherDocsId: '' })
+  // Both halves of the URL stay typeable, so CLASS_NOT_FOUND and the wrong-year 404 are
+  // reachable from the screen rather than only from the docs.
+  const [target, setTarget] = useState({ year: row.academicYear, id: row.schoolClassId })
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [list, setList] = useState(null)
+
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...old, [field]: event.target.value }))
+  const aim = (field) => (event) =>
+    setTarget((old) => ({ ...old, [field]: event.target.value }))
+
+  const body = (() => {
+    const out = { sectionNo: form.sectionNo }
+    if (form.capacity !== '') out.capacity = Number(form.capacity)
+    if (form.classTeacherDocsId.trim() !== '') {
+      out.classTeacherDocsId = form.classTeacherDocsId.trim()
+    }
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('add-class-section', {
+      label: 'Add a section',
+      pathParams: { year: target.year, id: target.id },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setList(result.bodyJson)
+      // Only the number is cleared: capacity and the teacher usually repeat across a class's
+      // sections, so retyping them for B, C and D would be the wrong default.
+      setForm((old) => ({ ...old, sectionNo: '' }))
+      onAdded()
+      return
+    }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      title={`Sections of ${row.name}`}
+      description="A section is embedded in its class, so the response is the class's whole list. sectionNo can never be changed once records reference it."
+      endpoint={<EndpointTag id="add-class-section" name="Add" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Add</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {/* What the class has now, from the last response — there is no section read yet. */}
+        {list ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">
+                {list.sectionCount} section{list.sectionCount === 1 ? '' : 's'} ·{' '}
+                {list.activeCount} active
+              </span>
+            </div>
+            <pre className="resp-body">
+              {(list.sections ?? []).map((one) => [
+                one.sectionNo,
+                one.capacity ? `cap ${one.capacity}` : 'no capacity',
+                one.classTeacherDocsId ? 'has a class teacher' : 'no class teacher',
+                one.active ? 'active' : 'retired',
+              ].join('  ·  ')).join('\n')}
+            </pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field label="Year" hint="Scopes the lookup. Point it elsewhere and the same class id is a 404.">
+            <Input value={target.year} onChange={aim('year')} />
+          </Field>
+          <Field label="Class id" hint="Change it to reach CLASS_NOT_FOUND.">
+            <Input value={target.id} onChange={aim('id')} />
+          </Field>
+        </div>
+
+        <Field
+          label="Section number"
+          required
+          hint="Stored exactly as typed — A, Blue, Alpha. Unique in the class, checked case-insensitively, and never changeable afterwards."
+          error={errors.sectionNo}
+        >
+          <Input value={form.sectionNo} error={errors.sectionNo}
+            onChange={set('sectionNo')} placeholder="A" />
+        </Field>
+
+        <div className="field-grid">
+          <Field
+            label="Capacity"
+            hint="Optional, at least 1. A plan, not a limit — nothing enforces it, and 0 is refused."
+            error={errors.capacity}
+          >
+            <Input type="number" value={form.capacity} error={errors.capacity}
+              onChange={set('capacity')} placeholder="40" />
+          </Field>
+          <Field
+            label="Class teacher id"
+            hint="Optional Staff.id. Checked against this school — another school's real id is a 404."
+            error={errors.classTeacherDocsId}
+          >
+            <Input value={form.classTeacherDocsId} error={errors.classTeacherDocsId}
+              onChange={set('classTeacherDocsId')} placeholder="67aa15d9dc3f7d0011111111" />
+          </Field>
+        </div>
+
+        <p className="muted">
+          <Users size={12} /> The number stays unique only within this class — another class may
+          have its own "A". Add stays open so a class can get A, B, C and D in one sitting.
+        </p>
       </div>
     </Modal>
   )

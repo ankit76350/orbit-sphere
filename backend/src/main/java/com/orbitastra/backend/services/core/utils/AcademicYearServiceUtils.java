@@ -118,9 +118,11 @@ public class AcademicYearServiceUtils {
     /**
      * The holiday list, created if the document has none.
      *
-     * <p>Mongo stores an empty list as an empty array, but a document written before the field
-     * existed comes back null — and the builder default does not apply to what is read from the
-     * database.
+     * <p><b>Corrected 2026-09-11, after being measured.</b> This said a document written before
+     * the field existed "comes back null". It does not: Spring Data supplies an <b>empty list</b>
+     * for an absent collection property, so a missing {@code holidays} field is safe without
+     * this. What does read null is a field stored as an explicit {@code null} — and that is a
+     * 500 without the guard, which is why the method stays.
      *
      * <p>Only the endpoints that add to the list need it. #20 does not: replacing a calendar
      * assigns a fresh list rather than adding to whatever was there.

@@ -3013,6 +3013,49 @@ classChecks.push(
   ['#28 says what ordering by name costs', listEntry.includes('a downgrade worth knowing')],
 )
 
+
+// #17 — the section add. The endpoint another module was blocked on.
+const sectionEntry = classCatalogue.slice(classCatalogue.indexOf('add-class-section'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#17 posts to the class\'s sections',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/sections"/.test(sectionEntry)],
+  ['sectionNo is the only required field',
+    sectionEntry.includes('requiredFields: ["sectionNo"]')],
+  ['the response is the class\'s whole list, not the one row',
+    sectionEntry.includes('"sectionCount"') && sectionEntry.includes('"activeCount"')
+    && sectionEntry.includes('"sections"')],
+  ['it says sectionNo can never change', sectionEntry.includes('can never change')],
+  ['and why — eight collections store it as a string',
+    sectionEntry.includes('Eight collections store it')],
+  ['a duplicate is documented', sectionEntry.includes('SECTION_ALREADY_EXISTS')],
+  ['and so is the lower-case one, which is the same section',
+    sectionEntry.includes('THE SAME NUMBER IN LOWER CASE')],
+  ['it says the service check is the only guard',
+    sectionEntry.includes('only guard there is')],
+  ['a colour is a documented section name', sectionEntry.includes('A SECTION NAMED BY COLOUR')],
+  ['capacity 0 is a documented refusal', sectionEntry.includes('A CAPACITY OF ZERO')],
+  ['and capacity is called a plan, not a limit', sectionEntry.includes('a plan, not a limit')],
+  ["another school's teacher is a documented 404",
+    sectionEntry.includes("ANOTHER SCHOOL'S TEACHER") && sectionEntry.includes('STAFF_NOT_FOUND')],
+  ['the student module is named as what it unblocks',
+    sectionEntry.includes('StudentAcademicRecord')],
+
+  // The screen
+  ['each row can reach its sections', classesScreen.includes('setSectioning(row)')],
+  ['the add form sends the section body',
+    classesScreen.includes("call('add-class-section'")],
+  ['it aims at a typeable year and class id',
+    classesScreen.includes('pathParams: { year: target.year, id: target.id }')],
+  ['it shows the class list the response came back with',
+    classesScreen.includes('list.sectionCount') && classesScreen.includes('list.activeCount')],
+  ['it stays open after an add, so a class can get A, B, C and D',
+    classesScreen.includes('A, B, C and D in one sitting')],
+  ['and clears only the number, not the capacity or teacher',
+    classesScreen.includes("setForm((old) => ({ ...old, sectionNo: '' }))")],
+  ['the list reloads so the row count moves', classesScreen.includes('onAdded={() => load()}')],
+)
+
 for (const [label, ok] of classChecks) {
   console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
   if (!ok) fail++

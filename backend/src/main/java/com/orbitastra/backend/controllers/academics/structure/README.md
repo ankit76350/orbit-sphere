@@ -1,8 +1,12 @@
 # controllers/academics/structure — API plan
 
-**Three of 36 are built — #12, #13 and #28.** A class can be created for an academic year, its
-name, sort order and affiliation programme can be edited, and the year's classes can be listed —
-filtered, searched, sorted and paged.
+**Four of 36 are built — #12, #13, #17 and #28.** A class can be created for an academic year,
+its name and affiliation programme edited, **sections added to it**, and the year's classes listed
+— filtered, searched, sorted and paged.
+
+**#17 is the one that unblocks another module.** `StudentAcademicRecord` stores `sectionNo` as a
+plain string, so no student could be placed anywhere until a section existed. Six of
+`models/academics`' own documents were behind the same wall.
 
 **#13 was brought forward from phase 7**, on request, because nothing depends on it and it is the
 endpoint that proves the id-addressed design: a class can be renamed, which an academic year
@@ -242,7 +246,7 @@ models, and one more than the [model README's own "six"](../../../models/academi
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t17"></a>17 | [`POST /classes/{id}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t17"></a>17 — **built** | [`POST /classes/{id}/sections`](#e17) | Add one section — `sectionNo`, capacity, class teacher. **The single most-waited-on endpoint in the module**: `StudentAcademicRecord.sectionNo` cannot be filled until a section exists. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t18"></a>18 | [`PUT /classes/{id}/sections`](#e18) | Replace the class's whole section list. For setup — "Grade 7 has A, B, C, D" in one call. Must refuse to drop a section anything already references. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t19"></a>19 | [`PATCH /classes/{id}/sections/{sectionNo}`](#e19) | Change a section's capacity or class teacher. **Never its `sectionNo`.** | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t20"></a>20 | [`POST /classes/{id}/sections/{sectionNo}/deactivate`](#e20) | Stop using a section without removing it. This is what a school does with a section that has emptied out, and it is the **only** way to retire one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -298,7 +302,7 @@ section exists, so sections come before everything that is merely useful.
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
-| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, 17, ~~28~~, 29, 30 |
+| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, 29, 30 — **phase 1 is done bar the two reads** |
 | **2** | Subjects are assigned, so marks and registers have something to be about | 22, 24, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
@@ -414,18 +418,18 @@ programme". None of the three is reachable:
 
 | Reference | Collection | Repository |
 |---|---|---|
-| `ClassSection.classTeacherDocsId`, `ClassSubject.teacherDocsIds` | `staff` | **none** |
+| `ClassSection.classTeacherDocsId`, `ClassSubject.teacherDocsIds` | `staff` | `StaffRepository` — **built 2026-09-11 with #17** |
 | `ClassSubject.gradingSchemeDocsId` | `grading_schemes` | **none** |
 | `SchoolClass.affiliationProgrammeDocsId` | `affiliation_programmes` | `AffiliationProgrammeRepository` — **built 2026-09-10 with #12** |
 
-**One of the three is done.** `AffiliationProgrammeRepository.findByIdAndSchoolId` was written with
-#12, so #12 and #13 do check the programme — and a *real* id belonging to another school is a
-`404`, which is the case worth testing and the one a plain `findById` would have accepted. Both
-endpoints have a test for exactly that, because a mutation swapping the lookup for `findById` left
-every other assertion green.
+**Two of the three are done.** `AffiliationProgrammeRepository` came with #12 and
+`StaffRepository` with #17, both as `findByIdAndSchoolId` — so a *real* id belonging to another
+school is a `404`, which is the case worth testing and the one a plain `findById` would have
+accepted. Every endpoint using them has a test for exactly that, because in both cases a mutation
+swapping the lookup for `findById` left every other assertion green.
 
-The two that remain block #17, #19, #22, #23 and #25: they cannot check that a staff id belongs to
-this school, or exists.
+**`grading_schemes` is the one left**, and it blocks the same check on #22's and #24's
+`gradingSchemeDocsId`. One interface, one method, when those are built.
 Two honest options, and one dishonest one:
 
 - **Build the three repositories** as part of phase 1. Each is one interface plus a
@@ -826,13 +830,19 @@ Every write here is a positional update on **`school_classes`**. A section is em
 no section document to write — the document saved is always its class.
 
 <a id="e17"></a>
-**[17](#t17) · `POST /classes/{id}/sections`**
+**[17](#t17) · `POST /classes/{id}/sections`** — built
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — the new one must not already be there, `active` or not
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of `classTeacherDocsId` — **cannot be checked today**, no repository. A teacher id from another school would be accepted.
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: appends to `sections[]` — `sectionNo`, `classTeacherDocsId`, `capacity`, `active` = `true`
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. Unreachable through HTTP as on #12 and #13, and kept for the same reason.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}`, then `sections[].sectionNo` — the new one must not already be there, `active` or not
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence **and `schoolId`** of `classTeacherDocsId`, when one is sent. `StaffRepository` was created with this endpoint — the second of the three the README listed as missing — so another school's *real* staff id is a `404` rather than silently accepted as this class's teacher.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: appends to `sections[]` — `sectionNo` trimmed, `classTeacherDocsId`, `capacity`, `active` = `true`
 - **The endpoint the `student` module is waiting for.** `StudentAcademicRecord.sectionNo` has nothing to point at until this runs.
-- **A duplicate is `409 SECTION_ALREADY_EXISTS`, checked in the service.** Mongo cannot enforce uniqueness *inside* an array, so nothing but this check stands between the class and two sections both called `A`.
+- **A duplicate is `409 SECTION_ALREADY_EXISTS`, checked in the service, and that check is the only guard there is.** Mongo cannot enforce uniqueness *inside* an array, so unlike a class name there is no index to fall back on if the check is ever removed — a mutation test that deletes it is the only thing that notices.
+- **Checked case-insensitively, stored as typed.** "A" and "a" in one class is a typo every time, not two sections, and the two would be indistinguishable on screen. But `sectionNo` is the display value as well as the reference, so what a school typed is what is kept — a school naming its sections "Blue" and "Red" is not making a mistake, and no shape is imposed.
+- **The document written is the class.** A section is embedded: no collection, no id, no `schoolId` of its own. Which is also why `sectionNo` can never change — eight collections store it as a plain string and there is no id for them to reference instead.
+- **The response is the class's whole section list**, not the one row added — the same shape every calendar endpoint in `core` returns for a holiday, and what #30 will return for a read. `activeCount` sits beside `sectionCount` because a retired section still holds its number and still appears.
+- **`capacity` is a plan, not a limit.** Nothing enforces it; this module cannot count students. `0` is a `400` — a section nobody can be placed in is not a section — and absent means no plan was recorded, which is different from a plan of zero.
+- **Nothing else about the class moves.** Name, subjects and `active` are untouched, and there is a test that says so.
 
 <a id="e18"></a>
 **[18](#t18) · `PUT /classes/{id}/sections`**
