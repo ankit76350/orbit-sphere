@@ -9881,6 +9881,251 @@ is running.
         },
       ],
     },
+    {
+      id: "update-class-subject",
+      name: "Update Subject",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/classes/{id}/subjects/{subjectCode}",
+      status: 'live',
+      summary: "Edits one assignment's name, short name, type or grading scheme.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/classes/{id}/subjects/{subjectCode}?sectionNo=\` — endpoint #24.
+
+### The pair is the address, and only one half is in the path
+
+\`subjectCode\` is a path segment; \`sectionNo\` is a query parameter. They are split because one
+is usually absent — a class-wide subject has no section, and the ordinary case should not have to
+send an empty path segment. **\`?sectionNo=\` blank reads the same as leaving it off.**
+
+Both halves are matched case-insensitively, and the code is normalised the way #22 stored it, so
+the URL that created \`maths-2\` finds \`MATHS_2\`. An endpoint that refused the spelling its own
+create call accepted would be a trap.
+
+### A 404 tells you which way round the subject actually is
+
+#22 forbids a subject being class-wide *and* per-section, so at most one of the two exists.
+Asking for the wrong one answers \`404 SUBJECT_NOT_FOUND\` **with the fix in the message** — "drop
+\`?sectionNo=\`" or "use \`?sectionNo=A\`". A bare not-found would be true and useless: the caller
+would think the assignment had been deleted.
+
+### Four fields, and the ones missing are the point
+
+\`name\`, \`shortName\`, \`subjectType\`, \`gradingSchemeDocsId\`. Everything else is deliberately
+absent from the request record:
+
+- **Not \`subjectCode\` and not \`sectionNo\`** — together they are the key. Seven collections store
+  the code as a plain string and a subject row has no id, so a rename would not fail, would not
+  cascade, and would leave every stored string naming an assignment that no longer answers to it.
+  **Moving an assignment between sections is #26 then #22**, which reads correctly as history.
+- **Not \`teacherDocsIds\`** — that is #25. Two endpoints writing one array is how a duplicate id
+  gets in.
+- **Not \`active\`** — that is #26 and #27. Retiring a subject is an event, not a flag to toggle.
+
+Sending any of them is **ignored, not refused** — the ordinary shape for a \`PATCH\` body.
+
+### What "" clears, and what it refuses
+
+\`shortName: ""\` and \`gradingSchemeDocsId: ""\` clear. \`name: ""\` is
+\`400 SUBJECT_NAME_REQUIRED\` — the model requires a name and it is the only thing on the row a
+person reads. Clearing the scheme is **not "no grading"**: the resolution order falls through to
+\`Exam.gradingSchemeDocsId\`, so it hands the decision back to the exam.
+
+**An empty body is \`400 NOTHING_TO_UPDATE\`**, never a 200 — same rule as #13, so a client with a
+broken form finds out.
+
+### The gates
+
+Same three as every write here — **1** school ACTIVE · **2** subscription usable · **4** the year
+is running.
+
+### The thirteen test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain, a year, a class id, and a subject from Add Subject.
+
+ THE PAIR IS THE ADDRESS. subjectCode in the path, sectionNo in the query.
+ Leave sectionNo off for the class-wide row; blank reads the same as off.
+ The code is normalised, so the URL that created "maths-2" finds MATHS_2.
+
+ A 404 SAYS WHICH WAY ROUND IT IS. #22 forbids both at once, so asking the
+ wrong way gets "drop ?sectionNo=" or "use ?sectionNo=A" in the message.
+
+ FOUR FIELDS ONLY. Not subjectCode or sectionNo — they are the key, and a
+ move is #26 then #22. Not teacherDocsIds — that is #25. Not active — that
+ is #26 and #27. Sending them is IGNORED, not refused.
+
+ "" CLEARS shortName AND gradingSchemeDocsId. "" ON name IS A 400.
+ Clearing the scheme falls back to the exam's, which is not "no grading".
+
+ AN EMPTY BODY IS A 400, not a no-op 200.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+        { name: "subjectCode", value: "MATHEMATICS", description: "Normalised the way #22 stored it — maths-2 finds MATHS_2." },
+      ],
+      queryParams: [
+        { key: "sectionNo", value: "", enabled: false, description: "Which row: absent or blank is the class-wide one, a value is that section's. Matched case-insensitively." },
+      ],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Mathematics (Core)"
+}`,
+      successStatus: 200,
+      successNote: "Returns the class's whole subject list, the same shape Add Subject answers with.",
+      responseFields: ["schoolClassId", "className", "academicYear", "subjectCount", "activeCount", "subjects", "changeSummary"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "The body is empty, or every field in it is null." },
+        { status: 400, code: "SUBJECT_NAME_REQUIRED", when: 'name is "" or only spaces. A name cannot be removed, only replaced.' },
+        { status: 400, code: "VALIDATION_FAILED", when: "A name over 120, a short name over 40, or a subjectType outside the five." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "SUBJECT_NOT_FOUND", when: "No row for that (subjectCode, sectionNo) pair. The message says which way round the subject IS, when it is on the class the other way." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No such grading scheme in this school, including another school's real id." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "RENAME THE CLASS-WIDE ROW",
+          expect: "200 OK",
+          notes: `The body above, with no sectionNo.
+    OUT: the class's WHOLE subject list, like #22 answers.
+    The short name, type, teachers, scheme and active flag are untouched.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "ALL FOUR FIELDS AT ONCE",
+          expect: "200 OK",
+          notes: `Everything this endpoint can change, in one call.`,
+          body: `{
+  "name": "Mathematics",
+  "shortName": "Mth",
+  "subjectType": "ELECTIVE",
+  "gradingSchemeDocsId": "67aa15d9dc3f7d0033333333"
+}`,
+        },
+        {
+          id: "03",
+          name: "ONE SECTION'S ROW",
+          expect: "200 OK",
+          notes: `?sectionNo=A with a subject assigned to section A.
+    OUT: only that row changed — section B's row for the same code is
+    untouched, which is what the pair being the key means.`,
+          body: `{
+  "name": "Hindi (Section A)"
+}`,
+        },
+        {
+          id: "04",
+          name: "THE SECTION IN LOWER CASE",
+          expect: "200 OK",
+          notes: `?sectionNo=a finds section A's row. Matched case-insensitively,
+    and the stored sectionNo never changes.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A BLANK SECTION PARAMETER",
+          expect: "200 OK",
+          notes: `?sectionNo= with nothing after it reaches the CLASS-WIDE row —
+    the same as leaving the parameter off entirely.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "THE CODE AS IT WAS TYPED INTO #22",
+          expect: "200 OK",
+          notes: `Add a subject with subjectCode "maths-2", then PATCH .../maths-2.
+    It is normalised to MATHS_2 and found. The create URL is a valid edit URL.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "ASKING FOR A SECTION WHEN IT IS CLASS-WIDE",
+          expect: "404 Not Found",
+          notes: `?sectionNo=A on a subject assigned to the whole class.
+    OUT: { "code": "SUBJECT_NOT_FOUND" }
+    The message says "drop ?sectionNo=" — #22 forbids both at once, so the
+    row it is asking about cannot exist.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "ASKING CLASS-WIDE WHEN IT IS PER-SECTION",
+          expect: "404 Not Found",
+          notes: `No sectionNo, on a subject assigned to section A.
+    OUT: the message names the section to use — "use ?sectionNo=A".`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "CLEARING THE OPTIONAL FIELDS",
+          expect: "200 OK",
+          notes: `"" removes both. Clearing the scheme is not "no grading" — the
+    resolution order falls through to Exam.gradingSchemeDocsId.`,
+          body: `{
+  "shortName": "",
+  "gradingSchemeDocsId": ""
+}`,
+        },
+        {
+          id: "10",
+          name: "CLEARING THE NAME",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "SUBJECT_NAME_REQUIRED" }
+    Refused rather than cleared — the model requires a name, and it is the
+    only thing on the row a person reads. Only spaces is the same refusal.`,
+          body: `{
+  "name": ""
+}`,
+        },
+        {
+          id: "11",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }
+    A PATCH that changes nothing and answers 200 lets a client with a broken
+    form look healthy. An all-null body is the same refusal.`,
+          body: `{}`,
+        },
+        {
+          id: "12",
+          name: "THE FIELDS THIS ENDPOINT WILL NOT CHANGE",
+          expect: "200 OK",
+          notes: `Sent alongside a real edit. All four are IGNORED, not refused —
+    the code and section are the key, teachers are #25, active is #26/#27.
+    OUT: only name changed; no RENAMED row appeared, the teachers survived.`,
+          body: `{
+  "subjectCode": "RENAMED",
+  "sectionNo": "A",
+  "teacherDocsIds": [],
+  "active": false,
+  "name": "Only this one lands"
+}`,
+        },
+        {
+          id: "13",
+          name: "ANOTHER SCHOOL'S GRADING SCHEME",
+          expect: "404 Not Found",
+          notes: `A REAL grading scheme id belonging to a different school.
+    OUT: { "code": "GRADING_SCHEME_NOT_FOUND" } — the lookup carries schoolId.
+    A refused scheme leaves the row exactly as it was.`,
+          body: `{
+  "gradingSchemeDocsId": "67aa15d9dc3f7d0044444444"
+}`,
+        },
+      ],
+    },
   ],
 };
 

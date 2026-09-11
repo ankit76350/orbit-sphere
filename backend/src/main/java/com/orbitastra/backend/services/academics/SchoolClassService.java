@@ -19,6 +19,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreat
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectCreateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
@@ -633,5 +634,128 @@ public class SchoolClassService {
                 subjectCode + " added to '" + saved.getName() + "'"
                         + (sectionNo == null ? " for every section" : " for section " + sectionNo)
                         + ". " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #24 — change one assignment's name, short name, type or grading scheme.
+     *
+     * <p><b>The row is found by the pair, never by the code alone.</b> {@code MATHEMATICS} may be
+     * on the class twice — once class-wide, once for a section — and an edit that matched the
+     * first row it found would silently rewrite whichever happened to be stored first.
+     */
+    public SubjectListResponse updateSubject(String academicYear, String classId,
+            String subjectCodeInPath, String sectionNoInQuery, SubjectUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, before reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, shortName, subjectType or gradingSchemeDocsId.");
+        }
+
+        //! step 3 - the year, then the class, in that order. A bad year says so rather than
+        //! answering CLASS_NOT_FOUND, which is true and says the wrong thing about what is wrong.
+        //!
+        //! THIS CHECK CANNOT FIRE THROUGH THE CONTROLLER, and it is kept anyway. Gate 4 loads the
+        //! year by name and 404s first, so the two are indistinguishable from outside - measured
+        //! 2026-09-11 by removing each in turn: with gate 4 alone, or this alone, an unknown year
+        //! is ACADEMIC_YEAR_NOT_FOUND; with NEITHER it becomes CLASS_NOT_FOUND, which is the
+        //! wrong answer. A mutation that deletes this line therefore passes every black-box test.
+        //! Do not "clean it up": it is what makes the service right when called from anywhere
+        //! that is not this controller.
+        String year = utils.requireAcademicYear(school, academicYear);
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
+
+        //! step 4 - the key, normalised the same way #22 stored it. Without this, the URL that
+        //! created a subject would not find it: #22 stores "maths-2" as MATHS_2.
+        String subjectCode = TextHelper.toCode(subjectCodeInPath, 40);
+        String sectionNo = TextHelper.blankToNull(sectionNoInQuery);
+
+        //! step 5 - the one row that pair names. Blank ?sectionNo= is the same as leaving it off:
+        //! the class-wide row, which is the ordinary case and should not need the parameter.
+        List<ClassSubject> subjects = schoolClass.getSubjects() == null
+                ? new ArrayList<>()
+                : schoolClass.getSubjects();
+
+        ClassSubject subject = subjects.stream()
+                .filter(one -> one.getSubjectCode() != null
+                        && one.getSubjectCode().equalsIgnoreCase(subjectCode)
+                        && (sectionNo == null
+                                ? one.getSectionNo() == null
+                                : one.getSectionNo() != null
+                                        && one.getSectionNo().equalsIgnoreCase(sectionNo)))
+                .findFirst()
+                .orElseThrow(() -> {
+                    // The subject may well be on the class the OTHER way round — #22 forbids
+                    // both at once, so at most one exists. "Not found" is true and unhelpful on
+                    // its own; saying which one does exist is the difference between a caller
+                    // fixing the URL and a caller thinking the assignment is gone.
+                    String otherWayRound = subjects.stream()
+                            .filter(one -> one.getSubjectCode() != null
+                                    && one.getSubjectCode().equalsIgnoreCase(subjectCode))
+                            .findFirst()
+                            .map(one -> one.getSectionNo() == null
+                                    ? " It is assigned to the whole class — drop ?sectionNo= to"
+                                            + " edit that row."
+                                    : " It is assigned to section " + one.getSectionNo()
+                                            + " — use ?sectionNo=" + one.getSectionNo() + ".")
+                            .orElse("");
+
+                    return ApiException.notFound("SUBJECT_NOT_FOUND",
+                            "'" + schoolClass.getName() + "' has no " + subjectCode
+                                    + (sectionNo == null
+                                            ? " assigned to the whole class."
+                                            : " assigned to section " + sectionNo + ".")
+                                    + otherWayRound);
+                });
+
+        //! step 6 - the name. Blank is refused rather than clearing, because the model requires
+        //! one and it is the only thing on the row a person reads.
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("SUBJECT_NAME_REQUIRED",
+                        "A subject name cannot be removed. Send a new one, or omit the field.");
+            }
+            subject.setName(newName);
+        }
+
+        //! step 7 - the short name. "" removes it; absent leaves it alone.
+        if (request.shortName() != null) {
+            subject.setShortName(TextHelper.blankToNull(request.shortName()));
+        }
+
+        //! step 8 - the type. An enum, so Jackson has already refused anything outside the five,
+        //! and there is no way to send a blank one - which is right: the model requires it.
+        if (request.subjectType() != null) {
+            subject.setSubjectType(request.subjectType());
+        }
+
+        //! step 9 - the grading scheme. "" hands the decision back to the exam; a value is
+        //! checked with schoolId in the query, because another school's id is real.
+        if (request.gradingSchemeDocsId() != null) {
+            String schemeId = TextHelper.blankToNull(request.gradingSchemeDocsId());
+            if (schemeId != null) {
+                // TODO: read grading scheme
+                gradingSchemes.findByIdAndSchoolId(schemeId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound("GRADING_SCHEME_NOT_FOUND",
+                                "No grading scheme with id '" + schemeId + "' in this school."));
+            }
+            subject.setGradingSchemeDocsId(schemeId);
+        }
+
+        //! step 10 - save. The row was edited in place, so the list is already the new one.
+        schoolClass.setSubjects(subjects);
+        // TODO: update school class (edit one subject)
+        SchoolClass saved = schoolClasses.save(schoolClass);
+
+        return SubjectListResponse.fromSchoolClass(saved,
+                subjectCode + (sectionNo == null ? " (whole class)" : " (section " + sectionNo + ")")
+                        + " updated in '" + saved.getName() + "'. The code, the section and the "
+                        + "teachers are untouched — the first two are the key, and the teachers "
+                        + "are #25. " + NO_AUTHORIZATION_YET);
     }
 }

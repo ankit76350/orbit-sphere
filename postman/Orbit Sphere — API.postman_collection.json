@@ -3554,6 +3554,67 @@
               }
             },
             {
+              "name": "Update Subject",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+                      "pm.test('the whole subject list came back', () => pm.expect(b).to.have.property('subjects'));",
+                      "pm.test('subjectCount came back', () => pm.expect(b).to.have.property('subjectCount'));",
+                      "pm.test('the summary says the key was left alone', () => pm.expect(b.changeSummary).to.include('key'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Mathematics (Core)\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/academic-years/{year}/classes/{id}/subjects/{subjectCode}?sectionNo=\n// Needs X-School-Subdomain, a year, a class id, and a subject from Add Subject.\n//\n//  THE PAIR IS THE ADDRESS. subjectCode in the path, sectionNo in the query.\n//  Leave sectionNo off for the class-wide row; blank reads the same as off.\n//  The code is normalised, so the URL that created \"maths-2\" finds MATHS_2.\n//\n//  A 404 SAYS WHICH WAY ROUND IT IS. #22 forbids both at once, so asking the\n//  wrong way gets \"drop ?sectionNo=\" or \"use ?sectionNo=A\" in the message.\n//\n//  FOUR FIELDS ONLY. Not subjectCode or sectionNo — they are the key, and a\n//  move is #26 then #22. Not teacherDocsIds — that is #25. Not active — that\n//  is #26 and #27. Sending them is IGNORED, not refused.\n//\n//  \"\" CLEARS shortName AND gradingSchemeDocsId. \"\" ON name IS A 400.\n//  Clearing the scheme falls back to the exam's, which is not \"no grading\".\n//\n//  AN EMPTY BODY IS A 400, not a no-op 200.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  RENAME THE CLASS-WIDE ROW                          -> 200 OK\n//     The body above, with no sectionNo.\n//     OUT: the class's WHOLE subject list, like #22 answers.\n//     The short name, type, teachers, scheme and active flag are untouched.\n// -------------------------------------------------------------------------\n// 02  ALL FOUR FIELDS AT ONCE                            -> 200 OK\n//     Everything this endpoint can change, in one call.\n//\n//     {\n//       \"name\": \"Mathematics\",\n//       \"shortName\": \"Mth\",\n//       \"subjectType\": \"ELECTIVE\",\n//       \"gradingSchemeDocsId\": \"67aa15d9dc3f7d0033333333\"\n//     }\n// -------------------------------------------------------------------------\n// 03  ONE SECTION'S ROW                                  -> 200 OK\n//     ?sectionNo=A with a subject assigned to section A.\n//     OUT: only that row changed — section B's row for the same code is\n//     untouched, which is what the pair being the key means.\n//\n//     {\n//       \"name\": \"Hindi (Section A)\"\n//     }\n// -------------------------------------------------------------------------\n// 04  THE SECTION IN LOWER CASE                          -> 200 OK\n//     ?sectionNo=a finds section A's row. Matched case-insensitively, and\n//     the stored sectionNo never changes.\n// -------------------------------------------------------------------------\n// 05  A BLANK SECTION PARAMETER                          -> 200 OK\n//     ?sectionNo= with nothing after it reaches the CLASS-WIDE row — the\n//     same as leaving the parameter off entirely.\n// -------------------------------------------------------------------------\n// 06  THE CODE AS IT WAS TYPED INTO #22                  -> 200 OK\n//     Add a subject with subjectCode \"maths-2\", then PATCH .../maths-2.\n//     It is normalised to MATHS_2 and found. The create URL is a valid\n//     edit URL.\n// -------------------------------------------------------------------------\n// 07  ASKING FOR A SECTION WHEN IT IS CLASS-WIDE         -> 404 Not Found\n//     ?sectionNo=A on a subject assigned to the whole class.\n//     OUT: { \"code\": \"SUBJECT_NOT_FOUND\" }\n//     The message says \"drop ?sectionNo=\" — #22 forbids both at once, so\n//     the row it is asking about cannot exist.\n// -------------------------------------------------------------------------\n// 08  ASKING CLASS-WIDE WHEN IT IS PER-SECTION           -> 404 Not Found\n//     No sectionNo, on a subject assigned to section A.\n//     OUT: the message names the section to use — \"use ?sectionNo=A\".\n// -------------------------------------------------------------------------\n// 09  CLEARING THE OPTIONAL FIELDS                       -> 200 OK\n//     \"\" removes both. Clearing the scheme is not \"no grading\" — the\n//     resolution order falls through to Exam.gradingSchemeDocsId.\n//\n//     {\n//       \"shortName\": \"\",\n//       \"gradingSchemeDocsId\": \"\"\n//     }\n// -------------------------------------------------------------------------\n// 10  CLEARING THE NAME                                  -> 400 Bad Request\n//     OUT: { \"code\": \"SUBJECT_NAME_REQUIRED\" }\n//     Refused rather than cleared — the model requires a name, and it is\n//     the only thing on the row a person reads. Only spaces is the same.\n//\n//     {\n//       \"name\": \"\"\n//     }\n// -------------------------------------------------------------------------\n// 11  AN EMPTY BODY                                      -> 400 Bad Request\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that changes nothing and answers 200 lets a client with a\n//     broken form look healthy. An all-null body is the same refusal.\n//\n//     {}\n// -------------------------------------------------------------------------\n// 12  THE FIELDS THIS ENDPOINT WILL NOT CHANGE           -> 200 OK\n//     Sent alongside a real edit. All four are IGNORED, not refused — the\n//     code and section are the key, teachers are #25, active is #26/#27.\n//     OUT: only name changed; no RENAMED row appeared, teachers survived.\n//\n//     {\n//       \"subjectCode\": \"RENAMED\",\n//       \"sectionNo\": \"A\",\n//       \"teacherDocsIds\": [],\n//       \"active\": false,\n//       \"name\": \"Only this one lands\"\n//     }\n// -------------------------------------------------------------------------\n// 13  ANOTHER SCHOOL'S GRADING SCHEME                    -> 404 Not Found\n//     A REAL grading scheme id belonging to a different school.\n//     OUT: { \"code\": \"GRADING_SCHEME_NOT_FOUND\" } — the lookup carries\n//     schoolId. A refused scheme leaves the row exactly as it was.\n//\n//     {\n//       \"gradingSchemeDocsId\": \"67aa15d9dc3f7d0044444444\"\n//     }\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                The body is empty, or every field in it is null.\n//     400 SUBJECT_NAME_REQUIRED            name is \"\" or only spaces. A name cannot be removed, only replaced.\n//     400 VALIDATION_FAILED                A name over 120, a short name over 40, or a subjectType outside the five.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.\n//     404 SUBJECT_NOT_FOUND                No row for that (subjectCode, sectionNo) pair. The message says which way round the subject IS.\n//     404 GRADING_SCHEME_NOT_FOUND         No such grading scheme in this school, including another school's real id.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended.\n//     409 ACADEMIC_YEAR_NOT_RUNNING        Gate 4 — the year was ended by POST .../end."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}/subjects/MATHEMATICS",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "classes",
+                    "{{schoolClassId}}",
+                    "subjects",
+                    "MATHEMATICS"
+                  ],
+                  "query": [
+                    {
+                      "key": "sectionNo",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Which row: absent or blank is the class-wide one, a value is that section's. Matched case-insensitively."
+                    }
+                  ]
+                },
+                "description": "Endpoint #24 — change one assignment's display name, short name, type or grading scheme. Not subjectCode and not sectionNo: together they are the key."
+              }
+            },
+            {
               "name": "List Classes",
               "event": [
                 {

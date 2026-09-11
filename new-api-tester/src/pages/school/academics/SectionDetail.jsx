@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, Plus, RefreshCw, Users } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, Plus, RefreshCw, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field } from '../../../components/ui/Kit.jsx'
 import AddSubject from './AddSubject.jsx'
+import EditSubject from './EditSubject.jsx'
 import { detailPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
@@ -54,6 +55,7 @@ export default function SectionDetail() {
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [editingSubject, setEditingSubject] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -212,6 +214,7 @@ export default function SectionDetail() {
                   <th>Applies</th>
                   <th>Teachers</th>
                   <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -234,6 +237,9 @@ export default function SectionDetail() {
                         {one.active ? 'active' : 'retired'}
                       </Badge>
                     </td>
+                    <td>
+                      <Button icon={Pencil} onClick={() => setEditingSubject(one)}>Edit</Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -249,6 +255,18 @@ export default function SectionDetail() {
 
       {/* Fixed to this section: a subject assigned from a section's page is that section's,
           and the modal hides the box rather than pre-filling one that could be edited away. */}
+      {/* A class-wide row edited from here is edited class-wide — the modal takes the row's own
+          sectionNo, which for that row is absent. Editing it in one section would change it for
+          every section, and pretending otherwise is how a screen lies about what it did. */}
+      <EditSubject
+        open={editingSubject != null}
+        classId={id}
+        year={actingAcademicYear}
+        subject={editingSubject}
+        onClose={() => setEditingSubject(null)}
+        onSaved={() => load()}
+      />
+
       <AddSubject
         open={assigning}
         classId={id}

@@ -266,7 +266,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 |---|---|---|---|
 | <a id="t22"></a>22 — **built** | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t23"></a>23 | [`PUT /classes/{id}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t24"></a>24 | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t24"></a>24 — **built** | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t25"></a>25 | [`PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t26"></a>26 | [`POST /classes/{id}/subjects/{subjectCode}/deactivate?sectionNo=`](#e26) | A subject this class has stopped teaching. Deactivated, not removed, because seven collections store `subjectCode`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t27"></a>27 | [`POST /classes/{id}/subjects/{subjectCode}/reactivate?sectionNo=`](#e27) | Put it back. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -306,7 +306,7 @@ section exists, so sections come before everything that is merely useful.
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
-| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, 24, 31 |
+| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
@@ -909,13 +909,18 @@ in #22 is what keeps them from becoming data problems.
 - **The only endpoint that sees the whole list**, so the only one that can catch a duplicate pair *within the body* rather than against what is stored.
 
 <a id="e24"></a>
-**[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`**
+**[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `404 SUBJECT_NOT_FOUND` otherwise
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` when sent — `GradingSchemeRepository` exists, so this is checkable
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` with `schoolId` in the query when a value is sent — `404 GRADING_SCHEME_NOT_FOUND`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].name`, `subjects[…].shortName`, `subjects[…].subjectType`, `subjects[…].gradingSchemeDocsId`
-- **Never `subjectCode` and never `sectionNo`** — both are the key. Moving an assignment to another section is #26 on the old row plus #22 on the new one, and the history reads correctly that way.
-- **Not `teacherDocsIds` either** — that is #25, because it replaces a list rather than setting a field.
+- **Never `subjectCode` and never `sectionNo`** — both are the key. Moving an assignment to another section is #26 on the old row plus #22 on the new one, and the history reads correctly that way. Neither has a field in the request record, so sending one is ignored rather than refused — the ordinary shape for a `PATCH` body.
+- **Not `teacherDocsIds` either** — that is #25, because it replaces a list rather than setting a field. Nor `active`: that is #26 and #27, because retiring a subject is an event rather than a flag.
+- **The section half of the key is a query parameter, not a path segment**, because it is usually absent: a class-wide subject has no section, and the ordinary case should not need an empty segment. `?sectionNo=` blank reads the same as leaving it off.
+- **The code in the path is normalised the way #22 stored it**, so the URL that created `maths-2` finds `MATHS_2`. Without that the endpoint would refuse the spelling its own create call accepted.
+- **A 404 says which way round the subject actually is.** #22 forbids a subject being both class-wide and per-section, so at most one exists — asking for the wrong one gets "drop `?sectionNo=`" or "use `?sectionNo=A`" rather than a bare not-found, which is true and useless.
+- **`""` clears `shortName` and `gradingSchemeDocsId`; `""` on `name` is `400 SUBJECT_NAME_REQUIRED`.** Clearing the scheme is not "no grading" — the resolution order falls through to `Exam.gradingSchemeDocsId`.
+- **An empty body is `400 NOTHING_TO_UPDATE`**, not a 200, so a client with a broken form finds out. Same rule as #13.
 
 <a id="e25"></a>
 **[25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`**

@@ -3159,7 +3159,7 @@ classChecks.push(
 // #22 — assigning a subject. THE ENDPOINT THAT SETTLED THE RULE the module plan left open:
 // class-wide OR per-section, never both. Everything below guards that rule staying stated.
 const subjectEntry = classCatalogue.slice(classCatalogue.indexOf('add-class-subject'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+  classCatalogue.indexOf('update-class-subject'))
 const addSubjectScreen = readFileSync('src/pages/school/academics/AddSubject.jsx', 'utf8')
 classChecks.push(
   ['#22 posts to the class\'s subjects',
@@ -3231,6 +3231,90 @@ classChecks.push(
       && sectionScreen.includes('onAdded={() => load()}')],
   ['neither page still claims #22 is unbuilt',
     !classDetailScreen.includes('is not built') && !sectionScreen.includes('#22 assigns a subject and is not built')],
+)
+
+
+// #24 — editing one assignment. THE PAIR IS THE ADDRESS, and the guards below exist because a
+// lookup by subjectCode alone passes every other test on a class that has the code only once.
+const subjectEditEntry = classCatalogue.slice(classCatalogue.indexOf('update-class-subject'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+const editSubjectScreen = readFileSync('src/pages/school/academics/EditSubject.jsx', 'utf8')
+classChecks.push(
+  ['#24 patches one subject of a class',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/subjects\/{subjectCode}"/
+      .test(subjectEditEntry) && subjectEditEntry.includes('method: "PATCH"')],
+  ['it answers 200, not 201', subjectEditEntry.includes('successStatus: 200')],
+  ['nothing in the body is required', subjectEditEntry.includes('requiredFields: []')],
+  ['the section half is a QUERY parameter, not a path segment',
+    subjectEditEntry.includes('key: "sectionNo"')
+      && !/path: "[^"]*{sectionNo}"/.test(subjectEditEntry)],
+  ['and blank is documented as the same as absent',
+    subjectEditEntry.includes('absent or blank is the class-wide one')],
+  ['it returns the whole subject list, like #22',
+    ['"subjectCount"', '"subjects"', '"changeSummary"'].every((f) => subjectEditEntry.includes(f))],
+
+  // The four fields it will NOT touch, each with the endpoint that does.
+  ['the key is documented as unchangeable',
+    subjectEditEntry.includes('together they are the key')],
+  ['a move is named as #26 then #22', subjectEditEntry.includes('#26 then #22')],
+  ['teachers are handed to #25', subjectEditEntry.includes('that is #25')],
+  ['the active flag is handed to #26 and #27', subjectEditEntry.includes('#26 and #27')],
+  ['sending them is documented as ignored rather than refused',
+    subjectEditEntry.includes('ignored, not refused')],
+  ['and there is a case that proves it', subjectEditEntry.includes('THE FIELDS THIS ENDPOINT WILL NOT CHANGE')],
+
+  ['the 404 is documented as saying which way round the subject is',
+    subjectEditEntry.includes('which way round the subject actually is')],
+  ['both directions of that 404 are cases',
+    subjectEditEntry.includes('ASKING FOR A SECTION WHEN IT IS CLASS-WIDE')
+      && subjectEditEntry.includes('ASKING CLASS-WIDE WHEN IT IS PER-SECTION')],
+  ['the path code is documented as normalised, with the create URL as the reason',
+    subjectEditEntry.includes('maths-2') && subjectEditEntry.includes('MATHS_2')],
+  ['what "" clears and what it refuses is documented',
+    subjectEditEntry.includes('SUBJECT_NAME_REQUIRED') && subjectEditEntry.includes('NOTHING_TO_UPDATE')],
+  ['clearing the scheme is documented as NOT "no grading"',
+    subjectEditEntry.includes('not "no grading"') || subjectEditEntry.includes("not \"no grading\"")],
+  ['every refusal is listed',
+    ['SUBJECT_NOT_FOUND', 'GRADING_SCHEME_NOT_FOUND', 'CLASS_NOT_FOUND', 'ACADEMIC_YEAR_NOT_FOUND']
+      .every((c) => subjectEditEntry.includes(c))],
+  ['all three gates are listed', ['SCHOOL_NOT_ACTIVE', 'SUBSCRIPTION_NOT_USABLE',
+    'ACADEMIC_YEAR_NOT_RUNNING'].every((c) => subjectEditEntry.includes(c))],
+
+  // The screen
+  ['both subject tables offer an edit',
+    classDetailScreen.includes('setEditingSubject(one)')
+      && sectionScreen.includes('setEditingSubject(one)')],
+  ['one modal serves both',
+    classDetailScreen.includes("import EditSubject from './EditSubject.jsx'")
+      && sectionScreen.includes("import EditSubject from './EditSubject.jsx'")],
+  ['the form sends #24', editSubjectScreen.includes("call('update-class-subject'")],
+  ['the WHOLE row is handed over, because the pair is the address',
+    classDetailScreen.includes('subject={editingSubject}')
+      && sectionScreen.includes('subject={editingSubject}')],
+  ['the query carries the row\'s own section, absent for a class-wide row',
+    editSubjectScreen.includes('subject?.sectionNo ? { sectionNo: subject.sectionNo } : {}')],
+  ['neither half of the key has a box',
+    !/Field[^]{0,200}label="Subject code"[^]{0,200}<Input/.test(editSubjectScreen)
+      && !/label="Section"[^]{0,120}<Input/.test(editSubjectScreen)],
+  ['the code and section are shown read-only instead of hidden',
+    editSubjectScreen.includes('Subject code') && editSubjectScreen.includes('Applies to')],
+  ['teachers and status are shown with the endpoint that changes them',
+    editSubjectScreen.includes('#25 changes these')
+      && editSubjectScreen.includes('#26 and #27 change this')],
+  // THE TESTER RULE: an untouched form must still be able to send {} and reach the 400.
+  ['it sends only what changed, so an untouched form reaches NOTHING_TO_UPDATE',
+    editSubjectScreen.includes('value !== initial[field]')],
+  ['and that is stated where someone would otherwise "fix" it',
+    editSubjectScreen.includes('SENDS ONLY WHAT CHANGED')],
+  ['nothing in the form is disabled', !/disabled/.test(editSubjectScreen)],
+  ['Select gets the value and Input gets the event',
+    editSubjectScreen.includes('onChange={setValue(')
+      && editSubjectScreen.includes('onChange={set(')],
+  ['the section page says a class-wide edit is class-wide',
+    sectionScreen.includes('edited from here is edited class-wide')],
+  ['both pages re-read after a save',
+    classDetailScreen.includes('onSaved={() => load()}')
+      && sectionScreen.includes('onSaved={() => load()}')],
 )
 
 for (const [label, ok] of classChecks) {

@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, Info, Plus, RefreshCw, Users } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Info, Pencil, Plus, RefreshCw, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import AddSubject from './AddSubject.jsx'
+import EditSubject from './EditSubject.jsx'
 import { childPath, screenPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * One class, at its own address: /school-academics/classes/{id}
  *
- * FOUR OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class with its sections and subjects,
- * #17 adds a section, #22 assigns a subject, and #30 reads the sections on their own. They are
- * together because they all answer questions about one class, and because a class with four
- * sections and ten subjects is more than a modal's worth of screen.
+ * FIVE OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class with its sections and subjects,
+ * #17 adds a section, #22 assigns a subject, #24 edits one, and #30 reads the sections on their
+ * own. They are together because they all answer questions about one class, and because a class
+ * with four sections and ten subjects is more than a modal's worth of screen.
  *
  * THE YEAR COMES FROM THE TOP BAR, NOT THE ADDRESS. A class id is globally unique, so the id
  * alone finds it — but the API scopes the lookup by year as well, deliberately, so that an id
@@ -42,6 +43,7 @@ export default function ClassDetail() {
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [editingSubject, setEditingSubject] = useState(null)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -234,11 +236,13 @@ export default function ClassDetail() {
                   <th>Applies to</th>
                   <th>Teachers</th>
                   <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {/* The row key is the PAIR, because one subjectCode may appear twice — once
-                    class-wide and once for a section with its own teacher. */}
+                    class-wide and once for a section with its own teacher. #24 is addressed
+                    by that same pair, which is why the whole row is handed to the editor. */}
                 {subjects.map((one) => (
                   <tr key={`${one.subjectCode}/${one.sectionNo ?? 'all'}`}>
                     <td><span className="mono">{one.subjectCode}</span></td>
@@ -253,6 +257,9 @@ export default function ClassDetail() {
                       <Badge tone={one.active ? 'good' : undefined}>
                         {one.active ? 'active' : 'retired'}
                       </Badge>
+                    </td>
+                    <td>
+                      <Button icon={Pencil} onClick={() => setEditingSubject(one)}>Edit</Button>
                     </td>
                   </tr>
                 ))}
@@ -278,6 +285,16 @@ export default function ClassDetail() {
         year={actingAcademicYear}
         onClose={() => setAssigning(false)}
         onAdded={() => load()}
+      />
+
+      {/* The whole row goes in, because #24 is addressed by the pair the row carries. */}
+      <EditSubject
+        open={editingSubject != null}
+        classId={id}
+        year={actingAcademicYear}
+        subject={editingSubject}
+        onClose={() => setEditingSubject(null)}
+        onSaved={() => load()}
       />
     </div>
   )
