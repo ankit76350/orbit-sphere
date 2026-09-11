@@ -41,6 +41,49 @@ public record SubjectListResponse(
         return fromSchoolClass(schoolClass, null);
     }
 
+    /**
+     * The read shape for #31 — the whole list, or what one section studies.
+     *
+     * <p><b>A section studies its own rows PLUS the class-wide ones.</b> A row with no
+     * {@code sectionNo} applies to every section, so matching {@code sectionNo} strictly would
+     * hide most of what a section is taught — in a class where only languages are split by
+     * section, it would hide everything else. The caller can still tell the two apart: a
+     * class-wide row has no {@code sectionNo} in the JSON at all.
+     *
+     * <p><b>This reads {@code sectionNo} differently from #24</b>, where the same parameter names
+     * one row by its key. Here it names an audience. Same word, two jobs, and the only reason it
+     * is spelled the same is that "which section" is the question in both cases.
+     *
+     * <p><b>The counts describe the whole class, not the filtered view</b> — the same rule
+     * {@link SectionListResponse#forRead} follows. "How many subjects does this class teach" is
+     * not "how many did you ask to see", and a screen showing 3 of 11 needs both numbers.
+     *
+     * @param sectionNo the section to answer for, already validated to exist, or null for all
+     */
+    public static SubjectListResponse forRead(SchoolClass schoolClass, String sectionNo) {
+        SubjectListResponse whole = fromSchoolClass(schoolClass, null);
+
+        if (sectionNo == null) {
+            return whole;
+        }
+
+        return new SubjectListResponse(
+                whole.schoolClassId(), whole.className(), whole.academicYear(),
+                whole.subjectCount(), whole.activeCount(),
+                whole.subjects().stream()
+                        // equalsIgnoreCase is a BACKSTOP, not the case handling. The service has
+                        // already resolved the caller's spelling to the class's own, so by the
+                        // time this runs the two match exactly - mutating this to equals() alone
+                        // breaks nothing, measured 2026-09-11. It is kept for a caller that does
+                        // not go through that resolution, and breaking BOTH layers does fail four
+                        // assertions. Do not remove it as dead: it is the half that still works
+                        // when the other is wrong.
+                        .filter(view -> view.sectionNo() == null
+                                || view.sectionNo().equalsIgnoreCase(sectionNo))
+                        .toList(),
+                null);
+    }
+
     public static SubjectListResponse fromSchoolClass(SchoolClass schoolClass,
             String changeSummary) {
 

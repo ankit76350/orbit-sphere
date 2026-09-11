@@ -10126,6 +10126,205 @@ is running.
         },
       ],
     },
+    {
+      id: "list-class-subjects",
+      name: "List Subjects",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/classes/{id}/subjects",
+      status: 'live',
+      summary: "The class's subjects, or the ones one section studies.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/classes/{id}/subjects?sectionNo=\` — endpoint #31.
+
+### ?sectionNo= names an audience, not a row
+
+**Leave it off** and the answer is every assignment the class holds. **Give it** and the answer is
+what that section is taught — **its own rows *and* the class-wide ones**, because a row with no
+\`sectionNo\` applies to every section.
+
+Blank reads the same as absent.
+
+### Why the union, and not a strict match
+
+In a class where only the languages are split by section, a strict \`sectionNo == "A"\` answer
+hides maths, science and everything else section A actually studies. On the test fixture, strict
+returns **2 of the 4** rows section A is taught.
+
+A class-wide row is still identifiable — it comes back with **no \`sectionNo\` field at all** — so
+a caller that genuinely wants the strict set can filter in one line. The union is the default
+because it is the answer to the question being asked.
+
+### This is the one place ?sectionNo= differs from #24
+
+On **#24** \`?sectionNo=A\` is half of a row's *key* — which row to edit. Here it is *taught to
+whom*. Same word, two jobs. It is documented at both ends rather than renamed, because "which
+section" is the honest reading of both.
+
+### An unknown section is a 404, not an empty-ish 200
+
+Without that check a typo answers with just the class-wide rows — **which looks exactly like a
+real section that has nothing of its own**, and there are real sections like that.
+\`?sectionNo=Z\` must not be indistinguishable from \`?sectionNo=C\`.
+
+### The counts describe the class, not the slice
+
+\`subjectCount\` stays 5 while 2 rows come back. The same rule #30 follows: "how many does this
+class teach" is not "how many did you ask to see". A screen showing 3 of 11 needs both numbers.
+
+### It reads the same document as #29
+
+Same \`findById\`, same rows — asserted directly in the test suite. That is not a defect, it is
+why the response shape is shared with #22 and #24. What this endpoint owns is **the question**,
+not the query: it is the one place that knows what a section studies, so every caller does not
+reimplement the union.
+
+### No gate runs on it
+
+A read, so a suspended or closed school still reads its own structure.
+
+### The eleven test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain, a year, and a class id.
+
+ ?sectionNo= NAMES AN AUDIENCE, NOT A ROW. Off or blank = every assignment
+ the class holds. Given = what that section is taught: ITS OWN ROWS PLUS
+ THE CLASS-WIDE ONES, because a row with no sectionNo applies to every one.
+
+ A STRICT MATCH WOULD HIDE MOST OF IT. On the fixture, strict returns 2 of
+ the 4 rows section A studies. A class-wide row has NO sectionNo field, so
+ a caller wanting the strict set can still filter in one line.
+
+ THIS IS THE ONE PLACE ?sectionNo= DIFFERS FROM #24, where it is half of a
+ row's key. Here it asks "taught to whom".
+
+ AN UNKNOWN SECTION IS A 404, not an empty-ish 200 — a typo would otherwise
+ look exactly like a real section with nothing of its own.
+
+ THE COUNTS DESCRIBE THE CLASS, NOT THE SLICE. subjectCount stays 5 while
+ 2 rows come back.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+      ],
+      queryParams: [
+        { key: "sectionNo", value: "", enabled: false, description: "Whose subjects: absent or blank is the whole class, a value is what that section studies — its own rows plus the class-wide ones. Matched case-insensitively. An unknown section is a 404." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Same shape Add Subject and Update Subject answer with, minus the changeSummary.",
+      responseFields: ["schoolClassId", "className", "academicYear", "subjectCount", "activeCount", "subjects"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "SECTION_NOT_FOUND", when: "The sectionNo sent is not a section of this class. Leave it out to read every subject the class teaches." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "EVERY SUBJECT THE CLASS TEACHES",
+          expect: "200 OK",
+          notes: `No parameters.
+    OUT: every row — class-wide and per-section alike, with subjectCount
+    and activeCount. No sections[]; that is #30's job.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "WHAT ONE SECTION STUDIES",
+          expect: "200 OK",
+          notes: `?sectionNo=A
+    OUT: section A's own rows AND every class-wide row. This is the whole
+    point of the endpoint — a strict match would hide most of it.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "ANOTHER SECTION DOES NOT SEE THE FIRST'S",
+          expect: "200 OK",
+          notes: `?sectionNo=B with a subject assigned only to A.
+    OUT: B's own rows and the class-wide ones. A's are absent.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A SECTION WITH NOTHING OF ITS OWN",
+          expect: "200 OK",
+          notes: `A section that has no per-section subject.
+    OUT: the class-wide rows, NOT an empty list. It studies them like any
+    other section — which is why an unknown section must be a 404 instead.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "THE CLASS-WIDE ROWS ARE STILL IDENTIFIABLE",
+          expect: "200 OK",
+          notes: `?sectionNo=A, then look at the rows.
+    Those with no sectionNo field are the class's; those carrying "A" are
+    the section's. One line of filtering gets the strict set if you want it.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "THE COUNTS DO NOT FOLLOW THE FILTER",
+          expect: "200 OK",
+          notes: `?sectionNo= a section with fewer rows than the class has.
+    subjects.length is 2 and subjectCount is still 5. Deliberate: "how many
+    does this class teach" is not "how many did you ask to see".`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "THE SECTION IN LOWER CASE",
+          expect: "200 OK",
+          notes: `?sectionNo=a finds section A. Matched case-insensitively, and
+    padding is trimmed.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "A BLANK PARAMETER",
+          expect: "200 OK",
+          notes: `?sectionNo= with nothing after it returns the WHOLE list —
+    the same as leaving the parameter off.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "A SECTION THE CLASS DOES NOT HAVE",
+          expect: "404 Not Found",
+          notes: `?sectionNo=Z
+    OUT: { "code": "SECTION_NOT_FOUND" }
+    Refused rather than answered, because the class-wide rows alone look
+    exactly like a real section that has nothing of its own.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "A CLASS WITH NO SUBJECTS",
+          expect: "200 OK",
+          notes: `OUT: subjects: [], subjectCount: 0. An empty list, never a 404 —
+    a class created by #12 and not yet filled by #22.`,
+          body: null,
+        },
+        {
+          id: "11",
+          name: "A SUSPENDED SCHOOL",
+          expect: "200 OK",
+          notes: `Suspend the school, then read.
+    No gate runs on a read: a school still sees its own structure when it
+    cannot change it.`,
+          body: null,
+        },
+      ],
+    },
   ],
 };
 

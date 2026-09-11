@@ -454,6 +454,53 @@ public class SchoolClassService {
      *
      * @param active {@code null} for every section, which is not the same as {@code false}
      */
+    /**
+     * Endpoint #31 — the class's subject assignments, or the ones one section studies.
+     *
+     * <p><b>{@code sectionNo} is an audience here, not a key.</b> Omit it for every assignment the
+     * class holds; pass one and the answer is what that section is taught — its own rows
+     * <i>and</i> the class-wide ones, because a row with no {@code sectionNo} applies to every
+     * section. Matching strictly would hide most of what a section studies.
+     */
+    public SubjectListResponse listSubjects(String academicYear, String classId,
+            String sectionNoInQuery) {
+
+        //! step 1 - who is asking. `require`, as every read here: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 2 - the year, then the class, in that order
+        String year = utils.requireAcademicYear(school, academicYear);
+
+        //! step 3 - the same document #29 reads. What differs is the response, not the query.
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
+
+        //! step 4 - a named section has to be one this class has. Without this a typo answers 200
+        //! with only the class-wide rows, which looks like a real answer and is not - and the
+        //! caller cannot tell "section Z studies nothing but the shared subjects" from "there is
+        //! no section Z". Blank is the same as absent: the whole list.
+        String sectionNo = TextHelper.blankToNull(sectionNoInQuery);
+
+        if (sectionNo != null) {
+            String wanted = sectionNo;
+            List<ClassSection> sections = schoolClass.getSections() == null
+                    ? List.of()
+                    : schoolClass.getSections();
+
+            sectionNo = sections.stream()
+                    .map(ClassSection::getSectionNo)
+                    .filter(one -> one != null && one.equalsIgnoreCase(wanted))
+                    .findFirst()
+                    .orElseThrow(() -> ApiException.notFound("SECTION_NOT_FOUND",
+                            "'" + schoolClass.getName() + "' has no section '" + wanted
+                                    + "'. Leave sectionNo out to read every subject the class "
+                                    + "teaches."));
+        }
+
+        //! step 5 - the whole list, or the one audience's slice of it
+        return SubjectListResponse.forRead(schoolClass, sectionNo);
+    }
+
     public SectionListResponse listSections(String academicYear, String classId, Boolean active) {
         //! step 1 - who is asking. `require`, as #29.
         School school = currentSchool.require();

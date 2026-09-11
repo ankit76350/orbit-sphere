@@ -3615,6 +3615,64 @@
               }
             },
             {
+              "name": "List Subjects",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+                      "pm.test('subjects came back', () => pm.expect(b).to.have.property('subjects'));",
+                      "pm.test('subjectCount came back', () => pm.expect(b).to.have.property('subjectCount'));",
+                      "pm.test('a read carries no changeSummary', () => pm.expect(b).to.not.have.property('changeSummary'));",
+                      "pm.test('no sections — that is #30', () => pm.expect(b).to.not.have.property('sections'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}/subjects",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "classes",
+                    "{{schoolClassId}}",
+                    "subjects"
+                  ],
+                  "query": [
+                    {
+                      "key": "sectionNo",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Whose subjects: absent or blank is the whole class, a value is what that section studies — its own rows PLUS the class-wide ones. An unknown section is a 404."
+                    }
+                  ]
+                },
+                "description": "Endpoint #31 — the class's subject assignments, or the ones one section studies. ?sectionNo= names an audience, not a row.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/academic-years/{year}/classes/{id}/subjects?sectionNo=\n// A GET — no body. Needs X-School-Subdomain, a year, and a class id.\n//\n//  ?sectionNo= NAMES AN AUDIENCE, NOT A ROW. Off or blank = every assignment\n//  the class holds. Given = what that section is taught: ITS OWN ROWS PLUS\n//  THE CLASS-WIDE ONES, because a row with no sectionNo applies to every one.\n//\n//  A STRICT MATCH WOULD HIDE MOST OF IT. On the fixture, strict returns 2 of\n//  the 4 rows section A studies. A class-wide row has NO sectionNo field, so\n//  a caller wanting the strict set can still filter in one line.\n//\n//  THIS IS THE ONE PLACE ?sectionNo= DIFFERS FROM #24, where it is half of a\n//  row's key. Here it asks \"taught to whom\".\n//\n//  AN UNKNOWN SECTION IS A 404, not an empty-ish 200 — a typo would otherwise\n//  look exactly like a real section with nothing of its own.\n//\n//  THE COUNTS DESCRIBE THE CLASS, NOT THE SLICE. subjectCount stays 5 while\n//  2 rows come back.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  EVERY SUBJECT THE CLASS TEACHES                     -> 200 OK\n//     No parameters.\n//     OUT: every row — class-wide and per-section alike, with subjectCount\n//     and activeCount. No sections[]; that is #30's job.\n// -------------------------------------------------------------------------\n// 02  WHAT ONE SECTION STUDIES                            -> 200 OK\n//     ?sectionNo=A\n//     OUT: section A's own rows AND every class-wide row. This is the whole\n//     point of the endpoint — a strict match would hide most of it.\n// -------------------------------------------------------------------------\n// 03  ANOTHER SECTION DOES NOT SEE THE FIRST'S            -> 200 OK\n//     ?sectionNo=B with a subject assigned only to A.\n//     OUT: B's own rows and the class-wide ones. A's are absent.\n// -------------------------------------------------------------------------\n// 04  A SECTION WITH NOTHING OF ITS OWN                   -> 200 OK\n//     A section that has no per-section subject.\n//     OUT: the class-wide rows, NOT an empty list. It studies them like any\n//     other section — which is why an unknown section must be a 404 instead.\n// -------------------------------------------------------------------------\n// 05  THE CLASS-WIDE ROWS ARE STILL IDENTIFIABLE          -> 200 OK\n//     ?sectionNo=A, then look at the rows.\n//     Those with no sectionNo field are the class's; those carrying \"A\" are\n//     the section's. One line of filtering gets the strict set if you want it.\n// -------------------------------------------------------------------------\n// 06  THE COUNTS DO NOT FOLLOW THE FILTER                 -> 200 OK\n//     ?sectionNo= a section with fewer rows than the class has.\n//     subjects.length is 2 and subjectCount is still 5. Deliberate: \"how many\n//     does this class teach\" is not \"how many did you ask to see\".\n// -------------------------------------------------------------------------\n// 07  THE SECTION IN LOWER CASE                           -> 200 OK\n//     ?sectionNo=a finds section A. Matched case-insensitively, and padding\n//     is trimmed.\n// -------------------------------------------------------------------------\n// 08  A BLANK PARAMETER                                   -> 200 OK\n//     ?sectionNo= with nothing after it returns the WHOLE list — the same as\n//     leaving the parameter off.\n// -------------------------------------------------------------------------\n// 09  A SECTION THE CLASS DOES NOT HAVE                   -> 404 Not Found\n//     ?sectionNo=Z\n//     OUT: { \"code\": \"SECTION_NOT_FOUND\" }\n//     Refused rather than answered, because the class-wide rows alone look\n//     exactly like a real section that has nothing of its own.\n// -------------------------------------------------------------------------\n// 10  A CLASS WITH NO SUBJECTS                            -> 200 OK\n//     OUT: subjects: [], subjectCount: 0. An empty list, never a 404 — a\n//     class created by #12 and not yet filled by #22.\n// -------------------------------------------------------------------------\n// 11  A SUSPENDED SCHOOL                                  -> 200 OK\n//     Suspend the school, then read. No gate runs on a read: a school still\n//     sees its own structure when it cannot change it.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.\n//     404 SECTION_NOT_FOUND                The sectionNo sent is not a section of this class. Leave it out to read every subject the class teaches."
+                }
+              },
+              "response": []
+            },
+            {
               "name": "List Classes",
               "event": [
                 {

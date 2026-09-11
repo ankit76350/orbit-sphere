@@ -3134,18 +3134,26 @@ classChecks.push(
   ['it offers #30\'s active filter', sectionScreen.includes("#30's ?active=")],
   ['and says the counts describe the whole class',
     sectionScreen.includes('describe the whole class however the rows are filtered')],
-  ['it reads #29 too, for the subjects nothing else returns',
-    sectionScreen.includes("call('get-school-class'")],
-  ['and admits the subject filtering is done in the browser',
-    sectionScreen.includes('filtered <b>in the browser</b>')],
-  ['saying #31 was dropped rather than pretending it is coming',
-    sectionScreen.includes('was #31 and was') && sectionScreen.includes('DROPPED')],
-  ['and naming the trigger for building it properly — a second caller',
-    sectionScreen.includes('A second caller')],
+  ['it reads #31 for the subjects, not #29',
+    sectionScreen.includes("call('list-class-subjects'")
+      && !sectionScreen.includes("call('get-school-class'")],
+  ['asking it for THIS section', sectionScreen.includes('query: { sectionNo }')],
+  ['and re-reads when the section in the address changes',
+    /}, \[call, environment\.id, actingSubdomain, actingAcademicYear, id, sectionNo, active\]\)/
+      .test(sectionScreen)],
   // A class-wide row applies to every section, so the union is the whole point — and #22's
   // ban on the mixture is what stops it listing one subject twice.
-  ['it includes the class-wide subjects, not only the section\'s own',
-    sectionScreen.includes('one.sectionNo === sectionNo || !one.sectionNo')],
+  ['the union is the server\'s job now — nothing is filtered here',
+    sectionScreen.includes('const mine = taught?.subjects ?? []')
+      && !sectionScreen.includes('one.sectionNo === sectionNo || !one.sectionNo')],
+  ['and the page says so rather than leaving it to be rediscovered',
+    sectionScreen.includes('Nothing is filtered in the browser')],
+  // #31 refuses an unknown section. That must not render as "nothing is taught here".
+  ['a refused section is shown as the refusal, not as an empty list',
+    // The RENDER has to be gated on it — the identifier merely existing proves nothing.
+    sectionScreen.includes('{taughtProblem ? (') && sectionScreen.includes('SECTION_NOT_FOUND')],
+  ['it uses #31\'s className, because #31 does not return `name`',
+    sectionScreen.includes('taught?.className') && !/klass\b/.test(sectionScreen)],
   ['and marks which is which on the row', sectionScreen.includes('the whole class')],
   ['it says a section is addressed by sectionNo because it has no id',
     sectionScreen.includes('ADDRESSED BY sectionNo, NOT AN ID')],
@@ -3240,7 +3248,7 @@ classChecks.push(
 // #24 — editing one assignment. THE PAIR IS THE ADDRESS, and the guards below exist because a
 // lookup by subjectCode alone passes every other test on a class that has the code only once.
 const subjectEditEntry = classCatalogue.slice(classCatalogue.indexOf('update-class-subject'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+  classCatalogue.indexOf('list-class-subjects'))
 const editSubjectScreen = readFileSync('src/pages/school/academics/EditSubject.jsx', 'utf8')
 classChecks.push(
   ['#24 patches one subject of a class',
@@ -3318,6 +3326,47 @@ classChecks.push(
   ['both pages re-read after a save',
     classDetailScreen.includes('onSaved={() => load()}')
       && sectionScreen.includes('onSaved={() => load()}')],
+)
+
+
+// #31 — the subject list. ?sectionNo= NAMES AN AUDIENCE, NOT A ROW, and every guard below exists
+// because a strict match passes any test written on a class whose subjects are all per-section.
+const subjectListEntry = classCatalogue.slice(classCatalogue.indexOf('list-class-subjects'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#31 reads the class subjects',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/subjects"/
+      .test(subjectListEntry) && subjectListEntry.includes('method: "GET"')],
+  ['it takes no body', subjectListEntry.includes('bodyAllowed: false')],
+  ['sectionNo is a query parameter, off by default',
+    subjectListEntry.includes('key: "sectionNo"') && subjectListEntry.includes('enabled: false')],
+  ['it answers 200 with the shared subject shape, minus changeSummary',
+    subjectListEntry.includes('successStatus: 200')
+      && ['"subjectCount"', '"activeCount"', '"subjects"'].every((f) => subjectListEntry.includes(f))
+      && !subjectListEntry.includes('"changeSummary"')],
+
+  // THE RULE. A strict match is the plausible wrong implementation, so it is named as wrong.
+  ['the parameter is documented as an audience, not a row',
+    subjectListEntry.includes('names an audience, not a row')],
+  ['the union is spelled out — its own rows AND the class-wide ones',
+    subjectListEntry.includes('own rows *and* the class-wide ones')],
+  ['a strict match is named as the wrong answer, with a number',
+    subjectListEntry.includes('2 of the 4')],
+  ['a class-wide row stays identifiable, so strict is still one line away',
+    subjectListEntry.includes('no \\`sectionNo\\` field at all')],
+  ['the divergence from #24 is documented here too',
+    subjectListEntry.includes('differs from #24')],
+  ['the section with nothing of its own is a case',
+    subjectListEntry.includes('A SECTION WITH NOTHING OF ITS OWN')],
+  ['and the unknown section is refused, with the reason',
+    subjectListEntry.includes('SECTION_NOT_FOUND')
+      && subjectListEntry.includes('indistinguishable')],
+  ['the counts are documented as describing the class, not the slice',
+    subjectListEntry.includes('THE COUNTS DO NOT FOLLOW THE FILTER')],
+  ['no gate on a read, and a case proving it',
+    subjectListEntry.includes('A SUSPENDED SCHOOL')],
+  ['it says it reads the same document as #29, rather than hiding it',
+    subjectListEntry.includes('same document as #29')],
 )
 
 for (const [label, ok] of classChecks) {

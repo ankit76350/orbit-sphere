@@ -33,8 +33,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16, #22 to #27 and #28 to #30 of the plan in this package's README; #12, #13, #17,
- * #22, #24, #28, #29 and #30 are built. #31 was dropped — see its entry.
+ * #12 to #16, #22 to #27 and #28 to #31 of the plan in this package's README; #12, #13, #17,
+ * #22, #24, #28, #29, #30 and #31 are built.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.
@@ -337,6 +337,25 @@ public class SchoolClassController {
             @RequestParam(required = false) Boolean active) {
 
         return ResponseEntity.ok(schoolClassService.listSections(year, id, active));
+    }
+
+    /**
+     * Endpoint #31 — the class's subject assignments, or the ones one section studies.
+     *
+     * <p><b>{@code ?sectionNo=} names an audience, not a row.</b> Omitted or blank, the answer is
+     * every assignment the class holds. Given, the answer is what that section is taught: its own
+     * rows <i>and</i> the class-wide ones.
+     *
+     * <p><b>This is the one place {@code sectionNo} does not mean what it means on #24</b>, where
+     * it is half of a row's key. Here it is the question "taught to whom".
+     */
+    @GetMapping("/{id}/subjects")
+    public ResponseEntity<SubjectListResponse> listSubjects(
+            @PathVariable String year,
+            @PathVariable String id,
+            @RequestParam(required = false) String sectionNo) {
+
+        return ResponseEntity.ok(schoolClassService.listSubjects(year, id, sectionNo));
     }
 
     //! the subjects taught in a class — #22 to #27 ------------------------------------

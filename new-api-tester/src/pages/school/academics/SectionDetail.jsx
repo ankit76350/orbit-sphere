@@ -23,29 +23,26 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * is a subject for that section — and because the refusal that matters is reachable this way: if
  * the class already teaches it class-wide, assigning it here is a 409, not a second row.
  *
- * TWO READS, AND THE SECOND ONE IS A STAND-IN.
+ * TWO READS, AND EACH OWNS ITS HALF.
  *
- *   #30  GET /classes/{id}/sections   the section itself — the endpoint that owns it, and where
- *                                     ?active= lives
- *   #29  GET /classes/{id}            the subjects, because nothing else returns them
+ *   #30  GET /classes/{id}/sections              the section itself, and where ?active= lives
+ *   #31  GET /classes/{id}/subjects?sectionNo=   what this section studies
  *
- * #29 alone would answer both, and that is worth saying rather than hiding: the page asks #30
- * anyway because that is the endpoint a section belongs to, and reading a section from the class
- * read would make this page depend on a shape it does not own.
+ * #29 alone would answer both, and that is worth saying rather than hiding: the page asks each
+ * endpoint for the thing it owns, so this page does not depend on a shape it has no claim on.
  *
- * THE SUBJECT FILTERING HAPPENS IN THE BROWSER, and as of 2026-09-11 that is the design rather
- * than a gap. #31 — GET /classes/{id}/subjects?sectionNo= — was meant to do it server-side and
- * was DROPPED: it read the same document as #29 through the same single query, so there was no
- * database filtering to move it to, and it saved ~430 bytes on the largest class that exists.
- * The page still says where the filtering happens, because that stays worth knowing.
+ * THE SUBJECT FILTERING MOVED OUT OF THE BROWSER on 2026-09-11. It used to read #29 and filter
+ * here; #31 now answers "what does this section study" directly, so the union rule lives in one
+ * place instead of in every client that asks the question. This page was the only caller, and
+ * being the only caller was the argument against building #31 at all.
  *
- * THIS IS THE ONLY PLACE THE RULE LIVES, which is what makes it worth watching. A second caller
- * is the trigger to build the endpoint properly — under a different name, because ?sectionNo=
- * already means "the row keyed to A" on #24 and would mean "what A studies" here.
+ * A SECTION'S SUBJECTS ARE ITS OWN PLUS THE CLASS-WIDE ONES, and #31 is what applies that. A row
+ * with no sectionNo applies to every section, so a strict match would hide most of what the
+ * section studies. #22 forbids a subject being both, which is what stops the union listing one
+ * subject twice.
  *
- * A SECTION'S SUBJECTS ARE ITS OWN PLUS THE CLASS-WIDE ONES. A row with no sectionNo applies to
- * every section, so filtering to `sectionNo === X` alone would hide most of what the section
- * studies. #22 forbids a subject being both, which is what stops this union listing one twice.
+ * ?sectionNo= MEANS SOMETHING ELSE ON #24, where it is half of a row's key. Here it is the
+ * audience. The two are documented at both ends rather than renamed.
  */
 
 const TRISTATE = ['', 'true', 'false']
@@ -56,7 +53,8 @@ export default function SectionDetail() {
   const { environment, actingSubdomain, actingAcademicYear } = useApiState()
 
   const [list, setList] = useState(null)
-  const [klass, setKlass] = useState(null)
+  const [taught, setTaught] = useState(null)
+  const [taughtProblem, setTaughtProblem] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState('')
@@ -67,22 +65,27 @@ export default function SectionDetail() {
     if (!actingSubdomain) return
     setLoading(true)
     // In parallel: neither depends on the other, and they read the same document anyway.
-    const [sections, whole] = await Promise.all([
+    const [sections, subjects] = await Promise.all([
       call('list-class-sections', {
         label: "The class's sections",
         pathParams: { year: actingAcademicYear ?? '', id },
         query: active ? { active } : {},
       }),
-      call('get-school-class', {
-        label: 'The class, for its subjects',
+      call('list-class-subjects', {
+        label: 'What this section studies',
         pathParams: { year: actingAcademicYear ?? '', id },
+        // The union is the server's job now — its own rows plus the class-wide ones.
+        query: { sectionNo },
       }),
     ])
     setLoading(false)
     if (sections.ok) { setList(sections.bodyJson); setProblem(null) } else { setProblem(sections) }
-    if (whole.ok) setKlass(whole.bodyJson)
+    // Kept separately from the section's own problem: #31 refuses an unknown section with a
+    // 404, and that must not render as "nothing is taught here".
+    if (subjects.ok) { setTaught(subjects.bodyJson); setTaughtProblem(null) }
+    else { setTaught(null); setTaughtProblem(subjects) }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, environment.id, actingSubdomain, actingAcademicYear, id, active])
+  }, [call, environment.id, actingSubdomain, actingAcademicYear, id, sectionNo, active])
 
   useEffect(() => { load() }, [load])
 
@@ -106,15 +109,13 @@ export default function SectionDetail() {
     )
   }
 
-  // Its own rows, plus the class-wide ones — see the note at the top of this file.
-  const mine = (klass?.subjects ?? []).filter(
-    (one) => one.sectionNo === sectionNo || !one.sectionNo,
-  )
+  // Already the union — #31 applied it. No filtering here, which is the point of the endpoint.
+  const mine = taught?.subjects ?? []
 
   return (
     <div className="page stack">
       <Link className="back" to={classPath}>
-        <ArrowLeft size={13} /> {klass?.name ?? 'The class'}
+        <ArrowLeft size={13} /> {taught?.className ?? 'The class'}
       </Link>
 
       <div className="toolbar">
@@ -122,15 +123,15 @@ export default function SectionDetail() {
           <h1 className="page-title">Section {sectionNo}</h1>
           <p className="muted">
             <span className="mono">{actingSubdomain}</span>
-            {klass ? <> · <span className="mono">{klass.academicYear}</span></> : null}
-            {klass ? ` · ${klass.name}` : ''}
+            {taught ? <> · <span className="mono">{taught.academicYear}</span></> : null}
+            {taught ? ` · ${taught.className}` : ''}
             {list ? ` · ${list.sectionCount} section${list.sectionCount === 1 ? '' : 's'} in the class` : ''}
           </p>
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <EndpointTag id="list-class-sections" name="The section" />
-        <EndpointTag id="get-school-class" name="Its subjects" />
+        <EndpointTag id="list-class-subjects" name="Its subjects" />
         <Button look="primary" icon={Plus} onClick={() => setAssigning(true)}>
           Add a subject
         </Button>
@@ -195,11 +196,23 @@ export default function SectionDetail() {
         action={
           <div className="btn-row">
             <Badge>{mine.length} applying</Badge>
+            {taught ? <Badge>{taught.subjectCount} in the class</Badge> : null}
             <Button icon={Plus} onClick={() => setAssigning(true)}>Add</Button>
           </div>
         }
       >
-        {mine.length === 0 ? (
+        {taughtProblem ? (
+          <Empty
+            title={taughtProblem.bodyJson?.code || `The server answered ${taughtProblem.status}`}
+            description={
+              taughtProblem.bodyJson?.code === 'SECTION_NOT_FOUND'
+                ? `#31 refuses an unknown section rather than answering with just the class-wide `
+                  + `rows — those would look exactly like a real section that has none of its own.`
+                : taughtProblem.bodyJson?.message || 'Nothing came back.'
+            }
+            action={<Button icon={RefreshCw} onClick={load}>Try again</Button>}
+          />
+        ) : mine.length === 0 ? (
           <Empty
             title="Nothing is taught in this class yet"
             description="Neither this section's own rows nor the class-wide ones. #22 adds either, and from here it adds this section's."
@@ -253,11 +266,10 @@ export default function SectionDetail() {
           </div>
         )}
         <p className="muted">
-          <Info size={12} /> This list is filtered <b>in the browser</b>, from the whole class
-          read — its own rows plus the class-wide ones. A server-side{' '}
-          <span className="mono">GET /classes/{'{id}'}/subjects?sectionNo=</span> was #31 and was
-          dropped: it read the same document through the same query, so there was nothing to move
-          into the database.
+          <Info size={12} /> <span className="mono">GET /classes/{'{id}'}/subjects?sectionNo=</span>{' '}
+          — #31 — returns this already unioned: the section's own rows <b>plus</b> the class-wide
+          ones. Nothing is filtered in the browser, so the rule has one home.{' '}
+          <span className="mono">subjectCount</span> below counts the whole class, not this list.
         </p>
       </Card>
 
