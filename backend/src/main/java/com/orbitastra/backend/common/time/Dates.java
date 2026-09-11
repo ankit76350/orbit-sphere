@@ -164,4 +164,25 @@ public final class Dates {
     private static ZoneId zoneOrUtc(SchoolTimeZone zone) {
         return zone == null ? ZoneOffset.UTC : zone.toZoneId();
     }
+
+    /**
+     * Whether two inclusive date ranges cover any of the same days.
+     *
+     * <p><b>Adjacency is not overlap.</b> A range ending 31 March and one starting 1 April are
+     * fine — written as "unless one ends before the other starts" rather than as four
+     * comparisons, because the four-way version is where off-by-one bugs live.
+     *
+     * <p><b>Extracted 2026-09-11 so there is one answer.</b> Core asks it of academic years and
+     * academics asks it of terms; the module plan warned that two implementations would
+     * eventually disagree about whether touching endpoints overlap, which is exactly the case
+     * a school hits every April.
+     *
+     * <p>Both ends are inclusive, which is what every date range in this system means: a term
+     * ending 30 September includes the 30th.
+     */
+    public static boolean overlaps(LocalDate aStart, LocalDate aEnd,
+            LocalDate bStart, LocalDate bEnd) {
+
+        return !(aEnd.isBefore(bStart) || aStart.isAfter(bEnd));
+    }
 }

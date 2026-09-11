@@ -1,6 +1,6 @@
 # controllers/academics/structure — API plan
 
-**Ten of 37 are built — #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
+**Eleven of 37 are built — #1, #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
 for an academic year, its name and affiliation programme edited, sections added to it, subjects
 assigned to the class or to one section and then edited, the year's classes listed — filtered,
 searched, sorted and paged — and one class read in full, or just its sections, or just the
@@ -220,7 +220,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
+| <a id="t1"></a>1 — **built** | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t3"></a>3 | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
@@ -314,7 +314,7 @@ section exists, so sections come before everything that is merely useful.
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
 | **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** |
-| **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
+| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
@@ -658,6 +658,8 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | `TERM_OUTSIDE_ACADEMIC_YEAR` | 409 | the dates fall outside the year's own range |
 | `INVALID_TERM_RANGE` | 400 | `endDate` before `startDate` |
 | `TERM_WEIGHTS_INVALID` | 409 | a whole-set write (#2, #4) leaves active weights not summing to 100 |
+| `TERM_WEIGHT_MIXED` | 409 | one active term carries a weight and another does not — added with #1. Distinct from the above: a wrong *total* is transient and only reported, a *mixture* computes to nothing and is refused |
+| `TERM_CODE_INVALID` | 409 | the name has no letter or digit to derive a `termCode` from — added with #1, the term equivalent of `SUBJECT_CODE_INVALID` |
 | `SECTION_STILL_REFERENCED` | 409 | a replace (#18) would drop a `sectionNo` something stores |
 | `SUBJECT_STILL_REFERENCED` | 409 | a replace (#23) would drop a `subjectCode` something stores |
 | `NOTHING_TO_UPDATE` | 400 | a `PATCH` body that asks for nothing — reuses core's code |
@@ -698,11 +700,17 @@ class, because a section has no document of its own.
 ## The terms — writes  ·  1–8
 
 <a id="e1"></a>
-**[1](#t1) · `POST /terms`**
+**[1](#t1) · `POST /terms`** — built
 
-- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — the term has to fall inside the year
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `termCode` and `sequence` for uniqueness in the year, and every active term's `startDate`, `endDate` for the overlap check. Served by `school_year_term_active_dates_idx`.
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: `academicYear` = the `{year}` path segment, `termCode` derived from `name`, `name`, `sequence`, `startDate`, `endDate`, `weightPercent`, `resultsLocked` = `false`, `active` = `true`
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: the year as a **document**, for `startDate` and `endDate` — the term has to fall inside it, so existence alone is not enough here. That is what separates `AcademicTermServiceUtils.loadAcademicYear` from the classes side's `requireAcademicYear`.
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the year's terms, **once**. A year holds two to four, so the whole set is loaded and every check below runs against that one snapshot rather than making four round trips that could each see a different state.
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: `schoolId`, `academicYear` = the `{year}` path segment, `termCode` derived from `name`, `name`, `sequence`, `startDate`, `endDate`, `weightPercent`, `resultsLocked` = `false`, `active` = `true`
+- **Five rules MongoDB cannot express**, in this order: the range is not inverted (`400 INVALID_TERM_RANGE`), it falls inside the year (`409 TERM_OUTSIDE_ACADEMIC_YEAR`), the code is free (`409 TERM_CODE_TAKEN`), the sequence is free (`409 TERM_SEQUENCE_TAKEN`), the dates are free (`409 TERMS_OVERLAP`). The order matters: an inverted range checked last would be reported as "outside the year", which is true and says the wrong thing.
+- **Two of those count retired terms and one does not.** A retired term keeps its `termCode` and its `sequence`, because neither unique index filters on `active` — a check that skipped retired rows would accept a write the database then refuses. It releases its **dates**, because nothing is taught in it and `school_year_term_active_dates_idx` is indexed on `active` for exactly that query.
+- **`termCode` is derived from `name`, never accepted.** Trimmed, uppercased, runs of non-alphanumerics to `_` — the rule `planCode` uses. A name with nothing to derive from is `409 TERM_CODE_INVALID`. Accepting both would let a term named "Term 1" be coded `SEMESTER_2`, and the code is what six documents across three modules store.
+- **The weight *mixture* is refused; the weight *total* is only reported.** `409 TERM_WEIGHT_MIXED` when one active term is weighted and another is not, because that computes to nothing and no sequence of edits passes through it legitimately. A total that is not 100 comes back as a `warning` on the response instead — [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time) settled that, because 20/80 → 30/70 passes through 110 and refusing it would make the values impossible to change.
+- **Overlap is [`Dates.overlaps`](../../../common/time/Dates.java), shared with core's academic-year check.** The plan warned that two implementations would eventually disagree about touching endpoints; the predicate was extracted on 2026-09-11 and `CoreHelper.validateNoAcademicYearOverlap` now reads it too. Nothing had covered `ACADEMIC_YEAR_OVERLAP` before that, so `verify1.py` covers both callers.
+- **`resultsLocked` and `active` are not accepted at create.** Both are events with their own endpoints — #5, #6, #7, #8 — and a term created already locked is a state nothing asked for.
 
 <a id="e2"></a>
 **[2](#t2) · `PUT /terms`**

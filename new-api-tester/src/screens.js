@@ -9,6 +9,7 @@ import Schools from './pages/platform/core/Schools.jsx'
 import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
 import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
+import Terms from './pages/school/academics/Terms.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
@@ -137,13 +138,22 @@ export const SURFACES = [
         ],
       },
       {
-        // The third module, and the first one whose plan is mostly unbuilt: 36 endpoints are
-        // designed in controllers/academics/structure/README.md and exactly one exists. The
-        // badge counts what is BUILT, like every other badge here, so it reads 1 and will climb.
+        // The third module, and the first one whose plan is mostly unbuilt: 37 endpoints are
+        // designed in controllers/academics/structure/README.md. The badges count what is BUILT,
+        // like every other badge here.
         id: 'academics',
         label: 'Academics',
         icon: GraduationCap,
         submodules: [
+          {
+            // Terms come first because a year is divided before it is filled — and because the
+            // plan numbers them 1 to 11, ahead of the classes.
+            id: 'terms',
+            label: 'Terms',
+            group: 'Academics / Terms',
+            endpoints: 1,
+            screen: Terms,
+          },
           {
             id: 'classes',
             label: 'Classes',

@@ -188,8 +188,9 @@ public class CoreHelper {
             if (other.getId().equals(ignoreId)) {
                 continue;
             }
-            boolean apart = end.isBefore(other.getStartDate()) || start.isAfter(other.getEndDate());
-            if (!apart) {
+            // Through Dates.overlaps so core and academics cannot come to disagree about whether
+            // touching endpoints overlap — the module plan asked for exactly one answer.
+            if (Dates.overlaps(start, end, other.getStartDate(), other.getEndDate())) {
                 throw ApiException.conflict("ACADEMIC_YEAR_OVERLAP",
                         "These dates overlap '" + other.getName() + "' ("
                                 + Dates.readable(other.getStartDate()) + " to "

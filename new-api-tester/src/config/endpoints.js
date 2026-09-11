@@ -8659,6 +8659,305 @@ would be indistinguishable from a plan published with no features.
   ],
 };
 
+const GROUP_ACADEMICS_TERMS = {
+  id: "academics-terms",
+  module: "Academics / Terms",
+  endpoints: [
+    {
+      id: "create-academic-term",
+      name: "Create Term",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/terms",
+      status: 'live',
+      summary: "Add one reporting period to the year.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/terms\` — endpoint #1.
+
+### A term is a document, unlike a section or a subject
+
+Six documents across three modules reference one by \`termDocsId\` — \`Exam\`, \`ReportCard\`,
+\`HolisticProgressCard\`, \`FeedbackCampaign\`, \`FeeInstallment\` and \`FeeInvoice\`. That is why
+a term has an id, and why it can be **renamed safely** where a \`sectionNo\` can never be.
+
+### Five rules MongoDB cannot express, in this order
+
+1. the range is not inverted — \`400 INVALID_TERM_RANGE\`
+2. it falls inside the year — \`409 TERM_OUTSIDE_ACADEMIC_YEAR\`
+3. the code is free — \`409 TERM_CODE_TAKEN\`
+4. the sequence is free — \`409 TERM_SEQUENCE_TAKEN\`
+5. the dates are free — \`409 TERMS_OVERLAP\`
+
+**The order matters.** An inverted range checked last would be reported as "outside the year",
+which is true and says the wrong thing about what is wrong.
+
+All of them answer from **one** read of the year's terms, so they cannot disagree with each other.
+
+### A retired term keeps its code and its sequence — but releases its dates
+
+Neither unique index filters on \`active\`, so a check that skipped retired rows would accept a
+write the database then refuses. The **dates** are different: nothing is taught in a retired term,
+and \`school_year_term_active_dates_idx\` is indexed on \`active\` for exactly that query.
+
+Three rules, two different answers to "does a retired term still count", and the difference is
+deliberate.
+
+### termCode is derived, never accepted
+
+Trimmed, uppercased, runs of non-alphanumerics to \`_\` — so "Term 1" becomes \`TERM_1\` and
+"Semester 2!!" becomes \`SEMESTER_2\`. A name with nothing to derive from is
+\`409 TERM_CODE_INVALID\`. Sending \`termCode\` in the body does nothing: accepting both would let
+a term named "Term 1" be coded \`SEMESTER_2\`.
+
+### Weights: the mixture is refused, the total only reported
+
+\`weightPercent\` null means **this school does not weight the annual result**, which is a normal
+way to run a school. What is refused is the *mixture* — one active term weighted and another not —
+because it computes to nothing and no sequence of edits passes through it legitimately.
+
+A total that is not 100 comes back as a **\`warning\` on the response**, not a refusal: 20/80 →
+30/70 passes through 110, and refusing that would make the values impossible to change.
+
+### Adjacency is not overlap
+
+A term ending 30 September and one starting 1 October are fine. The predicate is
+\`Dates.overlaps\`, **shared with core's academic-year check** so the two cannot come to disagree
+about touching endpoints — which is a question a school hits every April.
+
+### The gates
+
+Same three as every write in this module — **1** school ACTIVE · **2** subscription usable ·
+**4** the year is running.
+
+### The fourteen test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain and a year that is marked as running.
+
+ A TERM IS A DOCUMENT, not an embedded row. Six documents across three
+ modules store termDocsId, which is why it has an id — and why a term can
+ be renamed where a sectionNo never can.
+
+ termCode IS DERIVED FROM name. "Term 1" -> TERM_1. Sending termCode does
+ nothing. A name with no letter or digit is a 409.
+
+ A RETIRED TERM KEEPS ITS CODE AND SEQUENCE, because neither unique index
+ filters on active. It RELEASES ITS DATES, because nothing is taught in it.
+
+ THE WEIGHT MIXTURE IS REFUSED; THE TOTAL IS ONLY REPORTED. One term
+ weighted and another not computes to nothing. A total that is not 100 comes
+ back as a warning, because 20/80 -> 30/70 passes through 110.
+
+ ADJACENCY IS NOT OVERLAP. Ending 30 Sep and starting 1 Oct is fine.`,
+      requiredFields: ["name", "sequence", "startDate", "endDate"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. It must exist, and gate 4 requires it to be the running one." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "Term 1",
+  "sequence": 1,
+  "startDate": "2026-04-01",
+  "endDate": "2026-09-30"
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the term by its derived termCode.",
+      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "resultsLocked", "active"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, sequence, startDate or endDate; a sequence below 1; a weightPercent outside 0–100." },
+        { status: 400, code: "INVALID_TERM_RANGE", when: "endDate is before startDate. Equal dates are legal — a one-day term is odd, not wrong." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 409, code: "TERM_CODE_INVALID", when: "The name has no letter or digit to derive a termCode from." },
+        { status: 409, code: "TERM_CODE_TAKEN", when: "That year already has that termCode — retired terms included." },
+        { status: 409, code: "TERM_SEQUENCE_TAKEN", when: "Another term in the year holds that sequence — retired terms included." },
+        { status: 409, code: "TERMS_OVERLAP", when: "The dates cover a day an ACTIVE term already covers. Retired terms do not block." },
+        { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The dates fall outside the year's own range." },
+        { status: 409, code: "TERM_WEIGHT_MIXED", when: "One active term carries a weight and another does not." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end, or was never marked running." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE FIRST TERM",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: termDocsId, termCode TERM_1 derived from the name, resultsLocked
+    false and active true. No weightPercent field, because none was sent.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE SECOND, STARTING THE DAY AFTER",
+          expect: "201 Created",
+          notes: `Adjacency is not overlap — the same rule core uses for years.`,
+          body: `{
+  "name": "Term 2",
+  "sequence": 2,
+  "startDate": "2026-10-01",
+  "endDate": "2027-03-31"
+}`,
+        },
+        {
+          id: "03",
+          name: "THE CODE IS DERIVED, NOT ACCEPTED",
+          expect: "201 Created",
+          notes: `OUT: termCode is SEMESTER_2 — from the name, not from the body.
+    The termCode field below is ignored entirely.`,
+          body: `{
+  "name": "Semester 2!!",
+  "sequence": 3,
+  "startDate": "2027-01-01",
+  "endDate": "2027-01-31",
+  "termCode": "IGNORED"
+}`,
+        },
+        {
+          id: "04",
+          name: "A NAME WITH NO CODE IN IT",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "TERM_CODE_INVALID" }
+    @NotBlank passes — it was not blank. Nothing survives normalising.`,
+          body: `{
+  "name": "!!!",
+  "sequence": 4,
+  "startDate": "2027-02-01",
+  "endDate": "2027-02-28"
+}`,
+        },
+        {
+          id: "05",
+          name: "THE SAME NAME AGAIN",
+          expect: "409 Conflict",
+          notes: `Send case 01 twice.
+    OUT: { "code": "TERM_CODE_TAKEN" }. Case-folded, so "term 1" is the
+    same code and the same refusal.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "A SEQUENCE ALREADY IN USE",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "TERM_SEQUENCE_TAKEN" }, naming the term that holds it.`,
+          body: `{
+  "name": "Extra",
+  "sequence": 1,
+  "startDate": "2027-02-01",
+  "endDate": "2027-02-28"
+}`,
+        },
+        {
+          id: "07",
+          name: "OVERLAPPING DATES",
+          expect: "409 Conflict",
+          notes: `A single shared day is enough.
+    OUT: { "code": "TERMS_OVERLAP" }, naming the term it clashes with.`,
+          body: `{
+  "name": "Overlapping",
+  "sequence": 5,
+  "startDate": "2026-09-30",
+  "endDate": "2026-10-05"
+}`,
+        },
+        {
+          id: "08",
+          name: "A RETIRED TERM KEEPS ITS CODE",
+          expect: "409 Conflict",
+          notes: `Set active:false on a term in Mongo (#7 is not built), then send its
+    name again. OUT: TERM_CODE_TAKEN, and the message says "retired" —
+    the unique index does not filter on active, so the code stays taken.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "BUT IT RELEASES ITS DATES",
+          expect: "201 Created",
+          notes: `Same retired term, but reuse its DATE RANGE under a new name.
+    Accepted: nothing is taught in a retired term, so the days are free.
+    This is the one rule where retired terms are treated differently.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "OUTSIDE THE YEAR",
+          expect: "409 Conflict",
+          notes: `A term starting before the year begins or ending after it finishes.
+    OUT: { "code": "TERM_OUTSIDE_ACADEMIC_YEAR" }, naming what the year covers.`,
+          body: `{
+  "name": "Too early",
+  "sequence": 8,
+  "startDate": "2026-03-31",
+  "endDate": "2026-04-02"
+}`,
+        },
+        {
+          id: "11",
+          name: "AN INVERTED RANGE",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "INVALID_TERM_RANGE" } — NOT "outside the year",
+    which would be true and would say the wrong thing.`,
+          body: `{
+  "name": "Backwards",
+  "sequence": 9,
+  "startDate": "2026-12-01",
+  "endDate": "2026-11-01"
+}`,
+        },
+        {
+          id: "12",
+          name: "A WEIGHTED TERM, ALONE",
+          expect: "201 Created",
+          notes: `In a fresh year. OUT: weightPercent 20, and a WARNING saying the
+    active weights total 20%, not 100%. Reported, not refused.`,
+          body: `{
+  "name": "W1",
+  "sequence": 1,
+  "startDate": "2026-04-01",
+  "endDate": "2026-09-30",
+  "weightPercent": 20
+}`,
+        },
+        {
+          id: "13",
+          name: "AN UNWEIGHTED TERM BESIDE IT",
+          expect: "409 Conflict",
+          notes: `After case 12. OUT: { "code": "TERM_WEIGHT_MIXED" }
+    Refused, unlike a wrong total: a mixture computes to nothing, and no
+    sequence of edits legitimately passes through it. Refused both ways
+    round — a weighted term beside unweighted ones is the same 409.`,
+          body: `{
+  "name": "W2",
+  "sequence": 2,
+  "startDate": "2026-10-01",
+  "endDate": "2027-03-31"
+}`,
+        },
+        {
+          id: "14",
+          name: "AND THE ONE THAT COMPLETES THE 100",
+          expect: "201 Created",
+          notes: `weightPercent 80 after case 12's 20.
+    OUT: no warning at all, because 20 + 80 = 100.`,
+          body: `{
+  "name": "W2",
+  "sequence": 2,
+  "startDate": "2026-10-01",
+  "endDate": "2027-03-31",
+  "weightPercent": 80
+}`,
+        },
+      ],
+    },
+  ],
+};
+
 const GROUP_ACADEMICS_CLASSES = {
   id: "academics-classes",
   module: "Academics / Classes",
@@ -10505,6 +10804,7 @@ export const API_CATALOG = [
   GROUP_PLANS_PLAN_CATALOGUE,
   GROUP_PLANS_SUBSCRIPTIONS,
   GROUP_PLANS_SUBSCRIPTION_THE_SCHOOL_S_OWN_VIEW,
+  GROUP_ACADEMICS_TERMS,
   GROUP_ACADEMICS_CLASSES,
 ];
 
