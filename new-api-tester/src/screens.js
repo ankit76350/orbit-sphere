@@ -10,6 +10,7 @@ import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
 import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
+import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -145,12 +146,14 @@ export const SURFACES = [
           {
             id: 'classes',
             label: 'Classes',
-            endpoints: 1,
             group: 'Academics / Classes',
+            endpoints: 6,
             screen: Classes,
-            // No `detail` yet. A class IS addressed by id, so the address would be
-            // /school-academics/classes/:id — but the endpoint behind it is #29, and a route
-            // whose screen could only ever say "not built" is worse than no route.
+            // A class is addressed by its document id, so that is the address — and #29 is what
+            // fills the page. Opening a row is its own URL, so it can be linked, reloaded and
+            // shared; the list stays selected in both navigations because the module is read off
+            // the FIRST path segment, which a detail address does not change.
+            detail: { param: 'id', screen: ClassDetail },
           },
         ],
       },

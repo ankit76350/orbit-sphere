@@ -70,6 +70,8 @@ const ROUTES = [
   ['/school-plans/subscription', ['Subscription', 'No school chosen']],
   // The third module on the school surface. Its plan has 36 endpoints and exactly one exists.
   ['/school-academics/classes', ['Academics', 'Classes', 'No school chosen']],
+  // A class is addressed by its document id, which is what twelve other documents store.
+  ['/school-academics/classes/6aa29f6d5fb6199794c87e87', ['No school chosen']],
   // Opening a row is its own address. First paint is the read, because renderToString does not
   // run effects — which is the point: the page reads the school itself rather than being handed
   // a row from a list that may already be stale.
@@ -2877,6 +2879,9 @@ for (const [label, ok] of gateChecks) {
 
 console.log('\nAcademics — classes (#12)')
 const classesScreen = readFileSync('src/pages/school/academics/Classes.jsx', 'utf8')
+// The class's own page, as of the row-opens-a-page flow. #29, #17 and #30 moved here from
+// modals on the list, so the guards that named Classes.jsx for them now name this.
+const classDetailScreen = readFileSync('src/pages/school/academics/ClassDetail.jsx', 'utf8')
 const classCatalogue = catalogue.slice(catalogue.indexOf('GROUP_ACADEMICS_CLASSES'))
 const classEntry = classCatalogue.slice(0, classCatalogue.indexOf('export const API_CATALOG'))
 const classChecks = [
@@ -3052,18 +3057,16 @@ classChecks.push(
     sectionEntry.includes('StudentAcademicRecord')],
 
   // The screen
-  ['each row can reach its sections', classesScreen.includes('setSectioning(row)')],
+  ['the class page has an Add section button',
+    classDetailScreen.includes('Add a section')],
   ['the add form sends the section body',
-    classesScreen.includes("call('add-class-section'")],
-  ['it aims at a typeable year and class id',
-    classesScreen.includes('pathParams: { year: target.year, id: target.id }')],
-  ['it shows the class list the response came back with',
-    classesScreen.includes('list.sectionCount') && classesScreen.includes('list.activeCount')],
+    classDetailScreen.includes("call('add-class-section'")],
   ['it stays open after an add, so a class can get A, B, C and D',
-    classesScreen.includes('A, B, C and D in one sitting')],
+    classDetailScreen.includes('A, B, C and D in one sitting')],
   ['and clears only the number, not the capacity or teacher',
-    classesScreen.includes("setForm((old) => ({ ...old, sectionNo: '' }))")],
-  ['the list reloads so the row count moves', classesScreen.includes('onAdded={() => load()}')],
+    classDetailScreen.includes("setForm((old) => ({ ...old, sectionNo: '' }))")],
+  ['the page re-reads after an add, so the tables move',
+    classDetailScreen.includes('onAdded={() => load()}')],
 )
 
 
@@ -3101,19 +3104,29 @@ classChecks.push(
     detailEntry.includes('CLASS_NOT_FOUND') && secListEntry.includes('CLASS_NOT_FOUND')],
 
   // The screen
-  ['each row can be read in full', classesScreen.includes('setViewing(row)')],
-  ['the view panel calls #29', classesScreen.includes("call('get-school-class'")],
-  ['and is the only place subjects appear', classesScreen.includes('#22 is not built, so every class reads this way')],
-  ['the sections panel now READS through #30 rather than only echoing writes',
-    classesScreen.includes("call('list-class-sections'")],
-  ['it loads on open', classesScreen.includes('useEffect(() => { read() }, [read])')],
-  ['and re-reads after an add, so the filter is respected',
-    classesScreen.includes('// Re-read, so the panel reflects the filter')],
-  ['the panel offers #30\'s active filter', classesScreen.includes('#30\'s ?active=')],
-  ['and shows how many rows it is showing beside the real counts',
-    classesScreen.includes('showing ${(list.sections ?? []).length}')],
-  ['the view panel keeps both halves of the URL typeable',
-    classesScreen.includes('Change it to reach CLASS_NOT_FOUND')],
+  // THE FLOW: a class row opens its own page, and a section on that page opens a modal.
+  ['a class row opens its own page, not a modal',
+    classesScreen.includes("navigate(detailPath('school', 'academics', 'classes'")],
+  ['the row is marked as clickable, so the cursor says so',
+    classesScreen.includes('data-opens') && css.includes('tr[data-opens] { cursor: pointer; }')],
+  ['there is no View button left on the row', !/icon={Eye}/.test(classesScreen)],
+  ['and no Sections button either', !/icon={Users}[^]]*Sections/.test(classesScreen)],
+  ['Edit stops the click, or opening the editor would navigate away',
+    classesScreen.includes('event.stopPropagation(); setEditing(row)')],
+  ['the class page reads #29', classDetailScreen.includes("call('get-school-class'")],
+  ['and is the only place subjects appear',
+    classDetailScreen.includes('#22 assigns a subject and is not built')],
+  ['it draws the sections from that read rather than calling #30 again',
+    classDetailScreen.includes('there is no second call to draw this')],
+  ['a section row opens a modal', classDetailScreen.includes('setOpenSection(one)')],
+  ['and that modal is what calls #30',
+    classDetailScreen.includes("call('list-class-sections'")],
+  ['the modal offers #30\'s active filter', classDetailScreen.includes("#30's ?active=")],
+  ['and prints the whole-class counts beside the number of rows shown',
+    classDetailScreen.includes('in the class · ') && classDetailScreen.includes('showing')],
+  ['the page explains that switching the year makes it 404',
+    classDetailScreen.includes('the same id under another year is a 404')],
+  ['and links back to the list', classDetailScreen.includes('All classes')],
 )
 
 for (const [label, ok] of classChecks) {

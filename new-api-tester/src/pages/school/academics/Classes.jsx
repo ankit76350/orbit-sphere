@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Info, Layers, Pencil, Plus, RefreshCw, Search, Users } from 'lucide-react'
+import { ChevronRight, Info, Layers, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { detailPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * School / Academics — the classes taught in one academic year. Two of the group's 36 endpoints.
  *
- * SIX ENDPOINTS: #12 create, #13 edit, #17 add a section, #28 list, #29 read one, #30 read its
- * sections.
+ * THREE ENDPOINTS ON THIS SCREEN: #12 create, #13 edit, #28 list. The other three moved to the
+ * class's own page — #29 reads it, #17 adds a section and #30 reads the sections — because a
+ * class with its sections and subjects is more than a modal's worth of screen.
  *
- * THE SECTIONS PANEL NOW READS BEFORE IT WRITES. While #30 was unbuilt it could only show what
- * the last add returned, so a reopened panel looked empty on a class that had four sections. It
- * loads #30 on open, which is also how ?active= is reachable.
+ * A ROW OPENS ITS OWN PAGE. Clicking anywhere on it navigates to /school-academics/classes/{id},
+ * which is an address that can be linked, reloaded and shared. The Edit button inside the row
+ * stops the click from propagating, or editing a name would navigate away from the form.
  *
  * #17 IS THE ONE THAT UNBLOCKED ANOTHER MODULE. A student record stores sectionNo, so nothing
  * could be placed in a class until a section existed. The Sections button on each row is how it
@@ -63,8 +66,7 @@ export default function Classes() {
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [sectioning, setSectioning] = useState(null)
-  const [viewing, setViewing] = useState(null)
+  const navigate = useNavigate()
 
   const [active, setActive] = useState('')
   const [hasSections, setHasSections] = useState('')
@@ -228,7 +230,12 @@ export default function Classes() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.schoolClassId}>
+                  <tr
+                    key={row.schoolClassId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'academics', 'classes',
+                      row.schoolClassId))}
+                  >
                     <td>
                       {row.name}
                       {row.active ? <Badge tone="good">active</Badge> : <Badge>retired</Badge>}
@@ -247,12 +254,15 @@ export default function Classes() {
                     <td><span className="mono">{row.schoolClassId}</span></td>
                     <td>
                       <div className="btn-row">
-                        <Button icon={Pencil} onClick={() => setEditing(row)}>Edit</Button>
-                        {/* #17. The section count beside it is how you see the add worked —
-                            there is no section read yet, #30 being unbuilt. */}
-                        {/* #29 — one class in full, which is the only way to see its subjects. */}
-                        <Button icon={Eye} onClick={() => setViewing(row)}>View</Button>
-                        <Button icon={Users} onClick={() => setSectioning(row)}>Sections</Button>
+                        {/* #13. stopPropagation, or opening the editor would navigate away
+                            from it — the row underneath opens the class's page. */}
+                        <Button
+                          icon={Pencil}
+                          onClick={(event) => { event.stopPropagation(); setEditing(row) }}
+                        >
+                          Edit
+                        </Button>
+                        <span className="muted">Open <ChevronRight size={13} /></span>
                       </div>
                     </td>
                   </tr>
@@ -262,22 +272,11 @@ export default function Classes() {
           </div>
         )}
         <p className="muted">
-          <Info size={12} /> Rows carry counts, not the embedded lists — <span className="mono">GET
-          /classes/{'{id}'}</span> is #29 and is not built. A suspended school can still read this
-          list and cannot add to it.
+          <Info size={12} /> Rows carry counts, not the embedded lists. Click one to open the
+          class, where <span className="mono">GET /classes/{'{id}'}</span> returns its sections and
+          subjects in full. A suspended school can still read this list and cannot add to it.
         </p>
       </Card>
-
-      <ViewClass
-        row={viewing}
-        onClose={() => setViewing(null)}
-      />
-
-      <AddSection
-        row={sectioning}
-        onClose={() => setSectioning(null)}
-        onAdded={() => load()}
-      />
 
       <EditClass
         row={editing}
@@ -569,340 +568,6 @@ function EditForm({ row, onClose, onSaved }) {
             left reachable on purpose.
           </p>
         ) : null}
-      </div>
-    </Modal>
-  )
-}
-
-/**
- * Adding a section — #17.
- *
- * KEYED ON THE CLASS so it remounts per row rather than copying the row into state in an effect,
- * which would paint the previous class for one frame.
- *
- * THE MODAL STAYS OPEN AFTER A SUCCESSFUL ADD, and that is deliberate: a class gets A, B, C and D
- * in one sitting, and closing after each one would mean reopening three times. The response is
- * the class's whole section list, so the panel shows what the class now has.
- */
-function AddSection({ row, onClose, onAdded }) {
-  if (!row) return null
-  return <AddSectionForm key={row.schoolClassId} row={row} onClose={onClose} onAdded={onAdded} />
-}
-
-function AddSectionForm({ row, onClose, onAdded }) {
-  const { call } = useApi()
-  const [form, setForm] = useState({ sectionNo: '', capacity: '', classTeacherDocsId: '' })
-  // Both halves of the URL stay typeable, so CLASS_NOT_FOUND and the wrong-year 404 are
-  // reachable from the screen rather than only from the docs.
-  const [target, setTarget] = useState({ year: row.academicYear, id: row.schoolClassId })
-  const [errors, setErrors] = useState({})
-  const [refused, setRefused] = useState(null)
-  const [refusedRead, setRefusedRead] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [list, setList] = useState(null)
-  // The filter #30 takes. '' means the parameter is not sent, which is not the same as false.
-  const [active, setActive] = useState('')
-
-  const set = (field) => (event) =>
-    setForm((old) => ({ ...old, [field]: event.target.value }))
-  const aim = (field) => (event) =>
-    setTarget((old) => ({ ...old, [field]: event.target.value }))
-
-  // #30. Loaded on open and after every add, so the panel shows the server's answer rather than
-  // only what the last write happened to return.
-  const read = useCallback(async () => {
-    const result = await call('list-class-sections', {
-      label: "The class's sections",
-      pathParams: { year: target.year, id: target.id },
-      query: active ? { active } : {},
-    })
-    if (result.ok) setList(result.bodyJson)
-    else setRefusedRead(result.bodyJson ?? { code: `HTTP ${result.status}` })
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, target.year, target.id, active])
-
-  useEffect(() => { read() }, [read])
-
-  const body = (() => {
-    const out = { sectionNo: form.sectionNo }
-    if (form.capacity !== '') out.capacity = Number(form.capacity)
-    if (form.classTeacherDocsId.trim() !== '') {
-      out.classTeacherDocsId = form.classTeacherDocsId.trim()
-    }
-    return out
-  })()
-
-  const submit = async () => {
-    setErrors({})
-    setRefused(null)
-    setSaving(true)
-    const result = await call('add-class-section', {
-      label: 'Add a section',
-      pathParams: { year: target.year, id: target.id },
-      body,
-    })
-    setSaving(false)
-    if (result.ok) {
-      setList(result.bodyJson)
-      // Only the number is cleared: capacity and the teacher usually repeat across a class's
-      // sections, so retyping them for B, C and D would be the wrong default.
-      setForm((old) => ({ ...old, sectionNo: '' }))
-      onAdded()
-      // Re-read, so the panel reflects the filter rather than the write's unfiltered answer.
-      read()
-      return
-    }
-    if (result.bodyJson?.fieldErrors) {
-      setErrors(Object.fromEntries(
-        Object.entries(result.bodyJson.fieldErrors)
-          .map(([field, messages]) => [field, [].concat(messages)[0]]),
-      ))
-    }
-    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      preview={body}
-      title={`Sections of ${row.name}`}
-      description="A section is embedded in its class, so the response is the class's whole list. sectionNo can never be changed once records reference it."
-      endpoint={<EndpointTag id="add-class-section" name="Add" look="primary" />}
-      footer={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} onClick={submit}>Add</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {refused ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refused.code}</span>
-            </div>
-            <pre className="resp-body">{refused.message}</pre>
-          </div>
-        ) : null}
-
-        {refusedRead ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refusedRead.code}</span>
-            </div>
-            <pre className="resp-body">{refusedRead.message}</pre>
-          </div>
-        ) : null}
-
-        {/* #30's answer. The counts describe the WHOLE class however the rows are filtered. */}
-        {list ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="true">
-                {list.sectionCount} section{list.sectionCount === 1 ? '' : 's'} ·{' '}
-                {list.activeCount} active
-                {active ? ` · showing ${(list.sections ?? []).length}` : ''}
-              </span>
-            </div>
-            <pre className="resp-body">
-              {(list.sections ?? []).map((one) => [
-                one.sectionNo,
-                one.capacity ? `cap ${one.capacity}` : 'no capacity',
-                one.classTeacherDocsId ? 'has a class teacher' : 'no class teacher',
-                one.active ? 'active' : 'retired',
-              ].join('  ·  ')).join('\n')}
-            </pre>
-          </div>
-        ) : null}
-
-        <div className="toolbar">
-          <Field label="Show" hint="#30's ?active=. Blank sends no parameter, which is not the same as false.">
-            <Select label="Show" value={active} onChange={setActive} options={TRISTATE} />
-          </Field>
-          <span className="toolbar-spacer" />
-          <Button icon={RefreshCw} onClick={read}>Re-read</Button>
-          <EndpointTag id="list-class-sections" name="Read" />
-        </div>
-
-        <div className="field-grid">
-          <Field label="Year" hint="Scopes the lookup. Point it elsewhere and the same class id is a 404.">
-            <Input value={target.year} onChange={aim('year')} />
-          </Field>
-          <Field label="Class id" hint="Change it to reach CLASS_NOT_FOUND.">
-            <Input value={target.id} onChange={aim('id')} />
-          </Field>
-        </div>
-
-        <Field
-          label="Section number"
-          required
-          hint="Stored exactly as typed — A, Blue, Alpha. Unique in the class, checked case-insensitively, and never changeable afterwards."
-          error={errors.sectionNo}
-        >
-          <Input value={form.sectionNo} error={errors.sectionNo}
-            onChange={set('sectionNo')} placeholder="A" />
-        </Field>
-
-        <div className="field-grid">
-          <Field
-            label="Capacity"
-            hint="Optional, at least 1. A plan, not a limit — nothing enforces it, and 0 is refused."
-            error={errors.capacity}
-          >
-            <Input type="number" value={form.capacity} error={errors.capacity}
-              onChange={set('capacity')} placeholder="40" />
-          </Field>
-          <Field
-            label="Class teacher id"
-            hint="Optional Staff.id. Checked against this school — another school's real id is a 404."
-            error={errors.classTeacherDocsId}
-          >
-            <Input value={form.classTeacherDocsId} error={errors.classTeacherDocsId}
-              onChange={set('classTeacherDocsId')} placeholder="67aa15d9dc3f7d0011111111" />
-          </Field>
-        </div>
-
-        <p className="muted">
-          <Users size={12} /> The number stays unique only within this class — another class may
-          have its own "A". Add stays open so a class can get A, B, C and D in one sitting. The
-          counts above describe the whole class even when the rows are filtered.
-        </p>
-      </div>
-    </Modal>
-  )
-}
-
-/**
- * One class in full — #29.
- *
- * THE ONLY WAY TO SEE A CLASS'S SUBJECTS. #28 returns counts and #30 returns sections, so this is
- * the endpoint that shows what is actually taught — and while #22 is unbuilt, it shows that the
- * answer is nothing, which is itself worth seeing.
- *
- * NOTHING IS RESOLVED TO A NAME. Every teacher and grading scheme is a raw id, and the panel
- * prints them as such rather than pretending otherwise.
- */
-function ViewClass({ row, onClose }) {
-  if (!row) return null
-  return <ViewClassPanel key={row.schoolClassId} row={row} onClose={onClose} />
-}
-
-function ViewClassPanel({ row, onClose }) {
-  const { call } = useApi()
-  const [target, setTarget] = useState({ year: row.academicYear, id: row.schoolClassId })
-  const [data, setData] = useState(null)
-  const [problem, setProblem] = useState(null)
-
-  const aim = (field) => (event) =>
-    setTarget((old) => ({ ...old, [field]: event.target.value }))
-
-  const read = useCallback(async () => {
-    const result = await call('get-school-class', {
-      label: 'One class in full',
-      pathParams: { year: target.year, id: target.id },
-    })
-    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, target.year, target.id])
-
-  useEffect(() => { read() }, [read])
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={row.name}
-      description="One document, one query — which is the whole reason sections and subjects are embedded."
-      endpoint={<EndpointTag id="get-school-class" name="Read" />}
-      footer={
-        <>
-          <Button icon={RefreshCw} onClick={read}>Re-read</Button>
-          <Button onClick={onClose}>Close</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {problem ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">
-                {problem.bodyJson?.code || `HTTP ${problem.status}`}
-              </span>
-            </div>
-            <pre className="resp-body">{problem.bodyJson?.message}</pre>
-          </div>
-        ) : null}
-
-        {/* Both halves of the URL stay typeable, so the two 404s are reachable from here. */}
-        <div className="field-grid">
-          <Field label="Year" hint="A real class id under the wrong year is a 404.">
-            <Input value={target.year} onChange={aim('year')} />
-          </Field>
-          <Field label="Class id" hint="Change it to reach CLASS_NOT_FOUND.">
-            <Input value={target.id} onChange={aim('id')} />
-          </Field>
-        </div>
-
-        {data ? (
-          <>
-            <div className="resp">
-              <div className="resp-head">
-                <span className="resp-status" data-ok="true">
-                  {data.sectionCount} section{data.sectionCount === 1 ? '' : 's'} ·{' '}
-                  {data.activeSectionCount} active · {data.subjectCount} subject
-                  {data.subjectCount === 1 ? '' : 's'} · {data.activeSubjectCount} active
-                </span>
-              </div>
-              <pre className="resp-body">
-                {[
-                  `name        ${data.name}`,
-                  `year        ${data.academicYear}`,
-                  `active      ${data.active}`,
-                  `programme   ${data.affiliationProgrammeDocsId ?? 'none'}`,
-                  `id          ${data.schoolClassId}`,
-                ].join('\n')}
-              </pre>
-            </div>
-
-            <div className="resp">
-              <div className="resp-head"><span className="resp-status">sections</span></div>
-              <pre className="resp-body">
-                {(data.sections ?? []).length === 0
-                  ? 'none — add one with #17, or nothing can be placed in this class'
-                  : data.sections.map((one) => [
-                      one.sectionNo,
-                      one.capacity ? `cap ${one.capacity}` : 'no capacity',
-                      // The raw id, not a name. See the note on the record.
-                      one.classTeacherDocsId ?? 'no class teacher',
-                      one.active ? 'active' : 'retired',
-                    ].join('  ·  ')).join('\n')}
-              </pre>
-            </div>
-
-            <div className="resp">
-              <div className="resp-head"><span className="resp-status">subjects</span></div>
-              <pre className="resp-body">
-                {(data.subjects ?? []).length === 0
-                  ? 'none — #22 is not built, so every class reads this way'
-                  : data.subjects.map((one) => [
-                      one.subjectCode,
-                      one.name,
-                      one.subjectType,
-                      // Absent means the whole class, which is the ordinary case.
-                      one.sectionNo ? `section ${one.sectionNo}` : 'all sections',
-                      `${(one.teacherDocsIds ?? []).length} teacher(s)`,
-                      one.active ? 'active' : 'retired',
-                    ].join('  ·  ')).join('\n')}
-              </pre>
-            </div>
-          </>
-        ) : null}
-
-        <p className="muted">
-          <Info size={12} /> Teachers and grading schemes are raw ids on purpose — one place
-          should decide how a teacher is presented, and it is not two response records.
-        </p>
       </div>
     </Modal>
   )

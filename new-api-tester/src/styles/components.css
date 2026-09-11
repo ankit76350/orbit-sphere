@@ -203,6 +203,11 @@
 }
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table tbody tr:hover td { background: var(--surface-2); }
+
+/* A row that opens its own page. The cursor is the only affordance a table row has, so it has
+   to be there — a row that navigates and looks inert is a row nobody clicks. Controls inside
+   such a row stop the click from propagating; see the Classes screen. */
+.data-table tbody tr[data-opens] { cursor: pointer; }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table th.num { text-align: right; }
 .empty-row { text-align: center; color: var(--ink-muted); padding: 26px 14px; }
