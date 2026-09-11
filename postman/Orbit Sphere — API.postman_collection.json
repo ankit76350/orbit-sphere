@@ -3860,6 +3860,57 @@
                 }
               },
               "response": []
+            },
+            {
+              "name": "Get Section",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('one section object came back', () => pm.expect(b.section).to.be.an('object'));",
+                      "pm.test('it carries its class', () => pm.expect(b).to.have.property('className'));",
+                      "pm.test('the counts are the class\\u2019s', () => pm.expect(b).to.have.property('sectionCount'));",
+                      "pm.test('no subjects — that is #31', () => pm.expect(b).to.not.have.property('subjects'));",
+                      "pm.test('and no section list — that is #30', () => pm.expect(b).to.not.have.property('sections'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/academic-years/{year}/classes/{id}/sections/{sectionNo}\n// A GET — no body. Needs X-School-Subdomain, a year, a class id and a section number.\n//\n//  THE ONLY READ HERE THAT IS NOT A LIST. #30 answers \"which sections are\n//  there\"; this answers \"this one\".\n//\n//  sectionNo IS A PATH SEGMENT, not a query parameter — it names the thing\n//  being fetched. #31 uses ?sectionNo= to narrow an audience instead; three\n//  endpoints, three jobs for one word.\n//\n//  THE CLASS COMES WITH IT. A section is embedded and has no identity away\n//  from its class, so className and academicYear are in the response.\n//\n//  THE COUNTS DESCRIBE THE CLASS, not the section — \"one of three\".\n//\n//  THE SUBJECTS ARE NOT HERE. That is #31 with ?sectionNo=, which applies the\n//  class-wide union.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  ONE SECTION                                         -> 200 OK\n//     sectionNo A on a class that has it.\n//     OUT: section is a single OBJECT, not a list — sectionNo, capacity,\n//     classTeacherDocsId and active, with the class around it.\n// -------------------------------------------------------------------------\n// 02  IT IS THE ROW #30 RETURNS                           -> 200 OK\n//     Read #30, then this. The section object is field-for-field the same\n//     row. The shape is shared on purpose; what differs is the question.\n// -------------------------------------------------------------------------\n// 03  THE COUNTS ARE THE CLASS'S                          -> 200 OK\n//     sectionCount is 3 on a class with three sections, even though one\n//     section came back. \"One of three\" is what a page shows.\n// -------------------------------------------------------------------------\n// 04  NO SUBJECTS IN THE RESPONSE                         -> 200 OK\n//     Deliberate. What a section studies is #31 with ?sectionNo=, which\n//     applies the class-wide union — one place for that rule, not two.\n// -------------------------------------------------------------------------\n// 05  THE NUMBER IN LOWER CASE                            -> 200 OK\n//     sectionNo a finds section A. Matched case-insensitively and trimmed,\n//     as everywhere else in this module.\n// -------------------------------------------------------------------------\n// 06  A DIFFERENT SECTION                                 -> 200 OK\n//     sectionNo B returns B — the check that the number is actually read\n//     rather than the first section being handed back.\n// -------------------------------------------------------------------------\n// 07  A SECTION THE CLASS DOES NOT HAVE                   -> 404 Not Found\n//     OUT: { \"code\": \"SECTION_NOT_FOUND\" }, naming the class it looked in.\n// -------------------------------------------------------------------------\n// 08  A SUSPENDED SCHOOL                                  -> 200 OK\n//     Suspend the school, then read. No gate runs on a read.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.\n//     404 SECTION_NOT_FOUND                That class has no section with that number."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}/sections/{{sectionNo}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "classes",
+                    "{{schoolClassId}}",
+                    "sections",
+                    "{{sectionNo}}"
+                  ]
+                },
+                "description": "Endpoint #37 — one section of one class, by its number. The only read in this group that is not a list."
+              },
+              "response": []
             }
           ]
         }
@@ -3906,6 +3957,11 @@
       "key": "schoolClassId",
       "value": "",
       "description": "Saved by Create Class. A class has no code - twelve documents reference it by this id - so every class request is addressed by it."
+    },
+    {
+      "key": "sectionNo",
+      "value": "A",
+      "type": "string"
     }
   ]
 }

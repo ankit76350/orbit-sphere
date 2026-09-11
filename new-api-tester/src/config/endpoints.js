@@ -10325,6 +10325,164 @@ A read, so a suspended or closed school still reads its own structure.
         },
       ],
     },
+    {
+      id: "get-class-section",
+      name: "Get Section",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/classes/{id}/sections/{sectionNo}",
+      status: 'live',
+      summary: "One section of one class, by its number.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/classes/{id}/sections/{sectionNo}\` — endpoint #37.
+
+### The only read in this group that is not a list
+
+#30 answers "which sections does this class have". This answers "**this** section" — the
+difference between a dropdown and a page. Without it, a caller wanting one section reads all of
+them and picks in its own code, which is the duplication #31 was built to end for subjects.
+
+### sectionNo is a path segment here, and that is deliberate
+
+Three endpoints use the word for three different jobs, each in the position that matches:
+
+- **#30** \`/sections\` — the list *is* the resource, no parameter at all
+- **#31** \`/subjects?sectionNo=A\` — a **query** parameter, narrowing an audience
+- **#37** \`/sections/A\` — a **path** segment, naming the thing being fetched
+
+### A section is embedded, so the class comes with it
+
+\`className\`, \`academicYear\` and \`schoolClassId\` are in the response. A section has no
+identity away from its class — no collection, no document id, no \`schoolId\` of its own — so a
+response holding only \`sectionNo\` would name something that means nothing on its own.
+
+That is also why the number can never be changed: eight collections store it as a plain string.
+
+### The counts describe the class, not the section
+
+\`sectionCount\` and \`activeCount\` are the class's, the same rule #30 and #31 follow. "One of
+three" is what a page shows beside a section's name.
+
+### The subjects are not here
+
+That is **#31 with \`?sectionNo=\`**, which applies the class-wide union — its own rows plus the
+class's. Restating that rule in this response would mean two places to keep it right.
+
+### Matched case-insensitively, and trimmed
+
+"a" and "A" are one section everywhere else in this module, and a URL is not where that should
+start to differ.
+
+### No gate runs on it
+
+A read, so a suspended or closed school still reads its own structure.
+
+### The eight test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain, a year, a class id and a section number.
+
+ THE ONLY READ HERE THAT IS NOT A LIST. #30 answers "which sections are
+ there"; this answers "this one".
+
+ sectionNo IS A PATH SEGMENT, not a query parameter — it names the thing
+ being fetched. #31 uses ?sectionNo= to narrow an audience instead; three
+ endpoints, three jobs for one word.
+
+ THE CLASS COMES WITH IT. A section is embedded and has no identity away
+ from its class, so className and academicYear are in the response.
+
+ THE COUNTS DESCRIBE THE CLASS, not the section — "one of three".
+
+ THE SUBJECTS ARE NOT HERE. That is #31 with ?sectionNo=, which applies the
+ class-wide union.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+        { name: "sectionNo", value: "A", description: "The section's number, as #17 stored it. Matched case-insensitively and trimmed." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "One section object, with the class around it and the class's counts.",
+      responseFields: ["schoolClassId", "className", "academicYear", "sectionCount", "activeCount", "section"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "SECTION_NOT_FOUND", when: "That class has no section with that number." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "ONE SECTION",
+          expect: "200 OK",
+          notes: `sectionNo A on a class that has it.
+    OUT: section is a single OBJECT, not a list — sectionNo, capacity,
+    classTeacherDocsId and active, with the class around it.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "IT IS THE ROW #30 RETURNS",
+          expect: "200 OK",
+          notes: `Read #30, then this. The section object is field-for-field the
+    same row. The shape is shared on purpose; what differs is the question.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "THE COUNTS ARE THE CLASS'S",
+          expect: "200 OK",
+          notes: `sectionCount is 3 on a class with three sections, even though one
+    section came back. "One of three" is what a page shows.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "NO SUBJECTS IN THE RESPONSE",
+          expect: "200 OK",
+          notes: `Deliberate. What a section studies is #31 with ?sectionNo=, which
+    applies the class-wide union — one place for that rule, not two.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "THE NUMBER IN LOWER CASE",
+          expect: "200 OK",
+          notes: `sectionNo a finds section A. Matched case-insensitively and
+    trimmed, as everywhere else in this module.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "A DIFFERENT SECTION",
+          expect: "200 OK",
+          notes: `sectionNo B returns B — the check that the number is actually read
+    rather than the first section being handed back.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A SECTION THE CLASS DOES NOT HAVE",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "SECTION_NOT_FOUND" }, naming the class it looked in.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "A SUSPENDED SCHOOL",
+          expect: "200 OK",
+          notes: `Suspend the school, then read. No gate runs on a read.`,
+          body: null,
+        },
+      ],
+    },
   ],
 };
 

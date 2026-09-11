@@ -3120,11 +3120,22 @@ classChecks.push(
   ['Edit stops the click, or opening the editor would navigate away',
     classesScreen.includes('event.stopPropagation(); setEditing(row)')],
   ['the class page reads #29', classDetailScreen.includes("call('get-school-class'")],
-  ['and is the only read on the page that returns subjects',
-    classDetailScreen.includes('the only endpoint that returns them')
-      && !classDetailScreen.includes("call('list-class-sections'")],
-  ['it draws the sections from that read rather than calling #30 again',
-    classDetailScreen.includes('there is no second call to draw this')],
+  ['each table is drawn by the endpoint that owns it',
+    classDetailScreen.includes("call('list-class-sections'")
+      && classDetailScreen.includes("call('list-class-subjects'")],
+  ['and #29 is still read, for the two facts only it has',
+    classDetailScreen.includes("call('get-school-class'")
+      && classDetailScreen.includes('affiliationProgrammeDocsId')],
+  ['the counts come from the endpoint that drew the table, never from #29',
+    classDetailScreen.includes('sectionList?.sectionCount')
+      && classDetailScreen.includes('subjectList?.subjectCount')
+      && !classDetailScreen.includes('data?.sectionCount')],
+  ['the three reads go in parallel, since none depends on another',
+    classDetailScreen.includes('await Promise.all([')],
+  ['every table says which endpoint drew it',
+    (classDetailScreen.match(/<EndpointTag/g) || []).length >= 3],
+  ['and the tag shows the real URL, not a typed-out one',
+    classDetailScreen.includes('pathParams={{ year: actingAcademicYear, id }}')],
   // A SECTION OPENS ITS OWN PAGE, not a modal — three levels of address, and no deeper.
   ['a section row opens its own address',
     classDetailScreen.includes("childPath('school', 'academics', 'classes', id,")],
@@ -3332,7 +3343,7 @@ classChecks.push(
 // #31 — the subject list. ?sectionNo= NAMES AN AUDIENCE, NOT A ROW, and every guard below exists
 // because a strict match passes any test written on a class whose subjects are all per-section.
 const subjectListEntry = classCatalogue.slice(classCatalogue.indexOf('list-class-subjects'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+  classCatalogue.indexOf('get-class-section'))
 classChecks.push(
   ['#31 reads the class subjects',
     /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/subjects"/
@@ -3367,6 +3378,52 @@ classChecks.push(
     subjectListEntry.includes('A SUSPENDED SCHOOL')],
   ['it says it reads the same document as #29, rather than hiding it',
     subjectListEntry.includes('same document as #29')],
+)
+
+
+// #37 — one section. THE ONLY READ IN THIS GROUP THAT IS NOT A LIST, and the guards below exist
+// because "return the first section" passes any test written against a class with one section.
+const sectionOneEntry = classCatalogue.slice(classCatalogue.indexOf('get-class-section'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#37 reads one section by its number',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/sections\/{sectionNo}"/
+      .test(sectionOneEntry) && sectionOneEntry.includes('method: "GET"')],
+  ['it takes no body and answers 200',
+    sectionOneEntry.includes('bodyAllowed: false') && sectionOneEntry.includes('successStatus: 200')],
+  ['sectionNo is a PATH parameter, not a query one',
+    sectionOneEntry.includes('name: "sectionNo"') && sectionOneEntry.includes('queryParams: []')],
+  ['the response is one section, not a list',
+    sectionOneEntry.includes('"section"') && !sectionOneEntry.includes('"sections"')],
+  ['it carries the class, because a section has no identity alone',
+    ['"schoolClassId"', '"className"', '"academicYear"'].every((f) => sectionOneEntry.includes(f))],
+  ['the counts are documented as the class\'s, not the section\'s',
+    sectionOneEntry.includes("THE COUNTS ARE THE CLASS'S")],
+  ['the three jobs of the word sectionNo are spelled out',
+    sectionOneEntry.includes('three different jobs')],
+  ['the subjects are deliberately absent, and #31 is named as the owner',
+    sectionOneEntry.includes('NO SUBJECTS IN THE RESPONSE')
+      && sectionOneEntry.includes('#31 with')],
+  ['a different section is a case, so "first section wins" cannot pass',
+    sectionOneEntry.includes('A DIFFERENT SECTION')],
+  ['case-insensitive matching is a case', sectionOneEntry.includes('THE NUMBER IN LOWER CASE')],
+  ['the unknown section and the tenant refusals are listed',
+    ['SECTION_NOT_FOUND', 'CLASS_NOT_FOUND', 'ACADEMIC_YEAR_NOT_FOUND', 'TENANT_NOT_RESOLVED']
+      .every((c) => sectionOneEntry.includes(c))],
+
+  // The screen
+  ['the section page reads #37 for the section itself',
+    sectionScreen.includes("call('get-class-section'")],
+  ['and no longer finds it by hand in #30\'s list',
+    sectionScreen.includes('const section = detail?.section ?? null')
+      && !sectionScreen.includes('.find((one) => one.sectionNo === sectionNo)')],
+  ['#37 gates the page, since nothing else means anything without it',
+    sectionScreen.includes('if (one.ok) { setDetail(one.bodyJson); setProblem(null) }')],
+  ['#30 is kept only to answer whether the FILTERED list includes it',
+    sectionScreen.includes('inFilteredList')],
+  ['and that distinction is explained where it shows',
+    sectionScreen.includes('That is the filter working, not the section missing')],
+  ['all three reads still go in parallel', sectionScreen.includes('await Promise.all([')],
 )
 
 for (const [label, ok] of classChecks) {

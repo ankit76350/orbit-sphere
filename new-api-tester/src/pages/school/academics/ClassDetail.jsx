@@ -12,10 +12,10 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * One class, at its own address: /school-academics/classes/{id}
  *
- * FIVE OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class with its sections and subjects,
- * #17 adds a section, #22 assigns a subject, #24 edits one, and #30 reads the sections on their
- * own. They are together because they all answer questions about one class, and because a class
- * with four sections and ten subjects is more than a modal's worth of screen.
+ * SIX OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class itself, #30 its sections, #31 its
+ * subjects, #17 adds a section, #22 assigns a subject and #24 edits one. They are together
+ * because they all answer questions about one class, and because a class with four sections and
+ * ten subjects is more than a modal's worth of screen.
  *
  * THE YEAR COMES FROM THE TOP BAR, NOT THE ADDRESS. A class id is globally unique, so the id
  * alone finds it — but the API scopes the lookup by year as well, deliberately, so that an id
@@ -23,8 +23,16 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * top bar makes this page 404, and that is the scoping working rather than a bug. The page says
  * so instead of showing an empty shell.
  *
- * #29 ALREADY RETURNS THE SECTIONS, so the table below is drawn from it and #30 is not called on
- * load. Calling both would be two reads of the same document to draw one table.
+ * EACH TABLE IS DRAWN BY THE ENDPOINT THAT OWNS IT — changed 2026-09-11. #29 returns the
+ * sections and the subjects too, and this page used to draw both from that one read on the
+ * grounds that three reads of one embedded document is three reads of one embedded document.
+ * That is still true, and it is no longer the deciding argument: #30 owns "what sections does
+ * this class have" and #31 owns "what does it teach", so a change to either answer lands here
+ * without this page having to know it happened. #29 is still read, for the facts only it has —
+ * `active` and `affiliationProgrammeDocsId`.
+ *
+ * THE COUNTS COME FROM THE ENDPOINT THAT DREW THE TABLE, not from #29, so a count can never
+ * disagree with the rows beside it.
  *
  * A SECTION ROW OPENS ITS OWN PAGE, not a modal. A section has subjects of its own to show, and
  * that is more than a modal's worth of screen — and #30 is what that page asks, because it is
@@ -39,6 +47,8 @@ export default function ClassDetail() {
   const { environment, actingSubdomain, actingAcademicYear } = useApiState()
 
   const [data, setData] = useState(null)
+  const [sectionList, setSectionList] = useState(null)
+  const [subjectList, setSubjectList] = useState(null)
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -49,13 +59,19 @@ export default function ClassDetail() {
   const load = useCallback(async () => {
     if (!actingSubdomain) return
     setLoading(true)
-    const result = await call('get-school-class', {
-      label: 'One class in full',
-      // Empty when no year is picked, so the request still goes and the server answers 404.
-      pathParams: { year: actingAcademicYear ?? '', id },
-    })
+    // In parallel: none depends on another, and each owns one part of the screen.
+    // Empty year when none is picked, so the request still goes and the server answers 404.
+    const where = { year: actingAcademicYear ?? '', id }
+    const [result, sections, subjects] = await Promise.all([
+      call('get-school-class', { label: 'The class itself', pathParams: where }),
+      call('list-class-sections', { label: "The class's sections", pathParams: where }),
+      call('list-class-subjects', { label: "The class's subjects", pathParams: where }),
+    ])
     setLoading(false)
+    // #29 gates the page: if the class is not there, neither of the others means anything.
     if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    setSectionList(sections.ok ? sections.bodyJson : null)
+    setSubjectList(subjects.ok ? subjects.bodyJson : null)
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [call, environment.id, actingSubdomain, actingAcademicYear, id])
 
@@ -84,8 +100,9 @@ export default function ClassDetail() {
     )
   }
 
-  const sections = data?.sections ?? []
-  const subjects = data?.subjects ?? []
+  // From #30 and #31 — not from #29, which returns them too.
+  const sections = sectionList?.sections ?? []
+  const subjects = subjectList?.subjects ?? []
 
   return (
     <div className="page stack">
@@ -97,18 +114,22 @@ export default function ClassDetail() {
           <p className="muted">
             <span className="mono">{actingSubdomain}</span>
             {data ? <> · <span className="mono">{data.academicYear}</span></> : null}
-            {data ? ` · ${data.sectionCount} section${data.sectionCount === 1 ? '' : 's'}` : ''}
-            {data ? ` · ${data.subjectCount} subject${data.subjectCount === 1 ? '' : 's'}` : ''}
+            {sectionList ? ` · ${sectionList.sectionCount} section${sectionList.sectionCount === 1 ? '' : 's'}` : ''}
+            {subjectList ? ` · ${subjectList.subjectCount} subject${subjectList.subjectCount === 1 ? '' : 's'}` : ''}
           </p>
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <EndpointTag id="get-school-class" name="Read" />
         <Button icon={Plus} onClick={() => setAssigning(true)}>Add a subject</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a section</Button>
       </div>
 
-      <Card title="The class" description="Everything #29 returns about it, in one read.">
+      <Card
+        title="The class"
+        description="Everything #29 returns about it, in one read. The sections and subjects it also returns are drawn below by the endpoints that own them."
+        action={<EndpointTag id="get-school-class" name="The class"
+          pathParams={{ year: actingAcademicYear, id }} />}
+      >
         <div className="table-scroll">
           <table className="data-table">
             <tbody>
@@ -136,11 +157,13 @@ export default function ClassDetail() {
 
       <Card
         title="Sections"
-        description="From #29's read — it returns them, so there is no second call to draw this. Open one for its own page, where #30 answers for it."
+        description="From #30, the endpoint a section belongs to. Open one for its own page, where #30 answers for it again — with ?active= and that section's subjects."
         action={
           <div className="btn-row">
-            <Badge>{data?.sectionCount ?? 0} total</Badge>
-            <Badge tone="good">{data?.activeSectionCount ?? 0} active</Badge>
+            <EndpointTag id="list-class-sections" name="These sections"
+              pathParams={{ year: actingAcademicYear, id }} />
+            <Badge>{sectionList?.sectionCount ?? 0} total</Badge>
+            <Badge tone="good">{sectionList?.activeCount ?? 0} active</Badge>
           </div>
         }
       >
@@ -206,11 +229,13 @@ export default function ClassDetail() {
 
       <Card
         title="Subjects"
-        description="Also from #29. This is the only endpoint that returns them — #22 is what puts them there."
+        description="From #31, with no ?sectionNo= — so this is every assignment the class holds, class-wide and per-section alike. #22 is what puts them there."
         action={
           <div className="btn-row">
-            <Badge>{data?.subjectCount ?? 0} total</Badge>
-            <Badge tone="good">{data?.activeSubjectCount ?? 0} active</Badge>
+            <EndpointTag id="list-class-subjects" name="These subjects"
+              pathParams={{ year: actingAcademicYear, id }} />
+            <Badge>{subjectList?.subjectCount ?? 0} total</Badge>
+            <Badge tone="good">{subjectList?.activeCount ?? 0} active</Badge>
             <Button icon={Plus} onClick={() => setAssigning(true)}>Add</Button>
           </div>
         }

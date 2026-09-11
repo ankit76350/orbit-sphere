@@ -23,13 +23,16 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * is a subject for that section — and because the refusal that matters is reachable this way: if
  * the class already teaches it class-wide, assigning it here is a 409, not a second row.
  *
- * TWO READS, AND EACH OWNS ITS HALF.
+ * THREE READS, AND EACH OWNS ITS QUESTION.
  *
- *   #30  GET /classes/{id}/sections              the section itself, and where ?active= lives
- *   #31  GET /classes/{id}/subjects?sectionNo=   what this section studies
+ *   #37  GET /classes/{id}/sections/{sectionNo}  THIS section — the card below
+ *   #31  GET /classes/{id}/subjects?sectionNo=   what it studies, already unioned
+ *   #30  GET /classes/{id}/sections?active=      the list, kept only so ?active= stays testable
  *
- * #29 alone would answer both, and that is worth saying rather than hiding: the page asks each
- * endpoint for the thing it owns, so this page does not depend on a shape it has no claim on.
+ * #37 REPLACED A BROWSER-SIDE find() on 2026-09-11. The page used to read every section and pick
+ * this one in its own code — the same duplication #31 ended for subjects, and the reason #37 was
+ * built. #30 is still called, but only to answer "does the filtered list include this section",
+ * which is a question about the FILTER rather than about the section.
  *
  * THE SUBJECT FILTERING MOVED OUT OF THE BROWSER on 2026-09-11. It used to read #29 and filter
  * here; #31 now answers "what does this section study" directly, so the union rule lives in one
@@ -52,6 +55,7 @@ export default function SectionDetail() {
   const { call } = useApi()
   const { environment, actingSubdomain, actingAcademicYear } = useApiState()
 
+  const [detail, setDetail] = useState(null)
   const [list, setList] = useState(null)
   const [taught, setTaught] = useState(null)
   const [taughtProblem, setTaughtProblem] = useState(null)
@@ -64,8 +68,12 @@ export default function SectionDetail() {
   const load = useCallback(async () => {
     if (!actingSubdomain) return
     setLoading(true)
-    // In parallel: neither depends on the other, and they read the same document anyway.
-    const [sections, subjects] = await Promise.all([
+    // In parallel: none depends on another, and they read the same document anyway.
+    const [one, sections, subjects] = await Promise.all([
+      call('get-class-section', {
+        label: 'This section',
+        pathParams: { year: actingAcademicYear ?? '', id, sectionNo },
+      }),
       call('list-class-sections', {
         label: "The class's sections",
         pathParams: { year: actingAcademicYear ?? '', id },
@@ -79,7 +87,9 @@ export default function SectionDetail() {
       }),
     ])
     setLoading(false)
-    if (sections.ok) { setList(sections.bodyJson); setProblem(null) } else { setProblem(sections) }
+    // #37 gates the page: if this section is not there, nothing else on it means anything.
+    if (one.ok) { setDetail(one.bodyJson); setProblem(null) } else { setProblem(one) }
+    setList(sections.ok ? sections.bodyJson : null)
     // Kept separately from the section's own problem: #31 refuses an unknown section with a
     // 404, and that must not render as "nothing is taught here".
     if (subjects.ok) { setTaught(subjects.bodyJson); setTaughtProblem(null) }
@@ -92,7 +102,10 @@ export default function SectionDetail() {
   if (!actingSubdomain) return <NoSchoolChosen what="This section" />
 
   const classPath = detailPath('school', 'academics', 'classes', id)
-  const section = (list?.sections ?? []).find((one) => one.sectionNo === sectionNo)
+  // From #37 — not found by hand in #30's list, which is what this page used to do.
+  const section = detail?.section ?? null
+  // Whether #30's FILTERED answer includes it. A question about the filter, not the section.
+  const inFilteredList = (list?.sections ?? []).some((one) => one.sectionNo === section?.sectionNo)
 
   if (problem) {
     return (
@@ -130,8 +143,6 @@ export default function SectionDetail() {
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
-        <EndpointTag id="list-class-sections" name="The section" />
-        <EndpointTag id="list-class-subjects" name="Its subjects" />
         <Button look="primary" icon={Plus} onClick={() => setAssigning(true)}>
           Add a subject
         </Button>
@@ -139,14 +150,21 @@ export default function SectionDetail() {
 
       <Card
         title="The section"
-        description="From #30 — the endpoint a section belongs to, and the one a 'move this student' dropdown would use."
+        description="From #37 — the endpoint that answers for one section. #30 returns the list; this returns this one."
         action={
-          <Field
-            label="Show"
-            hint="#30's ?active=. Blank sends no parameter, which is not the same as false."
-          >
-            <Select label="Show" value={active} onChange={setActive} options={TRISTATE} />
-          </Field>
+          <div className="btn-row">
+            <EndpointTag id="get-class-section" name="This section"
+              pathParams={{ year: actingAcademicYear, id, sectionNo }} />
+            <EndpointTag id="list-class-sections" name="Is it in the filtered list"
+              pathParams={{ year: actingAcademicYear, id }}
+              query={active ? { active } : {}} />
+            <Field
+              label="Show"
+              hint="#30's ?active=. Blank sends no parameter, which is not the same as false."
+            >
+              <Select label="Show" value={active} onChange={setActive} options={TRISTATE} />
+            </Field>
+          </div>
         }
       >
         {section ? (
@@ -176,14 +194,19 @@ export default function SectionDetail() {
           </div>
         ) : (
           <Empty
-            title={active ? `Not in this filtered answer` : 'No such section'}
-            description={active
-              ? `Section ${sectionNo} exists, but ?active=${active} excludes it — which is what `
-                + 'that filter means for it. Clear the filter to see it.'
-              : `This class has no section '${sectionNo}'. A section number is unique only `
-                + 'within its class, so another class may well have one.'}
+            title="No such section"
+            description={`This class has no section '${sectionNo}'. A section number is unique `
+              + 'only within its class, so another class may well have one.'}
           />
         )}
+        {section && active && !inFilteredList ? (
+          <p className="muted">
+            <Info size={12} /> Section {section.sectionNo} is here because <b>#37</b> answers for
+            it directly — but <span className="mono">?active={active}</span> excludes it from
+            #30&apos;s list. That is the filter working, not the section missing, and separating
+            the two is what #37 buys.
+          </p>
+        ) : null}
         <p className="muted">
           <Info size={12} /> {list ? `${list.sectionCount} in the class · ${list.activeCount} active` : ''}
           {' '}— those counts describe the whole class however the rows are filtered.
@@ -195,6 +218,8 @@ export default function SectionDetail() {
         description="Its own subject assignments, plus the class-wide ones — a row with no section applies to every section."
         action={
           <div className="btn-row">
+            <EndpointTag id="list-class-subjects" name="What it studies"
+              pathParams={{ year: actingAcademicYear, id }} query={{ sectionNo }} />
             <Badge>{mine.length} applying</Badge>
             {taught ? <Badge>{taught.subjectCount} in the class</Badge> : null}
             <Button icon={Plus} onClick={() => setAssigning(true)}>Add</Button>

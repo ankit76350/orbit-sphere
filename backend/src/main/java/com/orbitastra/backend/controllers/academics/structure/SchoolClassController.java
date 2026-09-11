@@ -23,6 +23,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectUpdateReq
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SectionDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SubjectListResponse;
 import com.orbitastra.backend.models.core.School;
@@ -33,8 +34,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16, #22 to #27 and #28 to #31 of the plan in this package's README; #12, #13, #17,
- * #22, #24, #28, #29, #30 and #31 are built.
+ * #12 to #16, #22 to #27, #28 to #31 and #37 of the plan in this package's README; #12, #13,
+ * #17, #22, #24, #28, #29, #30, #31 and #37 are built.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.
@@ -356,6 +357,25 @@ public class SchoolClassController {
             @RequestParam(required = false) String sectionNo) {
 
         return ResponseEntity.ok(schoolClassService.listSubjects(year, id, sectionNo));
+    }
+
+    /**
+     * Endpoint #37 — one section of one class.
+     *
+     * <p><b>{@code sectionNo} is a path segment here, not a query parameter</b>, because it names
+     * the thing being fetched rather than filtering something else. Compare #30, where the
+     * section list is the resource, and #31, where {@code ?sectionNo=} narrows an audience.
+     *
+     * <p><b>The section's subjects are not in this response</b> — that is #31 with
+     * {@code ?sectionNo=}, which is the one place the class-wide union rule lives.
+     */
+    @GetMapping("/{id}/sections/{sectionNo}")
+    public ResponseEntity<SectionDetailResponse> getSection(
+            @PathVariable String year,
+            @PathVariable String id,
+            @PathVariable String sectionNo) {
+
+        return ResponseEntity.ok(schoolClassService.getSection(year, id, sectionNo));
     }
 
     //! the subjects taught in a class — #22 to #27 ------------------------------------

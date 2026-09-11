@@ -1,6 +1,6 @@
 # controllers/academics/structure — API plan
 
-**Nine of 36 are built — #12, #13, #17, #22, #24, #28, #29, #30 and #31.** A class can be created
+**Ten of 37 are built — #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
 for an academic year, its name and affiliation programme edited, sections added to it, subjects
 assigned to the class or to one section and then edited, the year's classes listed — filtered,
 searched, sorted and paged — and one class read in full, or just its sections, or just the
@@ -204,8 +204,10 @@ else. A term written against a year that does not exist is an orphan the moment 
 
 # The endpoints
 
-Numbered straight through, 1 to 36. **A number is never reused for a different endpoint** — these
-are referenced from the service, the API catalogue and the Postman collection. Grouped only so the
+Numbered straight through, 1 to 37. **A number is never reused for a different endpoint** — these
+are referenced from the service, the API catalogue and the Postman collection. **#37 was added
+after the plan was written**, and is numbered on the end rather than inserted beside #30, for the
+same reason. Grouped only so the
 list is readable. Every path below is
 relative to **`/schools/current/academic-years/{year}`**, which is left off the table to keep it
 readable — so `POST /terms` is `POST /schools/current/academic-years/2026-2027/terms`.
@@ -285,6 +287,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 | <a id="t31"></a>31 — **built** | [`GET /classes/{id}/subjects?sectionNo=`](#e31) | The class's subject assignments, or the ones one section studies — **its own rows plus the class-wide ones**. Dropped once and rebuilt with that rule settled. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t33"></a>33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
+| <a id="t37"></a>37 — **built** | [`GET /classes/{id}/sections/{sectionNo}`](#e37) | One section, by its number. **Added 2026-09-11**, after the plan: #30 answers "which sections are there" and this answers "this one", which is the difference between a dropdown and a page. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t34"></a>34 | [`GET /structure`](#e34) | The year's whole skeleton in one response: terms, then classes with their sections and subjects. What a mobile app fetches once on login instead of making twenty calls. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 
 ## 7. Rolling the structure into the next year · [Build order ↓](#build-order)
@@ -315,7 +318,7 @@ section exists, so sections come before everything that is merely useful.
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
-| **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, 32, 33, 34 |
+| **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, ~~37~~, 32, 33, 34 |
 
 **Phase 1 is the whole point of picking this module.** `StudentAcademicRecord.sectionNo` is the
 join between a student and everything academic, and `sectionNo` does not exist anywhere until #17
@@ -1065,6 +1068,18 @@ are applied after the query is pinned to one school and one year, and a case-ins
 ## Rolling the structure into the next year  ·  35–36
 
 Both read one year and write another, so both name **two** `{year}` values and must resolve both.
+
+<a id="e37"></a>
+**[37](#t37) · `GET /classes/{id}/sections/{sectionNo}`** — built
+
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the one `sections[]` row that number names, `404 SECTION_NOT_FOUND` otherwise
+- **The only response in this package that is not a list.** #30 answers "which sections does this class have"; this answers "this section". A caller wanting one used to read all of them and pick in its own code — the same duplication [#31](#e31) was built to end for subjects.
+- **`sectionNo` is a path segment, not a query parameter**, because it names the thing being fetched rather than filtering something else. Compare #30, where the list *is* the resource, and #31, where `?sectionNo=` narrows an audience. Three endpoints, three jobs for one word, each in the position that matches its job.
+- **Matched case-insensitively and trimmed**, because "a" and "A" are one section everywhere else in this module and a URL is not where that should start to differ.
+- **The class is carried around the section** — `className`, `academicYear`, `schoolClassId`. A section is embedded and has no identity away from its class, so a response holding only `sectionNo` would name something that means nothing on its own.
+- **The counts describe the class, not the section** — `sectionCount` and `activeCount` are the class's, the same rule #30 and #31 follow. "One of three" is what a page shows beside a section's name.
+- **The subjects are not here.** That is #31 with `?sectionNo=`, which applies the class-wide union — a rule this response has no business restating, and would drift from if it did.
+- **It returns the identical row #30 does**, asserted field-for-field in `verify37.py`. The shape is shared on purpose; what differs is the question.
 
 <a id="e35"></a>
 **[35](#t35) · `POST /terms/copy-from/{sourceYear}`**

@@ -111,6 +111,7 @@ Then Send, or **Run collection** for the active bodies.
 | `planVersion` | a successful Create Plan Draft | every `/versions/{version}` URL |
 | `subscriptionNo` | a successful Create Subscription | `Get Subscription History` |
 | `schoolClassId` | a successful **Create Class** | every `/classes/{id}` URL, sections included |
+| `sectionNo` | set by hand — a section has no id to capture | `Get Section`. Defaults to `A`; change it to read another. |
 
 ## Folders mirror `controllers/`
 
@@ -119,21 +120,21 @@ Then Send, or **Run collection** for the active bodies.
 and `Academics / Classes`. One folder per controller, so the collection and the code stay
 findable from each other.
 
-**`Academics` arrived 2026-09-11** with the first nine endpoints of
+**`Academics` arrived 2026-09-11** with the first ten endpoints of
 `controllers/academics/structure`. A class is addressed by its **MongoDB document id** — twelve
 other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
 section has, being embedded in its class. Run **Create Class** first: it saves `schoolClassId`.
 
 ## Coverage
 
-**63 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+**64 requests, and that is every endpoint that exists.** Checked rather than claimed: the
 collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
 
-**Academics is 9 of 36** — create a class, edit it, add a section, add a subject, edit one,
-list the year's classes, read one class in full, read its sections, and read the subjects one
-section studies. The other twenty-seven are specified in
+**Academics is 10 of 37** — create a class, edit it, add a section, add a subject, edit one,
+list the year's classes, read one class in full, read its sections, read one section, and read the
+subjects one section studies. The other twenty-seven are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md` and are
 not built.
 

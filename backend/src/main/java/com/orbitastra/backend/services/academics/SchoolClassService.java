@@ -23,6 +23,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectUpdateReq
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SectionDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SubjectListResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
@@ -462,6 +463,41 @@ public class SchoolClassService {
      * <i>and</i> the class-wide ones, because a row with no {@code sectionNo} applies to every
      * section. Matching strictly would hide most of what a section studies.
      */
+    /**
+     * Endpoint #37 — one section of one class, by its number.
+     *
+     * <p><b>Addressed by {@code sectionNo} because a section has nothing else.</b> It is embedded:
+     * no collection, no document id, no {@code schoolId} of its own. That is also why the number
+     * can never be changed — eight collections store it as a plain string.
+     */
+    public SectionDetailResponse getSection(String academicYear, String classId,
+            String sectionNoInPath) {
+
+        //! step 1 - who is asking. `require`, as every read here.
+        School school = currentSchool.require();
+
+        //! step 2 - the year, then the class, in that order
+        String year = utils.requireAcademicYear(school, academicYear);
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
+
+        //! step 3 - the one section that number names. Case-insensitive, because "a" and "A" are
+        //! one section everywhere else in this module and a URL is not where that should change.
+        String wanted = sectionNoInPath == null ? "" : sectionNoInPath.trim();
+        List<ClassSection> sections = schoolClass.getSections() == null
+                ? List.of()
+                : schoolClass.getSections();
+
+        ClassSection section = sections.stream()
+                .filter(one -> one.getSectionNo() != null
+                        && one.getSectionNo().equalsIgnoreCase(wanted))
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("SECTION_NOT_FOUND",
+                        "'" + schoolClass.getName() + "' has no section '" + wanted + "'."));
+
+        //! step 4 - the section, with the class around it
+        return SectionDetailResponse.of(schoolClass, section);
+    }
+
     public SubjectListResponse listSubjects(String academicYear, String classId,
             String sectionNoInQuery) {
 
