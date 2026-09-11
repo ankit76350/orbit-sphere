@@ -29,6 +29,9 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
  * <p>Sections come back in the order they were added, which is how they are stored. There is
  * nothing better to sort them by: {@code sectionNo} is free text, so alphabetical would put
  * "Blue" before "Red" and mean nothing.
+ *
+ * <p><b>{@code SectionView} used to be nested in here.</b> It moved to its own file when #29
+ * needed it too — a second copy would have been two shapes for one thing.
  */
 public record SectionListResponse(
         String schoolClassId,
@@ -48,32 +51,38 @@ public record SectionListResponse(
         String changeSummary) {
 
     /**
-     * One section as it comes back.
+     * The list for a read, optionally narrowed to active sections or to retired ones. #30.
      *
-     * <p>{@code classTeacherDocsId} is the raw id, not resolved to a name. Resolving it would
-     * mean this response and #29 both deciding how to present a teacher; when a screen needs the
-     * name it should read the staff record, and that decision belongs in one place.
+     * <p><b>Its own name rather than another {@code fromSchoolClass} overload.</b> Two overloads
+     * differing only in a nullable second argument are ambiguous to the compiler —
+     * {@code fromSchoolClass(cls, null)} matched both — and they would have been ambiguous to a
+     * reader for the same reason. The name now says which half of the API is calling: writes
+     * pass a summary, reads pass a filter.
+     *
+     * <p><b>The counts describe the WHOLE class, not the filtered view</b>, and that is
+     * deliberate: {@code sectionCount} answers "how many does this class have", which does not
+     * change because a caller asked to see some of them. A filtered count would make
+     * {@code ?active=true} on a class with two retired sections report two sections and two
+     * active — a lie in both halves.
+     *
+     * <p>No {@code changeSummary}: a read changed nothing.
+     *
+     * @param active {@code null} for every section, which is not the same as {@code false}
      */
-    public record SectionView(
-            String sectionNo,
+    public static SectionListResponse forRead(SchoolClass schoolClass, Boolean active) {
+        SectionListResponse whole = fromSchoolClass(schoolClass, null);
 
-            @JsonInclude(JsonInclude.Include.NON_NULL)
-            String classTeacherDocsId,
-
-            @JsonInclude(JsonInclude.Include.NON_NULL)
-            Integer capacity,
-
-            Boolean active) {
-
-        static SectionView of(ClassSection section) {
-            return new SectionView(section.getSectionNo(), section.getClassTeacherDocsId(),
-                    section.getCapacity(), section.getActive());
+        if (active == null) {
+            return whole;
         }
-    }
 
-    /** The same list, for a read. No {@code changeSummary}: nothing just happened. */
-    public static SectionListResponse fromSchoolClass(SchoolClass schoolClass) {
-        return fromSchoolClass(schoolClass, null);
+        return new SectionListResponse(
+                whole.schoolClassId(), whole.className(), whole.academicYear(),
+                whole.sectionCount(), whole.activeCount(),
+                whole.sections().stream()
+                        .filter(view -> active.equals(Boolean.TRUE.equals(view.active())))
+                        .toList(),
+                null);
     }
 
     public static SectionListResponse fromSchoolClass(SchoolClass schoolClass,

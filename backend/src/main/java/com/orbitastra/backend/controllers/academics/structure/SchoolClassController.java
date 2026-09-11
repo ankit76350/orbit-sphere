@@ -19,6 +19,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearc
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.models.core.School;
@@ -29,8 +30,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17 and #28 are
- * built.
+ * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17, #28, #29 and
+ * #30 are built.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.
@@ -262,5 +263,76 @@ public class SchoolClassController {
                 .created(URI.create("/schools/current/academic-years/" + year + "/classes/" + id
                         + "/sections"))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #29 — one class in full, sections and subjects included.
+     *
+     * <p><b>One read, because they are embedded</b> — which is the whole reason they are
+     * embedded. Were sections and subjects collections of their own this would be three queries,
+     * and #28 would be three per row.
+     *
+     * <p><b>Four counts beside the two lists.</b> Active and total differ for both: a retired
+     * section keeps its {@code sectionNo} and still appears, because records reference it, but it
+     * is not one a student can be placed in.
+     *
+     * <p><b>Nothing is resolved to a name.</b> Class teachers, subject teachers and grading
+     * schemes come back as raw ids — see {@code SectionView} for why that decision is made once
+     * rather than in each response.
+     *
+     * <p><b>No gates.</b> A suspended school can read its own class and cannot change it.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  the {year} in the path is not a year of this school
+     * 404 CLASS_NOT_FOUND          no class with that id in that year, or it is another school's
+     * </pre>
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<SchoolClassDetailResponse> getOne(
+            @PathVariable String year,
+            @PathVariable String id) {
+
+        return ResponseEntity.ok(schoolClassService.getClass(year, id));
+    }
+
+    /**
+     * Endpoint #30 — just the sections, with capacity and class teacher.
+     *
+     * <p><b>What a "move this student" dropdown reads</b> instead of pulling the whole class. The
+     * document read is identical to #29's — a section is embedded, so there is nothing cheaper to
+     * read — but the response is a tenth of the size, and that is the part that crosses the
+     * network.
+     *
+     * <pre>
+     * ?active=true    only the sections a student can be placed in — what the dropdown sends
+     * ?active=false   only the retired ones
+     * (absent)        every section, retired included
+     * </pre>
+     *
+     * <p><b>The counts describe the whole class, not the filtered view.</b>
+     * {@code sectionCount} answers "how many does this class have", which does not change
+     * because a caller asked to see some of them.
+     *
+     * <p><b>No gates</b>, same as #29.
+     *
+     * <pre>
+     * 404 ACADEMIC_YEAR_NOT_FOUND  the {year} in the path is not a year of this school
+     * 404 CLASS_NOT_FOUND          no class with that id in that year, or it is another school's
+     * </pre>
+     *
+     * <p>A class with no sections is an <b>empty list</b>, never a 404 — and while #17 is the
+     * only section endpoint built, that is the state most classes are in.
+     *
+     * <p>Read-only, so no {@code @Transactional}.
+     */
+    @GetMapping("/{id}/sections")
+    public ResponseEntity<SectionListResponse> listSections(
+            @PathVariable String year,
+            @PathVariable String id,
+            @RequestParam(required = false) Boolean active) {
+
+        return ResponseEntity.ok(schoolClassService.listSections(year, id, active));
     }
 }

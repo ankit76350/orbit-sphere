@@ -1,8 +1,11 @@
 # controllers/academics/structure — API plan
 
-**Four of 36 are built — #12, #13, #17 and #28.** A class can be created for an academic year,
-its name and affiliation programme edited, **sections added to it**, and the year's classes listed
-— filtered, searched, sorted and paged.
+**Six of 36 are built — #12, #13, #17, #28, #29 and #30.** A class can be created for an academic
+year, its name and affiliation programme edited, sections added to it, the year's classes listed —
+filtered, searched, sorted and paged — and one class read in full or just its sections.
+
+**Phase 1 is complete.** Everything the `student` module needs from this one exists: a class, a
+section inside it, a list to choose from, and a read of one.
 
 **#17 is the one that unblocks another module.** `StudentAcademicRecord` stores `sectionNo` as a
 plain string, so no student could be placed anywhere until a section existed. Six of
@@ -273,8 +276,8 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t29"></a>29 | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t30"></a>30 | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t29"></a>29 — **built** | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t30"></a>30 — **built** | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t31"></a>31 | [`GET /classes/{id}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t33"></a>33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
@@ -302,7 +305,7 @@ section exists, so sections come before everything that is merely useful.
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
-| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, 29, 30 — **phase 1 is done bar the two reads** |
+| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
 | **2** | Subjects are assigned, so marks and registers have something to be about | 22, 24, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
@@ -989,17 +992,27 @@ are applied after the query is pinned to one school and one year, and a case-ins
 *contains* regex cannot use an index in any case.
 
 <a id="e29"></a>
-**[29](#t29) · `GET /classes/{id}`**
+**[29](#t29) · `GET /classes/{id}`** — built
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every field, `sections[]` and `subjects[]` in full
-- **One document, one query, no joins** — which is the entire reason sections and subjects are embedded rather than collections of their own.
-- **The staff and grading-scheme ids come back raw**, not resolved to names. Resolving them needs the two repositories that do not exist; when they do, decide whether this endpoint resolves them or the caller does — do not do both.
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is the check that actually fires — unlike #12, #13 and #17, where gate 4 answers first.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — every field, `sections[]` and `subjects[]` in full
+- **One document, one query, no joins** — which is the entire reason sections and subjects are embedded rather than collections of their own. Were they separate this would be three reads, and #28 three per row.
+- **Its own response record, not #28's.** `SchoolClassResponse` carries counts and no lists because a page of rows must not drag 168 embedded rows behind it; here the caller asked for one class, so the lists are the point. Two records rather than one with fields sometimes populated — a field present on some responses and absent on others is a field every client has to guard.
+- **Four counts, not two.** Active and total differ for both lists: a retired section keeps its `sectionNo` and still appears, because records reference it, but it is not one a student can be placed in. A class with four sections and none active would otherwise look ready.
+- **Nothing is resolved to a name.** `StaffRepository` exists as of #17, so resolving a class teacher is now *possible* — and deliberately not done. If this response resolved it and #30 did too there would be two places deciding how a teacher is presented. **Decide once, when something needs it.** `grading_schemes` still has no repository at all.
+- **A class with nothing in it is a `200` with two empty arrays**, never a 404, and while #22 is unbuilt that is every class's subject list.
 
 <a id="e30"></a>
-**[30](#t30) · `GET /classes/{id}/sections`**
+**[30](#t30) · `GET /classes/{id}/sections`** — built
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[]` — `sectionNo`, `classTeacherDocsId`, `capacity`, `active`
-- A projection of #29, existing because a "move this student" dropdown wants four fields and not a class with forty embedded rows behind them. `?active=true` is what that dropdown actually sends.
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`, as #29 does
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the same document #29 reads, returning only `sections[]`
+- **The document read is identical to #29's.** A section is embedded, so there is nothing cheaper to fetch — what this saves is the *response*, which is a tenth of the size, and that is the part that crosses the network. A "move this student" dropdown wants four fields per section, not a class with every subject assignment behind it.
+- **`?active=true` is what that dropdown sends.** A retired section still holds its `sectionNo` and still appears unfiltered, because records reference it, but nobody should be placed in one. `?active=false` gives the retired ones; **absent is not the same as `false`**.
+- **The counts describe the whole class, not the filtered view.** `sectionCount` answers "how many does this class have", which does not change because a caller asked to see some of them — a filtered count would make `?active=true` on a class with two retired sections report two sections and two active, a lie in both halves.
+- **It shares `SectionView` with #29 and with #17's response**, so a section has one shape across every endpoint that returns one. It was nested inside `SectionListResponse` until #29 needed it; a second copy would have been two shapes for one thing.
+- **A class with no sections is an empty list**, never a 404 — and while #17 is the only section write built, that is the state most classes are in.
+- **`forRead(...)` rather than a third `fromSchoolClass` overload.** Two overloads differing only in a nullable second argument were ambiguous to the compiler — `fromSchoolClass(cls, null)` matched both — and would have been ambiguous to a reader. The name says which half of the API is calling: writes pass a summary, reads pass a filter.
 
 <a id="e31"></a>
 **[31](#t31) · `GET /classes/{id}/subjects`**

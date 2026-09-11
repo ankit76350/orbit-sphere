@@ -9433,6 +9433,190 @@ is running.
         },
       ],
     },
+    {
+      id: "get-school-class",
+      name: "Get Class",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/classes/{id}",
+      status: 'live',
+      summary: "One class in full — its sections and its subjects, in one read.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/classes/{id}\` — endpoint #29.
+
+### One document, one query, no joins
+
+Which is the entire reason sections and subjects are **embedded** rather than collections of
+their own. Were they separate this would be three reads, and #28 would be three per row.
+
+### Its own response, not #28's
+
+#28 returns counts and no lists, because a page of rows must not drag 168 embedded rows behind
+it. Here the caller asked for one class, so the lists are the point. Two records rather than one
+with fields sometimes populated — a field present on some responses and absent on others is a
+field every client has to guard.
+
+### Four counts, not two
+
+Active and total differ for both lists. A retired section keeps its \`sectionNo\` and still
+appears, because records reference it — but it is not one a student can be placed in. A class
+with four sections and none active would otherwise look ready.
+
+### Nothing is resolved to a name
+
+Class teachers, subject teachers and grading schemes all come back as **raw ids**.
+\`StaffRepository\` exists as of #17, so resolving a teacher is now possible — and deliberately
+not done: if this resolved it and #30 did too, two places would decide how a teacher is
+presented. \`grading_schemes\` still has no repository at all.
+
+### No gates
+
+A suspended school can read its own class and cannot change it. Which makes the year check the
+only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here.
+
+### The seven test cases are in the request body as comments
+`,
+      bodyNotes: `A GET, so there is no body. Needs X-School-Subdomain and a class id.
+
+ ONE READ, BECAUSE THEY ARE EMBEDDED. A section has no collection, no id and
+ no schoolId — it inherits all three from the class. That is why this is one
+ query and why sectionNo can never change.
+
+ NOTHING IS RESOLVED. Every teacher and grading scheme is a raw id. Read the
+ staff record when you need a name; one place should decide how a teacher is
+ presented, and it is not two response records.
+
+ A CLASS WITH NOTHING IN IT IS A 200 WITH TWO EMPTY ARRAYS, never a 404.
+ While #22 is unbuilt that is every class's subject list.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      responseFields: ["schoolClassId", "academicYear", "name", "affiliationProgrammeDocsId", "active", "sectionCount", "activeSectionCount", "sections", "subjectCount", "activeSubjectCount", "subjects"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+      ],
+      examples: [
+        { id: "01", name: "ONE CLASS IN FULL", expect: "200 OK",
+          notes: `No parameters.\n    OUT: every field, plus sections[] and subjects[] in full and four counts.`, body: null },
+        { id: "02", name: "A CLASS WITH NOTHING IN IT", expect: "200 OK",
+          notes: `Create a class and read it without adding anything.\n    OUT: sections: [], subjects: [], and all four counts 0. Not a 404.`, body: null },
+        { id: "03", name: "THE SECTIONS MATCH #30", expect: "200 OK",
+          notes: `Run #30 on the same class. The section rows are byte-identical —\n    they share SectionView, so a section has one shape everywhere.`, body: null },
+        { id: "04", name: "NOTHING IS RESOLVED", expect: "200 OK",
+          notes: `classTeacherDocsId comes back as a raw ObjectId string, never a name.\n    Same for subject teachers and grading schemes.`, body: null },
+        { id: "05", name: "A REAL CLASS ID UNDER THE WRONG YEAR", expect: "404 Not Found",
+          notes: `Keep the class id, change the year to another this school has.\n    OUT: { "code": "CLASS_NOT_FOUND" } — the year scopes the lookup.`, body: null },
+        { id: "06", name: "AN UNKNOWN YEAR", expect: "404 Not Found",
+          notes: `Set the year to 2099-2100.\n    OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }\n    No gate runs on a read, so the service's own check answers this.`, body: null },
+        { id: "07", name: "A SUSPENDED SCHOOL CAN STILL READ", expect: "200 OK",
+          notes: `Suspend the school, then send case 01 again. It still reads.\n    Then try Add Section: 409 SCHOOL_NOT_ACTIVE.`, body: null },
+      ],
+    },
+    {
+      id: "list-class-sections",
+      name: "List Sections",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/classes/{id}/sections",
+      status: 'live',
+      summary: "Just the sections, with capacity and class teacher. What a dropdown reads.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/classes/{id}/sections\` — endpoint #30.
+
+### The document read is identical to #29's
+
+A section is embedded, so there is nothing cheaper to fetch. What this saves is the **response**,
+which is a tenth of the size — and that is the part that crosses the network. A "move this
+student" dropdown wants four fields per section, not a class with every subject assignment behind
+it.
+
+### ?active=true is what that dropdown sends
+
+    ?active=true    only the sections a student can be placed in
+    ?active=false   only the retired ones
+    (absent)        every section, retired included
+
+A retired section still holds its \`sectionNo\` and still appears unfiltered, because records
+reference it — but nobody should be placed in one. **Absent is not the same as \`false\`.**
+
+### The counts describe the whole class, not the filtered view
+
+\`sectionCount\` answers "how many does this class have", which does not change because a caller
+asked to see some of them. A filtered count would make \`?active=true\` on a class with two
+retired sections report two sections and two active — a lie in both halves.
+
+### It shares SectionView with #29 and #17
+
+So a section has one shape across every endpoint that returns one. It was nested inside
+\`SectionListResponse\` until #29 needed it too; a second copy would have been two shapes for one
+thing.
+
+### No gates
+
+Same as #29. A class with no sections is an **empty list**, never a 404.
+
+### The six test cases are in the request body as comments
+`,
+      bodyNotes: `A GET, so there is no body. Everything is a query parameter.
+
+ THE COUNTS ARE NOT FILTERED. sectionCount and activeCount describe the whole
+ class however you filter the rows. Compare them against sections.length on
+ an ?active=true call — they deliberately disagree.
+
+ ABSENT IS NOT false. Leaving ?active off returns every section; sending
+ false returns only the retired ones.
+
+ A RETIRED SECTION STILL APPEARS unfiltered, because records reference its
+ sectionNo. Nothing can retire one yet — #20 is unbuilt — so to see it,
+ flip sections.$.active directly in Mongo.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id." },
+      ],
+      queryParams: [
+        { key: "active", value: "", enabled: false, description: "true for sections a student can be placed in, false for retired. Absent returns both." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      responseFields: ["schoolClassId", "className", "academicYear", "sectionCount", "activeCount", "sections"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including another school's." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY SECTION", expect: "200 OK",
+          notes: `No parameters.\n    OUT: schoolClassId, className, sectionCount, activeCount, sections[].\n    No subjects — that is the whole point beside #29.`, body: null },
+        { id: "02", name: "WHAT THE DROPDOWN SENDS", expect: "200 OK",
+          notes: `?active=true\n    Only the sections a student can be placed in.`, body: null },
+        { id: "03", name: "THE RETIRED ONES", expect: "200 OK",
+          notes: `?active=false\n    Not the same as leaving it off, which returns both.`, body: null },
+        { id: "04", name: "THE COUNTS DO NOT FOLLOW THE FILTER", expect: "200 OK",
+          notes: `Retire a section in Mongo, then send ?active=true.\n    sections.length is 2 and sectionCount is still 3. Deliberate:\n    "how many does this class have" is not "how many did you ask to see".`, body: null },
+        { id: "05", name: "A CLASS WITH NO SECTIONS", expect: "200 OK",
+          notes: `OUT: sections: [], sectionCount: 0. An empty list, never a 404.`, body: null },
+        { id: "06", name: "ANOTHER SCHOOL'S CLASS", expect: "404 Not Found",
+          notes: `A REAL class id, read with a different school's subdomain.\n    OUT: { "code": "CLASS_NOT_FOUND" } — the tenant scopes the lookup.`, body: null },
+      ],
+    },
   ],
 };
 

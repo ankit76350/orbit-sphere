@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Layers, Pencil, Plus, RefreshCw, Search, Users } from 'lucide-react'
+import { Eye, Info, Layers, Pencil, Plus, RefreshCw, Search, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -9,7 +9,12 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * School / Academics — the classes taught in one academic year. Two of the group's 36 endpoints.
  *
- * FOUR ENDPOINTS: #12 create, #13 edit, #17 add a section, #28 list.
+ * SIX ENDPOINTS: #12 create, #13 edit, #17 add a section, #28 list, #29 read one, #30 read its
+ * sections.
+ *
+ * THE SECTIONS PANEL NOW READS BEFORE IT WRITES. While #30 was unbuilt it could only show what
+ * the last add returned, so a reopened panel looked empty on a class that had four sections. It
+ * loads #30 on open, which is also how ?active= is reachable.
  *
  * #17 IS THE ONE THAT UNBLOCKED ANOTHER MODULE. A student record stores sectionNo, so nothing
  * could be placed in a class until a section existed. The Sections button on each row is how it
@@ -59,6 +64,7 @@ export default function Classes() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
   const [sectioning, setSectioning] = useState(null)
+  const [viewing, setViewing] = useState(null)
 
   const [active, setActive] = useState('')
   const [hasSections, setHasSections] = useState('')
@@ -244,6 +250,8 @@ export default function Classes() {
                         <Button icon={Pencil} onClick={() => setEditing(row)}>Edit</Button>
                         {/* #17. The section count beside it is how you see the add worked —
                             there is no section read yet, #30 being unbuilt. */}
+                        {/* #29 — one class in full, which is the only way to see its subjects. */}
+                        <Button icon={Eye} onClick={() => setViewing(row)}>View</Button>
                         <Button icon={Users} onClick={() => setSectioning(row)}>Sections</Button>
                       </div>
                     </td>
@@ -259,6 +267,11 @@ export default function Classes() {
           list and cannot add to it.
         </p>
       </Card>
+
+      <ViewClass
+        row={viewing}
+        onClose={() => setViewing(null)}
+      />
 
       <AddSection
         row={sectioning}
@@ -584,13 +597,31 @@ function AddSectionForm({ row, onClose, onAdded }) {
   const [target, setTarget] = useState({ year: row.academicYear, id: row.schoolClassId })
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
+  const [refusedRead, setRefusedRead] = useState(null)
   const [saving, setSaving] = useState(false)
   const [list, setList] = useState(null)
+  // The filter #30 takes. '' means the parameter is not sent, which is not the same as false.
+  const [active, setActive] = useState('')
 
   const set = (field) => (event) =>
     setForm((old) => ({ ...old, [field]: event.target.value }))
   const aim = (field) => (event) =>
     setTarget((old) => ({ ...old, [field]: event.target.value }))
+
+  // #30. Loaded on open and after every add, so the panel shows the server's answer rather than
+  // only what the last write happened to return.
+  const read = useCallback(async () => {
+    const result = await call('list-class-sections', {
+      label: "The class's sections",
+      pathParams: { year: target.year, id: target.id },
+      query: active ? { active } : {},
+    })
+    if (result.ok) setList(result.bodyJson)
+    else setRefusedRead(result.bodyJson ?? { code: `HTTP ${result.status}` })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, target.year, target.id, active])
+
+  useEffect(() => { read() }, [read])
 
   const body = (() => {
     const out = { sectionNo: form.sectionNo }
@@ -617,6 +648,8 @@ function AddSectionForm({ row, onClose, onAdded }) {
       // sections, so retyping them for B, C and D would be the wrong default.
       setForm((old) => ({ ...old, sectionNo: '' }))
       onAdded()
+      // Re-read, so the panel reflects the filter rather than the write's unfiltered answer.
+      read()
       return
     }
     if (result.bodyJson?.fieldErrors) {
@@ -653,13 +686,23 @@ function AddSectionForm({ row, onClose, onAdded }) {
           </div>
         ) : null}
 
-        {/* What the class has now, from the last response — there is no section read yet. */}
+        {refusedRead ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refusedRead.code}</span>
+            </div>
+            <pre className="resp-body">{refusedRead.message}</pre>
+          </div>
+        ) : null}
+
+        {/* #30's answer. The counts describe the WHOLE class however the rows are filtered. */}
         {list ? (
           <div className="resp">
             <div className="resp-head">
               <span className="resp-status" data-ok="true">
                 {list.sectionCount} section{list.sectionCount === 1 ? '' : 's'} ·{' '}
                 {list.activeCount} active
+                {active ? ` · showing ${(list.sections ?? []).length}` : ''}
               </span>
             </div>
             <pre className="resp-body">
@@ -672,6 +715,15 @@ function AddSectionForm({ row, onClose, onAdded }) {
             </pre>
           </div>
         ) : null}
+
+        <div className="toolbar">
+          <Field label="Show" hint="#30's ?active=. Blank sends no parameter, which is not the same as false.">
+            <Select label="Show" value={active} onChange={setActive} options={TRISTATE} />
+          </Field>
+          <span className="toolbar-spacer" />
+          <Button icon={RefreshCw} onClick={read}>Re-read</Button>
+          <EndpointTag id="list-class-sections" name="Read" />
+        </div>
 
         <div className="field-grid">
           <Field label="Year" hint="Scopes the lookup. Point it elsewhere and the same class id is a 404.">
@@ -713,7 +765,143 @@ function AddSectionForm({ row, onClose, onAdded }) {
 
         <p className="muted">
           <Users size={12} /> The number stays unique only within this class — another class may
-          have its own "A". Add stays open so a class can get A, B, C and D in one sitting.
+          have its own "A". Add stays open so a class can get A, B, C and D in one sitting. The
+          counts above describe the whole class even when the rows are filtered.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * One class in full — #29.
+ *
+ * THE ONLY WAY TO SEE A CLASS'S SUBJECTS. #28 returns counts and #30 returns sections, so this is
+ * the endpoint that shows what is actually taught — and while #22 is unbuilt, it shows that the
+ * answer is nothing, which is itself worth seeing.
+ *
+ * NOTHING IS RESOLVED TO A NAME. Every teacher and grading scheme is a raw id, and the panel
+ * prints them as such rather than pretending otherwise.
+ */
+function ViewClass({ row, onClose }) {
+  if (!row) return null
+  return <ViewClassPanel key={row.schoolClassId} row={row} onClose={onClose} />
+}
+
+function ViewClassPanel({ row, onClose }) {
+  const { call } = useApi()
+  const [target, setTarget] = useState({ year: row.academicYear, id: row.schoolClassId })
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+
+  const aim = (field) => (event) =>
+    setTarget((old) => ({ ...old, [field]: event.target.value }))
+
+  const read = useCallback(async () => {
+    const result = await call('get-school-class', {
+      label: 'One class in full',
+      pathParams: { year: target.year, id: target.id },
+    })
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, target.year, target.id])
+
+  useEffect(() => { read() }, [read])
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={row.name}
+      description="One document, one query — which is the whole reason sections and subjects are embedded."
+      endpoint={<EndpointTag id="get-school-class" name="Read" />}
+      footer={
+        <>
+          <Button icon={RefreshCw} onClick={read}>Re-read</Button>
+          <Button onClick={onClose}>Close</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code || `HTTP ${problem.status}`}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message}</pre>
+          </div>
+        ) : null}
+
+        {/* Both halves of the URL stay typeable, so the two 404s are reachable from here. */}
+        <div className="field-grid">
+          <Field label="Year" hint="A real class id under the wrong year is a 404.">
+            <Input value={target.year} onChange={aim('year')} />
+          </Field>
+          <Field label="Class id" hint="Change it to reach CLASS_NOT_FOUND.">
+            <Input value={target.id} onChange={aim('id')} />
+          </Field>
+        </div>
+
+        {data ? (
+          <>
+            <div className="resp">
+              <div className="resp-head">
+                <span className="resp-status" data-ok="true">
+                  {data.sectionCount} section{data.sectionCount === 1 ? '' : 's'} ·{' '}
+                  {data.activeSectionCount} active · {data.subjectCount} subject
+                  {data.subjectCount === 1 ? '' : 's'} · {data.activeSubjectCount} active
+                </span>
+              </div>
+              <pre className="resp-body">
+                {[
+                  `name        ${data.name}`,
+                  `year        ${data.academicYear}`,
+                  `active      ${data.active}`,
+                  `programme   ${data.affiliationProgrammeDocsId ?? 'none'}`,
+                  `id          ${data.schoolClassId}`,
+                ].join('\n')}
+              </pre>
+            </div>
+
+            <div className="resp">
+              <div className="resp-head"><span className="resp-status">sections</span></div>
+              <pre className="resp-body">
+                {(data.sections ?? []).length === 0
+                  ? 'none — add one with #17, or nothing can be placed in this class'
+                  : data.sections.map((one) => [
+                      one.sectionNo,
+                      one.capacity ? `cap ${one.capacity}` : 'no capacity',
+                      // The raw id, not a name. See the note on the record.
+                      one.classTeacherDocsId ?? 'no class teacher',
+                      one.active ? 'active' : 'retired',
+                    ].join('  ·  ')).join('\n')}
+              </pre>
+            </div>
+
+            <div className="resp">
+              <div className="resp-head"><span className="resp-status">subjects</span></div>
+              <pre className="resp-body">
+                {(data.subjects ?? []).length === 0
+                  ? 'none — #22 is not built, so every class reads this way'
+                  : data.subjects.map((one) => [
+                      one.subjectCode,
+                      one.name,
+                      one.subjectType,
+                      // Absent means the whole class, which is the ordinary case.
+                      one.sectionNo ? `section ${one.sectionNo}` : 'all sections',
+                      `${(one.teacherDocsIds ?? []).length} teacher(s)`,
+                      one.active ? 'active' : 'retired',
+                    ].join('  ·  ')).join('\n')}
+              </pre>
+            </div>
+          </>
+        ) : null}
+
+        <p className="muted">
+          <Info size={12} /> Teachers and grading schemes are raw ids on purpose — one place
+          should decide how a teacher is presented, and it is not two response records.
         </p>
       </div>
     </Modal>

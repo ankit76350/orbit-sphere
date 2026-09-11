@@ -511,7 +511,17 @@ for (const [f, src] of modalFiles) {
   for (const m of src.matchAll(/<Modal\b/g)) {
     // the props of that one element, up to the first `>` that closes the opening tag
     const props = src.slice(m.index, src.indexOf('\n    >', m.index) + 6)
-    if (!props.includes('preview=')) modalsWithout.push(f.replace('src/pages/', ''))
+    if (props.includes('preview=')) continue
+
+    // A READ-ONLY MODAL HAS NOTHING TO PREVIEW, and requiring one would mean inventing a body
+    // that is never sent. So the rule is "a modal that sends a body must show it", not "every
+    // modal must have the prop" — which is what this said until #29 added a GET-only panel.
+    // The enclosing top-level function is the scope checked: if it never passes a `body` to
+    // call(), there is no request body to preview.
+    const fnStart = src.lastIndexOf('\nfunction ', m.index)
+    const nextFn = src.indexOf('\nfunction ', m.index)
+    const fn = src.slice(fnStart < 0 ? 0 : fnStart, nextFn < 0 ? src.length : nextFn)
+    if (/\bbody[,:]/.test(fn)) modalsWithout.push(f.replace('src/pages/', ''))
   }
 }
 const splitChecks = [
@@ -3054,6 +3064,56 @@ classChecks.push(
   ['and clears only the number, not the capacity or teacher',
     classesScreen.includes("setForm((old) => ({ ...old, sectionNo: '' }))")],
   ['the list reloads so the row count moves', classesScreen.includes('onAdded={() => load()}')],
+)
+
+
+// #29 and #30 — the two reads. Both read the same document; the difference is the response.
+const detailEntry = classCatalogue.slice(classCatalogue.indexOf('get-school-class'),
+  classCatalogue.indexOf('list-class-sections'))
+const secListEntry = classCatalogue.slice(classCatalogue.indexOf('list-class-sections'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#29 gets one class by id',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}"/.test(detailEntry)],
+  ['#30 gets its sections',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/sections"/.test(secListEntry)],
+  ['both take no body', detailEntry.includes('bodyAllowed: false')
+    && secListEntry.includes('bodyAllowed: false')],
+  ['#29 returns FOUR counts and both lists',
+    ['"sectionCount"', '"activeSectionCount"', '"sections"',
+     '"subjectCount"', '"activeSubjectCount"', '"subjects"']
+      .every((f) => detailEntry.includes(f))],
+  ['#30 returns no subjects at all — the whole point beside #29',
+    !secListEntry.includes('"subjects"')],
+  ['#29 says why one read is possible', detailEntry.includes('One document, one query, no joins')],
+  ['and that nothing is resolved to a name', detailEntry.includes('Nothing is resolved')],
+  ['#30 declares the active filter', secListEntry.includes('key: "active"')],
+  ['and says absent is not the same as false',
+    secListEntry.includes('Absent is not the same')],
+  ['the un-filtered counts are documented as deliberate',
+    secListEntry.includes('not the filtered view')],
+  ['and there is a worked case that proves it',
+    secListEntry.includes('THE COUNTS DO NOT FOLLOW THE FILTER')],
+  ['#29 has a case for a class with nothing in it',
+    detailEntry.includes('A CLASS WITH NOTHING IN IT')],
+  ['and one proving its sections match #30', detailEntry.includes('THE SECTIONS MATCH #30')],
+  ['both document the wrong-year 404',
+    detailEntry.includes('CLASS_NOT_FOUND') && secListEntry.includes('CLASS_NOT_FOUND')],
+
+  // The screen
+  ['each row can be read in full', classesScreen.includes('setViewing(row)')],
+  ['the view panel calls #29', classesScreen.includes("call('get-school-class'")],
+  ['and is the only place subjects appear', classesScreen.includes('#22 is not built, so every class reads this way')],
+  ['the sections panel now READS through #30 rather than only echoing writes',
+    classesScreen.includes("call('list-class-sections'")],
+  ['it loads on open', classesScreen.includes('useEffect(() => { read() }, [read])')],
+  ['and re-reads after an add, so the filter is respected',
+    classesScreen.includes('// Re-read, so the panel reflects the filter')],
+  ['the panel offers #30\'s active filter', classesScreen.includes('#30\'s ?active=')],
+  ['and shows how many rows it is showing beside the real counts',
+    classesScreen.includes('showing ${(list.sections ?? []).length}')],
+  ['the view panel keeps both halves of the URL typeable',
+    classesScreen.includes('Change it to reach CLASS_NOT_FOUND')],
 )
 
 for (const [label, ok] of classChecks) {

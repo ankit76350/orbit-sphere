@@ -19,6 +19,7 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreat
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
@@ -33,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections inside them. Endpoints #12, #13,
- * #17 and #28 of the plan in
+ * #17, #28, #29 and #30 of the plan in
  * {@code controllers/academics/structure/README.md}.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
@@ -448,5 +449,83 @@ public class SchoolClassService {
                 "Section '" + sectionNo + "' added to '" + saved.getName() + "'. A student can "
                         + "be placed in it as soon as the student module exists — nothing else "
                         + "in this class is affected. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! Endpoint 29 — one class in full ------------------------------------------------
+
+    /**
+     * One class with its sections and its subjects.
+     *
+     * <p><b>One document, one query, no joins</b> — which is the entire reason sections and
+     * subjects are embedded rather than collections of their own.
+     *
+     * <p><b>Read-only: no gates, no {@code @Transactional}.</b> Looking at a class is not an
+     * action on it, and a school that has stopped paying still has to be able to read its own
+     * records. Which makes the year check below the only thing that answers
+     * {@code 404 ACADEMIC_YEAR_NOT_FOUND} here — on the writes, gate 4 answers first.
+     */
+    public SchoolClassDetailResponse getClass(String academicYear, String classId) {
+        return SchoolClassDetailResponse.fromSchoolClass(loadForRead(academicYear, classId));
+    }
+
+    //! Endpoint 30 — just the sections -------------------------------------------------
+
+    /**
+     * A class's sections, optionally narrowed to the active ones.
+     *
+     * <p><b>Why this exists beside #29.</b> A "move this student" dropdown wants four fields per
+     * section, and #29 hands back the class with every subject assignment behind it. The document
+     * read is identical — a section is embedded, so there is nothing cheaper to read — but the
+     * response is a tenth of the size, and that is the part that crosses the network.
+     *
+     * <p><b>{@code ?active=true} is what that dropdown actually sends.</b> A retired section
+     * still holds its {@code sectionNo} and still appears in the unfiltered list, because
+     * records reference it — but nobody should be placed in one.
+     *
+     * <p>Read-only, like #29, and for the same reasons.
+     *
+     * @param active {@code null} for every section, which is not the same as {@code false}
+     */
+    public SectionListResponse listSections(String academicYear, String classId, Boolean active) {
+        return SectionListResponse.forRead(loadForRead(academicYear, classId), active);
+    }
+
+    /**
+     * The class both reads need, scoped to the school and the year.
+     *
+     * <p>Exists because #29 and #30 do the identical lookup and differ only in what they return.
+     * Two call sites, so it is a method rather than inline — and it is private rather than in
+     * {@code utils/} because nothing outside this service reads a class this way.
+     *
+     * <p><b>{@code require}, not {@code requireUsable}.</b> A suspended or closed school can
+     * still read its own structure; the difference from the writes is the whole point of reads
+     * running no gates.
+     *
+     * Used by:
+     * - getClass()
+     * - listSections()
+     */
+    private SchoolClass loadForRead(String academicYear, String classId) {
+        //! step 1 - who is asking
+        School school = currentSchool.require();
+        String year = academicYear.trim();
+
+        //! step 2 - the year has to exist. No gate runs on a read, so unlike #12, #13 and #17
+        //! this is the check that actually fires — and an unknown year is a 404 rather than an
+        //! empty answer, because "no such year" and "that class is not in it" differ.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 3 - the class, scoped to both. The id alone is globally unique, so querying by
+        //! it alone would read another school's class, and an id from last year's URL would read
+        //! last year's structure.
+        // TODO: read school class
+        return schoolClasses
+                .findByIdAndSchoolIdAndAcademicYear(classId.trim(), school.getId(), year)
+                .orElseThrow(() -> ApiException.notFound("CLASS_NOT_FOUND",
+                        "No class with id '" + classId + "' in '" + year + "'."));
     }
 }
