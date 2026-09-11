@@ -11,6 +11,7 @@ import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
+import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -153,7 +154,13 @@ export const SURFACES = [
             // fills the page. Opening a row is its own URL, so it can be linked, reloaded and
             // shared; the list stays selected in both navigations because the module is read off
             // the FIRST path segment, which a detail address does not change.
-            detail: { param: 'id', screen: ClassDetail },
+            detail: {
+              param: 'id',
+              screen: ClassDetail,
+              // A section has no id — it is embedded — so it is addressed by its sectionNo,
+              // which is the one thing eight other collections store about it.
+              child: { segment: 'sections', param: 'sectionNo', screen: SectionDetail },
+            },
           },
         ],
       },
@@ -189,8 +196,9 @@ export const MODULE_LINKS = SURFACES.flatMap((surface) =>
 /**
  * Every address, flattened, for the router.
  *
- * A submodule with a `detail` contributes two: the list and one row. Both are built from the
- * same declaration, so a detail address cannot exist without the list it belongs to.
+ * A submodule with a `detail` contributes two: the list and one row — three when that detail has
+ * a `child`, which is a row inside the row. All are built from the same declaration, so a deeper
+ * address cannot exist without the one it hangs off.
  */
 export const ROUTES = SURFACES.flatMap((surface) =>
   surface.modules.flatMap((module) =>
@@ -203,14 +211,31 @@ export const ROUTES = SURFACES.flatMap((surface) =>
         screen: submodule.screen,
       }
       if (!submodule.detail) return [list]
+
+      const detail = {
+        path: `${list.path}/:${submodule.detail.param}`,
+        surface,
+        module,
+        submodule,
+        screen: submodule.detail.screen,
+      }
+      if (!submodule.detail.child) return [list, detail]
+
+      // A THIRD LEVEL, for a row inside a detail that has a page of its own — a class's
+      // section. It is built from the same declaration as the two above it, so a section
+      // address cannot exist without the class address it hangs off, which cannot exist
+      // without the list. The nesting stops here on purpose: a section belongs to a class
+      // belongs to a year, and the year is the tenant's, which the header carries.
+      const child = submodule.detail.child
       return [
         list,
+        detail,
         {
-          path: `${list.path}/:${submodule.detail.param}`,
+          path: `${detail.path}/${child.segment}/:${child.param}`,
           surface,
           module,
           submodule,
-          screen: submodule.detail.screen,
+          screen: child.screen,
         },
       ]
     }),

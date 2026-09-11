@@ -72,6 +72,9 @@ const ROUTES = [
   ['/school-academics/classes', ['Academics', 'Classes', 'No school chosen']],
   // A class is addressed by its document id, which is what twelve other documents store.
   ['/school-academics/classes/6aa29f6d5fb6199794c87e87', ['No school chosen']],
+  // A section has no id, so it is addressed by its sectionNo — the one thing eight other
+  // collections store about it.
+  ['/school-academics/classes/6aa29f6d5fb6199794c87e87/sections/A', ['No school chosen']],
   // Opening a row is its own address. First paint is the read, because renderToString does not
   // run effects — which is the point: the page reads the school itself rather than being handed
   // a row from a list that may already be stale.
@@ -2882,6 +2885,9 @@ const classesScreen = readFileSync('src/pages/school/academics/Classes.jsx', 'ut
 // The class's own page, as of the row-opens-a-page flow. #29, #17 and #30 moved here from
 // modals on the list, so the guards that named Classes.jsx for them now name this.
 const classDetailScreen = readFileSync('src/pages/school/academics/ClassDetail.jsx', 'utf8')
+// A section's own page. #30 and the subject view moved here from a modal on the class page,
+// because a section has subjects of its own to show.
+const sectionScreen = readFileSync('src/pages/school/academics/SectionDetail.jsx', 'utf8')
 const classCatalogue = catalogue.slice(catalogue.indexOf('GROUP_ACADEMICS_CLASSES'))
 const classEntry = classCatalogue.slice(0, classCatalogue.indexOf('export const API_CATALOG'))
 const classChecks = [
@@ -3118,12 +3124,31 @@ classChecks.push(
     classDetailScreen.includes('#22 assigns a subject and is not built')],
   ['it draws the sections from that read rather than calling #30 again',
     classDetailScreen.includes('there is no second call to draw this')],
-  ['a section row opens a modal', classDetailScreen.includes('setOpenSection(one)')],
-  ['and that modal is what calls #30',
-    classDetailScreen.includes("call('list-class-sections'")],
-  ['the modal offers #30\'s active filter', classDetailScreen.includes("#30's ?active=")],
-  ['and prints the whole-class counts beside the number of rows shown',
-    classDetailScreen.includes('in the class · ') && classDetailScreen.includes('showing')],
+  // A SECTION OPENS ITS OWN PAGE, not a modal — three levels of address, and no deeper.
+  ['a section row opens its own address',
+    classDetailScreen.includes("childPath('school', 'academics', 'classes', id,")],
+  ['and the class page no longer holds a section modal',
+    !classDetailScreen.includes('SectionModal')],
+  ['the section page is what calls #30', sectionScreen.includes("call('list-class-sections'")],
+  ['it offers #30\'s active filter', sectionScreen.includes("#30's ?active=")],
+  ['and says the counts describe the whole class',
+    sectionScreen.includes('describe the whole class however the rows are filtered')],
+  ['it reads #29 too, for the subjects nothing else returns',
+    sectionScreen.includes("call('get-school-class'")],
+  ['and admits the subject filtering is done in the browser',
+    sectionScreen.includes('filtered <b>in the browser</b>')],
+  ['naming #31 as the endpoint that would do it properly',
+    sectionScreen.includes('is #31 and') || sectionScreen.includes('#31')],
+  // The trap #31's own entry warns about: a class-wide row applies to every section.
+  ['it includes the class-wide subjects, not only the section\'s own',
+    sectionScreen.includes('one.sectionNo === sectionNo || !one.sectionNo')],
+  ['and marks which is which on the row', sectionScreen.includes('the whole class')],
+  ['it says a section is addressed by sectionNo because it has no id',
+    sectionScreen.includes('ADDRESSED BY sectionNo, NOT AN ID')],
+  ['and links back to the class', sectionScreen.includes('The class')],
+  ['the route builder supports the third level',
+    screensSource.includes('A THIRD LEVEL') && screensSource.includes('child.segment')],
+  ['and stops there on purpose', screensSource.includes('The nesting stops here on purpose')],
   ['the page explains that switching the year makes it 404',
     classDetailScreen.includes('the same id under another year is a 404')],
   ['and links back to the list', classDetailScreen.includes('All classes')],

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, Info, Plus, RefreshCw, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
-import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
-import { screenPath } from '../../../paths.js'
+import { childPath, screenPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
@@ -23,15 +22,14 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * so instead of showing an empty shell.
  *
  * #29 ALREADY RETURNS THE SECTIONS, so the table below is drawn from it and #30 is not called on
- * load. Calling both would be two reads of the same document to draw one table. #30 is what the
- * section modal asks, because that is the endpoint a "move this student" dropdown would use and
- * the modal is where its ?active= filter can be seen.
+ * load. Calling both would be two reads of the same document to draw one table.
+ *
+ * A SECTION ROW OPENS ITS OWN PAGE, not a modal. A section has subjects of its own to show, and
+ * that is more than a modal's worth of screen — and #30 is what that page asks, because it is
+ * the endpoint a section belongs to.
  */
 
 const LIST = screenPath('school', 'academics', 'classes')
-
-/** Three-state: '' sends no parameter at all, which is not the same as false. */
-const TRISTATE = ['', 'true', 'false']
 
 export default function ClassDetail() {
   const { id } = useParams()
@@ -42,7 +40,7 @@ export default function ClassDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [openSection, setOpenSection] = useState(null)
+  const navigate = useNavigate()
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -133,7 +131,7 @@ export default function ClassDetail() {
 
       <Card
         title="Sections"
-        description="From #29's read — it returns them, so there is no second call to draw this. Click one to ask #30 about it."
+        description="From #29's read — it returns them, so there is no second call to draw this. Open one for its own page, where #30 answers for it."
         action={
           <div className="btn-row">
             <Badge>{data?.sectionCount ?? 0} total</Badge>
@@ -168,7 +166,8 @@ export default function ClassDetail() {
                   <tr
                     key={one.sectionNo}
                     data-opens
-                    onClick={() => setOpenSection(one)}
+                    onClick={() => navigate(childPath('school', 'academics', 'classes', id,
+                      'sections', one.sectionNo))}
                   >
                     {/* sectionNo is the display value as well as the reference, which is why
                         there is no separate name to show. */}
@@ -254,13 +253,6 @@ export default function ClassDetail() {
         )}
       </Card>
 
-      <SectionModal
-        section={openSection}
-        classId={id}
-        year={actingAcademicYear}
-        onClose={() => setOpenSection(null)}
-      />
-
       <AddSection
         open={adding}
         classId={id}
@@ -269,137 +261,6 @@ export default function ClassDetail() {
         onAdded={() => load()}
       />
     </div>
-  )
-}
-
-/**
- * One section, asked of #30 — `GET /classes/{id}/sections`.
- *
- * WHY THIS CALLS #30 AT ALL, when #29 already handed the row over. #30 is what a "move this
- * student" dropdown would use, and this is the only place its `?active=` filter and its
- * un-filtered counts can be seen. The row that was clicked is highlighted in the answer, so the
- * modal shows both the one section and the endpoint's real shape.
- *
- * THE COUNTS DO NOT FOLLOW THE FILTER, deliberately, and the modal prints both numbers side by
- * side so that is visible rather than surprising.
- */
-function SectionModal({ section, classId, year, onClose }) {
-  if (!section) return null
-  return (
-    <SectionModalBody
-      key={section.sectionNo}
-      section={section}
-      classId={classId}
-      year={year}
-      onClose={onClose}
-    />
-  )
-}
-
-function SectionModalBody({ section, classId, year, onClose }) {
-  const { call } = useApi()
-  const [active, setActive] = useState('')
-  const [data, setData] = useState(null)
-  const [problem, setProblem] = useState(null)
-
-  const read = useCallback(async () => {
-    const result = await call('list-class-sections', {
-      label: "The class's sections",
-      pathParams: { year: year ?? '', id: classId },
-      query: active ? { active } : {},
-    })
-    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, year, classId, active])
-
-  useEffect(() => { read() }, [read])
-
-  const shown = data?.sections ?? []
-  const mine = shown.find((one) => one.sectionNo === section.sectionNo)
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={`Section ${section.sectionNo}`}
-      description="Read through #30, the endpoint a section dropdown would use — not from the class read that drew the table."
-      endpoint={<EndpointTag id="list-class-sections" name="Read" />}
-      footer={
-        <>
-          <Button icon={RefreshCw} onClick={read}>Re-read</Button>
-          <Button onClick={onClose}>Close</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {problem ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">
-                {problem.bodyJson?.code || `HTTP ${problem.status}`}
-              </span>
-            </div>
-            <pre className="resp-body">{problem.bodyJson?.message}</pre>
-          </div>
-        ) : null}
-
-        {/* This section, from #30's answer rather than from the row that was clicked — so a
-            filter that excludes it is visible as an absence. */}
-        <div className="resp">
-          <div className="resp-head">
-            <span className="resp-status" data-ok={mine ? 'true' : 'false'}>
-              {mine ? `section ${mine.sectionNo}` : 'not in the filtered answer'}
-            </span>
-          </div>
-          <pre className="resp-body">
-            {mine
-              ? [
-                  `sectionNo     ${mine.sectionNo}`,
-                  `capacity      ${mine.capacity ?? 'no plan recorded'}`,
-                  `class teacher ${mine.classTeacherDocsId ?? 'none'}`,
-                  `active        ${mine.active}`,
-                ].join('\n')
-              : `Section ${section.sectionNo} is not in this filtered answer, which is what `
-                + `?active=${active} means for it.`}
-          </pre>
-        </div>
-
-        <div className="toolbar">
-          <Field
-            label="Show"
-            hint="#30's ?active=. Blank sends no parameter, which is not the same as false."
-          >
-            <Select label="Show" value={active} onChange={setActive} options={TRISTATE} />
-          </Field>
-        </div>
-
-        {data ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status">
-                {data.sectionCount} in the class · {data.activeCount} active · showing{' '}
-                {shown.length}
-              </span>
-            </div>
-            <pre className="resp-body">
-              {shown.length === 0
-                ? 'no rows match that filter'
-                : shown.map((one) => [
-                    one.sectionNo,
-                    one.capacity ? `cap ${one.capacity}` : 'no capacity',
-                    one.classTeacherDocsId ?? 'no class teacher',
-                    one.active ? 'active' : 'retired',
-                  ].join('  ·  ')).join('\n')}
-            </pre>
-          </div>
-        ) : null}
-
-        <p className="muted">
-          <Info size={12} /> The two counts describe the <em>whole class</em> however the rows are
-          filtered — "how many does this class have" is not "how many did you ask to see".
-        </p>
-      </div>
-    </Modal>
   )
 }
 
