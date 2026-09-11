@@ -33,8 +33,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17, #22, #24, #28,
- * #29 and #30 are built.
+ * #12 to #16, #22 to #27 and #28 to #30 of the plan in this package's README; #12, #13, #17,
+ * #22, #24, #28, #29 and #30 are built. #31 was dropped — see its entry.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.

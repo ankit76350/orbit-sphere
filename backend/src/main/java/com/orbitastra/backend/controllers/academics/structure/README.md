@@ -1,8 +1,9 @@
 # controllers/academics/structure — API plan
 
-**Six of 36 are built — #12, #13, #17, #28, #29 and #30.** A class can be created for an academic
-year, its name and affiliation programme edited, sections added to it, the year's classes listed —
-filtered, searched, sorted and paged — and one class read in full or just its sections.
+**Eight of 36 are built — #12, #13, #17, #22, #24, #28, #29 and #30**, and **#31 is dropped.** A
+class can be created for an academic year, its name and affiliation programme edited, sections
+added to it, subjects assigned to the class or to one section and then edited, the year's classes
+listed — filtered, searched, sorted and paged — and one class read in full or just its sections.
 
 **Phase 1 is complete.** Everything the `student` module needs from this one exists: a class, a
 section inside it, a list to choose from, and a read of one.
@@ -202,7 +203,9 @@ else. A term written against a year that does not exist is an orphan the moment 
 
 # The endpoints
 
-Numbered straight through, 1 to 36. Grouped only so the list is readable. Every path below is
+Numbered straight through, 1 to 36. **A dropped endpoint keeps its number** — #31 is gone and
+nothing is renumbered into the gap, because these numbers are referenced from the service, the
+API catalogue and the Postman collection. Grouped only so the list is readable. Every path below is
 relative to **`/schools/current/academic-years/{year}`**, which is left off the table to keep it
 readable — so `POST /terms` is `POST /schools/current/academic-years/2026-2027/terms`.
 
@@ -278,7 +281,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 | <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t29"></a>29 — **built** | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t30"></a>30 — **built** | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t31"></a>31 | [`GET /classes/{id}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t31"></a>~~31~~ — **dropped** | ~~`GET /classes/{id}/subjects`~~ | **Dropped 2026-09-11 — it was #29 with fields removed.** Same document, same single query, ~430 bytes saved on the largest class that exists. [The reasoning](#e31). | — |
 | <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t33"></a>33 | [`GET /staff/{staffDocsId}/teaching`](#e33) | One teacher's whole load for the year — the sections they are class teacher of, and every subject they are assigned. A teacher's own home screen, and what somebody checks before a teacher resigns. Two indexes already exist for exactly this: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
 | <a id="t34"></a>34 | [`GET /structure`](#e34) | The year's whole skeleton in one response: terms, then classes with their sections and subjects. What a mobile app fetches once on login instead of making twenty calls. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -306,7 +309,7 @@ section exists, so sections come before everything that is merely useful.
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
-| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, 31 |
+| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~ — **complete** *(31 dropped)* |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
@@ -341,6 +344,11 @@ and sections have eight collections waiting.
   strings, so a rename would neither fail nor cascade. See
   [the table above](#addressed-by-id-except-where-the-thing-has-no-id). A class `name` and a
   `termCode` *are* editable — nothing joins on either.
+- **No read that is another read with fields removed.** #31 was dropped for exactly this: sections
+  and subjects are *embedded*, so every per-class read is the same `findById` and the same document
+  — a narrower response saves a few hundred bytes and adds an endpoint to keep in step. #30 earns
+  its place by owning `?active=`; #32 earns its by aggregating across classes, which no per-class
+  read can do. A projection alone does not.
 - **No moving a subject assignment between sections.** `(subjectCode, sectionNo)` is the key, so a
   move is a delete and an add, and there is no delete. Deactivate the old assignment and add the
   new one — two calls, and the history reads correctly.
@@ -479,9 +487,10 @@ waiting on six other modules.
 
 ## 6. The upstream gap — nothing records what a student *takes*
 
-Straight from the model README, and it belongs in this plan because #31 and #32 look like they
-answer it and do not. `ClassSubject` records that Grade 11 offers Physics and Biology. **Nothing
-records that a particular student takes Physics.** So a register or a mark sheet generated from a
+Straight from the model README, and it belongs in this plan because #32 looks like it answers it
+and does not — as did #31, before it was dropped for unrelated reasons. `ClassSubject` records
+that Grade 11 offers Physics and Biology. **Nothing records that a particular student takes
+Physics.** So a register or a mark sheet generated from a
 section roster will list every student for every elective.
 
 It needs a subject list on `StudentAcademicRecord`, or a small `StudentSubjectEnrollment`
@@ -878,9 +887,11 @@ That distinction is the whole reason the parameter exists, and it is the same sh
 `PATCH .../holidays/{date}?type=`.
 
 **Moving `subjects` onto `ClassSection` was considered and rejected — 2026-09-10.** The nullable
-`sectionNo` is awkward, and the two notes below say why: `?sectionNo=` reads differently here than
-in #31, and nothing defines which row wins when a class-wide and a per-section row both exist. A
-subject list on each section removes both. It was not taken because only **one** field on
+`sectionNo` is awkward, and the two notes below said why: `?sectionNo=` read differently here than
+in #31, and nothing defined which row wins when a class-wide and a per-section row both exist. A
+subject list on each section removed both. **Both objections are now gone** — #22 settled the
+precedence question by forbidding the mixture outright, and dropping #31 left `?sectionNo=` with
+one meaning across the module. The rejection stands, and on firmer ground than when it was made. It was not taken because only **one** field on
 `ClassSubject` — `teacherDocsIds` — actually varies by section, so four sections × ten subjects
 would store the same `name`, `shortName`, `subjectType` and `gradingSchemeDocsId` four times, and
 renaming a subject would become four edits inside one document that can drift apart. A split —
@@ -896,7 +907,8 @@ in #22 is what keeps them from becoming data problems.
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `teacherDocsIds` entry, each with `schoolId` in the query — `404 STAFF_NOT_FOUND`. A repeat is `400 DUPLICATE_TEACHER`, and it fires *after* existence, so an unknown id sent twice is the 404
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` with `schoolId` — `404 GRADING_SCHEME_NOT_FOUND`. `GradingSchemeRepository` was built here, closing [open item 2](#2-three-referenced-collections-had-no-repository--settled-2026-09-11)
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: appends to `subjects[]` — `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `teacherDocsIds`, `gradingSchemeDocsId`, `active` = `true`
-- **Class-wide OR per-section, never both — settled here.** `MATHEMATICS` with `sectionNo: null` alongside `MATHEMATICS` with `sectionNo: "A"` is `409 SUBJECT_ASSIGNMENT_CONFLICT`, refused in *both* directions. A section studies its own rows **plus** the class's — as [#31](#e31) and `SectionDetail.jsx` both do — so the mixture gives that section the subject twice with no precedence. The model README's "repeat the same subjectCode with each section code" means *each* section, not one beside a class-wide row. Relaxing this needs a precedence rule, not a deletion.
+- **Class-wide OR per-section, never both — settled here.** `MATHEMATICS` with `sectionNo: null` alongside `MATHEMATICS` with `sectionNo: "A"` is `409 SUBJECT_ASSIGNMENT_CONFLICT`, refused in *both* directions. A section studies its own rows **plus** the class's — as `SectionDetail.jsx` does, and as every
+future consumer must — so the mixture gives that section the subject twice with no precedence. The model README's "repeat the same subjectCode with each section code" means *each* section, not one beside a class-wide row. Relaxing this needs a precedence rule, not a deletion.
 - **`subjectCode` is normalised, `sectionNo` is not.** Uppercased with every run of non-alphanumerics collapsed to one underscore, so `maths-2` stores as `MATHS_2`; a code with nothing left is `409 SUBJECT_CODE_INVALID`, which `@NotBlank` cannot catch because the input was not blank. `sectionNo` is matched case-insensitively and stored **as the class spells it** — two spellings would read as two sections.
 
 <a id="e23"></a>
@@ -1012,11 +1024,40 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **`forRead(...)` rather than a third `fromSchoolClass` overload.** Two overloads differing only in a nullable second argument were ambiguous to the compiler — `fromSchoolClass(cls, null)` matched both — and would have been ambiguous to a reader. The name says which half of the API is calling: writes pass a summary, reads pass a filter.
 
 <a id="e31"></a>
-**[31](#t31) · `GET /classes/{id}/subjects`**
+**~~[31](#t31) · `GET /classes/{id}/subjects`~~ — dropped 2026-09-11**
 
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[]`, optionally filtered to one `?sectionNo=`
-- **`?sectionNo=A` returns the class-wide rows too**, and this is the one place that parameter does not mean "the row whose `sectionNo` is A". A section is taught its own assignments *and* the class's — so filtering to `sectionNo == "A"` alone would hide most of what section A studies. Say so in the response, because it contradicts #24's reading of the same parameter name.
-- **It does not answer "which subjects does this student take."** Nothing does; see [open item 6](#6-the-upstream-gap--nothing-records-what-a-student-takes). For an `ELECTIVE` row this list is what is *offered*, not what is taken.
+**It was #29 with fields removed.** The projection half buys nothing, measured rather than argued:
+
+- **No query is saved.** #30 is the proof — it calls the same `utils.loadClass` as #29 and filters
+  in Java inside [`SectionListResponse.forRead`](../../../dto/academics/schoolclass/response/SectionListResponse.java).
+  #31 would have been identical: same document, same single `findById`. Mongo cannot index inside
+  an embedded array for this, so "do the filtering in the database" was never on offer.
+- **No payload is saved.** Across 1,559 classes, the largest carrying subjects is **1,516 bytes**,
+  of which `subjects[]` is 1,088. #31 would have saved **~430 bytes** on the fattest document in
+  the database.
+
+**The one real thing in it was the `?sectionNo=` rule, and that is not a read — it is a
+computation.** `?sectionNo=A` meant "A's own rows **plus** the class-wide ones", because a section
+studies both. It was dropped anyway, for two reasons:
+
+- **The parameter name would have meant two things in one module.** On [#24](#e24) `?sectionNo=A`
+  addresses *the row keyed to A*; on #31 it would have meant *what A studies*. If this is ever
+  rebuilt it needs a different name — `?studiedBySection=` — and not this number.
+- **The consumer it was written for will not call it.** "What a mark-entry screen reads" is a guess
+  about an endpoint that does not exist. That screen needs students, the exam and the grading
+  scheme as well, so it will have its own endpoint in the exams module — and *that* is where the
+  union rule belongs, applied once, next to everything else it needs.
+
+**Where the rule lives in the meantime:** `new-api-tester/src/pages/school/academics/SectionDetail.jsx`
+filters in the browser, and says so on screen rather than hiding it. That is acceptable for one consumer and stops being acceptable at the second — **the trigger for
+building this properly is a second caller, not a screen that feels slow.** [#22](#e22)'s ban on the
+class-wide/per-section mixture is what guarantees the union never yields the same subject twice, so
+whoever builds it inherits a rule that is already sound.
+
+**What #31 never answered, and nothing does:** "which subjects does this *student* take." See
+[open item 6](#6-the-upstream-gap--nothing-records-what-a-student-takes). For an `ELECTIVE` row any
+such list is what is *offered*, not what is taken — which is why dropping this endpoint costs less
+than it looks.
 
 <a id="e32"></a>
 **[32](#t32) · `GET /subjects`**

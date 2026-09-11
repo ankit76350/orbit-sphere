@@ -3138,9 +3138,12 @@ classChecks.push(
     sectionScreen.includes("call('get-school-class'")],
   ['and admits the subject filtering is done in the browser',
     sectionScreen.includes('filtered <b>in the browser</b>')],
-  ['naming #31 as the endpoint that would do it properly',
-    sectionScreen.includes('is #31 and') || sectionScreen.includes('#31')],
-  // The trap #31's own entry warns about: a class-wide row applies to every section.
+  ['saying #31 was dropped rather than pretending it is coming',
+    sectionScreen.includes('was #31 and was') && sectionScreen.includes('DROPPED')],
+  ['and naming the trigger for building it properly — a second caller',
+    sectionScreen.includes('A second caller')],
+  // A class-wide row applies to every section, so the union is the whole point — and #22's
+  // ban on the mixture is what stops it listing one subject twice.
   ['it includes the class-wide subjects, not only the section\'s own',
     sectionScreen.includes('one.sectionNo === sectionNo || !one.sectionNo')],
   ['and marks which is which on the row', sectionScreen.includes('the whole class')],

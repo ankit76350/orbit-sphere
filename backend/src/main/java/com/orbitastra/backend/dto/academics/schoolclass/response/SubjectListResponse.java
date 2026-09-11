@@ -9,7 +9,7 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
 /**
  * A class's subject assignments. Shared by every endpoint that touches the list.
  *
- * <p>One record for #22 to #27 and #31, the same arrangement {@link SectionListResponse} uses for
+ * <p>One record for #22 to #27, the same arrangement {@link SectionListResponse} uses for
  * sections and {@code HolidayCalendarResponse} for the calendar: every operation on an embedded
  * list leaves the caller wanting the same thing — what does the list look like now.
  *

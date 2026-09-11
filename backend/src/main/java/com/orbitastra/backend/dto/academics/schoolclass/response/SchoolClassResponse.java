@@ -9,7 +9,8 @@ import com.orbitastra.backend.models.academics.structure.SchoolClass;
  * <p><b>Counts, not the lists themselves.</b> A twelve-class year with four sections and ten
  * subjects each is 168 embedded rows, and returning them from a create — where both are
  * guaranteed empty — would bury the fields that actually changed. The lists have their own reads:
- * #29 for one class in full, #30 for its sections, #31 for its subjects.
+ * #29 for one class in full, and #30 for its sections. There is no read for the subjects alone:
+ * #31 was dropped on 2026-09-11 because it was #29 with fields removed.
  *
  * <p><b>{@code affiliationProgrammeDocsId} comes back as the raw id</b>, not resolved to a board
  * name. Resolving it here would mean this response and #29 both deciding how to present it; when

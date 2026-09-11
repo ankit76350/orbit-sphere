@@ -33,13 +33,19 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * anyway because that is the endpoint a section belongs to, and reading a section from the class
  * read would make this page depend on a shape it does not own.
  *
- * THE SUBJECT FILTERING HAPPENS IN THE BROWSER, and that is a gap rather than a design.
- * #31 — GET /classes/{id}/subjects?sectionNo= — is the endpoint that would do it in the
- * database, and it is not built. The page says so where the filtering happens.
+ * THE SUBJECT FILTERING HAPPENS IN THE BROWSER, and as of 2026-09-11 that is the design rather
+ * than a gap. #31 — GET /classes/{id}/subjects?sectionNo= — was meant to do it server-side and
+ * was DROPPED: it read the same document as #29 through the same single query, so there was no
+ * database filtering to move it to, and it saved ~430 bytes on the largest class that exists.
+ * The page still says where the filtering happens, because that stays worth knowing.
+ *
+ * THIS IS THE ONLY PLACE THE RULE LIVES, which is what makes it worth watching. A second caller
+ * is the trigger to build the endpoint properly — under a different name, because ?sectionNo=
+ * already means "the row keyed to A" on #24 and would mean "what A studies" here.
  *
  * A SECTION'S SUBJECTS ARE ITS OWN PLUS THE CLASS-WIDE ONES. A row with no sectionNo applies to
  * every section, so filtering to `sectionNo === X` alone would hide most of what the section
- * studies — the trap #31's entry in the README already warns about.
+ * studies. #22 forbids a subject being both, which is what stops this union listing one twice.
  */
 
 const TRISTATE = ['', 'true', 'false']
@@ -248,8 +254,10 @@ export default function SectionDetail() {
         )}
         <p className="muted">
           <Info size={12} /> This list is filtered <b>in the browser</b>, from the whole class
-          read. <span className="mono">GET /classes/{'{id}'}/subjects?sectionNo=</span> is #31 and
-          is not built — it is the endpoint that would do this in the database.
+          read — its own rows plus the class-wide ones. A server-side{' '}
+          <span className="mono">GET /classes/{'{id}'}/subjects?sectionNo=</span> was #31 and was
+          dropped: it read the same document through the same query, so there was nothing to move
+          into the database.
         </p>
       </Card>
 

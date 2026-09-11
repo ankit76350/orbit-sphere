@@ -63,7 +63,7 @@ public record PageResponse<T>(
      *
      * <p><b>Here rather than in a class of its own, and shared rather than written per endpoint.</b>
      * The plan catalogue had these lines inline, the subscription history needed the identical
-     * ones, and #30, #31 and #32 are list endpoints too. Copies of "is the page negative" is one
+     * ones, and #30 and #32 are list endpoints too. Copies of "is the page negative" is one
      * chance per copy to answer {@code 200} to {@code ?page=-1} or to spell the error code
      * differently, and a client cannot handle an error format that varies by endpoint. It sits on
      * this record because this is already the pagination type both ends of the call go through.
