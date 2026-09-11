@@ -1,18 +1,25 @@
-import { useState } from 'react'
-import { Info, Layers, Pencil, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Info, Layers, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * School / Academics — the classes taught in one academic year. Two of the group's 36 endpoints.
  *
- * #12 AND #13 ARE BUILT, AND THERE IS STILL NO LIST. `GET /classes` is #28 and does not exist yet, which
- * means this screen cannot read back what it made: it keeps what each create returned and says
- * plainly that this is a session record, not the server's answer. Showing a table that looks like
- * a list of the school's classes, built from local state, would be a screen that lies after a
- * refresh.
+ * THREE ENDPOINTS: #12 create, #13 edit, #28 list. The table is now a real read of the server
+ * rather than the session record it was while #28 was unbuilt — so a refresh keeps it, and a
+ * class created in another tab appears.
+ *
+ * EVERY FILTER IS ON SCREEN, INCLUDING THE ONES THAT WILL BE REFUSED. The page-size list carries
+ * 101 and 0, and the sort list carries a field off the allow-list, so their 400s can be seen.
+ * Nothing is disabled — this is an API testing tool.
+ *
+ * SEARCH IS SERVER-SIDE AND HAS ITS OWN BUTTON. #28 filters by name in the database, so the box
+ * does not filter the page in the browser: it re-asks. A box that narrowed what was already
+ * fetched would silently disagree with `totalElements` and would never find a class on page 3.
  *
  * A CLASS IS ADDRESSED BY ITS ID. Twelve other documents store `classDocsId`, and not one stores
  * a class code — so the id is what comes back, what the Location header carries, and what #13 to
@@ -24,13 +31,80 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * WITH NO YEAR PICKED THE BUTTON STILL WORKS: the API tester must be able to send the request
  * that fails, so the year field is left empty and the 404 comes from the server.
  */
+/**
+ * What #28 may sort on, plus one it refuses on purpose.
+ *
+ * `sections` is off the allow-list — it is here so the 400 can be seen rather than only read
+ * about.
+ */
+const SORTS = [
+  '', 'displayOrder,asc', 'displayOrder,desc', 'name,asc', 'name,desc',
+  'createdAt,desc', 'updatedAt,desc',
+  'sections',
+]
+
+/** 101 is over the cap and 0 is under it. Both are refused, never clamped. */
+const SIZES = ['5', '20', '100', '101', '0']
+
+/** Three-state: '' means the filter is not sent at all, which is not the same as false. */
+const TRISTATE = ['', 'true', 'false']
+
 export default function Classes() {
-  const { actingSubdomain, actingAcademicYear } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain, actingAcademicYear } = useApiState()
+
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [made, setMade] = useState([])
+
+  const [active, setActive] = useState('')
+  const [hasSections, setHasSections] = useState('')
+  const [hasSubjects, setHasSubjects] = useState('')
+  const [programme, setProgramme] = useState('')
+  // Typed, then SENT. `search` is what the last request used; `typed` is what the box holds.
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Built at render, so the endpoint tag shows the URL that will actually be sent. An empty box
+  // sends nothing rather than an empty parameter — `?active=` is not the same as no filter.
+  const query = useMemo(() => {
+    const out = { page, size }
+    if (active) out.active = active
+    if (hasSections) out.hasSections = hasSections
+    if (hasSubjects) out.hasSubjects = hasSubjects
+    if (programme.trim()) out.affiliationProgrammeDocsId = programme.trim()
+    if (search.trim()) out.search = search.trim()
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, active, hasSections, hasSubjects, programme, search, sort])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-school-classes', {
+      label: "The year's classes",
+      // Empty when no year is picked, so the request still goes and the server answers 404.
+      pathParams: { year: actingAcademicYear ?? '' },
+      query,
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, actingAcademicYear, query])
+
+  useEffect(() => { load() }, [load])
 
   if (!actingSubdomain) return <NoSchoolChosen what="Classes" />
+
+  const rows = data?.content ?? []
+  /** Re-ask with what the box holds. Server-side, so it is a new request and page 0. */
+  const runSearch = () => { setPage(0); setSearch(typed) }
 
   return (
     <div className="page stack">
@@ -41,27 +115,93 @@ export default function Classes() {
             <span className="mono">{actingSubdomain}</span>
             {actingAcademicYear
               ? <> · <span className="mono">{actingAcademicYear}</span></>
-              : ' · no year picked — the create will answer 404'}
+              : ' · no year picked — the list will answer 404'}
+            {data ? ` · ${data.totalElements} in this year · page ${data.page + 1} of ${Math.max(data.totalPages, 1)}` : ''}
           </p>
         </div>
         <span className="toolbar-spacer" />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>Add a class</Button>
       </div>
 
       <Card
-        title="Made in this session"
-        description="#12 is the only built endpoint in this group, so there is nothing to read back."
-        action={<EndpointTag id="create-school-class" name="Create" />}
+        title="Filters"
+        description="Every one is optional and they AND together. Blank means the parameter is not sent at all, which is not the same as false."
+        action={<EndpointTag id="list-school-classes" name="As filtered" query={query} />}
       >
-        {made.length === 0 ? (
+        <div className="stack">
+          <div className="toolbar">
+            <Field label="Search by name" hint="Server-side and case-insensitive; matches anywhere. Press the button — it re-asks rather than filtering this page.">
+              <Input
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }}
+                placeholder="grade"
+              />
+            </Field>
+            <Button icon={Search} onClick={runSearch}>Search</Button>
+            {search ? (
+              <Button onClick={() => { setSearch(''); setTyped(''); setPage(0) }}>Clear</Button>
+            ) : null}
+          </div>
+
+          <div className="field-grid">
+            <Field label="Active" hint="Blank returns both.">
+              <Select label="Active" value={active}
+                onChange={(value) => { setActive(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Has sections" hint="false is THE SETUP CHECKLIST — a class with no section cannot hold a student.">
+              <Select label="Has sections" value={hasSections}
+                onChange={(value) => { setHasSections(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Has subjects" hint="false is 'nothing is taught in this class yet'.">
+              <Select label="Has subjects" value={hasSubjects}
+                onChange={(value) => { setHasSubjects(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+          </div>
+
+          <div className="field-grid">
+            <Field label="Affiliation programme id" hint="An unknown id is an empty page, not a 404.">
+              <Input value={programme}
+                onChange={(event) => { setProgramme(event.target.value); setPage(0) }}
+                placeholder="6aa2a107c7cc53f3111217bf" />
+            </Field>
+            <Field label="Sort" hint="`sections` is off the allow-list on purpose — it answers 400 INVALID_SORT_FIELD.">
+              <Select label="Sort" value={sort}
+                onChange={(value) => { setSort(value); setPage(0) }} options={SORTS} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <Field label="Page size" hint="Defaults to 20, capped at 100. 101 and 0 are refused, never clamped.">
+              <Select label="Page size" value={size}
+                onChange={(value) => { setSize(value); setPage(0) }} options={SIZES} />
+            </Field>
+            <span className="toolbar-spacer" />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span className="muted">page {page}</span>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title="The year's classes"
+        description="In displayOrder, as the API returns them. A class with no order sorts FIRST — Mongo puts a missing field before numbers."
+      >
+        {problem ? (
           <Empty
-            title="Nothing created yet"
-            description="A class is created empty — sections (#17) and subjects (#22) go on afterwards, and neither is built."
-            action={
-              <Button look="primary" icon={Plus} onClick={() => setCreating(true)}>
-                Create one
-              </Button>
-            }
+            title={problem.bodyJson?.code || `The server answered ${problem.status}`}
+            description={problem.bodyJson?.message || 'Nothing came back.'}
+            action={<Button icon={RefreshCw} onClick={load}>Try again</Button>}
+          />
+        ) : rows.length === 0 && !loading ? (
+          <Empty
+            title={Object.keys(query).length > 2 ? 'Nothing matches those filters' : 'No classes yet'}
+            description={Object.keys(query).length > 2
+              ? 'An empty page, not a 404 — the year exists and the filters matched nothing.'
+              : 'A class is created empty. Sections (#17) and subjects (#22) go on afterwards, and neither is built.'}
+            action={<Button look="primary" icon={Plus} onClick={() => setCreating(true)}>Create one</Button>}
           />
         ) : (
           <div className="table-scroll">
@@ -69,33 +209,37 @@ export default function Classes() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Year</th>
                   <th>Order</th>
                   <th>Sections</th>
                   <th>Subjects</th>
+                  <th>Programme</th>
                   <th>Id</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {made.map((row) => (
+                {rows.map((row) => (
                   <tr key={row.schoolClassId}>
                     <td>
                       {row.name}
-                      {row.active ? <Badge tone="good">active</Badge> : null}
+                      {row.active ? <Badge tone="good">active</Badge> : <Badge>retired</Badge>}
                     </td>
-                    <td><span className="mono">{row.academicYear}</span></td>
-                    <td>{row.displayOrder ?? <span className="muted">last</span>}</td>
-                    {/* Both are always 0 here, and that is the point rather than an oversight:
-                        #12 cannot accept sections or subjects. */}
+                    <td>
+                      {row.displayOrder ?? <span className="muted">none — sorts first</span>}
+                    </td>
+                    {/* Both are 0 until #17 and #22 exist. The list returns COUNTS, never the
+                        embedded rows: 168 of them for a twelve-class year. */}
                     <td>{row.sectionCount}</td>
                     <td>{row.subjectCount}</td>
-                    {/* The identity. What the Location header returned and what #13 to #16 will
-                        address it by — there is no code to show instead. */}
+                    <td>
+                      {row.affiliationProgrammeDocsId
+                        ? <span className="mono">{row.affiliationProgrammeDocsId.slice(0, 8)}…</span>
+                        : <span className="muted">none</span>}
+                    </td>
+                    {/* The identity. What twelve other documents store as classDocsId, and what
+                        #13 addresses — there is no code to show instead. */}
                     <td><span className="mono">{row.schoolClassId}</span></td>
                     <td>
-                      {/* #13. The id in the row is exactly what the PATCH addresses — there is
-                          no code, so this button is the only way to reach that endpoint. */}
                       <Button icon={Pencil} onClick={() => setEditing(row)}>Edit</Button>
                     </td>
                   </tr>
@@ -105,31 +249,23 @@ export default function Classes() {
           </div>
         )}
         <p className="muted">
-          <Info size={12} /> This table is what this browser session created, not a read of the
-          server. <span className="mono">GET /classes</span> is #28 and is not built, so a refresh
-          empties it.
+          <Info size={12} /> Rows carry counts, not the embedded lists — <span className="mono">GET
+          /classes/{'{id}'}</span> is #29 and is not built. A suspended school can still read this
+          list and cannot add to it.
         </p>
       </Card>
 
       <EditClass
         row={editing}
         onClose={() => setEditing(null)}
-        onSaved={(saved) => {
-          // Replaces the row by id, which is stable across a rename. Keying on the name would
-          // lose the row the moment #13 did the one thing it exists for.
-          setMade((rows) => rows.map((r) => (r.schoolClassId === saved.schoolClassId ? saved : r)))
-          setEditing(null)
-        }}
+        onSaved={() => { setEditing(null); load() }}
       />
 
       <CreateClass
         open={creating}
         year={actingAcademicYear}
         onClose={() => setCreating(false)}
-        onCreated={(row) => {
-          setMade((rows) => [row, ...rows])
-          setCreating(false)
-        }}
+        onCreated={() => { setCreating(false); load() }}
       />
     </div>
   )
@@ -242,7 +378,7 @@ function CreateClass({ open, year, onClose, onCreated }) {
         <div className="field-grid">
           <Field
             label="Sort order"
-            hint="Optional. Absent sorts last."
+            hint="Optional. Absent sorts FIRST in the list — Mongo orders a missing field before numbers."
             error={errors.displayOrder}
           >
             <Input

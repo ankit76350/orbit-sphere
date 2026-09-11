@@ -1,7 +1,8 @@
 # controllers/academics/structure — API plan
 
-**Two of 36 are built — #12 and #13.** A class can be created for an academic year, and its
-name, sort order and affiliation programme can be edited.
+**Three of 36 are built — #12, #13 and #28.** A class can be created for an academic year, its
+name, sort order and affiliation programme can be edited, and the year's classes can be listed —
+filtered, searched, sorted and paged.
 
 **#13 was brought forward from phase 7**, on request, because nothing depends on it and it is the
 endpoint that proves the id-addressed design: a class can be renamed, which an academic year
@@ -267,7 +268,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t28"></a>28 | [`GET /classes`](#e28) | The year's classes in `displayOrder`, filtered by `active` and searchable by name. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes in `displayOrder`, filtered by `active` and searchable by name. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t29"></a>29 | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t30"></a>30 | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t31"></a>31 | [`GET /classes/{id}/subjects`](#e31) | Just the subject assignments, optionally for one `sectionNo`. What a mark-entry screen reads to know which subjects exist for a section. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -297,7 +298,7 @@ section exists, so sections come before everything that is merely useful.
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
-| **1** | A class with sections exists, so a student can be placed in one | 12, 17, 28, 29, 30 |
+| **1** | A class with sections exists, so a student can be placed in one | ~~12~~, 17, ~~28~~, 29, 30 |
 | **2** | Subjects are assigned, so marks and registers have something to be about | 22, 24, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
@@ -596,7 +597,7 @@ Two things are left out of every entry because they are true of all of them:
 | `_id` | ObjectId | The identity, and what **12** other documents store as `classDocsId`. There is no code field — see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10). |
 | `name` | String, required | **Open** — `@NotBlank`, max 120, **unique within the year** (`school_year_class_name_uniq`). `"Grade 7"`, `"Nursery"`, `"XII Science"`. Editable through #13, and safe to edit because the id carries the identity, not this. |
 | `affiliationProgrammeDocsId` | String, optional | `AffiliationProgramme.id`, or null. **Open, and unvalidatable today** — no repository. See [open item 2](#2-three-referenced-collections-have-no-repository-so-no-reference-can-be-validated). |
-| `displayOrder` | Integer, optional | Sort order for the UI. **Not unique**, deliberately — so #14 is a convenience where #4 is a necessity. Null sorts last. |
+| `displayOrder` | Integer, optional | Sort order for the UI. **Not unique**, deliberately — so #14 is a convenience where #4 is a necessity. **Null sorts FIRST** ascending, not last: Mongo orders a missing field before numbers. Measured 2026-09-11; this row said "last" until then. |
 | `sections` | List, required | `[]` at create (#12). #17 adds one, #18 replaces the list. Rows below. |
 | `subjects` | List, required | `[]` at create (#12). #22 adds one, #23 replaces the list. Rows below. |
 | `active` | Boolean, required | `true` at create; `false` from #15, `true` from #16. |
@@ -941,12 +942,42 @@ in #22 is what keeps them from becoming data problems.
 None of these runs a gate, and none of them writes anything.
 
 <a id="e28"></a>
-**[28](#t28) · `GET /classes`**
+**[28](#t28) · `GET /classes`** — built
 
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. **This is the one endpoint where that check actually fires**: no gate runs on a read, so unlike #12 and #13 — where gate 4 answers first and their own checks are unreachable — this is what returns `404 ACADEMIC_YEAR_NOT_FOUND`.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `_id`, `name`, `displayOrder`, `active`, `affiliationProgrammeDocsId`, and counts off `sections[]` and `subjects[]`
+- **Filters, all optional and all AND-ed:** `?active=` · `?search=` (name, case-insensitive, contains) · `?affiliationProgrammeDocsId=` · `?hasSections=` · `?hasSubjects=`
+- **`?hasSections=false` is the setup checklist**, and the reason that filter exists: a class with no section cannot hold a student, because `StudentAcademicRecord` stores `sectionNo`. "What have I not finished setting up" is the question a school asks during year setup, and nothing else on this endpoint answers it. Asked of `sections.0` rather than a stored count, so there is no second field to keep in step with the list.
 - **Sorted by `displayOrder`, then `_id`.** `displayOrder` is optional and not unique, so it cannot be the whole sort — a tiebreaker is required or the page order changes between two identical requests. The same `_id`-tiebreaker problem #30 and #31 of the plans module hit.
+- **A missing `displayOrder` sorts FIRST**, not last. Mongo orders a missing field before numbers ascending. Measured against the live database 2026-09-11; four places in this repository claimed the opposite until then, including the row in this file's own appendix.
 - **Does not return the embedded lists**, only their sizes. A year of twelve classes with four sections and ten subjects each is 168 embedded rows in one response nobody reads. #29 is for one class in full.
-- Filters: `?active=`, `?search=` on `name`. Served by `school_year_class_active_order_idx`.
+- **Refused, never clamped:** `?size=101` is a `400 INVALID_PAGE_SIZE`. A caller who asked for 5000 rows and silently got 100 has been handed a page they will read as the whole answer.
+- **A year with no classes is an empty page; an unknown year is a 404.** Those are different answers, and a school acting on the first would wait for classes that can never appear.
+- **No `@Transactional` and no gates.** A suspended school can still read its structure and cannot write to it — that asymmetry has a test.
+
+#### What the indexes actually do — measured, not assumed
+
+```
+bare list            IXSCAN school_year_class_name_uniq          + SORT
+?active=true         IXSCAN school_year_class_active_order_idx   + SORT
+?search=grade        IXSCAN school_year_class_name_uniq          + SORT   (4 returned, 11 keys)
+?hasSections=false   IXSCAN school_year_class_name_uniq          + SORT
+?sort=name           IXSCAN school_year_class_name_uniq          + SORT
+```
+
+**No index was added for #28.** Every filter is an index scan — never a COLLSCAN, because
+`schoolId` and `academicYear` are always pinned and both existing indexes begin with that pair.
+
+**Every sort is a blocking one**, and that is worth stating because an earlier draft of this entry
+claimed `school_year_class_active_order_idx` served the order. It cannot: the index ends at
+`displayOrder` and the order ends at the `_id` tiebreaker. The sort therefore orders tens of
+documents in memory — a school has around a dozen classes in a year — which is the right trade
+against unstable pagination. **If a collection ever sorts thousands this way, the fix is an index
+ending in the tiebreaker, not dropping it.**
+
+`?search=` and `?affiliationProgrammeDocsId=` have no index and want none: both are applied after
+the query is pinned to one school and one year. A case-insensitive *contains* regex cannot use an
+index in any case, and the same shape would be wrong on a student collection.
 
 <a id="e29"></a>
 **[29](#t29) · `GET /classes/{id}`**

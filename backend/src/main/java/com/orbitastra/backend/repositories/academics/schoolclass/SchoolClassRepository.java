@@ -6,7 +6,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 
-public interface SchoolClassRepository extends MongoRepository<SchoolClass, String> {
+public interface SchoolClassRepository
+        extends MongoRepository<SchoolClass, String>, SchoolClassRepositoryCustom {
 
     /**
      * One class, by its document id, scoped to the school and the year.

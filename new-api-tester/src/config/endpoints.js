@@ -8820,7 +8820,8 @@ February, before that year starts.
           id: "07",
           name: "A NEGATIVE SORT ORDER",
           expect: "400 Bad Request",
-          notes: `displayOrder is @Min(0). Absent is fine and sorts last; negative is not.`,
+          notes: `displayOrder is @Min(0). Absent is fine; negative is not.
+    Absent sorts FIRST in #28, not last — Mongo orders missing before numbers.`,
           body: `{
   "name": "Backwards",
   "displayOrder": -1
@@ -8990,7 +8991,8 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
           id: "04",
           name: "ZERO IS A REAL POSITION",
           expect: "200 OK",
-          notes: `Not a clear. 0 sorts FIRST; absent sorts last.`,
+          notes: `Not a clear. Both 0 and absent sort before any positive order —
+    Mongo puts a missing field first ascending, and 0 is simply the lowest number.`,
           body: `{
   "displayOrder": 0
 }`,
@@ -9060,6 +9062,206 @@ Same three as #12 — **1** school ACTIVE · **2** subscription usable · **4** 
   "sections": [{ "sectionNo": "A" }],
   "active": false
 }`,
+        },
+      ],
+    },
+    {
+      id: "list-school-classes",
+      name: "List Classes",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/classes",
+      status: 'live',
+      summary: "One year's classes in displayOrder, filtered, searched and paged.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/classes\` — endpoint #28.
+
+The screen a school opens to see its own structure. Every filter is optional; a bare call is the
+first page in \`displayOrder\`.
+
+### The filters, all AND-ed
+
+    ?active=true                        only the classes in use
+    ?search=grade                       name contains "grade", case-insensitive
+    ?affiliationProgrammeDocsId=67aa…   one board's classes
+    ?hasSections=false                  THE SETUP CHECKLIST
+    ?hasSubjects=false                  nothing taught in these yet
+
+**\`?hasSections=false\` is the one worth knowing.** A class with no section cannot hold a
+student — \`StudentAcademicRecord\` stores \`sectionNo\` — so that is how a school finds what it
+has not finished setting up. Asked of \`sections.0\`, not a stored count, so there is no second
+field to keep in step with the list.
+
+### A missing displayOrder sorts FIRST
+
+Mongo orders a missing field **before** numbers ascending. Measured against the live database;
+four places in this repository claimed the opposite until 2026-09-11. Pushing nulls last would
+need an aggregation with \`$ifNull\`, which no index can serve.
+
+### Rows carry counts, not the embedded lists
+
+A twelve-class year with four sections and ten subjects each is 168 embedded rows nobody reads.
+#29 is for one class in full, and it is not built.
+
+### Paging is refused, never clamped
+
+\`?size=101\` is a **400**. A caller who asked for 5000 rows and silently got 100 has been handed
+a page they will read as the whole answer.
+
+### No gates on a read
+
+A suspended school can still read its structure and cannot write to it. Which makes the year
+check the only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here — on #12 and #13 gate 4
+answers it first.
+
+**A year with no classes is an empty page. An unknown year is a 404.** Different answers.
+
+### The eleven test cases are in the request body as comments
+`,
+      bodyNotes: `A GET, so there is no body. Everything is a query parameter.
+
+ A MISSING displayOrder SORTS FIRST, not last. Mongo puts a missing field
+ before numbers ascending. This was documented backwards in four places
+ until it was measured on 2026-09-11.
+
+ EVERY SORT IS A BLOCKING SORT, and that is the right trade here. The order
+ ends in the _id tiebreaker, which no index carries, so Mongo sorts in
+ memory — but the query is pinned to one school and one year first, so it
+ orders tens of documents. Dropping the tiebreaker would let the index serve
+ the order and make paging unstable: a row could appear on page 1 and again
+ on page 2 while another was never seen.
+
+ SIZE IS REFUSED, NEVER CLAMPED. 101 is a 400. Try it.
+
+ AN UNKNOWN YEAR IS A 404, A YEAR WITH NO CLASSES IS AN EMPTY PAGE.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year whose classes to list. Must exist — an unknown year is a 404, not an empty page." },
+      ],
+      queryParams: [
+        { key: "active", value: "", enabled: false, description: "true for classes in use, false for retired. Absent returns both." },
+        { key: "search", value: "", enabled: false, description: "Case-insensitive, matches anywhere in the name. Blank is treated as absent." },
+        { key: "affiliationProgrammeDocsId", value: "", enabled: false, description: "Only classes under one board programme. An unknown id is an empty page." },
+        { key: "hasSections", value: "", enabled: false, description: "false is the setup checklist — classes nothing can be placed in yet." },
+        { key: "hasSubjects", value: "", enabled: false, description: "false is 'nothing is taught in this class yet'." },
+        { key: "page", value: "0", enabled: false, description: "Zero-based. Negative is a 400." },
+        { key: "size", value: "20", enabled: false, description: "Defaults to 20, capped at 100. Above that is a 400, never a clamp." },
+        { key: "sort", value: "", enabled: false, description: "field,direction. displayOrder, name, createdAt, updatedAt only." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A PageResponse envelope: content, page, size, totalElements, totalPages, hasNext, hasPrevious.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is below 1 or above 100 — refused, never clamped." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "sort names something off the allow-list." },
+        { status: 400, code: "INVALID_SORT_DIRECTION", when: "The direction is neither asc nor desc." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE FIRST PAGE",
+          expect: "200 OK",
+          notes: `No parameters.
+    OUT: content[], page: 0, size: 20, totalElements, totalPages,
+         hasNext, hasPrevious — and a class with NO displayOrder first.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE SETUP CHECKLIST",
+          expect: "200 OK",
+          notes: `?hasSections=false
+    Classes nothing can be placed in yet, because a student record stores
+    sectionNo. While #17 is unbuilt this is every class.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "SEARCH BY NAME",
+          expect: "200 OK",
+          notes: `?search=grade
+    Case-insensitive and matches anywhere: finds "Grade 1" and "Upper Grade".`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A SEARCH WITH REGEX CHARACTERS",
+          expect: "200 OK, zero rows",
+          notes: `?search=Grade (1)
+    The needle is quoted before it is compiled, so this searches for those
+    seven characters literally — it does NOT match "Grade 1" as a regex group
+    would, and a lone "(" does not become a 500.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "TWO FILTERS AT ONCE",
+          expect: "200 OK",
+          notes: `?search=grade&active=true
+    The filters AND together. Nothing ORs within itself here, unlike #30.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "SORT BY NAME, DESCENDING",
+          expect: "200 OK",
+          notes: `?sort=name,desc
+    Really descending. A fallback appended under a caller's field used to
+    produce {name: -1, name: 1}, which sorts ASCENDING — the duplicate-key
+    trap PageResponse.sortOf now filters out.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "A FIELD OFF THE ALLOW-LIST",
+          expect: "400 Bad Request",
+          notes: `?sort=sections
+    OUT: { "code": "INVALID_SORT_FIELD",
+           "message": "... Allowed: displayOrder, name, createdAt, updatedAt." }`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "SIZE OVER THE CAP",
+          expect: "400 Bad Request",
+          notes: `?size=101
+    OUT: { "code": "INVALID_PAGE_SIZE" } — refused, not clamped to 100.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "A PAGE PAST THE END",
+          expect: "200 OK, zero rows",
+          notes: `?page=99
+    An empty page, not a 404. totalElements still reports the real count.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "AN UNKNOWN YEAR",
+          expect: "404 Not Found",
+          notes: `Set the year path parameter to 2099-2100.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }
+    No gate runs on a read, so the service's own check is what answers this.`,
+          body: null,
+        },
+        {
+          id: "11",
+          name: "A SUSPENDED SCHOOL CAN STILL READ",
+          expect: "200 OK",
+          notes: `Suspend the school, then send case 01 again.
+    It still lists. Then try Create Class: 409 SCHOOL_NOT_ACTIVE.
+    Reads run no gates; writes run three. That asymmetry is deliberate.`,
+          body: null,
         },
       ],
     },

@@ -1,14 +1,21 @@
 package com.orbitastra.backend.services.academics;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
@@ -20,7 +27,7 @@ import com.orbitastra.backend.repositories.institution.affiliationprogramme.Affi
 import lombok.RequiredArgsConstructor;
 
 /**
- * The classes taught in one academic year. Endpoints #12 and #13 of the plan in
+ * The classes taught in one academic year. Endpoints #12, #13 and #28 of the plan in
  * {@code controllers/academics/structure/README.md}.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
@@ -48,6 +55,61 @@ public class SchoolClassService {
     private static final String NO_AUTHORIZATION_YET =
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
                     + "run it.";
+
+    /**
+     * The fields #28 may be ordered by: what a caller types -> the field on the document.
+     *
+     * <p><b>An allow-list, not a pass-through.</b> Anything else is a 400 naming what is
+     * accepted, so nobody can order by a field with nothing behind it and nobody can learn the
+     * document's shape by guessing names. Keys are lowercase because the lookup is.
+     *
+     * <p>A {@link LinkedHashMap} so the refusal lists them in this order rather than a hash
+     * order that changes between runs.
+     */
+    private static final Map<String, String> SORTABLE_CLASS_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_CLASS_FIELDS.put("displayorder", "displayOrder");
+        SORTABLE_CLASS_FIELDS.put("name", "name");
+        SORTABLE_CLASS_FIELDS.put("createdat", "createdAt");
+        SORTABLE_CLASS_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same names as they should be typed, for the refusal message. */
+    private static final String SORTABLE_CLASS_FIELD_NAMES =
+            SORTABLE_CLASS_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker under whatever the caller asked for.
+     *
+     * <p>{@code displayOrder} is the order a school reads its own classes in — "Nursery, LKG,
+     * UKG, 1, 2, 3" is neither alphabetical nor derivable from the name, which is the whole
+     * reason the field exists.
+     *
+     * <p><b>{@code id} is here because pagination is not stable without it.</b> {@code
+     * displayOrder} is optional and not unique, so two classes sharing one — or both missing it —
+     * compare equal, and equal rows may come back in either order: one can appear on page 1 and
+     * again on page 2 while another is never seen at all.
+     *
+     * <p><b>And that tiebreaker means no index can serve this sort</b>, which is worth stating
+     * because an earlier draft of this javadoc claimed the opposite.
+     * {@code school_year_class_active_order_idx} ends at {@code displayOrder}, so
+     * {@code {displayOrder, _id}} needs a blocking sort — {@code explain} shows
+     * {@code SORT <- FETCH <- IXSCAN} for both the bare list and {@code ?active=true}.
+     *
+     * <p><b>It is the right trade at this size and the wrong one at any other.</b> The query is
+     * pinned to one school and one year before the sort runs, so it orders tens of documents; a
+     * school has around a dozen classes in a year. Dropping {@code id} would let the index serve
+     * the order and would make paging unstable, which is a correctness bug traded for an
+     * optimisation nothing needs. <b>If a collection ever sorts thousands this way, the answer is
+     * an index ending in the tiebreaker, not removing it.</b>
+     *
+     * <p><b>A class with no {@code displayOrder} sorts FIRST.</b> Mongo orders missing before
+     * numbers ascending. Measured, not assumed — and it is the opposite of what an earlier draft
+     * of this module's README claimed.
+     */
+    private static final Sort CLASS_ORDER = Sort.by(Sort.Order.asc("displayOrder"),
+            Sort.Order.asc("id"));
 
     private final SchoolClassRepository schoolClasses;
     private final AcademicYearRepository academicYears;
@@ -239,5 +301,57 @@ public class SchoolClassService {
                 "'" + saved.getName() + "' updated. Sections and subjects are untouched — they "
                         + "have their own endpoints, none of which is built. "
                         + NO_AUTHORIZATION_YET);
+    }
+
+    //! Endpoint 28 — list the year's classes -----------------------------------------
+
+    /**
+     * One year's classes, filtered, sorted and paged.
+     *
+     * <p><b>Read-only, so no gates and no {@code @Transactional}.</b> Looking at a structure is
+     * not an action on it, and a school that has stopped paying still has to be able to read its
+     * own records — the rule the whole project follows, set out in {@code controllers/core}.
+     *
+     * <p><b>Which makes this the one place the year check actually fires.</b> On #12 and #13 gate
+     * 4 loads the year first and throws the same 404, so their own checks are unreachable through
+     * HTTP. No gate runs here, so this is the check that answers
+     * {@code 404 ACADEMIC_YEAR_NOT_FOUND} — and an unknown year is a 404 rather than an empty
+     * page, because "that year does not exist" and "that year has no classes" are different
+     * answers and a school acting on the second would wait for classes that can never appear.
+     *
+     * <p><b>The embedded lists are not returned, only their sizes.</b> A twelve-class year with
+     * four sections and ten subjects each is 168 embedded rows in one response nobody reads. #29
+     * is for one class in full.
+     */
+    public PageResponse<SchoolClassResponse> listClasses(String academicYear,
+            SchoolClassSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_CLASS_FIELDS, SORTABLE_CLASS_FIELD_NAMES, CLASS_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+        String year = academicYear.trim();
+
+        //! step 3 - the year has to exist. See the note above: no gate runs on a read, so this
+        //! is the only thing standing between a typo and an empty page that looks like an answer.
+        // TODO: check academic year exists
+        if (!academicYears.existsBySchoolIdAndName(school.getId(), year)) {
+            throw ApiException.notFound("ACADEMIC_YEAR_NOT_FOUND",
+                    "No academic year called '" + year + "' in this school.");
+        }
+
+        //! step 4 - one page, filtered and ordered in the database. The tenant and the year are
+        //! passed separately from the request because they are the boundary, not filters.
+        // TODO: read classes
+        return PageResponse.from(
+                schoolClasses.search(school.getId(), year, request, pageable),
+                // The single-argument factory, so no `nextStep` appears: a read changed nothing,
+                // and a "nextStep": null on every row of a list is noise a client then has to
+                // decide whether to trust.
+                SchoolClassResponse::fromSchoolClass);
     }
 }

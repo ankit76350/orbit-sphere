@@ -2889,8 +2889,8 @@ const classChecks = [
     classEntry.includes('SECTIONS AND SUBJECTS ARE NOT ACCEPTED HERE')],
   ['and proves it with a case that sends them anyway',
     classEntry.includes('SECTIONS AND SUBJECTS ARE IGNORED')],
-  ['the screen says the counts are always zero',
-    classesScreen.includes('#12 cannot accept sections or subjects')],
+  ['the screen says the list returns counts, not the embedded rows',
+    classesScreen.includes('The list returns COUNTS, never the')],
 
   // The refusals a tester needs to be able to reach.
   ['CLASS_NAME_TAKEN is documented', classEntry.includes('CLASS_NAME_TAKEN')],
@@ -2902,10 +2902,12 @@ const classChecks = [
   ['the index bug is recorded, since it would have hit the second class ever created',
     classEntry.includes('one class per')],
 
-  // The screen must not pretend to list what it cannot read: #28 is not built.
-  ['the screen says its table is session-only, not a read',
-    classesScreen.includes('not a read of the')],
-  ['and names the endpoint that would make it real', classesScreen.includes('#28')],
+  // #28 is built, so the table is a real read now - and the screen must no longer claim
+  // otherwise. It said "not a read of the server" while #28 was a plan.
+  ['the table is a real read, and no longer claims to be session-only',
+    !classesScreen.includes('not a read of the')],
+  ['it loads from #28', classesScreen.includes("call('list-school-classes'")],
+  ['it still names #29 as what would give one class in full', classesScreen.includes('#29')],
 
   // The year box starts from the top bar but must stay typeable - clearing it is how the 404
   // is tested, and a locked field would make that refusal unreachable.
@@ -2916,7 +2918,7 @@ const classChecks = [
 
 // #13 — the edit. Everything here exists because a class is addressed by id.
 const editEntry = classCatalogue.slice(classCatalogue.indexOf('update-school-class'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+  classCatalogue.indexOf('list-school-classes'))
 classChecks.push(
   ['#13 is a PATCH on the id', /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}"/.test(editEntry)],
   ['it takes both the year and the id as path parameters',
@@ -2934,8 +2936,11 @@ classChecks.push(
   // The form must send only what changed, or "detach the programme" and "leave it alone" become
   // the same request.
   ['the edit form sends only what changed', classesScreen.includes('const changed = ()')],
-  ['it replaces the row by id, which survives a rename',
-    classesScreen.includes('r.schoolClassId === saved.schoolClassId')],
+  // After an edit the screen RE-READS rather than patching its local row. With #28 built the
+  // server is the cheaper source of truth, and a local patch would drift from the filters.
+  ['an edit re-reads the list rather than patching the row locally',
+    classesScreen.includes('onSaved={() => { setEditing(null); load() }}')],
+  ['and a create does the same', classesScreen.includes('onCreated={() => { setCreating(false); load() }}')],
   ['it remounts per class rather than copying the row in an effect',
     classesScreen.includes('key={row.schoolClassId}')],
   ['an unchanged form still submits, so the 400 stays reachable',
@@ -2945,6 +2950,58 @@ classChecks.push(
   ['and so can the class id', classesScreen.includes("aim('id')")],
   ['and both are what the request uses',
     classesScreen.includes('pathParams: { year: target.year, id: target.id }')],
+)
+
+
+// #28 — the list. Production shape: filters, paging, sorting, and the traps each one carries.
+// The three entries sit in the order they were added: create, update, list. So the list entry
+// runs from its own id to the end of the group, not to another id that precedes it.
+const listEntry = classCatalogue.slice(
+  classCatalogue.indexOf('list-school-classes'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+classChecks.push(
+  ['#28 is a GET on the year', /method: "GET"/.test(listEntry)],
+  ['it takes no body', listEntry.includes('bodyAllowed: false')],
+  ['it declares all five filters',
+    ['active', 'search', 'affiliationProgrammeDocsId', 'hasSections', 'hasSubjects']
+      .every((f) => listEntry.includes(`key: "${f}"`))],
+  ['and the three paging parameters',
+    ['page', 'size', 'sort'].every((f) => listEntry.includes(`key: "${f}"`))],
+  ['the envelope is documented, not Spring\'s Page',
+    ['content', 'totalElements', 'totalPages', 'hasNext', 'hasPrevious']
+      .every((f) => listEntry.includes(`"${f}"`))],
+  ['size is refused rather than clamped', listEntry.includes('INVALID_PAGE_SIZE')
+    && listEntry.includes('never clamp')],
+  ['the sort allow-list is named in the refusal case', listEntry.includes('INVALID_SORT_FIELD')],
+  ['an unknown year is documented as a 404, not an empty page',
+    listEntry.includes('AN UNKNOWN YEAR') && listEntry.includes('ACADEMIC_YEAR_NOT_FOUND')],
+  ['the setup checklist is a worked case', listEntry.includes('THE SETUP CHECKLIST')],
+  ['the regex-quoting case is there', listEntry.includes('A SEARCH WITH REGEX CHARACTERS')],
+  ['and the read-vs-write asymmetry is a case too',
+    listEntry.includes('A SUSPENDED SCHOOL CAN STILL READ')],
+  // Four places in this repo said "sorts last". Mongo puts a missing field FIRST.
+  ['the catalogue says a missing displayOrder sorts FIRST',
+    listEntry.includes('sorts FIRST')],
+  ['and nothing in src still claims it sorts last',
+    !sources.includes('sorts last')],
+
+  // The screen
+  ['the screen offers a server-side search with its own button',
+    classesScreen.includes('const runSearch = ()') && classesScreen.includes('icon={Search}')],
+  ['searching resets to page 0, since it is a new question',
+    classesScreen.includes('setPage(0); setSearch(typed)')],
+  ['the filters build the query at render, so the tag shows what will be sent',
+    classesScreen.includes('const query = useMemo(')],
+  ['an empty filter box sends no parameter at all',
+    classesScreen.includes('if (active) out.active = active')],
+  ['the page-size list carries values the API refuses',
+    classesScreen.includes("'101'") && classesScreen.includes("'0'")],
+  ['the sort list carries a field off the allow-list',
+    classesScreen.includes("'sections',")],
+  ['the pager is always usable — nothing is disabled',
+    classesScreen.includes('setPage((p) => p - 1)') && classesScreen.includes('setPage((p) => p + 1)')],
+  ['the table says a missing order sorts first',
+    classesScreen.includes('none — sorts first')],
 )
 
 for (const [label, ok] of classChecks) {

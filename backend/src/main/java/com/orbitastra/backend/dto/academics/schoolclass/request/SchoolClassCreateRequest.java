@@ -37,7 +37,12 @@ public record SchoolClassCreateRequest(
          * Sort order for the UI, or absent. Example: 7
          *
          * <p>Not unique and not required: "Nursery, LKG, UKG, 1, 2, 3" is the order a school
-         * reads, and it is neither alphabetical nor derivable from the name. Absent sorts last.
+         * reads, and it is neither alphabetical nor derivable from the name.
+         *
+         * <p><b>Absent sorts FIRST, not last.</b> Mongo orders a missing field before numbers
+         * ascending — measured against the live database on 2026-09-11, after this javadoc had
+         * claimed the opposite. #28 documents it rather than fighting it: pushing nulls to the
+         * end needs an aggregation with {@code $ifNull}, which no index can serve.
          */
         @Min(0) Integer displayOrder,
 
