@@ -109,14 +109,32 @@ Then Send, or **Run collection** for the active bodies.
 | `academicYearName` | a successful Create Academic Year | every `/academic-years/{name}` URL, holidays included |
 | `planCode` | a successful Create Plan Draft | every `/platform/plans/{code}` URL |
 | `planVersion` | a successful Create Plan Draft | every `/versions/{version}` URL |
+| `subscriptionNo` | a successful Create Subscription | `Get Subscription History` |
+| `schoolClassId` | a successful **Create Class** | every `/classes/{id}` URL, sections included |
 
 ## Folders mirror `controllers/`
 
-`Core / School — platform`, `Core / School — profile`, `Core / Academic Year` and
-`Plans / Plan catalogue` today. One folder per controller, so the collection and the code stay
+`Core / School — platform`, `Core / School — profile`, `Core / Academic Year`,
+`Plans / Plan catalogue`, `Plans / Subscriptions`, `Plans / Subscription — the school's own view`
+and `Academics / Classes`. One folder per controller, so the collection and the code stay
 findable from each other.
 
+**`Academics` arrived 2026-09-11** with the first six endpoints of
+`controllers/academics/structure`. A class is addressed by its **MongoDB document id** — twelve
+other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
+section has, being embedded in its class. Run **Create Class** first: it saves `schoolClassId`.
+
 ## Coverage
+
+**60 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
+API tester drives, and the two agree in both directions — nothing built is missing here, and
+nothing here is missing there.
+
+**Academics is 6 of 36** — create a class, edit it, add a section, list the year's classes, read
+one class in full, read its sections. The other thirty are specified in
+`backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md` and are
+not built.
 
 **Core is 20 of 27 writes and 9 of 11 reads.** Plus the two `DELETE`s that were never in the
 plan, that is 31 requests. The rest are specified in
@@ -126,11 +144,12 @@ a collection full of 404s is worse than a short honest one.
 The two reads still missing are **G3** (is this subdomain free?) and **G11** (the calendar as a
 file).
 
-**Plans is 10 of 71 — the entire plan catalogue except versioning (#5), plus the first
-subscription (#13).** Create a draft, edit
-it, set its features, publish it, list it publicly, retire it; and read it three ways: the whole
-catalogue, one plan's version history, or one version in full. The whole module
-plan lives in
+**Plans is 22 of 71 — the entire plan catalogue except versioning (#5), the subscription
+lifecycle, and five reads.** Create a draft, edit it, set its features, publish it, list it
+publicly, retire it; and read it three ways. On the subscription side: create, edit, change plan,
+renew, suspend, resume, cancel, plus one school's subscriptions, one subscription's history, and
+**every school's subscriptions in one list** — the only request in the collection that names no
+school at all. The whole module plan lives in
 `backend/src/main/java/com/orbitastra/backend/controllers/plans/README.md`.
 
 **None of the seven missing core writes is "next".** Six are deferred by decision — #12 until

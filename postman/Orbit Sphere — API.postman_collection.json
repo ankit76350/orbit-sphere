@@ -721,6 +721,61 @@
        "response": []
       },
       {
+       "name": "End Academic Year",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('academicYearId came back', () => pm.expect(b).to.have.property('academicYearId'));",
+           "pm.test('name came back', () => pm.expect(b).to.have.property('name'));",
+           "pm.test('startDate came back', () => pm.expect(b).to.have.property('startDate'));",
+           "pm.test('endDate came back', () => pm.expect(b).to.have.property('endDate'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years/{name}/end\n// Needs X-School-Subdomain. Run Create School and Create Academic Year first.\n//\n//  AN EVENT, NOT AN EDIT. Sets isThisYearRunning false and endDate = today, in\n//  the SCHOOL's timezone. No body needed; anything sent is ignored.\n//\n//  THE TRAP: a year that already finished is REFUSED, because writing today\n//  would move its end date FORWARD. That is the opposite of ending it.\n//\n//  A very short year is allowed here and refused by Update Dates, which\n//  rejects anything under 30 days as an implausible range.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  END A RUNNING YEAR                                 -> 200 OK\n//     OUT: endDate becomes today, durationDays shrinks.\n//     \"...it is no longer the year this school is running, and its\n//     last day is now Wednesday 9 September 2026, 233 day(s)\n//     earlier than planned.\"\n// -------------------------------------------------------------------------\n// 02  SEND IT AGAIN                                      -> 200 OK\n//     IDEMPOTENT. \"Nothing changed: '2026-2027' was already closed on\n//     Wednesday 9 September 2026 and was not marked as running.\"\n// -------------------------------------------------------------------------\n// 03  A YEAR THAT ALREADY FINISHED                       -> 409 Conflict\n//     Make a year whose endDate is in the past, then end it.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_ALREADY_ENDED\" }\n//     \"...already finished on ... Ending it today would move that\n//     date forward.\"\n//     THIS IS THE POINT OF THE ENDPOINT'S MAIN GUARD.\n// -------------------------------------------------------------------------\n// 04  A YEAR THAT HAS NOT STARTED                        -> 409 Conflict\n//     Make a year starting next month, then end it.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_STARTED\" }\n//     \"...starts on Friday 9 October 2026, so it cannot be ended today.\"\n// -------------------------------------------------------------------------\n// 05  A CLOSED DAY AFTER TODAY                           -> 409 Conflict\n//     Add a holiday dated next week, then end the year.\n//     OUT: { \"code\": \"HOLIDAYS_OUTSIDE_NEW_RANGE\" }\n//     \"1 closed day(s) fall after today and would end up outside the\n//     year, starting with ... Remove them first.\"\n//     REFUSED, NOT DELETED. Remove the holiday, then end it.\n// -------------------------------------------------------------------------\n// 06  A CLOSED DAY BEFORE TODAY IS KEPT                  -> 200 OK\n//     Add a holiday dated last week, then end the year.\n//     It succeeds and holidayCount stays as it was: a closed day already\n//     behind us is still inside the shortened year.\n// -------------------------------------------------------------------------\n// 07  A YEAR CUT VERY SHORT                              -> 200 OK\n//     Make a year that started 5 days ago. Then:\n//     PATCH .../dates {\"endDate\": \"<today>\"}  -> 400 IMPLAUSIBLE_DATE_RANGE\n//     POST  .../end                          -> 200 OK\n//     A school that shut in week one really had a 6-day year.\n// -------------------------------------------------------------------------\n// 08  UNKNOWN YEAR NAME                                  -> 404 Not Found\n//     Change {{academicYearName}} to 1999-2000.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n// -------------------------------------------------------------------------\n// 09  NO TENANT HEADER                                   -> 400 Bad Request\n//     OUT: { \"code\": \"TENANT_NOT_RESOLVED\" }\n// -------------------------------------------------------------------------\n//  REFUSALS\n//     400 TENANT_NOT_RESOLVED              No tenant header\n//     404 ACADEMIC_YEAR_NOT_FOUND          Unknown year name\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     409 ACADEMIC_YEAR_NOT_STARTED        Today is on or before its first day — it would end before it began.\n//     409 ACADEMIC_YEAR_ALREADY_ENDED      It finished in the past, so writing today would move that date FORWARD.\n//     409 HOLIDAYS_OUTSIDE_NEW_RANGE       Closed days after today would be stranded outside the shortened year.\n//     409 SCHOOL_NOT_EDITABLE              The school is past PROVISIONING or ACTIVE and cannot be edited.\n\n// ===========================================================================\n//  RUNNING THE WHOLE COLLECTION? THIS REQUEST GATES EVERY LATER WRITE.\n//\n//  It sets isThisYearRunning = false, and gate 4 refuses every academic-year\n//  and class WRITE on a year that is not running. Academics / Classes runs\n//  after Core in folder order, so a top-to-bottom run reaches this first and\n//  then answers 409 ACADEMIC_YEAR_NOT_RUNNING to Create Class, Update Class\n//  and Add Section.\n//\n//  Reads are unaffected - they run no gates - so List Classes, Get Class and\n//  List Sections still answer 200 on an ended year.\n//\n//  Skip this request in a full run, or create a second year for the class\n//  requests to use.\n// ===========================================================================\n",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/end",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "end"
+         ]
+        }
+       },
+       "response": []
+      },
+      {
        "name": "List Academic Years",
        "request": {
         "method": "GET",
@@ -2591,7 +2646,20 @@
          ]
         },
         "description": "**POST** `/platform/schools/{id}/subscriptions/current/renew` — starts the next billing period.\n\nEndpoint #17. Normally the nightly job would call this; an operator calls it by hand when something went wrong. **Nothing calls it on a schedule yet.**\n\n**No request body for an ordinary renewal.** The plan, version, price, currency, both ceilings, the cycle, `autoRenew` and the billing customer reference all carry across untouched. Anything that could change one of those would make it a change rather than a renewal — that is #14 (the terms) and #16 (the plan).\n\n**Two rows.** The period that ended is closed (`current` = false, dates left alone — it ran its full course) and a new row opens with its own `subscriptionNo`, starting exactly where the old one ended. Each call advances exactly one period, so a subscription three cycles behind needs three calls.\n\n**ACTIVE, PAST_DUE and EXPIRED renew, and all three come out ACTIVE.** `TRIAL`, `SUSPENDED` and `CANCELLED` are `409 SUBSCRIPTION_NOT_RENEWABLE`; a live period is `409 PERIOD_NOT_ENDED`; a school being wound down is `409 SCHOOL_NOT_RENEWABLE`.\n\n**The plan has to still be current.** A renewal re-commits the school to the same plan, so a plan that is retired, back to `DRAFT`, or outside its effective window is `409 PLAN_NOT_RENEWABLE` — and the message points at Change Plan, because moving the school onto a current plan is the only fix. A private plan renews like any other.\n\n**A `CUSTOM` cycle is asked for a date, not refused.** It has no length, so send `currentPeriodEnd` — without it, `400 BILLING_PERIOD_END_REQUIRED`. That one field is the only reason this endpoint has a body; on the four fixed cycles it is **refused** (`400 BILLING_PERIOD_END_NOT_ALLOWED`), so omitting the body there is not merely the ordinary call but the only one.\n\n**`autoRenew` is not checked.** Nothing calls this on a schedule, so a renewal is always an operator deciding to renew this school now. The flag is carried onto the new row and surfaced by #33; it refuses nothing here.\n\n**No invoice is raised and no money is taken.** `subscription_invoices` has no repository and no writer, and its fields are commercial decisions rather than derivations from a plan's price. This moves the billing period and records the renewal; the `note` says so on every response.\n"
-       }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the subscription came back', () => pm.expect(b).to.have.property('subscriptionNo'));"
+          ]
+         }
+        }
+       ]
       },
       {
        "name": "Suspend Subscription",
@@ -2627,7 +2695,20 @@
          ]
         },
         "description": "**POST** `/platform/schools/{id}/subscriptions/current/suspend` — cuts a school off for non-payment.\n\nEndpoint #19. **Not the same as #14 writing a status**: cutting a school off stops its staff working, so it is one transition with its own rules rather than a field on an edit — and it carries the school's own access with it.\n\n**Two documents move.** The subscription goes `SUSPENDED`, turning every feature off through #34; the school goes `SUSPENDED` too, which is what blocks the tenant (`409 SCHOOL_NOT_EDITABLE` on a school-surface write). `ACTIVE` and `PAST_DUE` only — a trial has no unpaid bill behind it — and a `reason` is required, stored in three places.\n\n**It does not kill live sessions or stop scheduled jobs**, because neither exists yet, and it does not pause the period. The `note` says both rather than leaving them assumed.\n"
-       }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the subscription came back', () => pm.expect(b).to.have.property('subscriptionNo'));"
+          ]
+         }
+        }
+       ]
       },
       {
        "name": "Resume Subscription",
@@ -2663,7 +2744,20 @@
          ]
         },
         "description": "**POST** `/platform/schools/{id}/subscriptions/current/resume` — switches a school back on after it pays.\n\nEndpoint #20. The exact reverse of #19: the subscription returns to `ACTIVE` and the school with it. Only a `SUSPENDED` subscription can be resumed, and a `reason` is required.\n\n**Nothing else moves** — not the plan, the price, the ceilings, or either period date. So the **period is not extended**: a school suspended for three weeks comes back to the same `currentPeriodEnd`, having paid for time it could not use. Crediting that is a money decision nothing here can make; #14 is where a date moves if a credit was agreed.\n"
-       }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the subscription came back', () => pm.expect(b).to.have.property('subscriptionNo'));"
+          ]
+         }
+        }
+       ]
       },
       {
        "name": "Cancel Subscription",
@@ -2699,7 +2793,20 @@
          ]
         },
         "description": "**POST** `/platform/schools/{id}/subscriptions/current/cancel` — ends the subscription.\n\nEndpoint #21. **The school usually keeps working until the period it already paid for runs out.** The status goes `CANCELLED` either way — the contract is over — and what decides the access is `currentPeriodEnd`: a cancelled subscription keeps granting until that date passes. `immediate: true` trims it to now instead.\n\n**No field was added to the model** for \"cancelled but still running\": the status says cancelled, and the dates say how long for — the same division of labour #16 uses when it closes a row.\n\n**Nothing undoes it**, and no new check was needed: #17 already refuses to renew a cancelled subscription and #20 refuses to resume one. A `reason` is required. It does **not** touch the school, and no money moves.\n"
-       }
+       },
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('the subscription came back', () => pm.expect(b).to.have.property('subscriptionNo'));"
+          ]
+         }
+        }
+       ]
       },
       {
        "name": "Get Subscription",
@@ -2745,6 +2852,363 @@
          }
         }
        ]
+      },
+      {
+       "name": "Get School Subscriptions",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('content came back', () => pm.expect(b).to.have.property('content'));",
+           "pm.test('page came back', () => pm.expect(b).to.have.property('page'));",
+           "pm.test('size came back', () => pm.expect(b).to.have.property('size'));",
+           "pm.test('totalElements came back', () => pm.expect(b).to.have.property('totalElements'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "description": "=========================================================================\n TEST CASES  —  GET /platform/schools/{id}/subscriptions\n\n=========================================================================\n\n-------------------------------------------------------------------------\n REFUSALS\n    400 INVALID_PAGE                     page is negative\n    400 INVALID_PAGE_SIZE                size outside 1-100 — refused, not clamped\n    400 INVALID_SORT_FIELD               A field off the allow-list\n    400 INVALID_SORT_DIRECTION           Anything but asc or desc\n    400 INVALID_DATE_RANGE               from is after to, on either window\n    400 VALIDATION_FAILED                An unknown enum value, or a date that is not an instant\n    404 SCHOOL_NOT_FOUND                 No such school",
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions?page=0&size=20",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions"
+         ],
+         "query": [
+          {
+           "key": "page",
+           "value": "0",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "size",
+           "value": "20",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "sort",
+           "value": "currentPeriodStart,desc",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "status",
+           "value": "CANCELLED",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "billingCycle",
+           "value": "MONTHLY",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "planCode",
+           "value": "{{planCode}}",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "planVersion",
+           "value": "1",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "autoRenew",
+           "value": "true",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "current",
+           "value": "false",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "startDateFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "startDateTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "endDateFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "endDateTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          }
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "Get Subscription History",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('content came back', () => pm.expect(b).to.have.property('content'));",
+           "pm.test('page came back', () => pm.expect(b).to.have.property('page'));",
+           "pm.test('size came back', () => pm.expect(b).to.have.property('size'));",
+           "pm.test('totalElements came back', () => pm.expect(b).to.have.property('totalElements'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "description": "=========================================================================\n TEST CASES  —  GET /platform/schools/{id}/subscriptions/{subscriptionNo}/history\n\n=========================================================================\n\n-------------------------------------------------------------------------\n REFUSALS\n    400 INVALID_PAGE                     page is negative\n    400 INVALID_PAGE_SIZE                size outside 1-100 — refused, not clamped\n    400 INVALID_SORT_FIELD               A field off the allow-list\n    400 INVALID_SORT_DIRECTION           Anything but asc or desc\n    400 INVALID_DATE_RANGE               from is after to, on either window\n    400 VALIDATION_FAILED                An unknown enum value, or a date that is not an instant\n    404 SCHOOL_NOT_FOUND                 No such school\n    404 SUBSCRIPTION_NOT_FOUND           No such subscription in this school — including another school's\n---------------------------------------------------------------------------\n WHY THIS SAYS `current` AND NOT {{subscriptionNo}} - measured 2026-09-11\n\n A subscription number contains slashes: SUB/2026/09/000001. Put it in the\n path and it is not one segment but four, so the route does not match:\n\n     SUB/2026/09/000001    -> 404 NOT_FOUND  (no such route)\n     SUB%2F2026%2F09%2F... -> 400            (Spring blocks encoded slashes)\n     current               -> 200\n     <the Mongo id>        -> 200\n\n findSchoolSubscription accepts three forms - the word `current`, a document\n id, or the number - and the number is the one form a URL cannot carry. So\n `current` is the default here because it works straight after Create\n Subscription, and a document id is what to paste in to reach an OLD period.\n---------------------------------------------------------------------------\n",
+        "url": {
+         "raw": "{{baseUrl}}/platform/schools/{{schoolId}}/subscriptions/current/history?page=0&size=20",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "schools",
+          "{{schoolId}}",
+          "subscriptions",
+          "current",
+          "history"
+         ],
+         "query": [
+          {
+           "key": "page",
+           "value": "0",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "size",
+           "value": "20",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "sort",
+           "value": "effectiveAt,desc",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "eventType",
+           "value": "SUSPENDED",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "status",
+           "value": "SUSPENDED",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "previousStatus",
+           "value": "ACTIVE",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "source",
+           "value": "ADMIN_PORTAL",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "performedByDocsId",
+           "value": "",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "sourceEventId",
+           "value": "",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "reason",
+           "value": "non-payment",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "effectiveFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "effectiveTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "recordedFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "recordedTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          }
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "Get All Subscriptions",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('content came back', () => pm.expect(b).to.have.property('content'));",
+           "pm.test('page came back', () => pm.expect(b).to.have.property('page'));",
+           "pm.test('size came back', () => pm.expect(b).to.have.property('size'));",
+           "pm.test('totalElements came back', () => pm.expect(b).to.have.property('totalElements'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [],
+        "description": "=========================================================================\n TEST CASES  —  GET /platform/subscriptions\n\n=========================================================================\n\n-------------------------------------------------------------------------\n REFUSALS\n    400 INVALID_PAGE                     page is negative\n    400 INVALID_PAGE_SIZE                size outside 1-100 — refused, not clamped\n    400 INVALID_SORT_FIELD               A field off the allow-list — subscriptionNo included\n    400 INVALID_SORT_DIRECTION           Anything but asc or desc\n    400 INVALID_DATE_RANGE               from is after to, on either window\n    400 VALIDATION_FAILED                An unknown enum value, or a date that is not an instant",
+        "url": {
+         "raw": "{{baseUrl}}/platform/subscriptions?page=0&size=20",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "platform",
+          "subscriptions"
+         ],
+         "query": [
+          {
+           "key": "page",
+           "value": "0",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "size",
+           "value": "20",
+           "description": "",
+           "disabled": false
+          },
+          {
+           "key": "sort",
+           "value": "currentPeriodEnd,asc",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "status",
+           "value": "SUSPENDED",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "billingCycle",
+           "value": "MONTHLY",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "planCode",
+           "value": "{{planCode}}",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "planVersion",
+           "value": "1",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "autoRenew",
+           "value": "false",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "current",
+           "value": "true",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "startDateFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "startDateTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "endDateFrom",
+           "value": "2026-04-01T00:00:00Z",
+           "description": "",
+           "disabled": true
+          },
+          {
+           "key": "endDateTo",
+           "value": "2027-03-31T23:59:59Z",
+           "description": "",
+           "disabled": true
+          }
+         ]
+        }
+       },
+       "response": []
       }
      ]
     },
@@ -2858,6 +3322,376 @@
      ]
     }
    ]
+  },
+  {
+   "name": "Academics",
+   "description": "The academic skeleton of one school year. Six of the 36 endpoints in controllers/academics/structure/README.md are built; the rest are planned there and are not in this collection.",
+   "item": [
+    {
+     "name": "Classes",
+     "description": "A class, its sections and its subjects. A class is addressed by its MongoDB document id - twelve other documents store it as classDocsId - and a section by its sectionNo, which is the only thing a section has, being embedded. Run Create Class first: it saves schoolClassId.",
+     "item": [
+      {
+       "name": "Create Class",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+           "const b = pm.response.json();",
+           "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+           "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
+           "pm.test('name came back', () => pm.expect(b).to.have.property('name'));",
+           "",
+           "// Saved for the requests that need it.",
+           "pm.collectionVariables.set('schoolClassId', pm.response.json().schoolClassId);"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"name\": \"Grade 7\"\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years/{year}/classes\n// Needs the X-School-Subdomain header, and a year that exists.\n//  Run Create School and Create Academic Year first.\n//\n//  SECTIONS AND SUBJECTS ARE NOT ACCEPTED HERE. The class is created empty and\n//  both go on afterwards through #17 and #22, neither of which is built. A\n//  create that could fail on either a bad class name or a stray subject leaves\n//  the caller working out which, and a half-written subject list is worse than\n//  an empty one. Same shape as an academic year created with no holidays.\n//\n//  THERE IS NO CODE FIELD. A class is addressed and referenced by its document\n//  id. An earlier draft of this endpoint had a classCode derived from the name;\n//  it was removed the same day, because twelve documents already store\n//  classDocsId and none stores a code.\n//\n//  THE NAME IS UNIQUE PER YEAR, NOT PER SCHOOL. \"Grade 7\" in 2026-2027 and\n//  \"Grade 7\" in 2027-2028 are two different classes, and both are allowed.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  CREATE A CLASS                                     -> 201 Created\n//     The body above.\n//     OUT: schoolClassId, sectionCount: 0, subjectCount: 0, active: true\n//     Header: Location: /schools/current/academic-years/2026-2027/classes/{id}\n// -------------------------------------------------------------------------\n// 02  DUPLICATE NAME IN THE SAME YEAR                    -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"CLASS_NAME_TAKEN\",\n//     \"message\": \"'2026-2027' already has a class called 'Grade 7'.\" }\n// -------------------------------------------------------------------------\n// 03  THE SAME NAME IN ANOTHER YEAR                      -> 201 Created\n//     Create 2027-2028 first, then send case 01 against it.\n//     The name is unique per YEAR, not per school, so this is allowed and is a\n//     different document with a different id.\n// -------------------------------------------------------------------------\n// 04  MANY CLASSES IN ONE YEAR                           -> 201 Created, every time\n//     Grade 8, Grade 9, Nursery, XII Science.\n//     This is the case the old index broke: it indexed a classCode no model\n//     declared, so every document indexed a MISSING value and the SECOND class\n//     was a duplicate-key error.\n//\n//     {\n//       \"name\": \"Grade 8\"\n//     }\n// -------------------------------------------------------------------------\n// 05  SECTIONS AND SUBJECTS ARE IGNORED                  -> 201 Created\n//     Neither field is on the request, so both are dropped rather than honoured.\n//     OUT: sectionCount: 0, subjectCount: 0\n//\n//     {\n//       \"name\": \"Ignored extras\",\n//       \"sections\": [{ \"sectionNo\": \"A\" }],\n//       \"subjects\": [{ \"subjectCode\": \"MATHEMATICS\" }]\n//     }\n// -------------------------------------------------------------------------\n// 06  NO NAME                                            -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\", fieldErrors: { name: ... } }\n//\n//     {\n//       \"name\": \"Grade 7\"\n//     }\n// -------------------------------------------------------------------------\n// 07  AN UNKNOWN YEAR                                    -> 404 Not Found\n//     Set the year path parameter to 2099-2100.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n//     Gate 4 answers this before the service does — both give the same code.\n// -------------------------------------------------------------------------\n// 08  ANOTHER SCHOOL'S AFFILIATION PROGRAMME             -> 404 Not Found\n//     A REAL programme id, belonging to a different school.\n//     OUT: { \"code\": \"AFFILIATION_PROGRAMME_NOT_FOUND\" }\n//     The lookup is findByIdAndSchoolId — the id existing is not enough.\n//\n//     {\n//       \"name\": \"Borrowed programme\",\n//       \"affiliationProgrammeDocsId\": \"6aa2a107c7cc53f3111217bf\"\n//     }\n// -------------------------------------------------------------------------\n// 09  A YEAR THAT HAS BEEN ENDED                         -> 409 Conflict\n//     Run POST /academic-years/{name}/end first.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_RUNNING\" }\n//     Gate 4. Classes cannot be added to a year the school has closed.\n// -------------------------------------------------------------------------\n//  REFUSALS\n//     400 VALIDATION_FAILED                No name, a blank name, or one over 120 characters.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 AFFILIATION_PROGRAMME_NOT_FOUND  No such programme in this school — including a real id belonging to another school.\n//     409 CLASS_NAME_TAKEN                 That year already has a class with that name.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SCHOOL_NOT_READY                 Gate 1 — the school is still PROVISIONING.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended.\n//     404 SUBSCRIPTION_NOT_FOUND           Gate 2 — the school has never had a subscription.\n//     409 ACADEMIC_YEAR_NOT_RUNNING        Gate 4 — the year was ended by POST .../end.",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes"
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "Update Class",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+           "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
+           "pm.test('name came back', () => pm.expect(b).to.have.property('name'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "PATCH",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"name\": \"Grade Seven\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/academic-years/{year}/classes/{id}\n// Needs X-School-Subdomain, a year, and a class id from Create Class.\n//\n//  EVERY FIELD IS OPTIONAL AND ABSENT MEANS \"LEAVE IT ALONE\". Sending {} is a\n//  400 NOTHING_TO_UPDATE rather than a no-op 200, so a client with a broken\n//  form finds out.\n//\n//  A BLANK NAME IS REFUSED, NOT A CLEAR. \"name\": \"\" answers\n//  400 CLASS_NAME_REQUIRED — the same rule HOLIDAY_NAME_REQUIRED follows in the\n//  core module. Silently keeping the old value would hide the client bug.\n//\n//  THERE IS NO ORDERING FIELD. displayOrder was removed on 2026-09-11. A class\n//  has no school-defined position, and #28 lists a year by name.\n//\n//  NOTHING STRUCTURAL IS HERE. No section, no subject, no active flag. Send\n//  them and they are dropped.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  RENAME IT                                          -> 200 OK\n//     The body above.\n//     OUT: name: \"Grade Seven\", and the SAME schoolClassId.\n// -------------------------------------------------------------------------\n// 02  RESEND THE SAME NAME                               -> 200 OK\n//     Sending an unchanged name is NOT a conflict with itself — the check\n//     compares ids, not names. A cheaper \"does this name exist\" check would\n//     have refused it.\n//\n//     {\n//       \"name\": \"Grade 7 Renamed\"\n//     }\n// -------------------------------------------------------------------------\n// 03  ATTACH A PROGRAMME                                 -> 200 OK\n//     Checked against THIS school. Another school's real id is a 404.\n//\n//     {\n//       \"affiliationProgrammeDocsId\": \"6aa2a107c7cc53f3111217bf\"\n//     }\n// -------------------------------------------------------------------------\n// 04  DETACH IT                                          -> 200 OK\n//     \"\" clears it; null would leave it alone.\n//     OUT: the field drops out of the response.\n//\n//     {\n//       \"affiliationProgrammeDocsId\": \"\"\n//     }\n// -------------------------------------------------------------------------\n// 05  AN EMPTY BODY                                      -> 400 Bad Request\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//     A PATCH that changes nothing must not report success.\n//\n//     {\n//     }\n// -------------------------------------------------------------------------\n// 06  A BLANK NAME                                       -> 400 Bad Request\n//     OUT: { \"code\": \"CLASS_NAME_REQUIRED\" }\n//     Refused, not treated as a clear.\n//\n//     {\n//       \"name\": \"\"\n//     }\n// -------------------------------------------------------------------------\n// 07  A NAME ANOTHER CLASS HAS                           -> 409 Conflict\n//     Create two classes, then rename one to the other's name.\n//     OUT: { \"code\": \"CLASS_NAME_TAKEN\" }\n// -------------------------------------------------------------------------\n// 08  A REAL ID UNDER THE WRONG YEAR                     -> 404 Not Found\n//     Set year to another year this school has, keeping the same class id.\n//     OUT: { \"code\": \"CLASS_NOT_FOUND\" } — the year scopes the lookup.\n// -------------------------------------------------------------------------\n// 09  SECTIONS AND SUBJECTS ARE IGNORED                  -> 200 OK\n//     Neither field is on the request.\n//     OUT: sectionCount: 0, subjectCount: 0, active still true\n//\n//     {\n//       \"name\": \"Grade Seven\",\n//       \"sections\": [{ \"sectionNo\": \"A\" }],\n//       \"active\": false\n//     }\n// -------------------------------------------------------------------------\n//  REFUSALS\n//     400 NOTHING_TO_UPDATE                The body sends none of the three fields.\n//     400 CLASS_NAME_REQUIRED              \"name\": \"\" — a name cannot be removed, only replaced.\n//     400 VALIDATION_FAILED                A name over 120 characters.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.\n//     404 AFFILIATION_PROGRAMME_NOT_FOUND  No such programme in this school, including another school's real id.\n//     409 CLASS_NAME_TAKEN                 Another class in that year already has that name.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended.\n//     409 ACADEMIC_YEAR_NOT_RUNNING        Gate 4 — the year was ended by POST .../end.",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes",
+          "{{schoolClassId}}"
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "Add Section",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+           "const b = pm.response.json();",
+           "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+           "pm.test('className came back', () => pm.expect(b).to.have.property('className'));",
+           "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
+           "pm.test('sectionCount came back', () => pm.expect(b).to.have.property('sectionCount'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "POST",
+        "header": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "body": {
+         "mode": "raw",
+         "raw": "{\n  \"sectionNo\": \"A\",\n  \"capacity\": 40\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/academic-years/{year}/classes/{id}/sections\n// Needs X-School-Subdomain, a year, and a class id from Create Class.\n//\n//  sectionNo CAN NEVER BE CHANGED. There is no rename endpoint and there must\n//  not be one: eight collections store it as a plain string, and a section is\n//  EMBEDDED so it has no id for them to reference instead.\n//\n//  IT IS BOTH THE REFERENCE AND THE DISPLAY VALUE, which is why ClassSection\n//  has no separate name field. Uniqueness folds case; storage does not.\n//\n//  THE DUPLICATE CHECK IS THE ONLY GUARD. Mongo cannot make an array's\n//  contents unique, so there is no index to fall back on.\n//\n//  capacity IS A PLAN, NOT A LIMIT. Nothing enforces it. 0 is refused.\n//\n//  classTeacherDocsId IS CHECKED AGAINST THIS SCHOOL. Another school's real\n//  staff id is a 404, not an accepted teacher.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  ADD A SECTION                                      -> 201 Created\n//     The body above.\n//     OUT: the class's WHOLE section list, with sectionCount and activeCount.\n//     A student can be placed in it as soon as the student module exists.\n// -------------------------------------------------------------------------\n// 02  JUST A NUMBER                                      -> 201 Created\n//     capacity and classTeacherDocsId are both optional. A section with no\n//     class teacher is a real state, not an incomplete one.\n//\n//     {\n//       \"sectionNo\": \"B\"\n//     }\n// -------------------------------------------------------------------------\n// 03  A DUPLICATE                                        -> 409 Conflict\n//     Send case 01 again.\n//     OUT: { \"code\": \"SECTION_ALREADY_EXISTS\" }\n//     Checked in the service — Mongo cannot make an array unique.\n// -------------------------------------------------------------------------\n// 04  THE SAME NUMBER IN LOWER CASE                      -> 409 Conflict\n//     \"a\" is not a second section. Uniqueness folds case; storage does not.\n//\n//     {\n//       \"sectionNo\": \"a\"\n//     }\n// -------------------------------------------------------------------------\n// 05  A SECTION NAMED BY COLOUR                          -> 201 Created\n//     No shape is imposed. sectionNo is the display value as well as the\n//     reference, so it is stored exactly as typed — trimmed, nothing else.\n//\n//     {\n//       \"sectionNo\": \"Blue\",\n//       \"capacity\": 35\n//     }\n// -------------------------------------------------------------------------\n// 06  A CAPACITY OF ZERO                                 -> 400 Bad Request\n//     @Min(1). A section nobody can be placed in is not a section.\n//     Absent is fine and means no plan was recorded.\n//\n//     {\n//       \"sectionNo\": \"Z\",\n//       \"capacity\": 0\n//     }\n// -------------------------------------------------------------------------\n// 07  A CLASS TEACHER                                    -> 201 Created\n//     A real Staff.id belonging to THIS school. There is no API that creates\n//     staff yet — the people module has none — so insert one directly to try it.\n//\n//     {\n//       \"sectionNo\": \"C\",\n//       \"classTeacherDocsId\": \"67aa15d9dc3f7d0011111111\"\n//     }\n// -------------------------------------------------------------------------\n// 08  ANOTHER SCHOOL'S TEACHER                           -> 404 Not Found\n//     A REAL staff id belonging to a different school.\n//     OUT: { \"code\": \"STAFF_NOT_FOUND\" }\n//     The lookup is findByIdAndSchoolId — existing is not enough.\n// -------------------------------------------------------------------------\n// 09  NO SECTION NUMBER                                  -> 400 Bad Request\n//     OUT: { \"code\": \"VALIDATION_FAILED\", fieldErrors: { sectionNo: ... } }\n//\n//     {\n//       \"capacity\": 40\n//     }\n// -------------------------------------------------------------------------\n// 10  A REAL CLASS ID UNDER THE WRONG YEAR               -> 404 Not Found\n//     Keep the class id, change the year to another this school has.\n//     OUT: { \"code\": \"CLASS_NOT_FOUND\" } — the year scopes the lookup.\n// -------------------------------------------------------------------------\n// 11  A YEAR THAT HAS BEEN ENDED                         -> 409 Conflict\n//     Run POST /academic-years/{name}/end first.\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_RUNNING\" } — gate 4.\n//     Then list the classes: a suspended or closed year still READS fine.\n// -------------------------------------------------------------------------\n//  REFUSALS\n//     400 VALIDATION_FAILED                No sectionNo, a blank one, one over 20 characters, or a capacity below 1.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.\n//     404 STAFF_NOT_FOUND                  No such staff in this school, including another school's real id.\n//     409 SECTION_ALREADY_EXISTS           That class already has a section with that number, case folded. A retired one counts.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended.\n//     409 ACADEMIC_YEAR_NOT_RUNNING        Gate 4 — the year was ended by POST .../end.",
+         "options": {
+          "raw": {
+           "language": "json"
+          }
+         }
+        },
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}/sections",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes",
+          "{{schoolClassId}}",
+          "sections"
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "List Classes",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('content came back', () => pm.expect(b).to.have.property('content'));",
+           "pm.test('page came back', () => pm.expect(b).to.have.property('page'));",
+           "pm.test('size came back', () => pm.expect(b).to.have.property('size'));",
+           "pm.test('totalElements came back', () => pm.expect(b).to.have.property('totalElements'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "description": "=========================================================================\n TEST CASES  —  GET /schools/current/academic-years/{year}/classes\nA GET, so there is no body. Everything is a query parameter.\n\n THE DEFAULT ORDER IS name, NOT A SCHOOL-DEFINED ONE. displayOrder was\n removed on 2026-09-11, so alphabetical is all there is: \"Grade 10\" comes\n before \"Grade 2\". The sort needs no tiebreaker, name being unique within\n the year, and school_year_class_name_uniq serves it.\n\n SIZE IS REFUSED, NEVER CLAMPED. 101 is a 400. Try it.\n\n AN UNKNOWN YEAR IS A 404, A YEAR WITH NO CLASSES IS AN EMPTY PAGE.\n=========================================================================\n\n-------------------------------------------------------------------------\n01  THE FIRST PAGE                                     -> 200 OK\n    No parameters.\n    OUT: content[], page: 0, size: 20, totalElements, totalPages,\n    hasNext, hasPrevious — rows in name order.\n-------------------------------------------------------------------------\n02  THE SETUP CHECKLIST                                -> 200 OK\n    ?hasSections=false\n    Classes nothing can be placed in yet, because a student record stores\n    sectionNo. While #17 is unbuilt this is every class.\n-------------------------------------------------------------------------\n03  SEARCH BY NAME                                     -> 200 OK\n    ?search=grade\n    Case-insensitive and matches anywhere: finds \"Grade 1\" and \"Upper Grade\".\n-------------------------------------------------------------------------\n04  A SEARCH WITH REGEX CHARACTERS                     -> 200 OK, zero rows\n    ?search=Grade (1)\n    The needle is quoted before it is compiled, so this searches for those\n    seven characters literally — it does NOT match \"Grade 1\" as a regex group\n    would, and a lone \"(\" does not become a 500.\n-------------------------------------------------------------------------\n05  TWO FILTERS AT ONCE                                -> 200 OK\n    ?search=grade&active=true\n    The filters AND together. Nothing ORs within itself here, unlike #30.\n-------------------------------------------------------------------------\n06  SORT BY NAME, DESCENDING                           -> 200 OK\n    ?sort=name,desc\n    Really descending. A fallback appended under a caller's field used to\n    produce {name: -1, name: 1}, which sorts ASCENDING — the duplicate-key\n    trap PageResponse.sortOf now filters out.\n-------------------------------------------------------------------------\n07  A FIELD OFF THE ALLOW-LIST                         -> 400 Bad Request\n    ?sort=sections\n    OUT: { \"code\": \"INVALID_SORT_FIELD\",\n    \"message\": \"... Allowed: name, createdAt, updatedAt.\" }\n-------------------------------------------------------------------------\n08  SIZE OVER THE CAP                                  -> 400 Bad Request\n    ?size=101\n    OUT: { \"code\": \"INVALID_PAGE_SIZE\" } — refused, not clamped to 100.\n-------------------------------------------------------------------------\n09  A PAGE PAST THE END                                -> 200 OK, zero rows\n    ?page=99\n    An empty page, not a 404. totalElements still reports the real count.\n-------------------------------------------------------------------------\n10  AN UNKNOWN YEAR                                    -> 404 Not Found\n    Set the year path parameter to 2099-2100.\n    OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n    No gate runs on a read, so the service's own check is what answers this.\n-------------------------------------------------------------------------\n11  A SUSPENDED SCHOOL CAN STILL READ                  -> 200 OK\n    Suspend the school, then send case 01 again.\n    It still lists. Then try Create Class: 409 SCHOOL_NOT_ACTIVE.\n    Reads run no gates; writes run three. That asymmetry is deliberate.\n-------------------------------------------------------------------------\n REFUSALS\n    400 INVALID_PAGE                     page is negative.\n    400 INVALID_PAGE_SIZE                size is below 1 or above 100 — refused, never clamped.\n    400 INVALID_SORT_FIELD               sort names something off the allow-list.\n    400 INVALID_SORT_DIRECTION           The direction is neither asc nor desc.\n    400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n    404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n    404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.",
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes"
+         ],
+         "query": [
+          {
+           "key": "active",
+           "value": "",
+           "description": "true for classes in use, false for retired. Absent returns both.",
+           "disabled": true
+          },
+          {
+           "key": "search",
+           "value": "",
+           "description": "Case-insensitive, matches anywhere in the name. Blank is treated as absent.",
+           "disabled": true
+          },
+          {
+           "key": "affiliationProgrammeDocsId",
+           "value": "",
+           "description": "Only classes under one board programme. An unknown id is an empty page.",
+           "disabled": true
+          },
+          {
+           "key": "hasSections",
+           "value": "",
+           "description": "false is the setup checklist — classes nothing can be placed in yet.",
+           "disabled": true
+          },
+          {
+           "key": "hasSubjects",
+           "value": "",
+           "description": "false is 'nothing is taught in this class yet'.",
+           "disabled": true
+          },
+          {
+           "key": "page",
+           "value": "0",
+           "description": "Zero-based. Negative is a 400.",
+           "disabled": true
+          },
+          {
+           "key": "size",
+           "value": "20",
+           "description": "Defaults to 20, capped at 100. Above that is a 400, never a clamp.",
+           "disabled": true
+          },
+          {
+           "key": "sort",
+           "value": "",
+           "description": "field,direction. name, createdAt, updatedAt only.",
+           "disabled": true
+          }
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "Get Class",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+           "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
+           "pm.test('name came back', () => pm.expect(b).to.have.property('name'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "description": "=========================================================================\n TEST CASES  —  GET /schools/current/academic-years/{year}/classes/{id}\nA GET, so there is no body. Needs X-School-Subdomain and a class id.\n\n ONE READ, BECAUSE THEY ARE EMBEDDED. A section has no collection, no id and\n no schoolId — it inherits all three from the class. That is why this is one\n query and why sectionNo can never change.\n\n NOTHING IS RESOLVED. Every teacher and grading scheme is a raw id. Read the\n staff record when you need a name; one place should decide how a teacher is\n presented, and it is not two response records.\n\n A CLASS WITH NOTHING IN IT IS A 200 WITH TWO EMPTY ARRAYS, never a 404.\n While #22 is unbuilt that is every class's subject list.\n=========================================================================\n\n-------------------------------------------------------------------------\n01  ONE CLASS IN FULL                                  -> 200 OK\n    No parameters.\n    OUT: every field, plus sections[] and subjects[] in full and four counts.\n-------------------------------------------------------------------------\n02  A CLASS WITH NOTHING IN IT                         -> 200 OK\n    Create a class and read it without adding anything.\n    OUT: sections: [], subjects: [], and all four counts 0. Not a 404.\n-------------------------------------------------------------------------\n03  THE SECTIONS MATCH #30                             -> 200 OK\n    Run #30 on the same class. The section rows are byte-identical —\n    they share SectionView, so a section has one shape everywhere.\n-------------------------------------------------------------------------\n04  NOTHING IS RESOLVED                                -> 200 OK\n    classTeacherDocsId comes back as a raw ObjectId string, never a name.\n    Same for subject teachers and grading schemes.\n-------------------------------------------------------------------------\n05  A REAL CLASS ID UNDER THE WRONG YEAR               -> 404 Not Found\n    Keep the class id, change the year to another this school has.\n    OUT: { \"code\": \"CLASS_NOT_FOUND\" } — the year scopes the lookup.\n-------------------------------------------------------------------------\n06  AN UNKNOWN YEAR                                    -> 404 Not Found\n    Set the year to 2099-2100.\n    OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" }\n    No gate runs on a read, so the service's own check answers this.\n-------------------------------------------------------------------------\n07  A SUSPENDED SCHOOL CAN STILL READ                  -> 200 OK\n    Suspend the school, then send case 01 again. It still reads.\n    Then try Add Section: 409 SCHOOL_NOT_ACTIVE.\n-------------------------------------------------------------------------\n REFUSALS\n    400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n    404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n    404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n    404 CLASS_NOT_FOUND                  No class with that id in that year — including a real id under the wrong year, or another school's.",
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes",
+          "{{schoolClassId}}"
+         ]
+        }
+       },
+       "response": []
+      },
+      {
+       "name": "List Sections",
+       "event": [
+        {
+         "listen": "test",
+         "script": {
+          "type": "text/javascript",
+          "exec": [
+           "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+           "const b = pm.response.json();",
+           "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
+           "pm.test('className came back', () => pm.expect(b).to.have.property('className'));",
+           "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
+           "pm.test('sectionCount came back', () => pm.expect(b).to.have.property('sectionCount'));"
+          ]
+         }
+        }
+       ],
+       "request": {
+        "method": "GET",
+        "header": [
+         {
+          "key": "X-School-Subdomain",
+          "value": "{{createdSubdomain}}"
+         }
+        ],
+        "description": "=========================================================================\n TEST CASES  —  GET /schools/current/academic-years/{year}/classes/{id}/sections\nA GET, so there is no body. Everything is a query parameter.\n\n THE COUNTS ARE NOT FILTERED. sectionCount and activeCount describe the whole\n class however you filter the rows. Compare them against sections.length on\n an ?active=true call — they deliberately disagree.\n\n ABSENT IS NOT false. Leaving ?active off returns every section; sending\n false returns only the retired ones.\n\n A RETIRED SECTION STILL APPEARS unfiltered, because records reference its\n sectionNo. Nothing can retire one yet — #20 is unbuilt — so to see it,\n flip sections.$.active directly in Mongo.\n=========================================================================\n\n-------------------------------------------------------------------------\n01  EVERY SECTION                                      -> 200 OK\n    No parameters.\n    OUT: schoolClassId, className, sectionCount, activeCount, sections[].\n    No subjects — that is the whole point beside #29.\n-------------------------------------------------------------------------\n02  WHAT THE DROPDOWN SENDS                            -> 200 OK\n    ?active=true\n    Only the sections a student can be placed in.\n-------------------------------------------------------------------------\n03  THE RETIRED ONES                                   -> 200 OK\n    ?active=false\n    Not the same as leaving it off, which returns both.\n-------------------------------------------------------------------------\n04  THE COUNTS DO NOT FOLLOW THE FILTER                -> 200 OK\n    Retire a section in Mongo, then send ?active=true.\n    sections.length is 2 and sectionCount is still 3. Deliberate:\n    \"how many does this class have\" is not \"how many did you ask to see\".\n-------------------------------------------------------------------------\n05  A CLASS WITH NO SECTIONS                           -> 200 OK\n    OUT: sections: [], sectionCount: 0. An empty list, never a 404.\n-------------------------------------------------------------------------\n06  ANOTHER SCHOOL'S CLASS                             -> 404 Not Found\n    A REAL class id, read with a different school's subdomain.\n    OUT: { \"code\": \"CLASS_NOT_FOUND\" } — the tenant scopes the lookup.\n-------------------------------------------------------------------------\n REFUSALS\n    400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n    404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n    404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n    404 CLASS_NOT_FOUND                  No class with that id in that year — including another school's.",
+        "url": {
+         "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/classes/{{schoolClassId}}/sections",
+         "host": [
+          "{{baseUrl}}"
+         ],
+         "path": [
+          "schools",
+          "current",
+          "academic-years",
+          "{{academicYearName}}",
+          "classes",
+          "{{schoolClassId}}",
+          "sections"
+         ],
+         "query": [
+          {
+           "key": "active",
+           "value": "",
+           "description": "true for sections a student can be placed in, false for retired. Absent returns both.",
+           "disabled": true
+          }
+         ]
+        }
+       },
+       "response": []
+      }
+     ]
+    }
+   ]
   }
  ],
  "variable": [
@@ -2895,6 +3729,11 @@
    "key": "subscriptionNo",
    "value": "",
    "description": "Saved by Create Subscription; used by the subscription URLs."
+  },
+  {
+   "key": "schoolClassId",
+   "value": "",
+   "description": "Saved by Create Class. A class has no code - twelve documents reference it by this id - so every class request is addressed by it."
   }
  ]
 }
