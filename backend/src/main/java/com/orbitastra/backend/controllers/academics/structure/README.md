@@ -264,7 +264,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t22"></a>22 | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t22"></a>22 — **built** | [`POST /classes/{id}/subjects`](#e22) | Assign a subject to the class, or to one section of it, with its teachers and grading scheme. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t23"></a>23 | [`PUT /classes/{id}/subjects`](#e23) | Replace the class's whole subject list. The year-setup call, and the only one that can check the whole list for a duplicate pair. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t24"></a>24 | [`PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`](#e24) | Change one assignment's display name, short name, type or grading scheme. Not `subjectCode`, and not `sectionNo` — moving an assignment between sections is a delete and an add, and there is no delete. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t25"></a>25 | [`PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`](#e25) | Set who teaches it. Its own endpoint because it is the one thing on a subject that changes mid-year — a teacher leaves, a substitute takes over — and it replaces a list rather than editing a field. | [`school_classes`](../../../models/academics/structure/SchoolClass.java), [`staff`](../../../models/people/staff/Staff.java) |
@@ -306,7 +306,7 @@ section exists, so sections come before everything that is merely useful.
 |---|---|---|
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
-| **2** | Subjects are assigned, so marks and registers have something to be about | 22, 24, 31 |
+| **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, 24, 31 |
 | **3** | The year is divided, so an exam and a report card have a period | 1, 3, 9, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
@@ -414,7 +414,7 @@ a fresh database and the collision appears only where it has been built once. It
 `edusphere_dev`.*
 
 
-## 2. Three referenced collections have no repository, so no reference can be validated
+## 2. Three referenced collections had no repository — settled 2026-09-11
 
 The model README requires "existence and tenant ownership of referenced staff, grading scheme,
 programme". None of the three is reachable:
@@ -422,28 +422,19 @@ programme". None of the three is reachable:
 | Reference | Collection | Repository |
 |---|---|---|
 | `ClassSection.classTeacherDocsId`, `ClassSubject.teacherDocsIds` | `staff` | `StaffRepository` — **built 2026-09-11 with #17** |
-| `ClassSubject.gradingSchemeDocsId` | `grading_schemes` | **none** |
+| `ClassSubject.gradingSchemeDocsId` | `grading_schemes` | `GradingSchemeRepository` — **built 2026-09-11 with #22** |
 | `SchoolClass.affiliationProgrammeDocsId` | `affiliation_programmes` | `AffiliationProgrammeRepository` — **built 2026-09-10 with #12** |
 
-**Two of the three are done.** `AffiliationProgrammeRepository` came with #12 and
-`StaffRepository` with #17, both as `findByIdAndSchoolId` — so a *real* id belonging to another
-school is a `404`, which is the case worth testing and the one a plain `findById` would have
-accepted. Every endpoint using them has a test for exactly that, because in both cases a mutation
-swapping the lookup for `findById` left every other assertion green.
+**Settled 2026-09-11 — all three are built**, each one interface with a single
+`findByIdAndSchoolId`: `AffiliationProgrammeRepository` with #12, `StaffRepository` with #17,
+`GradingSchemeRepository` with #22. The recommendation was to build them rather than accept the ids
+unvalidated, and that is what was done.
 
-**`grading_schemes` is the one left**, and it blocks the same check on #22's and #24's
-`gradingSchemeDocsId`. One interface, one method, when those are built.
-Two honest options, and one dishonest one:
-
-- **Build the three repositories** as part of phase 1. Each is one interface plus a
-  `findByIdAndSchoolId`. This is the small, correct answer.
-- **Accept the ids unvalidated and say so in the response**, the way every gate response already
-  carries `NO_AUTHORIZATION_YET`. Acceptable only if the message is impossible to miss.
-- **Validate nothing and say nothing.** This is how a class ends up with a teacher id belonging to
-  another school, discovered when a timetable prints.
-
-**Recommended: build the three repositories.** A tenant-crossing id is exactly the bug `SchoolBase`
-exists to prevent, and this module is the first that could introduce one.
+**The tenant in the query is the whole point.** A *real* id belonging to another school is a `404`,
+which is the case worth testing and the one a plain `findById` would have accepted. Every endpoint
+using them has a test for exactly that, because in all three cases a mutation swapping the lookup
+for `findById` left every other assertion green — an other-school row is the only fixture that
+tells the two apart.
 
 ## 3. Term weights cannot be validated one `PATCH` at a time
 
@@ -603,7 +594,7 @@ Two things are left out of every entry because they are true of all of them:
 | `academicYear` | String, required | As above. From the path, never the body. **Never changes.** |
 | `_id` | ObjectId | The identity, and what **12** other documents store as `classDocsId`. There is no code field — see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10). |
 | `name` | String, required | **Open** — `@NotBlank`, max 120, **unique within the year** (`school_year_class_name_uniq`). `"Grade 7"`, `"Nursery"`, `"XII Science"`. Editable through #13, and safe to edit because the id carries the identity, not this. |
-| `affiliationProgrammeDocsId` | String, optional | `AffiliationProgramme.id`, or null. **Open, and unvalidatable today** — no repository. See [open item 2](#2-three-referenced-collections-have-no-repository-so-no-reference-can-be-validated). |
+| `affiliationProgrammeDocsId` | String, optional | `AffiliationProgramme.id`, or null. Checked by #12 and #13 with the tenant in the query. See [open item 2](#2-three-referenced-collections-had-no-repository--settled-2026-09-11). |
 | ~~`displayOrder`~~ | — | **Removed 2026-09-11.** It went through three designs in two days — optional and repeatable, then required and unique as a dense 1..N — before being dropped entirely. A class now carries no school-defined position, and #28 orders by `name`. |
 | `sections` | List, required | `[]` at create (#12). #17 adds one, #18 replaces the list. Rows below. |
 | `subjects` | List, required | `[]` at create (#12). #22 adds one, #23 replaces the list. Rows below. |
@@ -614,7 +605,7 @@ Two things are left out of every entry because they are true of all of them:
 | Field | Type | What can be in it |
 |---|---|---|
 | `sectionNo` | String, required | `@NotBlank`, unique inside the owning class. `"A"`, `"B"`, `"Blue"` — it is both the reference and the display value, so there is no separate name field and there must not be one. **Never changes**: [eight collections](#addressed-by-id-except-where-the-thing-has-no-id) store it. |
-| `classTeacherDocsId` | String, optional | `Staff.id`, or null. **Open, unvalidatable today.** Null means no class teacher assigned, which is a normal state before staff are onboarded. |
+| `classTeacherDocsId` | String, optional | `Staff.id`, or null. Checked by #17 with the tenant in the query. Null means no class teacher assigned, which is a normal state before staff are onboarded. |
 | `capacity` | Integer, optional | Planned student count, or null for no plan. **Not enforced anywhere** — refusing the 41st student belongs to the student module, where the count lives. `0` should be a `400`: a section nobody can be placed in is not a section. |
 | `active` | Boolean, required | `true` at create; `false` from #20, `true` from #21. The only way to retire a section. |
 
@@ -629,8 +620,8 @@ The row key is the **pair** `(subjectCode, sectionNo)`, not `subjectCode` alone.
 | `shortName` | String, optional | **Open**, or null. `"Maths"` — for a timetable cell or a report-card column, where the full name will not fit. |
 | `subjectType` | [SubjectType](../../../models/academics/enums/SubjectType.java), required | `CORE` · `ELECTIVE` · `LANGUAGE` · `ACTIVITY` · `VOCATIONAL`. Five, exhaustive. **`ELECTIVE` is the one with a consequence**: it is precisely the case [open item 6](#6-the-upstream-gap--nothing-records-what-a-student-takes) cannot resolve, because nothing records which students chose it. |
 | `sectionNo` | String, optional | An existing `sectionNo` of this class, or **null meaning every section**. Null is the ordinary case; a value is how one section gets its own teacher. Not editable — [see the exclusions](#things-this-module-deliberately-will-not-have). |
-| `teacherDocsIds` | List of String, required | `[]` or `Staff.id` values. **Open, unvalidatable today.** `[]` is legitimate — a subject with no teacher yet. Replaced wholesale by #25, never appended to, so removing a teacher is the same call as adding one. |
-| `gradingSchemeDocsId` | String, optional | `GradingScheme.id`, or null. **Open, unvalidatable today.** Null falls through to `Exam.gradingSchemeDocsId` and then to none — the resolution order is in the model README. |
+| `teacherDocsIds` | List of String, required | `[]` or `Staff.id` values. Each checked by #22 with the tenant in the query. `[]` is legitimate — a subject with no teacher yet. Replaced wholesale by #25, never appended to, so removing a teacher is the same call as adding one. |
+| `gradingSchemeDocsId` | String, optional | `GradingScheme.id`, or null. Checked by #22 with the tenant in the query. Null falls through to `Exam.gradingSchemeDocsId` and then to none — the resolution order is in the model README. |
 | `active` | Boolean, required | `true` at create; `false` from #26, `true` from #27. |
 
 ## The refusal codes this module introduces
@@ -780,7 +771,7 @@ class, because a section has no document of its own.
 **[12](#t12) · `POST /classes`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `name` for uniqueness in the year. Served by `school_year_class_name_uniq`, which **replaced** the index this plan was blocked on; see [open item 1](#1-classcode-did-not-exist--settled-2026-09-10).
-- [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — **cannot be checked today**, no repository
+- [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence and `schoolId` — `404 AFFILIATION_PROGRAMME_NOT_FOUND`
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *insert*: `academicYear` = the `{year}` path segment, `name` trimmed, `affiliationProgrammeDocsId`, `sections` = `[]`, `subjects` = `[]`, `active` = `true`
 - [`affiliation_programmes`](../../../models/institution/AffiliationProgramme.java) — *reads*: existence **and `schoolId`**, only when the field is sent. `AffiliationProgrammeRepository` was created with this endpoint; the id is real but another school's is a `404`.
 - **`sections` and `subjects` are written as empty arrays, not left absent.** The response reports `0` either way — its counts are null-safe — so only the stored document shows the difference, and a mutation test is the only thing that catches it.
@@ -851,7 +842,7 @@ no section document to write — the document saved is always its class.
 **[18](#t18) · `PUT /classes/{id}/sections`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `sections[].sectionNo`, to tell an edit from an addition from a removal
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `classTeacherDocsId` in the body — unvalidatable today
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `classTeacherDocsId` in the body — `StaffRepository` exists, so this is checkable
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: replaces `sections[]` wholesale
 - **Refuses to drop a `sectionNo` that is not in the body** — `409 SECTION_STILL_REFERENCED`. Eight collections may store it and none of them can be checked cheaply, so a replace is add-and-edit only; removals go through #20. [Open item 5](#5-put-on-an-embedded-list-can-silently-drop-a-referenced-key).
 - **`active` is preserved, not reset.** A row already deactivated stays deactivated unless the body says otherwise, or a setup replace would silently switch retired sections back on.
@@ -860,7 +851,7 @@ no section document to write — the document saved is always its class.
 **[19](#t19) · `PATCH /classes/{id}/sections/{sectionNo}`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — to find the row, `404 SECTION_NOT_FOUND` otherwise
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `classTeacherDocsId` when sent — unvalidatable today
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: `classTeacherDocsId` when sent — `StaffRepository` exists, so this is checkable
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `sections[…].classTeacherDocsId`, `sections[…].capacity`
 - **Never `sections[…].sectionNo`.** It is both the reference and the display value, which is precisely why there is no rename: there is no separate label to change instead.
 - **`capacity` is not checked against anything.** Lowering it below the number of students already placed is allowed, because this module cannot count students. The count lives in `student`, and so does the refusal.
@@ -898,20 +889,21 @@ subject identity on the class, teachers on the section — avoids both, and was 
 in #22 is what keeps them from becoming data problems.
 
 <a id="e22"></a>
-**[22](#t22) · `POST /classes/{id}/subjects`**
+**[22](#t22) · `POST /classes/{id}/subjects`** — built
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `subjects[].subjectCode` with `subjects[].sectionNo` — the pair must be free, `409 SUBJECT_ALREADY_ASSIGNED` otherwise
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].sectionNo` — a non-null `sectionNo` in the body has to be a section this class actually has
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `teacherDocsIds` entry — unvalidatable today
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` — unvalidatable today
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: every `teacherDocsIds` entry, each with `schoolId` in the query — `404 STAFF_NOT_FOUND`. A repeat is `400 DUPLICATE_TEACHER`, and it fires *after* existence, so an unknown id sent twice is the 404
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` with `schoolId` — `404 GRADING_SCHEME_NOT_FOUND`. `GradingSchemeRepository` was built here, closing [open item 2](#2-three-referenced-collections-had-no-repository--settled-2026-09-11)
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: appends to `subjects[]` — `subjectCode`, `name`, `shortName`, `subjectType`, `sectionNo`, `teacherDocsIds`, `gradingSchemeDocsId`, `active` = `true`
-- **A class-wide row and a per-section row for one subject may both exist.** Nothing here forbids `MATHEMATICS` with `sectionNo: null` alongside `MATHEMATICS` with `sectionNo: "A"`, and which one wins is undefined. Worth settling before mark entry reads this list — it is not in [To settle](#to-settle-before-building) because it only becomes a bug when something consumes it.
+- **Class-wide OR per-section, never both — settled here.** `MATHEMATICS` with `sectionNo: null` alongside `MATHEMATICS` with `sectionNo: "A"` is `409 SUBJECT_ASSIGNMENT_CONFLICT`, refused in *both* directions. A section studies its own rows **plus** the class's — as [#31](#e31) and `SectionDetail.jsx` both do — so the mixture gives that section the subject twice with no precedence. The model README's "repeat the same subjectCode with each section code" means *each* section, not one beside a class-wide row. Relaxing this needs a precedence rule, not a deletion.
+- **`subjectCode` is normalised, `sectionNo` is not.** Uppercased with every run of non-alphanumerics collapsed to one underscore, so `maths-2` stores as `MATHS_2`; a code with nothing left is `409 SUBJECT_CODE_INVALID`, which `@NotBlank` cannot catch because the input was not blank. `sectionNo` is matched case-insensitively and stored **as the class spells it** — two spellings would read as two sections.
 
 <a id="e23"></a>
 **[23](#t23) · `PUT /classes/{id}/subjects`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: every existing `(subjectCode, sectionNo)` pair, and `sections[].sectionNo`
-- [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every referenced id — unvalidatable today
+- [`staff`](../../../models/people/staff/Staff.java), [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every referenced id — both repositories exist, so these are checkable
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: replaces `subjects[]` wholesale
 - **Refuses to drop a `subjectCode`** — `409 SUBJECT_STILL_REFERENCED`, same rule as #18. Seven collections store it.
 - **The only endpoint that sees the whole list**, so the only one that can catch a duplicate pair *within the body* rather than against what is stored.
@@ -920,7 +912,7 @@ in #22 is what keeps them from becoming data problems.
 **[24](#t24) · `PATCH /classes/{id}/subjects/{subjectCode}?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row, `404 SUBJECT_NOT_FOUND` otherwise
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` when sent — unvalidatable today
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: `gradingSchemeDocsId` when sent — `GradingSchemeRepository` exists, so this is checkable
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].name`, `subjects[…].shortName`, `subjects[…].subjectType`, `subjects[…].gradingSchemeDocsId`
 - **Never `subjectCode` and never `sectionNo`** — both are the key. Moving an assignment to another section is #26 on the old row plus #22 on the new one, and the history reads correctly that way.
 - **Not `teacherDocsIds` either** — that is #25, because it replaces a list rather than setting a field.
@@ -929,7 +921,7 @@ in #22 is what keeps them from becoming data problems.
 **[25](#t25) · `PUT /classes/{id}/subjects/{subjectCode}/teachers?sectionNo=`**
 
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the `(subjectCode, sectionNo)` row
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of every id in the body — unvalidatable today, and the most consequential of the three gaps: this is the field that decides who can enter marks
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: existence and `schoolId` of every id in the body — the most consequential of the three, because this is the field that decides who can enter marks
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *updates*: `subjects[…].teacherDocsIds`, replaced whole
 - **A `PUT` of the whole list, not add and remove.** Two endpoints for one array is two ways to end up with a duplicate id in it. `[]` is a legitimate body: a subject with no teacher assigned yet.
 - **Changes nothing already recorded.** Marks and registers store `subjectCode`, not the teacher, so replacing this list does not rewrite history — which is why it can be a plain `PUT` and not an event.
@@ -999,8 +991,8 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - **One document, one query, no joins** — which is the entire reason sections and subjects are embedded rather than collections of their own. Were they separate this would be three reads, and #28 three per row.
 - **Its own response record, not #28's.** `SchoolClassResponse` carries counts and no lists because a page of rows must not drag 168 embedded rows behind it; here the caller asked for one class, so the lists are the point. Two records rather than one with fields sometimes populated — a field present on some responses and absent on others is a field every client has to guard.
 - **Four counts, not two.** Active and total differ for both lists: a retired section keeps its `sectionNo` and still appears, because records reference it, but it is not one a student can be placed in. A class with four sections and none active would otherwise look ready.
-- **Nothing is resolved to a name.** `StaffRepository` exists as of #17, so resolving a class teacher is now *possible* — and deliberately not done. If this response resolved it and #30 did too there would be two places deciding how a teacher is presented. **Decide once, when something needs it.** `grading_schemes` still has no repository at all.
-- **A class with nothing in it is a `200` with two empty arrays**, never a 404, and while #22 is unbuilt that is every class's subject list.
+- **Nothing is resolved to a name.** `StaffRepository` exists as of #17, so resolving a class teacher is now *possible* — and deliberately not done. If this response resolved it and #30 did too there would be two places deciding how a teacher is presented. **Decide once, when something needs it.** The same goes for the grading scheme, whose repository arrived with #22.
+- **A class with nothing in it is a `200` with two empty arrays**, never a 404 — a class created by #12 and not yet filled by #17 and #22.
 
 <a id="e30"></a>
 **[30](#t30) · `GET /classes/{id}/sections`** — built
@@ -1034,7 +1026,7 @@ are applied after the query is pinned to one school and one year, and a case-ins
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: `sections[].classTeacherDocsId` and `subjects[].teacherDocsIds`, returning the `classCode`, `sectionNo` and `subjectCode` of every match
 - **Two indexes already exist for exactly this**: `school_year_class_teacher_idx` and `school_year_subject_teacher_idx`. Their presence on a model with no endpoints is the clearest signal in the module of what was intended.
 - **Two questions in one response**, kept separate: the sections this person is *class teacher* of, and the subjects they *teach*. They are different relationships and a flat list of both would be unreadable.
-- **Does not check the staff id exists** — no repository — so an unknown id returns two empty lists rather than a `404`. Say which, or "no assignments" and "no such person" look identical.
+- **Checks the staff id exists** — `StaffRepository` arrived with #17 — so an unknown id is a `404` rather than two empty lists. Otherwise "no assignments" and "no such person" look identical.
 
 <a id="e34"></a>
 **[34](#t34) · `GET /structure`**

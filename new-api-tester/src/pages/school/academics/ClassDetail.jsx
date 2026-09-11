@@ -4,16 +4,17 @@ import { ArrowLeft, ChevronRight, Info, Plus, RefreshCw, Users } from 'lucide-re
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import AddSubject from './AddSubject.jsx'
 import { childPath, screenPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * One class, at its own address: /school-academics/classes/{id}
  *
- * THREE OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class with its sections and subjects,
- * #17 adds a section, and #30 reads the sections on their own. They are together because they
- * all answer questions about one class, and because a class with four sections and ten subjects
- * is more than a modal's worth of screen.
+ * FOUR OF THE GROUP'S ENDPOINTS LIVE HERE. #29 reads the class with its sections and subjects,
+ * #17 adds a section, #22 assigns a subject, and #30 reads the sections on their own. They are
+ * together because they all answer questions about one class, and because a class with four
+ * sections and ten subjects is more than a modal's worth of screen.
  *
  * THE YEAR COMES FROM THE TOP BAR, NOT THE ADDRESS. A class id is globally unique, so the id
  * alone finds it — but the API scopes the lookup by year as well, deliberately, so that an id
@@ -40,6 +41,7 @@ export default function ClassDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [assigning, setAssigning] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -100,6 +102,7 @@ export default function ClassDetail() {
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <EndpointTag id="get-school-class" name="Read" />
+        <Button icon={Plus} onClick={() => setAssigning(true)}>Add a subject</Button>
         <Button look="primary" icon={Plus} onClick={() => setAdding(true)}>Add a section</Button>
       </div>
 
@@ -201,18 +204,24 @@ export default function ClassDetail() {
 
       <Card
         title="Subjects"
-        description="Also from #29. This is the only endpoint that returns them."
+        description="Also from #29. This is the only endpoint that returns them — #22 is what puts them there."
         action={
           <div className="btn-row">
             <Badge>{data?.subjectCount ?? 0} total</Badge>
             <Badge tone="good">{data?.activeSubjectCount ?? 0} active</Badge>
+            <Button icon={Plus} onClick={() => setAssigning(true)}>Add</Button>
           </div>
         }
       >
         {subjects.length === 0 ? (
           <Empty
             title="Nothing is taught in this class yet"
-            description="#22 assigns a subject and is not built, so every class reads this way."
+            description="A class starts with no subjects — #12 will not accept them, and #22 is what adds them one at a time."
+            action={
+              <Button look="primary" icon={Plus} onClick={() => setAssigning(true)}>
+                Assign the first
+              </Button>
+            }
           />
         ) : (
           <div className="table-scroll">
@@ -258,6 +267,16 @@ export default function ClassDetail() {
         classId={id}
         year={actingAcademicYear}
         onClose={() => setAdding(false)}
+        onAdded={() => load()}
+      />
+
+      {/* No fixed section: from the class page a subject may go to the whole class or to any
+          section, and which one is the caller's choice to make. */}
+      <AddSubject
+        open={assigning}
+        classId={id}
+        year={actingAcademicYear}
+        onClose={() => setAssigning(false)}
         onAdded={() => load()}
       />
     </div>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, RefreshCw, Users } from 'lucide-react'
+import { ArrowLeft, Info, Plus, RefreshCw, Users } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field } from '../../../components/ui/Kit.jsx'
+import AddSubject from './AddSubject.jsx'
 import { detailPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
@@ -16,6 +17,10 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * no collection, no document id, no schoolId of its own. `sectionNo` is the one thing eight other
  * collections store about it, so it is the only thing that can name one — and it is why the
  * number can never be changed.
+ *
+ * #22 WRITES FROM HERE WITH THE SECTION FIXED, because a subject assigned from a section page
+ * is a subject for that section — and because the refusal that matters is reachable this way: if
+ * the class already teaches it class-wide, assigning it here is a 409, not a second row.
  *
  * TWO READS, AND THE SECOND ONE IS A STAND-IN.
  *
@@ -48,6 +53,7 @@ export default function SectionDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -117,6 +123,9 @@ export default function SectionDetail() {
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <EndpointTag id="list-class-sections" name="The section" />
         <EndpointTag id="get-school-class" name="Its subjects" />
+        <Button look="primary" icon={Plus} onClick={() => setAssigning(true)}>
+          Add a subject
+        </Button>
       </div>
 
       <Card
@@ -175,12 +184,22 @@ export default function SectionDetail() {
       <Card
         title="What this section studies"
         description="Its own subject assignments, plus the class-wide ones — a row with no section applies to every section."
-        action={<Badge>{mine.length} applying</Badge>}
+        action={
+          <div className="btn-row">
+            <Badge>{mine.length} applying</Badge>
+            <Button icon={Plus} onClick={() => setAssigning(true)}>Add</Button>
+          </div>
+        }
       >
         {mine.length === 0 ? (
           <Empty
             title="Nothing is taught in this class yet"
-            description="#22 assigns a subject and is not built, so every section reads this way."
+            description="Neither this section's own rows nor the class-wide ones. #22 adds either, and from here it adds this section's."
+            action={
+              <Button look="primary" icon={Plus} onClick={() => setAssigning(true)}>
+                Assign the first
+              </Button>
+            }
           />
         ) : (
           <div className="table-scroll">
@@ -227,6 +246,17 @@ export default function SectionDetail() {
           is not built — it is the endpoint that would do this in the database.
         </p>
       </Card>
+
+      {/* Fixed to this section: a subject assigned from a section's page is that section's,
+          and the modal hides the box rather than pre-filling one that could be edited away. */}
+      <AddSubject
+        open={assigning}
+        classId={id}
+        year={actingAcademicYear}
+        fixedSection={sectionNo}
+        onClose={() => setAssigning(false)}
+        onAdded={() => load()}
+      />
 
       <Card title="What this page cannot tell you">
         <p className="muted">

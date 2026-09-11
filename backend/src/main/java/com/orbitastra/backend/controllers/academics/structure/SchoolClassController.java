@@ -18,10 +18,12 @@ import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreat
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectCreateRequest;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SubjectListResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.SchoolClassService;
 
@@ -30,8 +32,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The classes taught in one academic year, and the sections and subjects inside them. Endpoints
- * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17, #28, #29 and
- * #30 are built.
+ * #12 to #16 and #28 to #31 of the plan in this package's README; #12, #13, #17, #22, #28, #29
+ * and #30 are built.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
  * is no platform surface for classes: a class list is a school's own teaching structure.
@@ -334,5 +336,62 @@ public class SchoolClassController {
             @RequestParam(required = false) Boolean active) {
 
         return ResponseEntity.ok(schoolClassService.listSections(year, id, active));
+    }
+
+    //! the subjects taught in a class — #22 to #27 ------------------------------------
+
+    /**
+     * Endpoint #22 — assigns a subject to a class, or to one section of it.
+     *
+     * <p><b>The row key is the pair {@code (subjectCode, sectionNo)}.</b> A class-wide assignment
+     * leaves {@code sectionNo} out; a per-section one names it, and a named section has to be one
+     * the class actually has.
+     *
+     * <p><b>A subject is class-wide OR per-section, never both.</b> The plan left this open and
+     * this endpoint settles it, being the only one that can create the mixture: a section studies
+     * its own rows <i>plus</i> the class's, so both would give one section the subject twice with
+     * nothing to say which row's teacher wins. {@code 409 SUBJECT_ASSIGNMENT_CONFLICT} says which
+     * way round it already is.
+     *
+     * <p><b>Every reference is checked</b> — the section, each teacher and the grading scheme —
+     * and all three are checked against <i>this</i> school. {@code GradingSchemeRepository} was
+     * built with this endpoint, the last of the three the module's README listed as missing.
+     *
+     * <p><b>{@code subjectCode} is normalised; {@code sectionNo} is not.</b> A subject has
+     * {@code name} for display, which leaves its code free to be a code — "maths-2" is stored
+     * {@code MATHS_2}. A section number is the display value as well as the reference.
+     *
+     * <pre>
+     * 400 VALIDATION_FAILED           no code, no name, no type, or a field over its limit
+     * 400 DUPLICATE_TEACHER           the same teacher twice in one list
+     * 404 ACADEMIC_YEAR_NOT_FOUND     the {year} in the path is not a year of this school
+     * 404 CLASS_NOT_FOUND             no class with that id in that year
+     * 404 SECTION_NOT_FOUND           that class has no section with that number
+     * 404 STAFF_NOT_FOUND             no such staff in this school — another school's real id too
+     * 404 GRADING_SCHEME_NOT_FOUND    no such scheme in this school
+     * 409 SUBJECT_CODE_INVALID        the code has no letter or digit in it
+     * 409 SUBJECT_ALREADY_ASSIGNED    that exact (code, section) pair is already there
+     * 409 SUBJECT_ASSIGNMENT_CONFLICT the subject is already assigned the other way round
+     * </pre>
+     */
+    @PostMapping("/{id}/subjects")
+    public ResponseEntity<SubjectListResponse> addSubject(
+            @PathVariable String year,
+            @PathVariable String id,
+            @Valid @RequestBody SubjectCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        SubjectListResponse response = schoolClassService.addSubject(year, id, request);
+        return ResponseEntity
+                .created(URI.create("/schools/current/academic-years/" + year + "/classes/" + id
+                        + "/subjects"))
+                .body(response);
     }
 }

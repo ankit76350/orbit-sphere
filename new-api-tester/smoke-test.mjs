@@ -3080,7 +3080,7 @@ classChecks.push(
 const detailEntry = classCatalogue.slice(classCatalogue.indexOf('get-school-class'),
   classCatalogue.indexOf('list-class-sections'))
 const secListEntry = classCatalogue.slice(classCatalogue.indexOf('list-class-sections'),
-  classCatalogue.indexOf('export const API_CATALOG'))
+  classCatalogue.indexOf('add-class-subject'))
 classChecks.push(
   ['#29 gets one class by id',
     /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}"/.test(detailEntry)],
@@ -3120,8 +3120,9 @@ classChecks.push(
   ['Edit stops the click, or opening the editor would navigate away',
     classesScreen.includes('event.stopPropagation(); setEditing(row)')],
   ['the class page reads #29', classDetailScreen.includes("call('get-school-class'")],
-  ['and is the only place subjects appear',
-    classDetailScreen.includes('#22 assigns a subject and is not built')],
+  ['and is the only read on the page that returns subjects',
+    classDetailScreen.includes('the only endpoint that returns them')
+      && !classDetailScreen.includes("call('list-class-sections'")],
   ['it draws the sections from that read rather than calling #30 again',
     classDetailScreen.includes('there is no second call to draw this')],
   // A SECTION OPENS ITS OWN PAGE, not a modal — three levels of address, and no deeper.
@@ -3152,6 +3153,84 @@ classChecks.push(
   ['the page explains that switching the year makes it 404',
     classDetailScreen.includes('the same id under another year is a 404')],
   ['and links back to the list', classDetailScreen.includes('All classes')],
+)
+
+
+// #22 — assigning a subject. THE ENDPOINT THAT SETTLED THE RULE the module plan left open:
+// class-wide OR per-section, never both. Everything below guards that rule staying stated.
+const subjectEntry = classCatalogue.slice(classCatalogue.indexOf('add-class-subject'),
+  classCatalogue.indexOf('export const API_CATALOG'))
+const addSubjectScreen = readFileSync('src/pages/school/academics/AddSubject.jsx', 'utf8')
+classChecks.push(
+  ['#22 posts to the class\'s subjects',
+    /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/subjects"/
+      .test(subjectEntry)],
+  ['it takes a body and answers 201',
+    subjectEntry.includes('bodyAllowed: true') && subjectEntry.includes('successStatus: 201')],
+  ['three fields are required and sectionNo is not one of them',
+    subjectEntry.includes('requiredFields: ["subjectCode", "name", "subjectType"]')],
+  ['the response is the whole subject list, not the one row',
+    ['"schoolClassId"', '"subjectCount"', '"activeCount"', '"subjects"', '"changeSummary"']
+      .every((f) => subjectEntry.includes(f))],
+
+  // The rule, stated in the docs and reachable as a test case in BOTH directions — one
+  // direction alone would pass with a check that only looked one way.
+  ['the class-wide-or-per-section rule is documented',
+    subjectEntry.includes('Class-wide OR per-section, never both')],
+  ['it says why: a section studies its own rows and the class\'s',
+    subjectEntry.includes('its own rows plus the class')],
+  ['per-section-over-class-wide is a case', subjectEntry.includes('PER-SECTION WHEN IT IS ALREADY CLASS-WIDE')],
+  ['and class-wide-over-per-section is the other', subjectEntry.includes('CLASS-WIDE WHEN IT IS ALREADY PER-SECTION')],
+  ['both name the same refusal', (subjectEntry.match(/SUBJECT_ASSIGNMENT_CONFLICT/g) || []).length >= 3],
+
+  ['the key is documented as the pair, not the code',
+    subjectEntry.includes('The key is the pair, not the code')],
+  ['and the same code for two sections is a 201 case',
+    subjectEntry.includes('THE SAME SUBJECT FOR ANOTHER SECTION')],
+  ['the code normalisation is documented with its example',
+    subjectEntry.includes('MATHS_2')],
+  ['and a code that normalises to nothing is a documented refusal',
+    subjectEntry.includes('SUBJECT_CODE_INVALID')],
+  ['sectionNo is matched case-insensitively but stored as the class spells it',
+    subjectEntry.includes('stored the way the class spells')],
+  ['every tenant-scoped refusal is listed',
+    ['STAFF_NOT_FOUND', 'GRADING_SCHEME_NOT_FOUND', 'SECTION_NOT_FOUND', 'DUPLICATE_TEACHER']
+      .every((c) => subjectEntry.includes(c))],
+  ['all three gates are listed', ['SCHOOL_NOT_ACTIVE', 'SUBSCRIPTION_NOT_USABLE',
+    'ACADEMIC_YEAR_NOT_RUNNING'].every((c) => subjectEntry.includes(c))],
+
+  // The screen
+  ['the class page offers Add a subject', classDetailScreen.includes('Add a subject')],
+  ['the section page offers it too', sectionScreen.includes('Add a subject')],
+  ['one modal serves both pages',
+    classDetailScreen.includes("import AddSubject from './AddSubject.jsx'")
+      && sectionScreen.includes("import AddSubject from './AddSubject.jsx'")],
+  ['the form sends #22', addSubjectScreen.includes("call('add-class-subject'")],
+  ['the section page fixes the section, so the subject is that section\'s',
+    sectionScreen.includes('fixedSection={sectionNo}')],
+  ['and the class page fixes nothing, so either is reachable',
+    !classDetailScreen.includes('fixedSection=')],
+  ['a fixed section hides the box rather than pre-filling an editable one',
+    addSubjectScreen.includes('{fixedSection ? null : (')],
+  // THE TESTER RULE: every refusal must be reachable, so the section is typed, not chosen.
+  ['the section is a text box, so a section the class lacks can still be sent',
+    addSubjectScreen.includes('NOT A DROPDOWN OF REAL SECTIONS')],
+  ['teacher ids are sent as typed, so DUPLICATE_TEACHER is reachable',
+    addSubjectScreen.includes('duplicates included')
+      && !addSubjectScreen.includes('new Set(')],
+  ['nothing in the form is disabled', !/disabled/.test(addSubjectScreen)],
+  ['Select gets the value and Input gets the event, which is what [object Object] was',
+    addSubjectScreen.includes('onChange={setValue(')
+      && addSubjectScreen.includes('onChange={set(')],
+  ['an empty optional box sends nothing rather than an empty string',
+    addSubjectScreen.includes("!== ''")],
+  ['it stays open after an add, so a class gets its subjects in one sitting',
+    addSubjectScreen.includes('in one sitting')],
+  ['and both pages re-read after one',
+    classDetailScreen.includes('onAdded={() => load()}')
+      && sectionScreen.includes('onAdded={() => load()}')],
+  ['neither page still claims #22 is unbuilt',
+    !classDetailScreen.includes('is not built') && !sectionScreen.includes('#22 assigns a subject and is not built')],
 )
 
 for (const [label, ok] of classChecks) {

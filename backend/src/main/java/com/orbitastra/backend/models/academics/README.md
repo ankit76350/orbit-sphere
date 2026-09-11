@@ -96,6 +96,13 @@ sections have different teachers, repeat that subject with the appropriate
 section code and teacher list. Services must enforce uniqueness of
 `(subjectCode, sectionNo)` inside one SchoolClass.
 
+A subject is class-wide **or** per-section, never both. Repeating a subject
+means repeating it for *each* section, not adding one section beside a
+class-wide row: a section studies its own rows plus the class's, so a mixture
+gives that section the subject twice with no defined precedence. Endpoint #22
+refuses the mixture in both directions with `SUBJECT_ASSIGNMENT_CONFLICT`.
+Settled 2026-09-11; relaxing it needs a precedence rule, not a deletion.
+
 `AcademicTerm` is the second structure collection. It defines the reporting
 periods of one academic year and replaces the earlier free-text
 `reportingPeriodName` on `Exam` and `ReportCard`. Referencing a term by

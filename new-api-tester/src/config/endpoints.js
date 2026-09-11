@@ -9617,6 +9617,270 @@ Same as #29. A class with no sections is an **empty list**, never a 404.
           notes: `A REAL class id, read with a different school's subdomain.\n    OUT: { "code": "CLASS_NOT_FOUND" } — the tenant scopes the lookup.`, body: null },
       ],
     },
+    {
+      id: "add-class-subject",
+      name: "Add Subject",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/classes/{id}/subjects",
+      status: 'live',
+      summary: "Assigns a subject to the whole class, or to one section of it.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/classes/{id}/subjects\` — endpoint #22.
+
+### Class-wide OR per-section, never both
+
+This is the rule the module plan left open and this endpoint settled. \`MATHEMATICS\` with no
+\`sectionNo\` teaches the whole class. \`MATHEMATICS\` with \`sectionNo: "A"\` teaches section A.
+**A subject cannot have one of each** — \`409 SUBJECT_ASSIGNMENT_CONFLICT\`, in both directions.
+
+The reason: a section studies **its own rows plus the class's**. Allow both and section A gets
+MATHEMATICS twice, with two teachers and two grading schemes and nothing saying which wins. When
+sections need different teachers, repeat the code with *each* section — never one section
+alongside a class-wide row.
+
+### The key is the pair, not the code
+
+\`(subjectCode, sectionNo)\` must be free. So HINDI for section A and HINDI for section B are two
+legitimate rows, and a second HINDI for section A is \`409 SUBJECT_ALREADY_ASSIGNED\`.
+
+**Both checks live in the service.** Mongo cannot enforce uniqueness inside an array, so unlike a
+class name there is no index behind either of them.
+
+### subjectCode is normalised; sectionNo is not
+
+\`subjectCode\` is uppercased and every run of non-alphanumerics becomes one underscore, so
+\`"maths-2"\` is stored \`MATHS_2\` and \`"Maths (Advanced)"\` becomes \`MATHS_ADVANCED\`. A code
+of pure punctuation has nothing left and is \`409 SUBJECT_CODE_INVALID\`.
+
+It can afford to be a code because \`name\` carries the display value. \`sectionNo\` cannot — it is
+the reference *and* what appears on screen, which is why #17 stores it exactly as typed.
+
+**\`sectionNo\` in this body is matched case-insensitively and stored the way the class spells
+it.** Send \`"a"\` for a section called \`"A"\` and the row reads \`"A"\`; two spellings of one
+section would read as two sections.
+
+### Every referenced id is checked with the tenant in the query
+
+\`teacherDocsIds\` against \`staff\`, \`gradingSchemeDocsId\` against \`grading_schemes\` —
+\`GradingSchemeRepository\` was built for this endpoint, closing the last of the module's three
+missing repositories. **Another school's real id is a 404**, not an accepted reference.
+
+A repeated teacher is \`400 DUPLICATE_TEACHER\` rather than being quietly collapsed. \`[]\` is
+legitimate: a subject with no teacher assigned yet.
+
+### The gates
+
+Same three as every write here — **1** school ACTIVE · **2** subscription usable · **4** the year
+is running.
+
+### The twelve test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain, a year, and a class id from Create Class.
+
+ CLASS-WIDE OR PER-SECTION, NEVER BOTH. Leave sectionNo out and the whole
+ class studies it. Name a section and only that section does. The same
+ subjectCode cannot do both — 409, because a section studies its own rows
+ AND the class's, so it would get the subject twice.
+
+ THE KEY IS THE PAIR (subjectCode, sectionNo). HINDI for A and HINDI for B
+ are two rows. A second HINDI for A is a 409.
+
+ subjectCode IS NORMALISED: uppercased, non-alphanumerics to underscore.
+ "maths-2" is stored MATHS_2. sectionNo is NOT — it is matched case-
+ insensitively and stored the way the class spells it.
+
+ TEACHERS AND THE GRADING SCHEME ARE CHECKED AGAINST THIS SCHOOL. Another
+ school's real id is a 404. The same teacher twice is a 400, not collapsed.`,
+      requiredFields: ["subjectCode", "name", "subjectType"],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
+        { name: "id", value: "{{schoolClassId}}", description: "The class's MongoDB document id, from Create Class." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "subjectCode": "MATHEMATICS",
+  "name": "Mathematics",
+  "shortName": "Maths",
+  "subjectType": "CORE"
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the class's subject list.",
+      responseFields: ["schoolClassId", "className", "academicYear", "subjectCount", "activeCount", "subjects", "changeSummary"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No subjectCode, name or subjectType, one over its length, or a subjectType outside the five." },
+        { status: 400, code: "DUPLICATE_TEACHER", when: "The same staff id appears twice in teacherDocsIds." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "CLASS_NOT_FOUND", when: "No class with that id in that year — including a real id under the wrong year, or another school's." },
+        { status: 404, code: "SECTION_NOT_FOUND", when: "The sectionNo sent is not a section of this class. Leave it out for a class-wide subject." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No such staff in this school, including another school's real id." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No such grading scheme in this school, including another school's real id." },
+        { status: 409, code: "SUBJECT_CODE_INVALID", when: "The code has no letter or digit left after normalising — \"!!!\" and the like." },
+        { status: 409, code: "SUBJECT_ALREADY_ASSIGNED", when: "That exact (subjectCode, sectionNo) pair is already on the class." },
+        { status: 409, code: "SUBJECT_ASSIGNMENT_CONFLICT", when: "The subject is already assigned the other way round — class-wide when you asked for a section, or per-section when you asked for the class." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "A SUBJECT FOR THE WHOLE CLASS",
+          expect: "201 Created",
+          notes: `The body above — no sectionNo, so every section studies it.
+    OUT: the class's WHOLE subject list, with subjectCount and activeCount.
+    The row comes back with no sectionNo field at all, not a null one.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE CODE IS NORMALISED",
+          expect: "201 Created",
+          notes: `OUT: subjectCode is MATHS_2 — uppercased, the hyphen an underscore.
+    name carries the display value, which is why the code can be a code.`,
+          body: `{
+  "subjectCode": "maths-2",
+  "name": "Maths 2",
+  "subjectType": "ELECTIVE"
+}`,
+        },
+        {
+          id: "03",
+          name: "A CODE WITH NOTHING IN IT",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "SUBJECT_CODE_INVALID" }
+    Normalising leaves an empty string. @NotBlank passes — it was not blank.`,
+          body: `{
+  "subjectCode": "!!!",
+  "name": "Nonsense",
+  "subjectType": "CORE"
+}`,
+        },
+        {
+          id: "04",
+          name: "A SUBJECT FOR ONE SECTION",
+          expect: "201 Created",
+          notes: `Needs a section from Add Section first.
+    OUT: the row carries sectionNo: "A" and two teachers in the order sent.`,
+          body: `{
+  "subjectCode": "HINDI",
+  "name": "Hindi",
+  "subjectType": "LANGUAGE",
+  "sectionNo": "A"
+}`,
+        },
+        {
+          id: "05",
+          name: "THE SAME SUBJECT FOR ANOTHER SECTION",
+          expect: "201 Created",
+          notes: `Allowed — the key is the PAIR, not the code. This is how two
+    sections get different teachers for one subject.`,
+          body: `{
+  "subjectCode": "HINDI",
+  "name": "Hindi",
+  "subjectType": "LANGUAGE",
+  "sectionNo": "B"
+}`,
+        },
+        {
+          id: "06",
+          name: "THE SAME PAIR AGAIN, IN LOWER CASE",
+          expect: "409 Conflict",
+          notes: `Send case 04 with sectionNo "a".
+    OUT: { "code": "SUBJECT_ALREADY_ASSIGNED" } — "a" is section A.`,
+          body: `{
+  "subjectCode": "HINDI",
+  "name": "Hindi",
+  "subjectType": "LANGUAGE",
+  "sectionNo": "a"
+}`,
+        },
+        {
+          id: "07",
+          name: "PER-SECTION WHEN IT IS ALREADY CLASS-WIDE",
+          expect: "409 Conflict",
+          notes: `After case 01. OUT: { "code": "SUBJECT_ASSIGNMENT_CONFLICT" }
+    Section A already studies it through the class-wide row.`,
+          body: `{
+  "subjectCode": "MATHEMATICS",
+  "name": "Mathematics",
+  "subjectType": "CORE",
+  "sectionNo": "A"
+}`,
+        },
+        {
+          id: "08",
+          name: "CLASS-WIDE WHEN IT IS ALREADY PER-SECTION",
+          expect: "409 Conflict",
+          notes: `After case 04 — the same refusal the other way round.
+    OUT: { "code": "SUBJECT_ASSIGNMENT_CONFLICT" }
+    Both directions, because either one gives a section the subject twice.`,
+          body: `{
+  "subjectCode": "HINDI",
+  "name": "Hindi",
+  "subjectType": "LANGUAGE"
+}`,
+        },
+        {
+          id: "09",
+          name: "A SECTION THE CLASS DOES NOT HAVE",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "SECTION_NOT_FOUND" }
+    A typo here would otherwise sit unnoticed until a timetable was built
+    and the subject turned out to be taught to nobody.`,
+          body: `{
+  "subjectCode": "SCIENCE",
+  "name": "Science",
+  "subjectType": "CORE",
+  "sectionNo": "Z"
+}`,
+        },
+        {
+          id: "10",
+          name: "ANOTHER SCHOOL'S TEACHER",
+          expect: "404 Not Found",
+          notes: `A REAL staff id belonging to a different school.
+    OUT: { "code": "STAFF_NOT_FOUND" } — the lookup carries schoolId.
+    Same shape for gradingSchemeDocsId: GRADING_SCHEME_NOT_FOUND.`,
+          body: `{
+  "subjectCode": "ART",
+  "name": "Art",
+  "subjectType": "ACTIVITY",
+  "teacherDocsIds": ["67aa15d9dc3f7d0011111111"]
+}`,
+        },
+        {
+          id: "11",
+          name: "THE SAME TEACHER TWICE",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "DUPLICATE_TEACHER" }
+    Refused rather than collapsed — a list that quietly loses an entry is
+    one nobody notices.`,
+          body: `{
+  "subjectCode": "ART",
+  "name": "Art",
+  "subjectType": "ACTIVITY",
+  "teacherDocsIds": ["67aa15d9dc3f7d0011111111", "67aa15d9dc3f7d0011111111"]
+}`,
+        },
+        {
+          id: "12",
+          name: "A YEAR THAT HAS BEEN ENDED",
+          expect: "409 Conflict",
+          notes: `Run POST /academic-years/{name}/end first.
+    OUT: { "code": "ACADEMIC_YEAR_NOT_RUNNING" } — gate 4.
+    Then read the class: a suspended or ended year still READS fine.`,
+          body: null,
+        },
+      ],
+    },
   ],
 };
 

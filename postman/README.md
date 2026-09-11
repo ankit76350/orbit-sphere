@@ -119,20 +119,20 @@ Then Send, or **Run collection** for the active bodies.
 and `Academics / Classes`. One folder per controller, so the collection and the code stay
 findable from each other.
 
-**`Academics` arrived 2026-09-11** with the first six endpoints of
+**`Academics` arrived 2026-09-11** with the first seven endpoints of
 `controllers/academics/structure`. A class is addressed by its **MongoDB document id** — twelve
 other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
 section has, being embedded in its class. Run **Create Class** first: it saves `schoolClassId`.
 
 ## Coverage
 
-**60 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+**61 requests, and that is every endpoint that exists.** Checked rather than claimed: the
 collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
 
-**Academics is 6 of 36** — create a class, edit it, add a section, list the year's classes, read
-one class in full, read its sections. The other thirty are specified in
+**Academics is 7 of 36** — create a class, edit it, add a section, add a subject, list the
+year's classes, read one class in full, read its sections. The other twenty-nine are specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md` and are
 not built.
 

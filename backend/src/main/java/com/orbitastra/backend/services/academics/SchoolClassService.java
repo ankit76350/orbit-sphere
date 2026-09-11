@@ -18,23 +18,27 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassSearchRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SectionCreateRequest;
+import com.orbitastra.backend.dto.academics.schoolclass.request.SubjectCreateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.request.SchoolClassUpdateRequest;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassDetailResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SchoolClassResponse;
 import com.orbitastra.backend.dto.academics.schoolclass.response.SectionListResponse;
+import com.orbitastra.backend.dto.academics.schoolclass.response.SubjectListResponse;
 import com.orbitastra.backend.models.academics.structure.SchoolClass;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
+import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.repositories.institution.affiliationprogramme.AffiliationProgrammeRepository;
+import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.academics.utils.SchoolClassServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * The classes taught in one academic year, and the sections inside them. Endpoints #12, #13,
- * #17, #28, #29 and #30 of the plan in
+ * The classes taught in one academic year, with their sections and subjects. Endpoints #12,
+ * #13, #17, #22, #28, #29 and #30 of the plan in
  * {@code controllers/academics/structure/README.md}.
  *
  * <p>School surface, so the tenant comes from CurrentSchoolResolver and never from the URL. There
@@ -109,6 +113,7 @@ public class SchoolClassService {
     private final SchoolClassRepository schoolClasses;
     private final AffiliationProgrammeRepository affiliationProgrammes;
     private final StaffRepository staff;
+    private final GradingSchemeRepository gradingSchemes;
     private final CurrentSchoolResolver currentSchool;
     private final SchoolClassServiceUtils utils;
 
@@ -457,5 +462,176 @@ public class SchoolClassService {
 
         //! step 3 - the same document #29 reads. What differs is the response, not the query.
         return SectionListResponse.forRead(utils.loadClass(school, year, classId), active);
+    }
+
+    //! Endpoint 22 — assign a subject to a class --------------------------------------
+
+    /**
+     * Assigns a subject to a class, or to one section of it.
+     *
+     * <p><b>The row key is the pair {@code (subjectCode, sectionNo)}.</b> A class-wide assignment
+     * has a null {@code sectionNo}; a per-section one names it. Both live in the same embedded
+     * list, so the uniqueness check is on the pair and not the code.
+     *
+     * <p><b>A subject is class-wide OR per-section, never both — settled here.</b> The plan left
+     * it open and this is where it had to be answered, because this is the only endpoint that can
+     * create the mixture. See {@code SubjectCreateRequest} for the reasoning; the short version
+     * is that a section studies its own rows <i>plus</i> the class's, so both would give one
+     * section the subject twice with nothing to say which row wins.
+     *
+     * <p><b>Three references, and all three can finally be checked.</b>
+     * {@code GradingSchemeRepository} was built with this endpoint — the last of the three the
+     * module's README listed as missing — so a teacher, a grading scheme and the section are all
+     * verified to exist and to belong to this school.
+     */
+    @Transactional
+    public SubjectListResponse addSubject(String academicYear, String classId,
+            SubjectCreateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the year, then the class, in that order
+        String year = utils.requireAcademicYear(school, academicYear);
+
+        //! step 3 - the class the subject is being added to
+        SchoolClass schoolClass = utils.loadClass(school, year, classId);
+
+        //! step 4 - the code to store. Uppercased and normalized, unlike sectionNo: a subject
+        //! has `name` for display, which leaves the code free to be a code.
+        String subjectCode = TextHelper.toCode(request.subjectCode(), 40);
+        if (subjectCode.isEmpty()) {
+            throw ApiException.conflict("SUBJECT_CODE_INVALID",
+                    "A subject code must contain at least one letter or digit. Received: '"
+                            + request.subjectCode() + "'.");
+        }
+
+        //! step 5 - a named section has to be one this class actually has. Assigning a subject to
+        //! a section that does not exist is a typo that would sit there until somebody built a
+        //! timetable and found a subject taught to nobody.
+        List<ClassSection> sections = schoolClass.getSections() == null
+                ? List.of()
+                : schoolClass.getSections();
+        String sectionNo = TextHelper.blankToNull(request.sectionNo());
+
+        if (sectionNo != null) {
+            String wanted = sectionNo;
+            boolean exists = sections.stream()
+                    .anyMatch(one -> one.getSectionNo() != null
+                            && one.getSectionNo().equalsIgnoreCase(wanted));
+            if (!exists) {
+                throw ApiException.notFound("SECTION_NOT_FOUND",
+                        "'" + schoolClass.getName() + "' has no section '" + sectionNo
+                                + "'. Add it first, or leave sectionNo out to assign the subject "
+                                + "to the whole class.");
+            }
+            // Stored as the class spells it, not as the caller typed it: sectionNo is the
+            // display value, and two spellings of one section would read as two sections.
+            sectionNo = sections.stream()
+                    .filter(one -> one.getSectionNo() != null
+                            && one.getSectionNo().equalsIgnoreCase(wanted))
+                    .map(ClassSection::getSectionNo)
+                    .findFirst()
+                    .orElse(sectionNo);
+        }
+
+        //! step 6 - the pair must be free, and the subject must not already be assigned the
+        //! OTHER way round. Mongo cannot make an array's contents unique, so these two checks
+        //! are the only guard there is.
+        List<ClassSubject> subjects = schoolClass.getSubjects() == null
+                ? new ArrayList<>()
+                : schoolClass.getSubjects();
+
+        for (ClassSubject existing : subjects) {
+            if (existing.getSubjectCode() == null
+                    || !existing.getSubjectCode().equalsIgnoreCase(subjectCode)) {
+                continue;
+            }
+
+            boolean existingIsClassWide = existing.getSectionNo() == null;
+            boolean addingClassWide = sectionNo == null;
+
+            if (existingIsClassWide && addingClassWide) {
+                throw ApiException.conflict("SUBJECT_ALREADY_ASSIGNED",
+                        "'" + schoolClass.getName() + "' already teaches " + subjectCode
+                                + " to the whole class.");
+            }
+
+            if (!existingIsClassWide && !addingClassWide
+                    && existing.getSectionNo().equalsIgnoreCase(sectionNo)) {
+                throw ApiException.conflict("SUBJECT_ALREADY_ASSIGNED",
+                        "Section " + sectionNo + " of '" + schoolClass.getName()
+                                + "' already studies " + subjectCode + ".");
+            }
+
+            // The mixture. Refused rather than allowed with an undefined precedence - see the
+            // request DTO for why, and why relaxing this needs a rule rather than a deletion.
+            if (existingIsClassWide != addingClassWide) {
+                throw ApiException.conflict("SUBJECT_ASSIGNMENT_CONFLICT",
+                        addingClassWide
+                                ? subjectCode + " is already assigned to individual sections of '"
+                                        + schoolClass.getName() + "', so it cannot also be "
+                                        + "assigned to the whole class. A section studies its own "
+                                        + "subjects and the class's, so it would get this one "
+                                        + "twice."
+                                : subjectCode + " is already assigned to the whole of '"
+                                        + schoolClass.getName() + "', so section " + sectionNo
+                                        + " already studies it. Remove the class-wide assignment "
+                                        + "first if each section needs its own teacher.");
+            }
+        }
+
+        //! step 7 - the teachers. Each checked with schoolId in the query: another school's
+        //! staff id is real, and a lookup without the tenant would accept them.
+        List<String> teachers = new ArrayList<>();
+        for (String raw : request.teacherDocsIds() == null ? List.<String>of()
+                : request.teacherDocsIds()) {
+
+            String teacherId = TextHelper.blankToNull(raw);
+            if (teacherId == null) {
+                continue;
+            }
+            if (teachers.contains(teacherId)) {
+                throw ApiException.badRequest("DUPLICATE_TEACHER",
+                        "'" + teacherId + "' appears twice in teacherDocsIds. A list that "
+                                + "quietly loses an entry is one nobody notices.");
+            }
+            // TODO: read staff
+            staff.findByIdAndSchoolId(teacherId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                            "No staff member with id '" + teacherId + "' in this school."));
+            teachers.add(teacherId);
+        }
+
+        //! step 8 - the grading scheme, when one was named
+        String schemeId = TextHelper.blankToNull(request.gradingSchemeDocsId());
+        if (schemeId != null) {
+            // TODO: read grading scheme
+            gradingSchemes.findByIdAndSchoolId(schemeId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("GRADING_SCHEME_NOT_FOUND",
+                            "No grading scheme with id '" + schemeId + "' in this school."));
+        }
+
+        //! step 9 - append it, and set the list back for the explicit-null case
+        subjects.add(ClassSubject.builder()
+                .subjectCode(subjectCode)
+                .name(request.name().trim())
+                .shortName(TextHelper.blankToNull(request.shortName()))
+                .subjectType(request.subjectType())
+                .sectionNo(sectionNo)
+                .teacherDocsIds(teachers)
+                .gradingSchemeDocsId(schemeId)
+                .active(true)
+                .build());
+        schoolClass.setSubjects(subjects);
+
+        //! step 10 - save
+        // TODO: update school class (append a subject)
+        SchoolClass saved = schoolClasses.save(schoolClass);
+
+        return SubjectListResponse.fromSchoolClass(saved,
+                subjectCode + " added to '" + saved.getName() + "'"
+                        + (sectionNo == null ? " for every section" : " for section " + sectionNo)
+                        + ". " + NO_AUTHORIZATION_YET);
     }
 }
