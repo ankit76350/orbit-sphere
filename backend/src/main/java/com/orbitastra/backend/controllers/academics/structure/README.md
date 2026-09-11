@@ -282,7 +282,7 @@ shape core's `PATCH .../holidays/{date}?type=` already uses for the same reason.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t28"></a>28 — **built** | [`GET /classes`](#e28) | The year's classes by `name`, filtered by `active` and searchable. Paged. The screen a school opens to see its own structure. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
-| <a id="t29"></a>29 — **built** | [`GET /classes/{id}`](#e29) | One class in full, sections and subjects included. One read, because they are embedded — which is the whole reason they are embedded. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t29"></a>29 — **built** | [`GET /classes/{id}`](#e29) | The class's own facts, and how much is inside it: four counts, no rows. **The `sections[]` and `subjects[]` arrays were removed on 2026-09-11**, once #30, #31 and #37 each owned one. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t30"></a>30 — **built** | [`GET /classes/{id}/sections`](#e30) | Just the sections, with capacity and class teacher. What a "move a student" dropdown reads instead of pulling the whole class. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t31"></a>31 — **built** | [`GET /classes/{id}/subjects?sectionNo=`](#e31) | The class's subject assignments, or the ones one section studies — **its own rows plus the class-wide ones**. Dropped once and rebuilt with that rule settled. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
 | <a id="t32"></a>32 | [`GET /subjects`](#e32) | Every distinct subject taught anywhere in the year, and which classes teach it. Answers "do we teach Sanskrit at all", which no per-class read can. Served by the `school_year_subject_code_idx` that already exists for it. | [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
@@ -1008,13 +1008,15 @@ are applied after the query is pinned to one school and one year, and a case-ins
 <a id="e29"></a>
 **[29](#t29) · `GET /classes/{id}`** — built
 
-- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is the check that actually fires — unlike #12, #13 and #17, where gate 4 answers first.
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — every field, `sections[]` and `subjects[]` in full
-- **One document, one query, no joins** — which is the entire reason sections and subjects are embedded rather than collections of their own. Were they separate this would be three reads, and #28 three per row.
-- **Its own response record, not #28's.** `SchoolClassResponse` carries counts and no lists because a page of rows must not drag 168 embedded rows behind it; here the caller asked for one class, so the lists are the point. Two records rather than one with fields sometimes populated — a field present on some responses and absent on others is a field every client has to guard.
-- **Four counts, not two.** Active and total differ for both lists: a retired section keeps its `sectionNo` and still appears, because records reference it, but it is not one a student can be placed in. A class with four sections and none active would otherwise look ready.
-- **Nothing is resolved to a name.** `StaffRepository` exists as of #17, so resolving a class teacher is now *possible* — and deliberately not done. If this response resolved it and #30 did too there would be two places deciding how a teacher is presented. **Decide once, when something needs it.** The same goes for the grading scheme, whose repository arrived with #22.
-- **A class with nothing in it is a `200` with two empty arrays**, never a 404 — a class created by #12 and not yet filled by #17 and #22.
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is the check that answers `404 ACADEMIC_YEAR_NOT_FOUND`.
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: the class by `{_id, schoolId, academicYear}` — its own fields, plus `sections[]` and `subjects[]` **to count them**
+- **The counts are here; the rows are not — trimmed 2026-09-11.** This returned both arrays in full until #30, #31 and #37 each owned one. Three responses carrying the same embedded rows is three places to keep in step, and the first client reading a section from here would depend on a shape this endpoint has no claim on.
+- **The counts stayed, and they are the reason this endpoint still exists.** "3 sections, 3 subjects" is what a class page header shows, and making a caller fetch two lists to count them is exactly the call this saves. They are also the only **derived** thing in the response — every other field is a column on the document.
+- **Four counts, not two.** Active and total differ for both: a retired section keeps its `sectionNo` and still counts, because records reference it — but it is not one a student can be placed in. A class with four sections and none active would otherwise look ready.
+- **`affiliationProgrammeDocsId` is the one field no other endpoint returns**, and it comes back as a raw id. Resolving it is possible and deliberately not done — one place should decide how a programme is presented.
+- **Why this is still not #28's `SchoolClassResponse`.** The two now carry nearly the same fields, and the difference is that one field, which a page of rows has no use for. Kept separate because #28 returns many and this returns one; a record shared by both grows a field for whichever caller needs it next.
+- **One document, one query, no joins** — still true, and still why sections and subjects are embedded rather than collections. It is what lets #30, #31 and #37 each be a single lookup rather than a join.
+- **A class with nothing in it is a `200` with four zero counts**, never a 404 — a class created by #12 and not yet filled by #17 and #22.
 
 <a id="e30"></a>
 **[30](#t30) · `GET /classes/{id}/sections`** — built

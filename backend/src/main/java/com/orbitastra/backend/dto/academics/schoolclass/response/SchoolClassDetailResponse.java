@@ -8,31 +8,32 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
 import com.orbitastra.backend.models.academics.structure.embedded.ClassSubject;
 
 /**
- * One class in full — its sections and its subjects. Endpoint #29.
+ * One class — its own facts, and how much is inside it. Endpoint #29.
  *
- * <p><b>One document, one query, no joins</b>, which is the entire reason sections and subjects
- * are embedded rather than collections of their own. Were they separate this response would be
- * three reads, and the list endpoint (#28) would be three per row.
+ * <p><b>The rows are not here, and that is the point.</b> Sections come from #30 and #37,
+ * subjects from #31. This response used to carry both lists; they were removed on 2026-09-11,
+ * once each had an endpoint that owned it. Three responses returning the same embedded rows is
+ * three places to keep in step, and the first client to read a section from here would be
+ * depending on a shape this endpoint has no claim on.
  *
- * <p><b>Why this is not {@link SchoolClassResponse}.</b> That one carries {@code sectionCount}
- * and {@code subjectCount} and no lists, because #28 returns a page of rows and a twelve-class
- * year with four sections and ten subjects each is 168 embedded rows nobody reads. Here the
- * caller asked for one class, so the lists are the point. Two records rather than one with the
- * lists sometimes populated — a field that is present on some responses and absent on others is
- * a field every client has to guard.
+ * <p><b>The counts stayed.</b> "3 sections, 3 subjects" is what a class row and a page header
+ * show, and making a caller fetch two lists to count them is the call this endpoint exists to
+ * save. They are also the one thing here that cannot be got from the class document's own
+ * fields — everything else is a column, these are derived.
  *
- * <p><b>Four counts, not two.</b> Active and total are different questions for both lists: a
- * retired section keeps its {@code sectionNo} and is still referenced by whatever was recorded
- * against it, so it has to appear — but it is not one a student can be placed in. A class with
- * four sections, none active, would otherwise look ready.
+ * <p><b>Four counts, not two.</b> Active and total are different questions for both: a retired
+ * section keeps its {@code sectionNo} and is still referenced by whatever was recorded against
+ * it, so it still counts — but it is not one a student can be placed in. A class with four
+ * sections, none active, would otherwise look ready.
  *
- * <p><b>Nothing is resolved to a name.</b> Class teachers, subject teachers and grading schemes
- * all come back as raw ids. See {@link SectionView} for why that is one decision made in one
- * place rather than repeated here.
+ * <p><b>Why this is still not {@link SchoolClassResponse}.</b> The two now carry nearly the same
+ * fields, and the difference is {@code affiliationProgrammeDocsId} — a value #28's page of rows
+ * has no use for. Kept separate rather than merged because #28 returns many and this returns one,
+ * and a response type shared by both is one that grows a field for whichever caller needs it next.
  *
- * <p>Both lists come back in the order they were added, which is how they are stored. There is
- * nothing better: {@code sectionNo} is free text, so alphabetical would order "Blue" before
- * "Red" and mean nothing, and a subject's position in the list carries no meaning either.
+ * <p><b>One document, one query, no joins.</b> Still true, and still the reason sections and
+ * subjects are embedded rather than collections of their own — it is what lets #30, #31 and #37
+ * each be a single {@code findById} rather than a join.
  */
 public record SchoolClassDetailResponse(
         String schoolClassId,
@@ -46,12 +47,20 @@ public record SchoolClassDetailResponse(
 
         int sectionCount,
         int activeSectionCount,
-        List<SectionView> sections,
 
         int subjectCount,
-        int activeSubjectCount,
-        List<SubjectView> subjects) {
+        int activeSubjectCount) {
 
+    /**
+     * <b>The counts are here; the rows are not.</b> Trimmed 2026-09-11, once #30, #31 and #37
+     * existed: three endpoints returning the same embedded rows is three places to keep in step,
+     * and a client reading them from here would be depending on a shape this response does not
+     * own. What is left is what only this endpoint answers — the class's own facts, and how much
+     * is inside it.
+     *
+     * <p><b>The counts stay</b> because "3 sections, 3 subjects" is what a class row and a page
+     * header show, and fetching two lists to count them is the call this endpoint exists to save.
+     */
     public static SchoolClassDetailResponse fromSchoolClass(SchoolClass schoolClass) {
         // Null-safe against a field stored as an explicit null. An ABSENT one reads as an empty
         // list, Spring Data supplying one for a missing collection property — measured
@@ -72,9 +81,7 @@ public record SchoolClassDetailResponse(
                 schoolClass.getActive(),
                 sections.size(),
                 (int) sections.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count(),
-                sections.stream().map(SectionView::of).toList(),
                 subjects.size(),
-                (int) subjects.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count(),
-                subjects.stream().map(SubjectView::of).toList());
+                (int) subjects.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count());
     }
 }

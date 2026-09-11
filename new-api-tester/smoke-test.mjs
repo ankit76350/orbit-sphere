@@ -3088,10 +3088,18 @@ classChecks.push(
     /path: "\/schools\/current\/academic-years\/{year}\/classes\/{id}\/sections"/.test(secListEntry)],
   ['both take no body', detailEntry.includes('bodyAllowed: false')
     && secListEntry.includes('bodyAllowed: false')],
-  ['#29 returns FOUR counts and both lists',
-    ['"sectionCount"', '"activeSectionCount"', '"sections"',
-     '"subjectCount"', '"activeSubjectCount"', '"subjects"']
+  ['#29 returns FOUR counts',
+    ['"sectionCount"', '"activeSectionCount"', '"subjectCount"', '"activeSubjectCount"']
       .every((f) => detailEntry.includes(f))],
+  // Trimmed 2026-09-11: the rows moved to the endpoints that own them. Asserted absent, so a
+  // re-added array here fails rather than quietly putting the same rows in three responses.
+  ['and NO row arrays — #30 and #37 own the sections, #31 the subjects',
+    !detailEntry.includes('"sections"') && !detailEntry.includes('"subjects"')],
+  ['it says why the counts stayed when the rows went',
+    detailEntry.includes('The counts are here; the rows are not')
+      && detailEntry.includes('Why the counts stayed')],
+  ['and names affiliationProgrammeDocsId as the field only it returns',
+    detailEntry.includes('the one field here no other')],
   ['#30 returns no subjects at all — the whole point beside #29',
     !secListEntry.includes('"subjects"')],
   ['#29 says why one read is possible', detailEntry.includes('One document, one query, no joins')],

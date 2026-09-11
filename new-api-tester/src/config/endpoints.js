@@ -9439,34 +9439,44 @@ is running.
       method: "GET",
       path: "/schools/current/academic-years/{year}/classes/{id}",
       status: 'live',
-      summary: "One class in full — its sections and its subjects, in one read.",
+      summary: "The class's own facts, and how much is inside it.",
       schoolSurface: true,
       docs: `**GET** \`/schools/current/academic-years/{year}/classes/{id}\` — endpoint #29.
 
-### One document, one query, no joins
+### The counts are here; the rows are not
 
-Which is the entire reason sections and subjects are **embedded** rather than collections of
-their own. Were they separate this would be three reads, and #28 would be three per row.
+**Trimmed 2026-09-11.** This used to return \`sections[]\` and \`subjects[]\` in full. It no
+longer does, because each now has an endpoint that owns it:
 
-### Its own response, not #28's
+- **#30** \`/sections\` — the section list, with \`?active=\`
+- **#37** \`/sections/{sectionNo}\` — one section
+- **#31** \`/subjects?sectionNo=\` — the subjects, unioned for a section
 
-#28 returns counts and no lists, because a page of rows must not drag 168 embedded rows behind
-it. Here the caller asked for one class, so the lists are the point. Two records rather than one
-with fields sometimes populated — a field present on some responses and absent on others is a
-field every client has to guard.
+Three responses returning the same embedded rows is three places to keep in step, and the first
+client to read a section from here would depend on a shape this endpoint has no claim on.
+
+### Why the counts stayed
+
+"3 sections, 3 subjects" is what a class row and a page header show, and making a caller fetch
+two lists to count them is the call this endpoint exists to save. They are also the only thing
+here that is **derived** — everything else is a column on the document.
 
 ### Four counts, not two
 
-Active and total differ for both lists. A retired section keeps its \`sectionNo\` and still
-appears, because records reference it — but it is not one a student can be placed in. A class
-with four sections and none active would otherwise look ready.
+Active and total differ for both. A retired section keeps its \`sectionNo\` and still counts,
+because records reference it — but it is not one a student can be placed in. A class with four
+sections and none active would otherwise look ready.
+
+### One document, one query, no joins
+
+Still true, and still the reason sections and subjects are **embedded** rather than collections
+of their own — it is what lets #30, #31 and #37 each be a single lookup rather than a join.
 
 ### Nothing is resolved to a name
 
-Class teachers, subject teachers and grading schemes all come back as **raw ids**.
-\`StaffRepository\` exists as of #17, so resolving a teacher is now possible — and deliberately
-not done: if this resolved it and #30 did too, two places would decide how a teacher is
-presented. \`grading_schemes\` still has no repository at all.
+\`affiliationProgrammeDocsId\` comes back as a **raw id**, and it is the one field here no other
+endpoint returns. Resolving it is possible and deliberately not done: one place should decide how
+a programme is presented, and it is not this response.
 
 ### No gates
 
@@ -9477,16 +9487,18 @@ only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here.
 `,
       bodyNotes: `A GET, so there is no body. Needs X-School-Subdomain and a class id.
 
- ONE READ, BECAUSE THEY ARE EMBEDDED. A section has no collection, no id and
- no schoolId — it inherits all three from the class. That is why this is one
- query and why sectionNo can never change.
+ THE COUNTS ARE HERE; THE ROWS ARE NOT. Trimmed 2026-09-11. Sections come
+ from #30 and #37, subjects from #31 — three responses carrying the same
+ embedded rows is three places to keep in step.
 
- NOTHING IS RESOLVED. Every teacher and grading scheme is a raw id. Read the
- staff record when you need a name; one place should decide how a teacher is
- presented, and it is not two response records.
+ THE COUNTS STAYED because "3 sections, 3 subjects" is what a page header
+ shows, and they are the only DERIVED thing here. Everything else is a
+ column on the document.
 
- A CLASS WITH NOTHING IN IT IS A 200 WITH TWO EMPTY ARRAYS, never a 404.
- While #22 is unbuilt that is every class's subject list.`,
+ affiliationProgrammeDocsId IS THE FIELD NO OTHER ENDPOINT RETURNS, and it
+ comes back as a raw id. One place should decide how a programme is shown.
+
+ A CLASS WITH NOTHING IN IT IS A 200 WITH ZERO COUNTS, never a 404.`,
       requiredFields: [],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the class belongs to. A real class id under the wrong year is a 404." },
@@ -9499,7 +9511,7 @@ only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here.
       bodyAllowed: false,
       body: null,
       successStatus: 200,
-      responseFields: ["schoolClassId", "academicYear", "name", "affiliationProgrammeDocsId", "active", "sectionCount", "activeSectionCount", "sections", "subjectCount", "activeSubjectCount", "subjects"],
+      responseFields: ["schoolClassId", "academicYear", "name", "affiliationProgrammeDocsId", "active", "sectionCount", "activeSectionCount", "subjectCount", "activeSubjectCount"],
       captures: [],
       errors: [
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
@@ -9509,9 +9521,9 @@ only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here.
       ],
       examples: [
         { id: "01", name: "ONE CLASS IN FULL", expect: "200 OK",
-          notes: `No parameters.\n    OUT: every field, plus sections[] and subjects[] in full and four counts.`, body: null },
+          notes: `No parameters.\n    OUT: the class's own fields and four counts — and NO sections[] or\n    subjects[] arrays. Those are #30/#37 and #31.`, body: null },
         { id: "02", name: "A CLASS WITH NOTHING IN IT", expect: "200 OK",
-          notes: `Create a class and read it without adding anything.\n    OUT: sections: [], subjects: [], and all four counts 0. Not a 404.`, body: null },
+          notes: `Create a class and read it without adding anything.\n    OUT: all four counts 0, and no row arrays at all. Not a 404.`, body: null },
         { id: "03", name: "THE SECTIONS MATCH #30", expect: "200 OK",
           notes: `Run #30 on the same class. The section rows are byte-identical —\n    they share SectionView, so a section has one shape everywhere.`, body: null },
         { id: "04", name: "NOTHING IS RESOLVED", expect: "200 OK",

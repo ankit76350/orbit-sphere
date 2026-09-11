@@ -3777,7 +3777,11 @@
                       "const b = pm.response.json();",
                       "pm.test('schoolClassId came back', () => pm.expect(b).to.have.property('schoolClassId'));",
                       "pm.test('academicYear came back', () => pm.expect(b).to.have.property('academicYear'));",
-                      "pm.test('name came back', () => pm.expect(b).to.have.property('name'));"
+                      "pm.test('name came back', () => pm.expect(b).to.have.property('name'));",
+                      "pm.test('four counts came back', () => ['sectionCount', 'activeSectionCount', 'subjectCount', 'activeSubjectCount'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// Trimmed 2026-09-11: the rows moved to #30/#37 (sections) and #31 (subjects).",
+                      "pm.test('but NO section rows — that is #30 and #37', () => pm.expect(b).to.not.have.property('sections'));",
+                      "pm.test('and NO subject rows — that is #31', () => pm.expect(b).to.not.have.property('subjects'));"
                     ]
                   }
                 }
