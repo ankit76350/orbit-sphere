@@ -18,7 +18,8 @@ import com.orbitastra.backend.models.academics.structure.AcademicTerm;
  * <p><b>The year is its name, not an id.</b> {@code academicYear} stores
  * {@code AcademicYear.name}, so these take the same string the URL carries.
  */
-public interface AcademicTermRepository extends MongoRepository<AcademicTerm, String> {
+public interface AcademicTermRepository
+        extends MongoRepository<AcademicTerm, String>, AcademicTermRepositoryCustom {
 
     /**
      * Every term of one year, in sequence order.

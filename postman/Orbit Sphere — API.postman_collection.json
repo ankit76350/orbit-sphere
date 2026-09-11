@@ -3381,6 +3381,102 @@
                 "description": "Endpoint #1 — add one reporting period to the year. termCode is derived from the name; a term must fit inside the year without overlapping an active one."
               },
               "response": []
+            },
+            {
+              "name": "List Terms",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('a page envelope came back', () => ['content','page','size','totalElements','totalPages','hasNext','hasPrevious'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "pm.test('rows are in sequence order', () => { const s = b.content.map((r) => r.sequence); pm.expect(s).to.eql(s.slice().sort((x, y) => x - y)); });",
+                      "pm.test('a read carries no warning on a row', () => b.content.forEach((r) => pm.expect(r).to.not.have.property('warning')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/academic-years/{year}/terms\n// A GET — no body. Needs X-School-Subdomain and a year.\n//\n//  PAGED, THOUGH THE PLAN SAID NOT TO BE. Nothing caps a year at four terms;\n//  a school running monthly reporting periods has twelve.\n//\n//  FIVE FILTERS, ALL AND-ed: active, search, resultsLocked, weighted,\n//  coversDate. Absent is never the same as false.\n//\n//  search MATCHES name OR termCode — a person types whichever they remember.\n//  The needle is regex-quoted, so a stray \"(\" is an empty result, not a 500.\n//\n//  weighted ASKS exists, not ne:null. A term written before the field existed\n//  has no key at all and must read as unweighted.\n//\n//  coversDate IS #10'S QUESTION ABOUT ANY DATE. Both ends inclusive, and no\n//  time zone, because the caller names the date rather than the server.\n//\n//  EVERY SORT ENDS IN sequence, because PageResponse appends the fallback\n//  order to whatever you name. sequence is unique in the year, so that makes\n//  every sort a total order — a term name would not have.\n//\n//  AN UNKNOWN YEAR IS A 404, not an empty page — different facts.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  EVERY TERM IN THE YEAR                              -> 200 OK\n//     No parameters. OUT: the terms in sequence order, in a page envelope.\n// -------------------------------------------------------------------------\n// 02  A YEAR WITH NO TERMS                                -> 200 OK\n//     OUT: content: [], totalElements: 0. An empty page, never a 404.\n// -------------------------------------------------------------------------\n// 03  AN UNKNOWN YEAR                                     -> 404 Not Found\n//     OUT: { \"code\": \"ACADEMIC_YEAR_NOT_FOUND\" } — not an empty page.\n// -------------------------------------------------------------------------\n// 04  ONLY THE ACTIVE ONES                                -> 200 OK\n//     ?active=true, then ?active=false, then leave it off for BOTH.\n// -------------------------------------------------------------------------\n// 05  SEARCH BY CODE                                      -> 200 OK\n//     ?search=TERM_1 — matches termCode even when the name differs.\n// -------------------------------------------------------------------------\n// 06  SEARCH BY NAME                                      -> 200 OK\n//     ?search=semester — case-insensitive, matches anywhere in the name.\n// -------------------------------------------------------------------------\n// 07  A STRAY REGEX CHARACTER                             -> 200 OK\n//     ?search=Term (1 — an empty result, not a 500.\n// -------------------------------------------------------------------------\n// 08  THE FROZEN TERMS                                    -> 200 OK\n//     ?resultsLocked=true — what #5 locks and #6 releases.\n// -------------------------------------------------------------------------\n// 09  WEIGHTED OR NOT                                     -> 200 OK\n//     ?weighted=false finds terms with NO weightPercent key at all.\n// -------------------------------------------------------------------------\n// 10  WHICH TERM COVERS A DATE                            -> 200 OK\n//     ?coversDate=2026-08-15 — both ends inclusive.\n// -------------------------------------------------------------------------\n// 11  FILTERS COMBINE                                     -> 200 OK\n//     ?active=true&weighted=true — AND-ed. No match is an empty page.\n// -------------------------------------------------------------------------\n// 12  ONE PAGE AT A TIME                                  -> 200 OK\n//     ?page=0&size=2, then ?page=1&size=2.\n//     totalElements counts every match, not the page.\n// -------------------------------------------------------------------------\n// 13  A PAGE PAST THE END                                 -> 200 OK\n//     ?page=99 — empty content, true total beside it. Not an error.\n// -------------------------------------------------------------------------\n// 14  A BAD PAGE OR SIZE                                  -> 400 Bad Request\n//     ?page=-1 is INVALID_PAGE; ?size=0 and ?size=101 are INVALID_PAGE_SIZE.\n//     Checked BEFORE the year is read, so a bad page costs no query.\n// -------------------------------------------------------------------------\n// 15  SORTING                                             -> 200 OK\n//     ?sort=name, ?sort=sequence,desc, ?sort=startDate,desc.\n//     ?sort=weightPercent is a 400 — the allowlist is the point.\n// -------------------------------------------------------------------------\n// 16  THE TIEBREAKER                                      -> 200 OK\n//     Give two terms the same name, then ?sort=name&size=2 through pages.\n//     Every row appears exactly once: the fallback order is appended, and\n//     sequence is unique in the year.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 INVALID_PAGE                     page is negative.\n//     400 INVALID_PAGE_SIZE                size is below 1 or above 100.\n//     400 INVALID_SORT_FIELD               A sort field not on the allowlist.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} is not a year of this school."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/terms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "terms"
+                  ],
+                  "query": [
+                    {
+                      "key": "active",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true for terms in use, false for retired. Absent returns both."
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Matches name OR termCode, case-insensitive, anywhere."
+                    },
+                    {
+                      "key": "resultsLocked",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true for terms whose results are frozen."
+                    },
+                    {
+                      "key": "weighted",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true for terms carrying a weightPercent. Asked with exists."
+                    },
+                    {
+                      "key": "coversDate",
+                      "value": "",
+                      "disabled": true,
+                      "description": "The term covering this date, both ends inclusive."
+                    },
+                    {
+                      "key": "page",
+                      "value": "",
+                      "disabled": true,
+                      "description": "0-based. Negative is a 400."
+                    },
+                    {
+                      "key": "size",
+                      "value": "",
+                      "disabled": true,
+                      "description": "1 to 100, default 20."
+                    },
+                    {
+                      "key": "sort",
+                      "value": "",
+                      "disabled": true,
+                      "description": "sequence | name | startDate | endDate | createdAt | updatedAt, with ,desc."
+                    }
+                  ]
+                },
+                "description": "Endpoint #9 — the year's terms in sequence order. Five filters, paged. An unknown year is a 404, not an empty page."
+              },
+              "response": []
             }
           ]
         },

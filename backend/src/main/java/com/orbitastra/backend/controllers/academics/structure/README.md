@@ -1,6 +1,6 @@
 # controllers/academics/structure — API plan
 
-**Eleven of 37 are built — #1, #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
+**Twelve of 37 are built — #1, #9, #12, #13, #17, #22, #24, #28, #29, #30, #31 and #37.** A class can be created
 for an academic year, its name and affiliation programme edited, sections added to it, subjects
 assigned to the class or to one section and then edited, the year's classes listed — filtered,
 searched, sorted and paged — and one class read in full, or just its sections, or just the
@@ -233,7 +233,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 | [`GET /terms`](#e9) | Every term in the year, in `sequence` order. Filter by `active`. Empty list if the year has none. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t9"></a>9 — **built** | [`GET /terms?active=&search=&resultsLocked=&weighted=&coversDate=`](#e9) | Every term in the year, in `sequence` order. Five filters, and **paged** — the plan said not to, and that was revisited. Empty page if the year has none. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t10"></a>10 | [`GET /terms/current`](#e10) | Which term today falls in. What a mark-entry screen opens on, so a teacher does not pick the period by hand. `404` when no term covers today — a legitimate answer during a holiday between terms. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t11"></a>11 | [`GET /terms/{termId}`](#e11) | One term in full. `404` when the year has no term by that code. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
@@ -314,7 +314,7 @@ section exists, so sections come before everything that is merely useful.
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
 | **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** |
-| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, 3, 9, 10, 11 |
+| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~9~~, 3, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
@@ -769,10 +769,19 @@ class, because a section has no document of its own.
 ## The terms — reads  ·  9–11
 
 <a id="e9"></a>
-**[9](#t9) · `GET /terms`**
+**[9](#t9) · `GET /terms`** — built
 
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field, ordered by `sequence`. `?active=` filters. Served by `school_year_term_active_dates_idx`.
-- **Not paged.** A year has two to four terms, not two hundred; a page cursor on a four-row list is machinery nobody uses.
+- [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: existence of the `{year}`. No gate runs on a read, so this is what answers `404 ACADEMIC_YEAR_NOT_FOUND` — without it an unknown year would return an empty page, which reads as "this year has no terms".
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: every field, ordered by `sequence`. Served by `school_year_term_active_dates_idx` for the `?active=` case.
+- **Paged — the plan said not to, and that was revisited on 2026-09-11.** The original reasoning was that a year holds two to four terms and a page cursor on a four-row list is machinery nobody uses. Nothing enforces two to four, though: a school running monthly reporting periods has twelve. The cost is one shared record and one shared factory that already existed for #28, and a client that handles every list in this API the same way is worth more than four rows saved.
+- **Five filters, all optional, all AND-ed:** `?active=` · `?search=` · `?resultsLocked=` · `?weighted=` · `?coversDate=`
+- **`?search=` matches `name` **or** `termCode`.** A person looking for a term types whichever they remember, and which one that is is not something this endpoint gets to decide. The needle is `Pattern.quote`d, so a stray `(` is an empty result rather than a 500.
+- **`?weighted=` asks `exists`, not `ne: null`** — a term written before the field existed has no key at all and must read as unweighted. The same reason #28 asks `sections.0` rather than a stored count.
+- **`?coversDate=` is the question [#10](#e10) asks only about *today*.** Both ends inclusive, so the last day of a term is inside it. No time zone is involved, because the caller names the date rather than the server deciding what "today" means — which is the part #10 has to get right and this does not.
+- **Sorted by `sequence`, which is also the tiebreaker on every other sort** — `?sort=name` is really `name, sequence`. That is not this endpoint's doing: [`PageResponse.pageableOf`](../../../common/web/PageResponse.java) appends the fallback order to whatever the caller named, minus any key they already used, and [#28](#e28) gets the same treatment from its own `name` fallback.
+- **Which makes the choice of fallback the decision that matters.** `sequence` is unique within a year — #1 enforces it and `school_year_term_sequence_uniq` declares it — so every sort ends in a total order and paging cannot put one row on two pages while another appears on none. A term `name` could not have served: only `termCode` and `sequence` are unique. **A hand-written `withStableOrder` was added here first and deleted the same day**, once a mutation removing it changed nothing — the shared helper already did it.
+- **`?sort=` is an allowlist** — `sequence`, `name`, `startDate`, `endDate`, `createdAt`, `updatedAt`. Anything else is `400 INVALID_SORT_FIELD` listing what is allowed, because an arbitrary field name reaching a Mongo sort is how a caller makes the database read every row to answer.
+- **The page is validated before the year is read**, so a malformed `?page=` costs no round trip — and reports the page rather than the year.
 
 <a id="e10"></a>
 **[10](#t10) · `GET /terms/current`**

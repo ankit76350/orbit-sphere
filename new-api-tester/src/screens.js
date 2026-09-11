@@ -151,7 +151,7 @@ export const SURFACES = [
             id: 'terms',
             label: 'Terms',
             group: 'Academics / Terms',
-            endpoints: 1,
+            endpoints: 2,
             screen: Terms,
           },
           {

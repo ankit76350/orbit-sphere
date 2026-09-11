@@ -1,20 +1,26 @@
-import { useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * The reporting periods of one academic year: /school-academics/terms
  *
- * ONE ENDPOINT SO FAR — #1 creates a term. There is no list yet (#9 is GET /terms and is not
- * built), which is why this page shows what it has just created rather than what exists. It says
- * so, instead of rendering an empty table that looks like a year with no terms.
+ * TWO ENDPOINTS — #9 lists the year's terms and #1 adds one. The table is #9's answer, so it
+ * shows what the year HOLDS rather than what this page happened to create.
  *
  * A TERM IS A DOCUMENT, unlike a section or a subject. Six documents across three modules store
  * termDocsId, which is why it has an id — and why a term can be renamed where a sectionNo can
- * never be. The response shows the id for that reason.
+ * never be. The table shows the id for that reason.
+ *
+ * FIVE FILTERS, AND EVERY ONE IS TRISTATE OR FREE TEXT. Blank sends no parameter at all, which is
+ * not the same as sending false — the difference this tool exists to let someone see.
+ *
+ * AN UNKNOWN YEAR IS A 404, NOT AN EMPTY TABLE, and the page renders it as the refusal it is. An
+ * empty table would say "this year has no terms", which is a different fact.
  *
  * THE WARNING IS NOT AN ERROR. A weight total that is not 100 comes back as `warning` and the
  * create still succeeds, because 20/80 to 30/70 passes through 110. The page renders it as a
@@ -23,10 +29,62 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 const BLANK = { name: '', sequence: '', startDate: '', endDate: '', weightPercent: '' }
 
+const TRISTATE = ['', 'true', 'false']
+const SORTS = ['', 'sequence', 'sequence,desc', 'name', 'name,desc', 'startDate',
+  'startDate,desc', 'endDate', 'createdAt,desc', 'updatedAt,desc']
+const SIZES = ['5', '20', '100']
+
 export default function Terms() {
-  const { actingSubdomain, actingAcademicYear } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain, actingAcademicYear } = useApiState()
   const [open, setOpen] = useState(false)
-  const [made, setMade] = useState([])
+
+  const [active, setActive] = useState('')
+  const [resultsLocked, setResultsLocked] = useState('')
+  const [weighted, setWeighted] = useState('')
+  const [coversDate, setCoversDate] = useState('')
+  // Typed, then SENT. `search` is what the last request used; `typed` is what the box holds.
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Built at render, so the endpoint tag shows the URL that will actually be sent. An empty box
+  // sends nothing rather than an empty parameter — `?active=` is not the same as no filter.
+  const query = useMemo(() => {
+    const out = { page, size }
+    if (active) out.active = active
+    if (resultsLocked) out.resultsLocked = resultsLocked
+    if (weighted) out.weighted = weighted
+    if (coversDate) out.coversDate = coversDate
+    if (search.trim()) out.search = search.trim()
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, active, resultsLocked, weighted, coversDate, search, sort])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-academic-terms', {
+      label: "The year's terms",
+      // Empty when no year is picked, so the request still goes and the server answers 404.
+      pathParams: { year: actingAcademicYear ?? '' },
+      query,
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, actingAcademicYear, query])
+
+  useEffect(() => { load() }, [load])
+
+  const runSearch = () => { setPage(0); setSearch(typed) }
+  const rows = data?.content ?? []
 
   if (!actingSubdomain) return <NoSchoolChosen what="Terms" />
 
@@ -41,26 +99,94 @@ export default function Terms() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a term</Button>
       </div>
 
       <Card
-        title="Terms created here"
-        description="#1 is the only term endpoint built. There is no list yet — #9 is GET /terms — so this shows what this page has created, not what the year holds."
+        title="Filters"
+        description="All five are AND-ed, and blank sends nothing at all — which is not the same as sending false."
+        action={<EndpointTag id="list-academic-terms" name="List"
+          pathParams={{ year: actingAcademicYear }} query={query} />}
+      >
+        <div className="stack">
+          <div className="toolbar">
+            <Field label="Search" wide
+              hint="Matches name OR termCode, case-insensitive, anywhere in either. A stray '(' is an empty result, not a 500.">
+              <Input value={typed} onChange={(event) => setTyped(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }}
+                placeholder="TERM_1, or Semester" />
+            </Field>
+            <Button icon={Search} onClick={runSearch}>Search</Button>
+            <Button onClick={() => { setSearch(''); setTyped(''); setPage(0) }}>Clear</Button>
+          </div>
+
+          <div className="field-grid">
+            <Field label="Active" hint="Blank returns BOTH — not the same as false.">
+              <Select label="Active" value={active}
+                onChange={(value) => { setActive(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Results locked" hint="What #5 freezes and #6 releases.">
+              <Select label="Results locked" value={resultsLocked}
+                onChange={(value) => { setResultsLocked(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Weighted" hint="Asked with exists, so a term with no weightPercent key at all reads as false.">
+              <Select label="Weighted" value={weighted}
+                onChange={(value) => { setWeighted(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Covers date"
+              hint="The term containing this date, both ends inclusive. #10 asks the same of today, in the school's zone.">
+              <Input type="date" value={coversDate}
+                onChange={(event) => { setCoversDate(event.target.value); setPage(0) }} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <Field label="Sort"
+              hint="sequence is unique in the year, so it is a total order. Every other sort gets it appended — a term name is not unique.">
+              <Select label="Sort" value={sort}
+                onChange={(value) => { setSort(value); setPage(0) }} options={SORTS} />
+            </Field>
+            <Field label="Page size" hint="Defaults to 20, capped at 100. 0 and 101 are refused, never clamped.">
+              <Select label="Page size" value={size}
+                onChange={(value) => { setSize(value); setPage(0) }} options={SIZES} />
+            </Field>
+            <span className="toolbar-spacer" />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span className="muted">page {page}</span>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title="Terms"
+        description="From #9, in sequence order. The counts describe every term that matched, not this page."
         action={
           <div className="btn-row">
-            <EndpointTag id="create-academic-term" name="Add a term"
-              pathParams={{ year: actingAcademicYear }} />
-            <Badge>{made.length} this session</Badge>
+            <Badge>{data?.totalElements ?? 0} matching</Badge>
+            <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 0}</Badge>
+            <Button icon={Plus} onClick={() => setOpen(true)}>Add</Button>
           </div>
         }
       >
-        {made.length === 0 ? (
+        {problem ? (
           <Empty
-            title="Nothing created here yet"
-            description="This is not 'the year has no terms' — nothing can answer that until #9 is built. Add one to see what #1 returns."
+            title={problem.bodyJson?.code || `The server answered ${problem.status}`}
+            description={
+              problem.bodyJson?.code === 'ACADEMIC_YEAR_NOT_FOUND'
+                ? 'That is not a year of this school. #9 refuses an unknown year rather than '
+                  + 'answering with an empty page — "no such year" and "no terms" are different facts.'
+                : problem.bodyJson?.message || 'Nothing came back.'
+            }
+            action={<Button icon={RefreshCw} onClick={load}>Try again</Button>}
+          />
+        ) : rows.length === 0 ? (
+          <Empty
+            title="No terms match"
+            description="An empty page, never a 404. Clear the filters to see whether the year has any at all."
             action={
-              <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add the first</Button>
+              <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>
             }
           />
         ) : (
@@ -78,7 +204,7 @@ export default function Terms() {
                 </tr>
               </thead>
               <tbody>
-                {made.map((one) => (
+                {rows.map((one) => (
                   <tr key={one.termDocsId}>
                     {/* Derived from the name, and what six documents in three modules store. */}
                     <td><span className="mono">{one.termCode}</span></td>
@@ -108,13 +234,20 @@ export default function Terms() {
           why it has an id, and why a term can be renamed where a{' '}
           <span className="mono">sectionNo</span> never can.
         </p>
+        <p className="muted">
+          <Info size={12} /> Sorted by <span className="mono">sequence</span>, which is unique in
+          the year. <b>Every other sort ends in it too</b> — the shared page helper appends the
+          fallback order to whatever you name, so <span className="mono">?sort=name</span> is
+          really <span className="mono">name, sequence</span>. That is what keeps paging stable
+          when two terms share a name.
+        </p>
       </Card>
 
       <AddTerm
         open={open}
         year={actingAcademicYear}
         onClose={() => setOpen(false)}
-        onAdded={(term) => setMade((old) => [...old, term])}
+        onAdded={() => load()}
       />
     </div>
   )

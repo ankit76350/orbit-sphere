@@ -1,13 +1,20 @@
 package com.orbitastra.backend.services.academics;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSearchRequest;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermCreateRequest;
 import com.orbitastra.backend.dto.academics.academicterm.response.AcademicTermResponse;
 import com.orbitastra.backend.models.academics.structure.AcademicTerm;
@@ -38,10 +45,89 @@ public class AcademicTermService {
     private final AcademicTermServiceUtils utils;
     private final AcademicsHelper helper;
 
+    /**
+     * What {@code ?sort=} accepts, keyed by the lower-cased name a caller types.
+     *
+     * <p>An allowlist rather than a pass-through: an arbitrary field name reaching a Mongo sort is
+     * how a caller sorts on something unindexed and makes the database read every row of the
+     * collection to answer.
+     */
+    private static final Map<String, String> SORTABLE_TERM_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_TERM_FIELDS.put("sequence", "sequence");
+        SORTABLE_TERM_FIELDS.put("name", "name");
+        SORTABLE_TERM_FIELDS.put("startdate", "startDate");
+        SORTABLE_TERM_FIELDS.put("enddate", "endDate");
+        SORTABLE_TERM_FIELDS.put("createdat", "createdAt");
+        SORTABLE_TERM_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_TERM_FIELD_NAMES =
+            SORTABLE_TERM_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the one the plan asks for: a year's terms in the order they happen.
+     *
+     * <p><b>It is also the tiebreaker on every other sort</b>, and that is not this class's doing:
+     * {@link PageResponse#pageableOf} appends the fallback order to whatever the caller named,
+     * minus any key they already used. So {@code ?sort=name} is really {@code name, sequence}.
+     *
+     * <p><b>Which makes the choice of fallback the decision that matters here.</b> {@code sequence}
+     * is unique within a year — #1 enforces it and {@code school_year_term_sequence_uniq} declares
+     * it — so every sort ends in a total order and paging cannot put one row on two pages. A term
+     * {@code name} is <i>not</i> unique, so it could not have served.
+     *
+     * <p>A private {@code withStableOrder} was written here first and deleted on 2026-09-11: it
+     * appended {@code sequence} by hand and was entirely redundant, which a mutation removing it
+     * proved by changing nothing at all.
+     */
+    private static final Sort TERM_ORDER = Sort.by(Sort.Order.asc("sequence"));
+
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
                     + "run it.";
+
+    /**
+     * Endpoint #9 — one page of the year's terms.
+     *
+     * <p><b>Paged, though the plan said not to.</b> The plan's reasoning was that a year holds two
+     * to four terms and a page cursor on a four-row list is machinery nobody uses. Nothing
+     * enforces that, though: a school running monthly reporting periods has twelve, and the cost
+     * of paging here is one shared record and one shared factory that already exist. A client
+     * that handles every list in this API the same way is worth more than the four rows saved.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own calendar.
+     */
+    public PageResponse<AcademicTermResponse> listTerms(String academicYear,
+            AcademicTermSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_TERM_FIELDS, SORTABLE_TERM_FIELD_NAMES, TERM_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 3 - the year in the path has to be one this school actually has. No gate runs on
+        //! a read, so this is what answers 404 rather than handing back an empty page for a year
+        //! that does not exist - which would read as "this year has no terms".
+        AcademicYear year = utils.loadAcademicYear(school, academicYear);
+
+        //! step 4 - one page, filtered and ordered in the database. The tenant and the year are
+        //! passed separately from the request because they are the boundary, not filters.
+        // TODO: read academic terms
+        return PageResponse.from(
+                academicTerms.search(school.getId(), year.getName(), request, pageable),
+                // The single-argument factory, so no `warning` or `nextStep` appears on a row: a
+                // read changed nothing, and a null on every row is noise a client has to decide
+                // whether to trust.
+                AcademicTermResponse::fromTerm);
+    }
 
     /**
      * Endpoint #1 — add one reporting period to the year.

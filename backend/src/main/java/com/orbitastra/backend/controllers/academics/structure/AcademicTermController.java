@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.academics.structure;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermCreateRequest;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSearchRequest;
 import com.orbitastra.backend.dto.academics.academicterm.response.AcademicTermResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.AcademicTermService;
@@ -21,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The reporting periods of one academic year. Endpoints #1 to #11 and #35 of the plan in this
- * package's README; #1 is built.
+ * package's README; #1 and #9 are built.
  *
  * <p><b>Its own controller, not {@link SchoolClassController}'s.</b> A term and a class are
  * independent documents with independent keys, and the {@code {year}} prefix is all they share —
@@ -71,5 +74,23 @@ public class AcademicTermController {
                 .created(URI.create("/schools/current/academic-years/" + year + "/terms/"
                         + response.termCode()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #9 — every term in the year, in {@code sequence} order.
+     *
+     * <p><b>The filters bind from the query string as a record</b>, so adding one is a field
+     * rather than another parameter on this signature. Spring builds it from
+     * {@code ?active=&search=&resultsLocked=&weighted=&coversDate=&page=&size=&sort=}.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended or closed school still reads its own
+     * calendar — the same rule every read in this module follows.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<AcademicTermResponse>> list(
+            @PathVariable String year,
+            AcademicTermSearchRequest request) {
+
+        return ResponseEntity.ok(academicTermService.listTerms(year, request));
     }
 }

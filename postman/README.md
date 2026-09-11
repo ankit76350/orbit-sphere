@@ -122,21 +122,22 @@ class are independent documents and the `{year}` prefix is all they share. One f
 controller, so the collection and the code stay
 findable from each other.
 
-**`Academics` arrived 2026-09-11** with the first ten endpoints of
+**`Academics` arrived 2026-09-11** with the first eleven endpoints of
 `controllers/academics/structure`. A class is addressed by its **MongoDB document id** — twelve
 other documents store it as `classDocsId` — and a section by its `sectionNo`, which is all a
 section has, being embedded in its class. Run **Create Class** first: it saves `schoolClassId`.
 
 ## Coverage
 
-**65 requests, and that is every endpoint that exists.** Checked rather than claimed: the
+**66 requests, and that is every endpoint that exists.** Checked rather than claimed: the
 collection is diffed against `new-api-tester/src/config/endpoints.js`, which is the catalogue the
 API tester drives, and the two agree in both directions — nothing built is missing here, and
 nothing here is missing there.
 
-**Academics is 11 of 37** — add a term; and create a class, edit it, add a section, add a
-subject, edit one, list the year's classes, read one class in full, read its sections, read one
-section, and read the subjects one section studies. The other twenty-six are specified in
+**Academics is 12 of 37** — add a term and list the year's terms; and create a class, edit it,
+add a section, add a subject, edit one, list the year's classes, read one class in full, read its
+sections, read one section, and read the subjects one section studies. The other twenty-five are
+specified in
 `backend/src/main/java/com/orbitastra/backend/controllers/academics/structure/README.md` and are
 not built.
 

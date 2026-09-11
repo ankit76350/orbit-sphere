@@ -8955,6 +8955,155 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
       ],
     },
+    {
+      id: "list-academic-terms",
+      name: "List Terms",
+      method: "GET",
+      path: "/schools/current/academic-years/{year}/terms",
+      status: 'live',
+      summary: "The year's terms in sequence order, filtered and paged.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/academic-years/{year}/terms\` — endpoint #9.
+
+### Paged — and the plan said not to be
+
+The plan's reasoning was that a year holds two to four terms, and a page cursor on a four-row list
+is machinery nobody uses. **Nothing enforces two to four**: a school running monthly reporting
+periods has twelve. The cost is one shared record and one shared factory that already existed for
+#28, and a client that handles every list in this API the same way is worth more than four rows
+saved. Revisited 2026-09-11.
+
+### Five filters, all optional, all AND-ed
+
+- **\`?active=\`** — terms in use, or retired. Absent returns **both**, which is not the same as
+  \`false\`.
+- **\`?search=\`** — matches \`name\` **or** \`termCode\`, case-insensitive, anywhere in either.
+  A person types whichever they remember.
+- **\`?resultsLocked=\`** — the frozen ones. What #5 and #6 write.
+- **\`?weighted=\`** — asked with \`exists\`, not \`ne: null\`, because a term written before the
+  field existed has no key at all and must read as unweighted.
+- **\`?coversDate=\`** — the term covering one date, both ends inclusive.
+
+### coversDate is the question #10 asks only about today
+
+#10 answers "the term covering **today**, in the school's own time zone" — and getting "today"
+right is the whole of its job. This asks about a date the caller names, so no zone is involved and
+no "today" has to be agreed on.
+
+### Sorted by sequence — which is also the tiebreaker on every other sort
+
+\`?sort=name\` is really \`name, sequence\`. That is **not** this endpoint's doing:
+\`PageResponse.pageableOf\` appends the fallback order to whatever the caller named, minus any key
+they already used — and #28 gets the same from its own \`name\` fallback.
+
+**So the choice of fallback is the decision that matters.** \`sequence\` is unique within a year,
+so every sort ends in a total order and paging cannot put one row on two pages while another
+appears on none. A term \`name\` could not have served: only \`termCode\` and \`sequence\` are
+unique.
+
+\`?sort=\` is an **allowlist**: \`sequence\`, \`name\`, \`startDate\`, \`endDate\`, \`createdAt\`,
+\`updatedAt\`. Anything else is \`400\`, because an arbitrary field name reaching a Mongo sort is
+how a caller makes the database read every row to answer.
+
+### An unknown year is a 404, not an empty page
+
+No gate runs on a read, so the year check is what answers it. Without it an unknown year would
+return an empty page — which reads as "this year has no terms", and those are different facts.
+
+### No gates
+
+A suspended or closed school still reads its own calendar.
+
+### The sixteen test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain and a year.
+
+ PAGED, THOUGH THE PLAN SAID NOT TO BE. Nothing caps a year at four terms;
+ a school running monthly reporting periods has twelve.
+
+ FIVE FILTERS, ALL AND-ed: active, search, resultsLocked, weighted,
+ coversDate. Absent is never the same as false.
+
+ search MATCHES name OR termCode — a person types whichever they remember.
+ The needle is regex-quoted, so a stray "(" is an empty result, not a 500.
+
+ weighted ASKS exists, not ne:null. A term written before the field existed
+ has no key at all and must read as unweighted.
+
+ coversDate IS #10'S QUESTION ABOUT ANY DATE. Both ends inclusive, and no
+ time zone, because the caller names the date.
+
+ EVERY SORT ENDS IN sequence, because PageResponse appends the fallback
+ order to whatever you name. sequence is unique in the year, so that makes
+ every sort a total order — a term name would not have, unlike a class name.
+
+ AN UNKNOWN YEAR IS A 404, not an empty page — those are different facts.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year. Unknown is a 404, not an empty page." },
+      ],
+      queryParams: [
+        { key: "active", value: "", enabled: false, description: "true for terms in use, false for retired. Absent returns both." },
+        { key: "search", value: "", enabled: false, description: "Matches name OR termCode, case-insensitive, anywhere. Blank is treated as absent." },
+        { key: "resultsLocked", value: "", enabled: false, description: "true for terms whose results are frozen — what #5 and #6 write." },
+        { key: "weighted", value: "", enabled: false, description: "true for terms carrying a weightPercent. Asked with exists, so a missing field reads as unweighted." },
+        { key: "coversDate", value: "", enabled: false, description: "The term covering this date, both ends inclusive. #10 asks the same of today, in the school's zone." },
+        { key: "page", value: "", enabled: false, description: "0-based. Negative is a 400." },
+        { key: "size", value: "", enabled: false, description: "1 to 100, default 20." },
+        { key: "sort", value: "", enabled: false, description: "sequence | name | startDate | endDate | createdAt | updatedAt, with ,desc. Anything else is a 400." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page envelope: content, page, size, totalElements, totalPages, hasNext, hasPrevious.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field not on the allowlist. The message lists what is." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school — not an empty page." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY TERM IN THE YEAR", expect: "200 OK",
+          notes: `No parameters.\n    OUT: the terms in sequence order, inside a page envelope.\n    Default size 20, so one page for any realistic year.`, body: null },
+        { id: "02", name: "A YEAR WITH NO TERMS", expect: "200 OK",
+          notes: `OUT: content: [], totalElements: 0. An empty page, never a 404.`, body: null },
+        { id: "03", name: "AN UNKNOWN YEAR", expect: "404 Not Found",
+          notes: `OUT: { "code": "ACADEMIC_YEAR_NOT_FOUND" }\n    NOT an empty page — "no such year" and "no terms" are different facts.`, body: null },
+        { id: "04", name: "ONLY THE ACTIVE ONES", expect: "200 OK",
+          notes: `?active=true\n    Then ?active=false for the retired ones, and leave it off for BOTH.\n    Absent is not the same as false.`, body: null },
+        { id: "05", name: "SEARCH BY CODE", expect: "200 OK",
+          notes: `?search=TERM_1 — matches the termCode.`, body: null },
+        { id: "06", name: "SEARCH BY NAME", expect: "200 OK",
+          notes: `?search=semester — case-insensitive, matches anywhere in the name.\n    One parameter, two fields, because a person types whichever they recall.`, body: null },
+        { id: "07", name: "A STRAY REGEX CHARACTER", expect: "200 OK",
+          notes: `?search=Term (1\n    An empty result, not a 500 — the needle is Pattern.quote'd.`, body: null },
+        { id: "08", name: "THE FROZEN TERMS", expect: "200 OK",
+          notes: `?resultsLocked=true — what #5 has locked. #6 unlocks.`, body: null },
+        { id: "09", name: "WEIGHTED OR NOT", expect: "200 OK",
+          notes: `?weighted=false finds terms with NO weightPercent field at all,\n    including any written before the field existed.`, body: null },
+        { id: "10", name: "WHICH TERM COVERS A DATE", expect: "200 OK",
+          notes: `?coversDate=2026-08-15\n    Both ends inclusive, so a term's last day is inside it. This is #10's\n    question asked about any date rather than today.`, body: null },
+        { id: "11", name: "FILTERS COMBINE", expect: "200 OK",
+          notes: `?active=true&weighted=true — AND-ed, like every combination here.\n    A combination nothing matches is an empty page, not a 404.`, body: null },
+        { id: "12", name: "ONE PAGE AT A TIME", expect: "200 OK",
+          notes: `?page=0&size=2, then ?page=1&size=2.\n    totalElements counts every match, not the page.`, body: null },
+        { id: "13", name: "A PAGE PAST THE END", expect: "200 OK",
+          notes: `?page=99 — empty content, and the true total beside it. Not an error.`, body: null },
+        { id: "14", name: "A BAD PAGE OR SIZE", expect: "400 Bad Request",
+          notes: `?page=-1 is INVALID_PAGE; ?size=0 and ?size=101 are INVALID_PAGE_SIZE.\n    Checked BEFORE the year is read, so a bad page costs no query.`, body: null },
+        { id: "15", name: "SORTING", expect: "200 OK",
+          notes: `?sort=name, ?sort=sequence,desc, ?sort=startDate,desc.\n    ?sort=weightPercent is a 400 — the allowlist is the point.`, body: null },
+        { id: "16", name: "THE TIEBREAKER", expect: "200 OK",
+          notes: `Give two terms the same name, then ?sort=name&size=2 through the pages.\n    Every row appears exactly once: PageResponse appends the fallback order,\n    and sequence is unique in the year so the result is a total order.`, body: null },
+      ],
+    },
   ],
 };
 
