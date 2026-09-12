@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Plus, RefreshCw, Search } from 'lucide-react'
+import { Info, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -38,6 +38,9 @@ export default function Terms() {
   const { call } = useApi()
   const { environment, actingSubdomain, actingAcademicYear } = useApiState()
   const [open, setOpen] = useState(false)
+  // The row #3 is editing, or null. Held here rather than in the table so the modal
+  // survives a refresh of the list underneath it.
+  const [editing, setEditing] = useState(null)
 
   const [active, setActive] = useState('')
   const [resultsLocked, setResultsLocked] = useState('')
@@ -201,6 +204,7 @@ export default function Terms() {
                   <th>Ends</th>
                   <th>Weight</th>
                   <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -221,6 +225,10 @@ export default function Terms() {
                         {one.active ? 'active' : 'retired'}
                       </Badge>
                       {one.resultsLocked ? <Badge>results locked</Badge> : null}
+                    </td>
+                    <td>
+                      {/* #3 is addressed by termDocsId, never by termCode. */}
+                      <Button icon={Pencil} onClick={() => setEditing(one)}>Edit</Button>
                     </td>
                   </tr>
                 ))}
@@ -249,7 +257,200 @@ export default function Terms() {
         onClose={() => setOpen(false)}
         onAdded={() => load()}
       />
+
+      {/* KEYED BY THE ROW, so picking a different term remounts with its values rather
+          than syncing them in an effect. React's own advice, and it deletes a whole class of
+          "the modal is showing the term I clicked before" bugs. */}
+      {editing ? (
+        <EditTerm
+          key={editing.termDocsId}
+          term={editing}
+          year={actingAcademicYear}
+          onClose={() => setEditing(null)}
+          onSaved={() => load()}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * Editing one term — #3.
+ *
+ * ADDRESSED BY termDocsId, not by termCode. Six documents across three modules store the id, so
+ * that is what identifies a term in a URL — and it is why the code itself is not editable here.
+ *
+ * EVERY BOX STARTS AT THE STORED VALUE and every one is optional on the wire: a box left exactly
+ * as it was sends nothing, so a rename really is a rename and does not quietly rewrite the dates
+ * back to themselves. That is also what makes NOTHING_TO_UPDATE reachable — close and reopen,
+ * change nothing, Save.
+ *
+ * termCode AND sequence ARE SHOWN AND DISABLED rather than hidden, because "why can I not edit
+ * this" is the question the endpoint exists to answer.
+ */
+function EditTerm({ term, year, onClose, onSaved }) {
+  const { call } = useApi()
+  // Seeded once, at mount. The parent keys this component by termDocsId, so a different
+  // row is a different component and gets its own seed — no effect has to keep them in step.
+  const [form, setForm] = useState(() => ({
+    name: term.name ?? '',
+    startDate: term.startDate ?? '',
+    endDate: term.endDate ?? '',
+    weightPercent: term.weightPercent != null ? String(term.weightPercent) : '',
+  }))
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(null)
+
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...old, [field]: event.target.value }))
+
+  // ONLY WHAT CHANGED. An unchanged box sends nothing, because absent means "leave it alone"
+  // and sending every field would make every save a full overwrite.
+  const body = (() => {
+    const out = {}
+    if (form.name !== (term.name ?? '')) out.name = form.name
+    if (form.startDate !== (term.startDate ?? '')) out.startDate = form.startDate
+    if (form.endDate !== (term.endDate ?? '')) out.endDate = form.endDate
+    const storedWeight = term.weightPercent != null ? String(term.weightPercent) : ''
+    if (form.weightPercent !== storedWeight) {
+      // "" is not a clear — #3 has no clear. It is simply not sent, and the modal says so.
+      if (form.weightPercent !== '') out.weightPercent = Number(form.weightPercent)
+    }
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-academic-term', {
+      label: 'Update a term',
+      pathParams: { year: year ?? '', termId: term.termDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setSaved(result.bodyJson)
+      onSaved(result.bodyJson)
+      return
+    }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      preview={body}
+      title={`Edit ${term.termCode}`}
+      description="Name, dates and weight. Not the code and not the order — a reorder is #4, because sequence is unique per year."
+      endpoint={<EndpointTag id="update-academic-term" name="Save" look="primary"
+        pathParams={{ year, termId: term.termDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {saved ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">saved</span>
+            </div>
+            <pre className="resp-body">{saved.nextStep}</pre>
+          </div>
+        ) : null}
+
+        {/* A warning rides on a SUCCESSFUL response. #3 reports a broken weight total and
+            never refuses it — 20/80 to 30/70 is only reachable through 110. */}
+        {saved?.warning ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">saved, with a warning</span>
+            </div>
+            <pre className="resp-body">{saved.warning}</pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Code"
+            hint="Not editable. A code edit orphans nothing — which is what makes it dangerous: every report naming the old code stops matching, silently."
+          >
+            <Input value={term.termCode} disabled readOnly />
+          </Field>
+          <Field
+            label="Sequence"
+            hint="Not editable here. It is unique per year, so term 1 becoming 2 while term 2 is still 2 hits the index halfway through. That is #4."
+          >
+            <Input value={String(term.sequence ?? '')} disabled readOnly />
+          </Field>
+        </div>
+
+        <Field
+          label="Name"
+          hint="Safe to change: consumers store termDocsId and report cards snapshot the name. Clearing it is a 400, not a removal."
+          error={errors.name}
+        >
+          <Input value={form.name} error={errors.name}
+            onChange={set('name')} placeholder="Term 1" />
+        </Field>
+
+        <div className="field-grid">
+          <Field
+            label="Starts"
+            hint="Send one date alone and the other is kept — then both are checked together."
+            error={errors.startDate}
+          >
+            <Input type="date" value={form.startDate} error={errors.startDate}
+              onChange={set('startDate')} />
+          </Field>
+          <Field
+            label="Ends"
+            hint="A start moved past an untouched end is a 400, which a per-field check would wave through."
+            error={errors.endDate}
+          >
+            <Input type="date" value={form.endDate} error={errors.endDate}
+              onChange={set('endDate')} />
+          </Field>
+        </div>
+
+        <Field
+          label="Weight percent"
+          hint="Cannot be cleared here — emptying the box sends nothing. Removing one weight is only legal as part of removing them all, which is #2."
+          error={errors.weightPercent}
+        >
+          <Input type="number" value={form.weightPercent} error={errors.weightPercent}
+            onChange={set('weightPercent')} placeholder="20" />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> A broken weight total comes back as a <b>warning on a successful
+          save</b>, never a refusal: 20/80 becomes 30/70 in two calls and the first one sits at
+          110. #1 refuses an excess because a create only adds, #2 requires exactly 100 because
+          it sees every row, and #3 can do neither.
+        </p>
+      </div>
+    </Modal>
   )
 }
 

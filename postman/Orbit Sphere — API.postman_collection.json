@@ -3344,7 +3344,8 @@
                       "pm.test('termCode came back as it was sent', () => pm.expect(b.termCode).to.equal('TERM1'));",
                       "pm.test('resultsLocked defaults to false', () => pm.expect(b.resultsLocked).to.equal(false));",
                       "pm.test('active defaults to true', () => pm.expect(b.active).to.equal(true));",
-                      "if (b.termCode) pm.collectionVariables.set('termCode', b.termCode);"
+                      "if (b.termCode) pm.collectionVariables.set('termCode', b.termCode);",
+                      "if (b.termDocsId) pm.collectionVariables.set('termDocsId', b.termDocsId);"
                     ]
                   }
                 }
@@ -3379,6 +3380,61 @@
                   ]
                 },
                 "description": "Endpoint #1 — add one reporting period to the year. termCode is given, not derived from the name; a term must fit inside the year without overlapping an active one."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Term",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('termCode is untouched — #3 never edits it', () => pm.expect(b.termCode).to.equal(pm.collectionVariables.get('termCode')));",
+                      "pm.test('the id is the one that was addressed', () => pm.expect(b.termDocsId).to.equal(pm.collectionVariables.get('termDocsId')));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"First Term\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/academic-years/{year}/terms/{termId}\n// Needs X-School-Subdomain and a year that is marked as running.\n//\n//  ADDRESSED BY THE DOCUMENT ID, not by termCode. Settled 2026-09-10: the\n//  rule is not \"prefer codes\", it is use whatever other collections already\n//  store — and six documents across three modules store termDocsId.\n//\n//  EVERY FIELD IS OPTIONAL. Absent means leave it alone. An empty body is a\n//  400 NOTHING_TO_UPDATE, not a 200, so a broken form finds out.\n//\n//  NEVER termCode. A code edit orphans nothing, which is what makes it\n//  dangerous: every report, export and saved filter naming the old code\n//  stops matching while the database stays perfectly consistent.\n//\n//  NEVER sequence. It is unique per year, so term 1 becoming 2 while term 2\n//  is still 2 hits the index halfway through. A reorder is #4.\n//\n//  THE DATES ARE A PAIR. One sent alone keeps the other, and the two are\n//  then checked together — a start moved past an untouched end is a 400.\n//\n//  weightPercent CANNOT BE CLEARED. Removing one weight is only legal as\n//  part of removing them all, which is #2.\n//\n//  THE WEIGHT SUM IS REPORTED, NEVER REFUSED. 20/80 -> 30/70 sits at 110\n//  after the first call. #1 refuses an excess (a create only adds), #2\n//  requires exactly 100 (it sees every row), #3 can do neither.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A RENAME, AND NOTHING ELSE                          -> 200 OK\n//     The body above. OUT: the new name, termCode untouched, and NO\n//     warning — nothing else was read, so there is no honest total.\n// -------------------------------------------------------------------------\n// 02  AN EMPTY BODY                                   -> 400 Bad Request\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n//\n//     { }\n// -------------------------------------------------------------------------\n// 03  A NAME CLEARED RATHER THAN REPLACED             -> 400 Bad Request\n//     OUT: { \"code\": \"TERM_NAME_REQUIRED\" }. @NotBlank would not catch it:\n//     the field is optional here, so \"\" has to be refused by hand.\n//\n//     { \"name\": \"\" }\n// -------------------------------------------------------------------------\n// 04  termCode IS IGNORED, NOT REFUSED                     -> 200 OK\n//     The record has no termCode field, so Jackson drops it. OUT: the name\n//     changed and termCode exactly as it was.\n//\n//     { \"name\": \"Renamed\", \"termCode\": \"NEWCODE\", \"sequence\": 9 }\n// -------------------------------------------------------------------------\n// 05  ONE DATE, WHICH MOVES PAST THE OTHER            -> 400 Bad Request\n//     Send only a startDate later than the stored endDate.\n//     OUT: { \"code\": \"INVALID_TERM_RANGE\" } — the case a per-field check\n//     waves through, because the field that arrived is fine on its own.\n//\n//     { \"startDate\": \"2027-03-01\" }\n// -------------------------------------------------------------------------\n// 06  DATES OUTSIDE THE YEAR                             -> 409 Conflict\n//     OUT: { \"code\": \"TERM_OUTSIDE_ACADEMIC_YEAR\" }, naming what the year\n//     covers. The year is read here and only here; a rename never loads it.\n//\n//     { \"startDate\": \"2020-01-01\", \"endDate\": \"2020-02-01\" }\n// -------------------------------------------------------------------------\n// 07  ONTO ANOTHER TERM'S DAYS                           -> 409 Conflict\n//     A single shared day is enough. OUT: { \"code\": \"TERMS_OVERLAP\" }.\n//     The term being edited is excluded, or it would overlap the version of\n//     itself still in the database.\n// -------------------------------------------------------------------------\n// 08  A WEIGHT THAT BREAKS THE TOTAL                        -> 200 OK\n//     In a year at 20/80, send 30 to the first term. ACCEPTED, with a\n//     warning saying the active weights total 110%. This is the whole\n//     reason #3 cannot refuse: 30/70 is only reachable through 110.\n//\n//     { \"weightPercent\": 30 }\n// -------------------------------------------------------------------------\n// 09  A WEIGHT INTO AN UNWEIGHTED YEAR                   -> 409 Conflict\n//     OUT: { \"code\": \"TERM_WEIGHT_MIXED\" }. Refused where a broken total is\n//     not: a mixture computes to nothing.\n//\n//     { \"weightPercent\": 40 }\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                A body that asks for nothing.\n//     400 TERM_NAME_REQUIRED               \"name\": \"\" — replaced, never removed.\n//     400 VALIDATION_FAILED                A name over 120 chars, or a weightPercent outside 0-100.\n//     400 INVALID_TERM_RANGE               endDate before startDate, including against an unsent field.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 ACADEMIC_YEAR_NOT_FOUND          The {year} in the path is not a year of this school.\n//     404 TERM_NOT_FOUND                   No term with that id in that year.\n//     409 TERM_OUTSIDE_ACADEMIC_YEAR       The new dates fall outside the year's range.\n//     409 TERMS_OVERLAP                    The new dates cover a day another ACTIVE term covers.\n//     409 TERM_WEIGHT_MIXED                A weight sent into a year whose other terms carry none.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2.\n//     409 ACADEMIC_YEAR_NOT_RUNNING        Gate 4.\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/terms/{{termDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "terms",
+                    "{{termDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #3 — fix one term's name, dates or weight. Addressed by termDocsId, never by termCode. Never edits termCode or sequence; a broken weight total is reported, not refused."
               },
               "response": []
             },
@@ -4124,6 +4180,11 @@
       "key": "termCode",
       "value": "TERM1",
       "type": "string"
+    },
+    {
+      "key": "termDocsId",
+      "value": "",
+      "description": "Saved by Create Term. #3 addresses a term by its document id, not by termCode — six documents across three modules store termDocsId."
     }
   ]
 }

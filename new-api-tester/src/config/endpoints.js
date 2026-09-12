@@ -9001,6 +9001,219 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       ],
     },
     {
+      id: "update-academic-term",
+      name: "Update Term",
+      method: "PATCH",
+      path: "/schools/current/academic-years/{year}/terms/{termId}",
+      status: 'live',
+      summary: "Fix one term's name, dates or weight. Not its code, not its order.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/academic-years/{year}/terms/{termId}\` — endpoint #3.
+
+### Addressed by the document id, not by termCode
+
+Settled 2026-09-10, and the rule is not "prefer codes" — it is *use whatever other collections
+already store*. Six documents across three modules store \`termDocsId\`, so the id is what
+identifies a term in a URL. The controller javadoc said the opposite until 2026-09-12, and #1
+built its \`Location\` header from the code to match — a URL no route answered.
+
+### Three fields, and the two it refuses are the interesting ones
+
+- **Never \`termCode\`.** A code edit orphans nothing — which is what makes it dangerous.
+  Nothing fails, nothing cascades, and every school-facing report, export and saved filter
+  naming the old code quietly stops matching.
+- **Never \`sequence\` — that is #4.** It is unique within the year, so swapping two terms one
+  PATCH at a time hits \`school_year_term_sequence_uniq\` halfway through: term 1 becomes 2
+  while term 2 is still 2.
+- **Never \`active\` or \`resultsLocked\`** — #5 to #8. Events, not fields.
+
+### The dates are a pair, even when you send one
+
+Sending \`startDate\` alone keeps the stored \`endDate\`, and the two are then checked
+**together**. A start moved past an untouched end is \`400 INVALID_TERM_RANGE\` — checking only
+the field that arrived would miss it entirely.
+
+### weightPercent cannot be cleared here
+
+A year weights every active term or none, so removing one weight is only legal as part of
+removing them all — which is #2. A clear here would be refused by \`TERM_WEIGHT_MIXED\` in
+every year with more than one active term, so the field is not offered.
+
+### The weight sum is REPORTED here, never refused
+
+This is the endpoint that proves the rule has to be per-endpoint. 20/80 becomes 30/70 in two
+calls and the first one sits at **110**; refusing it would make the values impossible to
+change. So a broken total comes back as \`warning\` on a **successful** response.
+
+| endpoint | what it can say about the sum | why |
+|---|---|---|
+| #1 create | refuses an **excess** | a create only ever adds to the sum |
+| #2 replace | requires **exactly 100** | it is the only one that sees every row |
+| #3 patch | **reports** only | it can be legitimately mid-edit |
+
+### A rename reads nothing else, and warns about nothing
+
+No dates and no weight means no second query — not the year, not the year's other terms. So a
+name-only PATCH carries **no \`warning\` at all**, rather than a total computed from the one
+term in hand, which would be wrong in every year that has more than one.
+
+### The gates
+
+Same three as every write in this module — **1** school ACTIVE · **2** subscription usable ·
+**4** the year is running.
+
+### The nine test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain and a year that is marked as running.
+
+ ADDRESSED BY THE DOCUMENT ID, not by termCode. Six documents across three
+ modules store termDocsId, so the id is what identifies a term in a URL.
+
+ EVERY FIELD IS OPTIONAL. Absent means leave it alone. An empty body is a
+ 400 NOTHING_TO_UPDATE, not a 200 - a client with a broken form finds out.
+
+ NEVER termCode (a report naming the old code stops matching silently) and
+ NEVER sequence (unique per year - a reorder is #4, a bulk write).
+
+ THE DATES ARE A PAIR. One sent alone keeps the other, and the two are then
+ checked together: a start moved past an untouched end is a 400.
+
+ weightPercent CANNOT BE CLEARED. Removing one weight is only legal as part
+ of removing them all, which is #2.
+
+ THE WEIGHT SUM IS REPORTED, NEVER REFUSED. 20/80 -> 30/70 sits at 110 after
+ the first call. #1 refuses an excess, #2 requires 100, #3 can do neither.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "First Term"
+}`,
+      successStatus: 200,
+      successNote: "Returns the term as it now is. A warning rides on it when the year's active weights no longer total 100.",
+      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that asks for nothing. Checked before anything is read." },
+        { status: 400, code: "TERM_NAME_REQUIRED", when: "\"name\": \"\" — a name can be replaced, never removed." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A name over 120 characters, or a weightPercent outside 0–100." },
+        { status: 400, code: "INVALID_TERM_RANGE", when: "endDate before startDate — including a startDate moved past an endDate that was not sent." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in that year. A real id from another year is a 404 here, not a silent edit." },
+        { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The new dates fall outside the year's own range." },
+        { status: 409, code: "TERMS_OVERLAP", when: "The new dates cover a day another ACTIVE term already covers. The term never overlaps itself." },
+        { status: 409, code: "TERM_WEIGHT_MIXED", when: "A weight sent into a year whose other active terms carry none." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end, or was never marked running." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "A RENAME, AND NOTHING ELSE",
+          expect: "200 OK",
+          notes: `The body above. OUT: the term with its new name, termCode
+    untouched, and NO warning — nothing else was read, so there is no
+    honest total to report.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }. A PATCH that changes nothing
+    and answers 200 lets a broken form look healthy.`,
+          body: `{}`,
+        },
+        {
+          id: "03",
+          name: "A NAME CLEARED RATHER THAN REPLACED",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "TERM_NAME_REQUIRED" }. @NotBlank would not catch
+    it — the field is optional here, so "" has to be refused by hand.`,
+          body: `{
+  "name": ""
+}`,
+        },
+        {
+          id: "04",
+          name: "termCode IS IGNORED, NOT REFUSED",
+          expect: "200 OK",
+          notes: `The record has no termCode field, so Jackson drops it. OUT: the
+    name changed and termCode exactly as it was. Nothing renames a code.`,
+          body: `{
+  "name": "Renamed",
+  "termCode": "NEWCODE",
+  "sequence": 9
+}`,
+        },
+        {
+          id: "05",
+          name: "ONE DATE, WHICH MOVES PAST THE OTHER",
+          expect: "400 Bad Request",
+          notes: `Send only a startDate later than the term's stored endDate.
+    OUT: { "code": "INVALID_TERM_RANGE" }. This is the case a per-field
+    check would wave through — the field that arrived is fine on its own.`,
+          body: `{
+  "startDate": "2027-03-01"
+}`,
+        },
+        {
+          id: "06",
+          name: "DATES OUTSIDE THE YEAR",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "TERM_OUTSIDE_ACADEMIC_YEAR" }, naming what the
+    year covers. The year is read HERE and only here — a rename never
+    loads it.`,
+          body: `{
+  "startDate": "2020-01-01",
+  "endDate": "2020-02-01"
+}`,
+        },
+        {
+          id: "07",
+          name: "ONTO ANOTHER TERM'S DAYS",
+          expect: "409 Conflict",
+          notes: `A single shared day is enough. OUT: { "code": "TERMS_OVERLAP" },
+    naming the term it clashes with. The term being edited is excluded,
+    or it would overlap the version of itself still in the database.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "A WEIGHT THAT BREAKS THE TOTAL",
+          expect: "200 OK",
+          notes: `In a year at 20/80, send 30 to the first term. ACCEPTED, with a
+    warning saying the active weights total 110%. This is the whole
+    reason #3 cannot refuse: 30/70 is only reachable through 110.`,
+          body: `{
+  "weightPercent": 30
+}`,
+        },
+        {
+          id: "09",
+          name: "A WEIGHT INTO AN UNWEIGHTED YEAR",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "TERM_WEIGHT_MIXED" }. Refused where a broken
+    total is not: a mixture computes to nothing, and no sequence of edits
+    legitimately passes through it.`,
+          body: `{
+  "weightPercent": 40
+}`,
+        },
+      ],
+    },
+    {
       id: "list-academic-terms",
       name: "List Terms",
       method: "GET",

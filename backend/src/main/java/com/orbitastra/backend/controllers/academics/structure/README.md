@@ -646,7 +646,7 @@ Named here so two endpoints do not invent two codes for one condition — which 
 |---|---|---|
 | `ACADEMIC_YEAR_NOT_FOUND` | 404 | the `{year}` in the path is not a year of this school — reuses core's code and sentence |
 | `CLASS_NOT_FOUND` | 404 | no class with that id in that year, or it belongs to another school |
-| `TERM_NOT_FOUND` | 404 | no term with that `termCode` in that year |
+| `TERM_NOT_FOUND` | 404 | no term with that id in that year — **by id, not by code**, see [the addressing table](#addressed-by-id-except-where-the-thing-has-no-id) |
 | `SECTION_NOT_FOUND` | 404 | that class has no such `sectionNo` |
 | `SUBJECT_NOT_FOUND` | 404 | that class has no such `(subjectCode, sectionNo)` |
 | `CLASS_NAME_TAKEN` | 409 | that year already has a class with that `name` |
@@ -664,6 +664,7 @@ Named here so two endpoints do not invent two codes for one condition — which 
 | `SUBJECT_STILL_REFERENCED` | 409 | a replace (#23) would drop a `subjectCode` something stores |
 | `NOTHING_TO_UPDATE` | 400 | a `PATCH` body that asks for nothing — reuses core's code |
 | `CLASS_NAME_REQUIRED` | 400 | `"name": ""` — a name cannot be removed, only replaced |
+| `TERM_NAME_REQUIRED` | 400 | `"name": ""` on #3 — the term equivalent, added with #3 |
 | `SOURCE_YEAR_EMPTY` | 409 | #35 or #36 asked to copy from a year with nothing in it |
 | `TARGET_YEAR_NOT_EMPTY` | 409 | #35 or #36 would overwrite a structure that already exists |
 
@@ -724,13 +725,18 @@ class, because a section has no document of its own.
 - **The only endpoint that can check the weight sum**, because it is the only one holding every row at once. `409 TERM_WEIGHTS_INVALID`.
 
 <a id="e3"></a>
-**[3](#t3) · `PATCH /terms/{termId}`**
+**[3](#t3) · `PATCH /terms/{termId}`** — built
 
 - [`academic_years`](../../../models/core/AcademicYear.java) — *reads*: `startDate`, `endDate` — only when dates are sent
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the other active terms' `startDate`, `endDate` — only when dates are sent
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term itself, by id, scoped to the school **and** the year in the URL
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the year's other terms — **only when dates or a weight are sent**. A rename makes no second query at all.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `name`, `startDate`, `endDate`, `weightPercent`
-- **Never `termCode`** — six documents point at this term, and see [the rename table](#addressed-by-id-except-where-the-thing-has-no-id). **Never `sequence`** either: it is unique per year, so it moves through #4.
-- **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). Refusing here makes 20/80 → 30/70 impossible.
+- **Never `termCode`** — six documents point at this term, and see [the rename table](#addressed-by-id-except-where-the-thing-has-no-id). A code edit would orphan nothing, which is what makes it dangerous: every school-facing report and saved filter naming the old code stops matching while the database stays perfectly consistent. **Never `sequence`** either: it is unique per year, so term 1 becoming 2 while term 2 is still 2 hits the unique index halfway through — that is #4.
+- **Never `active` or `resultsLocked`** — #5 to #8. Same rule as #1: both are events, not fields.
+- **The dates are handled as a pair.** One sent alone keeps the other, and the two are then checked together — a `startDate` moved past an untouched `endDate` is `400 INVALID_TERM_RANGE`, which checking only the field that arrived would miss.
+- **`weightPercent` cannot be cleared here, and that is not an oversight.** A year weights every active term or none, so removing one weight is only legal as part of removing them all — which is #2. A clear here would be refused by `TERM_WEIGHT_MIXED` in every year with more than one active term.
+- **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). Refusing here makes 20/80 → 30/70 impossible, because the first call sits at 110. **This is the endpoint that proves the rule has to be per-endpoint**: #1 can refuse an excess because a create only adds, #2 can require exactly 100 because it sees every row, and #3 can do neither.
+- **A name-only PATCH returns no `warning` at all**, rather than a sum computed from the one term in hand. Nothing else was read, so there is no honest total to report.
 
 <a id="e4"></a>
 **[4](#t4) · `PUT /terms/order`**

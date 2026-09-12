@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.academics;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,10 +10,13 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSearchRequest;
+import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermUpdateRequest;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermCreateRequest;
 import com.orbitastra.backend.dto.academics.academicterm.response.AcademicTermResponse;
 import com.orbitastra.backend.models.academics.structure.AcademicTerm;
@@ -213,5 +217,122 @@ public class AcademicTermService {
 
         return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
                 "Exams and report cards reference this term by termDocsId. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #3 — fix one term's name, dates or weight.
+     *
+     * <p><b>Three fields, and the two it refuses are the interesting ones.</b> {@code termCode}
+     * is what a school-facing report names and what #1 makes a caller state outright so that a
+     * rename cannot move it; {@code sequence} is unique within the year, so swapping two terms one
+     * PATCH at a time hits {@code school_year_term_sequence_uniq} halfway through — which is why
+     * #4 exists as a bulk write.
+     *
+     * <p><b>A broken weight total is reported, not refused</b>, and this is the endpoint that
+     * proves why the rule has to be per-endpoint rather than global: 20/80 becomes 30/70 in two
+     * calls and the first one is at 110. #1 can refuse an excess because a create only adds; #2
+     * can require exactly 100 because it sees every row; #3 can do neither.
+     *
+     * <p><b>It reads only what the body makes it read.</b> A rename touches no dates, so it loads
+     * neither the year nor the year's other terms — the plan asks for that, and it is what keeps
+     * the common case one query on the term itself.
+     */
+    @Transactional
+    public AcademicTermResponse updateTerm(String academicYear, String termId,
+            AcademicTermUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, before reading anything. A PATCH
+        //! that changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, startDate, endDate or weightPercent.");
+        }
+
+        //! step 3 - the term, scoped to the school AND the year in the URL. The id alone would
+        //! find it; the year is what stops an id from another year of the same school being
+        //! edited through a URL that names this one.
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 4 - a new name has to be usable. Unlike a class name, it does not have to be
+        //! unique: two terms may share a name, which is why #9's paging falls back to sequence
+        //! rather than to name.
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("TERM_NAME_REQUIRED",
+                        "A term name cannot be removed. Send a new one, or omit the field.");
+            }
+            term.setName(newName);
+        }
+
+        //! step 5 - the dates, as a PAIR. One sent alone keeps the other, and the two are then
+        //! checked together: a startDate moved past an untouched endDate is an inverted range,
+        //! and checking only the field that arrived would miss it.
+        LocalDate newStart = request.startDate() == null ? term.getStartDate()
+                : request.startDate();
+        LocalDate newEnd = request.endDate() == null ? term.getEndDate() : request.endDate();
+
+        if (request.touchesDates()) {
+            //! step 6 - the range has to make sense on its own before it is compared to
+            //! anything. An inverted one would otherwise be reported as "outside the year".
+            helper.validateTermRange(newStart, newEnd);
+
+            //! step 7 - and fall inside the year. Read HERE rather than at the top, because a
+            //! rename has no business loading it.
+            AcademicYear year = utils.loadAcademicYear(school, academicYear);
+            helper.validateTermWithinYear(newStart, newEnd,
+                    year.getStartDate(), year.getEndDate());
+
+            term.setStartDate(newStart);
+            term.setEndDate(newEnd);
+        }
+
+        //! step 8 - the year's other terms, loaded once and only when something needs them:
+        //! dates need the overlap check, a weight needs the mixture rule and the sum. A rename
+        //! needs neither and makes no second query at all.
+        List<AcademicTerm> yearTerms = request.touchesDates() || request.weightPercent() != null
+                ? academicTerms.findBySchoolIdAndAcademicYearOrderBySequenceAsc(
+                        school.getId(), term.getAcademicYear())
+                : List.of();
+
+        //! step 9 - the dates must not cover a day another ACTIVE term already covers. The term
+        //! itself is excluded, or it would overlap the version of itself still in the database.
+        if (request.touchesDates()) {
+            helper.validateNoTermOverlap(yearTerms, term.getId(), newStart, newEnd);
+        }
+
+        //! step 10 - a year weights every active term or none. Asked of the OTHER terms, which
+        //! is what the filter does: this term's stored weight is about to be replaced, so
+        //! comparing the new value against the old one would be comparing it to itself.
+        if (request.weightPercent() != null) {
+            helper.validateWeightNotMixed(
+                    yearTerms.stream().filter(t -> !t.getId().equals(term.getId())).toList(),
+                    request.weightPercent());
+
+            term.setWeightPercent(request.weightPercent());
+        }
+
+        //! step 11 - save
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        //! step 12 - the weight sum, REPORTED rather than refused, against the set including the
+        //! row as it now is. Never a refusal here - see the helper, and open item 3: getting from
+        //! one valid set of weights to another passes through an invalid one.
+        //! EMPTY when nothing was loaded, which is a rename: the other terms' weights were
+        //! never read, so the only honest sum is no sum. Passing List.of(saved) here would
+        //! report "the weights total 40%" from the one term in hand and be wrong in every year
+        //! that has more than one.
+        List<AcademicTerm> after = yearTerms.isEmpty() ? List.of()
+                : yearTerms.stream()
+                        .map(t -> t.getId().equals(saved.getId()) ? saved : t)
+                        .toList();
+
+        return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
+                "termCode and sequence are not editable here — a reorder is #4. "
+                        + NO_AUTHORIZATION_YET);
     }
 }
