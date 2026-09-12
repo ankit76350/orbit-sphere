@@ -27,7 +27,7 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * notice beside a successful response, never as a failure.
  */
 
-const BLANK = { name: '', sequence: '', startDate: '', endDate: '', weightPercent: '' }
+const BLANK = { name: '', termCode: '', sequence: '', startDate: '', endDate: '', weightPercent: '' }
 
 const TRISTATE = ['', 'true', 'false']
 const SORTS = ['', 'sequence', 'sequence,desc', 'name', 'name,desc', 'startDate',
@@ -206,7 +206,7 @@ export default function Terms() {
               <tbody>
                 {rows.map((one) => (
                   <tr key={one.termDocsId}>
-                    {/* Derived from the name, and what six documents in three modules store. */}
+                    {/* The stable key, and what six documents in three modules store. */}
                     <td><span className="mono">{one.termCode}</span></td>
                     <td>{one.name}</td>
                     <td>{one.sequence}</td>
@@ -257,7 +257,7 @@ export default function Terms() {
  * Adding a term — #1.
  *
  * STAYS OPEN AFTER A SUCCESSFUL ADD, because a year gets its terms in one sitting. The sequence
- * is bumped and the dates cleared; the name is cleared because it derives the code.
+ * is bumped and the name, code and dates cleared — only the sequence carries over.
  *
  * EVERY BOX IS FREE TEXT AND NOTHING IS DISABLED, so every refusal stays reachable — an inverted
  * range, a sequence already taken, a weight of 101, dates outside the year.
@@ -277,6 +277,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
   const body = (() => {
     const out = {
       name: form.name,
+      termCode: form.termCode,
       startDate: form.startDate,
       endDate: form.endDate,
     }
@@ -301,6 +302,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
       setForm((old) => ({
         ...old,
         name: '',
+        termCode: '',
         startDate: '',
         endDate: '',
         sequence: old.sequence === '' ? '' : String(Number(old.sequence) + 1),
@@ -322,7 +324,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
       onClose={onClose}
       preview={body}
       title="Add a term"
-      description="termCode is derived from the name — 'Term 1' becomes TERM_1 — and a term must fit inside the year without overlapping another."
+      description="The code is given, not derived from the name: it is what records reference, so it outlives a rename. A term must fit inside the year without overlapping another."
       endpoint={<EndpointTag id="create-academic-term" name="Add" look="primary"
         pathParams={{ year }} />}
       footer={
@@ -368,20 +370,20 @@ function AddTerm({ open, year, onClose, onAdded }) {
           <Field
             label="Name"
             required
-            hint="The code comes from this — 'Term 1' becomes TERM_1. A name with no letter or digit is a 409."
+            hint="What a report card prints. Renameable later — records hold the code, not this."
             error={errors.name}
           >
             <Input value={form.name} error={errors.name}
               onChange={set('name')} placeholder="Term 1" />
           </Field>
           <Field
-            label="Sequence"
+            label="Code"
             required
-            hint="Order inside the year, unique within it. A retired term still holds its number."
-            error={errors.sequence}
+            hint="Uppercase, digits, single underscores — TERM_1. Unique in the year, and a retired term still holds its own. Never changes once records reference it."
+            error={errors.termCode}
           >
-            <Input type="number" value={form.sequence} error={errors.sequence}
-              onChange={set('sequence')} placeholder="1" />
+            <Input value={form.termCode} error={errors.termCode}
+              onChange={set('termCode')} placeholder="TERM_1" />
           </Field>
         </div>
 
@@ -406,14 +408,25 @@ function AddTerm({ open, year, onClose, onAdded }) {
           </Field>
         </div>
 
-        <Field
-          label="Weight percent"
-          hint="Optional, 0 to 100. Blank means this school does not weight the annual result — a normal school. Weighting one term and not another is refused."
-          error={errors.weightPercent}
-        >
-          <Input type="number" value={form.weightPercent} error={errors.weightPercent}
-            onChange={set('weightPercent')} placeholder="leave blank if you do not weight" />
-        </Field>
+        <div className="field-grid">
+          <Field
+            label="Sequence"
+            required
+            hint="Order inside the year, unique within it. A retired term still holds its number."
+            error={errors.sequence}
+          >
+            <Input type="number" value={form.sequence} error={errors.sequence}
+              onChange={set('sequence')} placeholder="1" />
+          </Field>
+          <Field
+            label="Weight percent"
+            hint="Optional, 0 to 100. Blank means this school does not weight the annual result — a normal school. Weighting one term and not another is refused."
+            error={errors.weightPercent}
+          >
+            <Input type="number" value={form.weightPercent} error={errors.weightPercent}
+              onChange={set('weightPercent')} placeholder="blank if you do not weight" />
+          </Field>
+        </div>
 
         <p className="muted">
           <Info size={12} /> Terms may not overlap, but <b>adjacency is not overlap</b> — one

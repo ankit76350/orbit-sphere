@@ -8701,12 +8701,16 @@ and \`school_year_term_active_dates_idx\` is indexed on \`active\` for exactly t
 Three rules, two different answers to "does a retired term still count", and the difference is
 deliberate.
 
-### termCode is derived, never accepted
+### termCode is given, not derived
 
-Trimmed, uppercased, runs of non-alphanumerics to \`_\` — so "Term 1" becomes \`TERM_1\` and
-"Semester 2!!" becomes \`SEMESTER_2\`. A name with nothing to derive from is
-\`409 TERM_CODE_INVALID\`. Sending \`termCode\` in the body does nothing: accepting both would let
-a term named "Term 1" be coded \`SEMESTER_2\`.
+**Changed 2026-09-12.** It used to be derived from \`name\`, which tied two fields that do not move
+together: a school renaming "Term 1" to "First Term" would have been offered a code of
+\`FIRST_TERM\` on a term six documents across three modules already reference as \`TERM_1\`. The
+code is the stable half, the name is the display half, so the code is stated outright.
+
+The shape is still fixed — \`^[A-Z0-9]+(_[A-Z0-9]+)*$\`, 40 characters — but it is **validated,
+not normalized**: \`term 1\` is a \`400\` naming the field, never a silent rewrite into something
+the caller never typed and will not recognise coming back.
 
 ### Weights: the mixture is refused, the total only reported
 
@@ -8747,7 +8751,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
  back as a warning, because 20/80 -> 30/70 passes through 110.
 
  ADJACENCY IS NOT OVERLAP. Ending 30 Sep and starting 1 Oct is fine.`,
-      requiredFields: ["name", "sequence", "startDate", "endDate"],
+      requiredFields: ["name", "termCode", "sequence", "startDate", "endDate"],
       pathParams: [
         { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. It must exist, and gate 4 requires it to be the running one." },
       ],
@@ -8759,21 +8763,21 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       bodyAllowed: true,
       body: `{
   "name": "Term 1",
+  "termCode": "TERM_1",
   "sequence": 1,
   "startDate": "2026-04-01",
   "endDate": "2026-09-30"
 }`,
       successStatus: 201,
-      successNote: "Also sends a Location header pointing at the term by its derived termCode.",
+      successNote: "Also sends a Location header pointing at the term by its termCode.",
       responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "resultsLocked", "active"],
       captures: [],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, sequence, startDate or endDate; a sequence below 1; a weightPercent outside 0–100." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, termCode, sequence, startDate or endDate; a termCode that is not uppercase letters, digits and single underscores; a sequence below 1; a weightPercent outside 0–100." },
         { status: 400, code: "INVALID_TERM_RANGE", when: "endDate is before startDate. Equal dates are legal — a one-day term is odd, not wrong." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
-        { status: 409, code: "TERM_CODE_INVALID", when: "The name has no letter or digit to derive a termCode from." },
         { status: 409, code: "TERM_CODE_TAKEN", when: "That year already has that termCode — retired terms included." },
         { status: 409, code: "TERM_SEQUENCE_TAKEN", when: "Another term in the year holds that sequence — retired terms included." },
         { status: 409, code: "TERMS_OVERLAP", when: "The dates cover a day an ACTIVE term already covers. Retired terms do not block." },
@@ -8789,8 +8793,8 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           name: "THE FIRST TERM",
           expect: "201 Created",
           notes: `The body above.
-    OUT: termDocsId, termCode TERM_1 derived from the name, resultsLocked
-    false and active true. No weightPercent field, because none was sent.`,
+    OUT: termDocsId, termCode TERM_1 as sent, resultsLocked false and
+    active true. No weightPercent field, because none was sent.`,
           body: null,
         },
         {
@@ -8800,6 +8804,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           notes: `Adjacency is not overlap — the same rule core uses for years.`,
           body: `{
   "name": "Term 2",
+  "termCode": "TERM_2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31"
@@ -8807,26 +8812,29 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "03",
-          name: "THE CODE IS DERIVED, NOT ACCEPTED",
+          name: "THE CODE NEED NOT MATCH THE NAME",
           expect: "201 Created",
-          notes: `OUT: termCode is SEMESTER_2 — from the name, not from the body.
-    The termCode field below is ignored entirely.`,
+          notes: `OUT: termCode SEM_2 beside a name of "Semester 2". Nothing derives
+    one from the other — which is the point: the name can be changed later
+    and the code, which records reference, cannot.`,
           body: `{
-  "name": "Semester 2!!",
+  "name": "Semester 2",
+  "termCode": "SEM_2",
   "sequence": 3,
   "startDate": "2027-01-01",
-  "endDate": "2027-01-31",
-  "termCode": "IGNORED"
+  "endDate": "2027-01-31"
 }`,
         },
         {
           id: "04",
-          name: "A NAME WITH NO CODE IN IT",
-          expect: "409 Conflict",
-          notes: `OUT: { "code": "TERM_CODE_INVALID" }
-    @NotBlank passes — it was not blank. Nothing survives normalising.`,
+          name: "A CODE OF THE WRONG SHAPE",
+          expect: "400 Bad Request",
+          notes: `OUT: fieldErrors on termCode. @NotBlank passes — it was not blank.
+    Lowercase, spaces, leading or doubled underscores are all refused
+    rather than normalised: a silent rewrite hands back a code nobody typed.`,
           body: `{
-  "name": "!!!",
+  "name": "Term 4",
+  "termCode": "term 4",
   "sequence": 4,
   "startDate": "2027-02-01",
   "endDate": "2027-02-28"
@@ -8834,11 +8842,11 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         },
         {
           id: "05",
-          name: "THE SAME NAME AGAIN",
+          name: "THE SAME CODE AGAIN",
           expect: "409 Conflict",
           notes: `Send case 01 twice.
-    OUT: { "code": "TERM_CODE_TAKEN" }. Case-folded, so "term 1" is the
-    same code and the same refusal.`,
+    OUT: { "code": "TERM_CODE_TAKEN" }, naming the term that holds it —
+    even a retired one. The name may repeat; the code may not.`,
           body: null,
         },
         {
@@ -8848,6 +8856,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           notes: `OUT: { "code": "TERM_SEQUENCE_TAKEN" }, naming the term that holds it.`,
           body: `{
   "name": "Extra",
+  "termCode": "EXTRA",
   "sequence": 1,
   "startDate": "2027-02-01",
   "endDate": "2027-02-28"
@@ -8861,6 +8870,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: { "code": "TERMS_OVERLAP" }, naming the term it clashes with.`,
           body: `{
   "name": "Overlapping",
+  "termCode": "OVERLAP",
   "sequence": 5,
   "startDate": "2026-09-30",
   "endDate": "2026-10-05"
@@ -8892,6 +8902,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: { "code": "TERM_OUTSIDE_ACADEMIC_YEAR" }, naming what the year covers.`,
           body: `{
   "name": "Too early",
+  "termCode": "TOO_EARLY",
   "sequence": 8,
   "startDate": "2026-03-31",
   "endDate": "2026-04-02"
@@ -8905,6 +8916,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     which would be true and would say the wrong thing.`,
           body: `{
   "name": "Backwards",
+  "termCode": "BACKWARDS",
   "sequence": 9,
   "startDate": "2026-12-01",
   "endDate": "2026-11-01"
@@ -8918,6 +8930,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     active weights total 20%, not 100%. Reported, not refused.`,
           body: `{
   "name": "W1",
+  "termCode": "W1",
   "sequence": 1,
   "startDate": "2026-04-01",
   "endDate": "2026-09-30",
@@ -8934,6 +8947,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     round — a weighted term beside unweighted ones is the same 409.`,
           body: `{
   "name": "W2",
+  "termCode": "W2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31"
@@ -8947,6 +8961,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: no warning at all, because 20 + 80 = 100.`,
           body: `{
   "name": "W2",
+  "termCode": "W2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31",

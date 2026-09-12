@@ -11,8 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
-import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermSearchRequest;
 import com.orbitastra.backend.dto.academics.academicterm.request.AcademicTermCreateRequest;
@@ -150,30 +148,20 @@ public class AcademicTermService {
         //! alone is not enough here.
         AcademicYear year = utils.loadAcademicYear(school, academicYear);
 
-        //! step 3 - the code to store. Derived from the name, never accepted from the caller:
-        //! six documents across three modules reference it, and a code that disagreed with the
-        //! name it was made from would be a term nobody could find twice.
-        String termCode = TextHelper.toCode(request.name(), 40);
-        if (termCode.isEmpty()) {
-            throw ApiException.conflict("TERM_CODE_INVALID",
-                    "A term name must contain at least one letter or digit. Received: '"
-                            + request.name() + "'.");
-        }
-
-        //! step 4 - the dates have to make sense on their own before they are compared to
+        //! step 3 - the dates have to make sense on their own before they are compared to
         //! anything. An inverted range would otherwise be reported as "outside the year".
         helper.validateTermRange(request.startDate(), request.endDate());
 
-        //! step 5 - and fall inside the year that will own them
+        //! step 4 - and fall inside the year that will own them
         helper.validateTermWithinYear(request.startDate(), request.endDate(),
                 year.getStartDate(), year.getEndDate());
 
-        //! step 6 - ONE read of the year's terms. Every check below runs against it.
+        //! step 5 - ONE read of the year's terms. Every check below runs against it.
         // TODO: read academic terms
         List<AcademicTerm> yearTerms = academicTerms
                 .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName());
 
-        //! step 7 - the code and the sequence are unique in the year, retired terms included,
+        //! step 6 - the code and the sequence are unique in the year, retired terms included,
         //! because their indexes do not filter on active - so these checks must not either, or
         //! they would accept a write the index then refuses.
         //!
@@ -182,17 +170,17 @@ public class AcademicTermService {
         //! edusphere_dev carries neither - measured 2026-09-11, where academic_terms had only
         //! _id_. Where they ARE built they turn a duplicate-key 500 into this 409; where they
         //! are not, this is the only thing standing between a school and two TERM_1s.
-        helper.validateTermCodeFree(yearTerms, null, termCode);
+        helper.validateTermCodeFree(yearTerms, null, request.termCode());
         helper.validateSequenceFree(yearTerms, null, request.sequence());
 
-        //! step 8 - and the dates must not cover a day an ACTIVE term already covers
+        //! step 7 - and the dates must not cover a day an ACTIVE term already covers
         helper.validateNoTermOverlap(yearTerms, null, request.startDate(), request.endDate());
 
-        //! step 9 - a year weights every active term or none. The mixture is refused; a wrong
-        //! total is only reported, at step 11 - see the helper for why the two differ.
+        //! step 8 - a year weights every active term or none. The mixture is refused; a wrong
+        //! total is only reported, at step 10 - see the helper for why the two differ.
         helper.validateWeightNotMixed(yearTerms, request.weightPercent());
 
-        //! step 10 - insert. resultsLocked and active take their defaults: both are events with
+        //! step 9 - insert. resultsLocked and active take their defaults: both are events with
         //! their own endpoints rather than fields to set at create.
         // TODO: create academic term
         AcademicTerm saved = academicTerms.save(AcademicTerm.builder()
@@ -202,7 +190,7 @@ public class AcademicTermService {
                 // collection. Which is exactly how this was found.
                 .schoolId(school.getId())
                 .academicYear(year.getName())
-                .termCode(termCode)
+                .termCode(request.termCode())
                 .name(request.name().trim())
                 .sequence(request.sequence())
                 .startDate(request.startDate())
