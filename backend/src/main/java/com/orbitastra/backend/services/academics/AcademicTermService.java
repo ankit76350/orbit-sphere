@@ -169,7 +169,7 @@ public class AcademicTermService {
         //! indexes are declared on the model but built on demand (app.mongo.sync-indexes), and
         //! edusphere_dev carries neither - measured 2026-09-11, where academic_terms had only
         //! _id_. Where they ARE built they turn a duplicate-key 500 into this 409; where they
-        //! are not, this is the only thing standing between a school and two TERM_1s.
+        //! are not, this is the only thing standing between a school and two TERM1s.
         helper.validateTermCodeFree(yearTerms, null, request.termCode());
         helper.validateSequenceFree(yearTerms, null, request.sequence());
 

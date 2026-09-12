@@ -115,7 +115,7 @@ export default function Terms() {
               hint="Matches name OR termCode, case-insensitive, anywhere in either. A stray '(' is an empty result, not a 500.">
               <Input value={typed} onChange={(event) => setTyped(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }}
-                placeholder="TERM_1, or Semester" />
+                placeholder="TERM1, or Semester" />
             </Field>
             <Button icon={Search} onClick={runSearch}>Search</Button>
             <Button onClick={() => { setSearch(''); setTyped(''); setPage(0) }}>Clear</Button>
@@ -379,11 +379,11 @@ function AddTerm({ open, year, onClose, onAdded }) {
           <Field
             label="Code"
             required
-            hint="Uppercase, digits, single underscores — TERM_1. Unique in the year, and a retired term still holds its own. Never changes once records reference it."
+            hint="Uppercase letters and digits only — TERM1, no underscore. Unique in the year, and a retired term still holds its own. Never changes once records reference it."
             error={errors.termCode}
           >
             <Input value={form.termCode} error={errors.termCode}
-              onChange={set('termCode')} placeholder="TERM_1" />
+              onChange={set('termCode')} placeholder="TERM1" />
           </Field>
         </div>
 

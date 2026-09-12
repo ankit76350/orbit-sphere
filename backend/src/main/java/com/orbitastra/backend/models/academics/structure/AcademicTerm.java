@@ -65,7 +65,7 @@ public class AcademicTerm extends SchoolBase {
     @NotBlank
     private String academicYear;
 
-    // Stable school-scoped key within the academic year. Example: "TERM_1"
+    // Stable school-scoped key within the academic year. Example: "TERM1"
     @NotBlank
     private String termCode;
 

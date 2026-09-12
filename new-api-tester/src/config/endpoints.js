@@ -8705,12 +8705,15 @@ deliberate.
 
 **Changed 2026-09-12.** It used to be derived from \`name\`, which tied two fields that do not move
 together: a school renaming "Term 1" to "First Term" would have been offered a code of
-\`FIRST_TERM\` on a term six documents across three modules already reference as \`TERM_1\`. The
+\`FIRST_TERM\` on a term six documents across three modules already reference as \`TERM1\`. The
 code is the stable half, the name is the display half, so the code is stated outright.
 
-The shape is still fixed — \`^[A-Z0-9]+(_[A-Z0-9]+)*$\`, 40 characters — but it is **validated,
-not normalized**: \`term 1\` is a \`400\` naming the field, never a silent rewrite into something
-the caller never typed and will not recognise coming back.
+The shape is fixed and **tighter than the derivation's was** — \`^[A-Z0-9]+$\`, 40 characters:
+uppercase letters and digits, no underscore. \`TextHelper.toCode\` emitted underscores because it
+had to put something where a space had been; a code stated outright has no such gap to fill.
+
+It is **validated, not normalized**: \`term 1\` is a \`400\` naming the field, never a silent
+rewrite into something the caller never typed and will not recognise coming back.
 
 ### Weights: the mixture is refused, the total only reported
 
@@ -8740,8 +8743,9 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
  modules store termDocsId, which is why it has an id — and why a term can
  be renamed where a sectionNo never can.
 
- termCode IS DERIVED FROM name. "Term 1" -> TERM_1. Sending termCode does
- nothing. A name with no letter or digit is a 409.
+ termCode IS GIVEN, NOT DERIVED (changed 2026-09-12). Uppercase letters and
+ digits only: ^[A-Z0-9]+$, 40 max. No underscore. VALIDATED, NOT NORMALISED,
+ so "term 1" is a 400 naming the field, not a silent rewrite.
 
  A RETIRED TERM KEEPS ITS CODE AND SEQUENCE, because neither unique index
  filters on active. It RELEASES ITS DATES, because nothing is taught in it.
@@ -8763,7 +8767,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       bodyAllowed: true,
       body: `{
   "name": "Term 1",
-  "termCode": "TERM_1",
+  "termCode": "TERM1",
   "sequence": 1,
   "startDate": "2026-04-01",
   "endDate": "2026-09-30"
@@ -8773,7 +8777,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "resultsLocked", "active"],
       captures: [],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, termCode, sequence, startDate or endDate; a termCode that is not uppercase letters, digits and single underscores; a sequence below 1; a weightPercent outside 0–100." },
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, termCode, sequence, startDate or endDate; a termCode that is not uppercase letters and digits; a sequence below 1; a weightPercent outside 0–100." },
         { status: 400, code: "INVALID_TERM_RANGE", when: "endDate is before startDate. Equal dates are legal — a one-day term is odd, not wrong." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
@@ -8793,7 +8797,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           name: "THE FIRST TERM",
           expect: "201 Created",
           notes: `The body above.
-    OUT: termDocsId, termCode TERM_1 as sent, resultsLocked false and
+    OUT: termDocsId, termCode TERM1 as sent, resultsLocked false and
     active true. No weightPercent field, because none was sent.`,
           body: null,
         },
@@ -8804,7 +8808,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           notes: `Adjacency is not overlap — the same rule core uses for years.`,
           body: `{
   "name": "Term 2",
-  "termCode": "TERM_2",
+  "termCode": "TERM2",
   "sequence": 2,
   "startDate": "2026-10-01",
   "endDate": "2027-03-31"
@@ -8814,12 +8818,12 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           id: "03",
           name: "THE CODE NEED NOT MATCH THE NAME",
           expect: "201 Created",
-          notes: `OUT: termCode SEM_2 beside a name of "Semester 2". Nothing derives
+          notes: `OUT: termCode SEM2 beside a name of "Semester 2". Nothing derives
     one from the other — which is the point: the name can be changed later
     and the code, which records reference, cannot.`,
           body: `{
   "name": "Semester 2",
-  "termCode": "SEM_2",
+  "termCode": "SEM2",
   "sequence": 3,
   "startDate": "2027-01-01",
   "endDate": "2027-01-31"
@@ -8830,7 +8834,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
           name: "A CODE OF THE WRONG SHAPE",
           expect: "400 Bad Request",
           notes: `OUT: fieldErrors on termCode. @NotBlank passes — it was not blank.
-    Lowercase, spaces, leading or doubled underscores are all refused
+    Lowercase, spaces and underscores are all refused
     rather than normalised: a silent rewrite hands back a code nobody typed.`,
           body: `{
   "name": "Term 4",
@@ -8902,7 +8906,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
     OUT: { "code": "TERM_OUTSIDE_ACADEMIC_YEAR" }, naming what the year covers.`,
           body: `{
   "name": "Too early",
-  "termCode": "TOO_EARLY",
+  "termCode": "TOOEARLY",
   "sequence": 8,
   "startDate": "2026-03-31",
   "endDate": "2026-04-02"
@@ -9094,7 +9098,7 @@ A suspended or closed school still reads its own calendar.
         { id: "04", name: "ONLY THE ACTIVE ONES", expect: "200 OK",
           notes: `?active=true\n    Then ?active=false for the retired ones, and leave it off for BOTH.\n    Absent is not the same as false.`, body: null },
         { id: "05", name: "SEARCH BY CODE", expect: "200 OK",
-          notes: `?search=TERM_1 — matches the termCode.`, body: null },
+          notes: `?search=TERM1 — matches the termCode.`, body: null },
         { id: "06", name: "SEARCH BY NAME", expect: "200 OK",
           notes: `?search=semester — case-insensitive, matches anywhere in the name.\n    One parameter, two fields, because a person types whichever they recall.`, body: null },
         { id: "07", name: "A STRAY REGEX CHARACTER", expect: "200 OK",

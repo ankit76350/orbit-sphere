@@ -48,8 +48,8 @@ taught inside it.
 AcademicYear  "2026-2027"   2026-04-01 .. 2027-03-31      <- core, built
   |
   ├── AcademicTerm[]     how the year is divided for reporting
-  |     "TERM_1"  sequence 1  2026-04-01..2026-09-30  weight 20%
-  |     "TERM_2"  sequence 2  2026-10-01..2027-03-31  weight 80%
+  |     "TERM1"  sequence 1  2026-04-01..2026-09-30  weight 20%
+  |     "TERM2"  sequence 2  2026-10-01..2027-03-31  weight 80%
   |
   └── SchoolClass[]      what is taught in the year
         "Grade 7"
@@ -591,7 +591,7 @@ Two things are left out of every entry because they are true of all of them:
 | Field | Type | What can be in it |
 |---|---|---|
 | `academicYear` | String, required | `AcademicYear.name` — `"2026-2027"`. Comes from the `{year}` path segment, never from the body, and the year must exist. **Never changes**: a term cannot be moved to another year, because the two codes are only unique together. |
-| `termCode` | String, required | Stable school-scoped key, unique with `schoolId + academicYear` — `TERM_1`, `SEM_2`, `Q3`. **Given by the caller**, validated against `^[A-Z0-9]+(_[A-Z0-9]+)*$` rather than derived from `name` — it is the stable half and the name is the display half, and the two do not move together. **Never changes.** |
+| `termCode` | String, required | Stable school-scoped key, unique with `schoolId + academicYear` — `TERM1`, `SEM2`, `Q3`. **Given by the caller**, validated against `^[A-Z0-9]+$` — uppercase letters and digits, no separator at all — rather than derived from `name`. It is the stable half and the name is the display half, and the two do not move together. **Never changes.** |
 | `name` | String, required | **Open** — free text, `@NotBlank`. `"Term 1"`, `"Semester 2"`, `"Annual"`. The only field a term is renamed by, and it is safe to rename because consumers store `termDocsId` and snapshot the name. |
 | `sequence` | Integer, required | Order inside the year, **unique** with `schoolId + academicYear`. Not editable through #3 — see #4 and [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). |
 | `startDate` | LocalDate, required | Must fall inside the academic year's range, and must not overlap another term. First day of the period, inclusive. |
@@ -706,7 +706,7 @@ class, because a section has no document of its own.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *insert*: `schoolId`, `academicYear` = the `{year}` path segment, `termCode`, `name`, `sequence`, `startDate`, `endDate`, `weightPercent`, `resultsLocked` = `false`, `active` = `true`
 - **Five rules MongoDB cannot express**, in this order: the range is not inverted (`400 INVALID_TERM_RANGE`), it falls inside the year (`409 TERM_OUTSIDE_ACADEMIC_YEAR`), the code is free (`409 TERM_CODE_TAKEN`), the sequence is free (`409 TERM_SEQUENCE_TAKEN`), the dates are free (`409 TERMS_OVERLAP`). The order matters: an inverted range checked last would be reported as "outside the year", which is true and says the wrong thing.
 - **Two of those count retired terms and one does not.** A retired term keeps its `termCode` and its `sequence`, because neither unique index filters on `active` — a check that skipped retired rows would accept a write the database then refuses. It releases its **dates**, because nothing is taught in it and `school_year_term_active_dates_idx` is indexed on `active` for exactly that query.
-- **`termCode` is given, not derived from `name`** — changed 2026-09-12. Deriving it tied two fields that do not move together: a school renaming "Term 1" to "First Term" would have been offered a code of `FIRST_TERM` on a term six documents across three modules already reference as `TERM_1`. The shape is still fixed — `^[A-Z0-9]+(_[A-Z0-9]+)*$`, `@Size(max = 40)`, the output `TextHelper.toCode` used to produce — but it is **validated, not normalized**, so `term 1` is a `400` naming the field rather than a silent rewrite into something the caller never typed. `409 TERM_CODE_INVALID` went with the derivation.
+- **`termCode` is given, not derived from `name`** — changed 2026-09-12. Deriving it tied two fields that do not move together: a school renaming "Term 1" to "First Term" would have been offered a code of `FIRST_TERM` on a term six documents across three modules already reference as `TERM1`. The shape is fixed and **tighter than the derivation's was** — `^[A-Z0-9]+$`, `@Size(max = 40)`: uppercase letters and digits, no underscore. `TextHelper.toCode` emitted underscores because it had to put something where a space had been; a code stated outright has no such gap to fill, and one separator nobody needs is one more way to write `TERM1` two ways. **Validated, not normalized**, so `term 1` is a `400` naming the field rather than a silent rewrite into something the caller never typed. `409 TERM_CODE_INVALID` went with the derivation.
 - **The weight *mixture* is refused; the weight *total* is only reported.** `409 TERM_WEIGHT_MIXED` when one active term is weighted and another is not, because that computes to nothing and no sequence of edits passes through it legitimately. A total that is not 100 comes back as a `warning` on the response instead — [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time) settled that, because 20/80 → 30/70 passes through 110 and refusing it would make the values impossible to change.
 - **Overlap is [`Dates.overlaps`](../../../common/time/Dates.java), shared with core's academic-year check.** The plan warned that two implementations would eventually disagree about touching endpoints; the predicate was extracted on 2026-09-11 and `CoreHelper.validateNoAcademicYearOverlap` now reads it too. Nothing had covered `ACADEMIC_YEAR_OVERLAP` before that, so `verify1.py` covers both callers.
 - **`resultsLocked` and `active` are not accepted at create.** Both are events with their own endpoints — #5, #6, #7, #8 — and a term created already locked is a state nothing asked for.
@@ -757,7 +757,7 @@ class, because a section has no document of its own.
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `active`, and `weightPercent` — deactivating a weighted term changes what the remaining weights sum to
 - [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `active` = `false`
 - **Writes `active`, never `recordState`** — [open item 4](#4-active-and-recordstate-are-two-flags-for-overlapping-things).
-- **Frees its `sequence` and its `termCode`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated `TERM_1` means the year can never have another.
+- **Frees its `sequence` and its `termCode`?** No. Both stay on the row, and both stay taken: the unique indexes do not filter on `active`. A deactivated `TERM1` means the year can never have another.
 
 <a id="e8"></a>
 **[8](#t8) · `POST /terms/{termId}/reactivate`**

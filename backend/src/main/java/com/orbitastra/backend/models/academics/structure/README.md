@@ -42,15 +42,15 @@ issued for.
 
 ```text
 AcademicYear  "2026-2027"   2026-04-01 .. 2027-03-31
-  ├── termCode "TERM_1"  sequence 1  2026-04-01..2026-09-30  weightPercent 20
-  └── termCode "TERM_2"  sequence 2  2026-10-01..2027-03-31  weightPercent 80
+  ├── termCode "TERM1"  sequence 1  2026-04-01..2026-09-30  weightPercent 20
+  └── termCode "TERM2"  sequence 2  2026-10-01..2027-03-31  weightPercent 80
 ```
 
 | Field | Meaning and mapping |
 |---|---|
 | `schoolId` | Inherited link to `School.id`. |
 | `academicYear` | `AcademicYear.name`, for example `2026-2027`. |
-| `termCode` | Stable school-scoped key, unique with `schoolId + academicYear`. |
+| `termCode` | Stable school-scoped key, unique with `schoolId + academicYear`. Uppercase letters and digits only — `TERM1`. |
 | `name` | Display name copied into report-card snapshots. |
 | `sequence` | Order inside the year; unique with `schoolId + academicYear`. |
 | `startDate` | First date of the period. |
