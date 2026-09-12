@@ -8715,14 +8715,20 @@ had to put something where a space had been; a code stated outright has no such 
 It is **validated, not normalized**: \`term 1\` is a \`400\` naming the field, never a silent
 rewrite into something the caller never typed and will not recognise coming back.
 
-### Weights: the mixture is refused, the total only reported
+### Weights: a shortfall is reported, an excess is refused
 
 \`weightPercent\` null means **this school does not weight the annual result**, which is a normal
 way to run a school. What is refused is the *mixture* — one active term weighted and another not —
 because it computes to nothing and no sequence of edits passes through it legitimately.
 
-A total that is not 100 comes back as a **\`warning\` on the response**, not a refusal: 20/80 →
-30/70 passes through 110, and refusing that would make the values impossible to change.
+A total **below** 100 comes back as a **\`warning\` on the response**, not a refusal: 20/80 →
+30/70 passes through 110, and refusing that would make the values impossible to change. It is also
+where every year sits while its terms are still being entered.
+
+A total **above** 100 is a \`409 TERM_WEIGHTS_EXCEED_100\`. The transient-invalid argument is about
+*editing*, and an insert is not an edit — a create only ever adds to the sum, so nothing has to
+pass through "over 100" to reach a valid set. **The ceiling only, never equality**: requiring
+exactly 100 would make the first weighted term of a year impossible to create.
 
 ### Adjacency is not overlap
 
@@ -8735,7 +8741,7 @@ about touching endpoints — which is a question a school hits every April.
 Same three as every write in this module — **1** school ACTIVE · **2** subscription usable ·
 **4** the year is running.
 
-### The fourteen test cases are in the request body as comments
+### The fifteen test cases are in the request body as comments
 `,
       bodyNotes: `Needs X-School-Subdomain and a year that is marked as running.
 
@@ -8750,9 +8756,10 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
  A RETIRED TERM KEEPS ITS CODE AND SEQUENCE, because neither unique index
  filters on active. It RELEASES ITS DATES, because nothing is taught in it.
 
- THE WEIGHT MIXTURE IS REFUSED; THE TOTAL IS ONLY REPORTED. One term
- weighted and another not computes to nothing. A total that is not 100 comes
- back as a warning, because 20/80 -> 30/70 passes through 110.
+ THE MIXTURE IS REFUSED. One term weighted and another not computes to
+ nothing. A SHORTFALL is only a warning, because 20/80 -> 30/70 passes
+ through 110, and because a year being entered sits under 100 until the last
+ term arrives. AN EXCESS IS REFUSED: a create only ever adds to the sum.
 
  ADJACENCY IS NOT OVERLAP. Ending 30 Sep and starting 1 Oct is fine.`,
       requiredFields: ["name", "termCode", "sequence", "startDate", "endDate"],
@@ -8787,6 +8794,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         { status: 409, code: "TERMS_OVERLAP", when: "The dates cover a day an ACTIVE term already covers. Retired terms do not block." },
         { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The dates fall outside the year's own range." },
         { status: 409, code: "TERM_WEIGHT_MIXED", when: "One active term carries a weight and another does not." },
+        { status: 409, code: "TERM_WEIGHTS_EXCEED_100", when: "This weight would take the year's active terms past 100%. A shortfall is only a warning; an excess is not." },
         { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
         { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
         { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end, or was never marked running." },
@@ -8970,6 +8978,24 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
   "startDate": "2026-10-01",
   "endDate": "2027-03-31",
   "weightPercent": 80
+}`,
+        },
+        {
+          id: "15",
+          name: "ONE PERCENT TOO MANY",
+          expect: "409 Conflict",
+          notes: `After case 14, the year is at 100. OUT:
+    { "code": "TERM_WEIGHTS_EXCEED_100" }, naming what is already used and
+    what is left. Refused, unlike a shortfall: a create only ever ADDS to
+    the sum, so nothing has to pass through "over 100" on the way to a
+    valid set. Lower a term with #3 first, then add this one.`,
+          body: `{
+  "name": "W3",
+  "termCode": "W3",
+  "sequence": 3,
+  "startDate": "2027-01-01",
+  "endDate": "2027-01-31",
+  "weightPercent": 1
 }`,
         },
       ],

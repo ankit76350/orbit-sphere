@@ -24,9 +24,12 @@ import lombok.RequiredArgsConstructor;
  * against the same snapshot. A helper that queried for itself would make five round trips and
  * could see five different states.
  *
- * <p><b>Each method stands on its own and calls nothing else in this class</b>, per the service
- * code-writing rules. The one thing two of them would share — "do these ranges overlap" — lives in
- * {@link Dates#overlaps} in {@code common}, where core's academic-year check reads it too.
+ * <p><b>No check here calls another check here</b>, per the service code-writing rules. The one
+ * thing two of them would share — "do these ranges overlap" — lives in {@link Dates#overlaps} in
+ * {@code common}, where core's academic-year check reads it too. The single exception is
+ * {@code plain}, which formats a number for a message and decides nothing; it is private and
+ * stayed here rather than going to {@code common} because a display formatter is not the job
+ * {@code TextHelper} describes for itself.
  *
  * <p><b>Checks throw rather than return a flag.</b> One that returned false would leave every
  * caller to invent its own message and status code. The exception is
@@ -35,6 +38,14 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class AcademicsHelper {
+
+    /** A year is 100% of itself. Compared against, never added to. */
+    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+
+    /** 20.00 reads as "20" in a message, and 20 stays "20". */
+    private static String plain(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
 
     //! terms — used by endpoints 1 to 4 and 35 ----------------------------------------
 
@@ -210,6 +221,58 @@ public class AcademicsHelper {
     }
 
     /**
+     * The active weights of one year may not add up to more than 100%.
+     *
+     * <p><b>This is a refusal where a shortfall is only a warning</b>, and the asymmetry is the
+     * point. {@link #weightSumWarning(List)} does not throw because two terms going from 20/80 to
+     * 30/70 are transiently at 110 after the first write — refusing that would make the values
+     * impossible to change. <b>That argument is about editing, and an insert is not an edit.</b>
+     * A create only ever adds to the sum, so there is no legitimate path through "over 100" on
+     * this endpoint: a school that needs room for a new term lowers an existing one first, with
+     * #3, and then adds.
+     *
+     * <p><b>Only the ceiling is enforced, never equality.</b> Requiring exactly 100 here would
+     * make the first weighted term of a year impossible to create — at 40%, the year totals 40,
+     * and there would be no way to reach a second term. A year on its way to being weighted is
+     * under 100 for as long as it takes to enter the terms, which is why that stays a warning.
+     *
+     * <p>Retired terms are ignored: their weight is not part of any annual result, so it cannot
+     * consume room a live term needs.
+     *
+     * @param ignoreId the term being edited, excluded so its own weight is not counted twice
+     *
+     * Used by:
+     * - createTerm()
+     */
+    public void validateWeightSumWithinLimit(List<AcademicTerm> yearTerms, String ignoreId,
+            BigDecimal weightPercent) {
+
+        if (weightPercent == null) {
+            return;
+        }
+
+        BigDecimal alreadyUsed = yearTerms.stream()
+                .filter(t -> Boolean.TRUE.equals(t.getActive()) && t.getWeightPercent() != null)
+                .filter(t -> !t.getId().equals(ignoreId))
+                .map(AcademicTerm::getWeightPercent)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal total = alreadyUsed.add(weightPercent);
+
+        if (total.compareTo(ONE_HUNDRED) > 0) {
+            BigDecimal remaining = ONE_HUNDRED.subtract(alreadyUsed);
+            throw ApiException.conflict("TERM_WEIGHTS_EXCEED_100",
+                    "The year's active terms already carry " + plain(alreadyUsed)
+                            + "%, so a further " + plain(weightPercent) + "% would total "
+                            + plain(total) + "%. A year is 100% of itself. "
+                            + (remaining.signum() > 0
+                                    ? "At most " + plain(remaining) + "% is left to give."
+                                    : "There is nothing left to give — lower another term first, "
+                                            + "which is what #3 is for."));
+        }
+    }
+
+    /**
      * What to say when the active weights do not total 100.
      *
      * <p><b>Returns a message instead of throwing, and that is the whole point.</b> Two terms at
@@ -217,6 +280,11 @@ public class AcademicsHelper {
      * 30 + 80 = 110. Refusing it would make the values impossible to change. So the sum is
      * checked wherever the whole set is written (#2, #4) and merely reported everywhere else,
      * which is what open item 3 settled.
+     *
+     * <p><b>This reports a shortfall; {@link #validateWeightSumWithinLimit} refuses an excess.</b>
+     * Being under 100 is where every year on its way to being weighted sits, and it resolves
+     * itself as the remaining terms are entered. Being over 100 on an insert does not resolve
+     * itself: nothing a later create does brings the total back down.
      *
      * @return the warning, or null when the weights are fine or unused
      *
@@ -236,11 +304,11 @@ public class AcademicsHelper {
                 .map(AcademicTerm::getWeightPercent)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        if (total.compareTo(new BigDecimal("100")) == 0) {
+        if (total.compareTo(ONE_HUNDRED) == 0) {
             return null;
         }
 
-        return "The active term weights now total " + total.stripTrailingZeros().toPlainString()
+        return "The active term weights now total " + plain(total)
                 + "%, not 100%. The annual result cannot be computed until they do — this is a "
                 + "warning rather than a refusal, because getting from one valid set to another "
                 + "passes through an invalid one.";

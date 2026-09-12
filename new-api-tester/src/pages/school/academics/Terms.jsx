@@ -420,7 +420,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
           </Field>
           <Field
             label="Weight percent"
-            hint="Optional, 0 to 100. Blank means this school does not weight the annual result — a normal school. Weighting one term and not another is refused."
+            hint="Optional, 0 to 100. Blank means this school does not weight the annual result — a normal school. Weighting one term and not another is refused, and so is a weight that takes the year past 100%. Under 100 is only a warning."
             error={errors.weightPercent}
           >
             <Input type="number" value={form.weightPercent} error={errors.weightPercent}

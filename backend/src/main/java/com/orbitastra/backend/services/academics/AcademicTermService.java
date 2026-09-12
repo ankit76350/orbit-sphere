@@ -176,11 +176,18 @@ public class AcademicTermService {
         //! step 7 - and the dates must not cover a day an ACTIVE term already covers
         helper.validateNoTermOverlap(yearTerms, null, request.startDate(), request.endDate());
 
-        //! step 8 - a year weights every active term or none. The mixture is refused; a wrong
-        //! total is only reported, at step 10 - see the helper for why the two differ.
+        //! step 8 - a year weights every active term or none. The mixture is refused; a
+        //! SHORTFALL is only reported, at step 11 - see the helper for why the two differ.
         helper.validateWeightNotMixed(yearTerms, request.weightPercent());
 
-        //! step 9 - insert. resultsLocked and active take their defaults: both are events with
+        //! step 9 - and the year's active weights may not exceed 100 once this one joins
+        //! them. Refused, unlike the shortfall at step 11: a create only ever ADDS to the
+        //! sum, so "transiently over" is not a state any sequence of creates has to pass
+        //! through. Only the ceiling - requiring exactly 100 here would make the first
+        //! weighted term of a year impossible to write.
+        helper.validateWeightSumWithinLimit(yearTerms, null, request.weightPercent());
+
+        //! step 10 - insert. resultsLocked and active take their defaults: both are events with
         //! their own endpoints rather than fields to set at create.
         // TODO: create academic term
         AcademicTerm saved = academicTerms.save(AcademicTerm.builder()
@@ -198,8 +205,9 @@ public class AcademicTermService {
                 .weightPercent(request.weightPercent())
                 .build());
 
-        //! step 11 - the weight sum, reported rather than refused, against the set INCLUDING the
-        //! row just written - which is the total a school would see on screen.
+        //! step 11 - the SHORTFALL, reported rather than refused, against the set INCLUDING
+        //! the row just written - which is the total a school would see on screen. An excess
+        //! never reaches here; step 9 refused it.
         List<AcademicTerm> after = new ArrayList<>(yearTerms);
         after.add(saved);
 
