@@ -233,8 +233,8 @@ A term is the unit a report card is issued for. Six other documents point at one
 | <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t3"></a>3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t5"></a>5 | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
-| <a id="t6"></a>6 | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t5"></a>5 — **built** | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t6"></a>6 — **built** | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t7"></a>7 | [`POST /terms/{termId}/deactivate`](#e7) | Take a term out of use without deleting it, so the exams and cards that reference it stay resolvable. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t8"></a>8 | [`POST /terms/{termId}/reactivate`](#e8) | Put it back. The pair exists because there is no `DELETE`. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 
@@ -325,7 +325,7 @@ section exists, so sections come before everything that is merely useful.
 | **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** |
 | **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~3~~, ~~9~~, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
-| **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
+| **5** | Things can be retired without being deleted | ~~5~~, ~~6~~, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
 | **7** | The reads nothing is blocked on | ~~13~~ *(built early, on request)*, ~~37~~, 32, 33, 34 |
 
@@ -533,6 +533,8 @@ The model README settles the rule — the year-wide flag is the stronger control
 must satisfy **both** — so #5 and #6 are the narrower control and must not touch the year's flag.
 Nothing in this module reads either one; the endpoint that has to satisfy both is mark entry, in
 `examination`. Worth a shared check when it arrives, not two.
+
+**#5 and #6 settled the first half, 2026-09-12.** Both write `AcademicTerm.resultsLocked` and neither touches the year's flag, in either direction — so the narrow control stays narrow. What remains unbuilt is the *reader*: nothing in this project consults either flag yet, because mark entry lives in `examination` and does not exist. **The shared check that item asks for should be written once, there, and read both flags** — a term is writable only when its own flag is `false` *and* its year's is.
 
 **#3 raised a second question and did not answer it, 2026-09-12.** `AcademicTerm.resultsLocked`
 is documented as blocking *result* changes, and a term's `name` and dates are plainly not
@@ -782,18 +784,25 @@ class, because a section has no document of its own.
 - **`school_year_term_sequence_uniq` is the reason this endpoint exists.** Swapping 1 and 2 by two `PATCH`es fails on the first. Even here the writes cannot go straight in: moving every term to a free range first, then to its target, is what keeps the unique index satisfied at every point in between. One transaction.
 
 <a id="e5"></a>
-**[5](#t5) · `POST /terms/{termId}/results/lock`**
+**[5](#t5) · `POST /terms/{termId}/results/lock`** — built
 
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked` — already `true` is a `200` saying so, not a refusal
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `true`
-- **Does not touch `AcademicYear.resultsLocked`.** That is the stronger, wider control and this is the narrow one; see [open item 7](#7-academictermresultslocked-and-academicyearresultslocked-both-exist).
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term by id, scoped to the school **and** the year in the URL
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `true`, and nothing else
+- **No body, and no `409` anywhere in it.** The only refusals are the three gates, the 404s, and nothing more.
+- **Idempotent: already `true` is a `200` saying so.** A refusal would turn "make sure this is locked" — the thing a caller actually wants — into a request it has to read the state before daring to send.
+- **Does not touch `AcademicYear.resultsLocked`.** That is the stronger, wider control and this is the narrow one; see [open item 7](#7-academictermresultslocked-and-academicyearresultslocked-both-exist). A narrow endpoint that quietly widened its own effect is the worst kind of surprise.
+- **This is the whole point of the field.** The year-wide flag freezes everything at once, which is right when the year is finished and wrong when Term 1's cards have gone out and Term 2 is still being taught. A term-level lock is what lets those two states coexist.
+- **Locks a retired term without complaint.** Retiring a term does not unpublish the report cards issued for it, so freezing its marks is still a sensible thing to ask for.
+- **Gate 4 makes this unreachable on an ended year**, which is the freeze `controllers/core` warns about under "lock results before ending the year". Locking before `POST .../end` is the order that works.
 
 <a id="e6"></a>
-**[6](#t6) · `POST /terms/{termId}/results/unlock`**
+**[6](#t6) · `POST /terms/{termId}/results/unlock`** — built
 
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: `resultsLocked`
-- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `false`
-- **Records nothing about who unlocked, or why.** The same hole core's #27 carries, and the same answer: it needs a reason on the request and an `AuditEvent`, which needs an audit writer. Do not build this on real results without one.
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *reads*: the term by id, scoped to the school **and** the year
+- [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) — *updates*: `resultsLocked` = `false`, and nothing else
+- **Records nothing about who unlocked, or why.** The same hole core's #27 carries, and the same answer: it needs a reason on the request and an `AuditEvent`, which needs an audit writer. **Do not run this against real published results without one** — an unlock that leaves no trace is indistinguishable from marks that were never locked. The response says so in capitals, which is the most this endpoint can do about it.
+- **Unlocking here does not make results writable.** `AcademicYear.resultsLocked` overrides, so a term unlocked inside a locked year stays frozen. The endpoint that has to satisfy both is mark entry, in `examination`, and it does not exist yet — so today nothing anywhere reads either flag.
+- **Idempotent**, the same as #5 and for the same reason.
 
 <a id="e7"></a>
 **[7](#t7) · `POST /terms/{termId}/deactivate`**

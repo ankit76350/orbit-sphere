@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
+import { Info, Lock, LockOpen, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -41,6 +41,9 @@ export default function Terms() {
   // The row #3 is editing, or null. Held here rather than in the table so the modal
   // survives a refresh of the list underneath it.
   const [editing, setEditing] = useState(null)
+  // The termDocsId currently locking or unlocking, so only THAT button spins. A single
+  // boolean would spin every row's, which reads as "the whole table is saving".
+  const [togglingLock, setTogglingLock] = useState(null)
 
   const [active, setActive] = useState('')
   const [resultsLocked, setResultsLocked] = useState('')
@@ -85,6 +88,21 @@ export default function Terms() {
   }, [call, environment.id, actingSubdomain, actingAcademicYear, query])
 
   useEffect(() => { load() }, [load])
+
+  // #5 and #6 are the same shape: no body, idempotent, one field. One function, because
+  // two that differed only in a string would drift.
+  const toggleLock = async (term) => {
+    const locking = !term.resultsLocked
+    setTogglingLock(term.termDocsId)
+    await call(locking ? 'lock-term-results' : 'unlock-term-results', {
+      label: locking ? 'Lock results' : 'Unlock results',
+      pathParams: { year: actingAcademicYear ?? '', termId: term.termDocsId },
+    })
+    setTogglingLock(null)
+    // Reloaded rather than patched in place: the response is one term and the table is #9's
+    // answer, so re-asking #9 is what keeps it honest about what the year holds.
+    load()
+  }
 
   const runSearch = () => { setPage(0); setSearch(typed) }
   const rows = data?.content ?? []
@@ -227,8 +245,19 @@ export default function Terms() {
                       {one.resultsLocked ? <Badge>results locked</Badge> : null}
                     </td>
                     <td>
-                      {/* #3 is addressed by termDocsId, never by termCode. */}
-                      <Button icon={Pencil} onClick={() => setEditing(one)}>Edit</Button>
+                      <div className="toolbar">
+                        {/* All three are addressed by termDocsId, never by termCode. */}
+                        <Button icon={Pencil} onClick={() => setEditing(one)}>Edit</Button>
+                        {/* One button, two endpoints — #5 and #6 are a pair because there
+                            is no DELETE and no toggle; each asks for a state. */}
+                        <Button
+                          icon={one.resultsLocked ? LockOpen : Lock}
+                          busy={togglingLock === one.termDocsId}
+                          onClick={() => toggleLock(one)}
+                        >
+                          {one.resultsLocked ? 'Unlock' : 'Lock'}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -241,6 +270,15 @@ export default function Terms() {
           across three modules reference one by <span className="mono">termDocsId</span>. That is
           why it has an id, and why a term can be renamed where a{' '}
           <span className="mono">sectionNo</span> never can.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Lock freezes one term only.</b>{' '}
+          <span className="mono">AcademicYear.resultsLocked</span> is the wider control and
+          overrides it, and neither #5 nor #6 touches it. Both are idempotent — asking for a state
+          it is already in is a 200 saying so, never a 409. <b>Unlock records nothing about who or
+          why</b>, because there is no audit writer yet, so do not run it against real published
+          results. And nothing reads either flag today: mark entry lives in{' '}
+          <span className="mono">examination</span>, which does not exist.
         </p>
         <p className="muted">
           <Info size={12} /> Sorted by <span className="mono">sequence</span>, which is unique in

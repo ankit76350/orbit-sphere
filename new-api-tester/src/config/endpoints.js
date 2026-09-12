@@ -9220,6 +9220,244 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
       ],
     },
     {
+      id: "lock-term-results",
+      name: "Lock Term Results",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/terms/{termId}/results/lock",
+      status: 'live',
+      summary: "Freeze one term's results while another is still being marked.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/terms/{termId}/results/lock\` — endpoint #5.
+
+### The narrow control, and the whole point of the field
+
+\`AcademicYear.resultsLocked\` freezes everything at once, which is what a school wants when the
+year is finished — **not** when Term 1's report cards have gone out and Term 2 is still being
+taught. A term-level lock is what lets those two states exist at the same time.
+
+### It does not touch the year's flag, in either direction
+
+The year-wide one is the stronger control and overrides this. A narrow endpoint that quietly
+widened its own effect is the worst kind of surprise, so this writes \`resultsLocked\` on one term
+and nothing else — not \`active\`, not the dates, not the year.
+
+### It locks a retired term without complaint
+
+Deliberate. Retiring a term does not unpublish the report cards issued for it, so freezing its
+marks is still a sensible thing to ask for.
+
+### Idempotent, and that is a design choice rather than a shortcut
+
+Asking for a state it is already in is a **200 saying so**, never a 409. A refusal would turn
+"make sure this is locked" — the thing a caller actually wants — into a request it has to read
+the state before daring to send.
+
+### Gate 4 makes this unreachable on an ended year
+
+Which is the freeze \`controllers/core\` warns about under *lock results before ending the year*.
+After \`POST .../end\`, neither of these endpoints answers. Lock first, end second.
+
+### The gates
+
+Same three as every write in this module — **1** school ACTIVE · **2** subscription usable ·
+**4** the year is running.
+
+### Nothing reads this flag yet
+
+The endpoint that has to honour it is **mark entry, in \`examination\`**, and it does not exist. So
+today this sets a field that no write consults — correct, and inert.
+
+### The four test cases are in the notes below
+`,
+      bodyNotes: `A POST with NO BODY. Needs X-School-Subdomain and a running year.
+
+ THE NARROW CONTROL. AcademicYear.resultsLocked freezes the whole year; this
+ freezes one term, so Term 1 can be final while Term 2 is still being taught.
+
+ IT NEVER TOUCHES THE YEAR'S FLAG, in either direction. The year-wide one is
+ stronger and overrides this.
+
+ IDEMPOTENT. Already locked is a 200 saying so, never a 409.
+
+ A RETIRED TERM LOCKS FINE. Retiring does not unpublish its report cards.
+
+ NOTHING READS THIS FLAG YET. Mark entry lives in examination and does not
+ exist, so today this sets a field no write consults.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Returns the term with resultsLocked true. No warning field — this endpoint does not touch weights.",
+      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in that year. A real id from another year is a 404 here, not a silent write." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end. Lock before ending, not after." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "LOCK ONE TERM",
+          expect: "200 OK",
+          notes: `No body. OUT: resultsLocked true, and a nextStep saying the other
+    terms of the year are unaffected and the year's own flag is untouched.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "LOCK IT AGAIN",
+          expect: "200 OK",
+          notes: `Send case 01 twice. OUT: still 200, and nextStep says "were already
+    locked. Nothing changed." NOT a 409 — the caller asked for a state, not
+    for a transition, and it is in that state.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "THE OTHER TERMS ARE UNTOUCHED",
+          expect: "200 OK",
+          notes: `After case 01, run List Terms. Exactly one row reads locked. That is
+    the whole reason this field exists beside the year-wide one.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A RETIRED TERM LOCKS FINE",
+          expect: "200 OK",
+          notes: `Set active:false in Mongo (#7 is not built), then lock it. Accepted:
+    retiring a term does not unpublish the cards issued for it.`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "unlock-term-results",
+      name: "Unlock Term Results",
+      method: "POST",
+      path: "/schools/current/academic-years/{year}/terms/{termId}/results/unlock",
+      status: 'live',
+      summary: "Reopen one term's results to correct a mark. Records nothing about who or why.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/academic-years/{year}/terms/{termId}/results/unlock\` — endpoint #6.
+
+### It records nothing about who unlocked, or why
+
+The same hole core's #27 carries, and the same answer: it wants a **reason on the request** and an
+\`AuditEvent\` row, which wants an audit writer this project does not have.
+
+**Do not run this against real published results until it does.** An unlock that leaves no trace
+is indistinguishable from marks that were never locked. The response says so in capitals, which is
+the most this endpoint can do about it.
+
+### Unlocking here does not make results writable
+
+\`AcademicYear.resultsLocked\` is the stronger control, so a term unlocked inside a locked year
+stays frozen. Two flags, and a result write has to satisfy **both**.
+
+### Idempotent, and that is a design choice rather than a shortcut
+
+Asking for a state it is already in is a **200 saying so**, never a 409. A refusal would turn
+"make sure this is locked" — the thing a caller actually wants — into a request it has to read
+the state before daring to send.
+
+### Gate 4 makes this unreachable on an ended year
+
+Which is the freeze \`controllers/core\` warns about under *lock results before ending the year*.
+After \`POST .../end\`, neither of these endpoints answers. Lock first, end second.
+
+### The gates
+
+Same three as every write in this module — **1** school ACTIVE · **2** subscription usable ·
+**4** the year is running.
+
+### The four test cases are in the notes below
+`,
+      bodyNotes: `A POST with NO BODY. Needs X-School-Subdomain and a running year.
+
+ IT RECORDS NOTHING ABOUT WHO OR WHY. Same hole as core's #27, same answer: a
+ reason on the request plus an AuditEvent, which needs an audit writer. DO NOT
+ RUN THIS ON REAL PUBLISHED RESULTS UNTIL THEN - an unlock that leaves no trace
+ looks the same as never having locked.
+
+ UNLOCKING HERE DOES NOT MAKE RESULTS WRITABLE. The year's flag is the stronger
+ control, so a term unlocked inside a locked year stays frozen.
+
+ IDEMPOTENT, the same as #5.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "year", value: "{{academicYearName}}", description: "The academic year the term belongs to. Gate 4 requires it to be the running one." },
+        { name: "termId", value: "{{termDocsId}}", description: "The term's document id — termDocsId on any term response. Not termCode." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Returns the term with resultsLocked false, and a nextStep warning that nothing recorded who did it.",
+      responseFields: ["termDocsId", "academicYear", "termCode", "name", "sequence", "startDate", "endDate", "weightPercent", "resultsLocked", "active", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
+        { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in that year. A real id from another year is a 404 here, not a silent write." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+        { status: 409, code: "ACADEMIC_YEAR_NOT_RUNNING", when: "Gate 4 — the year was ended by POST .../end. Lock before ending, not after." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "UNLOCK ONE TERM",
+          expect: "200 OK",
+          notes: `No body. OUT: resultsLocked false, and a nextStep that SHOUTS that
+    nothing recorded who did this or why.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "UNLOCK IT AGAIN",
+          expect: "200 OK",
+          notes: `OUT: still 200, nextStep says "were already unlocked. Nothing
+    changed." Idempotent, the same as #5.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "UNLOCK ONE THAT WAS NEVER LOCKED",
+          expect: "200 OK",
+          notes: `A freshly created term has resultsLocked false. Same 200, same
+    "nothing changed" — there is no distinction between never-locked and
+    unlocked-again, which is exactly what the missing audit row would fix.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "AFTER THE YEAR HAS ENDED",
+          expect: "409 Conflict",
+          notes: `Run POST /academic-years/{year}/end first. OUT:
+    { "code": "ACADEMIC_YEAR_NOT_RUNNING" }. Corrections to a finished year
+    need a way to reopen it, and there is none — see controllers/core.`,
+          body: null,
+        },
+      ],
+    },
+    {
       id: "list-academic-terms",
       name: "List Terms",
       method: "GET",

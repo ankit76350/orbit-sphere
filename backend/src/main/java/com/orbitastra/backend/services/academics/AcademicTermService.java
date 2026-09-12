@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The reporting periods of an academic year — endpoints #1 to #11 of the plan in
- * {@code controllers/academics/structure/README.md}. #1 is built.
+ * {@code controllers/academics/structure/README.md}. #1, #3, #5, #6 and #9 are built.
  *
  * <p><b>A term is a document, not an embedded row</b>, unlike a section or a subject. Six
  * documents across three modules store {@code termDocsId}, so a term needs an id — which is also
@@ -342,4 +342,106 @@ public class AcademicTermService {
                 "termCode and sequence are not editable here — a reorder is #4. "
                         + NO_AUTHORIZATION_YET);
     }
+
+
+        //! endpoint 5 — freeze this term's results ---------------------------------------
+
+    /**
+     * Endpoint #5 — freeze one term's results while another is still being marked.
+     *
+     * <p><b>The narrow control, and it is the whole point of the field.</b>
+     * {@code AcademicYear.resultsLocked} freezes everything at once, which is what a school wants
+     * when the year is finished — not when Term 1's cards have gone out and Term 2 is still being
+     * taught. A term-level lock is what lets those two states exist at the same time.
+     *
+     * <p><b>It does not touch the year's flag</b>, in either direction. The year-wide one is the
+     * stronger control and overrides this; a narrow endpoint that quietly widened its own effect
+     * would be the worst kind of surprise. See open item 7 in the module README.
+     *
+     * <p><b>Idempotent.</b> Already locked is a {@code 200} saying so, not a {@code 409}. A
+     * refusal would make "make sure this is locked" — the thing a caller actually wants — into a
+     * request it has to read the state before daring to send.
+     *
+     * <p><b>It locks a retired term without complaint</b>, and that is deliberate: retiring a
+     * term does not unpublish the report cards issued for it, so freezing its marks is still a
+     * sensible thing to ask for.
+     */
+    @Transactional
+    public AcademicTermResponse lockResults(String academicYear, String termId) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the term, scoped to the school AND the year in the URL
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 3 - nothing to do if it is already locked. A 200 rather than a 409: the caller
+        //! asked for a state, not for a transition, and it is in that state.
+        if (Boolean.TRUE.equals(term.getResultsLocked())) {
+            return AcademicTermResponse.fromTerm(term, null,
+                    "Results were already locked for '" + term.getName() + "'. Nothing changed. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 4 - lock it and save. resultsLocked is the ONLY field this writes: not active,
+        //! not the year's flag, not the dates.
+        term.setResultsLocked(true);
+
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        return AcademicTermResponse.fromTerm(saved, null,
+                "Results locked for '" + saved.getName() + "' only. The other terms of "
+                        + saved.getAcademicYear() + " are unaffected, and the year's own "
+                        + "resultsLocked is untouched — it is the wider control and overrides "
+                        + "this one. " + NO_AUTHORIZATION_YET);
+    }
+
+    //! endpoint 6 — reopen this term's results ---------------------------------------
+
+    /**
+     * Endpoint #6 — reopen one term's results so a mark can be corrected.
+     *
+     * <p><b>Records nothing about who unlocked it, or why.</b> The same hole core's #27 carries,
+     * and the same answer: it wants a reason on the request and an {@code AuditEvent} row, which
+     * wants an audit writer this project does not have yet. <b>Do not run this against real
+     * published results until it does</b> — an unlock that leaves no trace is indistinguishable
+     * from marks that were never locked.
+     *
+     * <p><b>Unlocking here does not make results writable.</b> {@code AcademicYear.resultsLocked}
+     * is the stronger control, so a term unlocked inside a locked year stays frozen. The endpoint
+     * that has to satisfy both is mark entry, in {@code examination}, and it does not exist yet.
+     *
+     * <p><b>Idempotent</b>, the same as #5, and for the same reason.
+     */
+    @Transactional
+    public AcademicTermResponse unlockResults(String academicYear, String termId) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the term, scoped to the school AND the year in the URL
+        AcademicTerm term = utils.loadTerm(school, academicYear, termId);
+
+        //! step 3 - nothing to do if it is already unlocked
+        if (Boolean.FALSE.equals(term.getResultsLocked())) {
+            return AcademicTermResponse.fromTerm(term, null,
+                    "Results were already unlocked for '" + term.getName() + "'. Nothing changed. "
+                            + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 4 - unlock it and save
+        term.setResultsLocked(false);
+
+        // TODO: update academic term
+        AcademicTerm saved = academicTerms.save(term);
+
+        return AcademicTermResponse.fromTerm(saved, null,
+                "Results unlocked for '" + saved.getName() + "'. NOTHING RECORDS WHO DID THIS OR "
+                        + "WHY — there is no audit writer yet. Lock them again as soon as the "
+                        + "corrections are in. If " + saved.getAcademicYear() + " itself is "
+                        + "locked, results stay frozen regardless: the year is the wider control. "
+                        + NO_AUTHORIZATION_YET);
+    }
+
 }

@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The reporting periods of one academic year. Endpoints #1 to #11 and #35 of the plan in this
- * package's README; #1, #3 and #9 are built.
+ * package's README; #1, #3, #5, #6 and #9 are built.
  *
  * <p><b>Its own controller, not {@link SchoolClassController}'s.</b> A term and a class are
  * independent documents with independent keys, and the {@code {year}} prefix is all they share —
@@ -118,6 +118,58 @@ public class AcademicTermController {
         gate.requireYearMarkedAsRunning(school, year);
 
         return ResponseEntity.ok(academicTermService.updateTerm(year, termId, request));
+    }
+
+    /**
+     * Endpoint #5 — freeze this term's results while another is still being marked.
+     *
+     * <p><b>Idempotent, and takes no body.</b> Already locked is a {@code 200} saying so. A caller
+     * that wants "make sure this is locked" should not have to read the state before daring to
+     * ask.
+     *
+     * <p><b>The same three gates as every write here.</b> Gate 4 is the interesting one: a year
+     * that has been ended cannot have its terms locked or unlocked at all, which is the freeze
+     * this package's README warns about under "lock results before ending the year".
+     */
+    @PostMapping("/{termId}/results/lock")
+    public ResponseEntity<AcademicTermResponse> lockResults(
+            @PathVariable String year,
+            @PathVariable String termId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(academicTermService.lockResults(year, termId));
+    }
+
+    /**
+     * Endpoint #6 — reopen this term's results so a mark can be corrected.
+     *
+     * <p><b>Idempotent, and takes no body.</b>
+     *
+     * <p><b>Nothing is recorded about who unlocked, or why</b> — the same hole core's #27 carries.
+     * It wants a reason on the request and an {@code AuditEvent}, which wants an audit writer.
+     * See the service, and open item 7 in this package's README.
+     */
+    @PostMapping("/{termId}/results/unlock")
+    public ResponseEntity<AcademicTermResponse> unlockResults(
+            @PathVariable String year,
+            @PathVariable String termId) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! Gate 4 — is this the school's working year, whatever the calendar says ---------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+        gate.requireYearMarkedAsRunning(school, year);
+
+        return ResponseEntity.ok(academicTermService.unlockResults(year, termId));
     }
 
     /**

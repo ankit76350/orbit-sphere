@@ -3440,6 +3440,94 @@
               "response": []
             },
             {
+              "name": "Lock Term Results",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented — idempotent, never a 409', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('resultsLocked is true', () => pm.expect(b.resultsLocked).to.equal(true));",
+                      "pm.test('the year flag is not echoed here — it is a different document', () => pm.expect(b).to.not.have.property('yearResultsLocked'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/terms/{{termDocsId}}/results/lock",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "terms",
+                    "{{termDocsId}}",
+                    "results",
+                    "lock"
+                  ]
+                },
+                "description": "Endpoint #5 — freeze one term's results while another is still being marked.\n\nTHE NARROW CONTROL. AcademicYear.resultsLocked freezes the whole year; this freezes one term, so Term 1 can be final while Term 2 is still being taught. It never touches the year's flag, in either direction — the year-wide one is stronger and overrides this.\n\nNO BODY. Idempotent: already locked is a 200 saying so, never a 409. A refusal would turn \"make sure this is locked\" into a request you have to read the state before daring to send.\n\nA RETIRED TERM LOCKS FINE — retiring does not unpublish the report cards issued for it.\n\nGATE 4 MAKES THIS UNREACHABLE ON AN ENDED YEAR. Lock first, end second.\n\nNOTHING READS THIS FLAG YET. Mark entry lives in examination and does not exist.\n\nTEST CASES\n  01  Lock one term                      -> 200, resultsLocked true\n  02  Lock it again                      -> 200, \"were already locked. Nothing changed.\"\n  03  List Terms afterwards              -> exactly one row reads locked\n  04  A retired term (active:false)      -> 200, accepted\n  05  After POST /academic-years/{year}/end  -> 409 ACADEMIC_YEAR_NOT_RUNNING\n\nEVERY REFUSAL\n  400 TENANT_NOT_RESOLVED         The X-School-Subdomain header is missing or blank.\n  404 SCHOOL_NOT_FOUND            No school has that subdomain.\n  404 ACADEMIC_YEAR_NOT_FOUND     The {year} in the path is not a year of this school.\n  404 TERM_NOT_FOUND              No term with that id in that year.\n  409 SCHOOL_NOT_ACTIVE           Gate 1.\n  409 SUBSCRIPTION_NOT_USABLE     Gate 2.\n  409 ACADEMIC_YEAR_NOT_RUNNING   Gate 4 — the year was ended."
+              },
+              "response": []
+            },
+            {
+              "name": "Unlock Term Results",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented — idempotent, never a 409', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('resultsLocked is false', () => pm.expect(b.resultsLocked).to.equal(false));",
+                      "pm.test('the year flag is not echoed here — it is a different document', () => pm.expect(b).to.not.have.property('yearResultsLocked'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/academic-years/{{academicYearName}}/terms/{{termDocsId}}/results/unlock",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "academic-years",
+                    "{{academicYearName}}",
+                    "terms",
+                    "{{termDocsId}}",
+                    "results",
+                    "unlock"
+                  ]
+                },
+                "description": "Endpoint #6 — reopen one term's results so a mark can be corrected.\n\nIT RECORDS NOTHING ABOUT WHO UNLOCKED, OR WHY. The same hole core's #27 carries, and the same answer: a reason on the request plus an AuditEvent row, which needs an audit writer this project does not have. DO NOT RUN THIS AGAINST REAL PUBLISHED RESULTS UNTIL IT DOES — an unlock that leaves no trace is indistinguishable from marks that were never locked.\n\nUNLOCKING HERE DOES NOT MAKE RESULTS WRITABLE. AcademicYear.resultsLocked is the stronger control, so a term unlocked inside a locked year stays frozen. A result write has to satisfy both flags.\n\nNO BODY. Idempotent, the same as #5.\n\nTEST CASES\n  01  Unlock one term                    -> 200, resultsLocked false, nextStep SHOUTS about the audit gap\n  02  Unlock it again                    -> 200, \"were already unlocked. Nothing changed.\"\n  03  One that was never locked          -> 200, identical response — which is exactly the\n                                            problem the missing audit row would solve\n  04  After POST /academic-years/{year}/end  -> 409 ACADEMIC_YEAR_NOT_RUNNING\n\nEVERY REFUSAL\n  400 TENANT_NOT_RESOLVED         The X-School-Subdomain header is missing or blank.\n  404 SCHOOL_NOT_FOUND            No school has that subdomain.\n  404 ACADEMIC_YEAR_NOT_FOUND     The {year} in the path is not a year of this school.\n  404 TERM_NOT_FOUND              No term with that id in that year.\n  409 SCHOOL_NOT_ACTIVE           Gate 1.\n  409 SUBSCRIPTION_NOT_USABLE     Gate 2.\n  409 ACADEMIC_YEAR_NOT_RUNNING   Gate 4 — the year was ended."
+              },
+              "response": []
+            },
+            {
               "name": "List Terms",
               "event": [
                 {
