@@ -140,10 +140,17 @@ referenced by. A top-level document has one, and twelve consumers were already u
 earlier draft of this plan invented a `classCode` for consistency with `sectionNo`, and that was
 the wrong half of the design to be consistent with.
 
-**Which is what keeps `name` editable.** A class is its id, so renaming it joins nothing and
-breaks nothing; the name only has to stay unique inside the year, which
-`school_year_class_name_uniq` enforces. Contrast the academic year, which *is* its name to every
-other collection and therefore can never be renamed.
+**`AcademicTermController` said the opposite in its own javadoc until 2026-09-12** — "a term is
+addressed by `termCode`, not by its document id" — and #1 built a `Location` header from the
+code to match, naming a URL that no route answers. Nothing caught it because #3 did not exist
+yet, so the header pointed at a 404 that nobody had reason to follow. Both are fixed; the table
+above is what the code now does.
+
+**Which is what keeps `name` editable — on a class and on a term alike.** Each is its id, so
+renaming one joins nothing and breaks nothing; the name only has to stay unique inside the
+year, which `school_year_class_name_uniq` and `school_year_term_name_uniq` enforce. Contrast
+the academic year, which *is* its name to every other collection and therefore can never be
+renamed.
 
 **There is still no rename for `sectionNo` or `subjectCode`.** The counts are the reason:
 
@@ -151,7 +158,8 @@ other collection and therefore can never be renamed.
 |---|---|---|
 | `sectionNo` | **8** collections — `attendance_sessions`, `exam_schedules`, `homework`, `report_cards`, `holistic_progress_cards`, `student_academic_records`, `fee_invoices` directly, and `daily_timetables` through its embedded `TimetableEntry` | leave all eight pointing at a section that no longer answers to it |
 | `subjectCode` | **7** — `attendance_sessions`, `curriculum_documents`, `homework`, `student_marks`, `exam_schedules` directly, plus `report_cards` and `daily_timetables` through embedded rows | orphan every mark and register for that subject |
-| `termCode` | nothing — consumers store `termDocsId`. It is a school-facing label, not a join key. | be safe. #3 may edit it. |
+| `termCode` | nothing — consumers store `termDocsId`. It is a school-facing label, not a join key. | **be safe in the database, and break things outside it.** Nothing joins on it, so nothing fails and nothing cascades — while every school-facing report, export and saved filter naming the old code quietly stops matching. **#3 refuses to edit it**, decided 2026-09-12: "no query breaks" is not the same as "nothing breaks". |
+| a term's `name` | nothing — consumers store `termDocsId` and a report card snapshots the name | be safe. #3 edits it, and #1 and #3 keep it unique within the year. |
 | a class's `name` | nothing — consumers store `classDocsId` | be safe. #13 edits it. |
 
 None of those references is a foreign key. Nothing would fail, nothing would cascade, and every
@@ -223,7 +231,7 @@ A term is the unit a report card is issued for. Six other documents point at one
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /terms`](#e1) | Add one reporting period to the year. The ordinary way a term is created once the year is running and somebody realises a period is missing. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t2"></a>2 | [`PUT /terms`](#e2) | Set the year's whole term structure in one write — "two semesters", "four quarters". What year setup actually does, and the only endpoint that can validate the weights sum to 100, because it is the only one that sees all of them. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
-| <a id="t3"></a>3 | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
+| <a id="t3"></a>3 — **built** | [`PATCH /terms/{termId}`](#e3) | Fix one term's name, dates or weight. A new `name` must be free in the year, case-insensitively. Cannot change `termCode` or `sequence` — see #4 for order. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java), [`academic_years`](../../../models/core/AcademicYear.java) |
 | <a id="t4"></a>4 | [`PUT /terms/order`](#e4) | Reorder the year's terms in one write. **This has to exist**: `sequence` is unique per year, so swapping two terms one `PATCH` at a time hits the unique index halfway through. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t5"></a>5 | [`POST /terms/{termId}/results/lock`](#e5) | Freeze results for this period while another is still being marked. Idempotent. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
 | <a id="t6"></a>6 | [`POST /terms/{termId}/results/unlock`](#e6) | Reopen one period's results to correct a mark. Idempotent, and — like core's #27 — records nothing about who or why until there is an audit writer. | [`academic_terms`](../../../models/academics/structure/AcademicTerm.java) |
@@ -315,7 +323,7 @@ section exists, so sections come before everything that is merely useful.
 | **0** | ~~the broken unique index settled~~ — **done 2026-09-10** | *no endpoint; see open item 1* |
 | **1** | A class with sections exists, so a student can be placed in one | ~~12~~, ~~17~~, ~~28~~, ~~29~~, ~~30~~ — **complete** |
 | **2** | Subjects are assigned, so marks and registers have something to be about | ~~22~~, ~~24~~, ~~31~~ — **complete** |
-| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~9~~, 3, 10, 11 |
+| **3** | The year is divided, so an exam and a report card have a period | ~~1~~, ~~3~~, ~~9~~, 10, 11 |
 | **4** | Setup stops being one call at a time | 2, 4, 14, 18, 23 |
 | **5** | Things can be retired without being deleted | 5, 6, 7, 8, 15, 16, 20, 21, 25, 26, 27 |
 | **6** | Next April does not mean retyping 132 objects | 35, 36 |
@@ -348,7 +356,13 @@ and sections have eight collections waiting.
 - **No rename of `sectionNo` or `subjectCode`.** Eight and seven collections store them as plain
   strings, so a rename would neither fail nor cascade. See
   [the table above](#addressed-by-id-except-where-the-thing-has-no-id). A class `name` and a
-  `termCode` *are* editable — nothing joins on either.
+  term `name` *are* editable — nothing joins on either.
+- **No rename of `termCode` either, though nothing joins on it.** It was editable in this
+  plan until 2026-09-12. The counts argument does not apply — no collection stores it — but a
+  code is what a school types into a filter and what an export column is headed with, and a
+  rename that breaks those while leaving every query green is worse than one that fails
+  loudly. #3 drops the field rather than refusing it, because the request record has no such
+  field to refuse.
 - **No read that is *only* another read with fields removed.** Sections and subjects are
   *embedded*, so every per-class read is the same `findById` on the same document — a narrower
   response saves a few hundred bytes and adds an endpoint to keep in step. Each of the three earns
@@ -450,20 +464,30 @@ using them has a test for exactly that, because in all three cases a mutation sw
 for `findById` left every other assertion green — an other-school row is the only fixture that
 tells the two apart.
 
-## 3. Term weights cannot be validated one `PATCH` at a time
+## 3. Term weights cannot be validated one `PATCH` at a time — settled 2026-09-12
 
 Active term weights must sum to 100 when a school weights at all. With two terms at 20 and 80,
 changing them to 30 and 70 means two `PATCH` calls, and **the first one is always invalid** —
 30 + 80 = 110. Enforce the sum on a single-term write and the values can never be changed.
 
-The same shape as the `sequence` problem, and it wants the same answer:
+**The answer turned out to be three answers, one per endpoint**, rather than the two this item
+first proposed. What each endpoint can say about the sum is exactly what it can see:
 
-- **#2 and #4 validate the whole set**, because they see all of it.
-- **#3 does not refuse a broken sum.** It reports it — a `warning` on the response saying the
-  active weights now total 110 and the annual result cannot be computed until they total 100.
+| endpoint | what it enforces | why it can |
+|---|---|---|
+| **#1** create | refuses an **excess** — `409 TERM_WEIGHTS_EXCEED_100` | a create only ever *adds* to the sum, so no sequence of creates has to pass through "over 100" to reach a valid set |
+| **#2** replace, **#4** reorder | requires **exactly 100** — `409 TERM_WEIGHTS_INVALID` | they hold every row at once |
+| **#3** patch | **reports** only — a `warning` on a successful response | it can legitimately be mid-edit, and 30/70 is only reachable through 110 |
 
-Which means **the sum is a property of the set, checked wherever the set is written, and reported
-everywhere else.** Decide this before #3, because retrofitting it means changing what #3 refuses.
+**The half this item missed is #1's ceiling.** The original framing was "single-term writes
+cannot check the sum", and that is true of *equality* but not of the bound: a create cannot
+require 100, because the first weighted term of a year would then be impossible to write — at
+40%, the year totals 40. It *can* refuse 110, because nothing a later create does brings the
+total back down. Only an edit needs room to be transiently wrong.
+
+So **the sum is a property of the set, and each endpoint enforces the strongest bound it can
+see**. A shortfall stays a warning everywhere, because it is where every year sits while its
+terms are still being entered.
 
 ## 4. `active` and `recordState` are two flags for overlapping things
 
@@ -510,6 +534,14 @@ must satisfy **both** — so #5 and #6 are the narrower control and must not tou
 Nothing in this module reads either one; the endpoint that has to satisfy both is mark entry, in
 `examination`. Worth a shared check when it arrives, not two.
 
+**#3 raised a second question and did not answer it, 2026-09-12.** `AcademicTerm.resultsLocked`
+is documented as blocking *result* changes, and a term's `name` and dates are plainly not
+results — but `weightPercent` is a direct input to the computed annual result, so editing it on
+a locked term defeats the lock. #3 does not check the flag, because the plan for it does not
+list that check and nothing can set the flag yet: #5 and #6 are not built. **Settle it before
+#5**, since that is the call that makes a locked term reachable. The likely shape is that #3
+refuses `weightPercent` on a locked term while still allowing a rename.
+
 ## 8. Containment inside the academic year is a service rule, and there are three of them
 
 MongoDB cannot express any of these. Every one is a service check, and each needs a refusal code
@@ -541,7 +573,8 @@ controllers/academics/structure/
 services/academics/
 ├── AcademicTermService.java
 ├── SchoolClassService.java
-├── helper/AcademicsHelper.java      validation shared across the module
+├── helper/AcademicsHelper.java          validation shared across the module
+├── utils/AcademicTermServiceUtils.java  the year, and one term by id
 └── utils/SchoolClassServiceUtils.java
 
 repositories/academics/
@@ -594,10 +627,10 @@ Two things are left out of every entry because they are true of all of them:
 | `academicYear` | String, required | `AcademicYear.name` — `"2026-2027"`. Comes from the `{year}` path segment, never from the body, and the year must exist. **Never changes**: a term cannot be moved to another year, because the two codes are only unique together. |
 | `termCode` | String, required | Stable school-scoped key, unique with `schoolId + academicYear` — `TERM1`, `SEM2`, `Q3`. **Given by the caller**, validated against `^[A-Z0-9]+$` — uppercase letters and digits, no separator at all — rather than derived from `name`. It is the stable half and the name is the display half, and the two do not move together. **Never changes.** |
 | `name` | String, required | Free text, `@NotBlank`, max 120 — `"Term 1"`, `"Semester 2"`, `"Annual"`. **Unique within `schoolId + academicYear`**, case-insensitively, since 2026-09-12: a report card names the term rather than its code, so two "Term 1"s are ambiguous in front of a parent. Still safe to rename, because consumers store `termDocsId` and snapshot the name — the uniqueness check excludes the term by id, so it may keep the name it has. |
-| `sequence` | Integer, required | Order inside the year, **unique** with `schoolId + academicYear`. Not editable through #3 — see #4 and [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). |
+| `sequence` | Integer, required | Order inside the year, **unique** with `schoolId + academicYear`. Not editable through #3 — see [#4](#t4), which exists because a one-at-a-time swap hits `school_year_term_sequence_uniq` halfway through. |
 | `startDate` | LocalDate, required | Must fall inside the academic year's range, and must not overlap another term. First day of the period, inclusive. |
 | `endDate` | LocalDate, required | Same, and must be on or after `startDate`. Last day, inclusive — so a term ending 30 September includes the 30th. |
-| `weightPercent` | BigDecimal, `DECIMAL128`, optional | `0` to `100`, or null. **Null means this school does not weight the annual result**, and null on one term while another has a value is the mixed state to refuse. Active weights sum to 100 — checked by #2 and #4, reported by #3. |
+| `weightPercent` | BigDecimal, `DECIMAL128`, optional | `0` to `100`, or null. **Null means this school does not weight the annual result**, and null on one term while another has a value is the mixed state to refuse. Active weights sum to 100 — **required** by #2 and #4, **capped** by #1 (`409 TERM_WEIGHTS_EXCEED_100`), **reported** by #3. Each endpoint enforces the strongest bound it can see; [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12) has the table. |
 | `resultsLocked` | Boolean, required | `false` at create; `true` from #5, `false` from #6. Narrower than `AcademicYear.resultsLocked`, which overrides it. |
 | `active` | Boolean, required | `true` at create; `false` from #7, `true` from #8. The academic fact, not the record lifecycle — see [open item 4](#4-active-and-recordstate-are-two-flags-for-overlapping-things). |
 
@@ -711,7 +744,7 @@ class, because a section has no document of its own.
 - **Six rules MongoDB cannot express**, in this order: the range is not inverted (`400 INVALID_TERM_RANGE`), it falls inside the year (`409 TERM_OUTSIDE_ACADEMIC_YEAR`), the code is free (`409 TERM_CODE_TAKEN`), the sequence is free (`409 TERM_SEQUENCE_TAKEN`), the name is free (`409 TERM_NAME_TAKEN`), the dates are free (`409 TERMS_OVERLAP`). The order matters: an inverted range checked last would be reported as "outside the year", which is true and says the wrong thing.
 - **Three of those count retired terms and one does not.** A retired term keeps its `termCode`, its `sequence` and its `name`, because none of the three unique indexes filters on `active` — a check that skipped retired rows would accept a write the database then refuses. It releases its **dates**, because nothing is taught in it and `school_year_term_active_dates_idx` is indexed on `active` for exactly that query.
 - **`termCode` is given, not derived from `name`** — changed 2026-09-12. Deriving it tied two fields that do not move together: a school renaming "Term 1" to "First Term" would have been offered a code of `FIRST_TERM` on a term six documents across three modules already reference as `TERM1`. The shape is fixed and **tighter than the derivation's was** — `^[A-Z0-9]+$`, `@Size(max = 40)`: uppercase letters and digits, no underscore. `TextHelper.toCode` emitted underscores because it had to put something where a space had been; a code stated outright has no such gap to fill, and one separator nobody needs is one more way to write `TERM1` two ways. **Validated, not normalized**, so `term 1` is a `400` naming the field rather than a silent rewrite into something the caller never typed. `409 TERM_CODE_INVALID` went with the derivation.
-- **The weight *mixture* is refused; a weight *shortfall* is only reported.** `409 TERM_WEIGHT_MIXED` when one active term is weighted and another is not, because that computes to nothing and no sequence of edits passes through it legitimately. A total *below* 100 comes back as a `warning` on the response instead — [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time) settled that, because 20/80 → 30/70 passes through 110 and refusing it would make the values impossible to change.
+- **The weight *mixture* is refused; a weight *shortfall* is only reported.** `409 TERM_WEIGHT_MIXED` when one active term is weighted and another is not, because that computes to nothing and no sequence of edits passes through it legitimately. A total *below* 100 comes back as a `warning` on the response instead — [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12) settled that, because 20/80 → 30/70 passes through 110 and refusing it would make the values impossible to change.
 - **A weight *excess* is refused, and that is not a contradiction.** `409 TERM_WEIGHTS_EXCEED_100` when this term's weight would take the year past 100%. Open item 3's argument is about *editing* — an insert is not an edit. **A create only ever adds to the sum**, so no sequence of creates has to pass through "over 100" to reach a valid set; a school needing room lowers an existing term with #3 first. **The ceiling only, never equality**: requiring exactly 100 here would make the first weighted term of a year impossible to write, since at 40% the year totals 40 and there would be no way to reach a second term.
 - **Overlap is [`Dates.overlaps`](../../../common/time/Dates.java), shared with core's academic-year check.** The plan warned that two implementations would eventually disagree about touching endpoints; the predicate was extracted on 2026-09-11 and `CoreHelper.validateNoAcademicYearOverlap` now reads it too. Nothing had covered `ACADEMIC_YEAR_OVERLAP` before that, so `verify1.py` covers both callers.
 - **`resultsLocked` and `active` are not accepted at create.** Both are events with their own endpoints — #5, #6, #7, #8 — and a term created already locked is a state nothing asked for.
@@ -738,7 +771,7 @@ class, because a section has no document of its own.
 - **`name` is unique within the year**, case-insensitively, and the check excludes this term by id — so a term may keep the name it has while something else changes. `409 TERM_NAME_TAKEN`, retired terms included.
 - **The dates are handled as a pair.** One sent alone keeps the other, and the two are then checked together — a `startDate` moved past an untouched `endDate` is `400 INVALID_TERM_RANGE`, which checking only the field that arrived would miss.
 - **`weightPercent` cannot be cleared here, and that is not an oversight.** A year weights every active term or none, so removing one weight is only legal as part of removing them all — which is #2. A clear here would be refused by `TERM_WEIGHT_MIXED` in every year with more than one active term.
-- **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time). Refusing here makes 20/80 → 30/70 impossible, because the first call sits at 110. **This is the endpoint that proves the rule has to be per-endpoint**: #1 can refuse an excess because a create only adds, #2 can require exactly 100 because it sees every row, and #3 can do neither.
+- **Reports a broken weight sum, does not refuse it** — see [open item 3](#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12). Refusing here makes 20/80 → 30/70 impossible, because the first call sits at 110. **This is the endpoint that proves the rule has to be per-endpoint**: #1 can refuse an excess because a create only adds, #2 can require exactly 100 because it sees every row, and #3 can do neither.
 - **A rename now reads the year's terms too**, because the name has to be unique among them. The plan's "only when dates are sent" applied to the year's *terms* as well until 2026-09-12; it now applies only to the **year document**, which is still read for its own dates and nothing else. One consequence: a rename can carry a weight `warning`, where it used to carry none.
 
 <a id="e4"></a>
