@@ -35,6 +35,7 @@ import jakarta.validation.constraints.Size;
  *
  * <pre>
  * "name": ""                 400 TERM_NAME_REQUIRED
+ * "name": a name in use      409 TERM_NAME_TAKEN   (retired terms hold theirs too)
  * any field: null            leaves it            (same as absent)
  * </pre>
  *
@@ -54,7 +55,11 @@ import jakarta.validation.constraints.Size;
  */
 public record AcademicTermUpdateRequest(
 
-        /** A new display name. Blank is refused, not treated as a clear. */
+        /**
+         * A new display name, unique within the year. Blank is refused, not treated as a
+         * clear; a term may keep the name it already has, because the check excludes it by
+         * id rather than comparing names alone.
+         */
         @Size(max = 120) String name,
 
         /** A new first day, inclusive. Checked against the year and the other active terms. */
@@ -71,7 +76,13 @@ public record AcademicTermUpdateRequest(
         return name == null && startDate == null && endDate == null && weightPercent == null;
     }
 
-    /** Whether anything here moves the term in the calendar, which is what needs the year read. */
+    /**
+     * Whether anything here moves the term in the calendar.
+     *
+     * <p>What this gates is the read of the <b>year document</b>, for its own dates. It is
+     * no longer what gates the read of the year's <i>terms</i>: a rename needs those too,
+     * since {@code name} became unique within the year on 2026-09-12.
+     */
     public boolean touchesDates() {
         return startDate != null || endDate != null;
     }

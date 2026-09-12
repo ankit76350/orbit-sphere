@@ -8679,23 +8679,24 @@ Six documents across three modules reference one by \`termDocsId\` — \`Exam\`,
 \`HolisticProgressCard\`, \`FeedbackCampaign\`, \`FeeInstallment\` and \`FeeInvoice\`. That is why
 a term has an id, and why it can be **renamed safely** where a \`sectionNo\` can never be.
 
-### Five rules MongoDB cannot express, in this order
+### Six rules MongoDB cannot express, in this order
 
 1. the range is not inverted — \`400 INVALID_TERM_RANGE\`
 2. it falls inside the year — \`409 TERM_OUTSIDE_ACADEMIC_YEAR\`
 3. the code is free — \`409 TERM_CODE_TAKEN\`
 4. the sequence is free — \`409 TERM_SEQUENCE_TAKEN\`
-5. the dates are free — \`409 TERMS_OVERLAP\`
+5. the name is free — \`409 TERM_NAME_TAKEN\` (case-insensitive)
+6. the dates are free — \`409 TERMS_OVERLAP\`
 
 **The order matters.** An inverted range checked last would be reported as "outside the year",
 which is true and says the wrong thing about what is wrong.
 
 All of them answer from **one** read of the year's terms, so they cannot disagree with each other.
 
-### A retired term keeps its code and its sequence — but releases its dates
+### A retired term keeps its code, its sequence and its name — but releases its dates
 
-Neither unique index filters on \`active\`, so a check that skipped retired rows would accept a
-write the database then refuses. The **dates** are different: nothing is taught in a retired term,
+None of the three unique indexes filters on \`active\`, so a check that skipped retired rows would
+accept a write the database then refuses. The **dates** are different: nothing is taught in a retired term,
 and \`school_year_term_active_dates_idx\` is indexed on \`active\` for exactly that query.
 
 Three rules, two different answers to "does a retired term still count", and the difference is
@@ -8790,6 +8791,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
         { status: 409, code: "TERM_CODE_TAKEN", when: "That year already has that termCode — retired terms included." },
+        { status: 409, code: "TERM_NAME_TAKEN", when: "That year already has a term with that name, case-insensitively — retired terms included. A report card names the term, not its code." },
         { status: 409, code: "TERM_SEQUENCE_TAKEN", when: "Another term in the year holds that sequence — retired terms included." },
         { status: 409, code: "TERMS_OVERLAP", when: "The dates cover a day an ACTIVE term already covers. Retired terms do not block." },
         { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The dates fall outside the year's own range." },
@@ -9051,11 +9053,14 @@ change. So a broken total comes back as \`warning\` on a **successful** response
 | #2 replace | requires **exactly 100** | it is the only one that sees every row |
 | #3 patch | **reports** only | it can be legitimately mid-edit |
 
-### A rename reads nothing else, and warns about nothing
+### name is unique within the year
 
-No dates and no weight means no second query — not the year, not the year's other terms. So a
-name-only PATCH carries **no \`warning\` at all**, rather than a total computed from the one
-term in hand, which would be wrong in every year that has more than one.
+Case-insensitively, and retired terms hold theirs — \`409 TERM_NAME_TAKEN\`. A term may keep the
+name it already has: the check excludes it by id rather than comparing names alone.
+
+**This is what a rename now reads the year's terms for.** The year *document* is still loaded only
+when dates are sent, because only a date has to fall inside it — but the year's terms are always
+loaded, so a rename can carry a weight \`warning\` where it used to carry none.
 
 ### The gates
 
@@ -9110,6 +9115,7 @@ Same three as every write in this module — **1** school ACTIVE · **2** subscr
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "ACADEMIC_YEAR_NOT_FOUND", when: "The {year} in the path is not a year of this school." },
         { status: 404, code: "TERM_NOT_FOUND", when: "No term with that id in that year. A real id from another year is a 404 here, not a silent edit." },
+        { status: 409, code: "TERM_NAME_TAKEN", when: "Another term in the year already has that name, case-insensitively. The term may keep its own — the check excludes it by id." },
         { status: 409, code: "TERM_OUTSIDE_ACADEMIC_YEAR", when: "The new dates fall outside the year's own range." },
         { status: 409, code: "TERMS_OVERLAP", when: "The new dates cover a day another ACTIVE term already covers. The term never overlaps itself." },
         { status: 409, code: "TERM_WEIGHT_MIXED", when: "A weight sent into a year whose other active terms carry none." },
@@ -9256,7 +9262,9 @@ they already used — and #28 gets the same from its own \`name\` fallback.
 
 **So the choice of fallback is the decision that matters.** \`sequence\` is unique within a year,
 so every sort ends in a total order and paging cannot put one row on two pages while another
-appears on none. A term \`name\` could not have served: only \`termCode\` and \`sequence\` are
+appears on none. A term \`name\` is unique too since 2026-09-12 and could now have served,
+but \`sequence\` is what a year is ordered by — a fallback that reshuffled the page on a rename
+would be worse for being equally valid. Before that, only \`termCode\` and \`sequence\` were
 unique.
 
 \`?sort=\` is an **allowlist**: \`sequence\`, \`name\`, \`startDate\`, \`endDate\`, \`createdAt\`,

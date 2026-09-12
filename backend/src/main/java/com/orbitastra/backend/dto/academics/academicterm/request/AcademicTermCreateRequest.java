@@ -50,7 +50,13 @@ import jakarta.validation.constraints.Size;
  */
 public record AcademicTermCreateRequest(
 
-        /** Free text — "Term 1", "Semester 2", "Annual". Displayed, and renameable later. */
+        /**
+         * Free text — "Term 1", "Semester 2", "Annual". Displayed, and renameable later.
+         *
+         * <p><b>Unique within the school's year</b>, case-insensitively, the same as
+         * {@code termCode} and {@code sequence}. A report card names the term rather than
+         * its code, so two "Term 1"s are ambiguous in front of a parent.
+         */
         @NotBlank @Size(max = 120) String name,
 
         /**

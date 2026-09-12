@@ -79,7 +79,9 @@ public class AcademicTermService {
      * <p><b>Which makes the choice of fallback the decision that matters here.</b> {@code sequence}
      * is unique within a year — #1 enforces it and {@code school_year_term_sequence_uniq} declares
      * it — so every sort ends in a total order and paging cannot put one row on two pages. A term
-     * {@code name} is <i>not</i> unique, so it could not have served.
+     * {@code name} is unique too, as of 2026-09-12, so it <i>could</i> now have served — but
+     * {@code sequence} is what a year is actually ordered by, and a fallback that reordered the
+     * page whenever two terms were renamed would be a worse one for being equally valid.
      *
      * <p>A private {@code withStableOrder} was written here first and deleted on 2026-09-11: it
      * appended {@code sequence} by hand and was entirely redundant, which a mutation removing it
@@ -165,17 +167,22 @@ public class AcademicTermService {
         List<AcademicTerm> yearTerms = academicTerms
                 .findBySchoolIdAndAcademicYearOrderBySequenceAsc(school.getId(), year.getName());
 
-        //! step 6 - the code and the sequence are unique in the year, retired terms included,
-        //! because their indexes do not filter on active - so these checks must not either, or
-        //! they would accept a write the index then refuses.
+        //! step 6 - the code, the sequence and the NAME are each unique in the year, retired
+        //! terms included, because none of the three indexes filters on active - so these checks
+        //! must not either, or they would accept a write the index then refuses.
         //!
         //! THESE CHECKS ARE THE ENFORCEMENT, not a nicety in front of the index. The two unique
         //! indexes are declared on the model but built on demand (app.mongo.sync-indexes), and
         //! edusphere_dev carries neither - measured 2026-09-11, where academic_terms had only
         //! _id_. Where they ARE built they turn a duplicate-key 500 into this 409; where they
         //! are not, this is the only thing standing between a school and two TERM1s.
+        //!
+        //! The name joined them on 2026-09-12. It is the one of the three a PARENT sees: a
+        //! report card names the term rather than its code, so two "Term 1"s are ambiguous on
+        //! paper long before they are ambiguous in a query.
         helper.validateTermCodeFree(yearTerms, null, request.termCode());
         helper.validateSequenceFree(yearTerms, null, request.sequence());
+        helper.validateTermNameFree(yearTerms, null, request.name().trim());
 
         //! step 7 - and the dates must not cover a day an ACTIVE term already covers
         helper.validateNoTermOverlap(yearTerms, null, request.startDate(), request.endDate());
@@ -233,9 +240,10 @@ public class AcademicTermService {
      * calls and the first one is at 110. #1 can refuse an excess because a create only adds; #2
      * can require exactly 100 because it sees every row; #3 can do neither.
      *
-     * <p><b>It reads only what the body makes it read.</b> A rename touches no dates, so it loads
-     * neither the year nor the year's other terms — the plan asks for that, and it is what keeps
-     * the common case one query on the term itself.
+     * <p><b>The year document is read only when dates are sent</b>, because only a date has to
+     * fall inside it. The year's <i>terms</i> are always read: every editable field needs them
+     * now that {@code name} is unique within the year — the plan's "only when dates are sent"
+     * predates that rule.
      */
     @Transactional
     public AcademicTermResponse updateTerm(String academicYear, String termId,
@@ -256,19 +264,28 @@ public class AcademicTermService {
         //! edited through a URL that names this one.
         AcademicTerm term = utils.loadTerm(school, academicYear, termId);
 
-        //! step 4 - a new name has to be usable. Unlike a class name, it does not have to be
-        //! unique: two terms may share a name, which is why #9's paging falls back to sequence
-        //! rather than to name.
+        //! step 4 - the year's other terms, loaded ONCE. Every editable field needs them now:
+        //! the name for uniqueness, the dates for the overlap check, a weight for the mixture
+        //! rule and the sum. This used to be conditional and skipped for a rename - the name
+        //! becoming unique on 2026-09-12 is what made that saving impossible.
+        // TODO: read academic terms
+        List<AcademicTerm> yearTerms = academicTerms
+                .findBySchoolIdAndAcademicYearOrderBySequenceAsc(
+                        school.getId(), term.getAcademicYear());
+
+        //! step 5 - a new name has to be usable, and free in this year. Excluding this term by
+        //! id is what lets it keep the name it already has while something else changes.
         if (request.name() != null) {
             String newName = request.name().trim();
             if (newName.isEmpty()) {
                 throw ApiException.badRequest("TERM_NAME_REQUIRED",
                         "A term name cannot be removed. Send a new one, or omit the field.");
             }
+            helper.validateTermNameFree(yearTerms, term.getId(), newName);
             term.setName(newName);
         }
 
-        //! step 5 - the dates, as a PAIR. One sent alone keeps the other, and the two are then
+        //! step 6 - the dates, as a PAIR. One sent alone keeps the other, and the two are then
         //! checked together: a startDate moved past an untouched endDate is an inverted range,
         //! and checking only the field that arrived would miss it.
         LocalDate newStart = request.startDate() == null ? term.getStartDate()
@@ -276,12 +293,12 @@ public class AcademicTermService {
         LocalDate newEnd = request.endDate() == null ? term.getEndDate() : request.endDate();
 
         if (request.touchesDates()) {
-            //! step 6 - the range has to make sense on its own before it is compared to
+            //! step 7 - the range has to make sense on its own before it is compared to
             //! anything. An inverted one would otherwise be reported as "outside the year".
             helper.validateTermRange(newStart, newEnd);
 
-            //! step 7 - and fall inside the year. Read HERE rather than at the top, because a
-            //! rename has no business loading it.
+            //! step 8 - and fall inside the year. The YEAR DOCUMENT is still read only here: a
+            //! rename needs the year's terms, but not the year's own dates.
             AcademicYear year = utils.loadAcademicYear(school, academicYear);
             helper.validateTermWithinYear(newStart, newEnd,
                     year.getStartDate(), year.getEndDate());
@@ -289,14 +306,6 @@ public class AcademicTermService {
             term.setStartDate(newStart);
             term.setEndDate(newEnd);
         }
-
-        //! step 8 - the year's other terms, loaded once and only when something needs them:
-        //! dates need the overlap check, a weight needs the mixture rule and the sum. A rename
-        //! needs neither and makes no second query at all.
-        List<AcademicTerm> yearTerms = request.touchesDates() || request.weightPercent() != null
-                ? academicTerms.findBySchoolIdAndAcademicYearOrderBySequenceAsc(
-                        school.getId(), term.getAcademicYear())
-                : List.of();
 
         //! step 9 - the dates must not cover a day another ACTIVE term already covers. The term
         //! itself is excluded, or it would overlap the version of itself still in the database.
@@ -319,17 +328,15 @@ public class AcademicTermService {
         // TODO: update academic term
         AcademicTerm saved = academicTerms.save(term);
 
-        //! step 12 - the weight sum, REPORTED rather than refused, against the set including the
-        //! row as it now is. Never a refusal here - see the helper, and open item 3: getting from
-        //! one valid set of weights to another passes through an invalid one.
-        //! EMPTY when nothing was loaded, which is a rename: the other terms' weights were
-        //! never read, so the only honest sum is no sum. Passing List.of(saved) here would
-        //! report "the weights total 40%" from the one term in hand and be wrong in every year
-        //! that has more than one.
-        List<AcademicTerm> after = yearTerms.isEmpty() ? List.of()
-                : yearTerms.stream()
-                        .map(t -> t.getId().equals(saved.getId()) ? saved : t)
-                        .toList();
+        //! step 12 - the weight sum, REPORTED rather than refused, against the set including
+        //! the row as it now is. Never a refusal here - see the helper, and open item 3: getting
+        //! from one valid set of weights to another passes through an invalid one.
+        //!
+        //! It rides on a RENAME too, now that a rename loads the set. That is not noise: the
+        //! total really is broken, and the caller is holding the year's terms on screen.
+        List<AcademicTerm> after = yearTerms.stream()
+                .map(t -> t.getId().equals(saved.getId()) ? saved : t)
+                .toList();
 
         return AcademicTermResponse.fromTerm(saved, helper.weightSumWarning(after),
                 "termCode and sequence are not editable here — a reorder is #4. "

@@ -152,6 +152,48 @@ public class AcademicsHelper {
     }
 
     /**
+     * A term {@code name} is unique within one school's year.
+     *
+     * <p><b>Added 2026-09-12, and it is the rule a class already had.</b> Two terms both called
+     * "Term 1" leave every dropdown, every report-card header and every screen showing the same
+     * period twice with nothing to tell them apart — and a report card names the term rather than
+     * its code, so the ambiguity lands in front of parents rather than staying inside the
+     * database.
+     *
+     * <p><b>Case-folded, unlike the class check it mirrors.</b> "Term 1" and "term 1" are one
+     * name: a year holding both is a data-entry mistake in every school, never a structure
+     * anybody designed. That makes this check <i>stricter</i> than
+     * {@code school_year_term_name_uniq}, which is case-sensitive like every MongoDB index
+     * without a collation — the safe direction, since the service can never accept a write the
+     * index then refuses.
+     *
+     * <p><b>Retired terms still hold theirs</b>, exactly as with the code and the sequence: the
+     * index does not filter on {@code active}, so a check that skipped retired rows would accept
+     * a write the database refuses with a duplicate key — a 500 where a 409 was meant.
+     *
+     * @param ignoreId the term being edited, excluded so it does not clash with itself
+     *
+     * Used by:
+     * - createTerm()
+     * - updateTerm()
+     */
+    public void validateTermNameFree(List<AcademicTerm> yearTerms, String ignoreId, String name) {
+        for (AcademicTerm other : yearTerms) {
+            if (other.getId().equals(ignoreId)) {
+                continue;
+            }
+            if (name.equalsIgnoreCase(other.getName())) {
+                throw ApiException.conflict("TERM_NAME_TAKEN",
+                        "This year already has a term called '" + other.getName() + "' ("
+                                + other.getTermCode() + ")"
+                                + (Boolean.TRUE.equals(other.getActive()) ? "" : ", retired")
+                                + ". A report card names the term, not its code, so two cannot "
+                                + "share a name.");
+            }
+        }
+    }
+
+    /**
      * A {@code sequence} is unique within one school's year.
      *
      * <p><b>Retired terms still hold theirs</b>, for the same reason as the code: the unique

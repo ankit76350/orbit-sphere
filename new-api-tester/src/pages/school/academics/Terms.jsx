@@ -146,7 +146,7 @@ export default function Terms() {
 
           <div className="toolbar">
             <Field label="Sort"
-              hint="sequence is unique in the year, so it is a total order. Every other sort gets it appended — a term name is not unique.">
+              hint="sequence is unique in the year and is what a year is ordered by, so it is the total order every other sort gets appended.">
               <Select label="Sort" value={sort}
                 onChange={(value) => { setSort(value); setPage(0) }} options={SORTS} />
             </Field>
@@ -408,7 +408,7 @@ function EditTerm({ term, year, onClose, onSaved }) {
 
         <Field
           label="Name"
-          hint="Safe to change: consumers store termDocsId and report cards snapshot the name. Clearing it is a 400, not a removal."
+          hint="Unique in the year, case-insensitively — but the term may keep its own, so an unchanged name is never a conflict. Clearing it is a 400, not a removal."
           error={errors.name}
         >
           <Input value={form.name} error={errors.name}
@@ -571,7 +571,7 @@ function AddTerm({ open, year, onClose, onAdded }) {
           <Field
             label="Name"
             required
-            hint="What a report card prints. Renameable later — records hold the code, not this."
+            hint="What a report card prints. Unique in the year, case-insensitively — and renameable later, because records hold the code, not this."
             error={errors.name}
           >
             <Input value={form.name} error={errors.name}

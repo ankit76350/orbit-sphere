@@ -37,8 +37,15 @@ import lombok.experimental.SuperBuilder;
  * year-wide {@code AcademicYear.resultsLocked} remains the stronger control and
  * overrides this field.
  *
- * <p>Date ordering, non-overlapping term ranges, sequence uniqueness, and the
- * rule that active term weights sum to 100 are service and request-DTO rules.
+ * <p>Date ordering, non-overlapping term ranges, sequence and name uniqueness,
+ * and the rule that active term weights sum to 100 are service and request-DTO
+ * rules.
+ *
+ * <p>{@code school_year_term_name_uniq} is case-SENSITIVE, as every MongoDB
+ * index is without a collation, while the service check that fronts it is not.
+ * The service is therefore the stricter of the two, which is the safe direction:
+ * it never accepts a write the index would refuse. "Term 1" and "term 1" are one
+ * name to this system.
  */
 @Document(collection = "academic_terms")
 @CompoundIndexes({
@@ -49,6 +56,10 @@ import lombok.experimental.SuperBuilder;
         @CompoundIndex(
                 name = "school_year_term_sequence_uniq",
                 def = "{'schoolId': 1, 'academicYear': 1, 'sequence': 1}",
+                unique = true),
+        @CompoundIndex(
+                name = "school_year_term_name_uniq",
+                def = "{'schoolId': 1, 'academicYear': 1, 'name': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_year_term_active_dates_idx",
@@ -69,7 +80,8 @@ public class AcademicTerm extends SchoolBase {
     @NotBlank
     private String termCode;
 
-    // Display name preserved by report-card snapshots. Example: "Term 1"
+    // Display name preserved by report-card snapshots. Unique within the school's year,
+    // the same as termCode and sequence. Example: "Term 1"
     @NotBlank
     private String name;
 
