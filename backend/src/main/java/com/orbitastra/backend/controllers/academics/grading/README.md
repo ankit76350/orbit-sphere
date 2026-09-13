@@ -1,6 +1,9 @@
 # controllers/academics/grading — API plan
 
-**Nothing is built.** This file is the full set of endpoints the grading feature needs, written
+**One of 9 is built — #1.** A school can define a rulebook and its bands in one write, with the
+band set validated as a set and gaps reported rather than refused.
+
+Everything else below is the full set of endpoints the grading feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../../core/README.md), [`controllers/plans`](../../plans/README.md) and
 [`controllers/academics/structure`](../structure/README.md) were done.
@@ -180,7 +183,7 @@ list is readable. Every path below is relative to **`/schools/current/grading-sc
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /`](#e1) | Create a rulebook and its bands in one write. The only endpoint that creates a scheme from nothing; #2 creates one from another. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t1"></a>1 — **built** | [`POST /`](#e1) | Create a rulebook and its bands in one write. The only endpoint that creates a scheme from nothing; #2 creates one from another. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t2"></a>2 | [`POST /{id}/versions`](#e2) | The next version of the same rulebook — "A1 moves to 90". **This is what an edit is**, because editing in place rewrites every report card ever issued. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t3"></a>3 | [`PUT /{id}/bands`](#e3) | Replace the band set of a scheme **nothing has used yet** — fixing a typo during setup. Refused the moment anything references it; then it is #2. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t4"></a>4 | [`POST /{id}/deactivate`](#e4) | Retire a version so it stops being offered for new work, while old report cards still resolve through it. Idempotent. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
@@ -203,7 +206,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A rulebook exists, can be read, and demonstrably converts a mark | 1, 6, 7, 8 |
+| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, 6, 7, 8 |
 | **2** | Setup mistakes are fixable, and history is protected properly | 3, 2, 9 |
 | **3** | Versions can be retired without being deleted | 4, 5 |
 
@@ -365,15 +368,14 @@ deleting. The answers available:
 actually checked so nobody reads a pass as a guarantee. **Decide before #3**, not before #1 —
 phase 1 does not touch this.
 
-## 5. A gap between bands is not always a mistake
+## 5. A gap between bands is not always a mistake — settled 2026-09-13
 
 The model README says services must reject *"gaps that are not intentional"*, which is not
-something a service can tell apart. `81..90` beside `91..100` is contiguous; `81..89` beside
-`91..100` leaves `90` unresolvable. Both are typeable and only one is a typo — but a scheme that
-deliberately grades `0..32` as `E` and says nothing about `33..40` because no subject is marked
-out of 40 is also legitimate.
+something a service can tell apart. `81..89` beside `91..100` leaves `90` unresolvable and is
+almost certainly a typo; a scheme that grades `0..32` as `E` and says nothing above `90` because no
+paper is marked that high is perfectly deliberate. Both are typeable.
 
-**Proposed: report, never refuse** — the same answer the term-weight sum arrived at in
+**Settled: report, never refuse** — the same answer the term-weight sum arrived at in
 [open item 3 of the structure plan](../structure/README.md#3-term-weights-cannot-be-validated-one-patch-at-a-time--settled-2026-09-12).
 #1 and #3 return a `warning` naming the uncovered ranges; #8 answers `404 GRADE_NOT_RESOLVABLE`
 for a value that lands in one, which is where a real gap actually hurts and where the message can
@@ -382,6 +384,37 @@ be specific about it.
 **Overlaps are refused, and that asymmetry is the point.** A gap means one mark has *no* grade,
 which is visible and fixable. An overlap means one mark has *two*, and which one wins depends on
 the order the bands happen to be stored in — silently, differently, per scheme.
+
+### The half building #1 did not see coming: a scale cannot be tiled
+
+**Bounds are inclusive at both ends, so adjacent bands always leave a sliver.** `81..90` beside
+`91..100` does not cover `90.5`. Closing it by writing `81..90` and `90..100` is an *overlap*,
+which is refused. **There is no third option** — every percentage scheme ever written has slivers,
+including the CBSE one every example in this file is drawn from.
+
+A first implementation reported them, and a unit test written to prove a clean scheme was silent
+failed instead: the most standard grading scale in the country produced a warning about `90 to 91`.
+A warning that fires on almost every valid scheme is one nobody reads.
+
+**So a gap is measured in whole marks.** It is reported only when an integer can land in it:
+
+| bands | gap | reported? |
+|---|---|---|
+| `81..90`, `91..100` | `90 → 91` | **no** — no whole mark fits |
+| `0..32`, `81..90` | `32 → 81` | **yes** — 33 through 80 |
+| `0..50.4`, `50.6..100` | `50.4 → 50.6` | **no** |
+| `0..99` on a scale of 100 | `99 → 100` | **yes** — 100 itself is ungraded |
+| `1..100` | `0 → 1` | **yes** — 0 itself is ungraded |
+
+**The three edges are not the same question**, which those last two rows are the reason for. The
+scale is `[0, maximumValue]` with both ends gradeable, so a *leading* gap is closed at 0, a
+*middle* gap is open at both ends (each band claims its own boundary), and a *trailing* gap is
+closed at the ceiling. Treating all three alike would either invent a gap at 0 on every scheme or
+miss an ungraded ceiling on the schemes that have one.
+
+**The cost is fractional marks, and it is accepted.** A school awarding `90.5` gets no warning
+that `90.5` has no grade. #8 still answers `404` for it, which is where it is discoverable and
+where the message can name the two bands it fell between.
 
 ## 6. The fallback chain has no owner
 
@@ -417,12 +450,12 @@ controllers/academics/grading/
 └── GradingSchemeController.java
 
 services/academics/
-├── GradingSchemeService.java
-├── helper/GradingHelper.java            band coherence, and the resolve arithmetic
-└── utils/GradingSchemeServiceUtils.java one scheme by id, scoped to the school
+├── GradingSchemeService.java            built — #1
+├── helper/GradingHelper.java            built — band coherence; the resolve arithmetic joins it
+└── utils/GradingSchemeServiceUtils.java one scheme by id — not needed until #7
 
 repositories/academics/gradingscheme/
-├── GradingSchemeRepository.java         exists — one method, an existence check
+├── GradingSchemeRepository.java         built — findByIdAndSchoolId, and #1's key check
 ├── GradingSchemeRepositoryCustom.java   #6's filtered, paged search
 └── GradingSchemeRepositoryImpl.java     beside its interface, or Spring finds nothing
 
@@ -478,7 +511,7 @@ starts, and fails only when somebody calls `search`.
 | `GRADE_BAND_CODE_TAKEN` | 409 | two bands in one set share a `gradeCode` |
 | `GRADE_BAND_BOUNDS_REQUIRED` | 400 | a `PERCENTAGE`/`POINT` band with no bounds |
 | `GRADE_BAND_BOUNDS_NOT_ALLOWED` | 400 | a `DESCRIPTOR` band carrying bounds, or a `DESCRIPTOR` scheme carrying `maximumValue` |
-| `SCALE_MAXIMUM_REQUIRED` | 400 | a `PERCENTAGE`/`POINT` scheme with no `maximumValue` |
+| `SCALE_MAXIMUM_REQUIRED` | 400 | a `PERCENTAGE`/`POINT` scheme with no `maximumValue`, or one that is zero or below — a scale nothing can be measured against |
 | `INVALID_GRADE_BAND_RANGE` | 400 | `maximumValue` below `minimumValue` on one band |
 | `GRADE_BANDS_OVERLAP` | 409 | two bands cover the same value — refused, unlike a gap |
 | `GRADE_BAND_OUTSIDE_SCALE` | 409 | a band reaches past the scheme's `maximumValue`, or below zero |
@@ -494,15 +527,18 @@ starts, and fails only when somebody calls `search`.
 ## The schemes — writes · 1–5
 
 <a id="e1"></a>
-**[1](#t1) · `POST /`**
+**[1](#t1) · `POST /`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: whether this school already has that `name` + `schemeVersion`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *insert*: `schoolId`, `name`, `schemeVersion`, `scaleType`, `maximumValue`, `gradeBands`, `active` = `true`
 - **The scale decides the shape of everything under it**, and is checked first: `DESCRIPTOR` refuses `maximumValue` and refuses bounds on every band; `PERCENTAGE` and `POINT` require all three. Checking a band's bounds before knowing the scale would produce the right refusal for the wrong reason.
 - **Then the band set, as a set**, in this order: each band's own range is not inverted (`400 INVALID_GRADE_BAND_RANGE`), no code repeats (`409 GRADE_BAND_CODE_TAKEN`), none reaches outside the scale (`409 GRADE_BAND_OUTSIDE_SCALE`), none overlaps another (`409 GRADE_BANDS_OVERLAP`). Order matters for the same reason it does in the term plan: an inverted range checked last gets reported as an overlap, which is true and says the wrong thing.
-- **Gaps are reported, not refused** — a `warning` naming the uncovered ranges. See [open item 5](#5-a-gap-between-bands-is-not-always-a-mistake).
+- **Gaps are reported, not refused** — a `warning` naming the uncovered ranges, and **measured in whole marks**: `90 → 91` holds no integer and is silent, `32 → 81` holds 33 through 80 and is not. Inclusive bounds mean adjacent bands always leave a sliver, so reporting every one would warn on almost every valid scheme. See [open item 5](#5-a-gap-between-bands-is-not-always-a-mistake--settled-2026-09-13).
 - **`active` is not accepted at create.** It is an event with its own endpoints, #4 and #5, and a scheme created already retired is a state nothing asked for. Same rule as every other create in `academics`.
-- **Bands are stored in the order given, not re-sorted.** A school listing `A1` first means A1 first, and a response that silently reordered them would make a typo hard to spot against the paper it was copied from.
+- **Bands are stored in the order given, not re-sorted.** A school listing `A1` first means A1 first, and a response that silently reordered them would make a typo hard to spot against the paper it was copied from. The *checks* sort a copy, because overlap is a question about the set rather than about the list.
+- **`passed` defaults to `true` when omitted**, matching the model. An author listing eight bands should have to say which ones fail, not repeat `"passed": true` seven times.
+- **The key check runs last, after the bands.** A caller who sent a broken scale should hear about the scale — being told the name is taken, fixing that, and only then hearing about the bands is two round trips for one broken request.
+- **Covered by [`GradingHelperTest`](../../../../../../../../test/java/com/orbitastra/backend/services/academics/helper/GradingHelperTest.java)** — 23 cases over the band rules, written because a set that *validates* but resolves wrongly is the failure mode a create-only module cannot see. It is what caught the tiling problem in open item 5.
 
 <a id="e2"></a>
 **[2](#t2) · `POST /{id}/versions`**

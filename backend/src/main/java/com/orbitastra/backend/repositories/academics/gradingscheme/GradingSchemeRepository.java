@@ -27,4 +27,19 @@ public interface GradingSchemeRepository extends MongoRepository<GradingScheme, 
      * would be a bug rather than a shortcut.
      */
     Optional<GradingScheme> findByIdAndSchoolId(String id, String schoolId);
+
+    /**
+     * Whether this school already has that version of that rulebook.
+     *
+     * <p><b>The pair is the key</b>, which {@code school_grading_name_version_uniq} declares — so
+     * a school may hold "CBSE Percentage Grading" twice as long as the versions differ, and that
+     * is the entire point of versioning a scheme rather than editing one.
+     *
+     * <p>The index named a {@code schemeCode} field that never existed until 2026-09-13, which
+     * MongoDB indexed as null on every document: one version string per school, so two unrelated
+     * rulebooks could not share a version number. Moving it to {@code name} is what makes this
+     * query the one the index serves.
+     */
+    boolean existsBySchoolIdAndNameAndSchemeVersion(String schoolId, String name,
+            String schemeVersion);
 }
