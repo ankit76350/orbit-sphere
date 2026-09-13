@@ -4215,6 +4215,68 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Grading",
+          "item": [
+            {
+              "name": "Create Grading Scheme",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('gradingSchemeDocsId came back — three collections store it', () => pm.expect(b).to.have.property('gradingSchemeDocsId'));",
+                      "pm.test('bandCount matches the bands returned', () => pm.expect(b.bandCount).to.equal(b.gradeBands.length));",
+                      "pm.test('bands came back in the order they were sent', () => pm.expect(b.gradeBands[0].gradeCode).to.equal('A1'));",
+                      "pm.test('active defaults to true', () => pm.expect(b.active).to.equal(true));",
+                      "pm.test('the CBSE scale leaves no whole mark ungraded', () => pm.expect(b.warning).to.be.undefined);",
+                      "if (b.gradingSchemeDocsId) pm.collectionVariables.set('gradingSchemeDocsId', b.gradingSchemeDocsId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"CBSE Percentage Grading\",\n  \"schemeVersion\": \"2026.1\",\n  \"scaleType\": \"PERCENTAGE\",\n  \"maximumValue\": 100,\n  \"gradeBands\": [\n    { \"gradeCode\": \"A1\", \"minimumValue\": 91, \"maximumValue\": 100, \"gradePoint\": 10, \"description\": \"Outstanding\" },\n    { \"gradeCode\": \"A2\", \"minimumValue\": 81, \"maximumValue\": 90, \"gradePoint\": 9, \"description\": \"Excellent\" },\n    { \"gradeCode\": \"B1\", \"minimumValue\": 71, \"maximumValue\": 80, \"gradePoint\": 8, \"description\": \"Very Good\" },\n    { \"gradeCode\": \"B2\", \"minimumValue\": 61, \"maximumValue\": 70, \"gradePoint\": 7, \"description\": \"Good\" },\n    { \"gradeCode\": \"C1\", \"minimumValue\": 51, \"maximumValue\": 60, \"gradePoint\": 6, \"description\": \"Fair\" },\n    { \"gradeCode\": \"C2\", \"minimumValue\": 41, \"maximumValue\": 50, \"gradePoint\": 5, \"description\": \"Average\" },\n    { \"gradeCode\": \"D\", \"minimumValue\": 33, \"maximumValue\": 40, \"gradePoint\": 4, \"description\": \"Below Average\" },\n    { \"gradeCode\": \"E\", \"minimumValue\": 0, \"maximumValue\": 32, \"gradePoint\": 0, \"description\": \"Needs Improvement\", \"passed\": false }\n  ]\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/grading-schemes\n// Needs X-School-Subdomain. NO academic year in the path.\n//\n//  A RULEBOOK OUTLIVES A YEAR. The same scheme grades 2026-2027 and\n//  2027-2028, and a report card from either must reprint identically years\n//  later. schemeVersion moves when the RULES move, not the calendar.\n//\n//  WHICH IS WHY ONLY TWO GATES RUN. Gate 4 asks whether a named academic year\n//  is the school's working one, and there is no year here to ask it about. So\n//  this is the one academics surface that still answers after the year has\n//  been ended - and it has to, because correcting a 2026 report card means\n//  reading the 2026 scheme.\n//\n//  THE SCALE IS READ FIRST. PERCENTAGE and POINT require maximumValue and\n//  bounded bands; DESCRIPTOR refuses both. Asking about a band before knowing\n//  the scale gives the right refusal for the wrong reason.\n//\n//  AN OVERLAP IS REFUSED; A GAP IS ONLY REPORTED. A gap means one mark has no\n//  grade - visible and fixable. An overlap means one mark has TWO, and which\n//  wins depends on the order the bands happen to be stored in.\n//\n//  BOUNDS ARE INCLUSIVE AT BOTH ENDS, so two bands must not touch: 81-90\n//  beside 90-100 both claim 90.\n//\n//  WHICH MEANS A SCALE CAN NEVER BE TILED. 81-90 beside 91-100 misses 90.5,\n//  and closing that is an overlap. So gaps are counted in WHOLE MARKS:\n//  90 -> 91 is silent, 32 -> 81 is not. The cost is that a school awarding\n//  90.5 is not warned; #8 will answer 404 for it.\n//\n//  name + schemeVersion IS THE KEY, and there is no PATCH at all. Every field\n//  is either half the key, a reinterpretation of every band beneath it\n//  (scaleType, maximumValue), the history itself (gradeBands), or an event\n//  with its own endpoints (active).\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  THE CBSE SCALE                                     -> 201 Created\n//     The body above - eight bands, covering 0 to 100.\n//     OUT: gradingSchemeDocsId, bandCount 8, active true, and NO warning.\n// -------------------------------------------------------------------------\n// 02  AN IB POINT SCALE                                  -> 201 Created\n//     A different scaleType and a ceiling of 7, not 100. Bands are read the\n//     same way - by range - so nothing else changes.\n//\n//     { \"name\": \"IB Diploma Points\", \"schemeVersion\": \"2026.1\",\n//       \"scaleType\": \"POINT\", \"maximumValue\": 7,\n//       \"gradeBands\": [\n//         { \"gradeCode\": \"7\", \"minimumValue\": 6.5, \"maximumValue\": 7 },\n//         { \"gradeCode\": \"6\", \"minimumValue\": 5.5, \"maximumValue\": 6.49 },\n//         { \"gradeCode\": \"2\", \"minimumValue\": 0, \"maximumValue\": 5.49, \"passed\": false } ] }\n// -------------------------------------------------------------------------\n// 03  A DESCRIPTOR SCALE, WITH NO NUMBERS AT ALL         -> 201 Created\n//     No maximumValue and no bounds. This was impossible to store until\n//     2026-09-13, when GradeBand's bounds stopped being @NotNull.\n//     OUT: no warning - there is no scale to leave holes in.\n//\n//     { \"name\": \"Early Years Descriptors\", \"schemeVersion\": \"2026.1\",\n//       \"scaleType\": \"DESCRIPTOR\",\n//       \"gradeBands\": [\n//         { \"gradeCode\": \"SECURE\", \"description\": \"Secure\" },\n//         { \"gradeCode\": \"DEVELOPING\", \"description\": \"Developing\" },\n//         { \"gradeCode\": \"BEGINNING\", \"description\": \"Beginning\", \"passed\": false } ] }\n// -------------------------------------------------------------------------\n// 04  A DESCRIPTOR SCHEME CARRYING A CEILING         -> 400 Bad Request\n//     Send case 03 with \"maximumValue\": 100 added.\n//     OUT: { \"code\": \"GRADE_BAND_BOUNDS_NOT_ALLOWED\" }. The scale is checked\n//     BEFORE any band, so this is what you hear about first.\n// -------------------------------------------------------------------------\n// 05  TWO BANDS THAT TOUCH                               -> 409 Conflict\n//     OUT: { \"code\": \"GRADE_BANDS_OVERLAP\" }, naming both and the value they\n//     share. Bounds are inclusive at BOTH ends, so 90 belongs to each -\n//     unlike term dates, where the 30th and the 1st share no day.\n//\n//     { \"name\": \"Touching\", \"schemeVersion\": \"1\", \"scaleType\": \"PERCENTAGE\",\n//       \"maximumValue\": 100, \"gradeBands\": [\n//         { \"gradeCode\": \"A2\", \"minimumValue\": 81, \"maximumValue\": 90 },\n//         { \"gradeCode\": \"A1\", \"minimumValue\": 90, \"maximumValue\": 100 } ] }\n// -------------------------------------------------------------------------\n// 06  A HOLE A WHOLE MARK FITS IN                        -> 201 Created\n//     ACCEPTED, with a warning naming \"32 to 81\". Marks 33 to 80 resolve to\n//     nothing. Reported rather than refused: a gap a school left on purpose\n//     is indistinguishable from one it did not mean.\n//\n//     { \"name\": \"Gappy\", \"schemeVersion\": \"1\", \"scaleType\": \"PERCENTAGE\",\n//       \"maximumValue\": 100, \"gradeBands\": [\n//         { \"gradeCode\": \"E\", \"minimumValue\": 0, \"maximumValue\": 32, \"passed\": false },\n//         { \"gradeCode\": \"A2\", \"minimumValue\": 81, \"maximumValue\": 90 },\n//         { \"gradeCode\": \"A1\", \"minimumValue\": 91, \"maximumValue\": 100 } ] }\n// -------------------------------------------------------------------------\n// 07  AN UNGRADED CEILING                                -> 201 Created\n//     ACCEPTED, with a warning naming \"99 to 100\". The trailing edge is\n//     CLOSED at the ceiling - 100 itself has no grade, and no other edge\n//     would notice. One mark, and still worth saying.\n//\n//     { \"name\": \"Short\", \"schemeVersion\": \"1\", \"scaleType\": \"PERCENTAGE\",\n//       \"maximumValue\": 100, \"gradeBands\": [\n//         { \"gradeCode\": \"ALL\", \"minimumValue\": 0, \"maximumValue\": 99 } ] }\n// -------------------------------------------------------------------------\n// 08  A BAND PAST THE CEILING                            -> 409 Conflict\n//     OUT: { \"code\": \"GRADE_BAND_OUTSIDE_SCALE\" }. A grade no mark could ever\n//     reach is a row a school would stare at without working out why it never\n//     appears.\n//\n//     { \"name\": \"Overshoot\", \"schemeVersion\": \"1\", \"scaleType\": \"POINT\",\n//       \"maximumValue\": 7, \"gradeBands\": [\n//         { \"gradeCode\": \"EIGHT\", \"minimumValue\": 7.5, \"maximumValue\": 8 } ] }\n// -------------------------------------------------------------------------\n// 09  THE SAME NAME AND VERSION AGAIN                    -> 409 Conflict\n//     Send case 01 twice. OUT: { \"code\": \"SCHEME_VERSION_TAKEN\" }. The PAIR\n//     is the key - the same name at a different version is fine, and is what\n//     #2 exists to create.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 VALIDATION_FAILED                A missing name, schemeVersion, scaleType or gradeBands; an empty band list; over 40 bands.\n//     400 SCALE_MAXIMUM_REQUIRED           A PERCENTAGE/POINT scheme with no maximumValue, or one at or below zero.\n//     400 GRADE_BAND_BOUNDS_REQUIRED       A PERCENTAGE/POINT band missing a bound. One bound alone is not a range.\n//     400 GRADE_BAND_BOUNDS_NOT_ALLOWED    A DESCRIPTOR band carrying bounds, or a DESCRIPTOR scheme carrying maximumValue.\n//     400 INVALID_GRADE_BAND_RANGE         One band's maximumValue is below its minimumValue. Equal bounds are legal.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     409 GRADE_BAND_CODE_TAKEN            Two bands share a gradeCode, case-insensitively.\n//     409 GRADE_BAND_OUTSIDE_SCALE         A band reaches past maximumValue or below zero.\n//     409 GRADE_BANDS_OVERLAP              Two bands cover the same value. Touching counts.\n//     409 SCHEME_VERSION_TAKEN             This school already has that name at that version.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2.\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes"
+                  ]
+                },
+                "description": "Endpoint #1 — define a rulebook and its bands in one write. No academic year in the path: a scheme outlives a year, which is also why gate 4 does not run. An overlap is refused; a gap is only reported, and counted in whole marks."
+              },
+              "response": []
+            }
+          ],
+          "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."
         }
       ]
     }

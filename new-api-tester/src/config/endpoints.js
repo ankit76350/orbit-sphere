@@ -11450,6 +11450,315 @@ A read, so a suspended or closed school still reads its own structure.
   ],
 };
 
+const GROUP_ACADEMICS_GRADING = {
+  id: "academics-grading",
+  module: "Academics / Grading",
+  endpoints: [
+    {
+      id: "create-grading-scheme",
+      name: "Create Grading Scheme",
+      method: "POST",
+      path: "/schools/current/grading-schemes",
+      status: 'live',
+      summary: "Define a rulebook and its bands in one write.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/grading-schemes\` — endpoint #1.
+
+### The school's rulebook for turning a mark into a grade
+
+A teacher enters **94**. Whether that is an \`A1\`, a \`7\`, or "Outstanding" is not something the
+number says — it is something the school decides once, here, and every exam and report card then
+reads.
+
+### No {year} in the path, and no gate 4
+
+**A rulebook outlives a year.** The same scheme grades 2026-2027 and 2027-2028, and a report card
+from either must reprint identically five years later. \`schemeVersion\` is what moves when the
+*rules* move, not the calendar.
+
+Which is why only **two** gates run: gate 4 asks whether a named academic year is the school's
+working one, and there is no year here to ask it about. **This is the one academics surface that
+still answers after \`POST /academic-years/{name}/end\`** — and it has to, because correcting a 2026
+report card means reading the 2026 scheme.
+
+### The scale decides the shape of everything under it
+
+| scaleType | maximumValue | bands |
+|---|---|---|
+| \`PERCENTAGE\` | **required** — usually 100 | bounded, ordered, no overlaps |
+| \`POINT\` | **required** — 7 for IB, 4 for a GPA | bounded, ordered, no overlaps |
+| \`DESCRIPTOR\` | **refused** | **unbounded** — a grade chosen, not computed |
+
+It is read **first**, before a single band is looked at. Asking about a band's bounds before
+knowing the scale gives the right refusal for the wrong reason: *"this band needs a minimum"* when
+the truth is *"this scheme measures nothing"*.
+
+\`DESCRIPTOR\` was impossible to store until 2026-09-13 — \`GradeBand\`'s bounds were \`@NotNull\`, so a
+descriptor scheme had to invent numbers for fields nothing reads. They are nullable now, and the
+rule moved to the service where the scale is visible.
+
+### An overlap is refused; a gap is only reported
+
+**And the asymmetry is the whole point.** A gap means one mark has *no* grade — visible, and
+fixable by whoever reads the warning. An overlap means one mark has *two*, and which wins depends
+on the order the bands happen to be stored in — silently, differently, per scheme.
+
+**Bounds are inclusive at both ends, so bands must not touch**: \`81..90\` beside \`90..100\` both
+claim 90 and is a \`409\`.
+
+### Which means a scale can never be tiled, and gaps are counted in whole marks
+
+\`81..90\` beside \`91..100\` does not cover \`90.5\`. Closing that is an overlap. **There is no third
+option** — every percentage scheme ever written has slivers, including the CBSE one.
+
+So a gap is reported only when **a whole mark can land in it**:
+
+| bands | gap | reported? |
+|---|---|---|
+| \`81..90\`, \`91..100\` | 90 → 91 | **no** — no whole mark fits |
+| \`0..32\`, \`81..90\` | 32 → 81 | **yes** — 33 through 80 |
+| \`0..99\` out of 100 | 99 → 100 | **yes** — 100 itself has no grade |
+| \`1..100\` | 0 → 1 | **yes** — 0 itself has no grade |
+
+The last two rows are why the three edges differ: the scale is \`[0, max]\` with **both ends
+gradeable**, so a leading gap is closed at 0, a middle gap is open at both ends, and a trailing gap
+is closed at the ceiling.
+
+**The cost is fractional marks.** A school awarding 90.5 gets no warning that it has no grade — #8
+answers \`404\` for it, which is where it is discoverable.
+
+### name + schemeVersion is the key, so there is no rename
+
+Unique together per school. **Neither can be changed afterwards**, and there is deliberately no
+\`PATCH\` at all: every field is either half the key, a reinterpretation of every band beneath it
+(\`scaleType\`, \`maximumValue\`), the history itself (\`gradeBands\`), or an event with its own
+endpoints (\`active\`). An endpoint with no legal field is not an endpoint.
+
+Moving a boundary means **a new version** (#2) — editing in place would rewrite every report card
+ever issued under the old one.
+
+The index named a \`schemeCode\` field that never existed anywhere in the project until 2026-09-13.
+MongoDB indexes a missing field as null, so it read \`{schoolId, null, schemeVersion}\` — one version
+string per school, making "CBSE Percentage" 2026.1 and "IB Points" 2026.1 mutually exclusive.
+
+### Bands are stored in the order given
+
+Never re-sorted. A school listing \`A1\` first means A1 first, and silently reordering makes a typo
+hard to spot against the paper it was copied from. The *checks* sort a copy, because overlap is a
+question about the set rather than about the list.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable. No gate 4 — see above.
+
+### The nine test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain. NO academic year — a rulebook outlives one.
+
+ THE SCALE IS READ FIRST. PERCENTAGE and POINT require maximumValue and
+ bounded bands; DESCRIPTOR refuses both. Asking about a band before knowing
+ the scale gives the right refusal for the wrong reason.
+
+ AN OVERLAP IS REFUSED, A GAP IS ONLY REPORTED. A gap means one mark has no
+ grade - visible and fixable. An overlap means one mark has two, and which
+ wins depends on storage order.
+
+ BOUNDS ARE INCLUSIVE AT BOTH ENDS, so bands must not touch: 81..90 beside
+ 90..100 both claim 90.
+
+ WHICH MEANS A SCALE CANNOT BE TILED. 81..90 beside 91..100 misses 90.5, and
+ closing it is an overlap. So gaps are counted in WHOLE MARKS: 90 -> 91 is
+ silent, 32 -> 81 is not.
+
+ name + schemeVersion IS THE KEY. Neither changes, and there is no PATCH at
+ all. Moving a boundary means a new version (#2).
+
+ NO GATE 4. There is no year in this path to ask it about, so this is the one
+ academics surface that still answers after the year has been ended.`,
+      requiredFields: ["name", "schemeVersion", "scaleType", "gradeBands"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "CBSE Percentage Grading",
+  "schemeVersion": "2026.1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "gradeBands": [
+    { "gradeCode": "A1", "minimumValue": 91, "maximumValue": 100, "gradePoint": 10, "description": "Outstanding" },
+    { "gradeCode": "A2", "minimumValue": 81, "maximumValue": 90, "gradePoint": 9, "description": "Excellent" },
+    { "gradeCode": "B1", "minimumValue": 71, "maximumValue": 80, "gradePoint": 8, "description": "Very Good" },
+    { "gradeCode": "B2", "minimumValue": 61, "maximumValue": 70, "gradePoint": 7, "description": "Good" },
+    { "gradeCode": "C1", "minimumValue": 51, "maximumValue": 60, "gradePoint": 6, "description": "Fair" },
+    { "gradeCode": "C2", "minimumValue": 41, "maximumValue": 50, "gradePoint": 5, "description": "Average" },
+    { "gradeCode": "D", "minimumValue": 33, "maximumValue": 40, "gradePoint": 4, "description": "Below Average" },
+    { "gradeCode": "E", "minimumValue": 0, "maximumValue": 32, "gradePoint": 0, "description": "Needs Improvement", "passed": false }
+  ]
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the scheme by its id. A warning rides on the 201 when the bands leave a whole mark ungraded.",
+      responseFields: ["gradingSchemeDocsId", "name", "schemeVersion", "scaleType", "maximumValue", "bandCount", "gradeBands", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "A missing name, schemeVersion, scaleType or gradeBands; an empty band list; a band with no gradeCode; more than 40 bands." },
+        { status: 400, code: "SCALE_MAXIMUM_REQUIRED", when: "A PERCENTAGE or POINT scheme with no maximumValue, or one that is zero or below." },
+        { status: 400, code: "GRADE_BAND_BOUNDS_REQUIRED", when: "A PERCENTAGE or POINT band missing a bound. One bound alone is not a range." },
+        { status: 400, code: "GRADE_BAND_BOUNDS_NOT_ALLOWED", when: "A DESCRIPTOR band carrying bounds, or a DESCRIPTOR scheme carrying maximumValue." },
+        { status: 400, code: "INVALID_GRADE_BAND_RANGE", when: "One band's maximumValue is below its minimumValue. Equal bounds are legal — a one-value band is odd, not wrong." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "GRADE_BAND_CODE_TAKEN", when: "Two bands share a gradeCode, case-insensitively." },
+        { status: 409, code: "GRADE_BAND_OUTSIDE_SCALE", when: "A band reaches past maximumValue or below zero — a grade no mark could ever reach." },
+        { status: 409, code: "GRADE_BANDS_OVERLAP", when: "Two bands cover the same value. Bounds are inclusive at both ends, so touching counts." },
+        { status: 409, code: "SCHEME_VERSION_TAKEN", when: "This school already has that name at that version." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "THE CBSE SCALE",
+          expect: "201 Created",
+          notes: `The body above — eight bands, fully covering 0 to 100.
+    OUT: gradingSchemeDocsId, bandCount 8, active true, and NO warning:
+    every whole mark from 0 to 100 has a grade.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "AN IB POINT SCALE",
+          expect: "201 Created",
+          notes: `A different scaleType and a ceiling of 7, not 100. Bands are read
+    the same way — by range — so nothing else changes.`,
+          body: `{
+  "name": "IB Diploma Points",
+  "schemeVersion": "2026.1",
+  "scaleType": "POINT",
+  "maximumValue": 7,
+  "gradeBands": [
+    { "gradeCode": "7", "minimumValue": 6.5, "maximumValue": 7, "gradePoint": 7 },
+    { "gradeCode": "6", "minimumValue": 5.5, "maximumValue": 6.49, "gradePoint": 6 },
+    { "gradeCode": "5", "minimumValue": 4.5, "maximumValue": 5.49, "gradePoint": 5 },
+    { "gradeCode": "2", "minimumValue": 0, "maximumValue": 4.49, "gradePoint": 2, "passed": false }
+  ]
+}`,
+        },
+        {
+          id: "03",
+          name: "A DESCRIPTOR SCALE, WITH NO NUMBERS AT ALL",
+          expect: "201 Created",
+          notes: `No maximumValue, and no bounds on any band. This was impossible to
+    store until 2026-09-13, when GradeBand's bounds stopped being @NotNull.
+    OUT: no warning — there is no scale to leave holes in.`,
+          body: `{
+  "name": "Early Years Descriptors",
+  "schemeVersion": "2026.1",
+  "scaleType": "DESCRIPTOR",
+  "gradeBands": [
+    { "gradeCode": "SECURE", "description": "Secure" },
+    { "gradeCode": "DEVELOPING", "description": "Developing" },
+    { "gradeCode": "BEGINNING", "description": "Beginning", "passed": false }
+  ]
+}`,
+        },
+        {
+          id: "04",
+          name: "A DESCRIPTOR SCHEME CARRYING A CEILING",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "GRADE_BAND_BOUNDS_NOT_ALLOWED" }. Send case 03 with
+    "maximumValue": 100 added. The scale is checked BEFORE any band, so this
+    is what you hear about first.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "TWO BANDS THAT TOUCH",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "GRADE_BANDS_OVERLAP" }, naming both and the value
+    they share. Bounds are inclusive at BOTH ends, so 90 belongs to each —
+    unlike term dates, where the 30th and the 1st share no day.`,
+          body: `{
+  "name": "Touching",
+  "schemeVersion": "1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "gradeBands": [
+    { "gradeCode": "A2", "minimumValue": 81, "maximumValue": 90 },
+    { "gradeCode": "A1", "minimumValue": 90, "maximumValue": 100 }
+  ]
+}`,
+        },
+        {
+          id: "06",
+          name: "A HOLE A WHOLE MARK FITS IN",
+          expect: "201 Created",
+          notes: `ACCEPTED, with a warning naming "32 to 81". Marks 33 to 80 resolve
+    to nothing. Reported rather than refused: a gap a school left on purpose
+    is indistinguishable from one it did not mean.`,
+          body: `{
+  "name": "Gappy",
+  "schemeVersion": "1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "gradeBands": [
+    { "gradeCode": "E", "minimumValue": 0, "maximumValue": 32, "passed": false },
+    { "gradeCode": "A2", "minimumValue": 81, "maximumValue": 90 },
+    { "gradeCode": "A1", "minimumValue": 91, "maximumValue": 100 }
+  ]
+}`,
+        },
+        {
+          id: "07",
+          name: "AN UNGRADED CEILING",
+          expect: "201 Created",
+          notes: `ACCEPTED, with a warning naming "99 to 100". The trailing edge is
+    CLOSED at the ceiling — 100 itself has no grade, and no other edge would
+    notice. One mark, and still worth saying.`,
+          body: `{
+  "name": "Short",
+  "schemeVersion": "1",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
+  "gradeBands": [
+    { "gradeCode": "ALL", "minimumValue": 0, "maximumValue": 99 }
+  ]
+}`,
+        },
+        {
+          id: "08",
+          name: "A BAND PAST THE CEILING",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "GRADE_BAND_OUTSIDE_SCALE" }. A grade no mark could
+    ever reach is a row a school would stare at without working out why it
+    never appears.`,
+          body: `{
+  "name": "Overshoot",
+  "schemeVersion": "1",
+  "scaleType": "POINT",
+  "maximumValue": 7,
+  "gradeBands": [
+    { "gradeCode": "EIGHT", "minimumValue": 7.5, "maximumValue": 8 }
+  ]
+}`,
+        },
+        {
+          id: "09",
+          name: "THE SAME NAME AND VERSION AGAIN",
+          expect: "409 Conflict",
+          notes: `Send case 01 twice. OUT: { "code": "SCHEME_VERSION_TAKEN" }.
+    The pair is the key — the same NAME at a different version is fine, and
+    is what #2 exists to create.`,
+          body: null,
+        },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
@@ -11459,6 +11768,7 @@ export const API_CATALOG = [
   GROUP_PLANS_SUBSCRIPTION_THE_SCHOOL_S_OWN_VIEW,
   GROUP_ACADEMICS_TERMS,
   GROUP_ACADEMICS_CLASSES,
+  GROUP_ACADEMICS_GRADING,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */

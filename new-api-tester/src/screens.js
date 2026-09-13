@@ -13,6 +13,7 @@ import Terms from './pages/school/academics/Terms.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
+import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -151,8 +152,19 @@ export const SURFACES = [
             id: 'terms',
             label: 'Terms',
             group: 'Academics / Terms',
-            endpoints: 2,
+            // #1, #3, #5, #6 and #9. The badge said 2, from when that was true.
+            endpoints: 5,
             screen: Terms,
+          },
+          {
+            // Grading sits beside terms and classes rather than under either. A scheme belongs
+            // to the SCHOOL, not to a year — the only submodule here whose paths carry no
+            // {year}, which is also why no gate 4 runs above it.
+            id: 'grading',
+            label: 'Grading',
+            group: 'Academics / Grading',
+            endpoints: 1,
+            screen: GradingSchemes,
           },
           {
             id: 'classes',
