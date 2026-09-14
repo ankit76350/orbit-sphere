@@ -10,7 +10,7 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
  * #21 and #30, and {@link SchoolClassDetailResponse} for #29. It lived inside
  * {@code SectionListResponse} until #29 needed it too; a second copy would have been two shapes
  * for one thing, and the day they drifted a client reading both would have to know which was
- * which. Same reasoning as {@code HolidayView} in {@code core}.
+ * which. Same reasoning as {@code HolidayResponse} in {@code core}.
  *
  * <p><b>{@code classTeacherDocsId} is the raw id, not a resolved name.</b> {@code StaffRepository}
  * exists as of #17, so resolving it is now possible — and deliberately not done here. If this
@@ -21,7 +21,7 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
  * <p>No {@code sectionNo} normalisation on the way out: it is stored exactly as the school typed
  * it, because it is the display value as well as the reference.
  */
-public record SectionView(
+public record SectionResponse(
         String sectionNo,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -33,8 +33,8 @@ public record SectionView(
 
         Boolean active) {
 
-    public static SectionView of(ClassSection section) {
-        return new SectionView(section.getSectionNo(), section.getClassTeacherDocsId(),
+    public static SectionResponse of(ClassSection section) {
+        return new SectionResponse(section.getSectionNo(), section.getClassTeacherDocsId(),
                 section.getCapacity(), section.getActive());
     }
 }

@@ -16,7 +16,7 @@ import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
  * {@code DESCRIPTOR} band comes back. A client seeing the keys absent is being told the band has
  * no range, rather than being handed a zero it might do arithmetic with.
  */
-public record GradeBandView(
+public record GradeBandResponse(
         String gradeCode,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -33,8 +33,8 @@ public record GradeBandView(
 
         Boolean passed) {
 
-    public static GradeBandView fromBand(GradeBand band) {
-        return new GradeBandView(
+    public static GradeBandResponse fromBand(GradeBand band) {
+        return new GradeBandResponse(
                 band.getGradeCode(),
                 band.getMinimumValue(),
                 band.getMaximumValue(),

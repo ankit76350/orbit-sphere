@@ -24,7 +24,7 @@ import com.orbitastra.backend.models.academics.grading.GradingScheme;
  * — and a warning nobody asked for, on a row that cannot act on it. #7 carries it, where the
  * bands it describes are also on screen.
  */
-public record GradingSchemeSummary(
+public record GradingSchemeSummaryResponse(
         String gradingSchemeDocsId,
         String name,
         String schemeVersion,
@@ -36,8 +36,8 @@ public record GradingSchemeSummary(
         int bandCount,
         Boolean active) {
 
-    public static GradingSchemeSummary fromScheme(GradingScheme scheme) {
-        return new GradingSchemeSummary(
+    public static GradingSchemeSummaryResponse fromScheme(GradingScheme scheme) {
+        return new GradingSchemeSummaryResponse(
                 scheme.getId(),
                 scheme.getName(),
                 scheme.getSchemeVersion(),

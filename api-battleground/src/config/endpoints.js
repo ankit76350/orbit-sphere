@@ -5831,7 +5831,7 @@ Postman sends no body on a GET, so they live here:
 
 02  THE SAME SHAPE #3 RETURNS                             -> 200 OK
     Compare a feature row here with one from Set Plan Features. Identical —
-    both are PlanFeatureView, so a client that reads one reads the other.
+    both are PlanFeatureResponse, so a client that reads one reads the other.
 
 03  A FEATURE WITH NO LIMIT                               -> 200 OK
     ATTENDANCE comes back with usageLimit null AND usageMetric null. It has
@@ -5887,7 +5887,7 @@ Postman sends no body on a GET, so they live here:
           name: "THE SAME SHAPE #3 RETURNS",
           expect: "200 OK",
           notes: `Compare a feature row here with one from Set Plan Features. Identical —
-    both are PlanFeatureView, so a client that reads one reads the other.`,
+    both are PlanFeatureResponse, so a client that reads one reads the other.`,
           body: null,
         },
         {

@@ -21,10 +21,10 @@ import com.orbitastra.backend.models.academics.enums.SubjectType;
  * <p><b>{@code teacherDocsIds} and {@code gradingSchemeDocsId} are raw ids.</b> Staff could be
  * resolved now that {@code StaffRepository} exists; grading schemes could not — that repository
  * is the one still missing. Neither is resolved, for the same reason as
- * {@link SectionView#classTeacherDocsId()}: one place should decide how a teacher is presented,
+ * {@link SectionResponse#classTeacherDocsId()}: one place should decide how a teacher is presented,
  * and it is not two response records.
  */
-public record SubjectView(
+public record SubjectResponse(
         String subjectCode,
         String name,
 
@@ -44,8 +44,8 @@ public record SubjectView(
 
         Boolean active) {
 
-    public static SubjectView of(ClassSubject subject) {
-        return new SubjectView(
+    public static SubjectResponse of(ClassSubject subject) {
+        return new SubjectResponse(
                 subject.getSubjectCode(),
                 subject.getName(),
                 subject.getShortName(),

@@ -30,7 +30,7 @@ public record SubjectListResponse(
         String academicYear,
         int subjectCount,
         int activeCount,
-        List<SubjectView> subjects,
+        List<SubjectResponse> subjects,
 
         /** What the call just did. A <b>write</b> field, absent on a read. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -99,7 +99,7 @@ public record SubjectListResponse(
                 schoolClass.getAcademicYear(),
                 subjects.size(),
                 (int) subjects.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count(),
-                subjects.stream().map(SubjectView::of).toList(),
+                subjects.stream().map(SubjectResponse::of).toList(),
                 changeSummary);
     }
 }

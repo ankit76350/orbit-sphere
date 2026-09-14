@@ -5831,7 +5831,7 @@ Postman sends no body on a GET, so they live here:
 
 02  THE SAME SHAPE #3 RETURNS                             -> 200 OK
     Compare a feature row here with one from Set Plan Features. Identical —
-    both are PlanFeatureView, so a client that reads one reads the other.
+    both are PlanFeatureResponse, so a client that reads one reads the other.
 
 03  A FEATURE WITH NO LIMIT                               -> 200 OK
     ATTENDANCE comes back with usageLimit null AND usageMetric null. It has
@@ -5887,7 +5887,7 @@ Postman sends no body on a GET, so they live here:
           name: "THE SAME SHAPE #3 RETURNS",
           expect: "200 OK",
           notes: `Compare a feature row here with one from Set Plan Features. Identical —
-    both are PlanFeatureView, so a client that reads one reads the other.`,
+    both are PlanFeatureResponse, so a client that reads one reads the other.`,
           body: null,
         },
         {
@@ -10477,7 +10477,7 @@ only thing that answers \`404 ACADEMIC_YEAR_NOT_FOUND\` here.
         { id: "02", name: "A CLASS WITH NOTHING IN IT", expect: "200 OK",
           notes: `Create a class and read it without adding anything.\n    OUT: all four counts 0, and no row arrays at all. Not a 404.`, body: null },
         { id: "03", name: "THE SECTIONS MATCH #30", expect: "200 OK",
-          notes: `Run #30 on the same class. The section rows are byte-identical —\n    they share SectionView, so a section has one shape everywhere.`, body: null },
+          notes: `Run #30 on the same class. The section rows are byte-identical —\n    they share SectionResponse, so a section has one shape everywhere.`, body: null },
         { id: "04", name: "NOTHING IS RESOLVED", expect: "200 OK",
           notes: `classTeacherDocsId comes back as a raw ObjectId string, never a name.\n    Same for subject teachers and grading schemes.`, body: null },
         { id: "05", name: "A REAL CLASS ID UNDER THE WRONG YEAR", expect: "404 Not Found",
@@ -10520,7 +10520,7 @@ reference it — but nobody should be placed in one. **Absent is not the same as
 asked to see some of them. A filtered count would make \`?active=true\` on a class with two
 retired sections report two sections and two active — a lie in both halves.
 
-### It shares SectionView with #29 and #17
+### It shares SectionResponse with #29 and #17
 
 So a section has one shape across every endpoint that returns one. It was nested inside
 \`SectionListResponse\` until #29 needed it too; a second copy would have been two shapes for one

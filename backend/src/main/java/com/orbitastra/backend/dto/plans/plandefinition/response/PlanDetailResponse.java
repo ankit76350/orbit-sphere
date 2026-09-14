@@ -39,7 +39,7 @@ public record PlanDetailResponse(
         Instant effectiveFrom,
         Instant effectiveUntil,
         int featureCount,
-        List<PlanFeatureView> features,
+        List<PlanFeatureResponse> features,
         long schoolsOnThisVersion,
         Instant createdAt,
         Instant updatedAt,
@@ -48,8 +48,8 @@ public record PlanDetailResponse(
     public static PlanDetailResponse fromPlan(PlanDefinition plan, long schoolsOnThisVersion,
             String note) {
 
-        List<PlanFeatureView> features = plan.getFeatures() == null ? List.of()
-                : plan.getFeatures().stream().map(PlanFeatureView::fromFeature).toList();
+        List<PlanFeatureResponse> features = plan.getFeatures() == null ? List.of()
+                : plan.getFeatures().stream().map(PlanFeatureResponse::fromFeature).toList();
 
         return new PlanDetailResponse(
                 plan.getId(),

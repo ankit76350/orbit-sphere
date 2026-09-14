@@ -16,7 +16,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
-import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummary;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.GradingSchemeService;
 
@@ -122,7 +122,7 @@ public class GradingSchemeController {
      * rules — the same rule every read in this project follows.
      */
     @GetMapping
-    public ResponseEntity<PageResponse<GradingSchemeSummary>> list(
+    public ResponseEntity<PageResponse<GradingSchemeSummaryResponse>> list(
             GradingSchemeSearchRequest request) {
 
         return ResponseEntity.ok(gradingSchemeService.listSchemes(request));

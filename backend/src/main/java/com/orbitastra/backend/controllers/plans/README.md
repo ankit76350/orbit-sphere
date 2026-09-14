@@ -1618,7 +1618,7 @@ for its own reads — *`nextStep` and `changeSummary` are write fields* — appl
 ### The feature row is now shared
 
 Building this made two endpoints return features, so the row moved into its own record,
-[`PlanFeatureView`](../../dto/plans/plandefinition/response/PlanFeatureView.java). #3 and #10 return the
+[`PlanFeatureResponse`](../../dto/plans/plandefinition/response/PlanFeatureResponse.java). #3 and #10 return the
 identical shape, so a client that can read one can read the other, and there is one place to
 change if a field is ever added.
 

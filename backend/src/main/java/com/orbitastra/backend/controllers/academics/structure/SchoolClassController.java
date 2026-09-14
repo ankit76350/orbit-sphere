@@ -281,7 +281,7 @@ public class SchoolClassController {
      * is not one a student can be placed in.
      *
      * <p><b>Nothing is resolved to a name.</b> Class teachers, subject teachers and grading
-     * schemes come back as raw ids — see {@code SectionView} for why that decision is made once
+     * schemes come back as raw ids — see {@code SectionResponse} for why that decision is made once
      * rather than in each response.
      *
      * <p><b>No gates.</b> A suspended school can read its own class and cannot change it.

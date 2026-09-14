@@ -39,7 +39,7 @@ public record HolidayCalendarResponse(
         int closedDayCount,
         int eventCount,
         Map<HolidayType, Integer> countsByType,
-        List<HolidayView> holidays,
+        List<HolidayResponse> holidays,
 
         /**
          * What the call just did to the calendar. A <b>write</b> field.
@@ -64,9 +64,9 @@ public record HolidayCalendarResponse(
     public static HolidayCalendarResponse fromAcademicYear(AcademicYear year, String changeSummary) {
         List<HolidayDetail> stored = year.getHolidays() == null ? List.of() : year.getHolidays();
 
-        List<HolidayView> sorted = stored.stream()
+        List<HolidayResponse> sorted = stored.stream()
                 .sorted(Comparator.comparing(HolidayDetail::getDate))
-                .map(HolidayView::fromDetail)
+                .map(HolidayResponse::fromDetail)
                 .toList();
 
         List<HolidayEvent> allEvents = stored.stream()

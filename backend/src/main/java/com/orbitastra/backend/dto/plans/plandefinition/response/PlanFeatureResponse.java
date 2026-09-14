@@ -17,7 +17,7 @@ import com.orbitastra.backend.models.plans.enums.UsageMetric;
  * then all say the same words about the same feature, instead of three screens inventing their
  * own wording.
  */
-public record PlanFeatureView(
+public record PlanFeatureResponse(
         FeatureCode featureCode,
         String label,
         String description,
@@ -26,8 +26,8 @@ public record PlanFeatureView(
         UsageMetric usageMetric,
         OveragePolicy overagePolicy) {
 
-    public static PlanFeatureView fromFeature(PlanFeature feature) {
-        return new PlanFeatureView(
+    public static PlanFeatureResponse fromFeature(PlanFeature feature) {
+        return new PlanFeatureResponse(
                 feature.getFeatureCode(),
                 feature.getFeatureCode().getLabel(),
                 feature.getFeatureCode().getDescription(),

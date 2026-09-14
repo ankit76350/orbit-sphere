@@ -30,7 +30,7 @@ import com.orbitastra.backend.models.academics.structure.embedded.ClassSection;
  * nothing better to sort them by: {@code sectionNo} is free text, so alphabetical would put
  * "Blue" before "Red" and mean nothing.
  *
- * <p><b>{@code SectionView} used to be nested in here.</b> It moved to its own file when #29
+ * <p><b>{@code SectionResponse} used to be nested in here.</b> It moved to its own file when #29
  * needed it too — a second copy would have been two shapes for one thing.
  */
 public record SectionListResponse(
@@ -39,7 +39,7 @@ public record SectionListResponse(
         String academicYear,
         int sectionCount,
         int activeCount,
-        List<SectionView> sections,
+        List<SectionResponse> sections,
 
         /**
          * What the call just did. A <b>write</b> field.
@@ -101,7 +101,7 @@ public record SectionListResponse(
                 schoolClass.getAcademicYear(),
                 sections.size(),
                 (int) sections.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count(),
-                sections.stream().map(SectionView::of).toList(),
+                sections.stream().map(SectionResponse::of).toList(),
                 changeSummary);
     }
 }

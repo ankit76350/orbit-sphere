@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import com.orbitastra.backend.dto.plans.plandefinition.response.PlanFeatureView;
+import com.orbitastra.backend.dto.plans.plandefinition.response.PlanFeatureResponse;
 import com.orbitastra.backend.models.plans.PlanDefinition;
 import com.orbitastra.backend.models.plans.SchoolSubscription;
 import com.orbitastra.backend.models.plans.enums.BillingCycle;
@@ -80,7 +80,7 @@ public record SubscriptionDetailResponse(
 
         // what they are entitled to
         int featureCount,
-        List<PlanFeatureView> features,
+        List<PlanFeatureResponse> features,
 
         // why it looks the way it does, from the last edit that touched it
         String reasonForChanges,
@@ -96,9 +96,9 @@ public record SubscriptionDetailResponse(
     public static SubscriptionDetailResponse fromSubscription(SchoolSubscription subscription,
             PlanDefinition plan, String note) {
 
-        List<PlanFeatureView> features = plan.getFeatures() == null
+        List<PlanFeatureResponse> features = plan.getFeatures() == null
                 ? List.of()
-                : plan.getFeatures().stream().map(PlanFeatureView::fromFeature).toList();
+                : plan.getFeatures().stream().map(PlanFeatureResponse::fromFeature).toList();
 
         // The ceiling in force is the school's override where there is one, and the plan's
         // otherwise. Both are reported: the first is what applies, the second says whether it

@@ -35,7 +35,7 @@ public record GradingSchemeResponse(
         BigDecimal maximumValue,
 
         int bandCount,
-        List<GradeBandView> gradeBands,
+        List<GradeBandResponse> gradeBands,
         Boolean active,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -51,8 +51,8 @@ public record GradingSchemeResponse(
     public static GradingSchemeResponse fromScheme(GradingScheme scheme, String warning,
             String nextStep) {
 
-        List<GradeBandView> bands = scheme.getGradeBands() == null ? List.of()
-                : scheme.getGradeBands().stream().map(GradeBandView::fromBand).toList();
+        List<GradeBandResponse> bands = scheme.getGradeBands() == null ? List.of()
+                : scheme.getGradeBands().stream().map(GradeBandResponse::fromBand).toList();
 
         return new GradingSchemeResponse(
                 scheme.getId(),

@@ -28,7 +28,7 @@ dto/core/academicyear/
 └── response/
     ├── DayStatusResponse.java
     ├── HolidayCalendarResponse.java
-    ├── HolidayView.java
+    ├── HolidayResponse.java
     ├── WeeklyOffGenerateResponse.java
     └── WorkingDaysResponse.java
 ```
@@ -46,9 +46,20 @@ Folder names are lower case with no separators — `academicyear`, `plandefiniti
 
 ## Which side a file goes on
 
-`*Request` goes in `request/`, `*Response` in `response/`. A file named neither — a nested view
-type like `HolidayView` or `PlanFeatureView` — goes on the side that **uses** it, which in
-practice has always been `response/`.
+`*Request` goes in `request/`, `*Response` in `response/`. **Every file in `response/` ends with
+`Response`, including a nested row type** — `HolidayResponse` is one row of
+`HolidayCalendarResponse`, `SectionResponse` one section of `SectionListResponse`.
+
+**This rule replaced a `*View` suffix on 2026-09-14.** Six files carried it — `HolidayView`,
+`PlanFeatureView`, `SectionView`, `SubjectView`, `GradeBandView` and `GradingSchemeSummary` — and
+the distinction they were drawing, "a row inside a response is not itself a response", did not
+survive contact with the folder they all lived in. A reader scanning `response/` had to know which
+names were nested and which were not before they could tell what a file was, and nothing about a
+row's shape depends on being nested: `SectionResponse` is returned whole by #37 and as a row by
+#30 and #17.
+
+So the suffix now says where a file lives rather than how it happens to be used. One rule, no
+exceptions, and a name in `response/` that does not end in `Response` is a mistake.
 
 Before moving a folder, check whether anything on one side references a type that will land on
 the other: inside one package that reference needs no import, and after the split it does. When

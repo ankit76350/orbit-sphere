@@ -18,7 +18,7 @@ import com.orbitastra.backend.models.core.enums.HolidayType;
  * table is exactly the arithmetic a response should save the reader. It is <b>derived, never
  * stored</b>; nothing in this system infers a closure from the day of the week.
  */
-public record HolidayView(
+public record HolidayResponse(
         LocalDate date,
         DayOfWeek dayOfWeek,
         List<EventView> events) {
@@ -27,12 +27,12 @@ public record HolidayView(
     public record EventView(String name, String description, HolidayType type) {
     }
 
-    public static HolidayView fromDetail(HolidayDetail detail) {
+    public static HolidayResponse fromDetail(HolidayDetail detail) {
         List<EventView> events = detail.getEvents() == null ? List.of()
                 : detail.getEvents().stream()
                         .map(e -> new EventView(e.getName(), e.getDescription(), e.getType()))
                         .toList();
 
-        return new HolidayView(detail.getDate(), detail.getDate().getDayOfWeek(), events);
+        return new HolidayResponse(detail.getDate(), detail.getDate().getDayOfWeek(), events);
     }
 }

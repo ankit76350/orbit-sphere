@@ -18,7 +18,7 @@ import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandReque
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
-import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummary;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 import com.orbitastra.backend.models.core.School;
@@ -228,7 +228,7 @@ public class GradingSchemeService {
      * the path and answers 404 when it is not this school's, there is no parent to resolve — so an
      * empty page means "this school has no schemes", which is a fact rather than an ambiguity.
      */
-    public PageResponse<GradingSchemeSummary> listSchemes(GradingSchemeSearchRequest request) {
+    public PageResponse<GradingSchemeSummaryResponse> listSchemes(GradingSchemeSearchRequest request) {
 
         //! step 1 - the paging and the order, validated before anything is read. Cheap checks
         //! with no I/O behind them go first, so a malformed request costs no round trip.
@@ -246,7 +246,7 @@ public class GradingSchemeService {
                 gradingSchemes.search(school.getId(), request, pageable),
                 // The summary, not the full response: no bands, and no warning on a row that
                 // could not act on one.
-                GradingSchemeSummary::fromScheme);
+                GradingSchemeSummaryResponse::fromScheme);
     }
 
     //! endpoint 7 — one scheme, with its bands ---------------------------------------

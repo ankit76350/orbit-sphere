@@ -30,7 +30,7 @@ public record SectionDetailResponse(
         String academicYear,
         int sectionCount,
         int activeCount,
-        SectionView section) {
+        SectionResponse section) {
 
     public static SectionDetailResponse of(SchoolClass schoolClass, ClassSection section) {
         // Null-safe against a field stored as an explicit null. An ABSENT one reads as an empty
@@ -45,6 +45,6 @@ public record SectionDetailResponse(
                 schoolClass.getAcademicYear(),
                 sections.size(),
                 (int) sections.stream().filter(s -> Boolean.TRUE.equals(s.getActive())).count(),
-                SectionView.of(section));
+                SectionResponse.of(section));
     }
 }

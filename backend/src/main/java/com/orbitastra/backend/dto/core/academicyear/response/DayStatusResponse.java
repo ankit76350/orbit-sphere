@@ -11,7 +11,7 @@ import com.orbitastra.backend.models.core.embedded.HolidayDetail;
  * Whether the school is open on one date, and if not, why. The answer to G9.
  *
  * <p>This is the question attendance, timetables, transport and fee due dates all ask, so the
- * shape matters more than most. It is {@link HolidayView} plus a {@code closed} flag, as the
+ * shape matters more than most. It is {@link HolidayResponse} plus a {@code closed} flag, as the
  * plan in {@code controllers/core/README.md} asked for.
  *
  * <p><b>An open day is a real answer, not a missing one.</b> A working day comes back {@code 200}
@@ -20,7 +20,7 @@ import com.orbitastra.backend.models.core.embedded.HolidayDetail;
  * which is precisely the bug this endpoint exists to prevent. The only {@code 404} here is a
  * year that does not exist.
  *
- * <p>{@code events} is named to match {@link HolidayView#events()} rather than something like
+ * <p>{@code events} is named to match {@link HolidayResponse#events()} rather than something like
  * "reasons", because it is the same list of the same things. Two names for one structure is a
  * thing every client then has to know.
  *
@@ -35,11 +35,11 @@ public record DayStatusResponse(
         LocalDate date,
         DayOfWeek dayOfWeek,
         boolean closed,
-        List<HolidayView.EventView> events) {
+        List<HolidayResponse.EventView> events) {
 
     /** The school is shut that day, for the reasons on the calendar entry. */
     public static DayStatusResponse closed(String academicYearName, HolidayDetail detail) {
-        HolidayView view = HolidayView.fromDetail(detail);
+        HolidayResponse view = HolidayResponse.fromDetail(detail);
 
         return new DayStatusResponse(
                 academicYearName, view.date(), view.dayOfWeek(), true, view.events());
