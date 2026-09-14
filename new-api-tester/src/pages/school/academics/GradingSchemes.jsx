@@ -220,6 +220,57 @@ const BLANK_BAND = {
   gradeCode: '', minimumValue: '', maximumValue: '', gradePoint: '', description: '', passed: 'true',
 }
 
+/**
+ * ONE CONFIG PER SCALE, and the form reads nothing else.
+ *
+ * The scale is the field that decides what every other field means, so a boolean `measured` flag
+ * scattered through the JSX was the wrong shape: it could say "bounded or not" and nothing about
+ * what the bounds are IN. A percentage band runs 91–100 of a fixed 100; a marks band runs 40–50 of
+ * a total the school picks; a descriptor band has no numbers at all and its ceiling is a 400.
+ *
+ * `ceiling: null` means the scale is not measured — the API REFUSES maximumValue and refuses every
+ * bound, so the form must not offer them.
+ *
+ * `ceiling.fixed` means the value is not the school's to choose. A PERCENTAGE scheme is out of 100
+ * BY DEFINITION, so the box is filled and locked rather than left for somebody to type 90 into and
+ * get a scheme whose bands mean something other than percent.
+ */
+const SCALE = {
+  PERCENTAGE: {
+    blurb: 'Bands are percentages of 100. What CBSE and ICSE internal reporting use, and what an IB scheme looks like once its boundaries are expressed as percentages.',
+    ceiling: {
+      fixed: '100',
+      hint: 'Locked: a percentage scheme is out of 100 by definition. Pick MARKS for a paper with a different total.',
+    },
+    unit: '%',
+    from: '91',
+    to: '100',
+    bandHint: 'Stored in the order given, never re-sorted. Bounds are inclusive at BOTH ends, so two bands must not touch: 81–90 beside 90–100 both claim 90.',
+    presetLabel: 'Load the CBSE scale',
+  },
+  MARKS: {
+    blurb: 'Bands are raw marks out of a total you set. The same walk as a percentage — the difference is the reported figure, since "43 / 50" is not "86%".',
+    ceiling: {
+      fixed: null,
+      hint: 'The paper total the bands are read against — 50, 25, 80. Required on this scale, and yours to choose.',
+    },
+    unit: 'marks',
+    from: '40',
+    to: '50',
+    bandHint: 'Bounds are raw marks, inclusive at both ends, and none may reach past the total above. Stored in the order given.',
+    presetLabel: 'Load an out-of-50 scale',
+  },
+  DESCRIPTOR: {
+    blurb: 'No numbers anywhere. A teacher picks "Developing" directly, so there is nothing to measure and nothing to resolve by value.',
+    ceiling: null,
+    unit: null,
+    from: null,
+    to: null,
+    bandHint: 'A descriptor grade is chosen, not computed — so a band is a code and a description. Sending any bound, or a ceiling, is a 400.',
+    presetLabel: 'Load the three descriptors',
+  },
+}
+
 /** The scale every example in the plan is drawn from — eight bands, nothing ungraded. */
 const CBSE = [
   { gradeCode: 'A1', minimumValue: '91', maximumValue: '100', gradePoint: '10', description: 'Outstanding', passed: 'true' },
@@ -231,6 +282,23 @@ const CBSE = [
   { gradeCode: 'D', minimumValue: '33', maximumValue: '40', gradePoint: '4', description: 'Below Average', passed: 'true' },
   { gradeCode: 'E', minimumValue: '0', maximumValue: '32', gradePoint: '0', description: 'Needs Improvement', passed: 'false' },
 ]
+
+/** A paper out of 50 — what MARKS is for, and the shape a unit test is graded on. */
+const OUT_OF_50 = [
+  { gradeCode: 'A', minimumValue: '40', maximumValue: '50', gradePoint: '10', description: 'Outstanding', passed: 'true' },
+  { gradeCode: 'B', minimumValue: '30', maximumValue: '39', gradePoint: '8', description: 'Good', passed: 'true' },
+  { gradeCode: 'C', minimumValue: '17', maximumValue: '29', gradePoint: '6', description: 'Fair', passed: 'true' },
+  { gradeCode: 'D', minimumValue: '0', maximumValue: '16', gradePoint: '0', description: 'Needs Improvement', passed: 'false' },
+]
+
+/** CBSE's co-scholastic areas grade this way — a code and a word, no range. */
+const DESCRIPTORS = [
+  { gradeCode: 'SECURE', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Secure', passed: 'true' },
+  { gradeCode: 'DEVELOPING', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Developing', passed: 'true' },
+  { gradeCode: 'BEGINNING', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Beginning', passed: 'false' },
+]
+
+const PRESET = { PERCENTAGE: CBSE, MARKS: OUT_OF_50, DESCRIPTOR: DESCRIPTORS }
 
 /**
  * Creating one rulebook — #1.
@@ -263,9 +331,24 @@ function AddScheme({ open, onClose, onAdded }) {
   const [saving, setSaving] = useState(false)
   const [made, setMade] = useState(null)
 
-  // DESCRIPTOR refuses a ceiling and refuses bounds, so those fields are not optional on it —
-  // they are a 400. The form hides what the API would refuse rather than letting someone send it.
-  const measured = scaleType !== 'DESCRIPTOR'
+  const scale = SCALE[scaleType]
+  // `ceiling: null` is the scale saying it measures nothing. The form hides what the API would
+  // REFUSE rather than offering a field whose only outcome is a 400.
+  const measured = scale.ceiling !== null
+
+  /**
+   * Changing the scale rewrites the ceiling AND the bands, because neither survives the move.
+   *
+   * 91–100 means nothing on a paper out of 50, and a descriptor band has no bounds to keep. The
+   * old form left the previous scale's bands sitting in the table where the columns had silently
+   * vanished, so switching to DESCRIPTOR and back showed numbers that were never going to be sent.
+   * Loading that scale's starter set is both correct and the thing somebody wanted next.
+   */
+  const pickScale = (next) => {
+    setScaleType(next)
+    setMaximumValue(SCALE[next].ceiling ? (SCALE[next].ceiling.fixed ?? '50') : '')
+    setBands(PRESET[next])
+  }
 
   // Input gives onChange an EVENT; Select gives it the VALUE. Two setters rather than one that
   // guesses, because a setter reading `.target` off a string fails silently at runtime.
@@ -338,9 +421,10 @@ function AddScheme({ open, onClose, onAdded }) {
       endpoint={<EndpointTag id="create-grading-scheme" name="Create" look="primary" />}
       footer={
         <>
-          <Button icon={Wand2}
-            onClick={() => { setScaleType('PERCENTAGE'); setMaximumValue('100'); setBands(CBSE) }}>
-            Load the CBSE scale
+          {/* Labelled for the scale in hand — "Load the CBSE scale" on a marks scheme would
+              load bands that cannot fit, and the button would look broken. */}
+          <Button icon={Wand2} onClick={() => setBands(PRESET[scaleType])}>
+            {scale.presetLabel}
           </Button>
           <span className="toolbar-spacer" />
           <Button onClick={onClose}>Close</Button>
@@ -401,21 +485,26 @@ function AddScheme({ open, onClose, onAdded }) {
             hint="Read before any band. It decides whether bands carry bounds at all — and it can never be changed, because it reinterprets every band under it."
             error={errors.scaleType}
           >
-            <Select value={scaleType} options={SCALES} label="Scale" onChange={setScaleType} />
+            <Select value={scaleType} options={SCALES} label="Scale" onChange={pickScale} />
           </Field>
           {measured ? (
             <Field
-              label="Maximum value"
+              label={scaleType === 'PERCENTAGE' ? 'Out of' : 'Paper total'}
               required
-              hint="The ceiling the bands are read against — 100 for a percentage, the paper total for marks. Required on this scale."
+              hint={scale.ceiling.hint}
               error={errors.maximumValue}
             >
+              {/* Locked when the scale defines it. A percentage scheme out of 90 is not a
+                  percentage scheme, so the box states the fact rather than inviting a typo. */}
               <Input type="number" value={maximumValue} error={errors.maximumValue}
-                onChange={(e) => setMaximumValue(e.target.value)} placeholder="100" />
+                disabled={scale.ceiling.fixed !== null}
+                readOnly={scale.ceiling.fixed !== null}
+                onChange={(e) => setMaximumValue(e.target.value)}
+                placeholder={scale.ceiling.fixed ?? '50'} />
             </Field>
           ) : (
             <Field
-              label="Maximum value"
+              label="Ceiling"
               hint="Not sent on a DESCRIPTOR scale — it is REFUSED rather than optional, because there is nothing to measure."
             >
               <Input value="" disabled readOnly placeholder="not applicable" />
@@ -429,11 +518,8 @@ function AddScheme({ open, onClose, onAdded }) {
           <Button icon={Plus} onClick={addBand}>Add a band</Button>
         </div>
 
-        <p className="muted">
-          {measured
-            ? 'Stored in the order given, never re-sorted. Bounds are inclusive at BOTH ends, so two bands must not touch: 81–90 beside 90–100 both claim 90.'
-            : 'A descriptor grade is chosen, not computed — so a band here is a code and a description, and sending bounds is a 400.'}
-        </p>
+        <p className="muted"><b>{scaleType}</b> — {scale.blurb}</p>
+        <p className="muted">{scale.bandHint}</p>
 
         {bands.length === 0 ? (
           <Empty
@@ -447,8 +533,8 @@ function AddScheme({ open, onClose, onAdded }) {
               <thead>
                 <tr>
                   <th>Code</th>
-                  {measured ? <th>From</th> : null}
-                  {measured ? <th>To</th> : null}
+                  {measured ? <th>From{scale.unit === '%' ? ' %' : ''}</th> : null}
+                  {measured ? <th>To{scale.unit === '%' ? ' %' : ''}</th> : null}
                   <th>Point</th>
                   <th>Description</th>
                   <th>Pass</th>
@@ -467,14 +553,16 @@ function AddScheme({ open, onClose, onAdded }) {
                     </td>
                     {measured ? (
                       <td>
-                        <Input type="number" value={band.minimumValue}
-                          onChange={setBand(index, 'minimumValue')} placeholder="91" />
+                        {/* max is the scheme's own ceiling, so the browser stops a band
+                            reaching past it before the API has to. */}
+                        <Input type="number" value={band.minimumValue} min="0" max={maximumValue}
+                          onChange={setBand(index, 'minimumValue')} placeholder={scale.from} />
                       </td>
                     ) : null}
                     {measured ? (
                       <td>
-                        <Input type="number" value={band.maximumValue}
-                          onChange={setBand(index, 'maximumValue')} placeholder="100" />
+                        <Input type="number" value={band.maximumValue} min="0" max={maximumValue}
+                          onChange={setBand(index, 'maximumValue')} placeholder={scale.to} />
                       </td>
                     ) : null}
                     <td>
