@@ -11756,6 +11756,203 @@ question about the set rather than about the list.
         },
       ],
     },
+    {
+      id: "list-grading-schemes",
+      name: "List Grading Schemes",
+      method: "GET",
+      path: "/schools/current/grading-schemes",
+      status: 'live',
+      summary: "The school's schemes, filtered and paged. Bands are not included.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/grading-schemes\` — endpoint #6.
+
+### The dropdown behind every "how is this graded" field
+
+Which is why it filters by \`scaleType\`. A caller attaching a scheme to an exam marked out of 100
+wants the schemes that can resolve a number — and \`DESCRIPTOR\` cannot, because a descriptor grade
+is chosen rather than computed.
+
+### Three filters, all optional, all AND-ed
+
+- **\`?active=\`** — offered for new work, or retired. Absent returns **both**, which is not the
+  same as \`false\`. A retired scheme still resolves every report card that used it.
+- **\`?scaleType=\`** — \`PERCENTAGE\` · \`POINT\` · \`DESCRIPTOR\`.
+- **\`?search=\`** — case-insensitive, matches anywhere in \`name\`.
+
+**\`?search=\` matches \`name\` only**, unlike the term list which also matches a code. There is no
+code on a scheme to match — the visible cost of keying on the name, and an argument for the
+\`schemeCode\` that open item 3 keeps on the table.
+
+The needle is **\`Pattern.quote\`d**, so \`?search=(\` is an empty result rather than a 500 from
+\`PatternSyntaxException\`.
+
+### Bands are not returned, only bandCount
+
+The CBSE scale alone is eight bands of six fields, so a twelve-row page carrying full band tables
+is roughly six hundred values to render a list of twelve names. **#7 is one call away** for the
+caller that wants them.
+
+\`bandCount\` earns the place they lost: a scheme with zero bands cannot exist — #1 refuses it — so
+the count is never a way of saying "empty". It is how a person recognises a scale they know.
+
+**No \`warning\` either.** The gap note is recomputed per read rather than stored, so putting it on
+a row would mean walking every band of every scheme on the page — and showing a warning on a row
+that cannot act on it.
+
+### Sorted by name, THEN schemeVersion
+
+**This is the first list in the project whose stable order needs two fields.** The pair is unique
+within a school — \`school_grading_name_version_uniq\` declares it and #1 enforces it — so every
+sort ends in a total order and paging cannot put one row on two pages while another is never seen.
+
+**Neither field alone would have served**: a school holds one name at several versions, and one
+version string across several names. Contrast the term list, where \`sequence\` alone is unique
+within a year.
+
+Grouping the versions of one rulebook together is the useful side effect, not the reason.
+
+\`?sort=\` is an **allowlist**: \`name\`, \`schemeVersion\`, \`scaleType\`, \`createdAt\`, \`updatedAt\`.
+Anything else is \`400 INVALID_SORT_FIELD\`, because an arbitrary field name reaching a Mongo sort
+is how a caller makes the database read every document to answer one page.
+
+**\`gradeBands\` is deliberately not on it.** Sorting by an array sorts by its first element in
+Mongo, which would order schemes by whichever band happened to be entered first — a result that
+looks deliberate and means nothing.
+
+### Nothing here can 404
+
+Unlike the term list, which resolves a \`{year}\` from the path and answers \`404\` when it is not this
+school's, there is **no parent to resolve**. So an empty page means "this school has no schemes",
+which is a fact rather than an ambiguity.
+
+### No gates
+
+A suspended or closed school still reads its own grading rules — and has to, because correcting an
+old report card means reading the scheme it was issued under.
+
+### The eight test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain. NO academic year.
+
+ THREE FILTERS, ALL AND-ed: active, scaleType, search. Absent is never the
+ same as false — ?active= left off returns retired schemes too.
+
+ search MATCHES name ONLY. A scheme has no code to match, unlike a term. The
+ needle is regex-quoted, so a stray "(" is an empty result, not a 500.
+
+ BANDS ARE NOT RETURNED, only bandCount. Eight bands of six fields per row
+ would be ~600 values to render twelve names. #7 is one call away.
+
+ SORTED BY name THEN schemeVersion — the first list here whose stable order
+ needs TWO fields. Neither alone is unique: one name has many versions, one
+ version string spans many names.
+
+ ?sort= IS AN ALLOWLIST: name, schemeVersion, scaleType, createdAt,
+ updatedAt. gradeBands is excluded on purpose — Mongo sorts an array by its
+ first element, which would mean whichever band was typed first.
+
+ NOTHING HERE CAN 404. There is no parent to resolve, so an empty page means
+ "no schemes" rather than "no such year".
+
+ NO GATES. A suspended school still reads its own grading rules.`,
+      requiredFields: [],
+      pathParams: [],
+      queryParams: [
+        { key: "active", value: "", disabled: true, description: "true for schemes offered for new work, false for retired. Absent returns both." },
+        { key: "scaleType", value: "", disabled: true, description: "PERCENTAGE, POINT or DESCRIPTOR. The filter that answers 'what can grade a number'." },
+        { key: "search", value: "", disabled: true, description: "Matches name, case-insensitive, anywhere. Regex-quoted." },
+        { key: "page", value: "0", disabled: true, description: "0-based." },
+        { key: "size", value: "20", disabled: true, description: "1 to 100." },
+        { key: "sort", value: "", disabled: true, description: "name, schemeVersion, scaleType, createdAt, updatedAt — optionally ,desc." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page of summaries — no gradeBands and no warning on any row. Both are on #7.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "first", "last"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A ?sort= field outside the allowlist. The message lists what is allowed." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size below 1 or above 100." },
+        { status: 400, code: "INVALID_PAGE", when: "A negative page." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain. The only 404 this endpoint has — there is no parent to resolve." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "EVERY SCHEME",
+          expect: "200 OK",
+          notes: `No filters. OUT: a page ordered by name, then schemeVersion — so the
+    versions of one rulebook sit together. No gradeBands on any row.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "ONLY WHAT CAN GRADE A NUMBER",
+          expect: "200 OK",
+          notes: `?scaleType=PERCENTAGE, then ?scaleType=POINT, then DESCRIPTOR.
+    The first two can be resolved by value; the third cannot, which is the
+    real reason this filter exists.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "ACTIVE, RETIRED, THEN BOTH",
+          expect: "200 OK",
+          notes: `?active=true, then ?active=false, then leave it off.
+    Absent is NOT the same as false — a retired scheme still resolves every
+    report card that used it.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "SEARCH BY NAME",
+          expect: "200 OK",
+          notes: `?search=cbse — case-insensitive, matches anywhere. Try ?search=CBSE
+    and ?search=grading too: same rows.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "A STRAY BRACKET",
+          expect: "200 OK",
+          notes: `?search=( — an EMPTY PAGE, not a 500. The needle is Pattern.quote'd
+    before it is compiled, so it searches for the character.`,
+          body: null,
+        },
+        {
+          id: "06",
+          name: "THE VERSIONS OF ONE RULEBOOK",
+          expect: "200 OK",
+          notes: `?search=CBSE after creating 2026.1, 2026.2 and 2027.1.
+    OUT: three rows in version order. This is what the second sort field is
+    for — name alone leaves their order undefined.`,
+          body: null,
+        },
+        {
+          id: "07",
+          name: "PAGING IS STABLE",
+          expect: "200 OK",
+          notes: `?size=2&page=0, then page=1, then page=2. No row appears twice and
+    none is skipped, because name+schemeVersion is unique within a school.`,
+          body: null,
+        },
+        {
+          id: "08",
+          name: "SORTING BY THE BANDS",
+          expect: "400 Bad Request",
+          notes: `?sort=gradeBands
+    OUT: { "code": "INVALID_SORT_FIELD" }, listing what is allowed. Excluded
+    on purpose: Mongo sorts an array by its FIRST element, so this would
+    order schemes by whichever band happened to be typed first.`,
+          body: null,
+        },
+      ],
+    },
   ],
 };
 

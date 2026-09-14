@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.academics.grading;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,8 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummary;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.academics.GradingSchemeService;
 
@@ -19,7 +23,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1 is
+ * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1 and #6 are
  * built.
  *
  * <p><b>No {@code {year}} in the path</b>, unlike every route in
@@ -87,5 +91,22 @@ public class GradingSchemeController {
                 .created(URI.create("/schools/current/grading-schemes/"
                         + response.gradingSchemeDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #6 — one page of the school's schemes, filtered.
+     *
+     * <p><b>The filters bind from the query string as a record</b>, so adding one is a field
+     * rather than another parameter on this signature. Spring builds it from
+     * {@code ?active=&scaleType=&search=&page=&size=&sort=}.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended or closed school still reads its own grading
+     * rules — the same rule every read in this project follows.
+     */
+    @GetMapping
+    public ResponseEntity<PageResponse<GradingSchemeSummary>> list(
+            GradingSchemeSearchRequest request) {
+
+        return ResponseEntity.ok(gradingSchemeService.listSchemes(request));
     }
 }

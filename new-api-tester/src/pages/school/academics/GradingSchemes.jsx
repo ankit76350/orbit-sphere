@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Info, Plus, Trash2, Wand2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Info, Plus, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -9,9 +9,12 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * The school's grading rulebooks: /school-academics/grading
  *
- * ONE ENDPOINT — #1. There is no list yet (#6 is not built), so the table below is what THIS
- * PAGE created, not what the school holds. It is labelled that way rather than looking like a
- * list, because a table that silently shows less than the truth is worse than no table.
+ * TWO ENDPOINTS — #1 creates a rulebook and #6 lists them. The table is #6's answer, so it
+ * shows what the school HOLDS rather than what this page happened to create.
+ *
+ * THE TABLE CARRIES NO BANDS, because #6 does not return them — eight bands of six fields per
+ * row would be ~600 values to render twelve names. bandCount is what survives, and it is how a
+ * person recognises a scale they know: eight is the CBSE one, three is probably descriptors.
  *
  * THE FORM IS THE PAGE, not a modal. A scheme has eight bands in the ordinary case and a modal
  * that scrolls is a worse place to check eight rows against the paper they were copied from.
@@ -25,6 +28,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  */
 
 const SCALES = ['PERCENTAGE', 'POINT', 'DESCRIPTOR']
+
+const TRISTATE = ['', 'true', 'false']
+const SORTS = ['', 'name', 'name,desc', 'schemeVersion', 'schemeVersion,desc', 'scaleType',
+  'createdAt,desc', 'updatedAt,desc']
+const SIZES = ['5', '20', '100']
 
 const BLANK_BAND = {
   gradeCode: '', minimumValue: '', maximumValue: '', gradePoint: '', description: '', passed: 'true',
@@ -55,9 +63,22 @@ export default function GradingSchemes() {
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
   const [saving, setSaving] = useState(false)
-  // Everything this page has created, newest first. NOT the school's schemes — #6 is not built,
-  // so there is no honest way to show those.
-  const [made, setMade] = useState([])
+  // The last scheme created, kept only to show its id and any gap warning — the table below
+  // is #6's answer and carries neither.
+  const [created, setCreated] = useState(null)
+
+  const [active, setActive] = useState('')
+  const [scaleFilter, setScaleFilter] = useState('')
+  // Typed, then SENT. `search` is what the last request used; `typed` is what the box holds.
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   // DESCRIPTOR refuses a ceiling and refuses bounds, so those fields are not optional on it —
   // they are a 400. The form hides what the API would refuse rather than letting someone send it.
@@ -97,6 +118,34 @@ export default function GradingSchemes() {
     return out
   }, [name, schemeVersion, scaleType, maximumValue, bands, measured])
 
+  // Built at render, so the endpoint tag shows the URL that will actually be sent. An empty
+  // box sends nothing rather than an empty parameter — `?active=` is not the same as no filter.
+  const query = useMemo(() => {
+    const out = { page, size }
+    if (active) out.active = active
+    if (scaleFilter) out.scaleType = scaleFilter
+    if (search.trim()) out.search = search.trim()
+    if (sort) out.sort = sort
+    return out
+  }, [page, size, active, scaleFilter, search, sort])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-grading-schemes', {
+      label: "The school's schemes",
+      query,
+    })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, actingSubdomain, query])
+
+  useEffect(() => { load() }, [load])
+
+  const runSearch = () => { setPage(0); setSearch(typed) }
+  const rows = data?.content ?? []
+
   const submit = async () => {
     setErrors({})
     setRefused(null)
@@ -108,10 +157,13 @@ export default function GradingSchemes() {
     setSaving(false)
 
     if (result.ok) {
-      setMade((old) => [result.bodyJson, ...old])
+      setCreated(result.bodyJson)
       // The version is bumped, not the name: the pair is the key, and the next thing anybody
       // does after creating 2026.1 is create 2026.2 — which is what #2 will do properly.
       setSchemeVersion((old) => nextVersion(old))
+      // Re-asked rather than patched in place: the table is #6's answer, so re-asking #6 is
+      // what keeps it honest about what the school holds.
+      load()
       return
     }
     if (result.bodyJson?.fieldErrors) {
@@ -136,6 +188,7 @@ export default function GradingSchemes() {
           </p>
         </div>
         <span className="toolbar-spacer" />
+        <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
         <Button icon={Wand2} onClick={() => { setScaleType('PERCENTAGE'); setBands(CBSE) }}>
           Load the CBSE scale
         </Button>
@@ -298,39 +351,132 @@ export default function GradingSchemes() {
         </p>
       </Card>
 
+      {/* The last create, kept beside the list because #6 returns neither the id nor the
+          gap warning — and both are things somebody wants to see immediately after writing. */}
+      {created ? (
+        <div className="resp">
+          <div className="resp-head">
+            <span className="resp-status" data-ok="true">201</span>
+            <span className="mono">{created.name}</span>
+            <Badge>v{created.schemeVersion}</Badge>
+            <Badge>{created.bandCount} bands</Badge>
+            <span className="toolbar-spacer" />
+            {/* The id, not the key pair — it is what three collections store. */}
+            <span className="mono muted">{created.gradingSchemeDocsId}</span>
+          </div>
+          {/* A warning rides on a SUCCESSFUL 201. Never rendered as a failure. */}
+          {created.warning ? <pre className="resp-body">⚠ {created.warning}</pre> : null}
+        </div>
+      ) : null}
+
       <Card
-        title={`Created here · ${made.length}`}
-        description="What THIS PAGE created, not what the school holds — #6, the list, is not built. A table that silently showed less than the truth would be worse than none."
+        title="Filters"
+        description="All three are AND-ed, and blank sends nothing at all — which is not the same as sending false."
+        action={<EndpointTag id="list-grading-schemes" name="List" query={query} />}
       >
-        {made.length === 0 ? (
+        <div className="field-grid">
+          <Field label="Active" hint="Blank returns BOTH. A retired scheme still resolves every report card that used it.">
+            <Select value={active} options={TRISTATE} label="active" onChange={setActive} />
+          </Field>
+          <Field label="Scale" hint="The filter that answers 'what can grade a number' — DESCRIPTOR cannot be resolved by value at all.">
+            <Select value={scaleFilter} options={['', ...SCALES]} label="scaleType"
+              onChange={setScaleFilter} />
+          </Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Search" hint="Matches name only — a scheme has no code, unlike a term. Regex-quoted, so a stray ( is an empty page rather than a 500.">
+            <Input value={typed} onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') runSearch() }}
+              placeholder="cbse" />
+          </Field>
+          <Field label="Sort" hint="An allowlist. gradeBands is excluded on purpose: Mongo sorts an array by its first element.">
+            <Select value={sort} options={SORTS} label="sort" onChange={setSort} />
+          </Field>
+        </div>
+        <div className="toolbar">
+          <Button icon={Search} onClick={runSearch}>Search</Button>
+          <span className="toolbar-spacer" />
+          <Select value={size} options={SIZES} label="size"
+            onChange={(value) => { setPage(0); setSize(value) }} />
+        </div>
+      </Card>
+
+      <Card
+        title={`Schemes · ${data?.totalElements ?? 0}`}
+        description="#6's answer — what the school HOLDS. No bands here: #7 is one call away for the caller that wants them."
+        action={
+          <>
+            <Button disabled={data?.first !== false} onClick={() => setPage((p) => p - 1)}>
+              Previous
+            </Button>
+            <Badge>page {(data?.page ?? 0) + 1} of {data?.totalPages ?? 1}</Badge>
+            <Button disabled={data?.last !== false} onClick={() => setPage((p) => p + 1)}>
+              Next
+            </Button>
+          </>
+        }
+      >
+        {problem ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">
+                {problem.bodyJson?.code ?? problem.status}
+              </span>
+            </div>
+            <pre className="resp-body">{problem.bodyJson?.message ?? 'Request failed.'}</pre>
+          </div>
+        ) : rows.length === 0 ? (
           <Empty
-            title="Nothing created yet"
-            description="Create a scheme above and it appears here, with its id and any warning."
+            title="No schemes match"
+            // Never a 404: there is no parent to resolve, so an empty page is a fact.
+            description="An empty page, never a 404 — there is no year to be wrong about. Clear the filters to see whether the school has any at all."
           />
         ) : (
-          <div className="stack">
-            {made.map((scheme) => (
-              <div className="resp" key={scheme.gradingSchemeDocsId}>
-                <div className="resp-head">
-                  <span className="resp-status" data-ok="true">201</span>
-                  <span className="mono">{scheme.name}</span>
-                  <Badge>v{scheme.schemeVersion}</Badge>
-                  <Badge>{scheme.scaleType}</Badge>
-                  <Badge tone={scheme.active ? 'good' : undefined}>
-                    {scheme.bandCount} bands
-                  </Badge>
-                  <span className="toolbar-spacer" />
-                  {/* The id, not the key pair — it is what three collections store. */}
-                  <span className="mono muted">{scheme.gradingSchemeDocsId}</span>
-                </div>
-                {/* A warning rides on a SUCCESSFUL 201. Never rendered as a failure. */}
-                {scheme.warning ? (
-                  <pre className="resp-body">⚠ {scheme.warning}</pre>
-                ) : null}
-              </div>
-            ))}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Version</th>
+                  <th>Scale</th>
+                  <th>Max</th>
+                  <th>Bands</th>
+                  <th>Status</th>
+                  <th>Id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((one) => (
+                  <tr key={one.gradingSchemeDocsId}>
+                    {/* name + schemeVersion is the KEY, so the two sit together. */}
+                    <td>{one.name}</td>
+                    <td><span className="mono">{one.schemeVersion}</span></td>
+                    <td><Badge>{one.scaleType}</Badge></td>
+                    {/* Absent on a DESCRIPTOR scheme — refused rather than optional. */}
+                    <td>{one.maximumValue != null
+                      ? <span className="mono">{one.maximumValue}</span>
+                      : <span className="muted">not measured</span>}</td>
+                    <td>{one.bandCount}</td>
+                    <td>
+                      <Badge tone={one.active ? 'good' : undefined}>
+                        {one.active ? 'active' : 'retired'}
+                      </Badge>
+                    </td>
+                    {/* What three collections store, and what #7 will be addressed by. */}
+                    <td><span className="mono muted">{one.gradingSchemeDocsId}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
+
+        <p className="muted">
+          <Info size={12} /> <b>Ordered by name, then version</b> — the first list in this API
+          whose stable order needs two fields. Neither alone is unique: one name has many
+          versions, and one version string spans many names. Grouping a rulebook's versions
+          together is the side effect, not the reason.
+        </p>
       </Card>
     </div>
   )

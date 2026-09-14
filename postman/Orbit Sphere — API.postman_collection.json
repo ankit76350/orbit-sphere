@@ -4274,6 +4274,88 @@
                 "description": "Endpoint #1 — define a rulebook and its bands in one write. No academic year in the path: a scheme outlives a year, which is also why gate 4 does not run. An overlap is refused; a gap is only reported, and counted in whole marks."
               },
               "response": []
+            },
+            {
+              "name": "List Grading Schemes",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('a page came back', () => pm.expect(b).to.have.property('content'));",
+                      "pm.test('rows carry bandCount but NOT the bands', () => {",
+                      "  (b.content || []).forEach((row) => {",
+                      "    pm.expect(row).to.have.property('bandCount');",
+                      "    pm.expect(row).to.not.have.property('gradeBands');",
+                      "  });",
+                      "});",
+                      "pm.test('ordered by name, then schemeVersion', () => {",
+                      "  const keys = (b.content || []).map((r) => r.name + '\\u0000' + r.schemeVersion);",
+                      "  pm.expect(keys).to.deep.equal([...keys].sort());",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes"
+                  ],
+                  "query": [
+                    {
+                      "key": "active",
+                      "value": "",
+                      "disabled": true,
+                      "description": "true for schemes offered for new work, false for retired. Absent returns both."
+                    },
+                    {
+                      "key": "scaleType",
+                      "value": "",
+                      "disabled": true,
+                      "description": "PERCENTAGE, POINT or DESCRIPTOR."
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Matches name, case-insensitive, anywhere. Regex-quoted."
+                    },
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "",
+                      "disabled": true,
+                      "description": "name, schemeVersion, scaleType, createdAt, updatedAt — optionally ,desc."
+                    }
+                  ]
+                },
+                "description": "Endpoint #6 — the school's schemes, filtered and paged. The dropdown behind every \"how is this graded\" field.\n\nTHREE FILTERS, ALL AND-ed: active, scaleType, search. Absent is never the same as false — ?active= left off returns retired schemes too, and a retired scheme still resolves every report card that used it.\n\nsearch MATCHES name ONLY. A scheme has no code to match, unlike a term — the visible cost of keying on the name. The needle is regex-quoted, so ?search=( is an empty page rather than a 500.\n\nBANDS ARE NOT RETURNED, only bandCount. Eight bands of six fields per row would be ~600 values to render twelve names; #7 is one call away. bandCount is how a person recognises a scale they know — eight is the CBSE one.\n\nSORTED BY name THEN schemeVersion. The first list in this API whose stable order needs TWO fields: one name has many versions, one version string spans many names, so neither alone is unique. Paging cannot repeat or skip a row.\n\n?sort= IS AN ALLOWLIST: name, schemeVersion, scaleType, createdAt, updatedAt. gradeBands is excluded on purpose — Mongo sorts an array by its FIRST element, which would order schemes by whichever band was typed first.\n\nNOTHING HERE CAN 404 beyond an unknown subdomain. There is no parent to resolve, so an empty page means \"no schemes\" rather than \"no such year\".\n\nNO GATES. A suspended or closed school still reads its own grading rules — and has to, because correcting an old report card means reading the scheme it was issued under.\n\nTEST CASES\n  01  No filters                          -> 200, ordered by name then version\n  02  ?scaleType=PERCENTAGE / POINT / DESCRIPTOR -> 200, the real reason this filter exists\n  03  ?active=true, then false, then off  -> 200; absent is NOT false\n  04  ?search=cbse                        -> 200, case-insensitive, name only\n  05  ?search=(                           -> 200 EMPTY, not a 500\n  06  ?search=CBSE with three versions    -> 200, three rows in version order\n  07  ?size=2&page=0,1,2                  -> no row repeated, none skipped\n  08  ?sort=gradeBands                    -> 400 INVALID_SORT_FIELD, listing what is allowed\n\nEVERY REFUSAL\n  400 INVALID_SORT_FIELD        A ?sort= field outside the allowlist.\n  400 INVALID_PAGE_SIZE         size below 1 or above 100.\n  400 INVALID_PAGE              A negative page.\n  400 TENANT_NOT_RESOLVED       The X-School-Subdomain header is missing or blank.\n  404 SCHOOL_NOT_FOUND          No school has that subdomain."
+              },
+              "response": []
             }
           ],
           "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."

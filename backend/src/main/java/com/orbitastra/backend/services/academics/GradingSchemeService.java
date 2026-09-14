@@ -1,16 +1,24 @@
 package com.orbitastra.backend.services.academics;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
+import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummary;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 import com.orbitastra.backend.models.core.School;
@@ -21,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The school's grading rulebooks — the endpoints in
- * {@code controllers/academics/grading/README.md}. #1 is built.
+ * {@code controllers/academics/grading/README.md}. #1 and #6 are built.
  *
  * <p><b>Nothing here is scoped to an academic year</b>, unlike every other service in this module.
  * A rulebook outlives a year: the same scheme grades 2026-2027 and 2027-2028, and a report card
@@ -45,6 +53,52 @@ public class GradingSchemeService {
     private static final String NO_AUTHORIZATION_YET =
             "No authorization is enforced on this endpoint yet: any caller who can reach it can "
                     + "run it.";
+
+    /**
+     * What #6 may be sorted by, lowercase key to real field.
+     *
+     * <p>An <b>allowlist</b>, not a passthrough: an arbitrary field name reaching a Mongo sort is
+     * how a caller makes the database read every document in the collection to answer one page.
+     *
+     * <p>{@code gradeBands} is deliberately absent. Sorting by an array sorts by its first element
+     * in Mongo, which would order schemes by whichever band happened to be entered first — a
+     * result that looks deliberate and means nothing.
+     */
+    private static final Map<String, String> SORTABLE_SCHEME_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_SCHEME_FIELDS.put("name", "name");
+        SORTABLE_SCHEME_FIELDS.put("schemeversion", "schemeVersion");
+        SORTABLE_SCHEME_FIELDS.put("scaletype", "scaleType");
+        SORTABLE_SCHEME_FIELDS.put("createdat", "createdAt");
+        SORTABLE_SCHEME_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_SCHEME_FIELD_NAMES =
+            SORTABLE_SCHEME_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order: the rulebook, then its versions oldest-looking first.
+     *
+     * <p><b>It is also the tiebreaker on every other sort</b>, and that is not this class's doing:
+     * {@link PageResponse#pageableOf} appends the fallback to whatever the caller named, minus any
+     * key they already used. So {@code ?sort=scaleType} is really
+     * {@code scaleType, name, schemeVersion}.
+     *
+     * <p><b>Which makes the choice of fallback the decision that matters.</b> The pair is unique
+     * within a school — {@code school_grading_name_version_uniq} declares it and #1 enforces it —
+     * so every sort ends in a total order and paging cannot put one row on two pages while another
+     * is never seen. <b>Neither field alone would have served</b>: a school holds one name at
+     * several versions, and one version string across several names. This is the first list in the
+     * project whose stable order needs two fields rather than one.
+     *
+     * <p>Grouping the versions of one rulebook together is the useful side effect, not the reason.
+     */
+    private static final Sort SCHEME_ORDER =
+            Sort.by(Sort.Order.asc("name"), Sort.Order.asc("schemeVersion"));
+
+ 
 
     //! endpoint 1 — create a rulebook and its bands -----------------------------------
 
@@ -147,5 +201,48 @@ public class GradingSchemeService {
                         + "card all store it. Its name and version cannot be changed: moving a "
                         + "boundary means a new version (#2), because editing in place rewrites "
                         + "every report card ever issued. " + NO_AUTHORIZATION_YET);
+    }
+
+
+    //! endpoint 6 — the school's schemes ----------------------------------------------
+
+    /**
+     * Endpoint #6 — one page of the school's schemes, filtered.
+     *
+     * <p><b>The dropdown behind every "how is this graded" field.</b> Which is why it filters by
+     * {@code scaleType}: a caller attaching a scheme to an exam marked out of 100 wants the
+     * schemes that can resolve a number, and {@code DESCRIPTOR} cannot.
+     *
+     * <p><b>Bands are not returned, only {@code bandCount}.</b> A twelve-row page carrying twelve
+     * full band tables is roughly six hundred values to render a list of twelve names. #7 is one
+     * call away for the caller that wants them.
+     *
+     * <p><b>No gates, and {@code require} rather than {@code requireUsable}.</b> Looking at a
+     * rulebook is not an action on it, and a school that has stopped paying still has to be able
+     * to read the rules its old report cards were issued under.
+     *
+     * <p><b>Nothing here can 404.</b> Unlike the term list, which resolves a {@code {year}} from
+     * the path and answers 404 when it is not this school's, there is no parent to resolve — so an
+     * empty page means "this school has no schemes", which is a fact rather than an ambiguity.
+     */
+    public PageResponse<GradingSchemeSummary> listSchemes(GradingSchemeSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_SCHEME_FIELDS, SORTABLE_SCHEME_FIELD_NAMES, SCHEME_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own grading rules.
+        School school = currentSchool.require();
+
+        //! step 3 - one page, filtered and ordered in the database. The tenant is passed
+        //! separately from the request because it is the boundary, not a filter.
+        // TODO: read grading schemes
+        return PageResponse.from(
+                gradingSchemes.search(school.getId(), request, pageable),
+                // The summary, not the full response: no bands, and no warning on a row that
+                // could not act on one.
+                GradingSchemeSummary::fromScheme);
     }
 }

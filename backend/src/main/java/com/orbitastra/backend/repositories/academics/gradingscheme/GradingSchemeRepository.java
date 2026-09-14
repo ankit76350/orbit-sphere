@@ -17,7 +17,8 @@ import com.orbitastra.backend.models.academics.grading.GradingScheme;
  * another school is a real id, and a subject marked against another school's scale is a wrong
  * report card rather than an error anybody would see.
  */
-public interface GradingSchemeRepository extends MongoRepository<GradingScheme, String> {
+public interface GradingSchemeRepository
+        extends MongoRepository<GradingScheme, String>, GradingSchemeRepositoryCustom {
 
     /**
      * One scheme, scoped to its school.

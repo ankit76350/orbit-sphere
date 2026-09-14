@@ -1,7 +1,8 @@
 # controllers/academics/grading — API plan
 
-**One of 9 is built — #1.** A school can define a rulebook and its bands in one write, with the
-band set validated as a set and gaps reported rather than refused.
+**Two of 9 are built — #1 and #6.** A school can define a rulebook and its bands in one write,
+with the band set validated as a set and gaps reported rather than refused, and read back its
+schemes filtered by scale, state and name.
 
 Everything else below is the full set of endpoints the grading feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
@@ -193,7 +194,7 @@ list is readable. Every path below is relative to **`/schools/current/grading-sc
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t6"></a>6 | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t6"></a>6 — **built** | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t7"></a>7 | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t8"></a>8 | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t9"></a>9 | [`GET /{id}/versions`](#e9) | Every version of one rulebook, oldest first. Answers "what did A1 mean in 2026?" without knowing the id of the old one. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
@@ -206,7 +207,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, 6, 7, 8 |
+| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, 7, 8 |
 | **2** | Setup mistakes are fixable, and history is protected properly | 3, 2, 9 |
 | **3** | Versions can be retired without being deleted | 4, 5 |
 
@@ -456,8 +457,8 @@ services/academics/
 
 repositories/academics/gradingscheme/
 ├── GradingSchemeRepository.java         built — findByIdAndSchoolId, and #1's key check
-├── GradingSchemeRepositoryCustom.java   #6's filtered, paged search
-└── GradingSchemeRepositoryImpl.java     beside its interface, or Spring finds nothing
+├── GradingSchemeRepositoryCustom.java   built — #6's filtered, paged search
+└── GradingSchemeRepositoryImpl.java     built — beside its interface, or Spring finds nothing
 
 dto/academics/gradingscheme/{request,response}/
 ```
@@ -518,6 +519,7 @@ starts, and fails only when somebody calls `search`.
 | `VALUE_OUTSIDE_SCALE` | 400 | #8 — the value asked about is above `maximumValue` or below zero |
 | `SCHEME_NOT_RESOLVABLE_BY_VALUE` | 409 | #8 against a `DESCRIPTOR` scheme — a descriptor grade is chosen, not computed |
 | `SCHEME_STILL_REFERENCED` | 409 | #3 — something already uses this scheme, so its bands are history now; use #2 |
+| `INVALID_SORT_FIELD` | 400 | #6 — a `?sort=` field outside the allowlist. Reuses the shared code; the message lists what is allowed |
 | `NOTHING_TO_UPDATE` | 400 | reuses core's code |
 
 ---
@@ -579,14 +581,17 @@ starts, and fails only when somebody calls `search`.
 ## The schemes — reads · 6–9
 
 <a id="e6"></a>
-**[6](#t6) · `GET /`**
+**[6](#t6) · `GET /`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: one page, filtered
 - **Three filters, all optional, all AND-ed**: `?active=` (absent returns both, which is not the same as `false`), `?scaleType=`, `?search=` matching `name` case-insensitively anywhere.
 - **`?search=` matches `name` only**, unlike the term list which also matches a code. There is no code to match — which is itself an argument for [open item 3](#3-name-is-a-key-so-there-can-be-no-rename).
 - **The needle is `Pattern.quote`d**, so a stray `(` is an empty result rather than a 500 from `PatternSyntaxException`. Same as every other search in this project.
 - **Bands are not returned**, only `bandCount`. A twelve-scheme page carrying twelve full band tables is a large response nobody reads; #7 is one call away.
-- **Sorted by `name`, then `schemeVersion`** — the two that are unique together, so paging is stable and cannot put one row on two pages while another is never seen. `?sort=` is an allowlist: `name`, `schemeVersion`, `scaleType`, `createdAt`, `updatedAt`.
+- **Sorted by `name`, then `schemeVersion`** — the two that are unique together, so paging is stable and cannot put one row on two pages while another is never seen. **This is the first list in the project whose stable order needs two fields**: a school holds one name at several versions and one version string across several names, so neither alone would have served. Contrast #9 of the structure module, where `sequence` alone is unique within a year. Grouping a rulebook's versions together is the useful side effect, not the reason.
+- **`?sort=` is an allowlist**: `name`, `schemeVersion`, `scaleType`, `createdAt`, `updatedAt`. **`gradeBands` is deliberately not on it** — Mongo sorts an array by its first element, so it would order schemes by whichever band happened to be entered first: a result that looks deliberate and means nothing.
+- **Nothing here can 404** beyond an unknown subdomain. Unlike the term list, which resolves a `{year}` from the path, there is no parent to resolve — so an empty page means "this school has no schemes", which is a fact rather than the ambiguity an empty page for an unknown year would be.
+- **Three filters and no more.** There is deliberately nothing for "schemes with a gap" — that note is recomputed per read rather than stored, so filtering on it would mean walking every band of every document in the collection — and nothing for "schemes in use", which is the query [open item 4](#4-has-this-scheme-been-used-is-a-query-across-three-collections) has not settled.
 - **No gates.** A suspended school still reads its own grading rules.
 
 <a id="e7"></a>

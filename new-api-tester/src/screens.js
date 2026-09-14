@@ -163,7 +163,7 @@ export const SURFACES = [
             id: 'grading',
             label: 'Grading',
             group: 'Academics / Grading',
-            endpoints: 1,
+            endpoints: 2,
             screen: GradingSchemes,
           },
           {
