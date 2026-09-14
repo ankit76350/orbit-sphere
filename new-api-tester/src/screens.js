@@ -164,7 +164,7 @@ export const SURFACES = [
             id: 'grading',
             label: 'Grading',
             group: 'Academics / Grading',
-            endpoints: 4,
+            endpoints: 6,
             screen: GradingSchemes,
             // A scheme is addressed by its document id — what ClassSubject, Exam and ReportCard
             // all store — so that is the address. #7 is what fills the page, and it is the only

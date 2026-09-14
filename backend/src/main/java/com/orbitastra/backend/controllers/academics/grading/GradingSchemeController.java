@@ -26,8 +26,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #3, #6 and #7 are
- * built.
+ * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #3, #4, #5, #6 and #7
+ * are built.
  *
  * <p><b>No {@code {year}} in the path</b>, unlike every route in
  * {@link com.orbitastra.backend.controllers.academics.structure.AcademicTermController} and its
@@ -94,6 +94,46 @@ public class GradingSchemeController {
                 .created(URI.create("/schools/current/grading-schemes/"
                         + response.gradingSchemeDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #4 — stop offering this scheme for new work.
+     *
+     * <p><b>Idempotent, and takes no body.</b> Already retired is a {@code 200} saying so.
+     *
+     * <p><b>It does not stop the scheme resolving.</b> #7 and #8 answer for a retired version,
+     * because a report card issued under it has to reprint through its rules forever.
+     *
+     * <p><b>No reference check</b>, unlike #3 — retiring a scheme everything uses is exactly what
+     * a school does when it publishes the next version.
+     */
+    @PostMapping("/{id}/deactivate")
+    public ResponseEntity<GradingSchemeResponse> deactivate(@PathVariable String id) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(gradingSchemeService.deactivateScheme(id));
+    }
+
+    /**
+     * Endpoint #5 — offer this scheme for new work again.
+     *
+     * <p><b>Idempotent, and takes no body.</b> The pair exists because there is no {@code DELETE}:
+     * a school that retired the wrong version needs a way back that is not a third version.
+     */
+    @PostMapping("/{id}/reactivate")
+    public ResponseEntity<GradingSchemeResponse> reactivate(@PathVariable String id) {
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(gradingSchemeService.reactivateScheme(id));
     }
 
     /**

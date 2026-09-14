@@ -27,13 +27,19 @@ import jakarta.validation.constraints.Size;
  *
  * <pre>
  * nothing references this scheme   every field below is editable
- * something references it          only `active` is, and the rest is 409
+ * something references it          409, whatever the body says
  * </pre>
  *
- * <p><b>{@code active} is the exception because it is the one field that does not change what a
- * stored grade means.</b> Retiring a scheme everything uses is exactly what a school does when it
- * publishes the next version — the old cards still resolve through it, they are simply not offered
- * for new work. Every other field here rewrites the meaning of a grade already printed.
+ * <p><b>{@code active} is not here — that is #4 and #5.</b> It carried briefly on 2026-09-14 and
+ * was taken back off the same day: every other lifecycle flag in this project is a POST event with
+ * a name — {@code /results/lock} on a term, {@code /enrollment/enable} on a year, eight of them
+ * across two modules — and {@code AcademicTermUpdateRequest} refuses {@code active} in these exact
+ * words: <i>"events with meanings, not fields to toggle in passing"</i>. A grading scheme is not
+ * the one document that should differ.
+ *
+ * <p><b>It also simplifies the guard.</b> With {@code active} gone, every field this record carries
+ * changes what a stored grade means — so the reference check is unconditional rather than asking
+ * first whether the body touched grading at all.
  *
  * <h2>The band set is replaced whole, never patched</h2>
  *
@@ -89,31 +95,11 @@ public record GradingSchemeUpdateRequest(
          */
         @Size(max = 40, message = "a scheme cannot have more than 40 bands")
         @Valid
-        List<GradeBandRequest> gradeBands,
-
-        /**
-         * Offered for new work, or retired.
-         *
-         * <p><b>The only field editable on a scheme something already uses</b>, because it is the
-         * only one that does not change what a printed grade means. A retired scheme still
-         * resolves every report card issued under it.
-         */
-        Boolean active) {
+        List<GradeBandRequest> gradeBands) {
 
     /** Whether the request asks for nothing at all. */
     public boolean isEmpty() {
         return name == null && schemeVersion == null && scaleType == null
-                && maximumValue == null && gradeBands == null && active == null;
-    }
-
-    /**
-     * Whether anything here changes what a stored grade means.
-     *
-     * <p>This is the question the reference check hangs off: a scheme something uses may still be
-     * retired, and may not be re-scaled. {@code active} alone answers false.
-     */
-    public boolean touchesGrading() {
-        return name != null || schemeVersion != null || scaleType != null
-                || maximumValue != null || gradeBands != null;
+                && maximumValue == null && gradeBands == null;
     }
 }

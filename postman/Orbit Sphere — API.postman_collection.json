@@ -4456,6 +4456,88 @@
                 "description": "Endpoint #3 — change any field of a scheme nothing has used. Once a subject, exam or report card references it, only `active` is still editable and everything else is 409 SCHEME_STILL_REFERENCED."
               },
               "response": []
+            },
+            {
+              "name": "Deactivate Grading Scheme",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented — idempotent, never a 409', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('active is false', () => pm.expect(b.active).to.equal(false));",
+                      "pm.test('the bands are untouched — this writes one field', () => pm.expect(b.bandCount).to.equal(b.gradeBands.length));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes/{{gradingSchemeDocsId}}/deactivate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes",
+                    "{{gradingSchemeDocsId}}",
+                    "deactivate"
+                  ]
+                },
+                "description": "Endpoint #4 — stop offering this scheme for new work.\n\nRETIRING DOES NOT STOP IT RESOLVING. active governs what is OFFERED for new work and nothing else: #7 and #8 answer for a retired version, because a report card issued in 2026 reprints through the 2026 rules forever.\n\nNO REFERENCE CHECK, unlike #3. Retiring a scheme everything uses is exactly what a school does when publishing the next version - so THE ONE STATE #3 REFUSES OUTRIGHT IS THE STATE THIS ENDPOINT IS FOR.\n\nIDEMPOTENT. Already retired is a 200 saying so, never a 409.\n\nA POST, NOT A FIELD ON #3. Every lifecycle flag in this project is a named POST event - eight of them across core and terms. active lived on #3's PATCH for one day, 2026-09-14, and moved back here.\n\nTEST CASES\n  01  Retire it                      -> 200, active false\n  02  Retire it again                -> 200, \"was already retired\"\n  03  Get Grading Scheme afterwards  -> 200, still reads and resolves\n  04  On a scheme PATCH refuses      -> 200 (PATCH gives 409 SCHEME_STILL_REFERENCED)"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Grading Scheme",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented — idempotent, never a 409', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('active is true', () => pm.expect(b.active).to.equal(true));",
+                      "pm.test('the bands are untouched — this writes one field', () => pm.expect(b.bandCount).to.equal(b.gradeBands.length));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes/{{gradingSchemeDocsId}}/reactivate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes",
+                    "{{gradingSchemeDocsId}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Endpoint #5 — offer this scheme for new work again.\n\nIT EXISTS BECAUSE THERE IS NO DELETE. Three places store gradingSchemeDocsId and none of those references is a foreign key, so a deleted scheme would leave them all pointing at nothing while everything still looked valid.\n\nIDEMPOTENT. Already active is a 200 saying so.\n\nTEST CASES\n  01  Put it back                    -> 200, active true\n  02  Again                          -> 200, \"was already active\"\n  03  On a referenced scheme         -> 200, neither #4 nor #5 checks references"
+              },
+              "response": []
             }
           ],
           "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."

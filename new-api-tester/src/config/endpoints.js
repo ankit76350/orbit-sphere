@@ -11927,7 +11927,7 @@ path to ask it about.
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
         { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school." },
-        { status: 409, code: "SCHEME_STILL_REFERENCED", when: "A subject already grades by this scheme. Only active is still editable; everything else is #2." },
+        { status: 409, code: "SCHEME_STILL_REFERENCED", when: "A subject already grades by this scheme. Everything else is #2; retiring it is still allowed, through #4." },
         { status: 409, code: "SCHEME_VERSION_TAKEN", when: "The new name + version pair is already this school's." },
         { status: 409, code: "GRADE_BAND_CODE_TAKEN", when: "Two bands in the new set share a gradeCode." },
         { status: 409, code: "GRADE_BAND_OUTSIDE_SCALE", when: "A band reaches past the ceiling — including a ceiling you lowered under bands you did not send." },
@@ -12039,6 +12039,223 @@ path to ask it about.
           body: `{
   "active": false
 }`,
+        },
+      ],
+    },
+    {
+      id: "deactivate-grading-scheme",
+      name: "Deactivate Grading Scheme",
+      method: "POST",
+      path: "/schools/current/grading-schemes/{id}/deactivate",
+      status: 'live',
+      summary: "Stop offering this scheme for new work. Old cards still resolve through it.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/grading-schemes/{id}/deactivate\` — endpoint #4.
+
+### Retiring does not stop a scheme resolving
+
+\`active\` governs what is **offered for new work**, and nothing else. #7 and #8 answer for a retired
+version and must: a report card issued in 2026 reprints through the 2026 rules long after the
+school moved to 2027's.
+
+### No reference check — unlike #3
+
+Retiring a scheme everything uses is exactly what a school does when it publishes the next version.
+**So the one state #3 refuses outright is the state this endpoint is for.**
+
+### A POST, not a field on #3
+
+**Every lifecycle flag in this project is a named POST event** — \`/results/lock\` on a term,
+\`/enrollment/enable\` on a year, eight across two modules — and \`AcademicTermUpdateRequest\` refuses
+\`active\` in these exact words: *"events with meanings, not fields to toggle in passing"*.
+
+\`active\` briefly lived on #3's PATCH on 2026-09-14 and moved back here the same day. A grading
+scheme is not the one document that should differ.
+
+### Idempotent
+
+Asking for a state it is already in is a **200 saying so**, never a 409. A refusal would turn
+"make sure this is retired" — the thing a caller actually wants — into a request it has to read
+the state before daring to send.
+
+### It writes \`active\` and nothing else
+
+Not the bands, not the key, not the scale. Those are #3, and #3 refuses them outright on a scheme
+anything references.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable. No gate 4 — there is no academic year here.
+
+### The four test cases are in the notes below
+`,
+      bodyNotes: `A POST with NO BODY. Needs X-School-Subdomain. NO academic year.
+
+ RETIRING DOES NOT STOP THE SCHEME RESOLVING. active governs what is OFFERED
+ for new work. #7 and #8 answer for a retired version - a card issued in 2026
+ reprints through the 2026 rules forever.
+
+ NO REFERENCE CHECK, unlike #3. Retiring a scheme everything uses is exactly
+ what a school does when publishing the next version, so the one state #3
+ refuses outright is the state this endpoint is FOR.
+
+ IDEMPOTENT. Already retired is a 200 saying so, never a 409.
+
+ A POST, NOT A FIELD ON #3. Every lifecycle flag in this project is a named
+ POST event - eight across core and terms. active lived on #3's PATCH for one
+ day and moved back here.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{gradingSchemeDocsId}}", description: "The scheme's document id." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Returns the scheme with active false. It still reads and resolves — only #6\u2019s ?active=true filter hides it.",
+      responseFields: ["gradingSchemeDocsId", "name", "schemeVersion", "scaleType", "maximumValue", "bandCount", "gradeBands", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "RETIRE A SCHEME",
+          expect: "200 OK",
+          notes: `No body. OUT: active false, and a nextStep saying it still resolves
+    every report card issued under it — retiring never changes a grade
+    already printed.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "RETIRE IT AGAIN",
+          expect: "200 OK",
+          notes: `OUT: still 200, nextStep says "was already retired. Nothing changed."
+    NOT a 409 — the caller asked for a state, not a transition.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "IT STILL READS AND RESOLVES",
+          expect: "200 OK",
+          notes: `Run Get Grading Scheme on it afterwards. Still 200, bands and all.
+    #6 hides it from ?active=true; nothing else changes.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "ON A SCHEME #3 REFUSES ENTIRELY",
+          expect: "200 OK",
+          notes: `Attach the scheme to a subject, then try PATCH — 409
+    SCHEME_STILL_REFERENCED. Then send this: 200. THE ONE STATE #3 REFUSES
+    IS THE STATE THIS ENDPOINT IS FOR.`,
+          body: null,
+        },
+      ],
+    },
+    {
+      id: "reactivate-grading-scheme",
+      name: "Reactivate Grading Scheme",
+      method: "POST",
+      path: "/schools/current/grading-schemes/{id}/reactivate",
+      status: 'live',
+      summary: "Offer this scheme for new work again. There is no DELETE, so this is the way back.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/grading-schemes/{id}/reactivate\` — endpoint #5.
+
+### It exists because there is no DELETE
+
+A school that retired the wrong version needs a way back that is not a third version. Nothing in
+this module deletes anything — three places store \`gradingSchemeDocsId\` and none of those
+references is a foreign key, so a deleted scheme would leave every one of them pointing at nothing
+while everything still looked valid.
+
+### A POST, not a field on #3
+
+**Every lifecycle flag in this project is a named POST event** — \`/results/lock\` on a term,
+\`/enrollment/enable\` on a year, eight across two modules — and \`AcademicTermUpdateRequest\` refuses
+\`active\` in these exact words: *"events with meanings, not fields to toggle in passing"*.
+
+\`active\` briefly lived on #3's PATCH on 2026-09-14 and moved back here the same day. A grading
+scheme is not the one document that should differ.
+
+### Idempotent
+
+Asking for a state it is already in is a **200 saying so**, never a 409. A refusal would turn
+"make sure this is retired" — the thing a caller actually wants — into a request it has to read
+the state before daring to send.
+
+### It writes \`active\` and nothing else
+
+Not the bands, not the key, not the scale. Those are #3, and #3 refuses them outright on a scheme
+anything references.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable. No gate 4 — there is no academic year here.
+
+### The three test cases are in the notes below
+`,
+      bodyNotes: `A POST with NO BODY. Needs X-School-Subdomain. NO academic year.
+
+ IT EXISTS BECAUSE THERE IS NO DELETE. Three places store
+ gradingSchemeDocsId and none of those references is a foreign key, so a
+ deleted scheme would leave them all pointing at nothing while everything
+ still looked valid.
+
+ IDEMPOTENT. Already active is a 200 saying so.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{gradingSchemeDocsId}}", description: "The scheme's document id." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "Returns the scheme with active true.",
+      responseFields: ["gradingSchemeDocsId", "name", "schemeVersion", "scaleType", "maximumValue", "bandCount", "gradeBands", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "PUT IT BACK",
+          expect: "200 OK",
+          notes: `After #4. OUT: active true, offered for new work again.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "AGAIN",
+          expect: "200 OK",
+          notes: `OUT: "was already active. Nothing changed." Idempotent, same as #4.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "ON A REFERENCED SCHEME",
+          expect: "200 OK",
+          notes: `Works the same. Neither #4 nor #5 runs a reference check — the flag
+    changes nothing a report card already resolved.`,
+          body: null,
         },
       ],
     },

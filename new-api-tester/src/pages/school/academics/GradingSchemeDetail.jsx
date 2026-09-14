@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, Pencil, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Archive, ArchiveRestore, Info, Pencil, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -38,6 +38,7 @@ export default function GradingSchemeDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [toggling, setToggling] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -52,6 +53,20 @@ export default function GradingSchemeDetail() {
   }, [call, environment.id, actingSubdomain, id])
 
   useEffect(() => { load() }, [load])
+
+  // #4 and #5 are the same shape: no body, idempotent, one field. One function, because two that
+  // differed only in a string would drift — and the URL is what says which way it goes, so a
+  // half-read body cannot retire a scheme somebody meant to restore.
+  const toggleActive = async () => {
+    const retiring = data.active
+    setToggling(true)
+    await call(retiring ? 'deactivate-grading-scheme' : 'reactivate-grading-scheme', {
+      label: retiring ? 'Retire a scheme' : 'Restore a scheme',
+      pathParams: { id: id ?? '' },
+    })
+    setToggling(false)
+    load()
+  }
 
   if (!actingSubdomain) return <NoSchoolChosen what="Grading schemes" />
 
@@ -77,7 +92,18 @@ export default function GradingSchemeDetail() {
         {/* #3 — every field, while nothing references the scheme. Offered even then, because
             `active` stays editable and the refusal is the thing worth seeing. */}
         {data ? (
-          <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
+          <>
+            {/* #4 and #5 — allowed even on a referenced scheme, which is the one state #3
+                refuses outright. Retiring changes nothing a report card already resolved. */}
+            <Button
+              icon={data.active ? Archive : ArchiveRestore}
+              busy={toggling}
+              onClick={toggleActive}
+            >
+              {data.active ? 'Retire' : 'Restore'}
+            </Button>
+            <Button look="primary" icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>
+          </>
         ) : null}
       </div>
 
@@ -227,9 +253,10 @@ export default function GradingSchemeDetail() {
  * is a rename: sending every field would make each save a full overwrite, and would re-send the
  * bands on a scheme whose bands are the one thing you did not touch.
  *
- * WHICH MATTERS MORE HERE THAN ANYWHERE ELSE, because `touchesGrading` on the server decides
- * whether the reference check runs at all. Send `active` alone and a referenced scheme accepts it;
- * send `active` beside an unchanged `name` and the same request is a 409.
+ * THERE IS NO Active FIELD HERE. Retiring and restoring are #4 and #5, the Retire/Restore button
+ * on the page behind this modal — every lifecycle flag in this API is a named POST event rather
+ * than a field toggled in passing. Which is also why THIS endpoint is refused outright on a
+ * referenced scheme: with `active` gone, every field it carries changes what a stored grade means.
  *
  * THE SCALE STILL DRIVES THE FORM. Switching to DESCRIPTOR clears the ceiling and loads that
  * scale's bands, exactly as the create modal does — and the server derives the cleared ceiling
@@ -246,7 +273,6 @@ function EditScheme({ scheme, onClose, onSaved }) {
   const [maximumValue, setMaximumValue] = useState(
     scheme.maximumValue != null ? String(scheme.maximumValue) : '')
   const [bands, setBands] = useState(() => bandsToRows(scheme.gradeBands))
-  const [active, setActive] = useState(scheme.active ? 'true' : 'false')
 
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
@@ -279,7 +305,6 @@ function EditScheme({ scheme, onClose, onSaved }) {
     }
 
     if (bandsChanged(bands, original)) out.gradeBands = rowsToBands(bands, measured)
-    if ((active === 'true') !== scheme.active) out.active = active === 'true'
     return out
   })()
 
@@ -379,11 +404,6 @@ function EditScheme({ scheme, onClose, onSaved }) {
           )}
         </div>
 
-        <Field label="Active"
-          hint="THE ONLY FIELD a referenced scheme still allows. Retiring one everything uses is exactly what a school does when it publishes the next version — the old cards still resolve through it.">
-          <Select value={active} options={['true', 'false']} label="Active" onChange={setActive} />
-        </Field>
-
         <BandEditor
           scaleType={scaleType}
           maximumValue={maximumValue}
@@ -393,10 +413,12 @@ function EditScheme({ scheme, onClose, onSaved }) {
 
         <p className="muted">
           <Info size={12} /> <b>Only what changed is sent</b> — the preview beside this form is the
-          real request. That matters more here than anywhere else: the server decides whether to
-          run the reference check from whether the body touches grading at all, so{' '}
-          <span className="mono">active</span> alone is accepted on a referenced scheme while{' '}
-          <span className="mono">active</span> beside an unchanged name is a 409.
+          real request, so a rename really is a rename rather than a full overwrite.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>Every field here is refused once anything references this
+          scheme</b>, because every one of them changes what a grade already printed means. The
+          only thing still allowed then is <b>Retire</b>, which is #4 — on the page behind this.
         </p>
       </div>
     </Modal>

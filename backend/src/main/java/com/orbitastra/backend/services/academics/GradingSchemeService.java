@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The school's grading rulebooks — the endpoints in
- * {@code controllers/academics/grading/README.md}. #1, #3, #6 and #7 are built.
+ * {@code controllers/academics/grading/README.md}. #1, #3, #4, #5, #6 and #7 are built.
  *
  * <p><b>Nothing here is scoped to an academic year</b>, unlike every other service in this module.
  * A rulebook outlives a year: the same scheme grades 2026-2027 and 2027-2028, and a report card
@@ -247,6 +247,91 @@ public class GradingSchemeService {
                 GradingSchemeSummaryResponse::fromScheme);
     }
 
+    //! endpoint 4 — retire a version -------------------------------------------------
+
+    /**
+     * Endpoint #4 — stop offering this scheme for new work.
+     *
+     * <p><b>It does not stop the scheme resolving.</b> #7 and #8 answer for a retired version and
+     * must: a report card issued in 2026 has to reprint through the 2026 rules long after the
+     * school moved to 2027's. {@code active} governs what is <i>offered</i>, nothing else.
+     *
+     * <p><b>No reference check, deliberately</b> — unlike #3. Retiring a scheme everything uses is
+     * exactly what a school does when it publishes the next version, so the one state #3 refuses
+     * outright is the state this endpoint is <i>for</i>.
+     *
+     * <p><b>Idempotent.</b> Already retired is a {@code 200} saying so, not a {@code 409}. A
+     * refusal would turn "make sure this is retired" — the thing a caller actually wants — into a
+     * request it has to read the state before daring to send.
+     *
+     * <p><b>A POST rather than a field on #3</b>, which is how every lifecycle flag in this
+     * project is written: {@code /results/lock} on a term, {@code /enrollment/enable} on a year,
+     * eight of them across two modules. It briefly was a PATCH field on 2026-09-14 and was moved
+     * back the same day.
+     */
+    @Transactional
+    public GradingSchemeResponse deactivateScheme(String schemeId) {
+        return setActive(schemeId, false);
+    }
+
+    //! endpoint 5 — put it back ------------------------------------------------------
+
+    /**
+     * Endpoint #5 — offer this scheme for new work again.
+     *
+     * <p><b>Idempotent</b>, and it exists because there is no {@code DELETE}. A school that
+     * retired the wrong version needs a way back that does not involve creating a third one.
+     */
+    @Transactional
+    public GradingSchemeResponse reactivateScheme(String schemeId) {
+        return setActive(schemeId, true);
+    }
+
+    /**
+     * The one field #4 and #5 write, and the only thing that differs between them.
+     *
+     * <p>Two endpoints over one private method rather than one endpoint taking a boolean: the URL
+     * is what says which way it goes, so a caller cannot half-read a body and retire a scheme it
+     * meant to restore. The same arrangement the term lock pair uses.
+     */
+    private GradingSchemeResponse setActive(String schemeId, boolean active) {
+
+        //! step 1 - who is asking, and the scheme. A retired one loads fine; that is the point.
+        School school = currentSchool.requireUsable();
+        GradingScheme scheme = utils.loadScheme(school, schemeId);
+
+        //! step 2 - nothing to do if it is already in that state. A 200 rather than a 409: the
+        //! caller asked for a state, not for a transition, and it is in that state.
+        if (Boolean.valueOf(active).equals(scheme.getActive())) {
+            return GradingSchemeResponse.fromScheme(scheme,
+                    helper.gapWarning(scheme.getScaleType(), scheme.getMaximumValue(),
+                            scheme.getGradeBands()),
+                    "'" + scheme.getName() + "' version " + scheme.getSchemeVersion()
+                            + " was already " + (active ? "active" : "retired")
+                            + ". Nothing changed. " + NO_AUTHORIZATION_YET);
+        }
+
+        //! step 3 - active is the ONLY field this writes. Not the bands, not the key, not the
+        //! scale - those are #3, and they are refused on a scheme anything references.
+        scheme.setActive(active);
+
+        // TODO: update grading scheme
+        GradingScheme saved = gradingSchemes.save(scheme);
+
+        //! step 4 - the gaps, recomputed from what is stored. #7 does the same, and for the same
+        //! reason: nothing writes this onto the document, precisely so it cannot go stale.
+        String warning = helper.gapWarning(
+                saved.getScaleType(), saved.getMaximumValue(), saved.getGradeBands());
+
+        return GradingSchemeResponse.fromScheme(saved, warning, active
+                ? "'" + saved.getName() + "' version " + saved.getSchemeVersion()
+                        + " is offered for new work again. " + NO_AUTHORIZATION_YET
+                : "'" + saved.getName() + "' version " + saved.getSchemeVersion()
+                        + " is no longer offered for new work. It still resolves every report "
+                        + "card issued under it — retiring a scheme never changes a grade already "
+                        + "printed. " + NO_AUTHORIZATION_YET);
+    }
+
     //! endpoint 3 — edit a scheme nothing has used -----------------------------------
 
     /**
@@ -281,32 +366,29 @@ public class GradingSchemeService {
         //! that changes nothing and answers 200 lets a client with a broken form look healthy.
         if (request.isEmpty()) {
             throw ApiException.badRequest("NOTHING_TO_UPDATE",
-                    "Send name, schemeVersion, scaleType, maximumValue, gradeBands or active.");
+                    "Send name, schemeVersion, scaleType, maximumValue or gradeBands. "
+                            + "To retire or restore a scheme, use #4 and #5.");
         }
 
         //! step 2 - who is asking, and the scheme
         School school = currentSchool.requireUsable();
         GradingScheme scheme = utils.loadScheme(school, schemeId);
 
-        //! step 3 - THE GUARD. Anything that changes what a stored grade means is refused the
-        //! moment something references this scheme: a boundary moved under a printed report card
-        //! rewrites that card silently, which is the one thing versioning exists to prevent.
-        //! `active` alone is allowed through, because retiring a scheme changes nothing a card
-        //! already resolved.
-        if (request.touchesGrading()) {
-            // TODO: check school classes referencing this grading scheme
-            boolean used = schoolClasses.existsBySchoolIdAndSubjectsGradingSchemeDocsId(
-                    school.getId(), scheme.getId());
+        //! step 3 - THE GUARD, and it is unconditional now that `active` has moved to #4/#5:
+        //! every field this request can carry changes what a stored grade means. A boundary moved
+        //! under a printed report card rewrites that card silently, which is the one thing
+        //! versioning exists to prevent.
+        // TODO: check school classes referencing this grading scheme
+        if (schoolClasses.existsBySchoolIdAndSubjectsGradingSchemeDocsId(
+                school.getId(), scheme.getId())) {
 
-            if (used) {
-                throw ApiException.conflict("SCHEME_STILL_REFERENCED",
-                        "A subject is graded by '" + scheme.getName() + "' version "
-                                + scheme.getSchemeVersion() + ", so its rules are history now. "
-                                + "Create the next version instead (#2) — editing a boundary in "
-                                + "place rewrites every report card ever issued under it. Only "
-                                + "'active' can still be changed. (Checked school_classes; exams "
-                                + "and report_cards store this id too and have no endpoints yet.)");
-            }
+            throw ApiException.conflict("SCHEME_STILL_REFERENCED",
+                    "A subject is graded by '" + scheme.getName() + "' version "
+                            + scheme.getSchemeVersion() + ", so its rules are history now. "
+                            + "Create the next version instead (#2) — editing a boundary in "
+                            + "place rewrites every report card ever issued under it. Retiring "
+                            + "it is still fine (#4). (Checked school_classes; exams and "
+                            + "report_cards store this id too and have no endpoints yet.)");
         }
 
         //! step 4 - build the RESULTING scheme in memory. Absent means "leave it alone", so every
@@ -382,10 +464,6 @@ public class GradingSchemeService {
         scheme.setMaximumValue(maximumValue);
         scheme.setGradeBands(new ArrayList<>(bands));
 
-        if (request.active() != null) {
-            scheme.setActive(request.active());
-        }
-
         // TODO: update grading scheme
         GradingScheme saved = gradingSchemes.save(scheme);
 
@@ -396,8 +474,9 @@ public class GradingSchemeService {
 
         return GradingSchemeResponse.fromScheme(saved, warning,
                 "Editable only while nothing references it. Once a subject, exam or report card "
-                        + "points at this scheme, moving a boundary means a new version (#2) — "
-                        + "and only 'active' stays changeable. " + NO_AUTHORIZATION_YET);
+                        + "points at this scheme, moving a boundary means a new version (#2). "
+                        + "Retiring it stays possible either way — that is #4. "
+                        + NO_AUTHORIZATION_YET);
     }
 
     /** One request band as it is stored. Shared by #1 and #3, so the two cannot drift. */
