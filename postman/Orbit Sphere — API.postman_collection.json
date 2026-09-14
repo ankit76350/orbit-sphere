@@ -4400,6 +4400,62 @@
                 "description": "Endpoint #7 — one scheme with every band, in stored order.\n\nTHE ONLY ENDPOINT THAT RETURNS THE BANDS. #6 trims them to a bandCount, because a page of full band tables is hundreds of values nobody reads.\n\nBANDS COME BACK IN THE ORDER THEY WERE WRITTEN, never re-sorted. A scheme entered E, A2, A1 reads back E, A2, A1. #1's checks sort a COPY, because overlap is a question about the set rather than about the list.\n\nTHE GAP WARNING IS RECOMPUTED, NEVER STORED. A school that ignored it on create still sees it every time it looks - and a stored sentence would outlive the problem it described, so a scheme whose bands were fixed would keep being warned about a hole that is gone.\n\nIT ANSWERS FOR A RETIRED SCHEME. active governs what is offered for NEW work and nothing else: a report card issued in 2026 reprints through the 2026 rules long after the school moved to 2027's.\n\nSCOPED BY schoolId even though a MongoDB id is globally unique - another school's id is a real id. A MALFORMED id is a 404, not a 500.\n\nNO GATES. A suspended school still reads its own grading rules.\n\nTEST CASES\n  01  Read the CBSE scale back        -> 200, eight bands, no warning\n  02  A scheme entered E, A2, A1      -> 200, reads back E, A2, A1\n  03  The Gappy scheme                -> 200, the SAME '32 to 81' warning\n  04  A DESCRIPTOR scheme             -> 200, no bounds, no ceiling, no warning\n  05  /grading-schemes/not-an-id      -> 404 GRADING_SCHEME_NOT_FOUND\n\nEVERY REFUSAL\n  400 TENANT_NOT_RESOLVED       The X-School-Subdomain header is missing or blank.\n  404 SCHOOL_NOT_FOUND          No school has that subdomain.\n  404 GRADING_SCHEME_NOT_FOUND  No scheme with that id in this school."
               },
               "response": []
+            },
+            {
+              "name": "Update Grading Scheme",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the bands came back — a PATCH returns the whole scheme', () => pm.expect(b.gradeBands).to.be.an('array').and.not.empty);",
+                      "pm.test('bandCount matches the bands returned', () => pm.expect(b.bandCount).to.equal(b.gradeBands.length));",
+                      "pm.test('a DESCRIPTOR scheme carries no ceiling', () => {",
+                      "  if (b.scaleType === 'DESCRIPTOR') pm.expect(b.maximumValue).to.be.undefined;",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"CBSE Percentage Grading (corrected)\"\n}\n\n// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/grading-schemes/{id}\n// Needs X-School-Subdomain. NO academic year. Every field is optional.\n//\n//  EVERY FIELD IS EDITABLE - while NOTHING references the scheme. The moment\n//  a subject, exam or report card points at it, only `active` is and the\n//  rest is 409 SCHEME_STILL_REFERENCED.\n//\n//  THE PLAN SAID THERE WOULD BE NO PATCH AT ALL. It reasoned field by field:\n//  the key cannot move, the scale reinterprets every band, the bands are the\n//  history. Each is true of a scheme something has USED and none is true of\n//  one nothing has - so the rule moved from the FIELD to the STATE.\n//\n//  active IS THE EXCEPTION because it is the one field that does not change\n//  what a printed grade means. Retiring a scheme everything uses is exactly\n//  what a school does when publishing the next version. (#4 and #5 were\n//  dropped for this reason - they only ever set this field.)\n//\n//  EVERY RULE #1 APPLIES IS RE-APPLIED TO THE RESULTING SCHEME, not the\n//  body. That is what makes a half-change safe to send.\n//\n//  maximumValue IS DERIVED ON A DESCRIPTOR SCALE - the one place absent does\n//  not mean \"leave it alone\". A PATCH cannot say \"remove this number\", so\n//  keeping the stored ceiling would make PERCENTAGE -> DESCRIPTOR\n//  impossible. There is exactly one legal value: absent.\n//\n//  THE BAND SET IS REPLACED WHOLE OR NOT AT ALL. An empty list is a 400.\n//\n//  NOTHING IS WRITTEN until every check passes.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A RENAME, AND NOTHING ELSE                          -> 200 OK\n//     The body above. Bands, scale and ceiling all untouched.\n// -------------------------------------------------------------------------\n// 02  AN EMPTY BODY                                   -> 400 Bad Request\n//     OUT: { \"code\": \"NOTHING_TO_UPDATE\" }, checked before anything is read.\n//\n//     { }\n// -------------------------------------------------------------------------\n// 03  LOWER THE CEILING UNDER A BAND YOU DID NOT SEND    -> 409 Conflict\n//     On the CBSE scale. OUT: { \"code\": \"GRADE_BAND_OUTSIDE_SCALE\" } - A1\n//     still reaches 100. THE POINT OF CHECKING THE RESULTING SCHEME.\n//\n//     { \"maximumValue\": 50 }\n// -------------------------------------------------------------------------\n// 04  SWITCH TO DESCRIPTOR WITHOUT NEW BANDS         -> 400 Bad Request\n//     OUT: { \"code\": \"GRADE_BAND_BOUNDS_NOT_ALLOWED\" }. The stored bands\n//     still carry bounds. Scale and bands are ONE change.\n//\n//     { \"scaleType\": \"DESCRIPTOR\" }\n// -------------------------------------------------------------------------\n// 05  SWITCH TO DESCRIPTOR, PROPERLY                      -> 200 OK\n//     OUT: scaleType DESCRIPTOR and maximumValue GONE - derived, not sent.\n//\n//     { \"scaleType\": \"DESCRIPTOR\", \"gradeBands\": [\n//         { \"gradeCode\": \"SECURE\", \"description\": \"Secure\" },\n//         { \"gradeCode\": \"DEVELOPING\", \"description\": \"Developing\" },\n//         { \"gradeCode\": \"BEGINNING\", \"passed\": false } ] }\n// -------------------------------------------------------------------------\n// 06  AND BACK AGAIN, WITHOUT A CEILING              -> 400 Bad Request\n//     OUT: { \"code\": \"SCALE_MAXIMUM_REQUIRED\" }, which says what to send -\n//     which is why the reverse switch needs no derivation rule.\n//\n//     { \"scaleType\": \"PERCENTAGE\", \"gradeBands\": [\n//         { \"gradeCode\": \"A\", \"minimumValue\": 0, \"maximumValue\": 100 } ] }\n// -------------------------------------------------------------------------\n// 07  REPLACE THE WHOLE BAND SET                          -> 200 OK\n//     Whole or not at all - there is no per-band edit.\n//\n//     { \"gradeBands\": [\n//         { \"gradeCode\": \"P\", \"minimumValue\": 33, \"maximumValue\": 100 },\n//         { \"gradeCode\": \"F\", \"minimumValue\": 0, \"maximumValue\": 32, \"passed\": false } ] }\n// -------------------------------------------------------------------------\n// 08  ONCE A SUBJECT USES IT                             -> 409 Conflict\n//     Attach it with Add Subject, then send ANY case above. OUT:\n//     { \"code\": \"SCHEME_STILL_REFERENCED\" }, naming the scheme and saying\n//     which collections were actually checked.\n//     THIS IS THE ENDPOINT'S WHOLE GUARD.\n// -------------------------------------------------------------------------\n// 09  EXCEPT active, WHICH STILL WORKS                    -> 200 OK\n//     Same referenced scheme. Send true to put it back.\n//\n//     { \"active\": false }\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                A body that asks for nothing.\n//     400 SCHEME_KEY_REQUIRED              \"name\": \"\" or \"schemeVersion\": \"\" - replaced, never removed.\n//     400 GRADE_BANDS_REQUIRED             An empty band list. Send active false to retire instead.\n//     400 SCALE_MAXIMUM_REQUIRED           Switching away from DESCRIPTOR with no ceiling.\n//     400 GRADE_BAND_BOUNDS_REQUIRED       A PERCENTAGE/MARKS band missing a bound.\n//     400 GRADE_BAND_BOUNDS_NOT_ALLOWED    DESCRIPTOR while the stored bands still carry bounds.\n//     400 INVALID_GRADE_BAND_RANGE         A band running backwards.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 GRADING_SCHEME_NOT_FOUND         No scheme with that id in this school.\n//     409 SCHEME_STILL_REFERENCED          A subject grades by it. Only active is still editable.\n//     409 SCHEME_VERSION_TAKEN             The new name + version pair is already taken.\n//     409 GRADE_BAND_CODE_TAKEN            Two bands share a gradeCode.\n//     409 GRADE_BAND_OUTSIDE_SCALE         A band reaches past the ceiling.\n//     409 GRADE_BANDS_OVERLAP              Two bands cover the same value.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2.\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/grading-schemes/{{gradingSchemeDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "grading-schemes",
+                    "{{gradingSchemeDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #3 — change any field of a scheme nothing has used. Once a subject, exam or report card references it, only `active` is still editable and everything else is 409 SCHEME_STILL_REFERENCED."
+              },
+              "response": []
             }
           ],
           "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info, Plus, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react'
+import { Info, Plus, RefreshCw, Search, Wand2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
@@ -7,6 +7,8 @@ import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 import { detailPath } from '../../../paths.js'
+import BandEditor from './BandEditor.jsx'
+import { PRESET, SCALE, SCALES, rowsToBands } from './gradingScale.js'
 
 /**
  * The school's grading rulebooks: /school-academics/grading
@@ -25,10 +27,6 @@ import { detailPath } from '../../../paths.js'
  * NOTHING HERE CAN 404. Unlike the term list there is no {year} to resolve, so an empty table
  * means "this school has no schemes" rather than "no such year".
  */
-
-// The scale names what a teacher ENTERS. MARKS was POINT until 2026-09-14, which read as a
-// grade point — and a grade point is an output, carried on the band as gradePoint.
-const SCALES = ['PERCENTAGE', 'MARKS', 'DESCRIPTOR']
 
 const TRISTATE = ['', 'true', 'false']
 const SORTS = ['', 'name', 'name,desc', 'schemeVersion', 'schemeVersion,desc', 'scaleType',
@@ -230,90 +228,6 @@ export default function GradingSchemes() {
 
 /* ----------------------------------------------------------------------- #1, in a modal */
 
-const BLANK_BAND = {
-  gradeCode: '', minimumValue: '', maximumValue: '', gradePoint: '', description: '', passed: 'true',
-}
-
-/**
- * ONE CONFIG PER SCALE, and the form reads nothing else.
- *
- * The scale is the field that decides what every other field means, so a boolean `measured` flag
- * scattered through the JSX was the wrong shape: it could say "bounded or not" and nothing about
- * what the bounds are IN. A percentage band runs 91–100 of a fixed 100; a marks band runs 40–50 of
- * a total the school picks; a descriptor band has no numbers at all and its ceiling is a 400.
- *
- * `ceiling: null` means the scale is not measured — the API REFUSES maximumValue and refuses every
- * bound, so the form must not offer them.
- *
- * `ceiling.fixed` means the value is not the school's to choose. A PERCENTAGE scheme is out of 100
- * BY DEFINITION, so the box is filled and locked rather than left for somebody to type 90 into and
- * get a scheme whose bands mean something other than percent.
- */
-const SCALE = {
-  PERCENTAGE: {
-    blurb: 'Bands are percentages of 100. What CBSE and ICSE internal reporting use, and what an IB scheme looks like once its boundaries are expressed as percentages.',
-    ceiling: {
-      fixed: '100',
-      hint: 'Locked: a percentage scheme is out of 100 by definition. Pick MARKS for a paper with a different total.',
-    },
-    unit: '%',
-    from: '91',
-    to: '100',
-    bandHint: 'Stored in the order given, never re-sorted. Bounds are inclusive at BOTH ends, so two bands must not touch: 81–90 beside 90–100 both claim 90.',
-    presetLabel: 'Load the CBSE scale',
-  },
-  MARKS: {
-    blurb: 'Bands are raw marks out of a total you set. The same walk as a percentage — the difference is the reported figure, since "43 / 50" is not "86%".',
-    ceiling: {
-      fixed: null,
-      hint: 'The paper total the bands are read against — 50, 25, 80. Required on this scale, and yours to choose.',
-    },
-    unit: 'marks',
-    from: '40',
-    to: '50',
-    bandHint: 'Bounds are raw marks, inclusive at both ends, and none may reach past the total above. Stored in the order given.',
-    presetLabel: 'Load an out-of-50 scale',
-  },
-  DESCRIPTOR: {
-    blurb: 'No numbers anywhere. A teacher picks "Developing" directly, so there is nothing to measure and nothing to resolve by value.',
-    ceiling: null,
-    unit: null,
-    from: null,
-    to: null,
-    bandHint: 'A descriptor grade is chosen, not computed — so a band is a code and a description. Sending any bound, or a ceiling, is a 400.',
-    presetLabel: 'Load the three descriptors',
-  },
-}
-
-/** The scale every example in the plan is drawn from — eight bands, nothing ungraded. */
-const CBSE = [
-  { gradeCode: 'A1', minimumValue: '91', maximumValue: '100', gradePoint: '10', description: 'Outstanding', passed: 'true' },
-  { gradeCode: 'A2', minimumValue: '81', maximumValue: '90', gradePoint: '9', description: 'Excellent', passed: 'true' },
-  { gradeCode: 'B1', minimumValue: '71', maximumValue: '80', gradePoint: '8', description: 'Very Good', passed: 'true' },
-  { gradeCode: 'B2', minimumValue: '61', maximumValue: '70', gradePoint: '7', description: 'Good', passed: 'true' },
-  { gradeCode: 'C1', minimumValue: '51', maximumValue: '60', gradePoint: '6', description: 'Fair', passed: 'true' },
-  { gradeCode: 'C2', minimumValue: '41', maximumValue: '50', gradePoint: '5', description: 'Average', passed: 'true' },
-  { gradeCode: 'D', minimumValue: '33', maximumValue: '40', gradePoint: '4', description: 'Below Average', passed: 'true' },
-  { gradeCode: 'E', minimumValue: '0', maximumValue: '32', gradePoint: '0', description: 'Needs Improvement', passed: 'false' },
-]
-
-/** A paper out of 50 — what MARKS is for, and the shape a unit test is graded on. */
-const OUT_OF_50 = [
-  { gradeCode: 'A', minimumValue: '40', maximumValue: '50', gradePoint: '10', description: 'Outstanding', passed: 'true' },
-  { gradeCode: 'B', minimumValue: '30', maximumValue: '39', gradePoint: '8', description: 'Good', passed: 'true' },
-  { gradeCode: 'C', minimumValue: '17', maximumValue: '29', gradePoint: '6', description: 'Fair', passed: 'true' },
-  { gradeCode: 'D', minimumValue: '0', maximumValue: '16', gradePoint: '0', description: 'Needs Improvement', passed: 'false' },
-]
-
-/** CBSE's co-scholastic areas grade this way — a code and a word, no range. */
-const DESCRIPTORS = [
-  { gradeCode: 'SECURE', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Secure', passed: 'true' },
-  { gradeCode: 'DEVELOPING', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Developing', passed: 'true' },
-  { gradeCode: 'BEGINNING', minimumValue: '', maximumValue: '', gradePoint: '', description: 'Beginning', passed: 'false' },
-]
-
-const PRESET = { PERCENTAGE: CBSE, MARKS: OUT_OF_50, DESCRIPTOR: DESCRIPTORS }
-
 /**
  * Creating one rulebook — #1.
  *
@@ -338,7 +252,8 @@ function AddScheme({ open, onClose, onAdded }) {
   const [schemeVersion, setSchemeVersion] = useState('2026.1')
   const [scaleType, setScaleType] = useState('PERCENTAGE')
   const [maximumValue, setMaximumValue] = useState('100')
-  const [bands, setBands] = useState(CBSE)
+  // The percentage preset, because the scale starts at PERCENTAGE. pickScale swaps both.
+  const [bands, setBands] = useState(PRESET.PERCENTAGE)
 
   const [errors, setErrors] = useState({})
   const [refused, setRefused] = useState(null)
@@ -364,17 +279,6 @@ function AddScheme({ open, onClose, onAdded }) {
     setBands(PRESET[next])
   }
 
-  // Input gives onChange an EVENT; Select gives it the VALUE. Two setters rather than one that
-  // guesses, because a setter reading `.target` off a string fails silently at runtime.
-  const setBandValue = (index, field) => (value) =>
-    setBands((old) => old.map((band, i) =>
-      i === index ? { ...band, [field]: value } : band))
-
-  const setBand = (index, field) => (event) => setBandValue(index, field)(event.target.value)
-
-  const addBand = () => setBands((old) => [...old, { ...BLANK_BAND }])
-  const removeBand = (index) => setBands((old) => old.filter((_, i) => i !== index))
-
   // Built at render so the preview shows what will actually be sent. An empty optional box sends
   // nothing rather than "", which the API would read as a value — and on a DESCRIPTOR scheme the
   // bounds are omitted entirely rather than sent as null.
@@ -382,19 +286,7 @@ function AddScheme({ open, onClose, onAdded }) {
     const out = { name, schemeVersion, scaleType }
     if (measured && maximumValue !== '') out.maximumValue = Number(maximumValue)
 
-    out.gradeBands = bands.map((band) => {
-      const one = { gradeCode: band.gradeCode }
-      if (measured) {
-        if (band.minimumValue !== '') one.minimumValue = Number(band.minimumValue)
-        if (band.maximumValue !== '') one.maximumValue = Number(band.maximumValue)
-      }
-      if (band.gradePoint !== '') one.gradePoint = Number(band.gradePoint)
-      if (band.description !== '') one.description = band.description
-      // Only sent when false: the API defaults it to true, so sending true on seven of eight
-      // bands is noise in a body somebody is reading to understand the request.
-      if (band.passed === 'false') one.passed = false
-      return one
-    })
+    out.gradeBands = rowsToBands(bands, measured)
     return out
   }, [name, schemeVersion, scaleType, maximumValue, bands, measured])
 
@@ -526,95 +418,12 @@ function AddScheme({ open, onClose, onAdded }) {
           )}
         </div>
 
-        <div className="toolbar">
-          <b>Bands · {bands.length}</b>
-          <span className="toolbar-spacer" />
-          <Button icon={Plus} onClick={addBand}>Add a band</Button>
-        </div>
-
-        <p className="muted"><b>{scaleType}</b> — {scale.blurb}</p>
-        <p className="muted">{scale.bandHint}</p>
-
-        {bands.length === 0 ? (
-          <Empty
-            title="No bands"
-            description="A scheme that grades nothing is not a scheme — an empty list is a 400."
-            action={<Button look="primary" icon={Plus} onClick={addBand}>Add one</Button>}
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  {measured ? <th>From{scale.unit === '%' ? ' %' : ''}</th> : null}
-                  {measured ? <th>To{scale.unit === '%' ? ' %' : ''}</th> : null}
-                  <th>Point</th>
-                  <th>Description</th>
-                  <th>Pass</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {bands.map((band, index) => (
-                  // Keyed by position, deliberately: a band has no id and its code is the thing
-                  // being edited, so keying by code would remount the row on every keystroke.
-                  // oxlint-disable-next-line react/no-array-index-key
-                  <tr key={index}>
-                    <td>
-                      <Input value={band.gradeCode} onChange={setBand(index, 'gradeCode')}
-                        placeholder="A1" />
-                    </td>
-                    {measured ? (
-                      <td>
-                        {/* max is the scheme's own ceiling, so the browser stops a band
-                            reaching past it before the API has to. */}
-                        <Input type="number" value={band.minimumValue} min="0" max={maximumValue}
-                          onChange={setBand(index, 'minimumValue')} placeholder={scale.from} />
-                      </td>
-                    ) : null}
-                    {measured ? (
-                      <td>
-                        <Input type="number" value={band.maximumValue} min="0" max={maximumValue}
-                          onChange={setBand(index, 'maximumValue')} placeholder={scale.to} />
-                      </td>
-                    ) : null}
-                    <td>
-                      <Input type="number" value={band.gradePoint}
-                        onChange={setBand(index, 'gradePoint')} placeholder="10" />
-                    </td>
-                    <td>
-                      <Input value={band.description} onChange={setBand(index, 'description')}
-                        placeholder="Outstanding" />
-                    </td>
-                    <td>
-                      {/* A real label, not an id: it is the accessible name of this control, and
-                          "passed-3" tells a screen-reader user nothing about which row it is. */}
-                      <Select value={band.passed} options={['true', 'false']}
-                        label={`Pass for ${band.gradeCode || `band ${index + 1}`}`}
-                        onChange={setBandValue(index, 'passed')} />
-                    </td>
-                    <td>
-                      <Button icon={Trash2} onClick={() => removeBand(index)}>Remove</Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <p className="muted">
-          <Info size={12} /> <b>An overlap is refused; a gap is only reported.</b> A gap means one
-          mark has <i>no</i> grade — visible, and fixable. An overlap means one mark has{' '}
-          <i>two</i>, and which wins depends on the order the bands happen to be stored in.
-        </p>
-        <p className="muted">
-          <Info size={12} /> <b>A scale can never be tiled</b>, because bounds are inclusive at
-          both ends: 81–90 beside 91–100 misses 90.5, and closing that is an overlap. So gaps are
-          counted in <b>whole marks</b> — 90 → 91 is silent, 32 → 81 is not. The cost is that a
-          school awarding 90.5 is not warned; #8 will answer 404 for it.
-        </p>
+        <BandEditor
+          scaleType={scaleType}
+          maximumValue={maximumValue}
+          rows={bands}
+          onChange={setBands}
+        />
       </div>
     </Modal>
   )

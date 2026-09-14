@@ -11800,6 +11800,249 @@ question about the set rather than about the list.
       ],
     },
     {
+      id: "update-grading-scheme",
+      name: "Update Grading Scheme",
+      method: "PATCH",
+      path: "/schools/current/grading-schemes/{id}",
+      status: 'live',
+      summary: "Change any field of a scheme nothing has used. Only active once something has.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/grading-schemes/{id}\` — endpoint #3.
+
+### Every field is editable, and mostly this endpoint cannot be used
+
+The plan for this module said there would be **no \`PATCH\` at all**, reasoning field by field: the
+key cannot move, the scale reinterprets every band, the bands are the history. Every one of those
+is true of a scheme **something has used** — and none is true of one nothing has. A school that
+mistypes a boundary during setup should not have to publish version 2 to fix version 1.
+
+**So the rule moved from the field to the state:**
+
+| | |
+|---|---|
+| nothing references this scheme | every field below is editable |
+| something references it | only \`active\` is, and the rest is \`409\` |
+
+### active is the exception, and the only one that could be
+
+It is the single field that does not change what a **printed grade** means. Retiring a scheme
+everything uses is exactly what a school does when it publishes the next version — the old cards
+still resolve through it, they are simply not offered for new work.
+
+**This is why #4 and #5 were dropped.** They existed to set \`active\`, and #3 sets it both ways on
+exactly the schemes they would have.
+
+### Every rule #1 applies is re-applied to the RESULTING scheme
+
+Not to the body — which is what makes a half-change safe to send:
+
+- **Lowering \`maximumValue\`** is checked against the bands you did *not* send →
+  \`409 GRADE_BAND_OUTSIDE_SCALE\`
+- **Switching to \`DESCRIPTOR\`** is checked against stored bands that still carry bounds →
+  \`400 GRADE_BAND_BOUNDS_NOT_ALLOWED\`. Send the new bands in the same request; the two fields are
+  one change.
+
+### maximumValue is DERIVED on a descriptor scale
+
+The one place absent does **not** mean "leave it alone". A PATCH has no way to send *"remove this
+number"*, so keeping the stored ceiling would make \`PERCENTAGE → DESCRIPTOR\` **impossible** —
+every such request would \`400\` with nothing the caller could do about it.
+
+It is not a guess: there is exactly one legal value, absent. The reverse needs no rule, because
+\`SCALE_MAXIMUM_REQUIRED\` says what to send.
+
+### The band set is replaced whole, never patched
+
+Send \`gradeBands\` and every band changes; leave it out and none do. There is no per-band edit,
+because adding or moving one always risks an overlap or a gap with its neighbours and the checks
+that catch those read the entire set.
+
+An empty list is \`400 GRADE_BANDS_REQUIRED\` — clearing the bands is not a way to retire a scheme.
+
+### The reference check is incomplete, and the message says so
+
+Only \`school_classes\` is reachable: \`exams\` and \`report_cards\` store the same
+\`gradingSchemeDocsId\` and have no repository, because neither has an endpoint to write a row. The
+refusal names what was actually checked, so a pass is never read as a guarantee.
+
+### Nothing is written until every check has passed
+
+A refusal leaves the scheme exactly as it was.
+
+### The gates
+
+**1** school ACTIVE · **2** subscription usable. No gate 4 — there is no academic year in this
+path to ask it about.
+
+### The nine test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain. NO academic year. Every field is optional.
+
+ EVERY FIELD IS EDITABLE - while NOTHING references the scheme. The moment a
+ subject, exam or report card points at it, only \`active\` is, and everything
+ else is 409 SCHEME_STILL_REFERENCED. The rule is about the STATE, not the
+ field: a boundary moved under a printed card rewrites that card silently.
+
+ active IS THE EXCEPTION because it is the one field that does not change
+ what a printed grade means. Retiring a scheme everything uses is exactly
+ what a school does when it publishes the next version.
+
+ EVERY RULE #1 APPLIES IS RE-APPLIED TO THE RESULTING SCHEME, not the body.
+ Lowering maximumValue is checked against bands you did NOT send; switching
+ to DESCRIPTOR is checked against stored bands that still carry bounds.
+
+ maximumValue IS DERIVED ON A DESCRIPTOR SCALE - the one place absent does
+ not mean "leave it alone". Without it, PERCENTAGE -> DESCRIPTOR would be
+ impossible: there is no way to send "remove this number".
+
+ THE BAND SET IS REPLACED WHOLE OR NOT AT ALL. An empty list is a 400 -
+ clearing the bands is not a way to retire a scheme.
+
+ NOTHING IS WRITTEN until every check passes, so a refusal changes nothing.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{gradingSchemeDocsId}}", description: "The scheme's document id — gradingSchemeDocsId." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "name": "CBSE Percentage Grading (corrected)"
+}`,
+      successStatus: 200,
+      successNote: "The scheme as it now is. A warning rides on it when the bands leave a whole mark ungraded — recomputed from what was just stored.",
+      responseFields: ["gradingSchemeDocsId", "name", "schemeVersion", "scaleType", "maximumValue", "bandCount", "gradeBands", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "A body that asks for nothing. Checked before anything is read." },
+        { status: 400, code: "SCHEME_KEY_REQUIRED", when: "\"name\": \"\" or \"schemeVersion\": \"\" — the key can be replaced, never removed." },
+        { status: 400, code: "GRADE_BANDS_REQUIRED", when: "An empty gradeBands list. Clearing the bands is not a way to retire a scheme — send active false." },
+        { status: 400, code: "SCALE_MAXIMUM_REQUIRED", when: "Switching AWAY from DESCRIPTOR without sending a ceiling." },
+        { status: 400, code: "GRADE_BAND_BOUNDS_REQUIRED", when: "A PERCENTAGE or MARKS band missing a bound." },
+        { status: 400, code: "GRADE_BAND_BOUNDS_NOT_ALLOWED", when: "Switching to DESCRIPTOR while the stored bands still carry bounds. Send the new bands in the same request." },
+        { status: 400, code: "INVALID_GRADE_BAND_RANGE", when: "A band whose maximumValue is below its minimumValue." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school." },
+        { status: 409, code: "SCHEME_STILL_REFERENCED", when: "A subject already grades by this scheme. Only active is still editable; everything else is #2." },
+        { status: 409, code: "SCHEME_VERSION_TAKEN", when: "The new name + version pair is already this school's." },
+        { status: 409, code: "GRADE_BAND_CODE_TAKEN", when: "Two bands in the new set share a gradeCode." },
+        { status: 409, code: "GRADE_BAND_OUTSIDE_SCALE", when: "A band reaches past the ceiling — including a ceiling you lowered under bands you did not send." },
+        { status: 409, code: "GRADE_BANDS_OVERLAP", when: "Two bands in the resulting set cover the same value." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "A RENAME, AND NOTHING ELSE",
+          expect: "200 OK",
+          notes: `The body above. Everything not mentioned is untouched — the bands, the
+    scale and the ceiling all stay exactly as they were.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "AN EMPTY BODY",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" }. Checked before the scheme is
+    even read, so an empty PATCH on a scheme that does not exist says the
+    body is empty rather than sending you hunting for a missing scheme.`,
+          body: `{}`,
+        },
+        {
+          id: "03",
+          name: "LOWER THE CEILING UNDER A BAND YOU DID NOT SEND",
+          expect: "409 Conflict",
+          notes: `On the CBSE scale, send maximumValue 50. OUT:
+    { "code": "GRADE_BAND_OUTSIDE_SCALE" } — A1 still reaches 100.
+    THIS IS THE POINT OF CHECKING THE RESULTING SCHEME rather than the body:
+    the bands you left alone are still checked against the ceiling you sent.`,
+          body: `{
+  "maximumValue": 50
+}`,
+        },
+        {
+          id: "04",
+          name: "SWITCH TO DESCRIPTOR WITHOUT NEW BANDS",
+          expect: "400 Bad Request",
+          notes: `OUT: { "code": "GRADE_BAND_BOUNDS_NOT_ALLOWED" }. The stored bands
+    still carry bounds, and a descriptor band must have none. The scale and
+    the bands are ONE change — send them together, as case 05 does.`,
+          body: `{
+  "scaleType": "DESCRIPTOR"
+}`,
+        },
+        {
+          id: "05",
+          name: "SWITCH TO DESCRIPTOR, PROPERLY",
+          expect: "200 OK",
+          notes: `OUT: scaleType DESCRIPTOR and maximumValue GONE — derived, not sent.
+    A PATCH cannot express "remove this number", so without that rule this
+    switch would be impossible.`,
+          body: `{
+  "scaleType": "DESCRIPTOR",
+  "gradeBands": [
+    { "gradeCode": "SECURE", "description": "Secure" },
+    { "gradeCode": "DEVELOPING", "description": "Developing" },
+    { "gradeCode": "BEGINNING", "description": "Beginning", "passed": false }
+  ]
+}`,
+        },
+        {
+          id: "06",
+          name: "AND BACK AGAIN, WITHOUT A CEILING",
+          expect: "400 Bad Request",
+          notes: `After case 05, send scaleType PERCENTAGE with bands but no
+    maximumValue. OUT: { "code": "SCALE_MAXIMUM_REQUIRED" }, which says what
+    to send. The reverse switch needs no derivation rule for that reason.`,
+          body: `{
+  "scaleType": "PERCENTAGE",
+  "gradeBands": [
+    { "gradeCode": "A", "minimumValue": 0, "maximumValue": 100 }
+  ]
+}`,
+        },
+        {
+          id: "07",
+          name: "REPLACE THE WHOLE BAND SET",
+          expect: "200 OK",
+          notes: `Whole or not at all — there is no per-band edit, because adding or
+    moving one band always risks an overlap or a gap with its neighbours.`,
+          body: `{
+  "gradeBands": [
+    { "gradeCode": "P", "minimumValue": 33, "maximumValue": 100, "gradePoint": 10 },
+    { "gradeCode": "F", "minimumValue": 0, "maximumValue": 32, "gradePoint": 0, "passed": false }
+  ]
+}`,
+        },
+        {
+          id: "08",
+          name: "ONCE A SUBJECT USES IT",
+          expect: "409 Conflict",
+          notes: `Attach the scheme to a subject with Add Subject, then send ANY of the
+    cases above. OUT: { "code": "SCHEME_STILL_REFERENCED" }, naming the
+    scheme and saying which collections were actually checked.
+    THIS IS THE ENDPOINT'S WHOLE GUARD.`,
+          body: null,
+        },
+        {
+          id: "09",
+          name: "EXCEPT active, WHICH STILL WORKS",
+          expect: "200 OK",
+          notes: `Same referenced scheme as case 08. Retiring one everything uses is
+    exactly what a school does when it publishes the next version — the old
+    report cards still resolve through it. Send true to put it back.`,
+          body: `{
+  "active": false
+}`,
+        },
+      ],
+    },
+    {
       id: "get-grading-scheme",
       name: "Get Grading Scheme",
       method: "GET",

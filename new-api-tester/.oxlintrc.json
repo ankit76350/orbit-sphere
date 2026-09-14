@@ -11,9 +11,15 @@
       {
         "allowConstantExport": true
       }
-    ]
+    ],
+    "no-undef": "error"
   },
   "ignorePatterns": [
     ".smoke-bundle.mjs"
-  ]
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  }
 }
