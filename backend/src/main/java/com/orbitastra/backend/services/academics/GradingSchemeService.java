@@ -24,12 +24,13 @@ import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
 import com.orbitastra.backend.services.academics.helper.GradingHelper;
+import com.orbitastra.backend.services.academics.utils.GradingSchemeServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * The school's grading rulebooks — the endpoints in
- * {@code controllers/academics/grading/README.md}. #1 and #6 are built.
+ * {@code controllers/academics/grading/README.md}. #1, #6 and #7 are built.
  *
  * <p><b>Nothing here is scoped to an academic year</b>, unlike every other service in this module.
  * A rulebook outlives a year: the same scheme grades 2026-2027 and 2027-2028, and a report card
@@ -46,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 public class GradingSchemeService {
 
     private final GradingSchemeRepository gradingSchemes;
+    private final GradingSchemeServiceUtils utils;
     private final GradingHelper helper;
     private final CurrentSchoolResolver currentSchool;
 
@@ -191,10 +193,11 @@ public class GradingSchemeService {
                 .gradeBands(new ArrayList<>(stored))
                 .build());
 
-        //! step 7 - the gaps, REPORTED rather than refused. Computed against the request rather
-        //! than the saved document because they are the same set and the request is already in
-        //! hand - see the helper for why this is a warning at all.
-        String warning = helper.gapWarning(request.scaleType(), request.maximumValue(), bands);
+        //! step 7 - the gaps, REPORTED rather than refused. Computed from the SAVED document
+        //! rather than the request: the two are the same set, and taking the saved one means #7
+        //! recomputes it from exactly the same input on every later read - see the helper.
+        String warning = helper.gapWarning(
+                saved.getScaleType(), saved.getMaximumValue(), saved.getGradeBands());
 
         return GradingSchemeResponse.fromScheme(saved, warning,
                 "Reference this scheme by gradingSchemeDocsId — a subject, an exam and a report "
@@ -245,4 +248,52 @@ public class GradingSchemeService {
                 // could not act on one.
                 GradingSchemeSummary::fromScheme);
     }
+
+    //! endpoint 7 — one scheme, with its bands ---------------------------------------
+
+    /**
+     * Endpoint #7 — one scheme with every band, in stored order.
+     *
+     * <p><b>What a school reads to check its own boundaries</b>, and the only endpoint that returns
+     * the bands at all — #6 trims them to a count, because a page of full band tables is hundreds
+     * of values nobody reads.
+     *
+     * <p><b>Bands come back in the order they were written</b>, never re-sorted. A school listing
+     * A1 first means A1 first, and a response that silently reordered them would make a typo hard
+     * to spot against the paper they were copied from. The checks in #1 sort a copy, because
+     * overlap is a question about the set rather than about the list.
+     *
+     * <p><b>The gap warning is recomputed here, not stored.</b> A school that ignored it on create
+     * should still see it every time it looks — and a stored sentence would outlive the problem it
+     * described, so a scheme whose bands were fixed by #3 would keep being warned about a hole
+     * that is no longer there.
+     *
+     * <p><b>It answers for a retired scheme.</b> {@code active} governs what is offered for new
+     * work and nothing else: a report card issued in 2026 has to reprint through the 2026 rules
+     * long after the school moved to 2027's.
+     *
+     * <p><b>No gates, and {@code require} rather than {@code requireUsable}.</b> Looking at a
+     * rulebook is not an action on it.
+     */
+    public GradingSchemeResponse getScheme(String schemeId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read the rules its old report cards were issued under.
+        School school = currentSchool.require();
+
+        //! step 2 - the scheme, scoped to the school. Retired ones answer too.
+        GradingScheme scheme = utils.loadScheme(school, schemeId);
+
+        //! step 3 - the gaps, RECOMPUTED against what is stored. Never read from the document:
+        //! nothing writes it there, precisely so it cannot go stale.
+        String warning = helper.gapWarning(
+                scheme.getScaleType(), scheme.getMaximumValue(), scheme.getGradeBands());
+
+        return GradingSchemeResponse.fromScheme(scheme, warning,
+                "Bands are in the order they were written, never re-sorted. This scheme's name and "
+                        + "version cannot be changed: moving a boundary means a new version (#2), "
+                        + "because editing in place rewrites every report card ever issued. "
+                        + NO_AUTHORIZATION_YET);
+    }
+
 }

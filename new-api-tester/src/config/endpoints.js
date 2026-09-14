@@ -11800,6 +11800,147 @@ question about the set rather than about the list.
       ],
     },
     {
+      id: "get-grading-scheme",
+      name: "Get Grading Scheme",
+      method: "GET",
+      path: "/schools/current/grading-schemes/{id}",
+      status: 'live',
+      summary: "One scheme with every band, in stored order.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/grading-schemes/{id}\` — endpoint #7.
+
+### The only endpoint that returns the bands
+
+#6 trims them to a \`bandCount\`, because a page of full band tables is hundreds of values nobody
+reads. This is where a school goes to check its own boundaries.
+
+### Bands come back in the order they were written
+
+**Never re-sorted.** A school listing \`A1\` first means A1 first, and a response that silently
+reordered them would make a typo hard to spot against the paper they were copied from. #1's checks
+sort a *copy*, because overlap is a question about the set rather than about the list.
+
+So a scheme entered \`E, A2, A1\` reads back \`E, A2, A1\`.
+
+### The gap warning is recomputed, never stored
+
+A school that ignored the warning on create should still see it **every time it looks** — and a
+stored sentence would outlive the problem it described, so a scheme whose bands were later fixed
+would keep being warned about a hole that is no longer there.
+
+That is why \`GradingHelper.gapWarning\` takes **stored bands** rather than a request — the one check
+in that class which does. One signature instead of an overload per caller, and #1 and #7 compute
+the warning from exactly the same input: the document.
+
+### It answers for a retired scheme
+
+\`active\` governs what is offered for **new work** and nothing else. A report card issued in 2026
+has to reprint through the 2026 rules long after the school moved to 2027's, so #7, #8 and #9 all
+answer for an inactive version.
+
+### Addressed by the document id
+
+Which is what three places already store as \`gradingSchemeDocsId\` — \`ClassSubject\`, \`Exam\` and
+\`ReportCard\`. A caller holding one of those has exactly what this endpoint needs.
+
+**Scoped by \`schoolId\` anyway**, even though a MongoDB id is globally unique: another school's id
+is a real id. Unlike a term there is no second key to scope by, so this cannot 404 for "wrong
+year", only for "not yours".
+
+**A malformed id is a \`404\`, not a \`500\`** — the query matches nothing rather than failing to
+parse.
+
+### No gates
+
+A suspended or closed school still reads its own grading rules.
+
+### The five test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain. NO academic year.
+
+ THE ONLY ENDPOINT THAT RETURNS THE BANDS. #6 trims them to a count.
+
+ BANDS COME BACK IN THE ORDER THEY WERE WRITTEN, never re-sorted. A scheme
+ entered E, A2, A1 reads back E, A2, A1.
+
+ THE GAP WARNING IS RECOMPUTED, never stored - so a scheme whose bands were
+ fixed stops being warned about, and one that was never fixed still is.
+
+ IT ANSWERS FOR A RETIRED SCHEME. active governs what is offered for NEW
+ work; an old report card still reprints through the rules it was issued
+ under.
+
+ A MALFORMED ID IS A 404, not a 500 - the query matches nothing rather than
+ failing to parse.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{gradingSchemeDocsId}}", description: "The scheme's document id — gradingSchemeDocsId, which ClassSubject, Exam and ReportCard all store." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The scheme with every band. A warning rides on it when the bands leave a whole mark ungraded — recomputed on every read, so it disappears once the bands are fixed.",
+      responseFields: ["gradingSchemeDocsId", "name", "schemeVersion", "scaleType", "maximumValue", "bandCount", "gradeBands", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "GRADING_SCHEME_NOT_FOUND", when: "No scheme with that id in this school — including a malformed id, and including another school's real id." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "READ A SCHEME BACK",
+          expect: "200 OK",
+          notes: `Create the CBSE scale, then open it. OUT: all eight bands with
+    their bounds, points and descriptions — and NO warning, because every
+    whole mark from 0 to 100 has a grade.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE BANDS ARE IN THE ORDER THEY WERE WRITTEN",
+          expect: "200 OK",
+          notes: `Create a scheme listing E first, then A2, then A1. It reads back
+    E, A2, A1 — never sorted. #1's checks sort a COPY, because overlap is a
+    question about the set rather than about the list.`,
+          body: null,
+        },
+        {
+          id: "03",
+          name: "A GAP IS REPORTED EVERY TIME, NOT JUST ON CREATE",
+          expect: "200 OK",
+          notes: `Open the "Gappy" scheme from Create case 06. The SAME warning comes
+    back — "32 to 81" — because it is recomputed here rather than stored.
+    A stored sentence would outlive the problem it described.`,
+          body: null,
+        },
+        {
+          id: "04",
+          name: "A DESCRIPTOR SCHEME HAS NO NUMBERS AND NO WARNING",
+          expect: "200 OK",
+          notes: `OUT: bands with a gradeCode and a description, no minimumValue or
+    maximumValue keys at all, no maximumValue on the scheme, and no warning —
+    there is no scale to leave holes in.`,
+          body: null,
+        },
+        {
+          id: "05",
+          name: "AN ID THAT IS NOT AN ID",
+          expect: "404 Not Found",
+          notes: `/grading-schemes/not-an-id
+    OUT: { "code": "GRADING_SCHEME_NOT_FOUND" }. A 404 rather than a 500 —
+    the query matches nothing rather than failing to parse. Another school's
+    REAL id answers the same way, which is the tenant boundary doing its job.`,
+          body: null,
+        },
+      ],
+    },
+    {
       id: "list-grading-schemes",
       name: "List Grading Schemes",
       method: "GET",

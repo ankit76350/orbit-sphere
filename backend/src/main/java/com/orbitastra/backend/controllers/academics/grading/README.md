@@ -1,8 +1,8 @@
 # controllers/academics/grading — API plan
 
-**Two of 9 are built — #1 and #6.** A school can define a rulebook and its bands in one write,
-with the band set validated as a set and gaps reported rather than refused, and read back its
-schemes filtered by scale, state and name.
+**Three of 9 are built — #1, #6 and #7.** A school can define a rulebook and its bands in one
+write, with the band set validated as a set and gaps reported rather than refused; read back its
+schemes filtered by scale, state and name; and open one to check its boundaries.
 
 Everything else below is the full set of endpoints the grading feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
@@ -195,7 +195,7 @@ list is readable. Every path below is relative to **`/schools/current/grading-sc
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t6"></a>6 — **built** | [`GET /`](#e6) | The school's schemes, filtered by `?active=`, `?scaleType=`, `?search=`, sorted and paged. The dropdown behind every "how is this graded" field. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t7"></a>7 | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t7"></a>7 — **built** | [`GET /{id}`](#e7) | One scheme with every band, in order. What a school reads to check its own boundaries. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t8"></a>8 | [`GET /{id}/resolve?value=`](#e8) | **Turn a mark into a grade.** The whole purpose of the model, and the only endpoint that proves the bands were entered correctly. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t9"></a>9 | [`GET /{id}/versions`](#e9) | Every version of one rulebook, oldest first. Answers "what did A1 mean in 2026?" without knowing the id of the old one. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 
@@ -207,7 +207,7 @@ Ordered by **what it unblocks**, not by number.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, 7, 8 |
+| **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, 8 |
 | **2** | Setup mistakes are fixable, and history is protected properly | 3, 2, 9 |
 | **3** | Versions can be retired without being deleted | 4, 5 |
 
@@ -646,11 +646,14 @@ starts, and fails only when somebody calls `search`.
 - **No gates.** A suspended school still reads its own grading rules.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /{id}`**
+**[7](#t7) · `GET /{id}`** — built
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme with every band
 - **Bands in stored order**, which is the order they were written in — see #1.
 - **Carries the same gap `warning` #1 returned**, recomputed rather than stored. A school that ignored the warning on create should still see it every time it looks, and storing it would mean a stale sentence surviving a later fix.
+- **Which is why `gapWarning` takes stored bands rather than a request** — the one check in `GradingHelper` that does. Building it that way gives one signature instead of an overload per caller, and means #1 and #7 compute the warning from exactly the same input: the document. #1 was changed to call it *after* the save for that reason.
+- **A malformed id is a `404`, not a `500`.** `findByIdAndSchoolId` matches nothing rather than failing to parse, so `/grading-schemes/not-an-id` answers `GRADING_SCHEME_NOT_FOUND` like any other miss.
+- **Scoped by `schoolId` even though a MongoDB id is globally unique** — another school's id is a real id, and a school reading another school's grade boundaries is a leak nothing else would catch. Unlike a term there is no second key to scope by, so this cannot 404 for "wrong year", only for "not yours".
 - **Answers for an inactive scheme.** See #4.
 
 <a id="e8"></a>

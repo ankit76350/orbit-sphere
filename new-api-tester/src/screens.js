@@ -14,6 +14,7 @@ import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
 import GradingSchemes from './pages/school/academics/GradingSchemes.jsx'
+import GradingSchemeDetail from './pages/school/academics/GradingSchemeDetail.jsx'
 import { moduleSlug, screenPath } from './paths.js'
 
 /**
@@ -163,8 +164,12 @@ export const SURFACES = [
             id: 'grading',
             label: 'Grading',
             group: 'Academics / Grading',
-            endpoints: 2,
+            endpoints: 3,
             screen: GradingSchemes,
+            // A scheme is addressed by its document id — what ClassSubject, Exam and ReportCard
+            // all store — so that is the address. #7 is what fills the page, and it is the only
+            // endpoint that returns the BANDS: #6 trims them to a count.
+            detail: { param: 'id', screen: GradingSchemeDetail },
           },
           {
             id: 'classes',

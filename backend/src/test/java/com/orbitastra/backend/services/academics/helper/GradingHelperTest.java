@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.models.academics.enums.GradingScaleType;
+import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 
 /**
  * {@link GradingHelper} — the band rules behind #1.
@@ -26,11 +27,29 @@ class GradingHelperTest {
 
     private final GradingHelper helper = new GradingHelper();
 
+    /** A band as #1 receives it — what every validator takes. */
     private static GradeBandRequest band(String code, String min, String max) {
         return new GradeBandRequest(code,
                 min == null ? null : new BigDecimal(min),
                 max == null ? null : new BigDecimal(max),
                 null, null, null);
+    }
+
+    /**
+     * A band as it is STORED — what gapWarning takes.
+     *
+     * <p>Two builders rather than one, because the split is real: the validators run before
+     * anything is written and so read the request, while the warning is recomputed on every read
+     * by #7 and so reads the document. Collapsing them would hide which side of the save each
+     * check sits on.
+     */
+    private static GradeBand stored(String code, String min, String max) {
+        return GradeBand.builder()
+                .gradeCode(code)
+                .minimumValue(min == null ? null : new BigDecimal(min))
+                .maximumValue(max == null ? null : new BigDecimal(max))
+                .passed(true)
+                .build();
     }
 
     private static BigDecimal n(String value) {
@@ -146,9 +165,9 @@ class GradingHelperTest {
             // without overlapping. No whole mark fits in it, so nothing is said. This is the most
             // common scheme in the country and a warning on it would be a warning nobody reads.
             String warning = helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"), List.of(
-                    band("E", "0", "32"),
-                    band("D", "33", "80"),
-                    band("A", "81", "100")));
+                    stored("E", "0", "32"),
+                    stored("D", "33", "80"),
+                    stored("A", "81", "100")));
 
             assertThat(warning).isNull();
         }
@@ -156,15 +175,15 @@ class GradingHelperTest {
         @Test
         void a_sliver_alone_is_never_reported() {
             assertThat(helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"),
-                    List.of(band("LOW", "0", "50.4"), band("HIGH", "50.6", "100")))).isNull();
+                    List.of(stored("LOW", "0", "50.4"), stored("HIGH", "50.6", "100")))).isNull();
         }
 
         @Test
         void a_hole_in_the_middle_is_named() {
             String warning = helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"), List.of(
-                    band("E", "0", "32"),
-                    band("A2", "81", "90"),
-                    band("A1", "91", "100")));
+                    stored("E", "0", "32"),
+                    stored("A2", "81", "90"),
+                    stored("A1", "91", "100")));
 
             // 32 to 81 holds 33 through 80 and is reported. 90 to 91 holds no whole mark and
             // is not — the one is a hole a school can see, the other is arithmetic.
@@ -177,7 +196,7 @@ class GradingHelperTest {
         @Test
         void a_scale_that_stops_short_of_its_ceiling_is_named() {
             String warning = helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"),
-                    List.of(band("PASS", "0", "60")));
+                    List.of(stored("PASS", "0", "60")));
 
             assertThat(warning).contains("60 to 100");
         }
@@ -187,20 +206,20 @@ class GradingHelperTest {
             // The trailing edge is CLOSED at the ceiling: a top band ending at 99 leaves 100
             // without a grade, and no other edge would notice.
             assertThat(helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"),
-                    List.of(band("A", "0", "99")))).contains("99 to 100");
+                    List.of(stored("A", "0", "99")))).contains("99 to 100");
         }
 
         @Test
         void an_ungraded_zero_is_caught_the_same_way() {
             // The leading edge is CLOSED at 0, so a scale starting at 1 has left 0 out.
             assertThat(helper.gapWarning(GradingScaleType.PERCENTAGE, n("100"),
-                    List.of(band("A", "1", "100")))).contains("0 to 1");
+                    List.of(stored("A", "1", "100")))).contains("0 to 1");
         }
 
         @Test
         void a_descriptor_scheme_has_no_scale_to_leave_holes_in() {
             assertThat(helper.gapWarning(GradingScaleType.DESCRIPTOR, null,
-                    List.of(band("SECURE", null, null)))).isNull();
+                    List.of(stored("SECURE", null, null)))).isNull();
         }
     }
 

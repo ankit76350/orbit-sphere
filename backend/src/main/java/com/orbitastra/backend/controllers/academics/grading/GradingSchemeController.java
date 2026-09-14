@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,7 +24,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1 and #6 are
+ * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #6 and #7 are
  * built.
  *
  * <p><b>No {@code {year}} in the path</b>, unlike every route in
@@ -91,6 +92,23 @@ public class GradingSchemeController {
                 .created(URI.create("/schools/current/grading-schemes/"
                         + response.gradingSchemeDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #7 — one scheme with every band, in stored order.
+     *
+     * <p><b>Addressed by the document id</b>, which is what three places already store as
+     * {@code gradingSchemeDocsId} — {@code ClassSubject}, {@code Exam} and {@code ReportCard}. A
+     * caller holding one of those has exactly what this endpoint needs.
+     *
+     * <p><b>The only endpoint that returns the bands.</b> #6 trims them to a count.
+     *
+     * <p><b>No gate runs on a read</b>, and a retired scheme answers: a report card issued in 2026
+     * reprints through the 2026 rules long after the school moved on.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<GradingSchemeResponse> getOne(@PathVariable String id) {
+        return ResponseEntity.ok(gradingSchemeService.getScheme(id));
     }
 
     /**

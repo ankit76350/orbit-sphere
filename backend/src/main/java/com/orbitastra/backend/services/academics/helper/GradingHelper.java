@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.models.academics.enums.GradingScaleType;
+import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 
 import lombok.RequiredArgsConstructor;
 
@@ -292,20 +293,32 @@ public class GradingHelper {
      *
      * <p>Returns null for {@code DESCRIPTOR}, which has no scale to leave holes in.
      *
+     * <h2>It takes stored bands, not a request</h2>
+     *
+     * <p><b>The only check here that does</b>, and the reason is #7: a scheme is read back far more
+     * often than it is written, and the warning has to be <b>recomputed on every read</b> rather
+     * than stored. A stored sentence would outlive the problem it described — a school that fixed
+     * its bands would keep being told about a hole that is no longer there.
+     *
+     * <p>So #1 computes it from the document it just saved rather than from the body it was sent.
+     * The two are the same set, and taking the saved one means this method has a single signature
+     * instead of an overload per caller, and describes what is actually in the database.
+     *
      * @return the warning, or null when every whole mark has a grade
      *
      * Used by:
      * - createScheme()
+     * - getScheme()
      */
     public String gapWarning(GradingScaleType scaleType, BigDecimal maximumValue,
-            List<GradeBandRequest> bands) {
+            List<GradeBand> bands) {
 
         if (scaleType == GradingScaleType.DESCRIPTOR) {
             return null;
         }
 
-        List<GradeBandRequest> ordered = bands.stream()
-                .sorted(Comparator.comparing(GradeBandRequest::minimumValue))
+        List<GradeBand> ordered = bands.stream()
+                .sorted(Comparator.comparing(GradeBand::getMinimumValue))
                 .toList();
 
         List<String> gaps = new ArrayList<>();
@@ -315,15 +328,15 @@ public class GradingHelper {
         //! Walk the scale from zero. A band starting above where the last one ended leaves the
         //! span between them ungraded - but only worth saying when a whole mark fits in it,
         //! because inclusive bounds mean adjacent bands ALWAYS leave a sliver.
-        for (GradeBandRequest band : ordered) {
-            if (band.minimumValue().compareTo(covered) > 0
+        for (GradeBand band : ordered) {
+            if (band.getMinimumValue().compareTo(covered) > 0
                     && containsWholeMark(covered, !coveredIsClaimed,
-                            band.minimumValue(), false)) {
+                            band.getMinimumValue(), false)) {
 
-                gaps.add(plain(covered) + " to " + plain(band.minimumValue()));
+                gaps.add(plain(covered) + " to " + plain(band.getMinimumValue()));
             }
-            if (band.maximumValue().compareTo(covered) > 0) {
-                covered = band.maximumValue();
+            if (band.getMaximumValue().compareTo(covered) > 0) {
+                covered = band.getMaximumValue();
                 coveredIsClaimed = true;
             }
         }

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Info, Plus, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
+import { detailPath } from '../../../paths.js'
 
 /**
  * The school's grading rulebooks: /school-academics/grading
@@ -36,6 +38,7 @@ const SIZES = ['5', '20', '100']
 export default function GradingSchemes() {
   const { call } = useApi()
   const { environment, actingSubdomain } = useApiState()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
   const [active, setActive] = useState('')
@@ -177,7 +180,14 @@ export default function GradingSchemes() {
               </thead>
               <tbody>
                 {rows.map((one) => (
-                  <tr key={one.gradingSchemeDocsId}>
+                  // Opening a row is its OWN address, so it can be linked, reloaded and shared —
+                  // and #7 is the only endpoint that returns the bands, so it is worth a page.
+                  <tr
+                    key={one.gradingSchemeDocsId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'academics', 'grading',
+                      one.gradingSchemeDocsId))}
+                  >
                     {/* name + schemeVersion is the KEY, so the two sit together. */}
                     <td>{one.name}</td>
                     <td><span className="mono">{one.schemeVersion}</span></td>
@@ -201,6 +211,10 @@ export default function GradingSchemes() {
           </div>
         )}
 
+        <p className="muted">
+          <Info size={12} /> Open a row for its <b>bands</b> — #6 returns only a count, because a
+          page of full band tables is hundreds of values nobody reads.
+        </p>
         <p className="muted">
           <Info size={12} /> <b>Ordered by name, then version</b> — the first list in this API
           whose stable order needs two fields. Neither alone is unique: one name has many
