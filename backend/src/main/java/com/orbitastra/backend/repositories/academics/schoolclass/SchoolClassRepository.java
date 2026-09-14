@@ -45,6 +45,25 @@ public interface SchoolClassRepository
      *
      * <p>#12 keeps the cheaper {@code exists} because a create has no row to be its own conflict.
      */
+    /**
+     * Whether any subject of any class in this school is graded by one scheme.
+     *
+     * <p><b>The reference check behind #3 of the grading module</b>, and the only one of the three
+     * it needs that can be made at all: {@code exams} and {@code report_cards} also store
+     * {@code gradingSchemeDocsId} and neither collection has a repository, because neither has an
+     * endpoint to write a row. So a pass here means "nothing REACHABLE uses it" and the refusal
+     * message says so rather than claiming more.
+     *
+     * <p><b>It traverses an embedded list</b> — {@code subjects[].gradingSchemeDocsId} — which
+     * Mongo matches without an index today. A year holds tens of classes, so it is cheap now and
+     * wants an index before anything calls it in a loop.
+     *
+     * <p>Scoped by {@code schoolId}: another school using the same scheme id is impossible, but
+     * the query would scan their documents to prove it.
+     */
+    boolean existsBySchoolIdAndSubjectsGradingSchemeDocsId(String schoolId,
+            String gradingSchemeDocsId);
+
     Optional<SchoolClass> findBySchoolIdAndAcademicYearAndName(
             String schoolId, String academicYear, String name);
 }

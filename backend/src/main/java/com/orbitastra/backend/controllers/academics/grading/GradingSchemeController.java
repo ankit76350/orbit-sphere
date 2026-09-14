@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeUpdateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
 import com.orbitastra.backend.models.core.School;
@@ -24,7 +26,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #6 and #7 are
+ * The school's grading rulebooks. Endpoints #1 to #9 of the plan in this package's README; #1, #3, #6 and #7 are
  * built.
  *
  * <p><b>No {@code {year}} in the path</b>, unlike every route in
@@ -92,6 +94,34 @@ public class GradingSchemeController {
                 .created(URI.create("/schools/current/grading-schemes/"
                         + response.gradingSchemeDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #3 — change any field of a scheme, while nothing references it.
+     *
+     * <p><b>The plan said there would be no {@code PATCH} here at all.</b> It was right about a
+     * scheme something has used and wrong about one nothing has — so the rule moved from the field
+     * to the state: nothing references it and everything is editable, something does and only
+     * {@code active} is.
+     *
+     * <p><b>The same two gates as #1.</b> Editing a rulebook is a write.
+     *
+     * <p><b>A {@code warning} may ride on the 200</b>, recomputed from what is now stored — the
+     * same gap note #1 and #7 return.
+     */
+    @PatchMapping("/{id}")
+    public ResponseEntity<GradingSchemeResponse> update(
+            @PathVariable String id,
+            @Valid @RequestBody GradingSchemeUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(gradingSchemeService.updateScheme(id, request));
     }
 
     /**

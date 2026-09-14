@@ -1,6 +1,6 @@
 # controllers/academics/grading — API plan
 
-**Three of 9 are built — #1, #6 and #7.** A school can define a rulebook and its bands in one
+**Four of 9 are built — #1, #3, #6 and #7.** A school can define a rulebook and its bands in one
 write, with the band set validated as a set and gaps reported rather than refused; read back its
 schemes filtered by scale, state and name; and open one to check its boundaries.
 
@@ -186,9 +186,8 @@ list is readable. Every path below is relative to **`/schools/current/grading-sc
 |---|---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /`](#e1) | Create a rulebook and its bands in one write. The only endpoint that creates a scheme from nothing; #2 creates one from another. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
 | <a id="t2"></a>2 | [`POST /{id}/versions`](#e2) | The next version of the same rulebook — "A1 moves to 90". **This is what an edit is**, because editing in place rewrites every report card ever issued. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t3"></a>3 | [`PUT /{id}/bands`](#e3) | Replace the band set of a scheme **nothing has used yet** — fixing a typo during setup. Refused the moment anything references it; then it is #2. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t4"></a>4 | [`POST /{id}/deactivate`](#e4) | Retire a version so it stops being offered for new work, while old report cards still resolve through it. Idempotent. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
-| <a id="t5"></a>5 | [`POST /{id}/reactivate`](#e5) | Put it back. The pair exists because there is no `DELETE`. Idempotent. | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) |
+| <a id="t3"></a>3 — **built** | [`PATCH /{id}`](#e3) | Change **any field** of a scheme nothing has used — fixing a typo during setup. Refused the moment anything references it, except `active`; then it is #2. **Widened from `PUT /{id}/bands` on 2026-09-14.** | [`grading_schemes`](../../../models/academics/grading/GradingScheme.java), [`school_classes`](../../../models/academics/structure/SchoolClass.java) |
+| <a id="t4"></a>4 · <a id="t5"></a>5 | ~~`POST /{id}/deactivate`~~ · ~~`POST /{id}/reactivate`~~ | **Dropped 2026-09-14 — #3 does this.** `active` is the one field editable on a referenced scheme, so #3 already sets it both ways, and two mechanisms for one field is how they drift. The numbers are retired rather than reused. | — |
 
 ## 2. The schemes — reads · [Build order ↓](#build-order)
 
@@ -208,17 +207,19 @@ Ordered by **what it unblocks**, not by number.
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A rulebook exists, can be read, and demonstrably converts a mark | ~~1~~, ~~6~~, ~~7~~, 8 |
-| **2** | Setup mistakes are fixable, and history is protected properly | 3, 2, 9 |
-| **3** | Versions can be retired without being deleted | 4, 5 |
+| **2** | Setup mistakes are fixable, and history is protected properly | ~~3~~, 2, 9 |
+| **3** | ~~Versions can be retired without being deleted~~ — #3 absorbed it | — |
 
 **Phase 1 is the whole of the first cut**, and #8 is in it on purpose. Without it, #1's band rules
 are enforced on write and never exercised on read — the fastest way to ship a validator that is
 subtly wrong and not find out. #8 is a pure function over data #1 just stored, so it costs almost
 nothing and turns every band rule into something a person can see working.
 
-**#3 before #2.** Replacing bands on an unused scheme is what a school does the same afternoon it
-made a typo; creating a version is what it does a year later. Building the simpler write first
-means #2 can be written knowing what a valid band set looks like, rather than the reverse.
+**#3 before #2.** Editing an unused scheme is what a school does the same afternoon it made a
+typo; creating a version is what it does a year later. Building the simpler write first means #2
+can be written knowing what a valid band set looks like — and in the event #3 moved every
+validator onto the *stored* band shape, which is exactly what #2 needs to check a set it is
+copying rather than receiving.
 
 **#9 with #2**, because a version list is meaningless until there is more than one version.
 
@@ -236,12 +237,16 @@ is not on anyone's critical path.
   fail* — a report card would simply reprint with no grades and nobody would know why. Retirement
   is #4, the same decision `controllers/academics/structure` made for classes, terms, sections and
   subjects.
-- **No rename, and no `PATCH` of any kind.** Work through the fields and there is nothing a patch
-  could safely touch: `name` and `schemeVersion` are the unique key, `scaleType` and
-  `maximumValue` reinterpret every band under them, `gradeBands` is the history, and `active` has
-  its own pair of endpoints. **An endpoint with no legal field is not an endpoint**, so there is
-  no #-number reserved for one. The nearest thing is #3, which replaces bands and only while
-  nothing has used them.
+- ~~**No rename, and no `PATCH` of any kind.**~~ **Reversed 2026-09-14 — see [#3](#e3).** The
+  argument was that every field is either the key, a reinterpretation of every band, the history,
+  or an event with its own endpoint. That was right about a scheme something has *used* and wrong
+  about one nothing has: a school that mistypes a boundary during setup should not have to publish
+  version 2 to fix version 1.
+
+  **The rule moved from the field to the state.** Nothing references the scheme and every field is
+  editable; something does and only `active` is. What the original bullet actually protected — a
+  printed report card whose grade must not change under it — is protected exactly as well by the
+  reference check, and without making a typo permanent.
 - **No cross-scheme resolve.** "Grade this mark for this subject" has to walk
   `ClassSubject.gradingSchemeDocsId` → `Exam.gradingSchemeDocsId` → none, and two of those three
   live in a module with no endpoints. #8 resolves against **one named scheme** and leaves the
@@ -569,7 +574,8 @@ starts, and fails only when somebody calls `search`.
 | `GRADE_BAND_OUTSIDE_SCALE` | 409 | a band reaches past the scheme's `maximumValue`, or below zero |
 | `VALUE_OUTSIDE_SCALE` | 400 | #8 — the value asked about is above `maximumValue` or below zero |
 | `SCHEME_NOT_RESOLVABLE_BY_VALUE` | 409 | #8 against a `DESCRIPTOR` scheme — a descriptor grade is chosen, not computed |
-| `SCHEME_STILL_REFERENCED` | 409 | #3 — something already uses this scheme, so its bands are history now; use #2 |
+| `SCHEME_STILL_REFERENCED` | 409 | #3 — something already uses this scheme, so its rules are history now; use #2. Only `active` is still editable |
+| `SCHEME_KEY_REQUIRED` | 400 | #3 — `"name": ""` or `"schemeVersion": ""`; the key can be replaced, never removed |
 | `INVALID_SORT_FIELD` | 400 | #6 — a `?sort=` field outside the allowlist. Reuses the shared code; the message lists what is allowed |
 | `NOTHING_TO_UPDATE` | 400 | reuses core's code |
 
@@ -605,29 +611,42 @@ starts, and fails only when somebody calls `search`.
 - **`409 SCHEME_VERSION_TAKEN`** if that `name` already has that version.
 
 <a id="e3"></a>
-**[3](#t3) · `PUT /{id}/bands`**
+**[3](#t3) · `PATCH /{id}`** — built
 
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme, for `scaleType` and `maximumValue`
-- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: whether any `subjects[].gradingSchemeDocsId` is this scheme
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `gradeBands`, and nothing else
-- **Refused the moment anything references this scheme** — `409 SCHEME_STILL_REFERENCED`, naming what was found. Then the path is #2, which is what versioning is for.
-- **The reference check is incomplete and says so.** Only `school_classes` is reachable today; `exams` and `report_cards` have no endpoints and therefore no rows. The message names which collections were actually checked, so a pass is never read as a guarantee. See [open item 5](#5-has-this-scheme-been-used-is-a-query-across-three-collections).
-- **The same band rules as #1**, run against the whole new set — this is a replace, so the old set has no say in whether the new one is valid.
-- **Not a `PATCH`, and not per-band.** A band set is only valid as a whole; adding one band always risks an overlap or a gap with its neighbours.
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme, by id, scoped to the school
+- [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: whether any `subjects[].gradingSchemeDocsId` is this scheme — **only when the body touches grading**
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the key, when `name` or `schemeVersion` moved
+- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `name`, `schemeVersion`, `scaleType`, `maximumValue`, `gradeBands`, `active`
 
-<a id="e4"></a>
-**[4](#t4) · `POST /{id}/deactivate`**
+**Widened from `PUT /{id}/bands` on 2026-09-14**, and with it this module's "no `PATCH` of any kind" rule was reversed. The old rule reasoned field by field — the key cannot move, the scale reinterprets every band, the bands are the history — and every one of those is true of a scheme **something has used**. None is true of one nothing has, and a school that mistypes a boundary during setup should not have to publish version 2 to fix version 1.
 
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `active` = `false`
-- **Idempotent** — already inactive is a `200` saying so, not a `409`. Same rule as the term lock pair.
-- **It does not stop the scheme resolving.** #7, #8 and #9 all still answer for an inactive scheme, and they must: a report card issued in 2026 has to reprint through the 2026 rules long after the school moved to 2027's. `active` governs what is *offered for new work*, nothing else.
-- **No reference check, deliberately** — unlike #3. Retiring a scheme everything uses is exactly what a school does when it publishes the next version.
+**So the rule moved from the field to the state:**
 
-<a id="e5"></a>
-**[5](#t5) · `POST /{id}/reactivate`**
+```text
+nothing references this scheme   every field is editable
+something references it          only `active` is, and the rest is 409
+```
 
-- [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `active` = `true`
-- **Idempotent**, and exists because there is no `DELETE`. A school that retired the wrong version needs a way back that does not involve creating a third one.
+- **`active` is the exception, and it is the only one that could be.** It is the single field that does not change what a printed grade means: retiring a scheme everything uses is exactly what a school does when it publishes the next version, and the old cards still resolve through it. Every other field here rewrites the meaning of a grade already on paper.
+- **Which is why #4 and #5 were dropped.** They existed to set `active`, and #3 sets it both ways on exactly the schemes they would have. Two mechanisms for one field is how they drift.
+- **Every rule #1 applies is re-applied against the RESULTING scheme**, not the body — which is what makes a half-change safe to send. Lowering `maximumValue` is checked against the bands that were *not* sent (`409 GRADE_BAND_OUTSIDE_SCALE`); switching to `DESCRIPTOR` is checked against stored bands that still carry bounds (`400 GRADE_BAND_BOUNDS_NOT_ALLOWED`, and the fix is to send the new bands in the same request).
+- **That is what moved every validator onto the stored band shape.** `gapWarning` already took it; the other five followed, because a PATCH validates the scheme it is about to *become* and the alternative was an overload of every check. #1 lost nothing — it now builds its documents first and validates what it will actually save.
+- **`maximumValue` is DERIVED on a descriptor scale**, the one place absent does not mean "leave it alone". A PATCH has no way to send "remove this number", so keeping the stored ceiling would make `PERCENTAGE → DESCRIPTOR` **impossible** — every such request would `400` with nothing the caller could do. It is not a guess: there is exactly one legal value, absent. The reverse needs no rule, because `SCALE_MAXIMUM_REQUIRED` says what to send.
+- **The band set is replaced whole or not at all.** Send `gradeBands` and every band changes; leave it out and none do. There is no per-band edit, because adding or moving one always risks an overlap or a gap with its neighbours and the checks that catch those read the entire set. An empty list is `400 GRADE_BANDS_REQUIRED` — clearing the bands is not a way to retire a scheme.
+- **The key is re-checked only when it moved**, excluding this scheme by id — which is what lets a scheme keep the name it has while the version changes, and the reverse.
+- **The reference check is incomplete and the message says so.** Only `school_classes` is reachable; `exams` and `report_cards` store the same id and have no repository, because neither has an endpoint to write a row. The refusal names what was actually checked, so a pass is never read as a guarantee. See [open item 5](#5-has-this-scheme-been-used-is-a-query-across-three-collections).
+- **Nothing is written until every check has passed**, so a refusal leaves the scheme exactly as it was.
+
+<a id="e4"></a><a id="e5"></a>
+**[4](#t4) · [5](#t5) · ~~`POST /{id}/deactivate`~~ · ~~`POST /{id}/reactivate`~~** — dropped 2026-09-14
+
+Both existed to set `active`, and [#3](#e3) sets it both ways on exactly the schemes they would have — it is the one field a referenced scheme still allows. **Two endpoints writing one field is how two endpoints come to disagree about it**, so the pair is dropped rather than built. The numbers stay retired rather than being reused for something else.
+
+What they were protecting is unchanged and worth restating, because #3 now carries it:
+
+- **Retiring does not stop a scheme resolving.** #7, #8 and #9 all answer for an inactive scheme, and they must: a report card issued in 2026 reprints through the 2026 rules long after the school moved to 2027's. `active` governs what is *offered for new work*, nothing else.
+- **Setting `active` needs no reference check.** Retiring a scheme everything uses is exactly what a school does when it publishes the next version — which is why it is the one field #3 lets through the guard.
+- **There is still no `DELETE`.** A school that retired the wrong version sets `active` back to `true`.
 
 ## The schemes — reads · 6–9
 

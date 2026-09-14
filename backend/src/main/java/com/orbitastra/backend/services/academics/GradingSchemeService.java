@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.academics;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,12 +18,15 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeCreateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeSearchRequest;
+import com.orbitastra.backend.dto.academics.gradingscheme.request.GradingSchemeUpdateRequest;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeResponse;
 import com.orbitastra.backend.dto.academics.gradingscheme.response.GradingSchemeSummaryResponse;
+import com.orbitastra.backend.models.academics.enums.GradingScaleType;
 import com.orbitastra.backend.models.academics.grading.GradingScheme;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.repositories.academics.gradingscheme.GradingSchemeRepository;
+import com.orbitastra.backend.repositories.academics.schoolclass.SchoolClassRepository;
 import com.orbitastra.backend.services.academics.helper.GradingHelper;
 import com.orbitastra.backend.services.academics.utils.GradingSchemeServiceUtils;
 
@@ -30,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The school's grading rulebooks — the endpoints in
- * {@code controllers/academics/grading/README.md}. #1, #6 and #7 are built.
+ * {@code controllers/academics/grading/README.md}. #1, #3, #6 and #7 are built.
  *
  * <p><b>Nothing here is scoped to an academic year</b>, unlike every other service in this module.
  * A rulebook outlives a year: the same scheme grades 2026-2027 and 2027-2028, and a report card
@@ -47,6 +51,7 @@ import lombok.RequiredArgsConstructor;
 public class GradingSchemeService {
 
     private final GradingSchemeRepository gradingSchemes;
+    private final SchoolClassRepository schoolClasses;
     private final GradingSchemeServiceUtils utils;
     private final GradingHelper helper;
     private final CurrentSchoolResolver currentSchool;
@@ -132,18 +137,25 @@ public class GradingSchemeService {
         //! a single band is looked at. DESCRIPTOR refuses a ceiling; the other two require one.
         helper.validateScaleCeiling(request.scaleType(), request.maximumValue());
 
-        //! step 3 - and then the bands, in an order that matters. An inverted band checked last
-        //! would be reported as an overlap - true, and the wrong thing to say about which band
-        //! is wrong. Bounds first because the three checks below all read them.
-        List<GradeBandRequest> bands = request.gradeBands();
+        //! step 3 - build the bands BEFORE checking them, so what is validated is what will be
+        //! stored rather than what was sent. The two are the same set; taking the stored shape is
+        //! what lets #3 re-run these exact checks against a scheme it is only half-changing.
+        //!
+        //! IN THE ORDER GIVEN, never re-sorted: a school listing A1 first means A1 first, and
+        //! silently reordering makes a typo hard to spot against the paper it was copied from.
+        List<GradeBand> bands = request.gradeBands().stream()
+                .map(GradingSchemeService::toBand)
+                .toList();
 
+        //! step 4 - the order of these matters. An inverted band checked last would be reported
+        //! as an overlap - true, and the wrong thing to say about which band is wrong.
         helper.validateBandBounds(request.scaleType(), bands);
         helper.validateBandRanges(bands);
         helper.validateBandCodesUnique(bands);
         helper.validateBandsWithinScale(request.scaleType(), request.maximumValue(), bands);
         helper.validateNoBandOverlap(request.scaleType(), bands);
 
-        //! step 4 - the key is free. Checked AFTER the bands, deliberately: a caller who sent a
+        //! step 5 - the key is free. Checked AFTER the bands, deliberately: a caller who sent a
         //! broken scale should hear about the scale, not be told the name is taken and then have
         //! to fix the bands on the retry.
         //!
@@ -163,20 +175,6 @@ public class GradingSchemeService {
                             + "existing scheme first.");
         }
 
-        //! step 5 - build the bands IN THE ORDER GIVEN. Not re-sorted: a school listing A1 first
-        //! means A1 first, and silently reordering makes a typo hard to spot against the paper it
-        //! was copied from. passed defaults to true so an author lists the failures.
-        List<GradeBand> stored = bands.stream()
-                .map(band -> GradeBand.builder()
-                        .gradeCode(band.gradeCode().trim())
-                        .minimumValue(band.minimumValue())
-                        .maximumValue(band.maximumValue())
-                        .gradePoint(band.gradePoint())
-                        .description(band.description() == null ? null : band.description().trim())
-                        .passed(band.passed() == null || band.passed())
-                        .build())
-                .toList();
-
         //! step 6 - insert. active takes its default: it is an event with its own endpoints (#4,
         //! #5) rather than a field to set at create.
         // TODO: create grading scheme
@@ -190,7 +188,7 @@ public class GradingSchemeService {
                 .schemeVersion(version)
                 .scaleType(request.scaleType())
                 .maximumValue(request.maximumValue())
-                .gradeBands(new ArrayList<>(stored))
+                .gradeBands(new ArrayList<>(bands))
                 .build());
 
         //! step 7 - the gaps, REPORTED rather than refused. Computed from the SAVED document
@@ -247,6 +245,173 @@ public class GradingSchemeService {
                 // The summary, not the full response: no bands, and no warning on a row that
                 // could not act on one.
                 GradingSchemeSummaryResponse::fromScheme);
+    }
+
+    //! endpoint 3 — edit a scheme nothing has used -----------------------------------
+
+    /**
+     * Endpoint #3 — change any field of a scheme, while nothing references it.
+     *
+     * <p><b>The plan said this endpoint would not exist</b>, and the reasoning was that every
+     * field is either half the key, a reinterpretation of every band beneath it, the history
+     * itself, or an event with its own endpoint. That was right about a scheme something has
+     * <i>used</i> and wrong about one nothing has: a school that mistypes a boundary during setup
+     * should not have to publish version 2 to fix version 1.
+     *
+     * <p><b>So the rule moved from the field to the state.</b> Nothing references the scheme and
+     * every field is editable; something does and only {@code active} is.
+     *
+     * <p><b>{@code active} is the exception because it is the one field that does not change what
+     * a printed grade means.</b> Retiring a scheme everything uses is exactly what a school does
+     * when it publishes the next version — the old cards still resolve through it.
+     *
+     * <p><b>Every rule #1 applies is re-applied against the RESULTING scheme</b>, not the body.
+     * That is what makes a half-change safe to send: lowering {@code maximumValue} is checked
+     * against the bands that were not sent, and switching to {@code DESCRIPTOR} is checked against
+     * bands that still carry bounds.
+     *
+     * <p><b>The reference check is incomplete and the message says so.</b> Only
+     * {@code school_classes} is reachable; {@code exams} and {@code report_cards} store the same
+     * id and have no repository because neither has an endpoint to write a row.
+     */
+    @Transactional
+    public GradingSchemeResponse updateScheme(String schemeId, GradingSchemeUpdateRequest request) {
+
+        //! step 1 - refuse a request that asks for nothing, before reading anything. A PATCH
+        //! that changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, schemeVersion, scaleType, maximumValue, gradeBands or active.");
+        }
+
+        //! step 2 - who is asking, and the scheme
+        School school = currentSchool.requireUsable();
+        GradingScheme scheme = utils.loadScheme(school, schemeId);
+
+        //! step 3 - THE GUARD. Anything that changes what a stored grade means is refused the
+        //! moment something references this scheme: a boundary moved under a printed report card
+        //! rewrites that card silently, which is the one thing versioning exists to prevent.
+        //! `active` alone is allowed through, because retiring a scheme changes nothing a card
+        //! already resolved.
+        if (request.touchesGrading()) {
+            // TODO: check school classes referencing this grading scheme
+            boolean used = schoolClasses.existsBySchoolIdAndSubjectsGradingSchemeDocsId(
+                    school.getId(), scheme.getId());
+
+            if (used) {
+                throw ApiException.conflict("SCHEME_STILL_REFERENCED",
+                        "A subject is graded by '" + scheme.getName() + "' version "
+                                + scheme.getSchemeVersion() + ", so its rules are history now. "
+                                + "Create the next version instead (#2) — editing a boundary in "
+                                + "place rewrites every report card ever issued under it. Only "
+                                + "'active' can still be changed. (Checked school_classes; exams "
+                                + "and report_cards store this id too and have no endpoints yet.)");
+            }
+        }
+
+        //! step 4 - build the RESULTING scheme in memory. Absent means "leave it alone", so every
+        //! field falls back to what is stored - which is also what the checks below then read.
+        GradingScaleType scaleType = request.scaleType() == null
+                ? scheme.getScaleType() : request.scaleType();
+
+        //! THE CEILING IS DERIVED ON A DESCRIPTOR, not left to the caller, and that is the one
+        //! place this endpoint does not treat absent as "leave it alone".
+        //!
+        //! A PATCH has no way to send "remove this number" - null means absent everywhere else
+        //! here - so keeping the stored ceiling would make PERCENTAGE -> DESCRIPTOR impossible:
+        //! validateScaleCeiling refuses a ceiling on a descriptor scheme, so every such request
+        //! would 400 with no way to satisfy it. Deriving it is not guessing, because there is
+        //! exactly one legal value: absent. The reverse needs no rule - switching AWAY from
+        //! DESCRIPTOR without a ceiling is SCALE_MAXIMUM_REQUIRED, which says what to send.
+        BigDecimal maximumValue;
+        if (scaleType == GradingScaleType.DESCRIPTOR) {
+            maximumValue = null;
+        } else {
+            maximumValue = request.maximumValue() == null
+                    ? scheme.getMaximumValue() : request.maximumValue();
+        }
+
+        //! A band set is replaced WHOLE or not at all: adding or moving one band always risks an
+        //! overlap or a gap with its neighbours, and the checks that catch those read every band.
+        List<GradeBand> bands = request.gradeBands() == null
+                ? scheme.getGradeBands()
+                : request.gradeBands().stream().map(GradingSchemeService::toBand).toList();
+
+        if (bands.isEmpty()) {
+            throw ApiException.badRequest("GRADE_BANDS_REQUIRED",
+                    "A scheme that grades nothing is not a scheme. Clearing the bands is not a "
+                            + "way to retire one — send active false instead.");
+        }
+
+        //! step 5 - and now every rule #1 applies, against that resulting scheme rather than the
+        //! body. A DESCRIPTOR sent without new bands fails here, correctly: the stored bands still
+        //! carry bounds, and the two fields are one change.
+        helper.validateScaleCeiling(scaleType, maximumValue);
+        helper.validateBandBounds(scaleType, bands);
+        helper.validateBandRanges(bands);
+        helper.validateBandCodesUnique(bands);
+        helper.validateBandsWithinScale(scaleType, maximumValue, bands);
+        helper.validateNoBandOverlap(scaleType, bands);
+
+        //! step 6 - the key, if either half moved. Excluding THIS scheme by id is what lets it
+        //! keep the name it already has while the version changes, and the reverse.
+        String name = request.name() == null ? scheme.getName() : request.name().trim();
+        String version = request.schemeVersion() == null
+                ? scheme.getSchemeVersion() : request.schemeVersion().trim();
+
+        if (name.isEmpty() || version.isEmpty()) {
+            throw ApiException.badRequest("SCHEME_KEY_REQUIRED",
+                    "A scheme's name and version cannot be removed, only replaced.");
+        }
+
+        if (!name.equals(scheme.getName()) || !version.equals(scheme.getSchemeVersion())) {
+            // TODO: check grading scheme exists
+            if (gradingSchemes.existsBySchoolIdAndNameAndSchemeVersion(
+                    school.getId(), name, version)) {
+
+                throw ApiException.conflict("SCHEME_VERSION_TAKEN",
+                        "This school already has '" + name + "' version " + version + ".");
+            }
+        }
+
+        //! step 7 - apply, and save once. Nothing above this line has written anything, so a
+        //! refusal leaves the scheme exactly as it was.
+        scheme.setName(name);
+        scheme.setSchemeVersion(version);
+        scheme.setScaleType(scaleType);
+        scheme.setMaximumValue(maximumValue);
+        scheme.setGradeBands(new ArrayList<>(bands));
+
+        if (request.active() != null) {
+            scheme.setActive(request.active());
+        }
+
+        // TODO: update grading scheme
+        GradingScheme saved = gradingSchemes.save(scheme);
+
+        //! step 8 - the gaps, recomputed from what is now stored - see #7 for why this is never
+        //! read from the document.
+        String warning = helper.gapWarning(
+                saved.getScaleType(), saved.getMaximumValue(), saved.getGradeBands());
+
+        return GradingSchemeResponse.fromScheme(saved, warning,
+                "Editable only while nothing references it. Once a subject, exam or report card "
+                        + "points at this scheme, moving a boundary means a new version (#2) — "
+                        + "and only 'active' stays changeable. " + NO_AUTHORIZATION_YET);
+    }
+
+    /** One request band as it is stored. Shared by #1 and #3, so the two cannot drift. */
+    private static GradeBand toBand(GradeBandRequest band) {
+        return GradeBand.builder()
+                .gradeCode(band.gradeCode().trim())
+                .minimumValue(band.minimumValue())
+                .maximumValue(band.maximumValue())
+                .gradePoint(band.gradePoint())
+                .description(band.description() == null ? null : band.description().trim())
+                // Only false is ever sent; the model defaults it to true, and an author listing
+                // eight bands should have to say which ones FAIL.
+                .passed(band.passed() == null || band.passed())
+                .build();
     }
 
     //! endpoint 7 — one scheme, with its bands ---------------------------------------

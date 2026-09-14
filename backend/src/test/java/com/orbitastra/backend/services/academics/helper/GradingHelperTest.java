@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.models.academics.enums.GradingScaleType;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 
@@ -27,21 +26,13 @@ class GradingHelperTest {
 
     private final GradingHelper helper = new GradingHelper();
 
-    /** A band as #1 receives it — what every validator takes. */
-    private static GradeBandRequest band(String code, String min, String max) {
-        return new GradeBandRequest(code,
-                min == null ? null : new BigDecimal(min),
-                max == null ? null : new BigDecimal(max),
-                null, null, null);
-    }
-
     /**
-     * A band as it is STORED — what gapWarning takes.
+     * A band as it is STORED — which is what every check here now takes.
      *
-     * <p>Two builders rather than one, because the split is real: the validators run before
-     * anything is written and so read the request, while the warning is recomputed on every read
-     * by #7 and so reads the document. Collapsing them would hide which side of the save each
-     * check sits on.
+     * <p>There were two builders until 2026-09-14, one per shape. They collapsed into this when #3
+     * arrived: a PATCH validates the scheme it is about to <i>become</i>, so the checks had to read
+     * the stored bands it did not send alongside the ones it did. #1 loses nothing by building its
+     * documents first — it then validates exactly what it will save.
      */
     private static GradeBand stored(String code, String min, String max) {
         return GradeBand.builder()
@@ -97,7 +88,7 @@ class GradingHelperTest {
         @Test
         void a_measured_band_needs_both() {
             assertThatThrownBy(() -> helper.validateBandBounds(GradingScaleType.PERCENTAGE,
-                    List.of(band("A1", "91", null))))
+                    List.of(stored("A1", "91", null))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("one bound alone is not a range");
         }
@@ -105,7 +96,7 @@ class GradingHelperTest {
         @Test
         void a_descriptor_band_must_have_neither() {
             assertThatThrownBy(() -> helper.validateBandBounds(GradingScaleType.DESCRIPTOR,
-                    List.of(band("SECURE", "0", "1"))))
+                    List.of(stored("SECURE", "0", "1"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("chosen rather than computed");
         }
@@ -113,7 +104,7 @@ class GradingHelperTest {
         @Test
         void a_descriptor_band_with_neither_passes() {
             helper.validateBandBounds(GradingScaleType.DESCRIPTOR,
-                    List.of(band("SECURE", null, null)));
+                    List.of(stored("SECURE", null, null)));
         }
     }
 
@@ -126,7 +117,7 @@ class GradingHelperTest {
             // Both bounds are inclusive, so 90 belongs to both. Contrast term dates, where a term
             // ending on the 30th and one starting on the 1st share no day.
             assertThatThrownBy(() -> helper.validateNoBandOverlap(GradingScaleType.PERCENTAGE,
-                    List.of(band("A2", "81", "90"), band("A1", "90", "100"))))
+                    List.of(stored("A2", "81", "90"), stored("A1", "90", "100"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("both cover 90");
         }
@@ -134,14 +125,14 @@ class GradingHelperTest {
         @Test
         void adjacent_bands_do_not() {
             helper.validateNoBandOverlap(GradingScaleType.PERCENTAGE,
-                    List.of(band("A2", "81", "90"), band("A1", "91", "100")));
+                    List.of(stored("A2", "81", "90"), stored("A1", "91", "100")));
         }
 
         @Test
         void order_in_the_list_does_not_matter() {
             // The set is sorted before the walk, so a school listing A1 first is checked the same.
             assertThatThrownBy(() -> helper.validateNoBandOverlap(GradingScaleType.PERCENTAGE,
-                    List.of(band("A1", "90", "100"), band("A2", "81", "90"))))
+                    List.of(stored("A1", "90", "100"), stored("A2", "81", "90"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("both cover 90");
         }
@@ -149,7 +140,7 @@ class GradingHelperTest {
         @Test
         void a_band_swallowing_another_is_caught() {
             assertThatThrownBy(() -> helper.validateNoBandOverlap(GradingScaleType.PERCENTAGE,
-                    List.of(band("ALL", "0", "100"), band("A1", "91", "100"))))
+                    List.of(stored("ALL", "0", "100"), stored("A1", "91", "100"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("both cover");
         }
@@ -230,20 +221,20 @@ class GradingHelperTest {
         @Test
         void an_inverted_band_is_caught_before_overlap_can_mislabel_it() {
             assertThatThrownBy(() ->
-                    helper.validateBandRanges(List.of(band("A1", "100", "91"))))
+                    helper.validateBandRanges(List.of(stored("A1", "100", "91"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("which is backwards");
         }
 
         @Test
         void equal_bounds_are_a_legal_one_value_band() {
-            helper.validateBandRanges(List.of(band("PERFECT", "100", "100")));
+            helper.validateBandRanges(List.of(stored("PERFECT", "100", "100")));
         }
 
         @Test
         void a_repeated_code_is_refused_case_insensitively() {
             assertThatThrownBy(() -> helper.validateBandCodesUnique(
-                    List.of(band("A1", "91", "100"), band("a1", "81", "90"))))
+                    List.of(stored("A1", "91", "100"), stored("a1", "81", "90"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("more than once");
         }
@@ -251,7 +242,7 @@ class GradingHelperTest {
         @Test
         void a_band_past_the_ceiling_is_refused() {
             assertThatThrownBy(() -> helper.validateBandsWithinScale(
-                    GradingScaleType.MARKS, n("7"), List.of(band("EIGHT", "7.5", "8"))))
+                    GradingScaleType.MARKS, n("7"), List.of(stored("EIGHT", "7.5", "8"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("past this scheme's ceiling of 7");
         }
@@ -259,7 +250,7 @@ class GradingHelperTest {
         @Test
         void a_band_below_zero_is_refused() {
             assertThatThrownBy(() -> helper.validateBandsWithinScale(
-                    GradingScaleType.PERCENTAGE, n("100"), List.of(band("X", "-1", "10"))))
+                    GradingScaleType.PERCENTAGE, n("100"), List.of(stored("X", "-1", "10"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("below zero");
         }

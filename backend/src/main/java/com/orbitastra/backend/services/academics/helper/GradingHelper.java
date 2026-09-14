@@ -12,7 +12,6 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 import com.orbitastra.backend.common.error.exception.ApiException;
-import com.orbitastra.backend.dto.academics.gradingscheme.request.GradeBandRequest;
 import com.orbitastra.backend.models.academics.enums.GradingScaleType;
 import com.orbitastra.backend.models.academics.grading.embedded.GradeBand;
 
@@ -37,6 +36,13 @@ import lombok.RequiredArgsConstructor;
  *
  * <p><b>Checks throw rather than return a flag.</b> The exception is {@link #gapWarning}, which
  * deliberately does not — see its note.
+ *
+ * <p><b>Every method here takes {@link GradeBand}, the stored type, rather than the request.</b>
+ * That was {@code gapWarning}'s shape from the start and the rest followed on 2026-09-14, when #3
+ * arrived: a PATCH validates the scheme it is about to <i>become</i>, which is the stored bands it
+ * did not send merged with the ones it did. Taking the request would have meant either an overload
+ * of every check or converting a document back into a body to validate it — and #1 loses nothing,
+ * because it builds the documents first and then checks what it will actually save.
  */
 @Component
 @RequiredArgsConstructor
@@ -104,23 +110,23 @@ public class GradingHelper {
      * Used by:
      * - createScheme()
      */
-    public void validateBandBounds(GradingScaleType scaleType, List<GradeBandRequest> bands) {
+    public void validateBandBounds(GradingScaleType scaleType, List<GradeBand> bands) {
         boolean measured = scaleType != GradingScaleType.DESCRIPTOR;
 
-        for (GradeBandRequest band : bands) {
-            boolean hasMin = band.minimumValue() != null;
-            boolean hasMax = band.maximumValue() != null;
+        for (GradeBand band : bands) {
+            boolean hasMin = band.getMinimumValue() != null;
+            boolean hasMax = band.getMaximumValue() != null;
 
             if (measured && !(hasMin && hasMax)) {
                 throw ApiException.badRequest("GRADE_BAND_BOUNDS_REQUIRED",
-                        "Band '" + band.gradeCode() + "' needs both minimumValue and maximumValue "
+                        "Band '" + band.getGradeCode() + "' needs both minimumValue and maximumValue "
                                 + "on a " + scaleType + " scheme"
                                 + (hasMin || hasMax ? " — one bound alone is not a range." : "."));
             }
 
             if (!measured && (hasMin || hasMax)) {
                 throw ApiException.badRequest("GRADE_BAND_BOUNDS_NOT_ALLOWED",
-                        "Band '" + band.gradeCode() + "' carries a bound, but a DESCRIPTOR grade "
+                        "Band '" + band.getGradeCode() + "' carries a bound, but a DESCRIPTOR grade "
                                 + "is chosen rather than computed. Remove the bounds, or use "
                                 + "PERCENTAGE or MARKS.");
             }
@@ -140,16 +146,16 @@ public class GradingHelper {
      * Used by:
      * - createScheme()
      */
-    public void validateBandRanges(List<GradeBandRequest> bands) {
-        for (GradeBandRequest band : bands) {
-            if (band.minimumValue() == null || band.maximumValue() == null) {
+    public void validateBandRanges(List<GradeBand> bands) {
+        for (GradeBand band : bands) {
+            if (band.getMinimumValue() == null || band.getMaximumValue() == null) {
                 continue;
             }
-            if (band.maximumValue().compareTo(band.minimumValue()) < 0) {
+            if (band.getMaximumValue().compareTo(band.getMinimumValue()) < 0) {
                 throw ApiException.badRequest("INVALID_GRADE_BAND_RANGE",
-                        "Band '" + band.gradeCode() + "' runs from "
-                                + plain(band.minimumValue()) + " to "
-                                + plain(band.maximumValue()) + ", which is backwards.");
+                        "Band '" + band.getGradeCode() + "' runs from "
+                                + plain(band.getMinimumValue()) + " to "
+                                + plain(band.getMaximumValue()) + ", which is backwards.");
             }
         }
     }
@@ -168,13 +174,13 @@ public class GradingHelper {
      * Used by:
      * - createScheme()
      */
-    public void validateBandCodesUnique(List<GradeBandRequest> bands) {
+    public void validateBandCodesUnique(List<GradeBand> bands) {
         Set<String> seen = new HashSet<>();
 
-        for (GradeBandRequest band : bands) {
-            if (!seen.add(band.gradeCode().trim().toUpperCase(Locale.ROOT))) {
+        for (GradeBand band : bands) {
+            if (!seen.add(band.getGradeCode().trim().toUpperCase(Locale.ROOT))) {
                 throw ApiException.conflict("GRADE_BAND_CODE_TAKEN",
-                        "This scheme names '" + band.gradeCode().trim() + "' more than once. A "
+                        "This scheme names '" + band.getGradeCode().trim() + "' more than once. A "
                                 + "grade code identifies one band, so two rows carrying it "
                                 + "describe no scale at all.");
             }
@@ -195,23 +201,23 @@ public class GradingHelper {
      * - createScheme()
      */
     public void validateBandsWithinScale(GradingScaleType scaleType, BigDecimal maximumValue,
-            List<GradeBandRequest> bands) {
+            List<GradeBand> bands) {
 
         if (scaleType == GradingScaleType.DESCRIPTOR) {
             return;
         }
 
-        for (GradeBandRequest band : bands) {
-            if (band.minimumValue().compareTo(FLOOR) < 0) {
+        for (GradeBand band : bands) {
+            if (band.getMinimumValue().compareTo(FLOOR) < 0) {
                 throw ApiException.conflict("GRADE_BAND_OUTSIDE_SCALE",
-                        "Band '" + band.gradeCode() + "' starts at "
-                                + plain(band.minimumValue()) + ", below zero. Nothing is graded "
+                        "Band '" + band.getGradeCode() + "' starts at "
+                                + plain(band.getMinimumValue()) + ", below zero. Nothing is graded "
                                 + "below zero.");
             }
-            if (band.maximumValue().compareTo(maximumValue) > 0) {
+            if (band.getMaximumValue().compareTo(maximumValue) > 0) {
                 throw ApiException.conflict("GRADE_BAND_OUTSIDE_SCALE",
-                        "Band '" + band.gradeCode() + "' reaches "
-                                + plain(band.maximumValue()) + ", past this scheme's ceiling of "
+                        "Band '" + band.getGradeCode() + "' reaches "
+                                + plain(band.getMaximumValue()) + ", past this scheme's ceiling of "
                                 + plain(maximumValue) + ". A mark can never land there.");
             }
         }
@@ -235,26 +241,26 @@ public class GradingHelper {
      * Used by:
      * - createScheme()
      */
-    public void validateNoBandOverlap(GradingScaleType scaleType, List<GradeBandRequest> bands) {
+    public void validateNoBandOverlap(GradingScaleType scaleType, List<GradeBand> bands) {
         if (scaleType == GradingScaleType.DESCRIPTOR) {
             return;
         }
 
-        List<GradeBandRequest> ordered = bands.stream()
-                .sorted(Comparator.comparing(GradeBandRequest::minimumValue))
+        List<GradeBand> ordered = bands.stream()
+                .sorted(Comparator.comparing(GradeBand::getMinimumValue))
                 .toList();
 
         for (int i = 1; i < ordered.size(); i++) {
-            GradeBandRequest lower = ordered.get(i - 1);
-            GradeBandRequest upper = ordered.get(i);
+            GradeBand lower = ordered.get(i - 1);
+            GradeBand upper = ordered.get(i);
 
-            if (upper.minimumValue().compareTo(lower.maximumValue()) <= 0) {
+            if (upper.getMinimumValue().compareTo(lower.getMaximumValue()) <= 0) {
                 throw ApiException.conflict("GRADE_BANDS_OVERLAP",
-                        "Bands '" + lower.gradeCode() + "' (" + plain(lower.minimumValue())
-                                + "–" + plain(lower.maximumValue()) + ") and '"
-                                + upper.gradeCode() + "' (" + plain(upper.minimumValue())
-                                + "–" + plain(upper.maximumValue())
-                                + ") both cover " + plain(upper.minimumValue())
+                        "Bands '" + lower.getGradeCode() + "' (" + plain(lower.getMinimumValue())
+                                + "–" + plain(lower.getMaximumValue()) + ") and '"
+                                + upper.getGradeCode() + "' (" + plain(upper.getMinimumValue())
+                                + "–" + plain(upper.getMaximumValue())
+                                + ") both cover " + plain(upper.getMinimumValue())
                                 + ". Bounds are inclusive at both ends, so bands must not touch.");
             }
         }
