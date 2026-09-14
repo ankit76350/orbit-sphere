@@ -11485,11 +11485,20 @@ report card means reading the 2026 scheme.
 
 | scaleType | maximumValue | bands |
 |---|---|---|
-| \`PERCENTAGE\` | **required** — usually 100 | bounded, ordered, no overlaps |
-| \`POINT\` | **required** — 7 for IB, 4 for a GPA | bounded, ordered, no overlaps |
+| \`PERCENTAGE\` | **required** — 100 | bounded, ordered, no overlaps |
+| \`MARKS\` | **required** — the paper total: 50, 25, 80 | bounded, ordered, no overlaps |
 | \`DESCRIPTOR\` | **refused** | **unbounded** — a grade chosen, not computed |
 
-It is read **first**, before a single band is looked at. Asking about a band's bounds before
+**The scale names what a teacher ENTERS, never what comes out.** The awarded grade is a band's
+\`gradeCode\` and its weight in an aggregate is \`gradePoint\` — both mapped *from* a value on one of
+these scales. \`POINT\` was renamed to \`MARKS\` on 2026-09-14 because it read as a grade point, and a
+scheme keyed on grade points would be mapping grade points onto grade points.
+
+**An IB scheme is \`PERCENTAGE\`, not a "1–7 scale"** — the 1–7 is what IB *awards*, so the codes
+are \`"7"\` to \`"1"\` and a raw score resolves the band. IB also sets boundaries per subject per
+session, so each session is a new \`schemeVersion\`.
+
+The scale is read **first**, before a single band is looked at. Asking about a band's bounds before
 knowing the scale gives the right refusal for the wrong reason: *"this band needs a minimum"* when
 the truth is *"this scheme measures nothing"*.
 
@@ -11551,13 +11560,17 @@ question about the set rather than about the list.
 
 **1** school ACTIVE · **2** subscription usable. No gate 4 — see above.
 
-### The nine test cases are in the request body as comments
+### The ten test cases are in the request body as comments
 `,
       bodyNotes: `Needs X-School-Subdomain. NO academic year — a rulebook outlives one.
 
- THE SCALE IS READ FIRST. PERCENTAGE and POINT require maximumValue and
+ THE SCALE IS READ FIRST. PERCENTAGE and MARKS require maximumValue and
  bounded bands; DESCRIPTOR refuses both. Asking about a band before knowing
  the scale gives the right refusal for the wrong reason.
+
+ IT NAMES WHAT A TEACHER ENTERS, never what comes out. gradeCode is the
+ awarded grade and gradePoint is what it is worth - both mapped FROM a value
+ on one of these scales. An IB scheme is PERCENTAGE with codes "7" to "1".
 
  AN OVERLAP IS REFUSED, A GAP IS ONLY REPORTED. A gap means one mark has no
  grade - visible and fixable. An overlap means one mark has two, and which
@@ -11605,8 +11618,8 @@ question about the set rather than about the list.
       captures: [],
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "A missing name, schemeVersion, scaleType or gradeBands; an empty band list; a band with no gradeCode; more than 40 bands." },
-        { status: 400, code: "SCALE_MAXIMUM_REQUIRED", when: "A PERCENTAGE or POINT scheme with no maximumValue, or one that is zero or below." },
-        { status: 400, code: "GRADE_BAND_BOUNDS_REQUIRED", when: "A PERCENTAGE or POINT band missing a bound. One bound alone is not a range." },
+        { status: 400, code: "SCALE_MAXIMUM_REQUIRED", when: "A PERCENTAGE or MARKS scheme with no maximumValue, or one that is zero or below." },
+        { status: 400, code: "GRADE_BAND_BOUNDS_REQUIRED", when: "A PERCENTAGE or MARKS band missing a bound. One bound alone is not a range." },
         { status: 400, code: "GRADE_BAND_BOUNDS_NOT_ALLOWED", when: "A DESCRIPTOR band carrying bounds, or a DESCRIPTOR scheme carrying maximumValue." },
         { status: 400, code: "INVALID_GRADE_BAND_RANGE", when: "One band's maximumValue is below its minimumValue. Equal bounds are legal — a one-value band is odd, not wrong." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
@@ -11630,20 +11643,50 @@ question about the set rather than about the list.
         },
         {
           id: "02",
-          name: "AN IB POINT SCALE",
+          name: "AN IB SCHEME — 1 TO 7 AS THE AWARDED GRADE",
           expect: "201 Created",
-          notes: `A different scaleType and a ceiling of 7, not 100. Bands are read
-    the same way — by range — so nothing else changes.`,
+          notes: `IB's 1-7 is the grade AWARDED, not the number a teacher enters. So the
+    codes are "7" to "1" and the scale is PERCENTAGE: a raw score resolves the
+    band, and gradePoint carries the 1-7 for aggregation.
+
+    THE BOUNDARIES MOVE EVERY SESSION. IB sets them per subject after the
+    papers are marked, so a 7 is roughly 75-85% and a raw 72% can be a 7 one
+    session and a 6 the next. That is what schemeVersion is for - one version
+    per session, and the name says which.`,
           body: `{
-  "name": "IB Diploma Points",
-  "schemeVersion": "2026.1",
-  "scaleType": "POINT",
-  "maximumValue": 7,
+  "name": "IB Diploma HL — May 2026 boundaries",
+  "schemeVersion": "2026.5",
+  "scaleType": "PERCENTAGE",
+  "maximumValue": 100,
   "gradeBands": [
-    { "gradeCode": "7", "minimumValue": 6.5, "maximumValue": 7, "gradePoint": 7 },
-    { "gradeCode": "6", "minimumValue": 5.5, "maximumValue": 6.49, "gradePoint": 6 },
-    { "gradeCode": "5", "minimumValue": 4.5, "maximumValue": 5.49, "gradePoint": 5 },
-    { "gradeCode": "2", "minimumValue": 0, "maximumValue": 4.49, "gradePoint": 2, "passed": false }
+    { "gradeCode": "7", "minimumValue": 84, "maximumValue": 100, "gradePoint": 7, "description": "Excellent" },
+    { "gradeCode": "6", "minimumValue": 72, "maximumValue": 83, "gradePoint": 6, "description": "Very good" },
+    { "gradeCode": "5", "minimumValue": 59, "maximumValue": 71, "gradePoint": 5, "description": "Good" },
+    { "gradeCode": "4", "minimumValue": 46, "maximumValue": 58, "gradePoint": 4, "description": "Satisfactory" },
+    { "gradeCode": "3", "minimumValue": 33, "maximumValue": 45, "gradePoint": 3, "description": "Mediocre" },
+    { "gradeCode": "2", "minimumValue": 20, "maximumValue": 32, "gradePoint": 2, "description": "Poor" },
+    { "gradeCode": "1", "minimumValue": 0, "maximumValue": 19, "gradePoint": 1, "description": "Very poor", "passed": false }
+  ]
+}`,
+        },
+        {
+          id: "02b",
+          name: "A PAPER MARKED OUT OF 50",
+          expect: "201 Created",
+          notes: `This is what MARKS is for: a raw total that is not 100. Mechanically
+    the same walk as PERCENTAGE — the difference is the reported figure, since
+    "43 / 50" is not "86%", which is why ReportCardSubjectResult carries
+    maximumMarks and percentage as two fields.`,
+          body: `{
+  "name": "Unit Test — out of 50",
+  "schemeVersion": "2026.1",
+  "scaleType": "MARKS",
+  "maximumValue": 50,
+  "gradeBands": [
+    { "gradeCode": "A", "minimumValue": 40, "maximumValue": 50, "gradePoint": 10 },
+    { "gradeCode": "B", "minimumValue": 30, "maximumValue": 39, "gradePoint": 8 },
+    { "gradeCode": "C", "minimumValue": 17, "maximumValue": 29, "gradePoint": 6 },
+    { "gradeCode": "D", "minimumValue": 0, "maximumValue": 16, "gradePoint": 0, "passed": false }
   ]
 }`,
         },
@@ -11738,7 +11781,7 @@ question about the set rather than about the list.
           body: `{
   "name": "Overshoot",
   "schemeVersion": "1",
-  "scaleType": "POINT",
+  "scaleType": "MARKS",
   "maximumValue": 7,
   "gradeBands": [
     { "gradeCode": "EIGHT", "minimumValue": 7.5, "maximumValue": 8 }
@@ -11776,7 +11819,7 @@ is chosen rather than computed.
 
 - **\`?active=\`** — offered for new work, or retired. Absent returns **both**, which is not the
   same as \`false\`. A retired scheme still resolves every report card that used it.
-- **\`?scaleType=\`** — \`PERCENTAGE\` · \`POINT\` · \`DESCRIPTOR\`.
+- **\`?scaleType=\`** — \`PERCENTAGE\` · \`MARKS\` · \`DESCRIPTOR\`.
 - **\`?search=\`** — case-insensitive, matches anywhere in \`name\`.
 
 **\`?search=\` matches \`name\` only**, unlike the term list which also matches a code. There is no
@@ -11859,7 +11902,7 @@ old report card means reading the scheme it was issued under.
       pathParams: [],
       queryParams: [
         { key: "active", value: "", disabled: true, description: "true for schemes offered for new work, false for retired. Absent returns both." },
-        { key: "scaleType", value: "", disabled: true, description: "PERCENTAGE, POINT or DESCRIPTOR. The filter that answers 'what can grade a number'." },
+        { key: "scaleType", value: "", disabled: true, description: "PERCENTAGE, MARKS or DESCRIPTOR. The filter that answers 'what can grade a number'." },
         { key: "search", value: "", disabled: true, description: "Matches name, case-insensitive, anywhere. Regex-quoted." },
         { key: "page", value: "0", disabled: true, description: "0-based." },
         { key: "size", value: "20", disabled: true, description: "1 to 100." },
@@ -11894,7 +11937,7 @@ old report card means reading the scheme it was issued under.
           id: "02",
           name: "ONLY WHAT CAN GRADE A NUMBER",
           expect: "200 OK",
-          notes: `?scaleType=PERCENTAGE, then ?scaleType=POINT, then DESCRIPTOR.
+          notes: `?scaleType=PERCENTAGE, then ?scaleType=MARKS, then DESCRIPTOR.
     The first two can be resolved by value; the third cannot, which is the
     real reason this filter exists.`,
           body: null,

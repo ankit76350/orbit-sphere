@@ -65,7 +65,7 @@ class GradingHelperTest {
         @Test
         void a_ceiling_of_zero_is_not_a_scale() {
             assertThatThrownBy(() ->
-                    helper.validateScaleCeiling(GradingScaleType.POINT, BigDecimal.ZERO))
+                    helper.validateScaleCeiling(GradingScaleType.MARKS, BigDecimal.ZERO))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("must be above 0");
         }
@@ -232,7 +232,7 @@ class GradingHelperTest {
         @Test
         void a_band_past_the_ceiling_is_refused() {
             assertThatThrownBy(() -> helper.validateBandsWithinScale(
-                    GradingScaleType.POINT, n("7"), List.of(band("EIGHT", "7.5", "8"))))
+                    GradingScaleType.MARKS, n("7"), List.of(band("EIGHT", "7.5", "8"))))
                     .isInstanceOf(ApiException.class)
                     .hasMessageContaining("past this scheme's ceiling of 7");
         }

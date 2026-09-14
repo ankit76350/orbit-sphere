@@ -128,7 +128,7 @@ addressed by id *and* freely renameable, because nothing joins on their names. A
 addressed by id but its name is half its unique key, so renaming one makes it stop looking like a
 version of its own earlier self. **There is deliberately no rename endpoint**, and one must not be
 added without first moving the index off `name`. See
-[open item 3](#3-name-is-a-key-so-there-can-be-no-rename).
+[open item 4](#4-name-is-a-key-so-there-can-be-no-rename).
 
 ---
 
@@ -245,7 +245,7 @@ is not on anyone's critical path.
 - **No cross-scheme resolve.** "Grade this mark for this subject" has to walk
   `ClassSubject.gradingSchemeDocsId` → `Exam.gradingSchemeDocsId` → none, and two of those three
   live in a module with no endpoints. #8 resolves against **one named scheme** and leaves the
-  chain to the caller that owns it. See [open item 6](#6-the-fallback-chain-has-no-owner).
+  chain to the caller that owns it. See [open item 6](#7-the-fallback-chain-has-no-owner).
 - **No band-level endpoints.** No `POST /{id}/bands/{gradeCode}`. A band set is only ever valid as
   a whole — adding one band always risks an overlap or a gap with its neighbours — so it is
   written as a set, by #1 and #3, or not at all. Same reasoning that gave the academic year a
@@ -253,6 +253,19 @@ is not on anyone's critical path.
 - **No `DESCRIPTOR` resolution by value.** #8 answers `404` for a descriptor scheme rather than
   guessing. A descriptor grade is *chosen*, not computed; see
   [open item 2](#2-descriptor-could-not-be-stored--settled-2026-09-13).
+- **No positional — "relative" — grading, and this is the deliberate one.** CBSE's *board* result
+  is not computed from fixed ranges at all: passing candidates are rank-ordered and split into
+  eight equal groups, so the top 1/8th get A1 whatever they scored. If a paper is hard the A1
+  boundary drops with it, and 88 marks can be an A1. The 91–100 table every example here uses is a
+  **proxy scale** for school-level reporting.
+
+  **A `GradeBand` is a fixed range, so this is structurally unrepresentable**, and that is the
+  right answer rather than a gap to close. Positional grading needs the whole **cohort** before it
+  can grade anybody: a rank order across every candidate in the subject, a count of who passed, and
+  a rule for ties. None of that is a property of a scheme — it is a calculation over a result set,
+  which is `examination`'s to own if it is ever wanted, and CBSE does it centrally so no school
+  computes it. A scheme could at most record which *proxy* scale a school reports against, which is
+  what it already does.
 
 ---
 
@@ -299,7 +312,7 @@ and one of them had no valid representation:
 @NotNull private BigDecimal maximumValue;
 ```
 
-A `PERCENTAGE` or `POINT` band resolves a mark by range, so both bounds are essential. A
+A `PERCENTAGE` or `MARKS` band resolves a mark by range, so both bounds are essential. A
 `DESCRIPTOR` band — "Beginning", "Developing", "Secure" — has no mark to compare: a teacher picks
 it directly. Storing one meant inventing `0..1`, `1..2`, `2..3` for fields nothing would ever read.
 
@@ -309,14 +322,52 @@ cannot express *"required unless a sibling field says otherwise"*, so the rule l
 
 | `scaleType` | `maximumValue` on the scheme | bounds on each band | how #8 resolves |
 |---|---|---|---|
-| `PERCENTAGE` | **required** — usually 100 | **required**, ordered, no overlaps | by range |
-| `POINT` | **required** — 7 for IB, 4 for a GPA | **required**, ordered, no overlaps | by range |
+| `PERCENTAGE` | **required** — 100 | **required**, ordered, no overlaps | by range |
+| `MARKS` | **required** — the paper total: 50, 25, 80 | **required**, ordered, no overlaps | by range |
 | `DESCRIPTOR` | **refused** — nothing to measure | **refused** | not at all — `404` |
+
+**An IB scheme is `PERCENTAGE` or `MARKS`, never a "1–7 scale".** The 1–7 is the grade IB
+*awards*: the codes are `"7"` down to `"1"`, the bounds are raw-score boundaries, and `gradePoint`
+carries the 1–7 for aggregation. An earlier fixture in this file had it backwards — `maximumValue:
+7` with bands from 6.5 to 7 — which would have graded nothing correctly. IB also sets its
+boundaries **per subject per session** after the papers are marked, so a 7 is roughly 75–85% and a
+raw 72% can be a 7 one session and a 6 the next; that is a new `schemeVersion` each session, which
+is exactly what versioning is for.
+
+**`POINT` was renamed to `MARKS` on 2026-09-14.** It read as a *grade point*, and a grade point is
+an output: a scheme keyed on one would be mapping grade points onto grade points. The scale names
+what a teacher **enters**; `gradeCode` is what is awarded and `gradePoint` is what that award is
+worth in an aggregate. `MARKS` matches the vocabulary `StudentMark` and `ReportCardSubjectResult`
+already use — `obtainedMarks`, `maximumMarks`, `graceMarks`.
+
+**`PERCENTAGE` and `MARKS` walk identically** and are separate because the *reported* figure
+differs. A card showing "43 / 50" is not a card showing "86%", which is why
+`ReportCardSubjectResult` carries `maximumMarks` and `percentage` as two fields.
 
 The alternative was deleting the enum constant. It was kept because the model README names all
 three deliberately and a scale a school picks from a list is easier to add than to re-derive.
 
-## 3. `name` is a key, so there can be no rename
+## 3. What real boards actually do — checked 2026-09-14
+
+The bands, the pass marks and the grade points in this file were verified against the published
+scales rather than written from memory. Three things came out of it.
+
+**The CBSE scale used throughout this file is correct for what this module does.** A1 = 91–100 at
+10 points, A2 = 81–90 at 9, down to D = 33–40 at 4, with E below 33 failing — and 33% is CBSE's
+pass mark. That is the scale schools use on internal and term report cards, which is the only
+grading this product performs.
+
+**ICSE fits without changes.** Grades 1–9 with **1 highest**, on fixed percentage ranges — a band
+coded `"1"` covering 90–100 and so on. Nothing in the model assumes a direction, so an inverted
+scale needs no special case. ICSE's subject pass is **35%**, not 33, which is exactly why `passed`
+is stored per band rather than derived from a constant.
+
+**ICSE's *aggregate* pass — 33% overall, beside the 35% per subject — is not expressible here**,
+and should not be. A scheme grades one value; "did this student pass the year" reads every subject
+at once. That belongs to the report card, and whoever builds `examination` needs to know it is not
+already handled.
+
+## 4. `name` is a key, so there can be no rename
 
 Settling item 1 by indexing `name` has a consequence worth stating plainly rather than discovering
 later: **`name` stopped being a label and became half the identity.**
@@ -339,7 +390,7 @@ plan](../structure/README.md#e3) arrived at for terms, and the argument for it i
 **It was not taken here**, on the grounds that a scheme has far fewer consumers than a term and a
 fourth field earns its place less easily. Revisit if a school asks to rename one.
 
-## 4. "Has this scheme been used?" is a query across three collections
+## 5. "Has this scheme been used?" is a query across three collections
 
 #3 refuses to replace bands on a scheme anything references. Finding out whether anything does
 means asking:
@@ -369,7 +420,7 @@ deleting. The answers available:
 actually checked so nobody reads a pass as a guarantee. **Decide before #3**, not before #1 —
 phase 1 does not touch this.
 
-## 5. A gap between bands is not always a mistake — settled 2026-09-13
+## 6. A gap between bands is not always a mistake — settled 2026-09-13
 
 The model README says services must reject *"gaps that are not intentional"*, which is not
 something a service can tell apart. `81..89` beside `91..100` leaves `90` unresolvable and is
@@ -417,7 +468,7 @@ miss an ungraded ceiling on the schemes that have one.
 that `90.5` has no grade. #8 still answers `404` for it, which is where it is discoverable and
 where the message can name the two bands it fell between.
 
-## 6. The fallback chain has no owner
+## 7. The fallback chain has no owner
 
 Three fields resolve a subject's grading scheme, in order:
 
@@ -485,8 +536,8 @@ starts, and fails only when somebody calls `search`.
 |---|---|---|
 | `name` | String, required | The rulebook's name — `"CBSE Percentage Grading"`. **Unique with `schoolId + schemeVersion`**, so it is a key rather than a label: there is no rename. Versions of one rulebook must carry the identical name or #9 stops finding them. |
 | `schemeVersion` | String, required | `"2026.1"`. Free text, ordered by the school's own convention. **Never changes on a saved scheme** — moving a boundary means a new document, not a new value here. |
-| `scaleType` | Enum, required | `PERCENTAGE` · `POINT` · `DESCRIPTOR`. Decides whether bands carry bounds at all, and whether #8 can answer. **Never changes** — it reinterprets every band under it. |
-| `maximumValue` | BigDecimal, `DECIMAL128` | The ceiling bands are read against: `100` for a percentage, `7` for IB points. **Required for `PERCENTAGE` and `POINT`, refused for `DESCRIPTOR`.** |
+| `scaleType` | Enum, required | `PERCENTAGE` · `MARKS` · `DESCRIPTOR`. **Names what a teacher enters, never what comes out** — `gradeCode` is the award and `gradePoint` its weight, both mapped *from* a value on one of these. Decides whether bands carry bounds at all, and whether #8 can answer. **Never changes**: it reinterprets every band under it. |
+| `maximumValue` | BigDecimal, `DECIMAL128` | The ceiling bands are read against: `100` for a percentage, the paper total for marks. **Required for `PERCENTAGE` and `MARKS`, refused for `DESCRIPTOR`.** |
 | `gradeBands` | List, required non-empty | Ordered, non-overlapping, inside `maximumValue`, `gradeCode` unique within the set. Written whole by #1 and #3; never one at a time. |
 | `active` | Boolean, required | `true` at create; `false` from #4, `true` from #5. **Not the record lifecycle** — an inactive scheme is still resolved by every report card that used it; it just stops appearing in dropdowns. |
 
@@ -495,9 +546,9 @@ starts, and fails only when somebody calls `search`.
 | Field | Type | What can be in it |
 |---|---|---|
 | `gradeCode` | String, required | What prints on the card — `"A1"`, `"7"`, `"DEVELOPING"`. Unique within the scheme, case-insensitively. |
-| `minimumValue` | BigDecimal, `DECIMAL128` | Inclusive lower bound. **Required for `PERCENTAGE`/`POINT`, refused for `DESCRIPTOR`.** |
+| `minimumValue` | BigDecimal, `DECIMAL128` | Inclusive lower bound. **Required for `PERCENTAGE`/`MARKS`, refused for `DESCRIPTOR`.** |
 | `maximumValue` | BigDecimal, `DECIMAL128` | Inclusive upper bound — a band ending `90` includes `90`. Same rule as above, and must be `>= minimumValue`. |
-| `gradePoint` | BigDecimal, `DECIMAL128`, optional | What this band contributes to a CGPA. Null means the scheme grades without points, which is normal — not a missing value. |
+| `gradePoint` | BigDecimal, `DECIMAL128`, optional | What this band contributes to a CGPA. **An output, never an input** — no `scaleType` resolves a band *by* it; it is what the band is worth once found. An IB scheme carries 7 here on the band coded `"7"` and resolves that band from a raw score. Null means the scheme grades without points, which is normal — not a missing value. |
 | `description` | String, optional | `"Outstanding"`. What a parent reads beside the code. |
 | `passed` | Boolean, required | Whether this band is a pass. **Stored, not derived from a threshold**: a practical may pass at 40 where theory passes at 33, and some boards have no pass/fail at all. |
 
@@ -510,9 +561,9 @@ starts, and fails only when somebody calls `search`.
 | `SCHEME_VERSION_TAKEN` | 409 | this school already has that `name` + `schemeVersion` |
 | `GRADE_BANDS_REQUIRED` | 400 | an empty band list — a scheme that grades nothing is not a scheme |
 | `GRADE_BAND_CODE_TAKEN` | 409 | two bands in one set share a `gradeCode` |
-| `GRADE_BAND_BOUNDS_REQUIRED` | 400 | a `PERCENTAGE`/`POINT` band with no bounds |
+| `GRADE_BAND_BOUNDS_REQUIRED` | 400 | a `PERCENTAGE`/`MARKS` band with no bounds |
 | `GRADE_BAND_BOUNDS_NOT_ALLOWED` | 400 | a `DESCRIPTOR` band carrying bounds, or a `DESCRIPTOR` scheme carrying `maximumValue` |
-| `SCALE_MAXIMUM_REQUIRED` | 400 | a `PERCENTAGE`/`POINT` scheme with no `maximumValue`, or one that is zero or below — a scale nothing can be measured against |
+| `SCALE_MAXIMUM_REQUIRED` | 400 | a `PERCENTAGE`/`MARKS` scheme with no `maximumValue`, or one that is zero or below — a scale nothing can be measured against |
 | `INVALID_GRADE_BAND_RANGE` | 400 | `maximumValue` below `minimumValue` on one band |
 | `GRADE_BANDS_OVERLAP` | 409 | two bands cover the same value — refused, unlike a gap |
 | `GRADE_BAND_OUTSIDE_SCALE` | 409 | a band reaches past the scheme's `maximumValue`, or below zero |
@@ -533,9 +584,9 @@ starts, and fails only when somebody calls `search`.
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: whether this school already has that `name` + `schemeVersion`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *insert*: `schoolId`, `name`, `schemeVersion`, `scaleType`, `maximumValue`, `gradeBands`, `active` = `true`
-- **The scale decides the shape of everything under it**, and is checked first: `DESCRIPTOR` refuses `maximumValue` and refuses bounds on every band; `PERCENTAGE` and `POINT` require all three. Checking a band's bounds before knowing the scale would produce the right refusal for the wrong reason.
+- **The scale decides the shape of everything under it**, and is checked first: `DESCRIPTOR` refuses `maximumValue` and refuses bounds on every band; `PERCENTAGE` and `MARKS` require all three. Checking a band's bounds before knowing the scale would produce the right refusal for the wrong reason.
 - **Then the band set, as a set**, in this order: each band's own range is not inverted (`400 INVALID_GRADE_BAND_RANGE`), no code repeats (`409 GRADE_BAND_CODE_TAKEN`), none reaches outside the scale (`409 GRADE_BAND_OUTSIDE_SCALE`), none overlaps another (`409 GRADE_BANDS_OVERLAP`). Order matters for the same reason it does in the term plan: an inverted range checked last gets reported as an overlap, which is true and says the wrong thing.
-- **Gaps are reported, not refused** — a `warning` naming the uncovered ranges, and **measured in whole marks**: `90 → 91` holds no integer and is silent, `32 → 81` holds 33 through 80 and is not. Inclusive bounds mean adjacent bands always leave a sliver, so reporting every one would warn on almost every valid scheme. See [open item 5](#5-a-gap-between-bands-is-not-always-a-mistake--settled-2026-09-13).
+- **Gaps are reported, not refused** — a `warning` naming the uncovered ranges, and **measured in whole marks**: `90 → 91` holds no integer and is silent, `32 → 81` holds 33 through 80 and is not. Inclusive bounds mean adjacent bands always leave a sliver, so reporting every one would warn on almost every valid scheme. See [open item 6](#6-a-gap-between-bands-is-not-always-a-mistake--settled-2026-09-13).
 - **`active` is not accepted at create.** It is an event with its own endpoints, #4 and #5, and a scheme created already retired is a state nothing asked for. Same rule as every other create in `academics`.
 - **Bands are stored in the order given, not re-sorted.** A school listing `A1` first means A1 first, and a response that silently reordered them would make a typo hard to spot against the paper it was copied from. The *checks* sort a copy, because overlap is a question about the set rather than about the list.
 - **`passed` defaults to `true` when omitted**, matching the model. An author listing eight bands should have to say which ones fail, not repeat `"passed": true` seven times.
@@ -560,7 +611,7 @@ starts, and fails only when somebody calls `search`.
 - [`school_classes`](../../../models/academics/structure/SchoolClass.java) — *reads*: whether any `subjects[].gradingSchemeDocsId` is this scheme
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *updates*: `gradeBands`, and nothing else
 - **Refused the moment anything references this scheme** — `409 SCHEME_STILL_REFERENCED`, naming what was found. Then the path is #2, which is what versioning is for.
-- **The reference check is incomplete and says so.** Only `school_classes` is reachable today; `exams` and `report_cards` have no endpoints and therefore no rows. The message names which collections were actually checked, so a pass is never read as a guarantee. See [open item 4](#4-has-this-scheme-been-used-is-a-query-across-three-collections).
+- **The reference check is incomplete and says so.** Only `school_classes` is reachable today; `exams` and `report_cards` have no endpoints and therefore no rows. The message names which collections were actually checked, so a pass is never read as a guarantee. See [open item 5](#5-has-this-scheme-been-used-is-a-query-across-three-collections).
 - **The same band rules as #1**, run against the whole new set — this is a replace, so the old set has no say in whether the new one is valid.
 - **Not a `PATCH`, and not per-band.** A band set is only valid as a whole; adding one band always risks an overlap or a gap with its neighbours.
 
@@ -585,13 +636,13 @@ starts, and fails only when somebody calls `search`.
 
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: one page, filtered
 - **Three filters, all optional, all AND-ed**: `?active=` (absent returns both, which is not the same as `false`), `?scaleType=`, `?search=` matching `name` case-insensitively anywhere.
-- **`?search=` matches `name` only**, unlike the term list which also matches a code. There is no code to match — which is itself an argument for [open item 3](#3-name-is-a-key-so-there-can-be-no-rename).
+- **`?search=` matches `name` only**, unlike the term list which also matches a code. There is no code to match — which is itself an argument for [open item 4](#4-name-is-a-key-so-there-can-be-no-rename).
 - **The needle is `Pattern.quote`d**, so a stray `(` is an empty result rather than a 500 from `PatternSyntaxException`. Same as every other search in this project.
 - **Bands are not returned**, only `bandCount`. A twelve-scheme page carrying twelve full band tables is a large response nobody reads; #7 is one call away.
 - **Sorted by `name`, then `schemeVersion`** — the two that are unique together, so paging is stable and cannot put one row on two pages while another is never seen. **This is the first list in the project whose stable order needs two fields**: a school holds one name at several versions and one version string across several names, so neither alone would have served. Contrast #9 of the structure module, where `sequence` alone is unique within a year. Grouping a rulebook's versions together is the useful side effect, not the reason.
 - **`?sort=` is an allowlist**: `name`, `schemeVersion`, `scaleType`, `createdAt`, `updatedAt`. **`gradeBands` is deliberately not on it** — Mongo sorts an array by its first element, so it would order schemes by whichever band happened to be entered first: a result that looks deliberate and means nothing.
 - **Nothing here can 404** beyond an unknown subdomain. Unlike the term list, which resolves a `{year}` from the path, there is no parent to resolve — so an empty page means "this school has no schemes", which is a fact rather than the ambiguity an empty page for an unknown year would be.
-- **Three filters and no more.** There is deliberately nothing for "schemes with a gap" — that note is recomputed per read rather than stored, so filtering on it would mean walking every band of every document in the collection — and nothing for "schemes in use", which is the query [open item 4](#4-has-this-scheme-been-used-is-a-query-across-three-collections) has not settled.
+- **Three filters and no more.** There is deliberately nothing for "schemes with a gap" — that note is recomputed per read rather than stored, so filtering on it would mean walking every band of every document in the collection — and nothing for "schemes in use", which is the query [open item 5](#5-has-this-scheme-been-used-is-a-query-across-three-collections) has not settled.
 - **No gates.** A suspended school still reads its own grading rules.
 
 <a id="e7"></a>
@@ -619,6 +670,6 @@ starts, and fails only when somebody calls `search`.
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: the scheme, for its `name`
 - [`grading_schemes`](../../../models/academics/grading/GradingScheme.java) — *reads*: every scheme in this school with that `name`
 - **Addressed by id, answered by name.** The caller has an id — from a report card, say — and wants the rulebook it belongs to. Requiring them to know the name first would make this endpoint useless to the one caller that needs it.
-- **Which is exactly what [open item 3](#3-name-is-a-key-so-there-can-be-no-rename) protects.** A rename breaks this endpoint and nothing else, silently, by splitting one rulebook's history into two.
+- **Which is exactly what [open item 4](#4-name-is-a-key-so-there-can-be-no-rename) protects.** A rename breaks this endpoint and nothing else, silently, by splitting one rulebook's history into two.
 - **Oldest first, by `schemeVersion`** — a string sort, so a school numbering `2026.1`, `2026.2`, `2026.10` gets `2026.10` in the middle. Documented rather than solved: the alternative is parsing a version string whose format is the school's, not ours.
 - **Not paged.** A rulebook has versions in the low single digits, and unlike the term list there is no plausible school with twelve.

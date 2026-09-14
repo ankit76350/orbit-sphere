@@ -81,8 +81,8 @@ public class GradingScheme extends SchoolBase {
     @NotNull
     private GradingScaleType scaleType;
 
-    // Maximum value the bands are read against: 100 for PERCENTAGE, 7 for an IB POINT
-    // scale. Null for DESCRIPTOR, which has nothing to measure. Example: 100.00
+    // Maximum value the bands are read against: 100 for PERCENTAGE, the paper total for
+    // MARKS. Null for DESCRIPTOR, which has nothing to measure. Example: 100.00
     @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal maximumValue;
 

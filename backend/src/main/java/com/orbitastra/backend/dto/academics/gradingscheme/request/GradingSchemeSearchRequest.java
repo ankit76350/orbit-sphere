@@ -28,7 +28,7 @@ public record GradingSchemeSearchRequest(
         Boolean active,
 
         /**
-         * PERCENTAGE · POINT · DESCRIPTOR.
+         * PERCENTAGE · MARKS · DESCRIPTOR.
          *
          * <p>The one filter a caller uses to answer a real question: "what can I grade an exam
          * out of 100 with" excludes descriptor schemes, which cannot be resolved by value at all.

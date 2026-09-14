@@ -24,7 +24,9 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * means "this school has no schemes" rather than "no such year".
  */
 
-const SCALES = ['PERCENTAGE', 'POINT', 'DESCRIPTOR']
+// The scale names what a teacher ENTERS. MARKS was POINT until 2026-09-14, which read as a
+// grade point — and a grade point is an output, carried on the band as gradePoint.
+const SCALES = ['PERCENTAGE', 'MARKS', 'DESCRIPTOR']
 
 const TRISTATE = ['', 'true', 'false']
 const SORTS = ['', 'name', 'name,desc', 'schemeVersion', 'schemeVersion,desc', 'scaleType',
@@ -405,7 +407,7 @@ function AddScheme({ open, onClose, onAdded }) {
             <Field
               label="Maximum value"
               required
-              hint="The ceiling the bands are read against — 100 for a percentage, 7 for IB points. Required on this scale."
+              hint="The ceiling the bands are read against — 100 for a percentage, the paper total for marks. Required on this scale."
               error={errors.maximumValue}
             >
               <Input type="number" value={maximumValue} error={errors.maximumValue}

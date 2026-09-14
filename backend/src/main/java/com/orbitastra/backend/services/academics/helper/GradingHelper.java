@@ -54,7 +54,7 @@ public class GradingHelper {
     /**
      * A scale that measures needs a ceiling; one that does not must not carry one.
      *
-     * <p>{@code PERCENTAGE} and {@code POINT} both resolve a mark by range, so
+     * <p>{@code PERCENTAGE} and {@code MARKS} both resolve a mark by range, so
      * {@code maximumValue} is what "inside the scale" means and a band cannot be checked without
      * it. {@code DESCRIPTOR} has no mark to compare — a teacher picks "Developing" directly — so
      * a ceiling on it would be a number nothing could ever read.
@@ -71,7 +71,7 @@ public class GradingHelper {
             if (maximumValue != null) {
                 throw ApiException.badRequest("GRADE_BAND_BOUNDS_NOT_ALLOWED",
                         "A DESCRIPTOR scheme has nothing to measure, so it cannot carry a "
-                                + "maximumValue. Leave it out, or use PERCENTAGE or POINT.");
+                                + "maximumValue. Leave it out, or use PERCENTAGE or MARKS.");
             }
             return;
         }
@@ -121,7 +121,7 @@ public class GradingHelper {
                 throw ApiException.badRequest("GRADE_BAND_BOUNDS_NOT_ALLOWED",
                         "Band '" + band.gradeCode() + "' carries a bound, but a DESCRIPTOR grade "
                                 + "is chosen rather than computed. Remove the bounds, or use "
-                                + "PERCENTAGE or POINT.");
+                                + "PERCENTAGE or MARKS.");
             }
         }
     }

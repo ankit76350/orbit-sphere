@@ -20,10 +20,16 @@ import jakarta.validation.constraints.Size;
  * bounds at all:
  *
  * <pre>
- * PERCENTAGE   maximumValue required (usually 100)   every band bounded
- * POINT        maximumValue required (7 for IB)      every band bounded
+ * PERCENTAGE   maximumValue required, 100            every band bounded
+ * MARKS        maximumValue required, the total      every band bounded
  * DESCRIPTOR   maximumValue refused                  no band bounded
  * </pre>
+ *
+ * <p><b>The scale names what a teacher enters, never what comes out.</b> The awarded grade is
+ * a band's {@code gradeCode} and its weight in an aggregate is {@code gradePoint}; both are
+ * mapped <i>from</i> a value on one of these scales. An IB scheme is {@code PERCENTAGE} or
+ * {@code MARKS} with bands coded "7" down to "1" — the 1–7 is the grade IB awards, not the
+ * number a teacher types.
  *
  * <p>Checking a band's bounds before knowing the scale would produce the right refusal for the
  * wrong reason — "this band needs a minimum" when the real answer is "this scheme does not
@@ -64,13 +70,13 @@ public record GradingSchemeCreateRequest(
          */
         @NotBlank @Size(max = 40) String schemeVersion,
 
-        /** PERCENTAGE · POINT · DESCRIPTOR. Never changes — it reinterprets every band under it. */
+        /** PERCENTAGE · MARKS · DESCRIPTOR. Never changes — it reinterprets every band under it. */
         @NotNull GradingScaleType scaleType,
 
         /**
-         * The ceiling the bands are read against — 100 for a percentage, 7 for IB points.
+         * The ceiling the bands are read against — 100 for a percentage, the paper total for marks.
          *
-         * <p>Required for PERCENTAGE and POINT, refused for DESCRIPTOR. Optional here because the
+         * <p>Required for PERCENTAGE and MARKS, refused for DESCRIPTOR. Optional here because the
          * rule depends on {@code scaleType}, which bean validation cannot reach.
          */
         BigDecimal maximumValue,

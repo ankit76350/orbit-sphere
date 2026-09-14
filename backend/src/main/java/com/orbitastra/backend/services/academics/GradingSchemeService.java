@@ -113,7 +113,7 @@ public class GradingSchemeService {
      *
      * <p><b>The scale is read first, and everything else is checked against it.</b> A
      * {@code DESCRIPTOR} scheme refuses a ceiling and refuses bounds; {@code PERCENTAGE} and
-     * {@code POINT} require all three. Asking about a band before knowing the scale gives the
+     * {@code MARKS} require all three. Asking about a band before knowing the scale gives the
      * right refusal for the wrong reason.
      *
      * <p><b>A gap is reported; an overlap is refused.</b> A gap means one mark has no grade —
