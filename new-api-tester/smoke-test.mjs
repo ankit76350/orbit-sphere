@@ -3492,6 +3492,101 @@ for (const [label, ok] of eventChecks) {
 }
 
 console.log('\nNavigation')
+// ----------------------------------------------------------------- people / organization
+//
+// #9, #12 and #13. THE THREE THINGS WORTH GUARDING are the ones a plausible wrong implementation
+// would get wrong quietly: a tree that pages, an orphan that vanishes, and a code that is derived
+// from a name it does not move with.
+console.log('\nPeople / Organization')
+const peopleCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_ORGANIZATION'))
+// The group's order is create-department, create-position, list-departments — the order they were
+// built in, not the order they are numbered. Slicing on the numbered order gave three empty
+// strings and six checks that passed on nothing.
+const orgDeptEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-department'),
+  peopleCatalogue.indexOf('create-position'))
+const orgPosEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-position'),
+  peopleCatalogue.indexOf('list-departments'))
+const orgListEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('list-departments'),
+  peopleCatalogue.indexOf('export const API_CATALOG'))
+const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
+const peopleChecks = [
+  // #9
+  ['#9 posts to the school surface, with no year in the path',
+    /path: "\/schools\/current\/departments"/.test(orgDeptEntry)
+      && !orgDeptEntry.includes('{year}')],
+  ['the code is documented as given, never derived',
+    orgDeptEntry.includes('given, never derived')],
+  ['and as upper-cased, so ADMIN and admin collide',
+    orgDeptEntry.includes('upper-cased')],
+  ['two units may share a name — only the code is unique',
+    orgDeptEntry.includes('only the code is unique')],
+  ['the head is validated to exist but NOT to be employed',
+    orgDeptEntry.includes('NOT to be employed')],
+  ['gate 4 is documented as not running, with the reason',
+    orgDeptEntry.includes('Two gates, not three')
+      && orgDeptEntry.includes('outlives any year')],
+
+  // #12 — the tree
+  ['#12 reads the departments',
+    /path: "\/schools\/current\/departments"/.test(orgListEntry)
+      && orgListEntry.includes('method: "GET"')],
+  ['it documents TWO response shapes', orgListEntry.includes('two response shapes')],
+  ['the tree refusing to be paged is documented, with the reason',
+    orgListEntry.includes('TREE_CANNOT_BE_PAGED')
+      && orgListEntry.includes('cuts children off their parents')],
+  ['and it is a listed refusal, not just prose',
+    /code: "TREE_CANNOT_BE_PAGED"/.test(orgListEntry)],
+  ['the orphan case is documented as LIFTED, not dropped',
+    orgListEntry.includes('lifted to the top') && orgListEntry.includes('not dropped')],
+  ['and it is a test case, because it is the interesting one',
+    orgListEntry.includes('THE ORPHAN CASE')],
+  ['the visited set is justified by #10, not by habit',
+    orgListEntry.includes('visited set') && orgListEntry.includes('#10 will')],
+  ['the tiebreaker is justified by names not being unique',
+    orgListEntry.includes('Two units may share a name')],
+  ['search covers the code as well as the name',
+    orgListEntry.includes('name** or') || orgListEntry.includes('name \*\*or\*\*')
+      || orgListEntry.includes('(name **or** code)')],
+
+  // #13
+  ['#13 posts to the positions surface',
+    /path: "\/schools\/current\/positions"/.test(orgPosEntry)],
+  ['it says a position has no code', orgPosEntry.includes('A position has no code')],
+  ['and why the index went with the field',
+    orgPosEntry.includes('exactly **one** row per school')],
+  ['the title carries uniqueness, scoped to the department',
+    orgPosEntry.includes('POSITION_TITLE_TAKEN')
+      && orgPosEntry.includes('different** department is fine')],
+  ['a retired seat keeping its title is documented',
+    orgPosEntry.includes('A retired seat keeps its title')],
+  ['the department must be ACTIVE, not merely present',
+    orgPosEntry.includes('DEPARTMENT_NOT_ACTIVE')],
+  ['the reporting line crossing departments is deliberate',
+    orgPosEntry.includes('crosses departments on purpose')],
+  ['approvedHeadcount following the model over the plan is stated',
+    orgPosEntry.includes('follows the model, not the plan')],
+
+  // The screen
+  ['the page reads #12 for the list', orgDeptScreen.includes("call('list-departments'")],
+  ['it creates through #9 and #13',
+    orgDeptScreen.includes("call('create-department'") && orgDeptScreen.includes("call('create-position'")],
+  ['the tree renders nested, not flattened', orgDeptScreen.includes('function TreeNode')],
+  ['a lifted node is marked on screen, not shown as an ordinary root',
+    orgDeptScreen.includes('lifted to top')],
+  // THE TESTER RULE: a documented refusal must stay reachable from the screen.
+  ['paging parameters can still be sent in tree mode, so the 400 is reachable',
+    orgDeptScreen.includes('include paging parameters')],
+  ['and the page explains that refusal rather than hiding it',
+    orgDeptScreen.includes('TREE_CANNOT_BE_PAGED')],
+  ['the department id stays editable when adding a seat, so its refusals are reachable',
+    orgDeptScreen.includes('Pre-filled from the row')],
+  ['nothing on this screen is disabled', !/disabled/.test(orgDeptScreen)],
+]
+for (const [label, ok] of peopleChecks) {
+  console.log(ok ? `  ok     ${label}` : `  MISS   ${label}`)
+  if (!ok) fail++
+}
+
 const html = at('/platform-plans/subscriptions')
 const checks = [
   // The surface is the biggest question in this API, so both are always on offer.

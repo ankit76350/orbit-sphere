@@ -1,17 +1,23 @@
-import { useEffect, useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
+import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * The org chart a school hires into: /school-people/departments
  *
- * TWO ENDPOINTS — #9 creates a unit, #13 creates a seat inside one. There is no list yet (#12 is
- * GET /departments and #15 is GET /positions, neither built), so this shows what it has just
- * created rather than what the school holds. It says so, instead of rendering an empty table that
- * looks like a school with no org chart.
+ * THREE ENDPOINTS — #12 lists the units, #9 creates one, #13 creates a seat inside one. The
+ * department table is #12's answer, so it shows what the school HOLDS. The position table is
+ * still session-only: #15 is GET /positions and is not built, and the page says so rather than
+ * rendering an empty table that looks like a school with no seats.
+ *
+ * #12 HAS TWO SHAPES AND THE TOGGLE PICKS ONE. Flat is a page envelope; ?tree=true is nested
+ * roots. Paging a tree is refused by the API, so the page-size and page controls are still shown
+ * in tree mode — sending them is how that refusal is reached, and hiding them would make a
+ * documented 400 untestable.
  *
  * A SEAT IS ADDED FROM ITS DEPARTMENT'S ROW, because #13 needs a departmentDocsId and the row is
  * where one is. Typing an id into a box would work too, and would be the only way to reach the
@@ -26,6 +32,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * kind of thing somebody tests once and then wonders about.
  */
 
+const TRISTATE = ['', 'true', 'false']
+const SORTS = ['', 'name', 'name,desc', 'departmentCode', 'departmentCode,desc',
+  'createdAt,desc', 'updatedAt,desc']
+const SIZES = ['5', '20', '100']
+
 const BLANK = {
   departmentCode: '',
   name: '',
@@ -35,13 +46,62 @@ const BLANK = {
 }
 
 export default function Departments() {
-  const { actingSubdomain } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain } = useApiState()
+  // Whether to send page and size at all. Kept separate from tree so the refusal stays reachable:
+  // leave it on in tree mode and the API answers TREE_CANNOT_BE_PAGED, which is the point.
+  const [paging, setPaging] = useState(true)
   const [open, setOpen] = useState(false)
-  const [made, setMade] = useState([])
   // Which department's row opened the seat modal. Null means the toolbar button did, and the
   // box starts empty — every refusal stays reachable either way.
   const [seatFor, setSeatFor] = useState(null)
   const [seats, setSeats] = useState([])
+
+  const [tree, setTree] = useState('')
+  const [active, setActive] = useState('')
+  const [topLevelOnly, setTopLevelOnly] = useState('')
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Built at render, so the endpoint tag shows the URL that will actually be sent. An empty box
+  // sends nothing rather than an empty parameter — `?active=` is not the same as no filter.
+  const query = useMemo(() => {
+    const out = {}
+    if (tree) out.tree = tree
+    if (active) out.active = active
+    if (topLevelOnly) out.topLevelOnly = topLevelOnly
+    if (search.trim()) out.search = search.trim()
+    if (sort) out.sort = sort
+    // Sent even in tree mode, on purpose: TREE_CANNOT_BE_PAGED is a documented refusal and
+    // hiding these would make it unreachable from this screen.
+    if (!(tree === 'true' && paging === false)) {
+      out.page = page
+      out.size = size
+    }
+    return out
+  }, [tree, active, topLevelOnly, search, sort, page, size, paging])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-departments', { label: "The school's departments", query })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, query])
+
+  useEffect(() => { load() }, [load])
+
+  const runSearch = () => { setPage(0); setSearch(typed) }
+  const isTree = tree === 'true'
+  const rows = data?.content ?? []
 
   if (!actingSubdomain) return <NoSchoolChosen what="Departments" />
 
@@ -62,22 +122,108 @@ export default function Departments() {
       </div>
 
       <Card
-        title="Departments created here"
-        description="#9 is the only organization endpoint built. There is no list yet — #12 is GET /departments — so this shows what this page created, not what the school holds."
+        title="Filters"
+        description="All five are AND-ed, and blank sends nothing at all — which is not the same as sending false."
+        action={<EndpointTag id="list-departments" name="List" query={query} />}
+      >
+        <div className="stack">
+          <div className="toolbar">
+            <Field label="Search" wide
+              hint="Matches name OR departmentCode, case-insensitive, anywhere. A stray '(' is an empty answer, not a 500.">
+              <Input value={typed} onChange={(event) => setTyped(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }}
+                placeholder="ACADEMICS, or Science" />
+            </Field>
+            <Button icon={Search} onClick={runSearch}>Search</Button>
+            <Button onClick={() => { setSearch(''); setTyped(''); setPage(0) }}>Clear</Button>
+            <span className="toolbar-spacer" />
+            <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+          </div>
+
+          <div className="field-grid">
+            <Field label="Shape"
+              hint="true nests the chart and changes the response shape. Blank or false is a flat page.">
+              <Select label="Shape" value={tree}
+                onChange={(value) => { setTree(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Active" hint="Blank returns BOTH — and a retired unit keeps its place in the tree.">
+              <Select label="Active" value={active}
+                onChange={(value) => { setActive(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Top level only" hint="Asked with exists, so a unit with no parent key reads as top-level.">
+              <Select label="Top level only" value={topLevelOnly}
+                onChange={(value) => { setTopLevelOnly(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Sort" hint="Tiebroken by departmentCode — two units may share a name.">
+              <Select label="Sort" value={sort}
+                onChange={(value) => { setSort(value); setPage(0) }} options={SORTS} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <Field label="Send page and size"
+              hint="Leave on in tree mode to reach TREE_CANNOT_BE_PAGED — a tree has no page boundary, and the API refuses rather than ignoring.">
+              <label className="check">
+                <input type="checkbox" checked={paging}
+                  onChange={(event) => setPaging(event.target.checked)} />
+                <span>include paging parameters</span>
+              </label>
+            </Field>
+            <Field label="Page size" hint="Defaults to 20, capped at 100. 0 and 101 are refused, never clamped.">
+              <Select label="Page size" value={size}
+                onChange={(value) => { setSize(value); setPage(0) }} options={SIZES} />
+            </Field>
+            <span className="toolbar-spacer" />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span className="muted">page {page}</span>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title={isTree ? 'The org chart' : 'Departments'}
+        description={isTree
+          ? 'From #12 with ?tree=true — built from ONE flat read, not a query per level.'
+          : 'From #12, ordered by name then departmentCode. The counts describe every match, not this page.'}
         action={
           <div className="btn-row">
-            <EndpointTag id="create-department" name="Add a department" />
-            <Badge>{made.length} this session</Badge>
+            {isTree && data?.totalElements != null
+              ? <Badge>{data.totalElements} at any depth</Badge>
+              : <Badge>{data?.totalElements ?? 0} matching</Badge>}
+            {isTree && data?.depth != null ? <Badge>depth {data.depth}</Badge> : null}
+            {isTree && data?.liftedToTop ? <Badge tone="brand">{data.liftedToTop} lifted</Badge> : null}
+            <Button icon={Plus} onClick={() => setOpen(true)}>Add</Button>
           </div>
         }
       >
-        {made.length === 0 ? (
+        {problem ? (
           <Empty
-            title="Nothing created here yet"
-            description="This is not 'the school has no departments' — nothing can answer that until #12 is built. Add one to see what #9 returns."
-            action={
-              <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add the first</Button>
+            title={problem.bodyJson?.code || `The server answered ${problem.status}`}
+            description={
+              problem.bodyJson?.code === 'TREE_CANNOT_BE_PAGED'
+                ? 'A tree has no page boundary — cutting one would separate children from their '
+                  + 'parents. Turn off "include paging parameters", or switch the shape back to flat.'
+                : problem.bodyJson?.message || 'Nothing came back.'
             }
+            action={<Button icon={RefreshCw} onClick={load}>Try again</Button>}
+          />
+        ) : isTree ? (
+          (data?.roots ?? []).length === 0 ? (
+            <Empty title="No units match"
+              description="An empty tree, never a 404. Clear the filters to see whether the school has any." />
+          ) : (
+            <div className="stack">
+              {(data?.roots ?? []).map((root) => (
+                <TreeNode key={root.departmentDocsId} node={root} depth={0} onSeat={setSeatFor} />
+              ))}
+            </div>
+          )
+        ) : rows.length === 0 ? (
+          <Empty
+            title="No departments match"
+            description="An empty page, never a 404. Clear the filters to see whether the school has any at all."
+            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
           />
         ) : (
           <div className="table-scroll">
@@ -93,17 +239,15 @@ export default function Departments() {
                 </tr>
               </thead>
               <tbody>
-                {made.map((one) => (
+                {rows.map((one) => (
                   <tr key={one.departmentDocsId}>
                     {/* Given, never derived — and what positions and exports are written against. */}
                     <td><span className="mono">{one.departmentCode}</span></td>
                     <td>
                       {one.name}
-                      {one.description
-                        ? <div className="muted">{one.description}</div>
-                        : null}
+                      {one.description ? <div className="muted">{one.description}</div> : null}
                     </td>
-                    {/* Raw ids. #12 is where resolving them to names is decided, once. */}
+                    {/* Raw ids. Resolving them to names is #12's tree, decided once. */}
                     <td>{one.parentDepartmentDocsId
                       ? <span className="mono">{one.parentDepartmentDocsId}</span>
                       : <span className="muted">top level</span>}</td>
@@ -130,8 +274,8 @@ export default function Departments() {
           needs a position, and a position needs one of these.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>No academic year is involved</b>, so gate 4 does not run — this
-          still answers after every year has been ended. An org chart outlives them.
+          <Info size={12} /> <b>No academic year is involved</b>, so gate 4 does not run — the
+          writes still answer after every year has been ended. An org chart outlives them.
         </p>
       </Card>
 
@@ -199,7 +343,7 @@ export default function Departments() {
       <AddDepartment
         open={open}
         onClose={() => setOpen(false)}
-        onAdded={(unit) => setMade((old) => [...old, unit])}
+        onAdded={() => load()}
       />
 
       <AddPosition
@@ -530,5 +674,42 @@ function AddPosition({ open, department, onClose, onAdded }) {
         </p>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * One unit in the chart, and whatever hangs off it.
+ *
+ * INDENTED RATHER THAN NESTED IN TABLES, because a table per level makes a three-deep chart into
+ * three scrollbars. Depth is expressed with padding, which is what a person reads it by.
+ *
+ * A LIFTED NODE IS MARKED HERE, not silently shown as a root. #12 lifts a unit whose parent the
+ * filter excluded — it is a real unit the caller asked to see, and pretending it is top-level
+ * would be a quieter lie than dropping it.
+ */
+function TreeNode({ node, depth, onSeat }) {
+  return (
+    <div className="stack" style={{ marginLeft: depth === 0 ? 0 : 20 }}>
+      <div className="toolbar">
+        <span className="mono">{node.departmentCode}</span>
+        <span>{node.name}</span>
+        <Badge tone={node.active ? 'good' : undefined}>
+          {node.active ? 'active' : 'retired'}
+        </Badge>
+        {node.liftedToTop ? (
+          <Badge tone="brand" title="Its parent was excluded by the filter, so it was lifted here rather than dropped">
+            lifted to top
+          </Badge>
+        ) : null}
+        {node.headStaffDocsId
+          ? <span className="muted mono">head {node.headStaffDocsId}</span>
+          : null}
+        <span className="toolbar-spacer" />
+        <Button icon={Plus} onClick={() => onSeat(node)}>Add a seat</Button>
+      </div>
+      {node.children.map((child) => (
+        <TreeNode key={child.departmentDocsId} node={child} depth={depth + 1} onSeat={onSeat} />
+      ))}
+    </div>
   )
 }

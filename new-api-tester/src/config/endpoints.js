@@ -12999,6 +12999,156 @@ seats are correctly flagged.
           notes: `STILL WORKS: gate 4 does not run here. An org chart outlives them.`, body: null },
       ],
     },
+    {
+      id: "list-departments",
+      name: "List Departments",
+      method: "GET",
+      path: "/schools/current/departments",
+      status: 'live',
+      summary: "The tree, or one flat filtered page.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/departments?tree=&active=&search=&…\` — endpoint #12.
+
+### One endpoint, two response shapes
+
+\`?tree=true\` returns **nested roots**; anything else returns a **page envelope**. The caller
+chooses, so it always knows which it is reading — and they are two records rather than one with a
+sometimes-populated \`children\`, because a field present on some responses and absent on others
+is a field every client has to guard.
+
+### The tree cannot be paged, and asking is refused
+
+\`400 TREE_CANNOT_BE_PAGED\`. A page boundary in a tree **cuts children off their parents** — page
+2 is not part of a chart, it is a broken one that still looks like a chart. Silently dropping the
+parameter would hide that.
+
+The flat side **is** paged, which the plan originally said not to do. Nothing caps a school's
+department count, and this endpoint's own title says "one flat filtered **page**".
+
+### Built from one flat read
+
+A query per level would be a storm for a structure that fits in memory. A school has tens of
+departments.
+
+### The orphan case — the interesting one
+
+\`?tree=true&active=true\` excludes a **retired parent** whose children are still active. Those
+children are real units the caller asked to see, so they are **lifted to the top** and marked
+\`liftedToTop\`, not dropped with the parent. The response carries the count.
+
+Dropping them was the alternative, and it would have hidden active departments. Leaving a hole
+where the parent was is not a tree either.
+
+### The builder carries a visited set
+
+Nothing can write a cycle today — #9 cannot, because a new unit has no children — but **#10 will
+be able to**, and a cycle written then is a crash in whatever first draws the chart. This is that
+thing, so the guard belongs here.
+
+### Five filters, all AND-ed
+
+\`?active=\` · \`?search=\` (name **or** code) · \`?parentDepartmentDocsId=\` ·
+\`?headStaffDocsId=\` · \`?topLevelOnly=\`
+
+\`?topLevelOnly=\` asks \`exists\` on the parent rather than comparing to null, so a document
+written before the field existed reads as top-level.
+
+### Sorted by name, tiebroken by departmentCode
+
+**Two units may share a name** — that is a real org chart, two "Science" units under different
+parents. So \`name\` alone ties, and a tie with no tiebreaker puts one row on two pages while
+another appears on none. \`departmentCode\` is unique per school and settles it.
+
+### No gates
+
+A suspended or closed school still reads its own org chart.
+
+### The seventeen test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain.
+
+ TWO SHAPES. ?tree=true gives nested roots; anything else gives a page
+ envelope. The caller picks, so it always knows which it is reading.
+
+ THE TREE CANNOT BE PAGED — 400, not a silently dropped parameter. A page
+ boundary cuts children off their parents.
+
+ THE ORPHAN CASE IS THE INTERESTING ONE. ?tree=true&active=true drops a
+ retired parent; its ACTIVE children are lifted to the top and marked
+ liftedToTop rather than vanishing with it.
+
+ FIVE FILTERS, ALL AND-ed: active, search (name OR code),
+ parentDepartmentDocsId, headStaffDocsId, topLevelOnly.
+
+ SORTED BY name, TIEBROKEN BY departmentCode — two units may share a name,
+ so name alone would put one row on two pages.`,
+      requiredFields: [],
+      pathParams: [],
+      queryParams: [
+        { key: "tree", value: "", enabled: false, description: "true returns nested roots instead of a page. Changes the response SHAPE." },
+        { key: "active", value: "", enabled: false, description: "true for units in use, false for retired. Absent returns both — and a retired unit keeps its place in the tree." },
+        { key: "search", value: "", enabled: false, description: "Matches name OR departmentCode, case-insensitive, anywhere. Regex-quoted." },
+        { key: "parentDepartmentDocsId", value: "", enabled: false, description: "The children of one unit." },
+        { key: "headStaffDocsId", value: "", enabled: false, description: "What one person runs." },
+        { key: "topLevelOnly", value: "", enabled: false, description: "true for roots, false for everything nested. Asked with exists, so a missing key reads as top-level." },
+        { key: "page", value: "", enabled: false, description: "0-based. Refused entirely when tree=true." },
+        { key: "size", value: "", enabled: false, description: "1 to 100, default 20. Refused entirely when tree=true." },
+        { key: "sort", value: "", enabled: false, description: "name | departmentCode | createdAt | updatedAt, with ,desc. Anything else is a 400." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page envelope, or — with tree=true — roots, totalElements, liftedToTop and depth.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TREE_CANNOT_BE_PAGED", when: "tree=true sent together with page or size. Refused rather than ignored." },
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field not on the allowlist. The message lists what is." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+      ],
+      examples: [
+        { id: "01", name: "EVERY DEPARTMENT, FLAT", expect: "200 OK",
+          notes: `No parameters.\n    OUT: a page envelope, ordered by name then departmentCode.\n    A flat row has NO children key — that belongs to the tree shape.`, body: null },
+        { id: "02", name: "THE TREE", expect: "200 OK",
+          notes: `?tree=true\n    OUT: roots, totalElements (every unit at any depth, not the roots),\n    liftedToTop and depth. A leaf still has children: [].`, body: null },
+        { id: "03", name: "A TREE CANNOT BE PAGED", expect: "400 Bad Request",
+          notes: `?tree=true&page=0, and ?tree=true&size=10.\n    OUT: { "code": "TREE_CANNOT_BE_PAGED" } — refused, not ignored.`, body: null },
+        { id: "04", name: "THE ORPHAN CASE", expect: "200 OK",
+          notes: `Retire a PARENT whose child is still active, then ?tree=true&active=true.\n    The parent is gone; the child is at the TOP with liftedToTop: true and\n    still names the parent it belongs to. It did not vanish.`, body: null },
+        { id: "05", name: "A RETIRED UNIT KEEPS ITS PLACE", expect: "200 OK",
+          notes: `?tree=true with no active filter. The retired unit is still in the\n    tree, marked active:false — its children are there, and a tree with a\n    hole in the middle is not a tree.`, body: null },
+        { id: "06", name: "SEARCH BY CODE", expect: "200 OK",
+          notes: `?search=PHYSICS — matches departmentCode.`, body: null },
+        { id: "07", name: "SEARCH BY NAME", expect: "200 OK",
+          notes: `?search=scien — case-insensitive, matches anywhere in the name.`, body: null },
+        { id: "08", name: "A STRAY REGEX CHARACTER", expect: "200 OK",
+          notes: `?search=Sci( — an empty page, not a 500.`, body: null },
+        { id: "09", name: "THE CHILDREN OF ONE UNIT", expect: "200 OK",
+          notes: `?parentDepartmentDocsId={{departmentDocsId}}`, body: null },
+        { id: "10", name: "WHAT ONE PERSON RUNS", expect: "200 OK",
+          notes: `?headStaffDocsId= a real Staff.id.`, body: null },
+        { id: "11", name: "THE ROOTS ONLY", expect: "200 OK",
+          notes: `?topLevelOnly=true, then false for everything nested.\n    Asked with exists, so a unit written before the field existed reads as\n    top-level rather than disappearing.`, body: null },
+        { id: "12", name: "ACTIVE OR RETIRED", expect: "200 OK",
+          notes: `?active=true, then false, then leave it off for BOTH.\n    Absent is not the same as false.`, body: null },
+        { id: "13", name: "FILTERS COMBINE", expect: "200 OK",
+          notes: `?active=true&topLevelOnly=true — AND-ed, like every combination here.`, body: null },
+        { id: "14", name: "PAGING THE FLAT LIST", expect: "200 OK",
+          notes: `?page=0&size=2, then page 1, then a page past the end (empty, not\n    an error). totalElements counts every match, not the page.`, body: null },
+        { id: "15", name: "THE TIEBREAKER", expect: "200 OK",
+          notes: `Create two units both named "Science", then ?sort=name&size=1 through\n    the pages. Each appears exactly once, because departmentCode settles\n    the tie — a department name is NOT unique.`, body: null },
+        { id: "16", name: "A SCHOOL WITH NOTHING", expect: "200 OK",
+          notes: `?tree=true on an empty school: roots: [], depth: 0. Never a 404.`, body: null },
+        { id: "17", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `Suspend the school, then read. No gate runs on a read.`, body: null },
+      ],
+    },
   ],
 };
 

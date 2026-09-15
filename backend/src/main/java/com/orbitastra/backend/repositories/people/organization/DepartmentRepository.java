@@ -13,7 +13,8 @@ import com.orbitastra.backend.models.people.organization.Department;
  * one school, so a lookup by code alone would find another school's unit — the bug tenant-scoped
  * lookups exist across this project to prevent.
  */
-public interface DepartmentRepository extends MongoRepository<Department, String> {
+public interface DepartmentRepository
+        extends MongoRepository<Department, String>, DepartmentRepositoryCustom {
 
     /** Whether this school already uses a code. The uniqueness rule, asked before an insert. */
     boolean existsBySchoolIdAndDepartmentCode(String schoolId, String departmentCode);

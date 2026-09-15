@@ -3,6 +3,7 @@ package com.orbitastra.backend.controllers.people.organization;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,7 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
+import com.orbitastra.backend.common.error.exception.ApiException;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
@@ -22,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into. Endpoints #9 to #15 of the plan in this package's README;
- * #9 and #13 are built.
+ * #9, #12 and #13 are built.
  *
  * <p><b>One controller for two documents</b>, because a position outside a department is not a
  * thing. They only exist in relation to each other, which makes them one subject.
@@ -101,5 +105,37 @@ public class OrganizationController {
         return ResponseEntity
                 .created(URI.create("/schools/current/positions/" + response.positionDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #12 — the tree, or one flat filtered page.
+     *
+     * <p><b>{@code ?tree=true} changes the shape of the response</b>, which is why it is the one
+     * parameter here worth reading twice. Flat is a page envelope; the tree is nested roots.
+     *
+     * <p><b>A tree cannot be paged, and asking is refused rather than ignored.</b> A page boundary
+     * in a tree cuts children off their parents — what comes back is not a partial tree but a
+     * broken one, and a client that asked for page 2 would get something that looks like a chart
+     * and is not. Silently dropping the parameter would hide that; a 400 says it.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended or closed school still reads its own org
+     * chart — the same rule every read in this project follows.
+     */
+    @GetMapping("/departments")
+    public ResponseEntity<Object> listDepartments(DepartmentSearchRequest request) {
+
+        if (Boolean.TRUE.equals(request.tree())) {
+            if (request.page() != null || request.size() != null) {
+                throw ApiException.badRequest("TREE_CANNOT_BE_PAGED",
+                        "A tree has no page boundary: cutting one would separate children from "
+                                + "their parents and return a broken chart rather than part of "
+                                + "one. Drop page and size, or drop tree.");
+            }
+
+            return ResponseEntity.ok(organizationService.treeOfDepartments(request));
+        }
+
+        PageResponse<?> page = organizationService.listDepartments(request);
+        return ResponseEntity.ok(page);
     }
 }

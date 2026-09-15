@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Two of 51 are built — [#9](#t9) `POST /departments` and [#13](#t13) `POST /positions`.** This file is the full set of endpoints
+**Three of 51 are built — [#9](#t9) `POST /departments`, [#12](#t12) `GET /departments` and [#13](#t13) `POST /positions`.** This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -253,7 +253,7 @@ relative to **`/schools/current`**.
 | <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire an org unit without deleting it. Idempotent pair. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
+| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, or change the approved headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
@@ -754,7 +754,7 @@ grew.
 **[11](#t11) · `POST /departments/{id}/deactivate` · `/reactivate`** — idempotent pair, no body, the shape every lifecycle flag in this project uses. **Refused while the department still holds active positions** — `409 DEPARTMENT_NOT_EMPTY` — because a retired unit with live seats is a state the org chart cannot draw.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /departments`** — `?tree=true` returns the nesting, `?active=` filters, and the two together are the only interesting combination. **The tree is built in the service from one flat read**, not by recursive queries.
+**[12](#t12) · `GET /departments`** — `?tree=true` returns the nesting, `?active=` filters, and the two together are the only interesting combination: a retired parent with active children. **The tree is built in the service from one flat read**, not by recursive queries. **The flat side is paged; the tree is not**, and asking to page it is a `400` rather than a silently dropped parameter.
 
 <a id="e13"></a>
 **[13](#t13) · `POST /positions`** — inside an **active** department. `approvedHeadcount` optional; absent becomes **1**, and **null is not storable** — the model declares it `@NotNull`, so "uncapped" is not a state a seat can be in. `title` is unique within the department, which is the job `positionCode` used to do. **A position has no code** — `positionCode` was removed on 2026-09-15 and a seat is addressed by its document id, which is what `EmploymentRecord.positionDocsId` already stores.

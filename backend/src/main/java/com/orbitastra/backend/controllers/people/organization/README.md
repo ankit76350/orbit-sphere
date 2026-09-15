@@ -1,6 +1,6 @@
 # controllers/people/organization — API plan
 
-**#9 and #13 are built; the rest are not.** This is the detailed plan for the **organization package** — the org chart a
+**#9, #12 and #13 are built; the rest are not.** This is the detailed plan for the **organization package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -88,7 +88,7 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. |
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire a unit without deleting it. Idempotent pair. |
-| <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
+| <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, retire it. |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
@@ -308,12 +308,20 @@ cannot express, which is what that class is for in every other module.
 - **Reactivate has no such check**, and needs none: restoring a unit cannot invalidate anything.
 
 <a id="e12"></a>
-**[12](#t12) · `GET /departments`**
+**[12](#t12) · `GET /departments`** — built
 
 - *reads*: the school's departments, filtered
 - **`?tree=true` returns the nesting**, built in the service from **one flat read** — not recursive queries. A school has tens of departments; a read-per-level would be a query storm for a structure that fits in memory.
 - **`?active=` filters, and absent returns both** — the tristate rule this project uses everywhere. **A retired department still appears in the tree when the filter is absent**, marked, because its children are still there and a tree with a hole in the middle is not a tree.
-- **Not paged.** A department list is tens of rows and the tree has no meaningful page boundary.
+- **The flat side IS paged — changed 2026-09-15.** The plan said not to, reasoning that a department list is tens of rows. True of most schools and not a constraint anywhere: nothing caps the count, and a group running forty units through one tenant would page. The cost is the shared record and factory that already exist, and this row's own title said "one flat filtered **page**".
+- **The tree is NOT paged, and asking is `400 TREE_CANNOT_BE_PAGED` rather than ignored.** This half of the plan's reasoning was exactly right and is the more important half: a page boundary in a tree cuts children off their parents, so page 2 is not part of a chart — it is a broken one that still looks like a chart. Silently dropping the parameter would hide that.
+- **Five filters, all optional, all AND-ed:** `?active=` · `?search=` · `?parentDepartmentDocsId=` · `?headStaffDocsId=` · `?topLevelOnly=`
+- **`?search=` matches `name` **or** `departmentCode`**, regex-quoted so a stray `(` is an empty answer rather than a 500.
+- **`?topLevelOnly=` asks `exists` on the parent, not a null comparison** — a document written before the field existed has no key at all and must read as top-level.
+- **Sorted by `name`, tiebroken by `departmentCode`.** Two units may share a name — this file says so — so `name` alone ties, and a tie with no tiebreaker puts one row on two pages while another appears on none. `departmentCode` is unique per school and settles it. [`PageResponse.pageableOf`](../../../common/web/PageResponse.java) appends whichever the caller did not name.
+- **A filter can orphan a node, and orphans are lifted rather than dropped.** `?tree=true&active=true` excludes a retired parent whose children are still active — those children are real units the caller asked to see, so they surface at the top marked `liftedToTop` instead of vanishing. The response carries the count. **Dropping them was the alternative and would have hidden active departments**; leaving a hole where the parent was is not a tree.
+- **The builder carries a visited set, and that is not defensive habit.** Nothing can write a cycle today — [#9](#e9) cannot, because a new unit has no children — but [#10](#e10) will be able to, and [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check) says a cycle written then is a crash in whatever first draws the chart. This is that thing, so it is where the guard belongs.
+- **The two shapes are two records**, not one with a sometimes-populated `children`. A field present on some responses and absent on others is a field every client has to guard — the same call #28 and #29 of academics made.
 
 <a id="e13"></a>
 **[13](#t13) · `POST /positions`** — built

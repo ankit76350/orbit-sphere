@@ -1,13 +1,27 @@
 package com.orbitastra.backend.services.people;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.response.DepartmentNodeResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
+import com.orbitastra.backend.dto.people.organization.response.DepartmentTreeResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.organization.Department;
@@ -21,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into — endpoints #9 to #15 of the plan in
- * {@code controllers/people/organization/README.md}. #9 and #13 are built.
+ * {@code controllers/people/organization/README.md}. #9, #12 and #13 are built.
  *
  * <p><b>This is where the people module starts, which surprises people.</b> {@code POST /staff}
  * looks like the first call, but the write that actually employs somebody needs a
@@ -41,6 +55,39 @@ public class OrganizationService {
     private final PositionRepository positions;
     private final StaffRepository staff;
     private final OrganizationServiceUtils utils;
+
+    /**
+     * What {@code ?sort=} accepts, keyed by the lower-cased name a caller types.
+     *
+     * <p>An allowlist rather than a pass-through: an arbitrary field name reaching a Mongo sort is
+     * how a caller sorts on something unindexed and makes the database read every row to answer.
+     */
+    private static final Map<String, String> SORTABLE_DEPARTMENT_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_DEPARTMENT_FIELDS.put("name", "name");
+        SORTABLE_DEPARTMENT_FIELDS.put("departmentcode", "departmentCode");
+        SORTABLE_DEPARTMENT_FIELDS.put("createdat", "createdAt");
+        SORTABLE_DEPARTMENT_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_DEPARTMENT_FIELD_NAMES =
+            SORTABLE_DEPARTMENT_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker on every other sort.
+     *
+     * <p><b>Two keys, because the first is not unique.</b> Two units may share a {@code name} —
+     * the index says so, and two "Science" units under different parents is a real org chart. So
+     * {@code name} alone would tie, and a tie with no tiebreaker puts one row on two pages while
+     * another appears on none. {@code departmentCode} is unique per school and settles it.
+     *
+     * <p>{@link PageResponse#pageableOf} appends whichever of these the caller did not name, so
+     * {@code ?sort=createdAt} is really {@code createdAt, name, departmentCode}.
+     */
+    private static final Sort DEPARTMENT_ORDER =
+            Sort.by(Sort.Order.asc("name"), Sort.Order.asc("departmentCode"));
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
@@ -193,4 +240,129 @@ public class OrganizationService {
                         + NO_AUTHORIZATION_YET);
     }
 
+
+    /**
+     * Endpoint #12, flat — one page of the school's departments.
+     *
+     * <p><b>Paged, though the plan said not to be.</b> Its reasoning was that a department list is
+     * tens of rows. That is true of most schools and not a constraint anywhere: nothing caps the
+     * count, and a group running forty units through one tenant would page. The cost is the
+     * shared record and factory that already exist, and a client that handles every list in this
+     * API the same way is worth more than the rows saved.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own org chart.
+     */
+    public PageResponse<DepartmentResponse> listDepartments(DepartmentSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_DEPARTMENT_FIELDS, SORTABLE_DEPARTMENT_FIELD_NAMES, DEPARTMENT_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own structure.
+        School school = currentSchool.require();
+
+        //! step 3 - one page, filtered and ordered in the database
+        // TODO: read departments
+        return PageResponse.from(
+                departments.search(school.getId(), request, pageable),
+                // The single-argument factory, so no `nextStep` appears on a row: a read changed
+                // nothing, and a null on every row is noise a client has to decide about.
+                DepartmentResponse::fromDepartment);
+    }
+
+    /**
+     * Endpoint #12, nested — the org chart as a tree.
+     *
+     * <p><b>One flat read, then assembled in memory.</b> A query per level would be a storm for a
+     * structure that fits in memory comfortably, and the plan says so.
+     *
+     * <p><b>A filter can orphan a node, and orphans are lifted rather than dropped.</b> Ask for
+     * {@code ?active=true} and a retired parent disappears while its active children remain — they
+     * are real units the caller asked to see, so they surface at the top marked
+     * {@code liftedToTop} instead of vanishing with their parent.
+     */
+    public DepartmentTreeResponse treeOfDepartments(DepartmentSearchRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.require();
+
+        //! step 2 - the whole matching set, in one read, ordered the way a tree should read
+        // TODO: read departments
+        List<Department> rows = departments.searchAll(school.getId(), request, DEPARTMENT_ORDER);
+
+        //! step 3 - index what came back, so a parent can be found without another query.
+        //! Insertion-ordered, because the sort above is what decides sibling order.
+        Map<String, List<Department>> childrenOf = new LinkedHashMap<>();
+        Set<String> present = new LinkedHashSet<>();
+        for (Department one : rows) {
+            present.add(one.getId());
+        }
+
+        List<Department> roots = new ArrayList<>();
+        List<Department> lifted = new ArrayList<>();
+        for (Department one : rows) {
+            String parentId = one.getParentDepartmentDocsId();
+            if (parentId == null) {
+                //! A genuine top-level unit.
+                roots.add(one);
+            } else if (present.contains(parentId)) {
+                childrenOf.computeIfAbsent(parentId, key -> new ArrayList<>()).add(one);
+            } else {
+                //! ORPHANED BY THE FILTER, not by the data. Its parent exists in the collection
+                //! and was excluded from this answer - so the node is lifted rather than dropped,
+                //! because a caller asking for active units must see every active unit.
+                lifted.add(one);
+            }
+        }
+
+        //! step 4 - build downwards from each root, carrying a visited set.
+        //!
+        //! THE VISITED SET IS NOT DEFENSIVE PROGRAMMING, it is the only thing standing between a
+        //! cyclic parent chain and a stack overflow. Nothing can write a cycle today - #9 cannot,
+        //! because a new unit has no children - but #10 will be able to, and open item 2 says a
+        //! cycle written then is a crash in whatever first draws the chart. This is that thing.
+        List<DepartmentNodeResponse> built = new ArrayList<>();
+        for (Department root : roots) {
+            built.add(buildNode(root, childrenOf, new LinkedHashSet<>(), false));
+        }
+        for (Department orphan : lifted) {
+            built.add(buildNode(orphan, childrenOf, new LinkedHashSet<>(), true));
+        }
+
+        return new DepartmentTreeResponse(built, rows.size(), lifted.size(), depthOf(built));
+    }
+
+    /**
+     * One node and everything under it.
+     *
+     * <p>{@code seen} carries the ancestors of this node, so a chain that closes on itself stops
+     * rather than recursing forever. A node already in its own ancestry is dropped from the tree —
+     * it is unreachable in any sane reading of the chart, and returning it would mean returning it
+     * infinitely.
+     */
+    private DepartmentNodeResponse buildNode(Department node,
+            Map<String, List<Department>> childrenOf, Set<String> seen, boolean lifted) {
+
+        if (!seen.add(node.getId())) {
+            return DepartmentNodeResponse.of(node, lifted, List.of());
+        }
+
+        List<DepartmentNodeResponse> children = new ArrayList<>();
+        for (Department child : childrenOf.getOrDefault(node.getId(), List.of())) {
+            children.add(buildNode(child, childrenOf, new LinkedHashSet<>(seen), false));
+        }
+
+        return DepartmentNodeResponse.of(node, lifted, children);
+    }
+
+    /** How deep the answer goes. 0 for an empty tree, 1 for a flat school. */
+    private int depthOf(List<DepartmentNodeResponse> nodes) {
+        int deepest = 0;
+        for (DepartmentNodeResponse node : nodes) {
+            deepest = Math.max(deepest, 1 + depthOf(node.children()));
+        }
+        return deepest;
+    }
 }
