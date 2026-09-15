@@ -123,9 +123,11 @@ public class StaffService {
      * staff number. The sequence is allocated atomically, so two simultaneous creates cannot be
      * handed the same one.
      *
-     * <p><b>A phone number and an email address each identify one person within a school.</b> The
-     * module plan said the opposite about email — "two staff genuinely may share a family address"
-     * — and that was overruled on 2026-09-15. Both are now refused as duplicates.
+     * <p><b>A phone number and an email address are both required, and each identifies one person
+     * within a school.</b> The module plan said {@code fullName} was the only required field and
+     * that a duplicate email was fine — "two staff genuinely may share a family address". Both
+     * were overruled on 2026-09-15: a staff record with no way to contact the person is one the
+     * office has to chase later.
      */
     public StaffCreatedResponse createStaff(StaffCreateRequest request) {
 
@@ -140,6 +142,16 @@ public class StaffService {
         //! have refused had it ever been built.
         String phoneNumber = utils.normalisePhone(request.phoneNumber());
         String emailAddress = TextHelper.lowercaseOrNull(request.emailAddress());
+
+        //! BOTH ARE REQUIRED, and @NotBlank is not quite enough for the phone: "---" and "( )"
+        //! pass it and then normalise away to nothing, which would store a blank number behind a
+        //! request that looked valid.
+        if (phoneNumber == null) {
+            throw ApiException.badRequest("STAFF_PHONE_REQUIRED",
+                    "A phone number is required, and '" + request.phoneNumber() + "' has no "
+                            + "digits in it. Spacing characters are stripped, so a number made "
+                            + "only of them is no number at all.");
+        }
 
         //! step 3 - and each has to be free.
         //!

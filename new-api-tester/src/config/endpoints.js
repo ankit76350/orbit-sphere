@@ -13624,16 +13624,29 @@ the same shape.
 number somebody has written down does not change under them. A school that started on an older
 template keeps it until its stored template is cleared.
 
-### Three required fields, and the plan said one
+### Five required fields, and the plan said one
 
 The module plan says \`fullName\` is the only one: *"a school entering two hundred people at the
-start of term has a name and nothing else on day one."* \`Staff.java\` disagrees — it declares
-\`dateOfBirth\` and \`gender\` \`@NotNull\`.
+start of term has a name and nothing else on day one."* Two separate decisions overruled it.
 
-**The model wins**, decided 2026-09-15, the same way \`approvedHeadcount\` followed the model over
-the plan at #13. Nothing validates a document on save, so the plan's version would have stored rows
-violating their own declared constraints — invisible until something read them expecting a date.
-Relaxing it is a model change, and not this endpoint's to make.
+**\`dateOfBirth\` and \`gender\`, because the model requires them** — 2026-09-15, the same way
+\`approvedHeadcount\` followed the model over the plan at #13. Nothing validates a document on
+save, so the plan's version would have stored rows violating their own declared constraints,
+invisible until something read them expecting a date.
+
+**\`phoneNumber\` and \`emailAddress\`, because the school asked for them** — 2026-09-15. The
+model leaves both optional and this endpoint does not: a staff record with no way to contact the
+person is one the office has to chase later, and *"we will fill it in afterwards"* is what leaves
+765 rows without a phone number.
+
+**Two things follow, and neither is obvious.** Both fields are unique per school, so a duplicate
+is now reachable on **every** create rather than only when somebody happened to supply one. And
+\`?hasEmail=false\` on #7 — *"who are we missing contact details for"* — can no longer match
+anybody created here; it still matches the rows written before this rule, which is exactly who
+that query is for.
+
+**\`"---"\` is refused**, with \`400 STAFF_PHONE_REQUIRED\`. It passes the blank check and then
+normalises away to nothing, which would be a blank number wearing a valid-looking request.
 
 ### This creates a person, not an employee
 
@@ -13716,7 +13729,7 @@ object of nulls. They are the same fact, and a reader should not have to tell th
  A PHONE AND AN EMAIL EACH IDENTIFY ONE PERSON, school-scoped, checked AFTER
  normalising — "+91 98765-43210" collides with "+919876543210". Both indexes
  are PARTIAL, so any number of people may have neither.`,
-      requiredFields: ["fullName", "dateOfBirth", "gender"],
+      requiredFields: ["fullName", "dateOfBirth", "gender", "phoneNumber", "emailAddress"],
       pathParams: [],
       queryParams: [],
       headers: [
@@ -13728,6 +13741,8 @@ object of nulls. They are the same fact, and a reader should not have to tell th
         fullName: "Anita Sharma",
         dateOfBirth: "1990-08-14",
         gender: "FEMALE",
+        phoneNumber: "+919876543210",
+        emailAddress: "anita.sharma@example.com",
       },
       successStatus: 201,
       successNote: "The person, led by the employeeNo the school writes down.",
@@ -13737,7 +13752,8 @@ object of nulls. They are the same fact, and a reader should not have to tell th
         { variable: "employeeNo", from: "employeeNo", note: "What the school writes down." },
       ],
       errors: [
-        { status: 400, code: "VALIDATION_FAILED", when: "fullName blank, dateOfBirth absent or in the future, gender absent or not one of MALE / FEMALE / OTHER, or a malformed email." },
+        { status: 400, code: "VALIDATION_FAILED", when: "fullName, phoneNumber or emailAddress blank; dateOfBirth absent or in the future; gender absent or not one of MALE / FEMALE / OTHER; a malformed email." },
+        { status: 400, code: "STAFF_PHONE_REQUIRED", when: "The phone has no digits — '---' passes the blank check then normalises to nothing." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
@@ -13759,8 +13775,11 @@ object of nulls. They are the same fact, and a reader should not have to tell th
           notes: `IGNORED, not refused — it is not on the request record.\n    OUT: the generated number, not the one sent.`,
           body: { fullName: "Chetan Iyer", dateOfBirth: "1985-05-05", gender: "MALE", employeeNo: "EMP/1900/000999" } },
         { id: "05", name: "A NAME ALONE", expect: "400 Bad Request",
-          notes: `What the PLAN said should work, and the MODEL says should not.\n    OUT: fieldErrors naming dateOfBirth AND gender.`,
+          notes: `What the PLAN said should work. OUT: fieldErrors naming dateOfBirth,\n    gender, phoneNumber AND emailAddress — four fields the plan called\n    optional, overruled by the model and by the school.`,
           body: { fullName: "No Birthday" } },
+        { id: "05b", name: "A PHONE WITH NO DIGITS", expect: "400 Bad Request",
+          notes: `"---" passes @NotBlank and then normalises to nothing.\n    OUT: { "code": "STAFF_PHONE_REQUIRED" } rather than a blank number\n    stored behind a request that looked valid.`,
+          body: { fullName: "No Digits", dateOfBirth: "1990-01-01", gender: "MALE", phoneNumber: "---", emailAddress: "nodigits@example.com" } },
         { id: "06", name: "BORN TOMORROW", expect: "400 Bad Request",
           notes: `OUT: fieldErrors naming dateOfBirth. @Past — a person born in the\n    future is a typo, and one stored is a payroll problem later.`,
           body: { fullName: "Time Traveller", dateOfBirth: "2999-01-01", gender: "OTHER" } },

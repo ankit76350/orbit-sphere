@@ -3815,9 +3815,14 @@ const checks = [
     staffEntry.includes('generated, never accepted') && staffEntry.includes('ignored, not refused')],
   ['the number is atomic AND per school, with both reasons given',
     staffEntry.includes('Atomic') && staffEntry.includes('per school')],
-  ['the model-over-plan decision on required fields is recorded, with the date',
-    staffEntry.includes('The model wins') && staffEntry.includes('2026-09-15')
-      && staffEntry.includes('approvedHeadcount')],
+  ['both overrules of the plan on required fields are recorded, with dates',
+    staffEntry.includes('because the model requires them')
+      && staffEntry.includes('because the school asked for them')
+      && staffEntry.includes('2026-09-15') && staffEntry.includes('approvedHeadcount')],
+  ['and the consequence for ?hasEmail=false is spelled out, not left to be discovered',
+    staffEntry.includes('can no longer match') && staffEntry.includes('written before this rule')],
+  ['a phone of only punctuation is refused rather than stored as nothing',
+    staffEntry.includes('STAFF_PHONE_REQUIRED')],
   ['a person is not an employee, and the page says where the job lives',
     staffEntry.includes('creates a person, not an employee') && staffEntry.includes('#16')],
   ['no country code is invented, and it says why that is safer',
@@ -3837,8 +3842,11 @@ const checks = [
     staffEntry.includes('EMP/{YYYY}/{MM}/') && staffEntry.includes('EMP/2026/09/000001')],
   ['and it says a template change does not restyle a school already numbering',
     staffEntry.includes('does not restyle a school already numbering')],
-  ['the screen says leaving both empty is always fine',
-    staffScreen.includes('partial') && staffScreen.includes('always fine')],
+  ['the screen marks both contact fields required',
+    /label="Phone number"\s+required/.test(staffScreen)
+      && /label="Email address"\s+required/.test(staffScreen)],
+  ['and still explains why the indexes stay partial, for the pre-rule rows',
+    staffScreen.includes('partial') && staffScreen.includes('765 rows')],
   ['an empty address is stored as no address',
     staffEntry.includes('An empty address is no address')],
   ['the create captures the staffDocsId five modules need',

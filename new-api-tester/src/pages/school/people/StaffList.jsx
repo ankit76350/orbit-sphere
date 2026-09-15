@@ -408,7 +408,8 @@ function AddStaff({ open, onClose, onAdded }) {
           </Field>
           <Field
             label="Phone number"
-            hint="Spacing characters are stripped, and the number is UNIQUE within the school — checked after stripping, so retyping it with different spacing still collides. A number without a + is stored AS GIVEN; no country code is invented."
+            required
+            hint="Required since 2026-09-15. Spacing characters are stripped, and the number is UNIQUE within the school — checked after stripping, so retyping it with different spacing still collides. '---' is refused: it passes the blank check then normalises to nothing."
             error={errors.phoneNumber}
           >
             <Input value={form.phoneNumber} error={errors.phoneNumber}
@@ -419,7 +420,8 @@ function AddStaff({ open, onClose, onAdded }) {
         <div className="field-grid">
           <Field
             label="Email address"
-            hint="Trimmed and lower-cased, and UNIQUE within the school — a duplicate is 409 STAFF_EMAIL_TAKEN, checked after lower-casing so another case still collides. Another school may hold the same address."
+            required
+            hint="Required since 2026-09-15. Trimmed and lower-cased, and UNIQUE within the school — a duplicate is 409 STAFF_EMAIL_TAKEN, checked after lower-casing so another case still collides. Another school may hold the same address."
             error={errors.emailAddress}
           >
             <Input value={form.emailAddress} error={errors.emailAddress}
@@ -484,10 +486,16 @@ function AddStaff({ open, onClose, onAdded }) {
           partly filled one is kept: a city and nothing else is real.
         </p>
         <p className="muted">
-          <Info size={12} /> <b>Leaving the phone and email empty is always fine, however many
-          people you enter.</b> Both unique indexes are <span className="mono">partial</span>, so
-          only a value that is actually there has to be unique — a plain unique index would let a
-          school hold exactly one person without a phone.
+          <Info size={12} /> <b>The phone and email are required, so this endpoint can no longer
+          create a person without them.</b> Both unique indexes stay{' '}
+          <span className="mono">partial</span> all the same — 765 rows written before this rule
+          have no phone, and a plain unique index would let a school hold exactly one of them.
+        </p>
+        <p className="muted">
+          <Info size={12} /> Which is also why{' '}
+          <span className="mono">?hasEmail=false</span> above still matters and now only ever
+          finds those older rows — it is the &quot;who are we missing contact details
+          for&quot; query, and this rule is what stops the list growing.
         </p>
         <p className="muted">
           <Info size={12} /> <b>There is no employee-number box.</b> It is generated per school and

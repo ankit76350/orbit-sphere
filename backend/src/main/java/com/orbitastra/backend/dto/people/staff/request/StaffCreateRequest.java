@@ -21,17 +21,27 @@ import jakarta.validation.constraints.Size;
  * same one — and nobody should pick their own staff number. Sending it is ignored rather than
  * refused, the ordinary shape for a field the request record does not declare.
  *
- * <h2>Three required fields, and the plan said one</h2>
+ * <h2>Five required fields, and the plan said one</h2>
  *
  * <p>The module plan says {@code fullName} is the only one: "a school entering two hundred people
- * at the start of term has a name and nothing else on day one". {@link
- * com.orbitastra.backend.models.people.staff.Staff} disagrees — it declares {@code dateOfBirth}
- * and {@code gender} {@code @NotNull}.
+ * at the start of term has a name and nothing else on day one". Two rounds of decisions overruled
+ * it, and both are worth keeping straight:
  *
- * <p><b>The model wins</b>, decided 2026-09-15, the same way {@code approvedHeadcount} followed
- * the model over the plan at #13. Nothing validates a document on save, so the plan's version
- * would have stored rows that violate their own declared constraints — invisible until something
- * reads them expecting a date. Relaxing it is a model change, and not this endpoint's to make.
+ * <p><b>{@code dateOfBirth} and {@code gender}, because the model requires them</b> — decided
+ * 2026-09-15, the same way {@code approvedHeadcount} followed the model over the plan at #13.
+ * Nothing validates a document on save, so the plan's version would have stored rows that violate
+ * their own declared constraints, invisible until something read them expecting a date.
+ *
+ * <p><b>{@code phoneNumber} and {@code emailAddress}, because the school asked for them</b> —
+ * decided 2026-09-15. The model leaves both optional and this endpoint does not: a staff record
+ * with no way to contact the person is one the office has to chase later, and "we will fill it in
+ * afterwards" is what leaves 765 rows without a phone number.
+ *
+ * <p><b>Two things follow from that, and neither is obvious.</b> Both fields are unique per
+ * school, so a duplicate is now reachable on every create rather than only when somebody happened
+ * to supply one. And {@code ?hasEmail=false} on #7 — "who are we missing contact details for" —
+ * can no longer match anybody created through this endpoint; it still matches the rows that
+ * existed before this rule, which is exactly who that query is for.
  *
  * <h2>What a person is not</h2>
  *
@@ -75,20 +85,24 @@ public record StaffCreateRequest(
         @Size(max = 35) String preferredLanguage,
 
         /**
-         * Stored with spacing characters stripped. A leading "+" is kept.
+         * Required. Stored with spacing characters stripped; a leading "+" is kept.
          *
          * <p><b>Unique within the school</b>, compared after normalising — so
          * {@code "+91 98765-43210"} collides with {@code "+919876543210"}.
+         *
+         * <p><b>A string of only punctuation is refused</b>, not stored as nothing: {@code "---"}
+         * passes {@code @NotBlank} and normalises to empty, which would be a blank number wearing
+         * a valid-looking request.
          */
-        @Size(max = 32) String phoneNumber,
+        @NotBlank @Size(max = 32) String phoneNumber,
 
         /**
-         * Stored trimmed and lower-cased.
+         * Required. Stored trimmed and lower-cased.
          *
          * <p><b>Unique within the school</b>, compared after lower-casing — so
          * {@code "Anita@X.com"} collides with {@code "anita@x.com"}.
          */
-        @Email @Size(max = 160) String emailAddress,
+        @NotBlank @Email @Size(max = 160) String emailAddress,
 
         /** Where they live now. Omit it, or send it partly filled. */
         @Valid StaffAddressRequest currentAddress,
