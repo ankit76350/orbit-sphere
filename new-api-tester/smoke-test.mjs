@@ -3581,6 +3581,16 @@ const peopleChecks = [
     orgAddDept.includes("call('create-department'") && !orgDeptScreen.includes("call('create-position'")],
   ['the list asks for a TOP-LEVEL unit, with no parent box to fill',
     orgDeptScreen.includes('parent={null}')],
+  ['and it LISTS only the top level, because a sub-unit belongs to its parent page',
+    orgDeptScreen.includes("useState('true')")],
+  ['the filter is still a select, so every depth is one click away',
+    orgDeptScreen.includes('options={TRISTATE}')
+      && orgDeptScreen.includes("setTopLevelOnly('')")],
+  ['an empty search says which filter emptied it, rather than looking broken',
+    orgDeptScreen.includes('Sub-departments are excluded while Top level only is on')
+      && orgDeptScreen.includes('Search every depth')],
+  ['and the tree warns that the same filter amputates it',
+    orgDeptScreen.includes('strips the children out of the read a tree is built from')],
   ['the parent box is drawn only when a unit asked, not hidden behind a disabled attribute',
     orgAddDept.includes('{parent ? (') && !/disabled/.test(orgAddDept)],
   ['the list holds no session-only table of seats it wrote',

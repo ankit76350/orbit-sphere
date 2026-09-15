@@ -32,6 +32,18 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * is no id on this screen to nest under, so the only correct value would be empty. A sub-unit is
  * added from its parent's page, where the id is already known.
  *
+ * AND WHAT IS LISTED HERE IS TOP-LEVEL TOO — ?topLevelOnly=true, on by default, which no other
+ * filter on this page is. The rule the rest of the screen already follows is that a sub-unit
+ * belongs to its parent: it is opened there, added there, seated there. A flat list of every
+ * depth contradicted that, and put units on this page that the tree beside it showed nested.
+ * The filter is a select, not a decision — blank returns every depth, and the empty state says
+ * so by name when a search finds nothing because of it.
+ *
+ * NO BACKEND CHANGE WAS NEEDED FOR THAT. ?topLevelOnly= is #12's own filter and asks `exists` on
+ * parentDepartmentDocsId; Spring Data omits a null field on write, so a top-level unit has no key
+ * at all — measured 2026-09-15 across 725 stored units: 530 with the key absent, 0 with it
+ * present and null. A document written before the field existed reads as top-level too.
+ *
  * THIS IS WHERE THE PEOPLE MODULE STARTS, which surprises people. POST /staff looks like the
  * first call, but the write that employs somebody needs a positionDocsId, and a position needs a
  * department.
@@ -58,7 +70,11 @@ export default function Departments() {
 
   const [tree, setTree] = useState('')
   const [active, setActive] = useState('')
-  const [topLevelOnly, setTopLevelOnly] = useState('')
+  // TRUE BY DEFAULT, which no other filter here is. This page is the TOP of the chart: a
+  // sub-unit is read, added and edited on its parent's page, so listing every depth here showed
+  // the same unit twice and made the flat list disagree with the tree beside it. It is still a
+  // select — blank returns every depth, and that is one click away.
+  const [topLevelOnly, setTopLevelOnly] = useState('true')
   const [typed, setTyped] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('')
@@ -110,8 +126,8 @@ export default function Departments() {
         <div>
           <h1 className="page-title">Departments</h1>
           <p className="muted">
-            <span className="mono">{actingSubdomain}</span> · the org chart positions hang off ·
-            open a unit to add a seat or a sub-department
+            <span className="mono">{actingSubdomain}</span> · the top of the org chart positions
+            hang off · open a unit for what sits under it, its seats, and to add either
           </p>
         </div>
         <span className="toolbar-spacer" />
@@ -139,7 +155,7 @@ export default function Departments() {
 
           <div className="field-grid">
             <Field label="Shape"
-              hint="true nests the chart and changes the response shape. Blank or false is a flat page.">
+              hint="true nests the chart and changes the response shape. Blank or false is a flat page. Leave Top level only at true here and the tree comes back as roots with nothing under them — the read it is built from excluded the children.">
               <Select label="Shape" value={tree}
                 onChange={(value) => { setTree(value); setPage(0) }} options={TRISTATE} />
             </Field>
@@ -147,7 +163,8 @@ export default function Departments() {
               <Select label="Active" value={active}
                 onChange={(value) => { setActive(value); setPage(0) }} options={TRISTATE} />
             </Field>
-            <Field label="Top level only" hint="Asked with exists, so a unit with no parent key reads as top-level.">
+            <Field label="Top level only"
+              hint="Starts at true — this page is the top of the chart, and a sub-unit is opened from its parent. Blank returns every depth. Asked with exists, so a unit with no parent key reads as top-level.">
               <Select label="Top level only" value={topLevelOnly}
                 onChange={(value) => { setTopLevelOnly(value); setPage(0) }} options={TRISTATE} />
             </Field>
@@ -182,7 +199,9 @@ export default function Departments() {
         title={isTree ? 'The org chart' : 'Departments'}
         description={isTree
           ? 'From #12 with ?tree=true — built from ONE flat read, not a query per level.'
-          : 'From #12, ordered by name then departmentCode. The counts describe every match, not this page.'}
+          : topLevelOnly === 'true'
+            ? 'From #12 with ?topLevelOnly=true — the top of the chart. What sits under a unit is on its own page. The counts describe every match, not this page.'
+            : 'From #12, ordered by name then departmentCode. The counts describe every match, not this page.'}
         action={
           <div className="btn-row">
             {isTree && data?.totalElements != null
@@ -207,8 +226,14 @@ export default function Departments() {
           />
         ) : isTree ? (
           (data?.roots ?? []).length === 0 ? (
-            <Empty title="No units match"
-              description="An empty tree, never a 404. Clear the filters to see whether the school has any." />
+            <Empty
+              title="No units match"
+              description={topLevelOnly === 'true'
+                ? 'An empty tree, never a 404 — but Top level only is on, which strips the children out of the read a tree is built from. Clear it to see the whole chart.'
+                : 'An empty tree, never a 404. Clear the filters to see whether the school has any.'}
+              action={topLevelOnly === 'true'
+                ? <Button onClick={() => { setTopLevelOnly(''); setPage(0) }}>Every depth</Button>
+                : null} />
           ) : (
             <div className="stack">
               {(data?.roots ?? []).map((root) => (
@@ -220,8 +245,17 @@ export default function Departments() {
         ) : rows.length === 0 ? (
           <Empty
             title="No departments match"
-            description="An empty page, never a 404. Clear the filters to see whether the school has any at all."
-            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
+            /* SAYS WHICH FILTER EMPTIED IT. Top level only starts on, so searching for a
+               sub-unit by name comes back empty — and "nothing matched" would read as a broken
+               search rather than a filter doing its job. */
+            description={topLevelOnly === 'true' && search
+              ? `Nothing top-level matches "${search}". Sub-departments are excluded while Top level only is on — a unit nested under another is found by searching every depth, or by opening its parent.`
+              : 'An empty page, never a 404. Clear the filters to see whether the school has any at all.'}
+            action={topLevelOnly === 'true' && search
+              ? <Button look="primary" onClick={() => { setTopLevelOnly(''); setPage(0) }}>
+                  Search every depth
+                </Button>
+              : <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
           />
         ) : (
           <div className="table-scroll">
