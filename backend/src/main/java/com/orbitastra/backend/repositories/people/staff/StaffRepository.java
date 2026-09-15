@@ -21,7 +21,7 @@ import com.orbitastra.backend.models.people.staff.Staff;
  * <p><b>This is the {@code people} module's first repository.</b> That module has 26 models and
  * no API; nothing here reads staff for its own sake, only to refuse a bad reference.
  */
-public interface StaffRepository extends MongoRepository<Staff, String> {
+public interface StaffRepository extends MongoRepository<Staff, String>, StaffRepositoryCustom {
 
     /**
      * One staff member, scoped to their school.

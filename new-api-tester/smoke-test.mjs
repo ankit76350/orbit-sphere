@@ -3526,6 +3526,8 @@ const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-depart
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
 const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
 const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
+  staffCatalogue.indexOf('list-staff'))
+const staffListEntry = staffCatalogue.slice(staffCatalogue.indexOf('list-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
 const staffScreen = readFileSync('src/pages/school/people/StaffList.jsx', 'utf8')
 const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
@@ -3837,13 +3839,45 @@ const checks = [
   ['the create captures the staffDocsId five modules need',
     staffEntry.includes('variable: "staffDocsId"')],
 
+  // #7 — the list.
+  ['#7 is a GET on the staff surface',
+    /method: "GET"/.test(staffListEntry) && /path: "\/schools\/current\/staff"/.test(staffListEntry)],
+  ['the thin row is documented as the security decision, not an omission',
+    staffListEntry.includes('row is deliberately thin')
+      && staffListEntry.includes('no authorization yet')],
+  ['the sort allowlist is part of that, and it says why',
+    staffListEntry.includes('leaks their values through the ordering')],
+  ['the four employment filters are named as absent, with what writes them',
+    staffListEntry.includes('?employed=') && staffListEntry.includes('EmploymentRecord')
+      && staffListEntry.includes('#16')],
+  ['and why accepting them would be worse than leaving them out',
+    staffListEntry.includes('silently matches nothing')],
+  ['the join that arrives with #16 is already settled, and recorded here',
+    staffListEntry.includes('page on') && staffListEntry.includes('pages that shrink after filtering')],
+  ['search covers the employee number as well as the name',
+    staffListEntry.includes('fullName') && staffListEntry.includes('employeeNo')
+      && staffListEntry.includes('regex-quoted')],
+  ['hasEmail=false is documented as the question a school actually asks',
+    staffListEntry.includes('missing contact details') && staffListEntry.includes('exists')],
+  ['sorted by name and tiebroken, because two people share a name',
+    staffListEntry.includes('tiebroken by employeeNo')
+      || staffListEntry.includes('Tiebroken by employeeNo')],
+  ['no gate runs on it', staffListEntry.includes('### No gates')],
+
   // The screen.
   ['the staff screen creates through #1',
     staffScreen.includes("call('create-staff'")],
+  ['and lists through #7, so the table is the school\'s answer',
+    staffScreen.includes("call('list-staff'") && staffScreen.includes('onAdded={load}')],
   ['employeeNo leads the row, because it is what a school writes down',
     staffScreen.includes('<th>Employee no</th>')],
-  ['the table says it is session-only, because #7 is not built',
-    staffScreen.includes('This table is session-only')],
+  ['the table no longer claims to be session-only',
+    !staffScreen.includes('This table is session-only')],
+  ['it shows no date of birth, and says that is deliberate',
+    !staffScreen.includes('<th>Born</th>')
+      && staffScreen.includes('security decision on #7')],
+  ['and says which filters are missing and what writes them',
+    staffScreen.includes('no department, position')],
   ['and says why there is no status column',
     staffScreen.includes('There is no status column')],
   ['there is no employee-number box, and the page says why',

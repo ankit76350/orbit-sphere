@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Seven of 52 are built — [#1](#t1) `POST /staff`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Eight of 52 are built — [#1](#t1) `POST /staff`, [#7](#t7) `GET /staff`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -342,7 +342,7 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 | 2 | `organization` | ~~[`#13 POST /positions`](organization/README.md#e13)~~ — **built** | An employment record needs a position to point at |
 | 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person |
 | 4 | `staff` | [`#16 POST /staff/{id}/employment`](staff/README.md#e16) | The job — **this is what makes a staff list mean anything** |
-| 5 | `staff` | [`#7 GET /staff`](staff/README.md#e7) | The teacher picker |
+| 5 | `staff` | ~~[`#7 GET /staff`](staff/README.md#e7)~~ — **built**, minus the employment filters | The teacher picker |
 | 6 | `staff` | [`#8 GET /staff/{id}`](staff/README.md#e8) | One person in full |
 
 **Finish `organization` `#9` and `#13` before opening `staff`.** [`#16`](staff/README.md#e16)

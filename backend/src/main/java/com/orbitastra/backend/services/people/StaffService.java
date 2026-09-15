@@ -1,12 +1,21 @@
 package com.orbitastra.backend.services.people;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
+import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
+import com.orbitastra.backend.dto.people.staff.response.StaffRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
 import com.orbitastra.backend.models.people.staff.Staff;
@@ -39,6 +48,40 @@ public class StaffService {
     private final StaffRepository staff;
     private final NumberSequenceService numberSequences;
     private final StaffServiceUtils utils;
+
+    /**
+     * What #7 may be ordered by, keyed by the lower-cased name a caller sends.
+     *
+     * <p><b>An allowlist, not a pass-through.</b> A sort field taken straight from the query
+     * string is a way to order by anything on the document — including fields a row deliberately
+     * does not return, which leaks their values through the ordering.
+     */
+    private static final Map<String, String> SORTABLE_STAFF_FIELDS = new LinkedHashMap<>();
+
+    static {
+        SORTABLE_STAFF_FIELDS.put("fullname", "fullName");
+        SORTABLE_STAFF_FIELDS.put("employeeno", "employeeNo");
+        SORTABLE_STAFF_FIELDS.put("createdat", "createdAt");
+        SORTABLE_STAFF_FIELDS.put("updatedat", "updatedAt");
+    }
+
+    /** The same set as a sentence, for the refusal to list. */
+    private static final String SORTABLE_STAFF_FIELD_NAMES =
+            SORTABLE_STAFF_FIELDS.values().stream().collect(Collectors.joining(", "));
+
+    /**
+     * The default order, and the tiebreaker on every other sort.
+     *
+     * <p><b>Two keys, because the first is not unique.</b> Two people genuinely share a name — it
+     * is the most ordinary thing in a school roll — so {@code fullName} alone ties, and a tie with
+     * no tiebreaker puts one row on two pages while another appears on none. {@code employeeNo} is
+     * unique per school by index and settles it.
+     *
+     * <p>{@link PageResponse#pageableOf} appends whichever of these the caller did not name, so
+     * {@code ?sort=createdAt} is really {@code createdAt, fullName, employeeNo}.
+     */
+    private static final Sort STAFF_ORDER =
+            Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("employeeNo"));
 
     private static final String NO_AUTHORIZATION_YET =
             "This module has no authorization yet, so treat every field on it as readable by "
@@ -144,4 +187,40 @@ public class StaffService {
                         + "staffDocsId " + saved.getId() + " and a positionDocsId. "
                         + NO_AUTHORIZATION_YET);
     }
+
+    /**
+     * Endpoint #7 — one page of the school's people.
+     *
+     * <p><b>The list behind every teacher picker</b> — eventually. The filters that make it one
+     * live on {@code EmploymentRecord}, and #16 is what writes one: as of 2026-09-15 there is no
+     * repository and no {@code employment_records} collection at all. What this answers today is
+     * every question {@code staff} alone can answer, and the four employment filters arrive with
+     * #16 rather than being accepted now and silently matching nothing.
+     *
+     * <p><b>The row is thin on purpose.</b> No date of birth, no address, no emergency contact —
+     * those are #8, one call away. A list endpoint returning them puts every employee's personal
+     * data in the network tab of every dropdown, and this module has no authorization yet.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own staff list.
+     */
+    public PageResponse<StaffRowResponse> listStaff(StaffSearchRequest request) {
+
+        //! step 1 - the paging and the order, validated before anything is read. Cheap checks
+        //! with no I/O behind them go first, so a malformed request costs no round trip.
+        Pageable pageable = PageResponse.pageableOf(request.page(), request.size(), request.sort(),
+                SORTABLE_STAFF_FIELDS, SORTABLE_STAFF_FIELD_NAMES, STAFF_ORDER);
+
+        //! step 2 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own people.
+        School school = currentSchool.require();
+
+        //! step 3 - one page, filtered and ordered in the database
+        // TODO: read staff
+        return PageResponse.from(
+                staff.search(school.getId(), request, pageable),
+                // The single-argument factory, so no `nextStep` appears on a row: a read changed
+                // nothing, and a null on every row is noise a client has to decide about.
+                StaffRowResponse::fromStaff);
+    }
+
 }

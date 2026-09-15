@@ -257,9 +257,9 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/staff/README.md',
             label: 'Staff',
             group: 'People / Staff',
-            // One: #1 creates a person. #7 and #8 are the reads and are not built, which is why
-            // this screen shows what it created rather than what the school holds.
-            endpoints: 1,
+            // Two: #1 creates a person and #7 lists them. #8 is the one person in full and is
+            // not built, which is why no row here opens.
+            endpoints: 2,
             screen: StaffList,
           },
         ],

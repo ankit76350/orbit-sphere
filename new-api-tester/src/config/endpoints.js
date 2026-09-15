@@ -13793,6 +13793,154 @@ object of nulls. They are the same fact, and a reader should not have to tell th
           body: { fullName: "Full Profile", dateOfBirth: "1990-08-14", gender: "FEMALE", nationalityCode: "in", preferredLanguage: "en-IN", phoneNumber: "+91 98765 43210", emailAddress: "full@example.com", currentAddress: { addressLine1: "12 Park Road", city: "Pune", postalCode: "411001", countryCode: "IN" }, permanentAddress: { addressLine1: "Village Road", city: "Nashik", countryCode: "IN" }, emergencyContact: { fullName: "Rakesh Sharma", relationship: "Spouse", phoneNumber: "+91 98765 11111" } } },
       ],
     },
+    {
+      id: "list-staff",
+      name: "List Staff",
+      method: "GET",
+      path: "/schools/current/staff",
+      status: 'live',
+      summary: "One page of the school's people, searched and filtered.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/staff?search=&gender=&hasEmail=&…\` — endpoint #7.
+
+### The row is deliberately thin, and that is the security decision here
+
+Name, employee number, gender, phone, email. **No date of birth, no address, no emergency
+contact** — those are #8, one call away.
+
+A list endpoint returning them puts every employee's personal data into the network tab of every
+dropdown that reads it, and **this module has no authorization yet**: "only the staff screen calls
+it" is not a control, it is a hope.
+
+**The phone and email are here on purpose**, and that is a line rather than an inconsistency. A
+staff list is a contact list — the office reading it is looking for somebody to ring. A date of
+birth is never what a picker needs.
+
+### The sort allowlist is part of that, not paperwork
+
+\`fullName\` · \`employeeNo\` · \`createdAt\` · \`updatedAt\`, and nothing else. A sort field taken
+straight from the query string orders by **anything on the document** — including the fields the
+row deliberately withholds, which leaks their values through the ordering. \`?sort=dateOfBirth\`
+is a \`400\`.
+
+### The four filters a teacher picker actually wants are NOT here yet
+
+\`?employed=\` · \`?departmentDocsId=\` · \`?positionDocsId=\` · \`?employmentType=\`
+
+**Every one of them lives on \`EmploymentRecord\`**, which #16 writes — and as of 2026-09-15 there
+is no repository, no endpoint and no \`employment_records\` collection in the database at all.
+
+Accepting them now would be a parameter that silently matches nothing, which is worse than one
+documented as absent: a filter that looks like it works and returns an empty page reads as "there
+are no teachers here". They are **ignored rather than refused**, like every field not on a request
+record.
+
+When #16 lands, the domain plan's open item 3 has already settled how they arrive: **page on
+\`employment_records\`, then read \`staff\` by id** — because every narrowing filter lives on the
+first collection, and paging the second gives pages that shrink after filtering.
+
+### What IS here
+
+\`?search=\` matches **\`fullName\` OR \`employeeNo\`**, case-insensitive, anywhere, regex-quoted —
+an office looks somebody up by name and a payroll run looks them up by number, and which one the
+caller has is not this endpoint's to decide. A stray \`(\` is an empty page, not a \`500\`.
+
+\`?gender=\` · \`?nationalityCode=\` (case-insensitive, matching how #1 stores it) ·
+\`?hasEmail=\` · \`?hasPhone=\`.
+
+**\`?hasEmail=false\` is the interesting one** — *"who are we missing contact details for"* is a
+real question a school asks at the start of term, and this is the only way to ask it. Asked with
+\`exists\`, not a null comparison, because #1 stores an absent email as **no key at all**.
+
+### Sorted by name, tiebroken by employeeNo
+
+**Two people genuinely share a name** — the most ordinary thing in a school roll. So \`fullName\`
+alone ties, and a tie with no tiebreaker puts one row on two pages while another appears on none.
+\`employeeNo\` is unique per school by index and settles it.
+
+### No gates
+
+A suspended or closed school still reads its own staff list.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain.
+
+ THE ROW IS THIN, AND THAT IS THE SECURITY DECISION. Name, number, gender,
+ phone, email — no date of birth, no address, no emergency contact. Those are
+ #8. This module has no authorization yet.
+
+ THE SORT ALLOWLIST IS PART OF THAT: a pass-through would order by fields the
+ row withholds, which leaks them. ?sort=dateOfBirth is a 400.
+
+ THE FOUR FILTERS A PICKER WANTS ARE NOT HERE YET — ?employed=,
+ ?departmentDocsId=, ?positionDocsId=, ?employmentType= all live on
+ EmploymentRecord, which #16 writes and which does not exist. IGNORED, not
+ refused. Accepting them would be a filter that silently matches nothing.
+
+ ?search= matches fullName OR employeeNo, regex-quoted. ?hasEmail=false is
+ "who are we missing contact details for", asked with exists.
+
+ SORTED BY name, TIEBROKEN BY employeeNo — two people share a name.`,
+      requiredFields: [],
+      pathParams: [],
+      queryParams: [
+        { key: "search", value: "", enabled: false, description: "Matches fullName OR employeeNo, case-insensitive, anywhere. Regex-quoted." },
+        { key: "gender", value: "", enabled: false, description: "MALE | FEMALE | OTHER. Anything else is a 400." },
+        { key: "nationalityCode", value: "", enabled: false, description: "ISO 3166-1 alpha-2, case-insensitive." },
+        { key: "hasEmail", value: "", enabled: false, description: "false finds who is MISSING one. Absent returns both." },
+        { key: "hasPhone", value: "", enabled: false, description: "The same, for a phone number." },
+        { key: "page", value: "", enabled: false, description: "0-based. Negative is a 400." },
+        { key: "size", value: "", enabled: false, description: "1 to 100, default 20. 0 and 101 are refused, never clamped." },
+        { key: "sort", value: "", enabled: false, description: "fullName | employeeNo | createdAt | updatedAt, with ,desc. Anything else is a 400." },
+      ],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "A page envelope. The counts describe every match, not this page.",
+      responseFields: ["content", "page", "size", "totalElements", "totalPages", "hasNext", "hasPrevious"],
+      captures: [],
+      errors: [
+        { status: 400, code: "INVALID_PAGE", when: "page is negative." },
+        { status: 400, code: "INVALID_PAGE_SIZE", when: "size is below 1 or above 100." },
+        { status: 400, code: "INVALID_SORT_FIELD", when: "A sort field not on the allowlist — including one the row deliberately withholds." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+      ],
+      examples: [
+        { id: "01", name: "EVERYBODY", expect: "200 OK",
+          notes: `No parameters. OUT: a page envelope ordered by name then\n    employeeNo. NO dateOfBirth, address or emergency contact on any row.`, body: null },
+        { id: "02", name: "SEARCH BY NAME", expect: "200 OK",
+          notes: `?search=anita — case-insensitive, matches anywhere.`, body: null },
+        { id: "03", name: "SEARCH BY EMPLOYEE NUMBER", expect: "200 OK",
+          notes: `?search=000001 — the same box. Payroll looks people up that way.`, body: null },
+        { id: "04", name: "A STRAY REGEX CHARACTER", expect: "200 OK",
+          notes: `?search=Sharma( — an empty page, not a 500.`, body: null },
+        { id: "05", name: "WHO IS MISSING AN EMAIL", expect: "200 OK",
+          notes: `?hasEmail=false — the question a school actually asks at the start\n    of term. Asked with exists, because #1 stores an absent email as no\n    key at all. Absent returns BOTH.`, body: null },
+        { id: "06", name: "GENDER", expect: "200 OK / 400",
+          notes: `?gender=MALE narrows. ?gender=ROBOT is a 400, not an empty page.`, body: null },
+        { id: "07", name: "NATIONALITY IS CASE-INSENSITIVE", expect: "200 OK",
+          notes: `?nationalityCode=in matches IN — #1 upper-cases on the way in, and\n    a caller should not have to know that.`, body: null },
+        { id: "08", name: "FILTERS COMBINE", expect: "200 OK",
+          notes: `?hasEmail=true&hasPhone=true — AND-ed, as is ?search= with any\n    filter.`, body: null },
+        { id: "09", name: "AN EMPLOYMENT FILTER", expect: "200 OK",
+          notes: `?employed=true&departmentDocsId=x — IGNORED, not refused, and it\n    narrows NOTHING. That is why it is not accepted as a real filter:\n    one that looks like it works and returns an empty page reads as\n    "there are no teachers here". It arrives with #16.`, body: null },
+        { id: "10", name: "PAGING", expect: "200 OK",
+          notes: `?page=0&size=2, then page 1, then a page past the end (empty, not\n    an error). totalElements counts every match, not the page.`, body: null },
+        { id: "11", name: "PAGE AND SIZE ARE REFUSED, NEVER CLAMPED", expect: "400 Bad Request",
+          notes: `?page=-1, ?size=0 and ?size=101 are each a 400. ?size=100 is fine.`, body: null },
+        { id: "12", name: "THE TIEBREAKER", expect: "200 OK",
+          notes: `Create two people both called "Anita Sharma", then walk the list\n    one row at a time with ?size=1. Everybody appears exactly once —\n    fullName alone would tie, and a tie puts one row on two pages.`, body: null },
+        { id: "13", name: "A HIDDEN FIELD CANNOT BE SORTED ON", expect: "400 Bad Request",
+          notes: `?sort=dateOfBirth and ?sort=phoneNumber are each a 400. A\n    pass-through allowlist would let a caller order by a field the row\n    withholds, which leaks it.`, body: null },
+        { id: "14", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read — it still sees its own people. Writing one\n    is still refused.`, body: null },
+      ],
+    },
   ],
 };
 

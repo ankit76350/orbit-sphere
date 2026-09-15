@@ -139,7 +139,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 | <a id="t4"></a>4 | [`PUT /staff/{id}/emergency-contact`](#e4) | Replace it whole. |
 | <a id="t5"></a>5 | [`PUT /staff/{id}/photo`](#e5) | Point at a `DocumentRecord`, or clear it. |
 | <a id="t6"></a>6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves. |
-| <a id="t7"></a>7 | [`GET /staff`](#e7) | The list behind every teacher picker. |
+| <a id="t7"></a>7 — **built** | [`GET /staff`](#e7) | The list behind every teacher picker — **minus the four filters that need [#16](#e16)**. |
 | <a id="t8"></a>8 | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in. |
 
 ## 2. The job · [Build order ↓](#build-order)
@@ -170,11 +170,11 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1` is built; the rest of this package is not.
+Ordered by **what it unblocks**, not by number. `#1` and `#7` are built; the rest of this package is not.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, 7, 8 |
+| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, ~~7~~ *(partly)*, 8 |
 | **2** | The profile and the history are maintainable | 2, 6, 17, 18, 19 |
 | **3** | The profile is complete, and compliance is reportable | 3, 4, 5, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
@@ -487,15 +487,19 @@ project has already found.
 - **Not reversible through this endpoint.** Unarchiving is deliberately missing until somebody needs it.
 
 <a id="e7"></a>
-**[7](#t7) · `GET /staff`**
+**[7](#t7) · `GET /staff`** — built, **minus the employment filters**
 
-- [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the filtered, **paged** set
-- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the people those records name
-- **The list behind every teacher picker**, which is what decides the filters: `?employed=`, `?departmentDocsId=`, `?positionDocsId=`, `?employmentType=`, `?search=` across `fullName` and `employeeNo`.
-- **Two queries, and the paging happens on the first.** Every narrowing filter lives on `employment_records`, so paging `staff` instead gives pages that shrink after filtering. See [the domain plan](../README.md#3-7s-filters-need-a-join-mongo-will-not-do).
-- **`?employed=true` means `current = true` AND `status` not in `{OFFERED, TERMINATED}`** — see [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean). Somebody who accepted an offer but has not started should not appear in a teacher picker; somebody `ON_LEAVE` should.
-- **Absent returns both**, the tristate rule. **A person with no employment record appears only when the filter is absent**, and the response says so — an empty filtered page otherwise reads as "this person does not exist".
-- **The row is deliberately thin**: name, employee number, position title, department name, employment type. **No date of birth, no address, no phone.** Those are [#8](#e8), one call away — a list endpoint returning them puts every employee's personal data in every dropdown's network tab.
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the filtered, **paged** set
+- **Built 2026-09-15 on `staff` alone.** The four filters that make this a teacher picker —  `?employed=`, `?departmentDocsId=`, `?positionDocsId=`, `?employmentType=` — every one lives on [`employment_records`](../../../models/people/staff/EmploymentRecord.java), which [#16](#e16) writes and which **has no repository and no collection in the database at all**. They are not accepted: a parameter that silently matches nothing is worse than one documented as absent, because a filter that looks like it works and returns an empty page reads as "there are no teachers here". They are **ignored rather than refused**, like every field not on a request record.
+- **When #16 lands, the shape is already settled** — [the domain plan's open item 3](../README.md#3-7s-filters-need-a-join-mongo-will-not-do): two queries, **paging on `employment_records`**, then read `staff` by id. Every narrowing filter lives on the first collection, so paging the second gives pages that shrink after filtering. The fields below are facts about a *person* and do not move when that arrives.
+- **`?employed=true` will mean `current = true` AND `status` not in `{OFFERED, TERMINATED}`** — see [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean). Somebody who accepted an offer but has not started should not appear in a teacher picker; somebody `ON_LEAVE` should.
+- **What is built**: `?search=` across `fullName` **OR** `employeeNo` — an office looks somebody up by name and a payroll run looks them up by number — plus `?gender=`, `?nationalityCode=` (case-insensitive, matching how [#1](#e1) stores it), `?hasEmail=` and `?hasPhone=`.
+- **`?hasEmail=false` is the one worth naming.** *"Who are we missing contact details for"* is a real question a school asks at the start of term, and this is the only way to ask it. **Asked with `exists`, not a null comparison**, because #1 stores an absent email as no key at all — the same reason [#12](../organization/README.md#e12) asks `exists` for `topLevelOnly`.
+- **The search needle is regex-quoted**, so a caller typing `O'Brien (acting)` searches for those characters rather than injecting a group, and a stray `(` is an empty page instead of a `500`.
+- **The row is deliberately thin**: name, employee number, gender, phone, email. **No date of birth, no address, no emergency contact.** Those are [#8](#e8), one call away — a list endpoint returning them puts every employee's personal data in every dropdown's network tab, and [this module has no authorization yet](../README.md#2-this-is-the-module-that-cannot-ship-without-authorization), so "only the staff screen calls it" is not a control.
+- **The phone and email ARE on the row**, and that is a line rather than an inconsistency: a staff list is a contact list, and the office reading it is looking for somebody to ring. A date of birth is never what a picker needs.
+- **The sort allowlist is part of that decision, not paperwork.** `fullName` · `employeeNo` · `createdAt` · `updatedAt`. A sort field taken from the query string orders by anything on the document — **including the fields the row withholds, which leaks their values through the ordering**. `?sort=dateOfBirth` is a `400`.
+- **Sorted by `fullName`, tiebroken by `employeeNo`.** Two people genuinely share a name — the most ordinary thing in a school roll — so `fullName` alone ties, and a tie with no tiebreaker puts one row on two pages while another appears on none.
 - **No gates.** A suspended school still reads its own staff list.
 
 <a id="e8"></a>

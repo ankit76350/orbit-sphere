@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -9,11 +9,17 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * The people a school employs: /school-people/staff
  *
- * ONE ENDPOINT. #1 creates a person; #7 and #8 are the reads and are not built. So this table is
- * SESSION-ONLY and says so — it shows what this tab created, not what the school holds. That is
- * the shape the Departments page was deliberately moved away from, and the reason is the reverse
- * here: there is no read to move to yet. When #7 lands this table becomes its answer and the
- * banner comes off.
+ * TWO ENDPOINTS. #1 creates a person and #7 lists them, so this table is the SCHOOL'S answer
+ * rather than a memory of what this tab wrote — the session-only shape it had until 2026-09-15 is
+ * gone, and a new person appears here by re-reading.
+ *
+ * THE ROW IS THIN, AND THE PAGE SAYS WHY. No date of birth, no address, no emergency contact —
+ * those are #8, which is not built. A list carrying them would put every employee's personal data
+ * in the network tab of every dropdown, and this module has no authorization yet.
+ *
+ * THE FOUR FILTERS A PICKER ACTUALLY WANTS ARE ABSENT, and the page states that rather than
+ * leaving a reader to wonder where "department" went: they live on EmploymentRecord, which #16
+ * writes and which does not exist.
  *
  * employeeNo LEADS EVERY ROW, because it is the thing the school writes down and the one field on
  * the response the caller did not send.
@@ -28,6 +34,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  */
 
 const GENDERS = ['FEMALE', 'MALE', 'OTHER']
+const GENDER_FILTER = ['', 'FEMALE', 'MALE', 'OTHER']
+const TRISTATE = ['', 'true', 'false']
+const SORTS = ['', 'fullName', 'fullName,desc', 'employeeNo', 'employeeNo,desc',
+  'createdAt,desc', 'updatedAt,desc']
+const SIZES = ['5', '20', '100']
 
 const BLANK = {
   fullName: '',
@@ -47,9 +58,48 @@ const BLANK = {
 }
 
 export default function StaffList() {
-  const { actingSubdomain } = useApiState()
+  const { call } = useApi()
+  const { environment, actingSubdomain } = useApiState()
   const [open, setOpen] = useState(false)
-  const [people, setPeople] = useState([])
+
+  const [typed, setTyped] = useState('')
+  const [search, setSearch] = useState('')
+  const [gender, setGender] = useState('')
+  const [nationalityCode, setNationalityCode] = useState('')
+  const [hasEmail, setHasEmail] = useState('')
+  const [hasPhone, setHasPhone] = useState('')
+  const [sort, setSort] = useState('')
+  const [page, setPage] = useState(0)
+  const [size, setSize] = useState('20')
+
+  const [data, setData] = useState(null)
+  const [problem, setProblem] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const query = useCallback(() => {
+    // An empty box sends nothing rather than "", which the API would read as a value.
+    const out = { page: String(page), size }
+    if (search.trim() !== '') out.search = search.trim()
+    if (gender) out.gender = gender
+    if (nationalityCode.trim() !== '') out.nationalityCode = nationalityCode.trim()
+    if (hasEmail) out.hasEmail = hasEmail
+    if (hasPhone) out.hasPhone = hasPhone
+    if (sort) out.sort = sort
+    return out
+  }, [search, gender, nationalityCode, hasEmail, hasPhone, sort, page, size])
+
+  const load = useCallback(async () => {
+    if (!actingSubdomain) return
+    setLoading(true)
+    const result = await call('list-staff', { label: 'The staff list', queryParams: query() })
+    setLoading(false)
+    if (result.ok) { setData(result.bodyJson); setProblem(null) } else { setProblem(result) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, actingSubdomain, query])
+
+  useEffect(() => { load() }, [load])
+
+  const rows = data?.content ?? []
 
   if (!actingSubdomain) return <NoSchoolChosen what="Staff" />
 
@@ -68,20 +118,80 @@ export default function StaffList() {
       </div>
 
       <Card
-        title="People created here"
-        description="From #1 — the write five other modules are waiting for. Payroll, leave, reviews, development and every teacher picker need the staffDocsId it hands back."
+        title="Filters"
+        description="All five are AND-ed, and blank sends nothing at all — which is not the same as sending false."
+        action={<EndpointTag id="list-staff" name="List" queryParams={query()} />}
+      >
+        <div className="stack">
+          <div className="toolbar">
+            <Field label="Search" hint="Matches fullName OR employeeNo, case-insensitive, anywhere. A stray '(' is an empty answer, not a 500.">
+              <Input value={typed} onChange={(e) => setTyped(e.target.value)}
+                placeholder="Anita, or 000001" />
+            </Field>
+            <Button icon={Search} onClick={() => { setSearch(typed); setPage(0) }}>Search</Button>
+            <Button onClick={() => { setSearch(''); setTyped(''); setPage(0) }}>Clear</Button>
+            <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+          </div>
+
+          <div className="field-grid">
+            <Field label="Gender" hint="MALE | FEMALE | OTHER. Blank returns every gender.">
+              <Select label="Gender" value={gender}
+                onChange={(value) => { setGender(value); setPage(0) }} options={GENDER_FILTER} />
+            </Field>
+            <Field label="Nationality code" hint="Case-insensitive — #1 upper-cases on the way in, and a caller should not have to know that.">
+              <Input value={nationalityCode}
+                onChange={(e) => { setNationalityCode(e.target.value); setPage(0) }}
+                placeholder="IN" />
+            </Field>
+            <Field label="Has email" hint="false is the interesting one: who are we missing contact details for. Blank returns BOTH.">
+              <Select label="Has email" value={hasEmail}
+                onChange={(value) => { setHasEmail(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+            <Field label="Has phone" hint="The same, for a phone number.">
+              <Select label="Has phone" value={hasPhone}
+                onChange={(value) => { setHasPhone(value); setPage(0) }} options={TRISTATE} />
+            </Field>
+          </div>
+
+          <div className="toolbar">
+            <Field label="Sort" hint="Tiebroken by employeeNo — two people share a name, and a tie puts one row on two pages. A field the row HIDES cannot be sorted on: ?sort=dateOfBirth is a 400.">
+              <Select label="Sort" value={sort}
+                onChange={(value) => { setSort(value); setPage(0) }} options={SORTS} />
+            </Field>
+            <Field label="Page size" hint="Defaults to 20, capped at 100. 0 and 101 are refused, never clamped.">
+              <Select label="Page size" value={size}
+                onChange={(value) => { setSize(value); setPage(0) }} options={SIZES} />
+            </Field>
+            <span className="toolbar-spacer" />
+            <Button onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span className="muted">page {page}</span>
+            <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        title="Staff"
+        description="From #7 — the school's own answer, ordered by name then employeeNo. The counts describe every match, not this page."
         action={
           <div className="btn-row">
             <EndpointTag id="create-staff" name="Add a person" />
-            <Badge>{people.length} this session</Badge>
+            <Badge>{data?.totalElements ?? 0} matching</Badge>
+            <Button icon={Plus} onClick={() => setOpen(true)}>Add</Button>
           </div>
         }
       >
-        {people.length === 0 ? (
+        {problem ? (
           <Empty
-            title="Nobody created here yet"
-            description="#7 GET /staff is not built, so this table can only show what this tab wrote — not what the school already holds."
-            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a person</Button>}
+            title={problem.bodyJson?.code || `The server answered ${problem.status}`}
+            description={problem.bodyJson?.message || 'Nothing came back.'}
+            action={<Button icon={RefreshCw} onClick={load}>Try again</Button>}
+          />
+        ) : rows.length === 0 ? (
+          <Empty
+            title="Nobody matches"
+            description="An empty page, never a 404. Clear the filters to see whether the school has anybody at all."
+            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add one</Button>}
           />
         ) : (
           <div className="table-scroll">
@@ -90,26 +200,25 @@ export default function StaffList() {
                 <tr>
                   <th>Employee no</th>
                   <th>Name</th>
-                  <th>Born</th>
                   <th>Gender</th>
                   <th>Phone</th>
                   <th>Email</th>
+                  <th>Nationality</th>
                   <th>Staff id</th>
                 </tr>
               </thead>
               <tbody>
-                {people.map((one) => (
+                {rows.map((one) => (
                   <tr key={one.staffDocsId}>
-                    {/* LEADS, because it is the thing the school writes down — and the only
-                        field on the response the caller did not send. */}
+                    {/* LEADS, because it is the thing the school writes down. */}
                     <td><span className="mono">{one.employeeNo}</span></td>
                     <td>{one.fullName}</td>
-                    <td>{one.dateOfBirth}</td>
                     <td>{one.gender}</td>
                     <td>{one.phoneNumber
                       ? <span className="mono">{one.phoneNumber}</span>
                       : <span className="muted">none</span>}</td>
                     <td>{one.emailAddress ?? <span className="muted">none</span>}</td>
+                    <td>{one.nationalityCode ?? <span className="muted">none</span>}</td>
                     <td><span className="muted mono">{one.staffDocsId}</span></td>
                   </tr>
                 ))}
@@ -118,23 +227,31 @@ export default function StaffList() {
           </div>
         )}
         <p className="muted">
-          <Info size={12} /> <b>This table is session-only.</b>{' '}
-          <span className="mono">GET /staff</span> is #7 and is not built, so there is nothing to
-          read the school's real list from. It shows what this tab created rather than an empty
-          table that looks like a school with no people.
+          <Info size={12} /> <b>There is no date of birth, address or emergency contact on this
+          table, and that is the security decision on #7.</b> A list carrying them would put every
+          employee&apos;s personal data in the network tab of every dropdown that reads it — and
+          this module has no authorization yet. They are on{' '}
+          <span className="mono">GET /staff/{'{id}'}</span>, which is #8 and is not built.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>There is no department, position or &quot;employed&quot;
+          filter</b>, which are the four a teacher picker actually wants. All of them live on{' '}
+          <span className="mono">EmploymentRecord</span>, which #16 writes and which does not
+          exist yet — sending one is ignored and narrows nothing, rather than looking like a filter
+          that found no teachers.
         </p>
         <p className="muted">
           <Info size={12} /> <b>There is no status column, and there never will be on this
           document.</b> A person is not employed by existing — no status, no department, no
-          joining date. All of that is <span className="mono">EmploymentRecord</span>, which #16
-          writes, and the separation is this package&apos;s whole design.
+          joining date. All of that is <span className="mono">EmploymentRecord</span>, and the
+          separation is this package&apos;s whole design.
         </p>
       </Card>
 
       <AddStaff
         open={open}
         onClose={() => setOpen(false)}
-        onAdded={(person) => setPeople((old) => [...old, person])}
+        onAdded={load}
       />
     </div>
   )
