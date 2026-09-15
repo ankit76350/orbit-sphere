@@ -140,7 +140,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 | <a id="t5"></a>5 | [`PUT /staff/{id}/photo`](#e5) | Point at a `DocumentRecord`, or clear it. |
 | <a id="t6"></a>6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves. |
 | <a id="t7"></a>7 — **built** | [`GET /staff`](#e7) | The list behind every teacher picker — **minus the four filters that need [#16](#e16)**. |
-| <a id="t8"></a>8 | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in. |
+| <a id="t8"></a>8 — **built** | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in — **the block is absent until [#16](#e16)**. |
 
 ## 2. The job · [Build order ↓](#build-order)
 
@@ -170,11 +170,11 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1` and `#7` are built; the rest of this package is not.
+Ordered by **what it unblocks**, not by number. `#1`, `#7` and `#8` are built; the rest of this package is not.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, ~~7~~ *(partly)*, 8 |
+| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, ~~7~~ *(partly)*, ~~8~~ *(partly)* |
 | **2** | The profile and the history are maintainable | 2, 6, 17, 18, 19 |
 | **3** | The profile is complete, and compliance is reportable | 3, 4, 5, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
@@ -503,12 +503,16 @@ project has already found.
 - **No gates.** A suspended school still reads its own staff list.
 
 <a id="e8"></a>
-**[8](#t8) · `GET /staff/{id}`**
+**[8](#t8) · `GET /staff/{id}`** — built, **minus the employment block**
 
-- *reads*: the person, plus their `current = true` employment record
-- **The employment is folded in rather than linked**, because "who is this and what do they do" is one question and every caller would make the second call anyway.
-- **The full profile** — addresses, emergency contact, date of birth. Which is exactly why [authorization](../README.md#2-this-is-the-module-that-cannot-ship-without-authorization) is the open item that matters most.
-- **Answers for a person with no employment record**, with the employment block absent rather than an error. That is the state [#1](#e1) leaves them in.
+- [`staff`](../../../models/people/staff/Staff.java) — *reads*: the person
+- **The full profile** — both addresses, the emergency contact, the date of birth. **The fullest thing this product returns about a human being**, which is exactly why [authorization](../README.md#2-this-is-the-module-that-cannot-ship-without-authorization) is the open item that matters most, and why [#7](#e7)'s row carries none of it: a list is read by every dropdown, and this is read by one page. There is no authorization, and the response repeats that in a `note` on every read rather than leaving it to a README nobody opens.
+- **The employment is folded in rather than linked**, because "who is this and what do they do" is one question and every caller would make the second call anyway. **It is not built**: [#16](#e16) writes the record and there is no `employment_records` collection at all.
+- **The key is absent — not `null`, not `{}`** — and `employmentNote` says why. Three ways of saying "nothing here" is three cases a client has to handle, and an absence like that otherwise reads as a bug in the caller's own code.
+- **That shape is not scaffolding.** A person with no employment record stays a real state once #16 exists — somebody the school has entered and not yet hired, which is what [#1](#e1) leaves them in. It is what that person will always look like.
+- **Scoped by `schoolId`, never by id alone.** Another school's real id is a real id, and on this endpoint an unscoped lookup does not leak a name — it leaks a date of birth, a home address and an emergency contact. The refusal says nothing about the person either.
+- **The id is trimmed** before the lookup, so a padded path parameter resolves rather than 404ing.
+- **No gates.** A suspended or closed school still reads its own people.
 
 ## The job · 16–19
 

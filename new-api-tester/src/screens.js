@@ -13,6 +13,7 @@ import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
 import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
 import StaffList from './pages/school/people/StaffList.jsx'
+import StaffDetail from './pages/school/people/StaffDetail.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
@@ -257,10 +258,16 @@ export const SURFACES = [
             readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/staff/README.md',
             label: 'Staff',
             group: 'People / Staff',
-            // Two: #1 creates a person and #7 lists them. #8 is the one person in full and is
-            // not built, which is why no row here opens.
-            endpoints: 2,
+            // Three: #1 creates a person, #7 lists them, #8 opens one.
+            endpoints: 3,
             screen: StaffList,
+            // A person is addressed by their document id — what every other collection stores,
+            // never the employee number. Opening a row is its own URL, so it can be linked,
+            // reloaded and shared.
+            detail: {
+              param: 'id',
+              screen: StaffDetail,
+            },
           },
         ],
       },

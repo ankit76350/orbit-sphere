@@ -13941,6 +13941,101 @@ A suspended or closed school still reads its own staff list.
           notes: `No gate runs on a read — it still sees its own people. Writing one\n    is still refused.`, body: null },
       ],
     },
+    {
+      id: "get-staff",
+      name: "Get Staff",
+      method: "GET",
+      path: "/schools/current/staff/{id}",
+      status: 'live',
+      summary: "One person in full, with their employment folded in.",
+      schoolSurface: true,
+      docs: `**GET** \`/schools/current/staff/{id}\` — endpoint #8.
+
+### The fullest thing this product returns about a human being
+
+A date of birth, two addresses, an emergency contact. **#7's row carries none of it precisely so
+that this one can**: a list is read by every dropdown, and this is read by one page.
+
+**Which is why the module plan calls authorization the open item that matters most here**, and why
+there is none. Every field below is readable by anybody who can reach the API with a school
+subdomain, and \`note\` says so on every response rather than leaving it to a README nobody opens.
+
+### The employment block is absent, and says why
+
+The plan folds the person's \`current = true\` employment record in here, because *"who is this and
+what do they do"* is one question and every caller would make the second call anyway.
+
+**#16 writes that record and is not built** — there is no \`employment_records\` collection at all.
+So the key is **absent**, not \`null\` and not \`{}\`: three ways of saying "nothing here" is three
+cases a client has to handle. \`employmentNote\` explains it, because an absence like that is the
+kind of thing a caller otherwise reads as a bug in their own code.
+
+**That shape is not scaffolding.** A person with no employment record stays a real state once #16
+exists — somebody the school has entered and not yet hired, which is what #1 leaves them in. This
+is what that person will always look like.
+
+### Scoped by schoolId, never by id alone
+
+Another school's real id is a real id. On this endpoint an unscoped lookup does not leak a name —
+it leaks **a date of birth, a home address and an emergency contact**. The refusal says nothing
+about the person either.
+
+### No gates
+
+A suspended or closed school still reads its own people.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `A GET — no body. Needs X-School-Subdomain and a staff id.
+
+ THE FULLEST THING THIS PRODUCT RETURNS ABOUT A PERSON. Date of birth, two
+ addresses, an emergency contact — #7's row hides all of it so this can show
+ it. Nothing checks who is asking. That is the module's biggest open item.
+
+ THE EMPLOYMENT BLOCK IS ABSENT, NOT NULL OR {}. #16 writes the record and is
+ not built; the collection does not exist. employmentNote says so.
+
+ A PERSON WITH NO EMPLOYMENT RECORD IS A REAL STATE, not a broken row — it is
+ what #1 leaves them in, and stays true once #16 exists.
+
+ SCOPED BY schoolId. Another school's real id is a 404 that says nothing about
+ the person.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{staffDocsId}}", description: "The person's MongoDB document id, from Create Staff." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: false,
+      body: null,
+      successStatus: 200,
+      successNote: "The person in full, with an employmentNote where the job will go.",
+      responseFields: ["staffDocsId", "employeeNo", "fullName", "dateOfBirth", "gender", "phoneNumber", "emailAddress", "currentAddress", "permanentAddress", "emergencyContact", "employmentNote", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No staff member with that id in this school — including another school's real id." },
+      ],
+      examples: [
+        { id: "01", name: "ONE PERSON IN FULL", expect: "200 OK",
+          notes: `OUT: everything #1 stored — date of birth, both addresses, the\n    emergency contact — plus an employmentNote where the job will go.`, body: null },
+        { id: "02", name: "WHAT #7 HIDES AND #8 SHOWS", expect: "200 OK",
+          notes: `Read the same person from GET /staff and compare. The LIST row has\n    no dateOfBirth, no address and no emergency contact; this has all\n    three. The two are meant to disagree.`, body: null },
+        { id: "03", name: "SOMEBODY WITH ONLY THE REQUIRED FIELDS", expect: "200 OK",
+          notes: `OUT: no phoneNumber, emailAddress, address or contact keys AT ALL —\n    absent, never null. fullName, dateOfBirth and gender are always there.`, body: null },
+        { id: "04", name: "THE EMPLOYMENT BLOCK", expect: "200 OK",
+          notes: `There is no employment key, and employmentNote says why: #16 writes\n    it and is not built. Not null, not {} — absent.`, body: null },
+        { id: "05", name: "ANOTHER SCHOOL'S PERSON", expect: "404 Not Found",
+          notes: `A REAL staff id belonging to a different school.\n    OUT: { "code": "STAFF_NOT_FOUND" } — and the message says nothing\n    about them. An unscoped lookup here leaks a home address.`, body: null },
+        { id: "06", name: "A PADDED ID", expect: "200 OK",
+          notes: `Leading and trailing spaces are trimmed before the lookup.`, body: null },
+        { id: "07", name: "A SUSPENDED SCHOOL", expect: "200 OK",
+          notes: `No gate runs on a read — it still sees its own people, in full.\n    Creating one is still refused.`, body: null },
+      ],
+    },
   ],
 };
 

@@ -4610,6 +4610,114 @@
                 "description": "Endpoint #1 \u2014 create a person. employeeNo is generated per school and atomically, never sent. This creates a person, not an employee: the job is #16."
               },
               "response": []
+            },
+            {
+              "name": "List Staff",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('a page envelope came back', () => ['content','page','size','totalElements','totalPages'].forEach((f) => pm.expect(b).to.have.property(f)));",
+                      "// THE ROW IS THIN ON PURPOSE. A list is read by every dropdown; #8 is read by one page.",
+                      "pm.test('no row leaks a date of birth', () => b.content.forEach((r) => pm.expect(r).to.not.have.property('dateOfBirth')));",
+                      "pm.test('nor an address', () => b.content.forEach((r) => pm.expect(r).to.not.have.property('currentAddress')));",
+                      "pm.test('nor an emergency contact', () => b.content.forEach((r) => pm.expect(r).to.not.have.property('emergencyContact')));",
+                      "// An absent phone is an ABSENT KEY, never null or \\\"\\\".",
+                      "b.content.forEach((r) => { if ('phoneNumber' in r) pm.test('a phone that is present is not blank', () => pm.expect(r.phoneNumber).to.not.equal('')); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/staff?search=&gender=&hasEmail=&…\n// A GET — no body. Needs X-School-Subdomain.\n//\n//  THE ROW IS THIN, AND THAT IS THE SECURITY DECISION. Name, number, gender,\n//  phone, email — no date of birth, no address, no emergency contact. Those\n//  are #8. A list is read by every dropdown; this module has no authorization.\n//\n//  THE SORT ALLOWLIST IS PART OF THAT. A pass-through would order by fields\n//  the row withholds, which leaks them. ?sort=dateOfBirth is a 400.\n//\n//  THE FOUR FILTERS A PICKER ACTUALLY WANTS ARE NOT HERE: ?employed=,\n//  ?departmentDocsId=, ?positionDocsId=, ?employmentType= all live on\n//  EmploymentRecord, which #16 writes and which does not exist. IGNORED, not\n//  refused — accepting them would be a filter that silently matches nothing.\n//\n//  SORTED BY fullName, TIEBROKEN BY employeeNo — two people share a name.\n// =========================================================================\n//\n// 01  EVERYBODY                        -> 200 OK   no parameters\n// 02  ?search=anita                    -> 200 OK   name, case-insensitive\n// 03  ?search=000001                   -> 200 OK   the employee number too\n// 04  ?search=Sharma(                  -> 200 OK   empty page, NOT a 500\n// 05  ?hasEmail=false                  -> 200 OK   who is missing contact details\n// 06  ?gender=MALE / ?gender=ROBOT     -> 200 / 400\n// 07  ?nationalityCode=in              -> 200 OK   matches IN\n// 08  ?hasEmail=true&hasPhone=true     -> 200 OK   AND-ed\n// 09  ?employed=true                   -> 200 OK   IGNORED, narrows nothing\n// 10  ?page=0&size=2, then page 1      -> 200 OK   totalElements counts all\n// 11  ?page=-1 / ?size=0 / ?size=101   -> 400      refused, never clamped\n// 12  ?size=1 walked to the end        -> 200 OK   everybody exactly once\n// 13  ?sort=dateOfBirth                -> 400      a hidden field is not sortable\n// 14  a suspended school               -> 200 OK   no gate runs on a read\n//\n//  EVERY REFUSAL\n//     400 INVALID_PAGE / INVALID_PAGE_SIZE / INVALID_SORT_FIELD\n//     400 TENANT_NOT_RESOLVED              Header missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/staff?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "staff"
+                  ]
+                },
+                "description": "Endpoint #7 — one page of the school's people, searched and filtered. The row is deliberately thin: no date of birth, address or emergency contact, which are #8. The four employment filters arrive with #16."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Staff",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the person came back', () => pm.expect(b).to.have.property('staffDocsId'));",
+                      "// THE FULL PROFILE. #7's row deliberately carries none of this.",
+                      "pm.test('the date of birth is here, unlike on the list', () => pm.expect(b).to.have.property('dateOfBirth'));",
+                      "// ABSENT, NOT null OR {}. Three ways of saying nothing is three cases a client must handle.",
+                      "pm.test('there is no employment key at all', () => pm.expect(b).to.not.have.property('employment'));",
+                      "pm.test('and a note says why', () => pm.expect(b.employmentNote).to.include('#16'));",
+                      "// The warning rides on every response until permissions exist.",
+                      "pm.test('it repeats that nothing is authorized', () => pm.expect(b.note.toLowerCase()).to.include('no authorization'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  GET /schools/current/staff/{id}\n// A GET — no body. Needs X-School-Subdomain and a staff id.\n//\n//  THE FULLEST THING THIS PRODUCT RETURNS ABOUT A HUMAN BEING. A date of\n//  birth, two addresses, an emergency contact. #7's row carries none of it\n//  precisely so this one can: a list is read by every dropdown, this by one\n//  page.\n//\n//  AND NOTHING CHECKS WHO IS ASKING. The module plan calls authorization its\n//  open item that matters most, and this is the endpoint it means. The\n//  response repeats it in `note` on every read.\n//\n//  THE EMPLOYMENT BLOCK IS ABSENT — not null, not {}. #16 writes the record\n//  and is not built; there is no employment_records collection at all.\n//  employmentNote says so, because an absence like that otherwise reads as a\n//  bug in the caller's own code.\n//\n//  AND THAT IS NOT SCAFFOLDING. A person with no employment record stays a\n//  real state once #16 exists — entered but not yet hired, which is what #1\n//  leaves them in.\n//\n//  SCOPED BY schoolId, never by id alone. An unscoped lookup here does not\n//  leak a name, it leaks a home address.\n// =========================================================================\n//\n// 01  ONE PERSON IN FULL               -> 200 OK   everything #1 stored\n// 02  WHAT #7 HIDES AND #8 SHOWS       -> 200 OK   compare against the list row\n// 03  ONLY THE REQUIRED FIELDS         -> 200 OK   absent keys, never null\n// 04  THE EMPLOYMENT BLOCK             -> 200 OK   no key at all; note says why\n// 05  ANOTHER SCHOOL'S PERSON          -> 404      says NOTHING about them\n// 06  A PADDED ID                      -> 200 OK   trimmed before the lookup\n// 07  A SUSPENDED SCHOOL               -> 200 OK   no gate runs on a read\n//\n//  EVERY REFUSAL\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 STAFF_NOT_FOUND                  Not a staff member of this school.",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/staff/{{staffDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "staff",
+                    "{{staffDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #8 — one person in full. The fullest thing this product returns about a human being, and nothing checks who is asking. The employment block is absent until #16."
+              },
+              "response": []
             }
           ]
         },

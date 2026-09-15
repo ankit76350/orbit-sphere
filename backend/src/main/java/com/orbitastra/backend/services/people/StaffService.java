@@ -15,6 +15,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
+import com.orbitastra.backend.dto.people.staff.response.StaffDetailResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
@@ -27,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1 is built.
+ * {@code controllers/people/staff/README.md}. #1, #7 and #8 are built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -82,6 +83,18 @@ public class StaffService {
      */
     private static final Sort STAFF_ORDER =
             Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("employeeNo"));
+
+    /**
+     * Why every person comes back with no employment block.
+     *
+     * <p>On the response rather than only in a README, because the absence is the kind of thing a
+     * caller otherwise reads as a bug in their own code.
+     */
+    private static final String EMPLOYMENT_NOT_BUILT =
+            "No employment record is folded in: #16 POST /staff/{id}/employment writes one and is "
+                    + "not built, so no staff member in this product is employed anywhere yet. "
+                    + "A person with no employment record stays a real state once it is — "
+                    + "somebody entered but not yet hired, which is what #1 leaves them in.";
 
     private static final String NO_AUTHORIZATION_YET =
             "This module has no authorization yet, so treat every field on it as readable by "
@@ -186,6 +199,47 @@ public class StaffService {
                 "This person exists but is not employed yet — #16 writes the job, and needs "
                         + "staffDocsId " + saved.getId() + " and a positionDocsId. "
                         + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #8 — one person in full.
+     *
+     * <p><b>The fullest thing this product returns about a human being</b> — a date of birth, two
+     * addresses, an emergency contact. #7's row carries none of it precisely so that this one can:
+     * a list is read by every dropdown, and this is read by one page.
+     *
+     * <p><b>The employment block is absent, and says why.</b> The plan folds the person's current
+     * employment record in here, because "who is this and what do they do" is one question. #16
+     * writes that record and is not built — there is no {@code employment_records} collection at
+     * all — so the key is absent rather than null or an empty object.
+     *
+     * <p><b>That shape is not scaffolding.</b> A person with no employment record is a real state
+     * even once #16 exists: somebody the school has entered and not yet hired, which is exactly
+     * what #1 leaves them in. This is what that person will always look like.
+     *
+     * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own people.
+     */
+    public StaffDetailResponse getStaff(String staffDocsId) {
+
+        //! step 1 - who is asking. `require`, not `requireUsable`: a suspended or closed school
+        //! can still read its own people.
+        School school = currentSchool.require();
+
+        //! step 2 - the person, scoped by schoolId and NEVER by id alone. Another school's real
+        //! id is a real id, and an unscoped findById would hand one school another's staff - which
+        //! on THIS endpoint means a date of birth, a home address and an emergency contact.
+        String id = staffDocsId == null ? "" : staffDocsId.trim();
+        // TODO: read staff
+        Staff person = staff.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                        "No staff member with id '" + id + "' in this school."));
+
+        //! step 3 - the employment, which does not exist yet.
+        //!
+        //! NO SECOND READ HERE, and not because it would be empty - because there is nothing to
+        //! read from. #16 writes employment_records and is not built; the collection is absent.
+        //! When it arrives this becomes one findByStaffDocsIdAndCurrentIsTrue and the note goes.
+        return StaffDetailResponse.fromStaff(person, EMPLOYMENT_NOT_BUILT, NO_AUTHORIZATION_YET);
     }
 
     /**

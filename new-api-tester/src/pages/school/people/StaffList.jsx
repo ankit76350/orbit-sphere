@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Info, Plus, RefreshCw, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronRight, Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { detailPath } from '../../../paths.js'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
@@ -14,8 +16,8 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * gone, and a new person appears here by re-reading.
  *
  * THE ROW IS THIN, AND THE PAGE SAYS WHY. No date of birth, no address, no emergency contact —
- * those are #8, which is not built. A list carrying them would put every employee's personal data
- * in the network tab of every dropdown, and this module has no authorization yet.
+ * those are on #8, which a row opens. A list carrying them would put every employee's personal
+ * data in the network tab of every dropdown, and this module has no authorization yet.
  *
  * THE FOUR FILTERS A PICKER ACTUALLY WANTS ARE ABSENT, and the page states that rather than
  * leaving a reader to wonder where "department" went: they live on EmploymentRecord, which #16
@@ -59,6 +61,7 @@ const BLANK = {
 
 export default function StaffList() {
   const { call } = useApi()
+  const navigate = useNavigate()
   const { environment, actingSubdomain } = useApiState()
   const [open, setOpen] = useState(false)
 
@@ -205,11 +208,19 @@ export default function StaffList() {
                   <th>Email</th>
                   <th>Nationality</th>
                   <th>Staff id</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((one) => (
-                  <tr key={one.staffDocsId}>
+                  /* OPENING ONE IS A DELIBERATE ACT, and the page it opens carries a date of
+                     birth and a home address that this row deliberately does not. */
+                  <tr
+                    key={one.staffDocsId}
+                    data-opens
+                    onClick={() => navigate(detailPath('school', 'people', 'staff',
+                      one.staffDocsId))}
+                  >
                     {/* LEADS, because it is the thing the school writes down. */}
                     <td><span className="mono">{one.employeeNo}</span></td>
                     <td>{one.fullName}</td>
@@ -220,6 +231,7 @@ export default function StaffList() {
                     <td>{one.emailAddress ?? <span className="muted">none</span>}</td>
                     <td>{one.nationalityCode ?? <span className="muted">none</span>}</td>
                     <td><span className="muted mono">{one.staffDocsId}</span></td>
+                    <td><span className="muted">Open <ChevronRight size={13} /></span></td>
                   </tr>
                 ))}
               </tbody>
@@ -231,7 +243,7 @@ export default function StaffList() {
           table, and that is the security decision on #7.</b> A list carrying them would put every
           employee&apos;s personal data in the network tab of every dropdown that reads it — and
           this module has no authorization yet. They are on{' '}
-          <span className="mono">GET /staff/{'{id}'}</span>, which is #8 and is not built.
+          <span className="mono">GET /staff/{'{id}'}</span> — #8, which is what a row opens.
         </p>
         <p className="muted">
           <Info size={12} /> <b>There is no department, position or &quot;employed&quot;

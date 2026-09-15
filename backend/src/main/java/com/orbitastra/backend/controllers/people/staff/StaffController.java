@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
+import com.orbitastra.backend.dto.people.staff.response.StaffDetailResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.people.StaffService;
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1 and #7 are built.
+ * README; #1, #7 and #8 are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -98,5 +100,22 @@ public class StaffController {
     @GetMapping("/staff")
     public ResponseEntity<PageResponse<StaffRowResponse>> listStaff(StaffSearchRequest request) {
         return ResponseEntity.ok(staffService.listStaff(request));
+    }
+
+    /**
+     * Endpoint #8 — one person in full.
+     *
+     * <p><b>The fullest thing this product returns about a human being</b>, and the reason the
+     * module plan calls authorization the open item that matters most. A date of birth, a home
+     * address and an emergency contact come back here — and nothing checks who is asking.
+     *
+     * <p><b>The employment block is absent and says why.</b> #16 writes the record this would fold
+     * in, and there is no {@code employment_records} collection at all.
+     *
+     * <p><b>No gate runs on a read.</b> A suspended or closed school still reads its own people.
+     */
+    @GetMapping("/staff/{id}")
+    public ResponseEntity<StaffDetailResponse> getStaff(@PathVariable String id) {
+        return ResponseEntity.ok(staffService.getStaff(id));
     }
 }

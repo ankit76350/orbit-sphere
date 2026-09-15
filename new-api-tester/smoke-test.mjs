@@ -3528,7 +3528,10 @@ const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
 const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
   staffCatalogue.indexOf('list-staff'))
 const staffListEntry = staffCatalogue.slice(staffCatalogue.indexOf('list-staff'),
+  staffCatalogue.indexOf('get-staff'))
+const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
+const staffDetailScreen = readFileSync('src/pages/school/people/StaffDetail.jsx', 'utf8')
 const staffScreen = readFileSync('src/pages/school/people/StaffList.jsx', 'utf8')
 const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
 const orgAddDept = readFileSync('src/pages/school/people/AddDepartment.jsx', 'utf8')
@@ -3863,6 +3866,39 @@ const checks = [
     staffListEntry.includes('tiebroken by employeeNo')
       || staffListEntry.includes('Tiebroken by employeeNo')],
   ['no gate runs on it', staffListEntry.includes('### No gates')],
+
+  // #8 — one person in full.
+  ['#8 is a GET on the id',
+    /method: "GET"/.test(staffGetEntry) && /path: "\/schools\/current\/staff\/{id}"/.test(staffGetEntry)],
+  ['it is documented as the fullest thing the product returns about a person',
+    staffGetEntry.includes('fullest thing this product returns about a human being')],
+  ['and #7 hiding that data is named as the REASON this can show it',
+    staffGetEntry.includes("#7's row carries none of it")],
+  ['the missing authorization is stated where the data is, not only in a README',
+    staffGetEntry.includes('authorization the open item that matters most')],
+  ['the employment block is absent rather than null or empty, and says why',
+    staffGetEntry.includes('the key is **absent**')
+      // the sentence wraps in the docs string, so match a fragment that cannot straddle it
+      && staffGetEntry.includes('cases a client has to handle')],
+  ['and a person without one is named as a REAL state, not scaffolding',
+    staffGetEntry.includes('not scaffolding') && staffGetEntry.includes('#1 leaves them in')],
+  ['the lookup is school-scoped, and the leak it prevents is spelled out',
+    staffGetEntry.includes('a date of birth, a home address and an emergency contact')],
+
+  // The detail screen.
+  ['a staff row opens its own page',
+    staffScreen.includes("navigate(detailPath('school', 'people', 'staff'")
+      && staffScreen.includes('data-opens')],
+  ['the detail page reads #8', staffDetailScreen.includes("call('get-staff'")],
+  ['the EMPLOYMENT card comes first, because that is why the page is opened',
+    staffDetailScreen.indexOf('title="Employment"') < staffDetailScreen.indexOf('title="The person"')],
+  ['it shows the API\'s own words for why employment is empty',
+    staffDetailScreen.includes('data?.employmentNote')],
+  ['and says the empty card is permanent for an unhired person, not a stub',
+    staffDetailScreen.includes('not scaffolding')],
+  ['the page carries the authorization warning where the data is',
+    staffDetailScreen.includes('nothing checks who is asking')],
+  ['nothing on the detail page is disabled', !/disabled/.test(staffDetailScreen)],
 
   // The screen.
   ['the staff screen creates through #1',
