@@ -1,5 +1,6 @@
 package com.orbitastra.backend.dto.people.staff.request;
 
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
 
 /**
@@ -38,8 +39,14 @@ public record StaffSearchRequest(
         /** One of the three. Absent returns every gender. */
         Gender gender,
 
-        /** ISO 3166-1 alpha-2, matched case-insensitively. Absent returns every nationality. */
-        String nationalityCode,
+        /**
+         * One country, from the closed set. Absent returns every nationality.
+         *
+         * <p><b>Bound by Spring, so an unknown code is a 400 before the query runs</b> rather
+         * than an empty page that looks like "nobody is Indian". It stopped being a free string
+         * on 2026-09-15, which also removed the case-folding this used to need.
+         */
+        CountryCode nationalityCode,
 
         /**
          * True for people who have an email address, false for those who do not.

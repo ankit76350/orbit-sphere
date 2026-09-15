@@ -3,7 +3,9 @@ package com.orbitastra.backend.dto.people.staff.response;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 import com.orbitastra.backend.models.people.staff.Staff;
 
 /**
@@ -41,10 +43,10 @@ public record StaffDetailResponse(
         Gender gender,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String nationalityCode,
+        CountryCode nationalityCode,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String preferredLanguage,
+        SchoolLocale preferredLanguage,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String phoneNumber,

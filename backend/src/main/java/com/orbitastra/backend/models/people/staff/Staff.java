@@ -7,7 +7,9 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.orbitastra.backend.models.base.SchoolBase;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 import com.orbitastra.backend.models.people.staff.embedded.EmergencyContact;
 import com.orbitastra.backend.models.people.staff.embedded.StaffAddress;
 
@@ -83,11 +85,13 @@ public class Staff extends SchoolBase {
     @NotNull
     private Gender gender;
 
-    // ISO 3166-1 alpha-2 nationality code. Example: "IN"
-    private String nationalityCode;
+    // ISO 3166-1 alpha-2 nationality code. Example: CountryCode.IN
+    // A closed set, like School.countryCode — "12" is not a country.
+    private CountryCode nationalityCode;
 
-    // IETF language tag. Example: "en-IN"
-    private String preferredLanguage;
+    // IETF language tag. Example: SchoolLocale.EN_IN
+    // The same curated set School.defaultLocale uses: a promise the product has those strings.
+    private SchoolLocale preferredLanguage;
 
     // Stored in normalized international format. Example: "+919876543210"
     // Unique within the school when present — school_staff_phone_uniq.

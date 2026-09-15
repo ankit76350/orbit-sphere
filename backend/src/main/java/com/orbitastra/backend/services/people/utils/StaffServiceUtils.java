@@ -56,9 +56,10 @@ public class StaffServiceUtils {
      * object are the same fact, and a reader should not have to tell them apart — #8 renders "no
      * address on file" either way, so storing the shell only adds a case.
      *
-     * <p>Country codes are upper-cased for the same reason every ISO code in this project is:
-     * {@code "in"} and {@code "IN"} are one country, and a filter should not need to know which
-     * the school typed that day.
+     * <p><b>The country needs no normalising any more.</b> It was a free {@code String} until
+     * 2026-09-15 and had to be upper-cased here; it is a {@link
+     * com.orbitastra.backend.models.common.enums.CountryCode} now, so Spring refuses anything that
+     * is not one before this runs — and {@code "in"} is refused rather than quietly corrected.
      *
      * Used by:
      * - createStaff()
@@ -74,7 +75,7 @@ public class StaffServiceUtils {
                 .city(trimToNull(request.city()))
                 .stateOrProvince(trimToNull(request.stateOrProvince()))
                 .postalCode(trimToNull(request.postalCode()))
-                .countryCode(upperOrNull(request.countryCode()))
+                .countryCode(request.countryCode())
                 .build();
     }
 

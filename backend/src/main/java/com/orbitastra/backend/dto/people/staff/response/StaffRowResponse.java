@@ -1,6 +1,7 @@
 package com.orbitastra.backend.dto.people.staff.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
 import com.orbitastra.backend.models.people.staff.Staff;
 
@@ -37,7 +38,7 @@ public record StaffRowResponse(
         String emailAddress,
 
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        String nationalityCode) {
+        CountryCode nationalityCode) {
 
     public static StaffRowResponse fromStaff(Staff staff) {
         return new StaffRowResponse(

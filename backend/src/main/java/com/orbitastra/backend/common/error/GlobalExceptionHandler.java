@@ -13,6 +13,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.beans.TypeMismatchException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,9 +43,37 @@ public class GlobalExceptionHandler {
                 Map<String, List<String>> fields = new LinkedHashMap<>();
                 exception.getBindingResult().getFieldErrors().forEach(error -> fields
                                 .computeIfAbsent(error.getField(), key -> new ArrayList<>())
-                                .add(error.getDefaultMessage()));
+                                .add(readableMessage(error)));
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body(ApiError.createValidationError("One or more fields are invalid.", fields));
+        }
+
+        /**
+         * The message a person can act on, rather than Spring's description of the machinery.
+         *
+         * <p><b>A query parameter that will not convert reads terribly by default</b>: "Failed to
+         * convert value of type 'java.lang.String' to required type '…CountryCode'". The enum's
+         * own factory already throws one useful sentence — naming the bad value and what a good
+         * one looks like — and this is what surfaces it.
+         *
+         * <p>It matters because the same value in a request BODY already gets that sentence, from
+         * {@code onUnreadable} below. Two boundaries describing one mistake two ways is how a
+         * caller concludes the filter is broken rather than their input.
+         */
+        private String readableMessage(FieldError error) {
+                // contains() FIRST: unwrap() THROWS when the source is not that type, and most
+                // field errors are ordinary @NotNull or @Size failures with no exception behind
+                // them at all. Without this guard every validation response lost its fieldErrors.
+                if (error.contains(TypeMismatchException.class)) {
+                        Throwable cause = error.unwrap(TypeMismatchException.class);
+                        while (cause.getCause() != null) {
+                                cause = cause.getCause();
+                        }
+                        if (cause.getMessage() != null && !cause.getMessage().isBlank()) {
+                                return cause.getMessage();
+                        }
+                }
+                return error.getDefaultMessage();
         }
 
         /**

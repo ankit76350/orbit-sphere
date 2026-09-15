@@ -457,7 +457,7 @@ function AddStaff({ open, onClose, onAdded }) {
           <Field label="Postal code">
             <Input value={form.postalCode} onChange={set('postalCode')} placeholder="411001" />
           </Field>
-          <Field label="Address country code" hint="Upper-cased on the way in.">
+          <Field label="Address country code" hint="The same CountryCode as the nationality. Leave it EMPTY rather than sending '' — an empty string is not a country.">
             <Input value={form.countryCode} onChange={set('countryCode')} placeholder="IN" />
           </Field>
         </div>

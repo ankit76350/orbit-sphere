@@ -71,11 +71,11 @@ public class StaffRepositoryImpl implements StaffRepositoryCustom {
             filters.add(Criteria.where("gender").is(request.gender()));
         }
 
-        //! step 4 - nationality, upper-cased to match how #1 stores it. A caller typing "in"
-        //! should not get an empty page because the school typed "IN".
-        if (request.nationalityCode() != null && !request.nationalityCode().isBlank()) {
-            filters.add(Criteria.where("nationalityCode")
-                    .is(request.nationalityCode().trim().toUpperCase()));
+        //! step 4 - nationality. An ENUM since 2026-09-15, so Spring refuses an unknown code
+        //! with a 400 before this runs - where a free string gave an empty page that read as
+        //! "nobody here is Indian". No case folding is needed either: there is one spelling.
+        if (request.nationalityCode() != null) {
+            filters.add(Criteria.where("nationalityCode").is(request.nationalityCode()));
         }
 
         //! step 5 - who is missing contact details, which is a real question a school asks.

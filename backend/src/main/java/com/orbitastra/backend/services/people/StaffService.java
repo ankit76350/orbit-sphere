@@ -211,8 +211,10 @@ public class StaffService {
                 .fullName(request.fullName().trim())
                 .dateOfBirth(request.dateOfBirth())
                 .gender(request.gender())
-                .nationalityCode(TextHelper.uppercaseOrNull(request.nationalityCode()))
-                .preferredLanguage(TextHelper.blankToNull(request.preferredLanguage()))
+                // No normalising: both are enums now, so Spring refused anything that is not
+                // one of them before this method ran.
+                .nationalityCode(request.nationalityCode())
+                .preferredLanguage(request.preferredLanguage())
                 .phoneNumber(phoneNumber)
                 .emailAddress(emailAddress)
                 .currentAddress(utils.toAddress(request.currentAddress()))

@@ -1,5 +1,7 @@
 package com.orbitastra.backend.dto.people.staff.request;
 
+import com.orbitastra.backend.models.common.enums.CountryCode;
+
 import jakarta.validation.constraints.Size;
 
 /**
@@ -20,13 +22,19 @@ public record StaffAddressRequest(
         @Size(max = 80) String stateOrProvince,
         @Size(max = 20) String postalCode,
 
-        /** ISO 3166-1 alpha-2, stored upper-cased. "IN". */
-        @Size(max = 2) String countryCode) {
+        /**
+         * ISO 3166-1 alpha-2, as a closed set.
+         *
+         * <p>The same {@link CountryCode} the person's nationality uses. It was a free
+         * {@code String} until 2026-09-15 and accepted {@code "in"}, which is how one stored row
+         * came to hold a code the enum would refuse.
+         */
+        CountryCode countryCode) {
 
     /** Whether every field is absent or blank, which is the same as sending no address. */
     public boolean isEmpty() {
         return blank(addressLine1) && blank(addressLine2) && blank(city)
-                && blank(stateOrProvince) && blank(postalCode) && blank(countryCode);
+                && blank(stateOrProvince) && blank(postalCode) && countryCode == null;
     }
 
     private static boolean blank(String value) {

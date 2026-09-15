@@ -2,7 +2,9 @@ package com.orbitastra.backend.dto.people.staff.request;
 
 import java.time.LocalDate;
 
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import com.orbitastra.backend.models.common.enums.Gender;
+import com.orbitastra.backend.models.common.enums.SchoolLocale;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -78,11 +80,24 @@ public record StaffCreateRequest(
         /** Required by the model. The shared {@code Gender}, not a people-specific one. */
         @NotNull Gender gender,
 
-        /** ISO 3166-1 alpha-2, stored upper-cased. "IN". */
-        @Size(max = 2) String nationalityCode,
+        /**
+         * ISO 3166-1 alpha-2, as a closed set — {@code "IN"}, not {@code "12"}.
+         *
+         * <p><b>The enum is the validation.</b> It was a free {@code String} until 2026-09-15,
+         * which accepted anything two characters long; {@link CountryCode} is the same set
+         * {@code School.countryCode} already uses, so a school and its staff cannot disagree
+         * about what a country is.
+         */
+        CountryCode nationalityCode,
 
-        /** IETF language tag. "en-IN". */
-        @Size(max = 35) String preferredLanguage,
+        /**
+         * IETF language tag, from the set this product actually has strings for.
+         *
+         * <p><b>Curated, not exhaustive</b> — {@link SchoolLocale} is India's scheduled languages
+         * plus English variants, the same set {@code School.defaultLocale} uses. Accepting any tag
+         * the JDK knows would promise translations that do not exist.
+         */
+        SchoolLocale preferredLanguage,
 
         /**
          * Required. Stored with spacing characters stripped; a leading "+" is kept.

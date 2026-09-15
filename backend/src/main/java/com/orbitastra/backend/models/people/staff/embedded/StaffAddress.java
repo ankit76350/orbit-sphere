@@ -1,5 +1,6 @@
 package com.orbitastra.backend.models.people.staff.embedded;
 
+import com.orbitastra.backend.models.common.enums.CountryCode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,5 +31,5 @@ public class StaffAddress {
     private String postalCode;
 
     // ISO 3166-1 alpha-2 country code. Example: "IN"
-    private String countryCode;
+    private CountryCode countryCode;
 }

@@ -13657,12 +13657,27 @@ on \`EmploymentRecord\`, which #16 writes.
 Somebody created here and not yet hired is **a real state**, not a half-finished one — it is a
 person the school has entered but not employed, and it is the state this endpoint leaves them in.
 
+### Closed sets, not free strings
+
+\`nationalityCode\` is a **\`CountryCode\`** and \`preferredLanguage\` a **\`SchoolLocale\`** — the
+same enums \`School.countryCode\` and \`School.defaultLocale\` already use, so a school and its
+staff cannot disagree about what a country is. The address's \`countryCode\` is the same enum.
+
+**They were free strings until 2026-09-15**, which accepted \`"12"\` as a nationality and
+\`"adads"\` as a language — four stored rows had to be cleaned up when they changed. An unknown
+value is now a \`400\` naming it, on **both** boundaries: Jackson reads the body through the
+enum's own factory, and a converter does the same for \`?nationalityCode=\`, which otherwise
+matched the constant name exactly and refused \`in\` while the body accepted it.
+
+**An empty string is not a country.** Omit the key instead — \`"countryCode": ""\` is a 400.
+
 ### Normalisation
 
 \`\`\`
 emailAddress   trimmed and lower-cased      "  Anita@X.COM " -> "anita@x.com"
 phoneNumber    spacing characters stripped  "+91 98765-43210" -> "+919876543210"
-country codes  trimmed and upper-cased      "in" -> "IN"
+country codes  case-insensitive in          "in" -> IN            (the enum does this)
+locales        matched on the tag           "en-IN" -> EN_IN
 \`\`\`
 
 **No country code is invented.** "Normalised to international format" would mean guessing \`+91\`
@@ -13754,6 +13769,7 @@ object of nulls. They are the same fact, and a reader should not have to tell th
       errors: [
         { status: 400, code: "VALIDATION_FAILED", when: "fullName, phoneNumber or emailAddress blank; dateOfBirth absent or in the future; gender absent or not one of MALE / FEMALE / OTHER; a malformed email." },
         { status: 400, code: "STAFF_PHONE_REQUIRED", when: "The phone has no digits — '---' passes the blank check then normalises to nothing." },
+        { status: 400, code: "INVALID_VALUE", when: "nationalityCode is not an ISO 3166-1 alpha-2 code, or preferredLanguage is not a locale this product supports. The message names the value." },
         { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
         { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
         { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
