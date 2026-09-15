@@ -184,7 +184,7 @@ public class StaffService {
         String employeeNo = numberSequences.next(school.getId(),
                 NumberSequenceType.EMPLOYEE_NUMBER, "EMP/{YYYY}/{MM}/");
 
-        //! step 5 - insert.
+        //! step 5 - build the person.
         //!
         //! schoolId IS SET EXPLICITLY, and that is not boilerplate. SchoolBase declares it
         //! @NotBlank but nothing validates a document on save: a person written without it is
@@ -193,8 +193,7 @@ public class StaffService {
         //!
         //! NO active, NO status, NO department, NO joining date - there are none on the document.
         //! A person is not employed by existing; #16 writes the job.
-        // TODO: create staff
-        Staff saved = staff.save(Staff.builder()
+        Staff person = Staff.builder()
                 .schoolId(school.getId())
                 .employeeNo(employeeNo)
                 .fullName(request.fullName().trim())
@@ -208,7 +207,11 @@ public class StaffService {
                 .permanentAddress(utils.toAddress(request.permanentAddress()))
                 .emergencyContact(utils.toEmergencyContact(request.emergencyContact()))
                 .profileImageDocsId(TextHelper.blankToNull(request.profileImageDocsId()))
-                .build());
+                .build();
+
+        //! step 6 - insert it
+        // TODO: insert staff
+        Staff saved = staff.save(person);
 
         return StaffCreatedResponse.fromStaff(saved,
                 "This person exists but is not employed yet — #16 writes the job, and needs "
@@ -336,15 +339,14 @@ public class StaffService {
             //! either gets in.
             previous.setCurrent(false);
             previous.setEffectiveUntil(from.minusDays(1));
+
             // TODO: update employment
-            closed = EmploymentResponse.fromRecord(employments.save(previous));
+            EmploymentRecord closedRecord = employments.save(previous);
+            closed = EmploymentResponse.fromRecord(closedRecord);
         }
 
-        //! step 11 - open the new one. INSIDE THE SAME TRANSACTION as the close above: the unique
-        //! partial index forbids two current records, so this order is the only one possible, and
-        //! without the transaction a failure here would leave the person with NONE.
-        // TODO: create employment
-        EmploymentRecord saved = employments.save(EmploymentRecord.builder()
+        //! step 11 - build the new record
+        EmploymentRecord opening = EmploymentRecord.builder()
                 .schoolId(school.getId())
                 .staffDocsId(person.getId())
                 .positionDocsId(seat.getId())
@@ -354,9 +356,15 @@ public class StaffService {
                 .effectiveFrom(from)
                 .probationUntil(request.probationUntil())
                 .current(true)
-                .build());
+                .build();
 
-        //! step 12 - the headcount, COUNTED and never stored. A stored filledHeadcount drifts the
+        //! step 12 - open it. INSIDE THE SAME TRANSACTION as the close above: the unique partial
+        //! index forbids two current records, so this order is the only one possible, and without
+        //! the transaction a failure here would leave the person with NONE.
+        // TODO: insert employment
+        EmploymentRecord saved = employments.save(opening);
+
+        //! step 13 - the headcount, COUNTED and never stored. A stored filledHeadcount drifts the
         //! first time a writer forgets it - the objection that also keeps a weight total off
         //! AcademicTerm.
         //!

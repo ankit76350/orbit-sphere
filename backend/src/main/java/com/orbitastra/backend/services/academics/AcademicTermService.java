@@ -198,10 +198,9 @@ public class AcademicTermService {
         //! weighted term of a year impossible to write.
         helper.validateWeightSumWithinLimit(yearTerms, null, request.weightPercent());
 
-        //! step 10 - insert. resultsLocked and active take their defaults: both are events with
-        //! their own endpoints rather than fields to set at create.
-        // TODO: create academic term
-        AcademicTerm saved = academicTerms.save(AcademicTerm.builder()
+        //! step 10 - build it. resultsLocked and active take their defaults: both are events
+        //! with their own endpoints rather than fields to set at create.
+        AcademicTerm term = AcademicTerm.builder()
                 // Explicit, like every other write here. SchoolBase declares it @NotBlank, but
                 // nothing validates a document on save — a term written without it is stored,
                 // invisible to every tenant-scoped query, and only found by reading the raw
@@ -214,7 +213,11 @@ public class AcademicTermService {
                 .startDate(request.startDate())
                 .endDate(request.endDate())
                 .weightPercent(request.weightPercent())
-                .build());
+                .build();
+
+        //! step 11 - insert it
+        // TODO: insert academic term
+        AcademicTerm saved = academicTerms.save(term);
 
         //! step 11 - the SHORTFALL, reported rather than refused, against the set INCLUDING
         //! the row just written - which is the total a school would see on screen. An excess

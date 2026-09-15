@@ -79,7 +79,22 @@ folded into the save gives none of that.
 
 ## Applied
 
-All 74 database calls across the eight services that have them carry a marker, and every write is
-two steps. Applies to the whole backend, going forward.
+Applies to the whole backend, going forward.
+
+**Audited and re-applied 2026-09-15.** The claim above had gone stale: ten writes had the builder
+folded into `save(...)`, and six markers said `create` where the table says `insert`. Five were in
+`people` (written that day) and five predated it — `AcademicTermService`, `GradingSchemeService`,
+`NumberSequenceService` and `SchoolPlatformServiceUtils` (twice). One was worse than a builder in a
+save: `closed = EmploymentResponse.fromRecord(employments.save(previous))` hid a write inside a
+call, which the "no save in a return or a ternary" line already forbids.
+
+All fixed and re-verified. **A claim like "all N calls comply" rots** — the check is two greps:
+
+```bash
+# a builder folded into a write
+grep -rnE '\.(save|saveAll|insert)\(\s*\w*\.?builder\(\)' services/ repositories/
+# a marker using the wrong word
+grep -rn '// TODO: create ' services/ repositories/
+```
 
 Related: [[code-comment-and-log-style]] — the same plain-language rule covers the marker text.

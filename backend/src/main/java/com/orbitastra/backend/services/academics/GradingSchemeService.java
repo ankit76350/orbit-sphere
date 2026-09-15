@@ -175,10 +175,9 @@ public class GradingSchemeService {
                             + "existing scheme first.");
         }
 
-        //! step 6 - insert. active takes its default: it is an event with its own endpoints (#4,
-        //! #5) rather than a field to set at create.
-        // TODO: create grading scheme
-        GradingScheme saved = gradingSchemes.save(GradingScheme.builder()
+        //! step 6 - build it. active takes its default: it is an event with its own endpoints
+        //! (#4, #5) rather than a field to set at create.
+        GradingScheme scheme = GradingScheme.builder()
                 // Explicit, like every other write in this module. SchoolBase declares it
                 // @NotBlank, but nothing validates a document on save - one written without it
                 // is stored, invisible to every tenant-scoped query, and found only by reading
@@ -189,7 +188,11 @@ public class GradingSchemeService {
                 .scaleType(request.scaleType())
                 .maximumValue(request.maximumValue())
                 .gradeBands(new ArrayList<>(bands))
-                .build());
+                .build();
+
+        //! step 7 - insert it
+        // TODO: insert grading scheme
+        GradingScheme saved = gradingSchemes.save(scheme);
 
         //! step 7 - the gaps, REPORTED rather than refused. Computed from the SAVED document
         //! rather than the request: the two are the same set, and taking the saved one means #7

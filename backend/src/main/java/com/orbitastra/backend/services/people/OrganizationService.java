@@ -149,17 +149,20 @@ public class OrganizationService {
                             "No staff member with id '" + headId + "' in this school."));
         }
 
-        //! step 6 - insert. `active` takes its default: a unit created already retired is a state
-        //! nothing asked for, and retiring one is #10.
-        // TODO: create department
-        Department saved = departments.save(Department.builder()
+        //! step 6 - build it. `active` takes its default: a unit created already retired is a
+        //! state nothing asked for, and retiring one is #10.
+        Department unit = Department.builder()
                 .schoolId(school.getId())
                 .departmentCode(departmentCode)
                 .name(request.name().trim())
                 .description(TextHelper.blankToNull(request.description()))
                 .parentDepartmentDocsId(parentId)
                 .headStaffDocsId(headId)
-                .build());
+                .build();
+
+        //! step 7 - insert it
+        // TODO: insert department
+        Department saved = departments.save(unit);
 
         return DepartmentResponse.fromDepartment(saved,
                 "Positions hang off this unit — #13 creates one. " + NO_AUTHORIZATION_YET);
@@ -322,11 +325,10 @@ public class OrganizationService {
                             "No position with id '" + reportsTo + "' in this school."));
         }
 
-        //! step 6 - insert. approvedHeadcount follows the MODEL, which is @NotNull with a default
-        //! of 1 - so absent means one seat, and "uncapped" is not a state a stored position can
-        //! be in whatever the plan says. teachingPosition defaults false the same way.
-        // TODO: create position
-        Position saved = positions.save(Position.builder()
+        //! step 6 - build it. approvedHeadcount follows the MODEL, which is @NotNull with a
+        //! default of 1 - so absent means one seat, and "uncapped" is not a state a stored
+        //! position can be in whatever the plan says. teachingPosition defaults false the same way.
+        Position seat = Position.builder()
                 .schoolId(school.getId())
                 .title(title)
                 .departmentDocsId(departmentId)
@@ -335,7 +337,11 @@ public class OrganizationService {
                         ? 1
                         : request.approvedHeadcount())
                 .teachingPosition(Boolean.TRUE.equals(request.teachingPosition()))
-                .build());
+                .build();
+
+        //! step 7 - insert it
+        // TODO: insert position
+        Position saved = positions.save(seat);
 
         return PositionResponse.fromPosition(saved,
                 utils.teachingWarning(school, departmentId, saved),

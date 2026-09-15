@@ -133,21 +133,26 @@ public class NumberSequenceService {
             String prefixTemplate) {
 
         if (!numberSequences.existsBySchoolId(schoolId)) {
+            NumberSequence document = NumberSequence.builder().schoolId(schoolId).build();
             try {
-                numberSequences.save(NumberSequence.builder().schoolId(schoolId).build());
+                // TODO: insert number sequence
+                numberSequences.save(document);
             } catch (DuplicateKeyException raced) {
                 // Somebody else created it between the check and the insert. Nothing to do.
             }
         }
 
-        numberSequences.addCounterIfAbsent(schoolId, SequenceCounter.builder()
+        SequenceCounter counter = SequenceCounter.builder()
                 .sequenceType(type)
                 .scopeKey(GLOBAL_SCOPE)
                 .prefixTemplate(prefixTemplate)
                 .nextValue(1L)
                 .paddingWidth(6)
                 .resetPolicy(SequenceResetPolicy.NEVER)
-                .build());
+                .build();
+
+        // TODO: update number sequence
+        numberSequences.addCounterIfAbsent(schoolId, counter);
     }
 
     /**

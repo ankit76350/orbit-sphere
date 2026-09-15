@@ -95,10 +95,13 @@ public class SchoolPlatformServiceUtils {
         if (document.isEmpty()) {
             // First run for this school: a save, so the auditing hook fills in createdAt and
             // createdByDocsId. An update would leave both null.
-            numberSequences.save(NumberSequence.builder()
+            NumberSequence sequences = NumberSequence.builder()
                     .schoolId(schoolId)
                     .counters(missing)
-                    .build());
+                    .build();
+
+            // TODO: insert number sequence
+            numberSequences.save(sequences);
             return missing.size();
         }
 
@@ -141,12 +144,17 @@ public class SchoolPlatformServiceUtils {
         }
 
         if (document.isEmpty()) {
-            roles.save(Role.builder()
+            Role roleDocument = Role.builder()
                     .schoolId(schoolId)
                     .roles(missing)
-                    .build());
+                    .build();
+
+            // TODO: insert roles
+            roles.save(roleDocument);
             return missing.size();
         }
+
+        // TODO: update roles
         return roles.addRoles(schoolId, missing);
     }
 
