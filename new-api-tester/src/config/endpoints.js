@@ -12840,6 +12840,165 @@ The walk belongs to **#10**, which can move an existing unit under its own desce
         },
       ],
     },
+    {
+      id: "create-position",
+      name: "Create Position",
+      method: "POST",
+      path: "/schools/current/positions",
+      status: 'live',
+      summary: "Create an approved seat inside a department.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/positions\` — endpoint #13.
+
+### A position has no code
+
+\`positionCode\` was removed on **2026-09-15**. A seat is addressed by its document id — which is
+what \`EmploymentRecord.positionDocsId\` already stored — so **\`title\` is what names a seat**, and
+it carries the uniqueness the code used to.
+
+Its unique index went with it, necessarily: an index naming a field the model no longer declares
+is not inert. Every document then indexes a *missing* value, so the key is identical for all of
+them and the collection accepts exactly **one** row per school.
+
+### title is unique within its department
+
+\`409 POSITION_TITLE_TAKEN\`, scoped to \`{schoolId, departmentDocsId, title}\`. The same title in
+a **different** department is fine — two "Mathematics Teacher" seats in Academics and in
+Continuing Education are different seats.
+
+**The check folds case; the index does not.** Mongo compares a unique key case-sensitively, so
+"Mathematics Teacher" and "mathematics teacher" are two keys to the index and one title to the
+service. The service is the stricter of the two, and therefore the enforcement in practice.
+
+**A retired seat keeps its title**, because the index does not filter on \`active\` — consistent
+with a retired term keeping its code.
+
+### The department must be ACTIVE, not merely present
+
+\`409 DEPARTMENT_NOT_ACTIVE\`. A seat nobody may be hired into, inside a unit that no longer
+exists, is two problems rather than one.
+
+### The reporting line crosses departments on purpose
+
+\`reportsToPositionDocsId\` is checked to be **this school's** and nothing else. A school with one
+Head of Safeguarding that every unit reports to on that line is a real structure — the org tree
+and the reporting line answer different questions and are deliberately not kept consistent.
+
+**No cycle check here:** a brand-new seat has nothing reporting to it, so it cannot be its own
+ancestor. That walk belongs to #14.
+
+### approvedHeadcount follows the model, not the plan
+
+The plan says "null means uncapped". The **model** declares it \`@NotNull\` with a default of
+**1**, so uncapped is not a state a stored seat can be in. Absent or null becomes 1; zero and
+negative are \`400\`. Making uncapped real means dropping \`@NotNull\` from \`Position\`.
+
+### The teaching warning
+
+\`teachingPosition\` defaults to \`false\` and **should almost always be sent** — it is what a
+teacher picker filters on. When a department's seats are *all* non-teaching the response carries a
+\`warning\`, because that is legitimate for Finance and is also exactly what an empty picker looks
+like. It is **per department**, so creating Facilities does not warn a school whose Academics
+seats are correctly flagged.
+
+### The fifteen test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain and an ACTIVE department id from Create Department.
+
+ A POSITION HAS NO CODE. positionCode was removed 2026-09-15; a seat is
+ addressed by its document id, which EmploymentRecord already stored.
+
+ title IS UNIQUE WITHIN ITS DEPARTMENT — the job the code used to do. The
+ service folds case, the index does not. A RETIRED SEAT KEEPS ITS TITLE.
+
+ THE DEPARTMENT MUST BE ACTIVE, not merely present.
+
+ THE REPORTING LINE MAY CROSS DEPARTMENTS, on purpose. It is checked to be
+ this school's and nothing else.
+
+ approvedHeadcount FOLLOWS THE MODEL: absent or null becomes 1, and
+ "uncapped" is not storable because Position declares it @NotNull.
+
+ teachingPosition DEFAULTS FALSE and should almost always be sent. A
+ department with no teaching seat gets a WARNING, not a refusal.`,
+      requiredFields: ["title", "departmentDocsId"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "title": "Mathematics Teacher",
+  "departmentDocsId": "{{departmentDocsId}}",
+  "approvedHeadcount": 4,
+  "teachingPosition": true
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the seat by its document id. There is no code.",
+      responseFields: ["positionDocsId", "title", "departmentDocsId", "approvedHeadcount", "teachingPosition", "active"],
+      captures: [
+        { from: "positionDocsId", into: "positionDocsId", description: "What #16 needs to employ somebody, and what EmploymentRecord stores." },
+      ],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No title or departmentDocsId, either blank, a title over 120, or an approvedHeadcount below 1." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "The departmentDocsId is not a department of this school, including another school's real id." },
+        { status: 404, code: "POSITION_NOT_FOUND", when: "The reportsToPositionDocsId is not a position of this school, including another school's real id." },
+        { status: 409, code: "DEPARTMENT_NOT_ACTIVE", when: "The department exists but is retired. A seat cannot be created in it." },
+        { status: 409, code: "POSITION_TITLE_TAKEN", when: "That department already has a seat with that title, case-folded. Retired seats count." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        { id: "01", name: "A TEACHING SEAT", expect: "201 Created",
+          notes: `The body above.\n    OUT: positionDocsId, active true, and NO positionCode field — there is\n    no such field any more. No warning, because this seat teaches.`, body: null },
+        { id: "02", name: "THE DEFAULTS", expect: "201 Created",
+          notes: `Only title and departmentDocsId.\n    OUT: approvedHeadcount 1, teachingPosition false.`,
+          body: `{
+  "title": "Lab Assistant",
+  "departmentDocsId": "{{departmentDocsId}}"
+}` },
+        { id: "03", name: "AN EXPLICIT NULL HEADCOUNT", expect: "201 Created",
+          notes: `OUT: approvedHeadcount is 1, NOT uncapped. The model declares it\n    @NotNull, so uncapped is not a storable state.`,
+          body: `{
+  "title": "Explicit null",
+  "departmentDocsId": "{{departmentDocsId}}",
+  "approvedHeadcount": null
+}` },
+        { id: "04", name: "A HEADCOUNT OF ZERO", expect: "400 Bad Request",
+          notes: `@Min(1). A seat nobody may be hired into is not a seat.`, body: null },
+        { id: "05", name: "THE SAME TITLE AGAIN", expect: "409 Conflict",
+          notes: `Send case 01 twice.\n    OUT: { "code": "POSITION_TITLE_TAKEN" }, naming the department.`, body: null },
+        { id: "06", name: "THE SAME TITLE IN ANOTHER CASE", expect: "409 Conflict",
+          notes: `"mathematics teacher" after "Mathematics Teacher". The service folds\n    case even though the index would not — it is the stricter of the two.`, body: null },
+        { id: "07", name: "THE SAME TITLE IN ANOTHER DEPARTMENT", expect: "201 Created",
+          notes: `Accepted. Uniqueness is scoped to the department, not the school.`, body: null },
+        { id: "08", name: "A RETIRED SEAT KEEPS ITS TITLE", expect: "409 Conflict",
+          notes: `Set active:false on a seat in Mongo (#14 is not built), then send its\n    title again. OUT: POSITION_TITLE_TAKEN — the index does not filter\n    on active, so neither does the check.`, body: null },
+        { id: "09", name: "A RETIRED DEPARTMENT", expect: "409 Conflict",
+          notes: `Set active:false on the department, then create a seat in it.\n    OUT: { "code": "DEPARTMENT_NOT_ACTIVE" } — not NOT_FOUND. It exists;\n    it is closed.`, body: null },
+        { id: "10", name: "AN UNKNOWN DEPARTMENT", expect: "404 Not Found",
+          notes: `OUT: { "code": "DEPARTMENT_NOT_FOUND" }\n    Another school's REAL department id is the same 404.`, body: null },
+        { id: "11", name: "A REPORTING LINE", expect: "201 Created",
+          notes: `Put a real positionDocsId in reportsToPositionDocsId.`,
+          body: `{
+  "title": "Junior Maths Teacher",
+  "departmentDocsId": "{{departmentDocsId}}",
+  "reportsToPositionDocsId": "{{positionDocsId}}"
+}` },
+        { id: "12", name: "REPORTING ACROSS DEPARTMENTS", expect: "201 Created",
+          notes: `A Finance seat reporting to an Academics one. ACCEPTED ON PURPOSE:\n    the org tree and the reporting line answer different questions, and a\n    single Head of Safeguarding everyone reports to is a real structure.`, body: null },
+        { id: "13", name: "AN UNKNOWN REPORTING LINE", expect: "404 Not Found",
+          notes: `OUT: { "code": "POSITION_NOT_FOUND" }. Another school's real position\n    id is the same 404.`, body: null },
+        { id: "14", name: "A DEPARTMENT WITH NO TEACHING SEAT", expect: "201 Created",
+          notes: `Create a non-teaching seat in a fresh department.\n    OUT: 201 WITH A WARNING — legitimate for Finance, and also exactly\n    what an empty teacher picker looks like. Add one teaching seat and\n    later non-teaching seats stop warning.`, body: null },
+        { id: "15", name: "AFTER EVERY YEAR HAS ENDED", expect: "201 Created",
+          notes: `STILL WORKS: gate 4 does not run here. An org chart outlives them.`, body: null },
+      ],
+    },
   ],
 };
 

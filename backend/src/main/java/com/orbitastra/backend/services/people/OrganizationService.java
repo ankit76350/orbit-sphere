@@ -6,17 +6,22 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.people.organization.Department;
+import com.orbitastra.backend.models.people.organization.Position;
 import com.orbitastra.backend.repositories.people.organization.DepartmentRepository;
+import com.orbitastra.backend.repositories.people.organization.PositionRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
+import com.orbitastra.backend.services.people.utils.OrganizationServiceUtils;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into — endpoints #9 to #15 of the plan in
- * {@code controllers/people/organization/README.md}. #9 is built.
+ * {@code controllers/people/organization/README.md}. #9 and #13 are built.
  *
  * <p><b>This is where the people module starts, which surprises people.</b> {@code POST /staff}
  * looks like the first call, but the write that actually employs somebody needs a
@@ -33,7 +38,9 @@ public class OrganizationService {
 
     private final CurrentSchoolResolver currentSchool;
     private final DepartmentRepository departments;
+    private final PositionRepository positions;
     private final StaffRepository staff;
+    private final OrganizationServiceUtils utils;
 
     /** Repeated on every response until permissions exist. Deliberately hard to miss. */
     private static final String NO_AUTHORIZATION_YET =
@@ -107,4 +114,83 @@ public class OrganizationService {
         return DepartmentResponse.fromDepartment(saved,
                 "Positions hang off this unit — #13 creates one. " + NO_AUTHORIZATION_YET);
     }
+
+    /**
+     * Endpoint #13 — create an approved seat inside a department.
+     *
+     * <p><b>No cycle walk here</b>, for the same reason #9 has none: a brand-new seat has nothing
+     * reporting to it, so it cannot be its own ancestor whatever it reports to. The walk belongs
+     * to #14, which can move an existing seat under its own subordinate.
+     */
+    public PositionResponse createPosition(PositionCreateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - the owning unit has to be this school's
+        String departmentId = request.departmentDocsId().trim();
+        // TODO: read department
+        Department department = departments.findByIdAndSchoolId(departmentId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("DEPARTMENT_NOT_FOUND",
+                        "No department with id '" + departmentId + "' in this school."));
+
+        //! step 3 - and it has to still be one. A seat nobody may be hired into, inside a unit
+        //! that no longer exists, is two problems rather than one.
+        if (!Boolean.TRUE.equals(department.getActive())) {
+            throw ApiException.conflict("DEPARTMENT_NOT_ACTIVE",
+                    "'" + department.getName() + "' is retired, so no new seat can be created in "
+                            + "it. Reactivate the department first, or create the seat in the unit "
+                            + "that replaced it.");
+        }
+
+        //! step 4 - the title is what a seat is known by now that positionCode is gone, so it
+        //! carries the uniqueness the code used to. Folded case, because "Mathematics Teacher"
+        //! and "mathematics teacher" are one seat to a person reading a list.
+        //!
+        //! RETIRED SEATS COUNT, matching school_department_title_uniq, which does not filter on
+        //! active. A check that skipped them would accept a write the index then refuses.
+        String title = request.title().trim();
+        // TODO: check position exists
+        if (positions.existsBySchoolIdAndDepartmentDocsIdAndTitleIgnoreCase(
+                school.getId(), departmentId, title)) {
+
+            throw ApiException.conflict("POSITION_TITLE_TAKEN",
+                    "'" + department.getName() + "' already has a seat titled '" + title
+                            + "'. A title is what names a seat now that positions have no code, "
+                            + "so it stays taken once used — retired seats included.");
+        }
+
+        //! step 5 - the reporting line, when one was named. Checked to be this school's and
+        //! NOTHING ELSE: deliberately not required to share the department, because a school with
+        //! one Head of Safeguarding that every unit reports to on that line is a real structure.
+        //! The org tree and the reporting line answer different questions.
+        String reportsTo = TextHelper.blankToNull(request.reportsToPositionDocsId());
+        if (reportsTo != null) {
+            // TODO: read position
+            positions.findByIdAndSchoolId(reportsTo, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("POSITION_NOT_FOUND",
+                            "No position with id '" + reportsTo + "' in this school."));
+        }
+
+        //! step 6 - insert. approvedHeadcount follows the MODEL, which is @NotNull with a default
+        //! of 1 - so absent means one seat, and "uncapped" is not a state a stored position can
+        //! be in whatever the plan says. teachingPosition defaults false the same way.
+        // TODO: create position
+        Position saved = positions.save(Position.builder()
+                .schoolId(school.getId())
+                .title(title)
+                .departmentDocsId(departmentId)
+                .reportsToPositionDocsId(reportsTo)
+                .approvedHeadcount(request.approvedHeadcount() == null
+                        ? 1
+                        : request.approvedHeadcount())
+                .teachingPosition(Boolean.TRUE.equals(request.teachingPosition()))
+                .build());
+
+        return PositionResponse.fromPosition(saved,
+                utils.teachingWarning(school, departmentId, saved),
+                "Employing somebody into this seat needs positionDocsId " + saved.getId() + ". "
+                        + NO_AUTHORIZATION_YET);
+    }
+
 }

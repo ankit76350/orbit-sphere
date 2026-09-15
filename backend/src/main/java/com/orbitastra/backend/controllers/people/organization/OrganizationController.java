@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
+import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.services.people.OrganizationService;
 
@@ -20,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into. Endpoints #9 to #15 of the plan in this package's README;
- * #9 is built.
+ * #9 and #13 are built.
  *
  * <p><b>One controller for two documents</b>, because a position outside a department is not a
  * thing. They only exist in relation to each other, which makes them one subject.
@@ -40,7 +42,7 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/schools/current/departments")
+@RequestMapping("/schools/current")
 public class OrganizationController {
 
     private final OrganizationService organizationService;
@@ -53,7 +55,7 @@ public class OrganizationController {
      * <p>The first call anyone makes against this module: a position needs a department, and the
      * write that employs somebody needs a position.
      */
-    @PostMapping
+    @PostMapping("/departments")
     public ResponseEntity<DepartmentResponse> createDepartment(
             @Valid @RequestBody DepartmentCreateRequest request) {
 
@@ -71,6 +73,33 @@ public class OrganizationController {
         return ResponseEntity
                 .created(URI.create("/schools/current/departments/"
                         + response.departmentDocsId()))
+                .body(response);
+    }
+
+    /**
+     * Endpoint #13 — create an approved seat inside a department.
+     *
+     * <p><b>A seat has no code.</b> {@code positionCode} was removed on 2026-09-15, so this
+     * answers with the document id — which is what {@code EmploymentRecord.positionDocsId} stores
+     * and what #16 will need to employ anybody.
+     *
+     * <p><b>The department must be active</b>, not merely present: a seat nobody may be hired
+     * into, inside a unit that no longer exists, is two problems rather than one.
+     */
+    @PostMapping("/positions")
+    public ResponseEntity<PositionResponse> createPosition(
+            @Valid @RequestBody PositionCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        PositionResponse response = organizationService.createPosition(request);
+        return ResponseEntity
+                .created(URI.create("/schools/current/positions/" + response.positionDocsId()))
                 .body(response);
     }
 }

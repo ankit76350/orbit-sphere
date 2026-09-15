@@ -4598,6 +4598,56 @@
                 "description": "Endpoint #9 — create an org unit, optionally under another. The first call of the people module: a position needs a department, and employing somebody needs a position."
               },
               "response": []
+            },
+            {
+              "name": "Create Position",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('positionDocsId came back — EmploymentRecord stores it', () => pm.expect(b).to.have.property('positionDocsId'));",
+                      "pm.test('there is no positionCode any more', () => pm.expect(b).to.not.have.property('positionCode'));",
+                      "pm.test('approvedHeadcount is never null', () => pm.expect(b.approvedHeadcount).to.be.a('number'));",
+                      "pm.test('active defaults to true', () => pm.expect(b.active).to.equal(true));",
+                      "if (b.positionDocsId) pm.collectionVariables.set('positionDocsId', b.positionDocsId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Mathematics Teacher\",\n  \"departmentDocsId\": \"{{departmentDocsId}}\",\n  \"approvedHeadcount\": 4,\n  \"teachingPosition\": true\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/positions\n// Needs X-School-Subdomain and an ACTIVE department id from Create Department.\n//\n//  A POSITION HAS NO CODE. positionCode was removed 2026-09-15; a seat is\n//  addressed by its document id, which EmploymentRecord already stored. Its\n//  unique index went with it — an index naming a field the model no longer\n//  declares lets through exactly ONE row per school.\n//\n//  title IS UNIQUE WITHIN ITS DEPARTMENT — the job the code used to do. The\n//  service folds case, the index does not, so the service is the stricter of\n//  the two. A RETIRED SEAT KEEPS ITS TITLE.\n//\n//  THE DEPARTMENT MUST BE ACTIVE, not merely present.\n//\n//  THE REPORTING LINE MAY CROSS DEPARTMENTS, on purpose — the org tree and\n//  the reporting line answer different questions.\n//\n//  approvedHeadcount FOLLOWS THE MODEL: absent or null becomes 1, and\n//  \"uncapped\" is not storable because Position declares it @NotNull.\n//\n//  teachingPosition DEFAULTS FALSE. A department with no teaching seat gets\n//  a WARNING, not a refusal.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A TEACHING SEAT                                     -> 201 Created\n//     The body above. OUT: positionDocsId, active true, and NO positionCode\n//     field — there is no such field any more.\n// -------------------------------------------------------------------------\n// 02  THE DEFAULTS                                        -> 201 Created\n//     Only title and departmentDocsId.\n//     OUT: approvedHeadcount 1, teachingPosition false.\n// -------------------------------------------------------------------------\n// 03  AN EXPLICIT NULL HEADCOUNT                          -> 201 Created\n//     OUT: approvedHeadcount is 1, NOT uncapped.\n// -------------------------------------------------------------------------\n// 04  A HEADCOUNT OF ZERO                                 -> 400 Bad Request\n//     @Min(1). A seat nobody may be hired into is not a seat.\n// -------------------------------------------------------------------------\n// 05  THE SAME TITLE AGAIN                                -> 409 Conflict\n//     OUT: { \"code\": \"POSITION_TITLE_TAKEN\" }, naming the department.\n// -------------------------------------------------------------------------\n// 06  THE SAME TITLE IN ANOTHER CASE                      -> 409 Conflict\n//     \"mathematics teacher\" after \"Mathematics Teacher\".\n// -------------------------------------------------------------------------\n// 07  THE SAME TITLE IN ANOTHER DEPARTMENT                -> 201 Created\n//     Uniqueness is scoped to the department, not the school.\n// -------------------------------------------------------------------------\n// 08  A RETIRED SEAT KEEPS ITS TITLE                      -> 409 Conflict\n//     Set active:false on a seat in Mongo (#14 is not built), then send its\n//     title again. The index does not filter on active, so neither does the\n//     check.\n// -------------------------------------------------------------------------\n// 09  A RETIRED DEPARTMENT                                -> 409 Conflict\n//     OUT: { \"code\": \"DEPARTMENT_NOT_ACTIVE\" } — not NOT_FOUND.\n// -------------------------------------------------------------------------\n// 10  AN UNKNOWN DEPARTMENT                               -> 404 Not Found\n//     Another school's REAL department id is the same 404.\n// -------------------------------------------------------------------------\n// 11  A REPORTING LINE                                    -> 201 Created\n//     { \"title\": \"Junior Maths Teacher\",\n//       \"departmentDocsId\": \"{{departmentDocsId}}\",\n//       \"reportsToPositionDocsId\": \"{{positionDocsId}}\" }\n// -------------------------------------------------------------------------\n// 12  REPORTING ACROSS DEPARTMENTS                        -> 201 Created\n//     ACCEPTED ON PURPOSE.\n// -------------------------------------------------------------------------\n// 13  AN UNKNOWN REPORTING LINE                           -> 404 Not Found\n//     OUT: { \"code\": \"POSITION_NOT_FOUND\" }\n// -------------------------------------------------------------------------\n// 14  A DEPARTMENT WITH NO TEACHING SEAT                  -> 201 Created\n//     OUT: 201 WITH A WARNING. Add one teaching seat and later non-teaching\n//     seats stop warning.\n// -------------------------------------------------------------------------\n// 15  AFTER EVERY YEAR HAS ENDED                          -> 201 Created\n//     STILL WORKS: gate 4 does not run here.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 VALIDATION_FAILED                No title or departmentDocsId, either blank, a title over 120, or approvedHeadcount below 1.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 DEPARTMENT_NOT_FOUND             Not a department of this school.\n//     404 POSITION_NOT_FOUND               The reporting line is not a position of this school.\n//     409 DEPARTMENT_NOT_ACTIVE            The department exists but is retired.\n//     409 POSITION_TITLE_TAKEN             That department already has that title, case-folded. Retired seats count.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/positions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "positions"
+                  ]
+                },
+                "description": "Endpoint #13 — create an approved seat inside an ACTIVE department. A position has no code: title is unique within its department, and the seat is addressed by its document id."
+              },
+              "response": []
             }
           ]
         }
@@ -4662,6 +4712,11 @@
     },
     {
       "key": "departmentDocsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "positionDocsId",
       "value": "",
       "type": "string"
     }

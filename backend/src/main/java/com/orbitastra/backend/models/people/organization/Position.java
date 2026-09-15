@@ -24,9 +24,28 @@ import lombok.experimental.SuperBuilder;
  */
 @Document(collection = "staff_positions")
 @CompoundIndexes({
+        // NO UNIQUE INDEX HERE. positionCode was removed on 2026-09-15 and its
+        // school_position_code_uniq went with it, necessarily: a unique index naming a field the
+        // model no longer declares is not inert. Every document then indexes a missing value, so
+        // the key is identical for all of them and the collection accepts exactly ONE row per
+        // school — the school_year_class_code_uniq defect this project already shipped, found
+        // live, and had to migrate 659 documents out of.
+        //
+        // A position is addressed by its document id, which is what EmploymentRecord stores as
+        // positionDocsId.
+        // Added 2026-09-15, when positionCode was removed: with the code gone nothing constrained
+        // a duplicate seat, so the title carries that job within its department.
+        //
+        // IT DOES NOT FILTER ON active, deliberately and consistently with every other unique
+        // index in this project - a retired seat keeps its title, because records made against it
+        // still name it. A check that skipped retired rows would accept a write the index refuses.
+        //
+        // MONGO COMPARES IT CASE-SENSITIVELY. The service folds case before asking, so it is the
+        // stricter of the two and the enforcement in practice: "Mathematics Teacher" and
+        // "mathematics teacher" are one title to the service and two keys to the index.
         @CompoundIndex(
-                name = "school_position_code_uniq",
-                def = "{'schoolId': 1, 'positionCode': 1}",
+                name = "school_department_title_uniq",
+                def = "{'schoolId': 1, 'departmentDocsId': 1, 'title': 1}",
                 unique = true),
         @CompoundIndex(
                 name = "school_department_position_active_idx",
@@ -38,10 +57,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Position extends SchoolBase {
-
-    // Stable school-scoped business key. Example: "MATH_TEACHER"
-    @NotBlank
-    private String positionCode;
 
     // Example: "Mathematics Teacher"
     @NotBlank

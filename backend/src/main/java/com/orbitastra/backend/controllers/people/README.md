@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**One of 51 is built — [#9](#t9), `POST /departments`.** This file is the full set of endpoints
+**Two of 51 are built — [#9](#t9) `POST /departments` and [#13](#t13) `POST /positions`.** This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -165,8 +165,8 @@ than typed, so it is stable enough to be one — but nothing stores it as a refe
 built from it would be a second way to name a person that every consumer would have to learn.
 It is searchable through [#7](#e7) and printed on every response.
 
-**Codes exist on the two configuration documents** — `departmentCode`, `positionCode`,
-`leaveTypeCode`, `cycleCode` — for the same reason `termCode` does: a person types them into a
+**Codes exist on three configuration documents** — `departmentCode`, `leaveTypeCode`,
+`cycleCode` — for the same reason `termCode` does: a person types them into a
 filter and reads them on an export. They are unique per school, given rather than derived, and
 never change once anything references them.
 
@@ -254,7 +254,7 @@ relative to **`/schools/current`**.
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire an org unit without deleting it. Idempotent pair. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t13"></a>13 | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
+| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, or change the approved headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed** rather than stored. | [`staff_positions`](../../models/people/organization/Position.java), [`employment_records`](../../models/people/staff/EmploymentRecord.java) |
 
@@ -641,7 +641,6 @@ reached.
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `positionCode` | String, required | Unique with `schoolId`. **Never changes.** |
 | `departmentDocsId` | String, required | The owning unit. Indexed with `active` and `title`. |
 | `title` | String, required | What the seat is called. |
 | `approvedHeadcount` | Integer | How many may hold it. **Filled headcount is never stored** — [#15](#e15) counts current employment records, because a stored counter drifts. |
@@ -654,7 +653,7 @@ reached.
 | `STAFF_NOT_FOUND` | 404 | no staff member with that id in this school |
 | `DEPARTMENT_NOT_FOUND` · `POSITION_NOT_FOUND` | 404 | same, for the org documents |
 | `EMPLOYMENT_RECORD_NOT_FOUND` | 404 | — |
-| `DEPARTMENT_CODE_TAKEN` · `POSITION_CODE_TAKEN` | 409 | that code is already this school's |
+| `DEPARTMENT_CODE_TAKEN` | 409 | that code is already this school's |
 | `DEPARTMENT_CYCLE` | 409 | [#10](#e10) — a department cannot be its own ancestor |
 | `DEPARTMENT_NOT_EMPTY` | 409 | [#11](#e11) — it still holds active positions |
 | `POSITION_NOT_ACTIVE` | 409 | [#16](#e16) — hiring into a retired seat |
@@ -758,7 +757,7 @@ grew.
 **[12](#t12) · `GET /departments`** — `?tree=true` returns the nesting, `?active=` filters, and the two together are the only interesting combination. **The tree is built in the service from one flat read**, not by recursive queries.
 
 <a id="e13"></a>
-**[13](#t13) · `POST /positions`** — inside an **active** department. `positionCode` unique per school. `approvedHeadcount` optional; null means uncapped.
+**[13](#t13) · `POST /positions`** — inside an **active** department. `approvedHeadcount` optional; absent becomes **1**, and **null is not storable** — the model declares it `@NotNull`, so "uncapped" is not a state a seat can be in. `title` is unique within the department, which is the job `positionCode` used to do. **A position has no code** — `positionCode` was removed on 2026-09-15 and a seat is addressed by its document id, which is what `EmploymentRecord.positionDocsId` already stores.
 
 <a id="e14"></a>
 **[14](#t14) · `PATCH /positions/{id}`** — `title`, `approvedHeadcount`, `active`. **Lowering `approvedHeadcount` below the filled count is allowed with a `warning`**, not refused: a school reducing an approved seat count already over-filled is describing reality, and refusing it would make the number impossible to correct.

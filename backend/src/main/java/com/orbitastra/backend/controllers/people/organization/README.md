@@ -1,6 +1,6 @@
 # controllers/people/organization — API plan
 
-**#9 is built; #10 to #15 are not.** This is the detailed plan for the **organization package** — the org chart a
+**#9 and #13 are built; the rest are not.** This is the detailed plan for the **organization package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -26,7 +26,7 @@ Department  "Academics"                    departmentCode ACADEMICS
   │           may nest: parentDepartmentDocsId
   │           may name a head: headStaffDocsId -> Staff
   │
-  ├── Position  "Senior Mathematics Teacher"     positionCode SR_MATHS
+  ├── Position  "Senior Mathematics Teacher"     addressed by its document id
   │     approvedHeadcount 4
   │     teachingPosition TRUE          <- what a teacher picker filters on
   │     reportsToPositionDocsId        <- a SECOND hierarchy, see open item 1
@@ -89,7 +89,7 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire a unit without deleting it. Idempotent pair. |
 | <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
-| <a id="t13"></a>13 | [`POST /positions`](#e13) | Create an approved seat inside a department. |
+| <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, retire it. |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
 
@@ -233,23 +233,37 @@ cannot express, which is what that class is for in every other module.
 
 | Field | Type | What can be in it |
 |---|---|---|
-| `positionCode` | String, required | Unique with `schoolId`. **Never changes.** |
-| `title` | String, required | What the seat is called. Editable. |
+| `title` | String, required | What the seat is called. Editable. **Not unique** — see the note under the index. |
 | `departmentDocsId` | String, required | The owning unit, **active** at create. **Never changes** — see [what this package will not have](#things-this-package-deliberately-will-not-have). |
 | `reportsToPositionDocsId` | String | A second hierarchy — see [open item 1](#1-there-are-two-hierarchies-and-they-can-disagree). |
-| `approvedHeadcount` | Integer | Defaults to **1**. Null means uncapped. **Filled count is never stored.** |
+| `approvedHeadcount` | Integer | Defaults to **1**. **Not nullable** — the model declares it `@NotNull`, so "uncapped" is not a storable state despite what this table said before 2026-09-15. [#13](#e13) turns an absent or null value into 1. **Filled count is never stored.** |
 | `teachingPosition` | Boolean, required | Defaults to `false`. **What every teacher picker in the product filters on.** |
 | `active` | Boolean, required | `true` at create. Retiring a seat does not end anybody's employment. |
 
-**Index:** `school_position_code_uniq {schoolId, positionCode}` unique ·
-`school_department_position_active_idx {schoolId, departmentDocsId, active, title}`
+**Index:** `school_department_position_active_idx {schoolId, departmentDocsId, active, title}`
+— and **no unique index at all**.
+
+> **`positionCode` was removed on 2026-09-15**, and `school_position_code_uniq` had to go with it.
+> A unique index naming a field the model no longer declares is not inert: every document then
+> indexes a *missing* value, so the key is identical for all of them and the collection accepts
+> exactly **one** row per school. That is the `school_year_class_code_uniq` defect this project
+> already shipped, found live, and migrated 659 documents out of. `staff_positions` did not exist
+> in `edusphere_dev` when the field was removed, so there was no built index to drop.
+>
+> **A position is addressed by its document id** — which is what `EmploymentRecord` stores as
+> `positionDocsId`, and what every reference to a seat already uses. The same call this project
+> made for a class on 2026-09-10.
+>
+> **Nothing makes a position unique now.** Two seats with the same `title` in one department are
+> accepted, and that is a real structure — two Mathematics Teacher seats reporting to different
+> heads — but it is a change from the plan as written, not an oversight in it.
 
 ## The refusal codes this package introduces
 
 | Code | Status | When |
 |---|---|---|
 | `DEPARTMENT_NOT_FOUND` · `POSITION_NOT_FOUND` | 404 | not this school's |
-| `DEPARTMENT_CODE_TAKEN` · `POSITION_CODE_TAKEN` | 409 | already this school's |
+| `DEPARTMENT_CODE_TAKEN` | 409 | already this school's. **There is no `POSITION_CODE_TAKEN`** — `positionCode` was removed on 2026-09-15 |
 | `DEPARTMENT_CYCLE` | 409 | [#10](#e10) — a department cannot be its own ancestor |
 | `POSITION_CYCLE` | 409 | [#13](#e13), [#14](#e14) — nor can a reporting line |
 | `DEPARTMENT_NOT_EMPTY` | 409 | [#11](#e11) — active positions remain. **Names how many** |
@@ -302,21 +316,27 @@ cannot express, which is what that class is for in every other module.
 - **Not paged.** A department list is tens of rows and the tree has no meaningful page boundary.
 
 <a id="e13"></a>
-**[13](#t13) · `POST /positions`**
+**[13](#t13) · `POST /positions`** — built
 
 - [`staff_departments`](../../../models/people/organization/Department.java) — *reads*: the department, which must be **active**
-- [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: the code is free; `reportsToPositionDocsId` exists and does not cycle
-- *insert*: `positionCode`, `title`, `departmentDocsId`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active` = `true`
+- [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: `reportsToPositionDocsId` exists and does not cycle. **No code check** — `positionCode` was removed on 2026-09-15 and nothing makes a position unique now
+- *insert*: `schoolId`, `title`, `departmentDocsId`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active` = `true`
 - **`409 DEPARTMENT_NOT_ACTIVE`** for a retired unit. A seat nobody may be hired into, inside a unit that no longer exists, is two problems.
 - **`teachingPosition` defaults to `false`** and should almost always be sent. It is what [#7](../staff/README.md#e7) filters a teacher picker on, and a school that leaves it false on every seat gets an empty picker with no error to explain it — worth a `warning` on the response when a school's *first* positions are all non-teaching.
 - **`approvedHeadcount` defaults to 1.** Null means uncapped, which is different from 1 and worth sending deliberately.
-- **The reporting line is not required to be in the same department** — see [open item 1](#1-there-are-two-hierarchies-and-they-can-disagree).
+- **The reporting line is not required to be in the same department** — see [open item 1](#1-there-are-two-hierarchies-and-they-can-disagree). Asserted directly: a Finance seat reporting to an Academics one is a `201`.
+- **`409 POSITION_TITLE_TAKEN`, scoped to the department** — added 2026-09-15 with the removal of `positionCode`. With the code gone nothing constrained a duplicate seat, so `title` carries that job and `school_department_title_uniq` enforces it. The same title in a *different* department is fine.
+- **The title check folds case; the index does not.** Mongo compares a unique index key case-sensitively, so `"Mathematics Teacher"` and `"mathematics teacher"` are two keys to the index and one title to the service. The service is the stricter of the two and therefore the enforcement in practice — and the index is what catches anything that ever bypasses it.
+- **A retired seat keeps its title**, because `school_department_title_uniq` does not filter on `active` — consistent with a retired term keeping its code and a retired department keeping its own. A check that skipped retired rows would accept a write the index then refuses.
+- **No cycle walk here.** A brand-new seat has nothing reporting to it, so it cannot be its own ancestor whatever it reports to — the same reason [#9](#e9) has none. [Open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check) recommends checking at #13 anyway; that check could never fire, and #14 is where it will.
+- **`approvedHeadcount` follows the model, not this plan.** The field table below says "null means uncapped"; [`Position`](../../../models/people/organization/Position.java) declares it `@NotNull` with a builder default of **1**, so uncapped is not a state a stored seat can be in. Absent becomes 1 and a zero or negative is a `400`. **Making uncapped real means dropping `@NotNull` from the model** — a model change, and not this endpoint's to make.
+- **The teaching warning is per department, not per school.** A unit whose seats are all non-teaching gets a `warning` on the response — legitimate for Finance, and also exactly what an empty teacher picker looks like. Creating Facilities does not warn a school whose Academics seats are correctly flagged.
 
 <a id="e14"></a>
 **[14](#t14) · `PATCH /positions/{id}`**
 
 - *updates*: `title`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active`
-- **Never `positionCode`**, and **never `departmentDocsId`.** A seat that moves department is a new seat: editing it in place rewrites where every past holder worked, and the employment records under it would silently change department too.
+- **Never `departmentDocsId`.** A seat that moves department is a new seat: editing it in place rewrites where every past holder worked, and the employment records under it would silently change department too.
 - **Lowering `approvedHeadcount` below the filled count is a `warning`, not a refusal.** A school reducing an approved seat count that is already over-filled is describing something that has already happened, and refusing it makes the number impossible to correct. The same call [#16](../staff/README.md#e16) makes about `POSITION_FULL`, and the same one the term-weight sum made.
 - **`active` is a field here rather than an endpoint pair**, unlike [#11](#e11) — and that is an inconsistency worth naming. A position has no dependents to check, so the event has no rules of its own; a department does. If a reason to check one appears, this becomes `/positions/{id}/deactivate` and the field comes out.
 - **Retiring a position somebody currently holds is refused** — `409 POSITION_STILL_FILLED`. They are separated or transferred first, which is [#17](../staff/README.md#e17) or [#16](../staff/README.md#e16).
