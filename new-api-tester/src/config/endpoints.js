@@ -12600,6 +12600,249 @@ old report card means reading the scheme it was issued under.
   ],
 };
 
+const GROUP_PEOPLE_ORGANIZATION = {
+  id: "people-organization",
+  module: "People / Organization",
+  endpoints: [
+    {
+      id: "create-department",
+      name: "Create Department",
+      method: "POST",
+      path: "/schools/current/departments",
+      status: 'live',
+      summary: "Create an org unit, optionally under another.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/departments\` — endpoint #9.
+
+### The first call anyone makes against the people module
+
+\`POST /staff\` looks like it should be, but the write that actually employs somebody needs a
+\`positionDocsId\`, and a position needs a department. **This is where a school's people data
+starts.**
+
+### departmentCode is given, never derived
+
+The rule this project settled for \`termCode\`: deriving a code from a name ties two fields that
+do not move together. A school renaming "Academics" to "Teaching & Learning" must not be offered a
+new code for a unit twenty positions reference — the **name** is what a person reads, the **code**
+is what a filter and an export are written against.
+
+It is stored **trimmed and upper-cased**, so \`"  admin  "\` and \`"ADMIN"\` are one code. A person
+typing a filter should not have to know which case the school used that day.
+
+### Two units may share a name — only the code is unique
+
+\`school_department_code_uniq\` names \`departmentCode\` alone. A school with two units both called
+"Science" under different parents is a real org chart, not a mistake.
+
+### The head is validated to exist, and NOT to be employed
+
+During setup a school enters its org chart before its employment records. Refusing a head with no
+employment record would force it to work backwards, so the check is existence and tenant only.
+
+### active is not accepted
+
+It starts \`true\`. Retiring is #11 — an event with its own endpoint, the way every lifecycle flag
+in this project works. Sending it is **ignored, not refused**: the ordinary shape for a field a
+request record does not declare.
+
+### Two gates, not three
+
+Gate 4 asks whether a named academic year is the school's working one, and **no path here carries
+a year to ask it about**. An org chart outlives any year — a department exists before the first
+year opens and after the last one ends, and this endpoint still answers after every year has been
+ended.
+
+### No cycle check here
+
+A brand-new department has no children, so it cannot be its own ancestor whatever parent it names.
+The walk belongs to **#10**, which can move an existing unit under its own descendant.
+
+### The twelve test cases are in the request body as comments
+`,
+      bodyNotes: `Needs X-School-Subdomain. No year anywhere — an org chart outlives them.
+
+ THIS IS THE FIRST CALL of the people module. A position needs a department;
+ the write that employs somebody needs a position.
+
+ departmentCode IS GIVEN, NEVER DERIVED — the termCode rule. Stored trimmed
+ and UPPER-CASED, so "admin" and "ADMIN" are one code.
+
+ TWO UNITS MAY SHARE A NAME. Only the code is unique.
+
+ THE HEAD IS VALIDATED TO EXIST, NOT TO BE EMPLOYED. A school enters its org
+ chart before its employment records.
+
+ active IS NOT ACCEPTED. It starts true; retiring is #11. Sending it is
+ ignored, not refused.
+
+ NO GATE 4. There is no year in this path to ask it about.`,
+      requiredFields: ["departmentCode", "name"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "Content-Type", value: "application/json", enabled: true },
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: `{
+  "departmentCode": "ACADEMICS",
+  "name": "Academic Department",
+  "description": "Curriculum and teaching operations."
+}`,
+      successStatus: 201,
+      successNote: "Also sends a Location header pointing at the unit by its document id, not its code.",
+      responseFields: ["departmentDocsId", "departmentCode", "name", "active"],
+      captures: [
+        { from: "departmentDocsId", into: "departmentDocsId", description: "Positions reference this, and #10 to #12 address the unit by it." },
+      ],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "No departmentCode or name, either blank, a code over 40, or a name over 120." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "The parentDepartmentDocsId is not a department of this school — including another school's real id." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "The headStaffDocsId is not a staff member of this school, including another school's real id." },
+        { status: 409, code: "DEPARTMENT_CODE_TAKEN", when: "This school already uses that code. Case-folded, so ADMIN and admin collide." },
+        { status: 409, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended, closed or deleted." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — expired, suspended, or the period has ended." },
+      ],
+      examples: [
+        {
+          id: "01",
+          name: "A TOP-LEVEL UNIT",
+          expect: "201 Created",
+          notes: `The body above.
+    OUT: departmentDocsId, active true, and NO parentDepartmentDocsId field
+    at all — absent, not null.`,
+          body: null,
+        },
+        {
+          id: "02",
+          name: "THE CODE IS NORMALISED",
+          expect: "201 Created",
+          notes: `OUT: departmentCode is ADMIN — trimmed and upper-cased.
+    The NAME does not decide the code; they move independently.`,
+          body: `{
+  "departmentCode": "  admin  ",
+  "name": "Administration"
+}`,
+        },
+        {
+          id: "03",
+          name: "THE SAME CODE AGAIN",
+          expect: "409 Conflict",
+          notes: `OUT: { "code": "DEPARTMENT_CODE_TAKEN" }
+    Case-folded, so sending "admin" after "ADMIN" is the same refusal.`,
+          body: `{
+  "departmentCode": "ADMIN",
+  "name": "A different unit entirely"
+}`,
+        },
+        {
+          id: "04",
+          name: "TWO UNITS SHARING A NAME",
+          expect: "201 Created",
+          notes: `Allowed — only the code is unique. Two "Science" units under
+    different parents is a real org chart.`,
+          body: `{
+  "departmentCode": "ACADEMICS_2",
+  "name": "Academic Department"
+}`,
+        },
+        {
+          id: "05",
+          name: "NESTED UNDER ANOTHER",
+          expect: "201 Created",
+          notes: `Put a real departmentDocsId in parentDepartmentDocsId.
+    OUT: the child names its parent.`,
+          body: `{
+  "departmentCode": "SCIENCE",
+  "name": "Science",
+  "parentDepartmentDocsId": "{{departmentDocsId}}"
+}`,
+        },
+        {
+          id: "06",
+          name: "AN UNKNOWN PARENT",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "DEPARTMENT_NOT_FOUND" }
+    Another school's REAL department id is the same 404 — the lookup carries
+    schoolId, so a real id belonging elsewhere is not an accepted parent.`,
+          body: `{
+  "departmentCode": "ORPHAN",
+  "name": "Orphan",
+  "parentDepartmentDocsId": "deadbeefdeadbeefdeadbeef"
+}`,
+        },
+        {
+          id: "07",
+          name: "A BLANK PARENT",
+          expect: "201 Created",
+          notes: `"   " is treated as none, not as a lookup that fails.`,
+          body: `{
+  "departmentCode": "BLANKPARENT",
+  "name": "Blank parent",
+  "parentDepartmentDocsId": "   "
+}`,
+        },
+        {
+          id: "08",
+          name: "A HEAD WITH NO EMPLOYMENT RECORD",
+          expect: "201 Created",
+          notes: `A real Staff.id of this school. There is no POST /staff yet, so
+    insert one directly to try it.
+    ACCEPTED ON PURPOSE: a school enters its org chart before its employment
+    records, and refusing this would make it work backwards.`,
+          body: `{
+  "departmentCode": "HEADED",
+  "name": "Headed unit",
+  "headStaffDocsId": "67aa15d9dc3f7d0011111111"
+}`,
+        },
+        {
+          id: "09",
+          name: "AN UNKNOWN HEAD",
+          expect: "404 Not Found",
+          notes: `OUT: { "code": "STAFF_NOT_FOUND" }
+    Another school's real staff id is the same 404.`,
+          body: null,
+        },
+        {
+          id: "10",
+          name: "THE FIELDS THIS ENDPOINT WILL NOT TAKE",
+          expect: "201 Created",
+          notes: `active and schoolId are IGNORED, not refused.
+    OUT: active is true anyway, and the unit belongs to the calling school.
+    Retiring is #11; the tenant comes from the header.`,
+          body: `{
+  "departmentCode": "IGNORED",
+  "name": "Ignored flags",
+  "active": false,
+  "schoolId": "67aa15d9dc3f7d0099999999"
+}`,
+        },
+        {
+          id: "11",
+          name: "A SUSPENDED SCHOOL",
+          expect: "409 Conflict",
+          notes: `Suspend the school, then send case 01.
+    OUT: { "code": "SCHOOL_NOT_ACTIVE" } — gate 1.`,
+          body: null,
+        },
+        {
+          id: "12",
+          name: "AFTER EVERY YEAR HAS ENDED",
+          expect: "201 Created",
+          notes: `Run POST /academic-years/{name}/end on every year, then create one.
+    STILL WORKS: gate 4 does not run here. An org chart outlives any year,
+    and there is no year in this path to ask about.`,
+          body: null,
+        },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
@@ -12610,6 +12853,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_TERMS,
   GROUP_ACADEMICS_CLASSES,
   GROUP_ACADEMICS_GRADING,
+  GROUP_PEOPLE_ORGANIZATION,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */

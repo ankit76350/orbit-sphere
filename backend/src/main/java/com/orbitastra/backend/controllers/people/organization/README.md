@@ -1,6 +1,6 @@
 # controllers/people/organization — API plan
 
-**Nothing is built.** This is the detailed plan for the **organization package** — the org chart a
+**#9 is built; #10 to #15 are not.** This is the detailed plan for the **organization package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -85,7 +85,7 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 
 | # | Method and endpoint | What this API is for |
 |---|---|---|
-| <a id="t9"></a>9 | [`POST /departments`](#e9) | Create an org unit, optionally under another. |
+| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. |
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire a unit without deleting it. Idempotent pair. |
 | <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
@@ -263,7 +263,7 @@ cannot express, which is what that class is for in every other module.
 # What every API touches, field by field
 
 <a id="e9"></a>
-**[9](#t9) · `POST /departments`**
+**[9](#t9) · `POST /departments`** — built
 
 - [`staff_departments`](../../../models/people/organization/Department.java) — *reads*: the code is free; the parent exists, if one was named
 - [`staff`](../../../models/people/staff/Staff.java) — *reads*: `headStaffDocsId` exists in this school, if one was named
@@ -271,7 +271,11 @@ cannot express, which is what that class is for in every other module.
 - **`departmentCode` is given, never derived.** The rule this project settled on 2026-09-12 for `termCode`: deriving a code from a name ties two fields that do not move together, and a school renaming "Academics" to "Teaching & Learning" should not be offered a new code for a department twenty positions reference.
 - **The head is validated to exist but not to be employed.** A department may be headed by somebody whose employment record has not been written yet — during setup that is the normal order, and refusing it would force a school to enter its org chart backwards.
 - **`active` is not accepted.** It starts `true`; retiring is [#11](#e11), an event with its own endpoint, the way every lifecycle flag in this project works.
-- **No cycle is possible at create** — a brand-new department cannot be its own ancestor — so the walk only runs on [#10](#e10).
+- **No cycle is possible at create** — a brand-new department cannot be its own ancestor — so the walk only runs on [#10](#e10). `PeopleHelper` is therefore **not created yet**: a helper holding one method for one caller is the abstraction this project's service rules exist to prevent, and #10 is what will earn it.
+- **The code is stored trimmed and upper-cased.** `"  admin  "` and `"ADMIN"` are one code, because a person typing a filter should not have to know which case the school used that day. The uniqueness check runs on the normalised value, so the two cannot both exist.
+- **Two departments may share a `name`; only the code is unique.** The index says so — `school_department_code_uniq` names `departmentCode` alone — and a school with two units both called "Science" under different parents is a real org chart, not a mistake.
+- **`schoolId` is set explicitly on the insert**, and that is not boilerplate. `SchoolBase` declares it `@NotBlank` but nothing validates a document on save: a unit written without it is stored, invisible to every tenant-scoped query, and found only by reading the raw collection. That exact bug shipped in this project's term create on 2026-09-11.
+- **The uniqueness check is the enforcement, not a nicety in front of the index.** `school_department_code_uniq` is declared on the model but built on demand (`app.mongo.sync-indexes`), so a database that has never synced carries no such constraint at all.
 
 <a id="e10"></a>
 **[10](#t10) · `PATCH /departments/{id}`**

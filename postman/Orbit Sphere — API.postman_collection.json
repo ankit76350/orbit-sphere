@@ -4543,6 +4543,65 @@
           "description": "Grading schemes — the school's rulebook for turning a mark into a grade. One of 9 endpoints is built; the plan is in controllers/academics/grading/README.md."
         }
       ]
+    },
+    {
+      "name": "People",
+      "item": [
+        {
+          "name": "Organization",
+          "item": [
+            {
+              "name": "Create Department",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('departmentDocsId came back — positions reference it', () => pm.expect(b).to.have.property('departmentDocsId'));",
+                      "pm.test('the code is upper-cased', () => pm.expect(b.departmentCode).to.equal(b.departmentCode.toUpperCase()));",
+                      "pm.test('active defaults to true', () => pm.expect(b.active).to.equal(true));",
+                      "if (b.departmentDocsId) pm.collectionVariables.set('departmentDocsId', b.departmentDocsId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"departmentCode\": \"ACADEMICS\",\n  \"name\": \"Academic Department\",\n  \"description\": \"Curriculum and teaching operations.\"\n}\n\n// =========================================================================\n//  TEST CASES  —  POST /schools/current/departments\n// Needs X-School-Subdomain. No year anywhere — an org chart outlives them.\n//\n//  THIS IS THE FIRST CALL of the people module. A position needs a\n//  department; the write that employs somebody needs a position.\n//\n//  departmentCode IS GIVEN, NEVER DERIVED — the termCode rule. Stored\n//  trimmed and UPPER-CASED, so \"admin\" and \"ADMIN\" are one code.\n//\n//  TWO UNITS MAY SHARE A NAME. Only the code is unique.\n//\n//  THE HEAD IS VALIDATED TO EXIST, NOT TO BE EMPLOYED. A school enters its\n//  org chart before its employment records.\n//\n//  active IS NOT ACCEPTED. It starts true; retiring is #11. Sending it is\n//  ignored, not refused.\n//\n//  NO GATE 4. There is no year in this path to ask it about.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A TOP-LEVEL UNIT                                    -> 201 Created\n//     The body above.\n//     OUT: departmentDocsId, active true, and NO parentDepartmentDocsId\n//     field at all — absent, not null.\n// -------------------------------------------------------------------------\n// 02  THE CODE IS NORMALISED                              -> 201 Created\n//     OUT: departmentCode is ADMIN — trimmed and upper-cased. The NAME does\n//     not decide the code; they move independently.\n//\n//     { \"departmentCode\": \"  admin  \", \"name\": \"Administration\" }\n// -------------------------------------------------------------------------\n// 03  THE SAME CODE AGAIN                                 -> 409 Conflict\n//     OUT: { \"code\": \"DEPARTMENT_CODE_TAKEN\" }\n//     Case-folded, so sending \"admin\" after \"ADMIN\" is the same refusal.\n// -------------------------------------------------------------------------\n// 04  TWO UNITS SHARING A NAME                            -> 201 Created\n//     Allowed — only the code is unique.\n//\n//     { \"departmentCode\": \"ACADEMICS_2\", \"name\": \"Academic Department\" }\n// -------------------------------------------------------------------------\n// 05  NESTED UNDER ANOTHER                                -> 201 Created\n//     { \"departmentCode\": \"SCIENCE\", \"name\": \"Science\",\n//       \"parentDepartmentDocsId\": \"{{departmentDocsId}}\" }\n// -------------------------------------------------------------------------\n// 06  AN UNKNOWN PARENT                                   -> 404 Not Found\n//     OUT: { \"code\": \"DEPARTMENT_NOT_FOUND\" }\n//     Another school's REAL department id is the same 404.\n// -------------------------------------------------------------------------\n// 07  A BLANK PARENT                                      -> 201 Created\n//     \"   \" is treated as none, not as a lookup that fails.\n// -------------------------------------------------------------------------\n// 08  A HEAD WITH NO EMPLOYMENT RECORD                    -> 201 Created\n//     A real Staff.id of this school. ACCEPTED ON PURPOSE.\n//\n//     { \"departmentCode\": \"HEADED\", \"name\": \"Headed unit\",\n//       \"headStaffDocsId\": \"67aa15d9dc3f7d0011111111\" }\n// -------------------------------------------------------------------------\n// 09  AN UNKNOWN HEAD                                     -> 404 Not Found\n//     OUT: { \"code\": \"STAFF_NOT_FOUND\" }\n// -------------------------------------------------------------------------\n// 10  THE FIELDS THIS ENDPOINT WILL NOT TAKE              -> 201 Created\n//     active and schoolId are IGNORED, not refused.\n//\n//     { \"departmentCode\": \"IGNORED\", \"name\": \"Ignored flags\",\n//       \"active\": false, \"schoolId\": \"67aa15d9dc3f7d0099999999\" }\n// -------------------------------------------------------------------------\n// 11  A SUSPENDED SCHOOL                                  -> 409 Conflict\n//     OUT: { \"code\": \"SCHOOL_NOT_ACTIVE\" } — gate 1.\n// -------------------------------------------------------------------------\n// 12  AFTER EVERY YEAR HAS ENDED                          -> 201 Created\n//     STILL WORKS: gate 4 does not run here.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 VALIDATION_FAILED                No departmentCode or name, either blank, a code over 40, or a name over 120.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 DEPARTMENT_NOT_FOUND             The parent is not a department of this school.\n//     404 STAFF_NOT_FOUND                  The head is not a staff member of this school.\n//     409 DEPARTMENT_CODE_TAKEN            This school already uses that code, case-folded.\n//     409 SCHOOL_NOT_ACTIVE                Gate 1 — the school is suspended, closed or deleted.\n//     409 SUBSCRIPTION_NOT_USABLE          Gate 2 — expired, suspended, or the period has ended."
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/departments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "departments"
+                  ]
+                },
+                "description": "Endpoint #9 — create an org unit, optionally under another. The first call of the people module: a position needs a department, and employing somebody needs a position."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -4600,6 +4659,11 @@
       "key": "termDocsId",
       "value": "",
       "description": "Saved by Create Term. #3 addresses a term by its document id, not by termCode — six documents across three modules store termDocsId."
+    },
+    {
+      "key": "departmentDocsId",
+      "value": "",
+      "type": "string"
     }
   ]
 }

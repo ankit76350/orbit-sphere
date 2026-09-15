@@ -1,4 +1,4 @@
-import { Building2, CreditCard, GraduationCap, Package, Settings2 } from 'lucide-react'
+import { Building2, CreditCard, GraduationCap, Package, Settings2, Users } from 'lucide-react'
 import Catalogue from './pages/platform/plans/Catalogue.jsx'
 import PlanDetail from './pages/platform/plans/PlanDetail.jsx'
 import AllSubscriptions from './pages/platform/plans/AllSubscriptions.jsx'
@@ -10,6 +10,7 @@ import AcademicYearDetail from './pages/school/core/AcademicYearDetail.jsx'
 import AcademicYears from './pages/school/core/AcademicYears.jsx'
 import Profile from './pages/school/core/Profile.jsx'
 import Terms from './pages/school/academics/Terms.jsx'
+import Departments from './pages/school/people/Departments.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
@@ -188,6 +189,25 @@ export const SURFACES = [
               // which is the one thing eight other collections store about it.
               child: { segment: 'sections', param: 'sectionNo', screen: SectionDetail },
             },
+          },
+        ],
+      },
+      {
+        // The fourth module, and the one the product actually starts with: a school hires before
+        // it timetables. 51 endpoints are designed in controllers/people/README.md and one
+        // exists. The badge counts what is BUILT, like every other badge here.
+        id: 'people',
+        label: 'People',
+        icon: Users,
+        submodules: [
+          {
+            // Organization comes first because nothing else in people can be built without it —
+            // employing somebody needs a position, and a position needs a department.
+            id: 'departments',
+            label: 'Organization',
+            group: 'People / Organization',
+            endpoints: 1,
+            screen: Departments,
           },
         ],
       },

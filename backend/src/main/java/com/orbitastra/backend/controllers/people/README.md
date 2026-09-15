@@ -1,6 +1,7 @@
 # controllers/people — API plan
 
-**Nothing is built.** This file is the full set of endpoints the people feature needs, written
+**One of 51 is built — [#9](#t9), `POST /departments`.** This file is the full set of endpoints
+the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
 [`controllers/academics/structure`](../academics/structure/README.md) and
@@ -249,7 +250,7 @@ relative to **`/schools/current`**.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t9"></a>9 | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/organization/Department.java) |
+| <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire an org unit without deleting it. Idempotent pair. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t12"></a>12 | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
