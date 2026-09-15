@@ -41,6 +41,9 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * parentDepartmentDocsId is this unit's id, which is on screen here and nowhere else. The list
  * page adds top-level units and does not draw the box at all.
  *
+ * AND A SEAT IS EDITED HERE TOO — #14, from its row. A seat row carries everything #14 edits, so
+ * that modal opens on the row itself where a sub-department's has to read #52 first.
+ *
  * A SEAT IS CREATED HERE, AND NOWHERE ELSE. #13 needs a departmentDocsId, and this page is one
  * department — so the list no longer offers it. Moved 2026-09-15: the list used to hold a
  * session-only table of what it had created, which showed seats the school held nowhere and
@@ -65,6 +68,9 @@ export default function DepartmentDetail() {
   // and #10 edits four fields, two of which a row does not carry. Opening on a summary would
   // show an empty description box for a unit that has one.
   const [editTarget, setEditTarget] = useState(null)
+  // THE SEAT BEING EDITED. Unlike a sub-department row, a seat row carries everything #14 edits —
+  // #52 returns the whole PositionResponse — so there is nothing to read first.
+  const [seatTarget, setSeatTarget] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -82,7 +88,7 @@ export default function DepartmentDetail() {
 
   //! THE ROUTE PARAM CHANGES WITHOUT REMOUNTING. Opening a sub-department from a row swaps `id`
   //! under a live component, so a modal left open would keep editing the unit you just left.
-  useEffect(() => { setEditTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])
+  useEffect(() => { setEditTarget(null); setSeatTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])
 
   //! A ROW IS A SUMMARY — four fields. #10 edits description and head too, so the full document
   //! is read first and the modal opens on that. One extra request, and the alternative is a form
@@ -261,6 +267,7 @@ export default function DepartmentDetail() {
         action={
           <div className="btn-row">
             <EndpointTag id="create-position" name="Add a seat" />
+            <EndpointTag id="update-position" name="Edit a seat" />
             <Badge>{data?.positionCount ?? 0} total</Badge>
             <Badge tone="good">{data?.activePositionCount ?? 0} active</Badge>
             <Badge tone={data?.teachingPositionCount ? 'brand' : undefined}>
@@ -286,6 +293,7 @@ export default function DepartmentDetail() {
                   <th>Teaching</th>
                   <th>Reports to</th>
                   <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -306,6 +314,10 @@ export default function DepartmentDetail() {
                       <Badge tone={one.active ? 'good' : undefined}>
                         {one.active ? 'active' : 'retired'}
                       </Badge>
+                    </td>
+                    {/* #14. The row IS the document — nothing to read first. */}
+                    <td>
+                      <Button icon={Pencil} onClick={() => setSeatTarget(one)}>Edit</Button>
                     </td>
                   </tr>
                 ))}
@@ -335,6 +347,13 @@ export default function DepartmentDetail() {
         parent={data ?? { departmentDocsId: id }}
         onClose={() => setSubOpen(false)}
         onAdded={load}
+      />
+
+      <EditPosition
+        open={seatTarget != null}
+        seat={seatTarget}
+        onClose={() => setSeatTarget(null)}
+        onSaved={load}
       />
 
       <AddPosition
@@ -708,6 +727,223 @@ function EditDepartment({ open, department, departmentDocsId, onClose, onSaved }
           <Info size={12} /> Send them anyway if you like — they are not on the request record, so
           they are <b>ignored rather than refused</b>, and a body of only those two is the same{' '}
           <span className="mono">400 NOTHING_TO_UPDATE</span> as an empty one.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Editing a seat — #14.
+ *
+ * THE ROW IS THE DOCUMENT. #52 returns every field #14 edits, so this opens on the row itself —
+ * where a sub-department's editor has to read #52 first, because a sub-department row is a
+ * four-field summary.
+ *
+ * IT SENDS WHAT YOU CHANGED, AND NOTHING ELSE, for the same reason as #10's modal: absent means
+ * "leave it alone", so a body carrying untouched fields would claim more than the person asked
+ * for. Change nothing and press Save and the body is `{}` — which is the documented
+ * 400 NOTHING_TO_UPDATE, reachable by doing nothing.
+ *
+ * THE DEPARTMENT IS SHOWN AS TEXT, NOT A BOX. A seat cannot move department, and this is the page
+ * somebody would come to looking to try — so it is stated with its reason rather than left out.
+ *
+ * A WARNING IS NOT A REFUSAL. Turning off a unit's last teaching seat succeeds and says so; the
+ * warning renders beside the success, never as an error.
+ */
+function EditPosition({ open, seat, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const initial = {
+    title: seat?.title ?? '',
+    reportsToPositionDocsId: seat?.reportsToPositionDocsId ?? '',
+    approvedHeadcount: String(seat?.approvedHeadcount ?? ''),
+    teachingPosition: seat?.teachingPosition ?? false,
+    active: seat?.active ?? true,
+  }
+
+  useEffect(() => {
+    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, seat?.positionDocsId])
+
+  const current = form ?? initial
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
+  const toggle = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.checked }))
+
+  // ONLY WHAT MOVED — and {} when nothing did, which is the 400 this endpoint documents.
+  const body = (() => {
+    const out = {}
+    if (current.title !== initial.title) out.title = current.title
+    if (current.reportsToPositionDocsId !== initial.reportsToPositionDocsId) {
+      out.reportsToPositionDocsId = current.reportsToPositionDocsId
+    }
+    if (current.approvedHeadcount !== initial.approvedHeadcount) {
+      // Sent as typed when it is not a number, so the validation refusal stays reachable.
+      const asNumber = Number(current.approvedHeadcount)
+      out.approvedHeadcount = current.approvedHeadcount === '' || Number.isNaN(asNumber)
+        ? current.approvedHeadcount
+        : asNumber
+    }
+    if (current.teachingPosition !== initial.teachingPosition) {
+      out.teachingPosition = current.teachingPosition
+    }
+    if (current.active !== initial.active) out.active = current.active
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-position', {
+      label: 'Edit a seat',
+      pathParams: { id: seat?.positionDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setMade(result.bodyJson)
+      onSaved()
+      return
+    }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title={seat?.title ? `Edit ${seat.title}` : 'Edit this seat'}
+      description="Only what you change is sent — absent means leave it alone, so an untouched field never appears in the body."
+      endpoint={<EndpointTag id="update-position" name="Save" look="primary"
+        pathParams={{ id: seat?.positionDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">{made.title}</span>
+            </div>
+            <pre className="resp-body">{made.nextStep}</pre>
+          </div>
+        ) : null}
+
+        {/* Rides on a SUCCESSFUL response. Kept apart from the refusal above so it never reads as
+            a failure — the seat was saved. */}
+        {made?.warning ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">saved, with a warning</span>
+            </div>
+            <pre className="resp-body">{made.warning}</pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Title"
+            hint="Unique within this department, retired seats included, case-folded. Empty is refused — POSITION_TITLE_REQUIRED."
+            error={errors.title}
+          >
+            <Input value={current.title} error={errors.title} onChange={set('title')} />
+          </Field>
+          <Field
+            label="Approved headcount"
+            hint="At least 1. Null is NOT uncapped — the model forbids it, so 0 and below are a 400 rather than being clamped."
+            error={errors.approvedHeadcount}
+          >
+            <Input type="number" value={current.approvedHeadcount}
+              error={errors.approvedHeadcount} onChange={set('approvedHeadcount')} />
+          </Field>
+        </div>
+
+        <Field
+          label="Reports to (position id)"
+          hint="Empty means nobody. May be in ANOTHER department — the org tree and the reporting line answer different questions. A supervisor that reports back to this seat is a 409 POSITION_CYCLE."
+          error={errors.reportsToPositionDocsId}
+        >
+          <Input value={current.reportsToPositionDocsId} error={errors.reportsToPositionDocsId}
+            onChange={set('reportsToPositionDocsId')} placeholder="empty for nobody" />
+        </Field>
+
+        <div className="field-grid">
+          <Field
+            label="Teaching position"
+            hint="Turning it OFF can leave the unit with no teaching seat at all — that returns a warning on a 200, not a refusal."
+          >
+            <label className="check">
+              <input type="checkbox" checked={current.teachingPosition}
+                onChange={toggle('teachingPosition')} />
+              <span>Somebody in this seat teaches</span>
+            </label>
+          </Field>
+          <Field
+            label="Active"
+            hint="A retired seat keeps its title — records made against it still name it. Refusing to retire a filled seat is #14's, once #16 makes filling one possible."
+          >
+            <label className="check">
+              <input type="checkbox" checked={current.active} onChange={toggle('active')} />
+              <span>This seat is in use</span>
+            </label>
+          </Field>
+        </div>
+
+        {/* TEXT, NOT A BOX. A seat cannot move department, and this is where somebody would try. */}
+        <div className="table-scroll">
+          <table className="data-table">
+            <tbody>
+              <tr><td className="muted">Department, which #14 never accepts</td>
+                <td><span className="mono">{seat?.departmentDocsId}</span>{' '}
+                  <span className="muted">
+                    a seat that moves department is a new seat — editing it in place would rewrite
+                    where every past holder worked, and every employment record under it would
+                    change department with it
+                  </span></td></tr>
+              <tr><td className="muted">Seat id</td>
+                <td><span className="mono">{seat?.positionDocsId}</span>{' '}
+                  <span className="muted">
+                    the whole identity, since positionCode was removed — it is what an employment
+                    record stores
+                  </span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="muted">
+          <Info size={12} /> Send <span className="mono">departmentDocsId</span> anyway if you
+          like — it is not on the request record, so it is <b>ignored rather than refused</b>, and a
+          body of only that is the same <span className="mono">400 NOTHING_TO_UPDATE</span> as an
+          empty one.
         </p>
       </div>
     </Modal>

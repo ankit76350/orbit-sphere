@@ -1,6 +1,6 @@
 # controllers/people/organization — API plan
 
-**#9, #10, #12, #13 and #52 are built; the rest are not. #11 was absorbed into #10 on 2026-09-15.** **#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **organization package** — the org chart a
+**#9, #10, #12, #13, #14 and #52 are built; the rest are not. #11 was absorbed into #10 on 2026-09-15.** **#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **organization package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -90,7 +90,7 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, refusal and all. |
 | <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
-| <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, retire it. |
+| <a id="t14"></a>14 — **built** | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, change its line, retire it. **Never its department.** |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
 | <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent department, its sub-departments, its head and its seats. **Added 2026-09-15**, after the plan. |
 
@@ -275,13 +275,14 @@ cannot express, which is what that class is for in every other module.
 | `DEPARTMENT_NOT_FOUND` · `POSITION_NOT_FOUND` | 404 | not this school's |
 | `DEPARTMENT_CODE_TAKEN` | 409 | already this school's. **There is no `POSITION_CODE_TAKEN`** — `positionCode` was removed on 2026-09-15 |
 | ~~`DEPARTMENT_CYCLE`~~ | — | **never implemented.** [#10](#e10) does not accept a parent, so no endpoint can write one |
-| `POSITION_CYCLE` | 409 | [#13](#e13), [#14](#e14) — nor can a reporting line |
+| `POSITION_CYCLE` | 409 | [#14](#e14) — nor can a reporting line. **Not [#13](#e13)**: a new seat has nothing reporting to it, so the check could never fire |
 | `DEPARTMENT_NOT_EMPTY` | 409 | [#10](#e10) `active:false` — active positions remain. **Names how many** |
 | `DEPARTMENT_NOT_ACTIVE` | 409 | [#13](#e13) — creating a seat in a retired unit |
-| `POSITION_STILL_FILLED` | 409 | [#14](#e14) — retiring a seat somebody currently holds |
-| `HEADCOUNT_BELOW_FILLED` | *warning* | [#14](#e14) — **reported, not refused** |
-| `NOTHING_TO_UPDATE` | 400 | [#10](#e10) — reuses core's code. A body of only uneditable fields counts as empty |
+| `POSITION_STILL_FILLED` | 409 | [#14](#e14) — retiring a seat somebody holds. **Not implemented**: nothing employs anybody yet, so the count could only be zero. Owed by [#16](../staff/README.md#e16) |
+| `HEADCOUNT_BELOW_FILLED` | *warning* | [#14](#e14) — **reported, not refused**, and **not implemented** for the same reason. Owed by [#16](../staff/README.md#e16) |
+| `NOTHING_TO_UPDATE` | 400 | [#10](#e10), [#14](#e14) — reuses core's code. A body of only uneditable fields counts as empty |
 | `DEPARTMENT_NAME_REQUIRED` | 400 | [#10](#e10) — `name` sent blank. A name is replaced, never removed |
+| `POSITION_TITLE_REQUIRED` | 400 | [#14](#e14) — `title` sent blank. A title is replaced, never removed |
 
 ---
 
@@ -371,13 +372,23 @@ cannot express, which is what that class is for in every other module.
 - **`loadDepartment` moved to `OrganizationServiceUtils` when this arrived** — three callers wanted the same tenant-scoped lookup, and two was a coincidence where three is a rule with three places to get it wrong.
 
 <a id="e14"></a>
-**[14](#t14) · `PATCH /positions/{id}`**
+**[14](#t14) · `PATCH /positions/{id}`** — built
 
 - *updates*: `title`, `reportsToPositionDocsId`, `approvedHeadcount`, `teachingPosition`, `active`
-- **Never `departmentDocsId`.** A seat that moves department is a new seat: editing it in place rewrites where every past holder worked, and the employment records under it would silently change department too.
-- **Lowering `approvedHeadcount` below the filled count is a `warning`, not a refusal.** A school reducing an approved seat count that is already over-filled is describing something that has already happened, and refusing it makes the number impossible to correct. The same call [#16](../staff/README.md#e16) makes about `POSITION_FULL`, and the same one the term-weight sum made.
-- **`active` is a field here rather than an endpoint pair**, unlike [#11](#e11) — and that is an inconsistency worth naming. A position has no dependents to check, so the event has no rules of its own; a department does. If a reason to check one appears, this becomes `/positions/{id}/deactivate` and the field comes out.
-- **Retiring a position somebody currently holds is refused** — `409 POSITION_STILL_FILLED`. They are separated or transferred first, which is [#17](../staff/README.md#e17) or [#16](../staff/README.md#e16).
+- **Absent means "leave it alone", and an empty body is `400 NOTHING_TO_UPDATE`.** A body of *only* `departmentDocsId` is the same 400 — it is not on the request record, so the request is still empty.
+- **Never `departmentDocsId`.** A seat that moves department is a new seat: editing it in place rewrites where every past holder worked, and the employment records under it would silently change department too. It is also what keeps `school_department_title_uniq` meaningful — a title is unique *within* a unit, and a seat that could move would carry its title across that boundary. The same call [#10](#e10) makes about a department's parent, for a different reason: **a department's parent is structure, a seat's department is history.**
+- **This is the endpoint that can write a reporting cycle, so this is where the walk is** — `409 POSITION_CYCLE`. [#13](#e13) needs none: a brand-new seat has nothing reporting to it. Reporting to itself is the one-step case of the same walk, named separately only because the message can be clearer. See [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check).
+- **The walk carries a visited set**, and that is not habit: a cycle already in the collection — hand-written, restored from a backup, left by a future writer — would make the walk itself loop forever. It stops and reports rather than hanging the request. **One read per level**, not one read of the collection: a reporting chain is a handful of seats deep, where a department tree is read whole by [#12](#e12) anyway.
+- **The title carries the uniqueness `positionCode` used to**, scoped to the department, **retired seats included** — `school_department_title_uniq` does not filter on `active`. **The duplicate check skips a title that only changed case**, because that is the same seat and `existsBy…` cannot exclude it: `"mathematics teacher"` → `"Mathematics Teacher"` is a correction, not a collision.
+- **Turning `teachingPosition` off is the interesting direction.** It is how a unit that had one teaching seat stops having any — the same empty teacher picker [#13](#e13) warns about, arriving by a different route — so the warning is computed here on the way **out** as well. A warning rides on a `200`; the seat is saved.
+- **`active` is a field here rather than an endpoint pair**, unlike [#11](#e11) — and that inconsistency is now resolved the other way: #11 was absorbed into [#10](#e10) on 2026-09-15, so both a unit and a seat are retired by a field. A department's transition has a rule of its own; a seat's does not, yet.
+- **The department is not checked, and that asymmetry is on purpose.** [#13](#e13) refuses a seat in a retired unit — `409 DEPARTMENT_NOT_ACTIVE` — because a seat nobody may be hired into, inside a unit that no longer exists, is two problems. #14 does not: a seat that already exists in a unit since retired still needs correcting, and refusing to edit it would strand it.
+
+**Two checks this plan specifies and #14 does NOT implement.** Both are recorded rather than quietly skipped, and both are owed the moment [#16](../staff/README.md#e16) lands:
+
+- **Lowering `approvedHeadcount` below the filled count is to be a `warning`, not a refusal.** A school reducing an approved count that is already over-filled is describing something that has already happened, and refusing it makes the number impossible to correct. The same call #16 makes about `POSITION_FULL`, and the same one the term-weight sum made.
+- **Retiring a position somebody currently holds is to be refused** — `409 POSITION_STILL_FILLED`. They are separated or transferred first, which is [#17](../staff/README.md#e17) or #16.
+- **Neither can fire yet.** There is no `EmploymentRecordRepository`, no endpoint writes one, and the collection does not exist — so the filled count could only ever be zero. A check that can never fail is not a check, which is the same call [#13](#e13) made about its cycle walk.
 
 <a id="e15"></a>
 **[15](#t15) · `GET /positions`**

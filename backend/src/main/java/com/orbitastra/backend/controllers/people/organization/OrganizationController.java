@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRe
 import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
 import com.orbitastra.backend.dto.people.organization.response.PositionResponse;
 import com.orbitastra.backend.models.core.School;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into. Endpoints #9 to #15 of the plan in this package's README;
- * #9, #10, #12, #13 and #52 are built.
+ * #9, #10, #12, #13, #14 and #52 are built.
  *
  * <p><b>One controller for two documents</b>, because a position outside a department is not a
  * thing. They only exist in relation to each other, which makes them one subject.
@@ -136,6 +137,33 @@ public class OrganizationController {
         return ResponseEntity
                 .created(URI.create("/schools/current/positions/" + response.positionDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #14 — retitle a seat, move its headcount, change its reporting line, retire it.
+     *
+     * <p><b>Never its department.</b> A seat that moves department is a new seat: editing it in
+     * place would rewrite where every past holder worked, and every employment record under it
+     * would silently change department too.
+     *
+     * <p><b>This is the endpoint that can write a reporting cycle</b>, so it is the one that walks
+     * the chain — {@code 409 POSITION_CYCLE}. #13 needs no such walk: a brand-new seat has nothing
+     * reporting to it.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: no year in this path.
+     */
+    @PatchMapping("/positions/{id}")
+    public ResponseEntity<PositionResponse> updatePosition(@PathVariable String id,
+            @Valid @RequestBody PositionUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(organizationService.updatePosition(id, request));
     }
 
     /**

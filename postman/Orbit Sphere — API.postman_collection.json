@@ -4650,6 +4650,66 @@
               "response": []
             },
             {
+              "name": "Update Position",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the seat came back', () => pm.expect(b).to.have.property('positionDocsId'));",
+                      "// A SEAT NEVER MOVES DEPARTMENT. Editing it would rewrite where every past holder worked.",
+                      "pm.test('a departmentDocsId still comes back', () => pm.expect(b.departmentDocsId).to.be.a('string'));",
+                      "pm.test('the headcount is at least 1', () => pm.expect(b.approvedHeadcount).to.be.at.least(1));",
+                      "pm.test('it says what happened', () => pm.expect(b).to.have.property('nextStep'));",
+                      "// \"\" CLEARS the reporting line \u2014 the key is absent, not present and blank.",
+                      "if ('reportsToPositionDocsId' in b) pm.test('a reporting line that is present is not blank', () => pm.expect(b.reportsToPositionDocsId).to.not.equal(''));",
+                      "// A WARNING RIDES ON A 200. The seat is saved; the unit simply has no teaching seat left.",
+                      "if (b.warning) pm.test('a warning is not a refusal', () => pm.expect(pm.response.code).to.equal(200));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/positions/{id}\n// Every field optional. Needs X-School-Subdomain and a position id.\n//\n//  ABSENT MEANS LEAVE IT ALONE, and an empty body is 400 NOTHING_TO_UPDATE.\n//\n//  NEVER departmentDocsId — A SEAT CANNOT MOVE DEPARTMENT. Editing it would\n//  rewrite where every past holder worked, and every employment record under\n//  the seat would silently change department too. A seat elsewhere is a NEW\n//  seat. It is also what keeps school_department_title_uniq meaningful.\n//\n//  THIS IS THE ENDPOINT THAT CAN WRITE A REPORTING CYCLE, so this is where\n//  the walk is — 409 POSITION_CYCLE. #13 needs none: a brand-new seat has\n//  nothing reporting to it. The walk carries a visited set, so a cycle\n//  ALREADY in the collection stops it rather than hanging the request.\n//\n//  THE TITLE CARRIES THE UNIQUENESS positionCode USED TO, scoped to the\n//  department, RETIRED SEATS INCLUDED. Its own title in another case is a\n//  correction, not a collision.\n//\n//  TURNING teachingPosition OFF is the interesting direction: it is how a\n//  unit that had one teaching seat stops having any. Same warning #13 gives,\n//  on the way out. A warning rides on a 200 — the seat is saved.\n//\n//  TWO CHECKS THE PLAN SPECIFIES AND THIS DOES NOT IMPLEMENT:\n//  HEADCOUNT_BELOW_FILLED and 409 POSITION_STILL_FILLED. Neither can fire\n//  yet — nothing writes an employment record, so the filled count could only\n//  ever be zero. Both are owed the moment #16 lands.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A RETITLE                                           -> 200 OK\n//     { \"title\": \"Senior Mathematics Teacher\" }\n//     OUT: the new title, the department untouched.\n// -------------------------------------------------------------------------\n// 02  NOTHING AT ALL                                      -> 400 Bad Request\n//     {}   OUT: { \"code\": \"NOTHING_TO_UPDATE\" }\n// -------------------------------------------------------------------------\n// 03  ONLY THE DEPARTMENT                                 -> 400 Bad Request\n//     { \"departmentDocsId\": \"...\" }\n//     The same 400 — it is not on the request record, so the request is\n//     empty. IGNORED on the way in, never refused. The seat does NOT move.\n// -------------------------------------------------------------------------\n// 04  THE TITLE CANNOT BE REMOVED                         -> 400 Bad Request\n//     { \"title\": \"   \" }  OUT: { \"code\": \"POSITION_TITLE_REQUIRED\" }\n// -------------------------------------------------------------------------\n// 05  A TITLE ANOTHER SEAT HOLDS                          -> 409 Conflict\n//     Two seats in one unit; rename one to the other's title.\n//     OUT: { \"code\": \"POSITION_TITLE_TAKEN\" } — and it FOLDS CASE, so\n//     \"academics ADMINISTRATOR\" collides too.\n// -------------------------------------------------------------------------\n// 06  ITS OWN TITLE IN ANOTHER CASE                       -> 200 OK\n//     { \"title\": \"mathematics teacher\" } on the seat already called\n//     \"Mathematics Teacher\". Same seat, so a correction not a collision.\n// -------------------------------------------------------------------------\n// 07  A RETIRED SEAT STILL HOLDS ITS TITLE                -> 409 Conflict\n//     Retire a seat in Mongo, then rename another to its title.\n//     school_department_title_uniq does not filter on active, so a check\n//     that skipped retired rows would accept a write the index refuses.\n// -------------------------------------------------------------------------\n// 08  CLEARING THE REPORTING LINE                         -> 200 OK\n//     { \"reportsToPositionDocsId\": \"\" }\n//     OUT: no reportsToPositionDocsId key — the seat reports to nobody.\n// -------------------------------------------------------------------------\n// 09  A SUPERVISOR IN ANOTHER DEPARTMENT                  -> 200 OK\n//     Allowed deliberately. One Head of Safeguarding every unit reports to\n//     is a real structure — the org tree and the reporting line answer\n//     different questions.\n// -------------------------------------------------------------------------\n// 10  REPORTING TO ITSELF                                 -> 409 Conflict\n//     OUT: { \"code\": \"POSITION_CYCLE\" } — the one-step case of the walk.\n// -------------------------------------------------------------------------\n// 11  A LOOP UP THE CHAIN                                 -> 409 Conflict\n//     C reports to B reports to A. Make A report to C.\n//     OUT: 409 POSITION_CYCLE — the walk goes up the WHOLE chain. Skipping\n//     a level UPWARDS is fine and is not a cycle.\n// -------------------------------------------------------------------------\n// 12  THE HEADCOUNT                                       -> 200 OK / 400\n//     8 raises it; 1 lowers it and nothing refuses that. 0 and -3 are a 400:\n//     the model is @NotNull defaulting to 1, so null is NOT \"uncapped\".\n// -------------------------------------------------------------------------\n// 13  TURNING OFF THE LAST TEACHING SEAT                  -> 200 OK\n//     { \"teachingPosition\": false } on a unit's only teaching seat.\n//     OUT: 200 WITH a warning. A warning is not a refusal — it is saved.\n// -------------------------------------------------------------------------\n// 14  RETIRING                                            -> 200 OK\n//     { \"active\": false } — OUT: a nextStep saying it keeps its title,\n//     because records made against it still name it. true restores.\n//     Editing a RETIRED seat still works, as does one in a retired unit.\n// -------------------------------------------------------------------------\n// 15  ANOTHER SCHOOL'S SEAT                               -> 404 Not Found\n//     A REAL position id belonging to a different school — as the seat\n//     itself AND as the supervisor named. 404 POSITION_NOT_FOUND both ways.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                No editable field was sent.\n//     400 POSITION_TITLE_REQUIRED          title sent blank.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     403 SCHOOL_NOT_ACTIVE                Gate 1 — suspended or closed. Reads still work.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 POSITION_NOT_FOUND               The seat, or the supervisor named, is not this school's.\n//     409 POSITION_TITLE_TAKEN             Another seat in the unit holds it, retired included.\n//     409 POSITION_CYCLE                   The proposed supervisor reports to this seat.\n\n{\n    \"title\": \"Senior Mathematics Teacher\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/positions/{{positionDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "positions",
+                    "{{positionDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #14 \u2014 retitle a seat, move its headcount, change its reporting line, retire it. Never its department. This is the endpoint that can write a reporting cycle, so it is the one that walks the chain."
+              },
+              "response": []
+            },
+            {
               "name": "List Departments",
               "event": [
                 {

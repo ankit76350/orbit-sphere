@@ -3510,6 +3510,8 @@ const peopleCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_ORGANIZA
 const orgDeptEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-department'),
   peopleCatalogue.indexOf('create-position'))
 const orgPosEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-position'),
+  peopleCatalogue.indexOf('update-position'))
+const orgSeatEditEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('update-position'),
   peopleCatalogue.indexOf('list-departments'))
 // BOTH ENDS, ALWAYS. update-department was inserted between these two on 2026-09-15, and a slice
 // that still ran list-departments -> get-department would have swallowed it whole — every #12
@@ -3613,6 +3615,45 @@ const peopleChecks = [
   ['the department id stays editable when adding a seat, so its refusals are reachable',
     orgDetailScreen.includes('change it to reach DEPARTMENT_NOT_ACTIVE or NOT_FOUND')],
 
+  // #14 — the seat edit. The endpoint that can write a reporting cycle, so the one that walks.
+  ['#14 is a PATCH on the id',
+    /method: "PATCH"/.test(orgSeatEditEntry) && /path: "\/schools\/current\/positions\/{id}"/.test(orgSeatEditEntry)],
+  ['a seat cannot move department, and the reason is recorded',
+    orgSeatEditEntry.includes('a seat cannot move department')
+      && orgSeatEditEntry.includes('rewrite where every past holder worked')],
+  ['the cycle walk is here rather than on #13, and it says why',
+    orgSeatEditEntry.includes('POSITION_CYCLE')
+      && orgSeatEditEntry.includes('a brand-new seat has nothing reporting to it')],
+  ['the walk goes up the WHOLE chain, not one level',
+    orgSeatEditEntry.includes('A LOOP UP THE CHAIN')],
+  ['and carries a visited set, so a cycle already stored cannot hang it',
+    orgSeatEditEntry.includes('visited set')],
+  ['the title is unique per department, retired seats included',
+    orgSeatEditEntry.includes('POSITION_TITLE_TAKEN')
+      && orgSeatEditEntry.includes('retired seats included')],
+  ['its own title in another case is a correction, not a collision',
+    orgSeatEditEntry.includes('correction, not a collision')],
+  ['turning teaching off warns rather than refusing',
+    orgSeatEditEntry.includes('A warning rides on a')],
+  ['the two checks that are NOT implemented are named, with why and who owes them',
+    orgSeatEditEntry.includes('POSITION_STILL_FILLED')
+      && orgSeatEditEntry.includes('HEADCOUNT_BELOW_FILLED')
+      && orgSeatEditEntry.includes('could only ever be zero')],
+  ['and the department is deliberately NOT checked here, unlike #13',
+    orgSeatEditEntry.includes('DEPARTMENT_NOT_ACTIVE') && orgSeatEditEntry.includes('would strand it')],
+
+  // The seat edit modal on the screen.
+  ['a seat is edited from its row',
+    orgDetailScreen.includes("call('update-position'") && orgDetailScreen.includes('function EditPosition')],
+  ['the row IS the document, so nothing is read first',
+    orgDetailScreen.includes('setSeatTarget(one)')],
+  ['it sends only what changed',
+    orgDetailScreen.includes('if (current.title !== initial.title)')],
+  ['the department is shown as TEXT, not a box that is greyed out',
+    orgDetailScreen.includes('Department, which #14 never accepts')],
+  ['a warning renders apart from the refusal, so it never reads as a failure',
+    orgDetailScreen.includes('saved, with a warning')],
+
   // #10 — the edit. Lives on the unit's page, and refuses two fields on purpose.
   ['#10 is a PATCH on the id',
     /method: "PATCH"/.test(orgEditEntry) && /path: "\/schools\/current\/departments\/{id}"/.test(orgEditEntry)],
@@ -3659,7 +3700,7 @@ const peopleChecks = [
   ['and the parent links back up, because the rows only go down',
     orgDetailScreen.includes("<Link to={detailPath('school', 'people', 'departments',")],
   ['a modal does not survive the route param changing under it',
-    orgDetailScreen.includes('setEditTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])')],
+    orgDetailScreen.includes('setEditTarget(null); setSeatTarget(null); setSeatOpen(false); setSubOpen(false) }, [id])')],
   ['every sub-department row carries its own edit',
     orgDetailScreen.includes('openEditor(one.departmentDocsId)')],
   ['and editing a row stops the click, or it would navigate away first',

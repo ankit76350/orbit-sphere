@@ -67,8 +67,13 @@ public class OrganizationServiceUtils {
      *
      * @return the warning, or null when this seat teaches or some other seat in the unit does
      *
+     * <p><b>#14 computes it on the way out, not just #13 on the way in.</b> Turning
+     * {@code teachingPosition} off is how a department that had one teaching seat stops having
+     * any, and that is the same empty picker arriving by a different route.
+     *
      * Used by:
      * - createPosition()
+     * - updatePosition()
      */
     public String teachingWarning(School school, String departmentId, Position saved) {
         if (Boolean.TRUE.equals(saved.getTeachingPosition())) {

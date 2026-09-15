@@ -20,6 +20,7 @@ import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRe
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
+import com.orbitastra.backend.dto.people.organization.request.PositionUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentNodeResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
@@ -340,6 +341,163 @@ public class OrganizationService {
                 utils.teachingWarning(school, departmentId, saved),
                 "Employing somebody into this seat needs positionDocsId " + saved.getId() + ". "
                         + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #14 — retitle a seat, move its headcount, change its reporting line, retire it.
+     *
+     * <p><b>Never its department.</b> A seat that moves department is a new seat: editing it in
+     * place would rewrite where every past holder worked, and every employment record under it
+     * would silently change department too. It is also what keeps the title index meaningful — a
+     * title is unique <i>within</i> a unit.
+     *
+     * <p><b>This is the endpoint that can write a reporting cycle</b>, which is why the walk is
+     * here and not on #13. A brand-new seat has nothing reporting to it; an existing one can be
+     * moved under its own subordinate.
+     */
+    public PositionResponse updatePosition(String positionDocsId, PositionUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send title, reportsToPositionDocsId, approvedHeadcount, teachingPosition or "
+                            + "active. departmentDocsId is not editable — a seat that moves "
+                            + "department is a new seat, and moving it would rewrite where every "
+                            + "past holder worked.");
+        }
+
+        //! step 3 - the seat, scoped to the school. Another school's real id is a real id.
+        String seatId = positionDocsId == null ? "" : positionDocsId.trim();
+        // TODO: read position
+        Position position = positions.findByIdAndSchoolId(seatId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("POSITION_NOT_FOUND",
+                        "No position with id '" + seatId + "' in this school."));
+
+        //! step 4 - the title, which is the whole identity now that positionCode is gone.
+        //!
+        //! THE DUPLICATE CHECK SKIPS A TITLE THAT ONLY CHANGED CASE, because that is this same
+        //! seat and existsBy... cannot exclude it. "mathematics teacher" -> "Mathematics Teacher"
+        //! is a correction, not a collision, and the folded comparison is what tells them apart.
+        //!
+        //! RETIRED SEATS COUNT, matching school_department_title_uniq, which does not filter on
+        //! active. A check that skipped them would accept a write the index then refuses.
+        if (request.title() != null) {
+            String newTitle = request.title().trim();
+            if (newTitle.isEmpty()) {
+                throw ApiException.badRequest("POSITION_TITLE_REQUIRED",
+                        "A seat's title cannot be removed — it is what names the seat now that "
+                                + "positions have no code. Send a new one, or omit the field.");
+            }
+
+            if (!newTitle.equals(position.getTitle())) {
+                // TODO: check position exists
+                if (positions.existsBySchoolIdAndDepartmentDocsIdAndTitleIgnoreCase(
+                        school.getId(), position.getDepartmentDocsId(), newTitle)) {
+
+                    throw ApiException.conflict("POSITION_TITLE_TAKEN",
+                            "Another seat in this department is already titled '" + newTitle
+                                    + "'. A title is what names a seat now that positions have no "
+                                    + "code, so it stays taken once used — retired seats "
+                                    + "included.");
+                }
+            }
+            position.setTitle(newTitle);
+        }
+
+        //! step 5 - the reporting line. "" reports to nobody; a real id has to be this school's,
+        //! and deliberately NOT the same department - a school with one Head of Safeguarding that
+        //! every unit reports to on that line is a real structure.
+        if (request.reportsToPositionDocsId() != null) {
+            String reportsTo = TextHelper.blankToNull(request.reportsToPositionDocsId());
+
+            if (reportsTo != null) {
+                //! ONE STEP, AND THEN THE WHOLE CHAIN. Reporting to itself is the one-step case
+                //! of the same walk, named separately only because the message can be clearer.
+                if (reportsTo.equals(position.getId())) {
+                    throw ApiException.conflict("POSITION_CYCLE",
+                            "A seat cannot report to itself.");
+                }
+
+                // TODO: read position
+                Position supervisor = positions.findByIdAndSchoolId(reportsTo, school.getId())
+                        .orElseThrow(() -> ApiException.notFound("POSITION_NOT_FOUND",
+                                "No position with id '" + reportsTo + "' in this school."));
+
+                //! THE CYCLE WALK, and #14 is the only endpoint that needs it. #13 cannot write a
+                //! cycle because a brand-new seat has nothing reporting to it; this one can move
+                //! an existing seat under its own subordinate.
+                //!
+                //! `seen` is not defensive habit either: a cycle already in the collection - hand
+                //! written, restored from a backup, or left by a future writer - would make this
+                //! walk itself loop forever. It stops and reports rather than hanging the request.
+                //!
+                //! ONE READ PER LEVEL, not one read of the collection. A reporting chain is a
+                //! handful of seats deep where a department tree is read whole by #12 anyway.
+                Set<String> seen = new LinkedHashSet<>();
+                Position walker = supervisor;
+                while (walker != null && seen.add(walker.getId())) {
+                    if (position.getId().equals(walker.getReportsToPositionDocsId())) {
+                        throw ApiException.conflict("POSITION_CYCLE",
+                                "'" + supervisor.getTitle() + "' already reports to '"
+                                        + position.getTitle() + "', directly or through the chain "
+                                        + "above it. Making that seat its supervisor would close "
+                                        + "the line into a loop that nothing could draw.");
+                    }
+
+                    String next = walker.getReportsToPositionDocsId();
+                    // TODO: read position
+                    walker = next == null
+                            ? null
+                            : positions.findByIdAndSchoolId(next, school.getId()).orElse(null);
+                }
+            }
+
+            position.setReportsToPositionDocsId(reportsTo);
+        }
+
+        //! step 6 - the headcount. @Min(1) refuses zero and below at validation: the model is
+        //! @NotNull with a default of 1, so "uncapped" is not a state a stored seat can be in.
+        //!
+        //! LOWERING IT BELOW THE FILLED COUNT IS TO BE A WARNING, NOT A REFUSAL - a school
+        //! reducing a count that is already over-filled is describing something that has already
+        //! happened, and refusing it would make the number impossible to correct. It is NOT
+        //! implemented, because nothing fills a seat yet: there is no EmploymentRecordRepository
+        //! and no endpoint writes one, so the count could only ever be zero. #16 is what earns it.
+        if (request.approvedHeadcount() != null) {
+            position.setApprovedHeadcount(request.approvedHeadcount());
+        }
+
+        //! step 7 - whether the seat teaches. Turning it OFF is the interesting direction: it can
+        //! leave a department with no teaching seat at all, which is what an empty teacher picker
+        //! looks like - so the same warning #13 gives on the way in is computed here on the way out.
+        if (request.teachingPosition() != null) {
+            position.setTeachingPosition(request.teachingPosition());
+        }
+
+        //! step 8 - retiring. A RETIRED SEAT KEEPS ITS TITLE, matching the index and matching a
+        //! retired term keeping its code.
+        //!
+        //! RETIRING A SEAT SOMEBODY HOLDS IS TO BE REFUSED - 409 POSITION_STILL_FILLED, with the
+        //! holder separated or transferred first. NOT implemented, for the same reason as the
+        //! headcount warning above: nothing employs anybody yet, so the check could only ever
+        //! pass. #16 and #17 are what earn it, and this comment is the note that they owe it.
+        if (request.active() != null) {
+            position.setActive(request.active());
+        }
+
+        //! step 9 - save. The department is untouched: it is not on the request, so it cannot be
+        //! reached from here even by a caller that sends it.
+        // TODO: update position
+        Position saved = positions.save(position);
+
+        return PositionResponse.fromPosition(saved,
+                utils.teachingWarning(school, saved.getDepartmentDocsId(), saved),
+                Boolean.FALSE.equals(saved.getActive())
+                        ? "Retired. It keeps its title, and records made against it still name it."
+                        : "Updated. " + NO_AUTHORIZATION_YET);
     }
 
 

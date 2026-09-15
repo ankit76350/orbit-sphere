@@ -13000,6 +13000,170 @@ seats are correctly flagged.
       ],
     },
     {
+      id: "update-position",
+      name: "Update Position",
+      method: "PATCH",
+      path: "/schools/current/positions/{id}",
+      status: 'live',
+      summary: "Retitle a seat, move its headcount, change its line, retire it.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/positions/{id}\` — endpoint #14.
+
+### Absent means "leave it alone", and an empty body is refused
+
+A request that sends nothing at all is a \`400 NOTHING_TO_UPDATE\` rather than a no-op \`200\`.
+Sending **only** \`departmentDocsId\` is the same 400 — it is not on the request record, so it is
+ignored on the way in and the request is still empty.
+
+### Never departmentDocsId — a seat cannot move department
+
+Editing it in place would **rewrite where every past holder worked**, and every employment record
+under the seat would silently change department too. A seat in another unit is a new seat.
+
+It is also what keeps \`school_department_title_uniq\` meaningful: a title is unique *within* a
+unit, and a seat that could move would carry its title across that boundary.
+
+The same call #10 makes about a department's parent, for a different reason: **a department's
+parent is structure, a seat's department is history.**
+
+### This is the endpoint that can write a reporting cycle
+
+#13 needs no cycle walk — a brand-new seat has nothing reporting to it. This one can move an
+existing seat under its own subordinate, which is exactly the case the module plan's open item 2
+describes: a chain that closes on itself is a stack overflow in whatever first walks it, months
+later and in a different module. \`409 POSITION_CYCLE\`.
+
+**Reporting to itself is the one-step case** of the same walk, named separately only because the
+message can be clearer.
+
+**The walk carries a visited set**, and that is not habit either: a cycle already in the collection
+— hand-written, restored from a backup, left by a future writer — would make the walk itself loop
+forever. It stops and reports rather than hanging the request.
+
+**One read per level, not one read of the collection.** A reporting chain is a handful of seats
+deep, where a department tree is read whole by #12 anyway.
+
+### The title carries the uniqueness the code used to
+
+\`positionCode\` was removed on 2026-09-15, so \`title\` is what names a seat — unique within the
+department, **retired seats included**, because \`school_department_title_uniq\` does not filter on
+\`active\`.
+
+**The duplicate check skips a title that only changed case**, because that is the same seat and
+\`existsBy…\` cannot exclude it. \`"mathematics teacher"\` → \`"Mathematics Teacher"\` is a
+correction, not a collision.
+
+### Turning teachingPosition OFF is the interesting direction
+
+It is how a department that had one teaching seat stops having any — the same empty teacher picker
+#13 warns about, arriving by a different route. So the warning is computed here on the way **out**
+as well. A warning rides on a \`200\`; the seat is saved.
+
+### Two checks the plan specifies and this does NOT implement
+
+Both are recorded here rather than quietly skipped, because both are owed the moment #16 lands:
+
+- **\`HEADCOUNT_BELOW_FILLED\`** — lowering the approved count below the filled one is to be a
+  *warning*, not a refusal.
+- **\`409 POSITION_STILL_FILLED\`** — retiring a seat somebody currently holds is to be refused.
+
+**Neither can fire yet**: there is no \`EmploymentRecordRepository\` and no endpoint writes one, so
+the filled count could only ever be zero. A check that can never fail is not a check — the same
+call #13 made about its cycle walk.
+
+### The department is not checked, and that asymmetry is on purpose
+
+#13 refuses a seat in a retired unit — \`409 DEPARTMENT_NOT_ACTIVE\` — because a seat nobody may be
+hired into, inside a unit that no longer exists, is two problems. #14 does not: a seat that already
+exists in a unit since retired still needs correcting, and refusing to edit it would strand it.
+
+### The fifteen test cases are in the notes below
+`,
+      bodyNotes: `Every field optional. Needs X-School-Subdomain and a position id.
+
+ ABSENT MEANS LEAVE IT ALONE. An empty body is 400 NOTHING_TO_UPDATE.
+
+ NEVER departmentDocsId — a seat cannot move department. Editing it would
+ rewrite where every past holder worked. A seat elsewhere is a NEW seat.
+
+ THIS IS WHERE A REPORTING CYCLE CAN BE WRITTEN, so this is where the walk is.
+ 409 POSITION_CYCLE. #13 needs none: a new seat has nothing reporting to it.
+
+ THE TITLE IS UNIQUE WITHIN THE DEPARTMENT, retired seats included. Its own
+ title in another case is a correction, not a collision.
+
+ TURNING teachingPosition OFF can empty a unit's teacher picker — the same
+ warning #13 gives, on the way out. A warning rides on a 200.
+
+ "" CLEARS reportsToPositionDocsId. "" on title is refused. Headcount is >= 1.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{positionDocsId}}", description: "The seat's MongoDB document id, from Create Position." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: {
+        title: "Senior Mathematics Teacher",
+      },
+      successStatus: 200,
+      successNote: "The seat as it now stands, with a nextStep and any warning.",
+      responseFields: ["positionDocsId", "title", "departmentDocsId", "reportsToPositionDocsId", "approvedHeadcount", "teachingPosition", "active", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No editable field was sent — including a body of only departmentDocsId." },
+        { status: 400, code: "POSITION_TITLE_REQUIRED", when: "title was sent blank. A title is replaced, never removed." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed. Reads still work." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "POSITION_NOT_FOUND", when: "No seat with that id in this school — the seat itself, or the supervisor named." },
+        { status: 409, code: "POSITION_TITLE_TAKEN", when: "Another seat in the same department holds that title, retired ones included." },
+        { status: 409, code: "POSITION_CYCLE", when: "The proposed supervisor reports to this seat, directly or up the chain. Includes reporting to itself." },
+      ],
+      examples: [
+        { id: "01", name: "A RETITLE", expect: "200 OK",
+          notes: `The ordinary case. OUT: the new title, the department untouched.`,
+          body: { title: "Senior Mathematics Teacher" } },
+        { id: "02", name: "NOTHING AT ALL", expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" } — not a quiet 200.`, body: {} },
+        { id: "03", name: "ONLY THE DEPARTMENT", expect: "400 Bad Request",
+          notes: `The same 400: departmentDocsId is not on the request record, so\n    the request is empty. The seat does NOT move.`,
+          body: { departmentDocsId: "{{departmentDocsId}}" } },
+        { id: "04", name: "THE TITLE CANNOT BE REMOVED", expect: "400 Bad Request",
+          notes: `OUT: { "code": "POSITION_TITLE_REQUIRED" }.`, body: { title: "   " } },
+        { id: "05", name: "A TITLE ANOTHER SEAT HOLDS", expect: "409 Conflict",
+          notes: `Create two seats in one unit, then rename one to the other.\n    OUT: { "code": "POSITION_TITLE_TAKEN" } — and the check folds\n    case, so "MATHEMATICS teacher" collides too.`,
+          body: { title: "Academics Administrator" } },
+        { id: "06", name: "ITS OWN TITLE IN ANOTHER CASE", expect: "200 OK",
+          notes: `Allowed: that is the same seat, and a case correction is not a\n    collision.`, body: { title: "mathematics teacher" } },
+        { id: "07", name: "A RETIRED SEAT STILL HOLDS ITS TITLE", expect: "409 Conflict",
+          notes: `Retire a seat in Mongo, then rename another to its title.\n    OUT: 409 — school_department_title_uniq does not filter on active,\n    so a check that skipped retired rows would accept a write the\n    index then refuses.`, body: { title: "Retired Seat" } },
+        { id: "08", name: "CLEARING THE REPORTING LINE", expect: "200 OK",
+          notes: `OUT: no reportsToPositionDocsId key at all — the seat reports to\n    nobody.`, body: { reportsToPositionDocsId: "" } },
+        { id: "09", name: "A SUPERVISOR IN ANOTHER DEPARTMENT", expect: "200 OK",
+          notes: `Allowed, deliberately. A school with one Head of Safeguarding\n    every unit reports to is a real structure — the org tree and the\n    reporting line answer different questions.`,
+          body: { reportsToPositionDocsId: "{{positionDocsId}}" } },
+        { id: "10", name: "REPORTING TO ITSELF", expect: "409 Conflict",
+          notes: `OUT: { "code": "POSITION_CYCLE" } — the one-step case of the walk.`,
+          body: { reportsToPositionDocsId: "{{positionDocsId}}" } },
+        { id: "11", name: "A LOOP UP THE CHAIN", expect: "409 Conflict",
+          notes: `A reports to B reports to C. Make C report to A.\n    OUT: 409 POSITION_CYCLE — the walk goes up the WHOLE chain, not\n    one level. Skipping a level upwards is fine and is not a cycle.`,
+          body: { reportsToPositionDocsId: "{{positionDocsId}}" } },
+        { id: "12", name: "THE HEADCOUNT", expect: "200 OK / 400",
+          notes: `8 raises it, 1 lowers it — nothing refuses lowering. 0 and -3 are\n    a 400: the model is @NotNull with a default of 1, so null is NOT\n    "uncapped" and never was.`, body: { approvedHeadcount: 8 } },
+        { id: "13", name: "TURNING OFF THE LAST TEACHING SEAT", expect: "200 OK",
+          notes: `OUT: 200 WITH a warning — the unit now has no teaching seat, which\n    is what an empty teacher picker looks like. A warning is not a\n    refusal: the seat is saved.`, body: { teachingPosition: false } },
+        { id: "14", name: "RETIRING", expect: "200 OK",
+          notes: `OUT: active false, and a nextStep saying it keeps its title —\n    records made against it still name it. Restoring is the same call\n    with true. Editing a RETIRED seat still works.`, body: { active: false } },
+        { id: "15", name: "ANOTHER SCHOOL'S SEAT", expect: "404 Not Found",
+          notes: `A REAL position id belonging to a different school — as the seat\n    itself AND as the supervisor named.\n    OUT: { "code": "POSITION_NOT_FOUND" } both ways.`,
+          body: { title: "Stolen" } },
+      ],
+    },
+    {
       id: "list-departments",
       name: "List Departments",
       method: "GET",
