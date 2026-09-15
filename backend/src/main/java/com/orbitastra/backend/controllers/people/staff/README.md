@@ -133,7 +133,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 | # | Method and endpoint | What this API is for |
 |---|---|---|
-| <a id="t1"></a>1 | [`POST /staff`](#e1) | Create a person. `employeeNo` generated, never sent. **The write five other modules are waiting for.** |
+| <a id="t1"></a>1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` generated, never sent. **The write five other modules are waiting for.** |
 | <a id="t2"></a>2 | [`PATCH /staff/{id}`](#e2) | Fix a name, a phone number, a date of birth. |
 | <a id="t3"></a>3 | [`PUT /staff/{id}/addresses`](#e3) | Replace current and permanent as a pair. |
 | <a id="t4"></a>4 | [`PUT /staff/{id}/emergency-contact`](#e4) | Replace it whole. |
@@ -170,9 +170,11 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
+Ordered by **what it unblocks**, not by number. `#1` is built; the rest of this package is not.
+
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A person exists and can be employed — **everything else in the product unblocks** | 1, 16, 7, 8 |
+| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, 7, 8 |
 | **2** | The profile and the history are maintainable | 2, 6, 17, 18, 19 |
 | **3** | The profile is complete, and compliance is reportable | 3, 4, 5, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
@@ -184,6 +186,13 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 **[#1](#e1) before [#16](#e16), and both before [#7](#e7).** A person with no employment record is
 a real state — entered but not yet hired — and it is what [#1](#e1) leaves them in.
+
+**[#16](#e16) is now the whole critical path of this product.** `organization` has built the seat
+([#9](../organization/README.md#e9), [#13](../organization/README.md#e13)) and this package has
+built the person — and **nothing joins them**, so nobody is employed anywhere. Waiting on it:
+[#7](#e7) and [#8](#e8) here, [#15](../organization/README.md#e15) there, every teacher picker, all
+of payroll, and the two checks [#14](../organization/README.md#e14) owes — `POSITION_STILL_FILLED`
+and `HEADCOUNT_BELOW_FILLED` — which cannot fire until an employment record exists to count.
 
 **[#20](#e20) is split across phases**, which is worth saying: a credential's *number* is encrypted
 and so blocked, but its title, authority, dates and expiry are not. Phase 3 can record
@@ -421,13 +430,18 @@ project has already found.
 ## The person · 1–8
 
 <a id="e1"></a>
-**[1](#t1) · `POST /staff`**
+**[1](#t1) · `POST /staff`** — built
 
 - [`staff`](../../../models/people/staff/Staff.java) — *insert*: `schoolId`, `employeeNo` **generated**, `fullName`, and whatever personal fields arrived
-- **`employeeNo` is generated, never accepted.** `NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, …)` is already built and already used by school creation and subscriptions. A caller-supplied number lets two schools' conventions collide inside one tenant, and nobody should pick their own staff number.
-- **`fullName` is the only required field.** A school entering two hundred people at the start of term has a name and nothing else on day one; everything else arrives through [#2](#e2), [#3](#e3) and [#4](#e4).
+- **`employeeNo` is generated, never accepted.** `NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, "EMP/{YYYY}/")` was already built and already used by school creation and subscriptions. **Atomic**, so two simultaneous creates cannot be handed the same number, and **per school**, so two schools both hold `EMP/2026/000001` without colliding. A caller-supplied number lets two conventions collide inside one tenant, and nobody should pick their own staff number. Sending one is **ignored, not refused** — the ordinary shape for a field the request record does not declare.
+- **The counter's shape is set by the first caller.** School provisioning creates it with a padding width of 6 and *no* template; `next` writes the first template it is given onto the counter, so every later number in that school's life reads the same — `EMP/2026/000001`, which is the example on `Staff.employeeNo` itself.
+- ~~**`fullName` is the only required field.**~~ **Overruled by the model, 2026-09-15.** [`Staff`](../../../models/people/staff/Staff.java) declares `dateOfBirth` and `gender` `@NotNull`, so all three are required. Nothing validates a document on save, so the plan's version would have stored rows violating their own declared constraints — invisible until something read them expecting a date. This is the same call [#13](../organization/README.md#e13) made about `approvedHeadcount`: **relaxing it is a model change, and not this endpoint's to make.** The original reasoning still stands and is why it is worth revisiting: a school entering two hundred people at the start of term has a name and nothing else on day one.
+- **Everything else arrives through [#2](#e2), [#3](#e3) and [#4](#e4)**, and every optional field is accepted here too — a school that *does* have the details should not have to make three more calls.
+- **An empty address or emergency contact is stored as absent**, not as an object of nulls: they are the same fact, and a reader should not have to tell them apart. A partly filled one is kept — a city and nothing else is real.
 - **No `active`, no status, no department, no joining date.** A person is not employed by existing — that is [#16](#e16). This endpoint creates the human being, and the distinction is the package's whole design.
-- **Phone normalised to international format, email trimmed and lowercased**, per the model README. **A duplicate email is not refused**: two staff genuinely may share a family address, and nothing references it.
+- **Email trimmed and lower-cased; phone stripped of spacing characters** — `"+91 98765-43210"` becomes `"+919876543210"`, which is the example on the model's own field. **A duplicate email is not refused**: two staff genuinely may share a family address, and nothing references it.
+- **No country code is invented, and that is a deliberate gap in "normalised to international format".** Turning a bare `9876543210` into `+91…` means guessing from the school's country, which needs a dialling-code table this project does not have. **A wrong guess writes a number that looks right and cannot be called** — worse than a national number that is obviously national. A number given without a `+` is stored as given.
+- **The email is trimmed in the request record, not the service**, which is the one piece of normalisation that does not live where the rest of it does. `@Email` validates the *constructed* record and a compact constructor runs first, so without it a paste from a spreadsheet is refused as malformed — and a paste from a spreadsheet is exactly how a school enters two hundred people.
 - **The response leads with `employeeNo`**, because it is the thing the school writes down.
 
 <a id="e2"></a>

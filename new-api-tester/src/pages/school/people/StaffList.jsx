@@ -1,0 +1,366 @@
+import { useState } from 'react'
+import { Info, Plus } from 'lucide-react'
+import { useApi, useApiState } from '../../../api/apiContext.js'
+import EndpointTag from '../../../components/EndpointTag.jsx'
+import Select from '../../../components/ui/Select.jsx'
+import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import NoSchoolChosen from '../NoSchoolChosen.jsx'
+
+/**
+ * The people a school employs: /school-people/staff
+ *
+ * ONE ENDPOINT. #1 creates a person; #7 and #8 are the reads and are not built. So this table is
+ * SESSION-ONLY and says so — it shows what this tab created, not what the school holds. That is
+ * the shape the Departments page was deliberately moved away from, and the reason is the reverse
+ * here: there is no read to move to yet. When #7 lands this table becomes its answer and the
+ * banner comes off.
+ *
+ * employeeNo LEADS EVERY ROW, because it is the thing the school writes down and the one field on
+ * the response the caller did not send.
+ *
+ * THIS CREATES A PERSON, NOT AN EMPLOYEE. No status, no department, no joining date — none exist
+ * on the document. The page says so under the table rather than leaving a reader to wonder where
+ * the "active" column went.
+ *
+ * THREE REQUIRED FIELDS, AND THE PLAN SAID ONE. The model declares dateOfBirth and gender
+ * @NotNull; the form marks all three required and the hint says which decision that was, because
+ * somebody reading the plan will expect a name to be enough.
+ */
+
+const GENDERS = ['FEMALE', 'MALE', 'OTHER']
+
+const BLANK = {
+  fullName: '',
+  dateOfBirth: '',
+  gender: 'FEMALE',
+  nationalityCode: '',
+  preferredLanguage: '',
+  phoneNumber: '',
+  emailAddress: '',
+  addressLine1: '',
+  city: '',
+  postalCode: '',
+  countryCode: '',
+  contactName: '',
+  contactRelationship: '',
+  contactPhone: '',
+}
+
+export default function StaffList() {
+  const { actingSubdomain } = useApiState()
+  const [open, setOpen] = useState(false)
+  const [people, setPeople] = useState([])
+
+  if (!actingSubdomain) return <NoSchoolChosen what="Staff" />
+
+  return (
+    <div className="page stack">
+      <div className="toolbar">
+        <div>
+          <h1 className="page-title">Staff</h1>
+          <p className="muted">
+            <span className="mono">{actingSubdomain}</span> · the people a school employs ·
+            a person here is not employed until #16 writes the job
+          </p>
+        </div>
+        <span className="toolbar-spacer" />
+        <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a person</Button>
+      </div>
+
+      <Card
+        title="People created here"
+        description="From #1 — the write five other modules are waiting for. Payroll, leave, reviews, development and every teacher picker need the staffDocsId it hands back."
+        action={
+          <div className="btn-row">
+            <EndpointTag id="create-staff" name="Add a person" />
+            <Badge>{people.length} this session</Badge>
+          </div>
+        }
+      >
+        {people.length === 0 ? (
+          <Empty
+            title="Nobody created here yet"
+            description="#7 GET /staff is not built, so this table can only show what this tab wrote — not what the school already holds."
+            action={<Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a person</Button>}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Employee no</th>
+                  <th>Name</th>
+                  <th>Born</th>
+                  <th>Gender</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Staff id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {people.map((one) => (
+                  <tr key={one.staffDocsId}>
+                    {/* LEADS, because it is the thing the school writes down — and the only
+                        field on the response the caller did not send. */}
+                    <td><span className="mono">{one.employeeNo}</span></td>
+                    <td>{one.fullName}</td>
+                    <td>{one.dateOfBirth}</td>
+                    <td>{one.gender}</td>
+                    <td>{one.phoneNumber
+                      ? <span className="mono">{one.phoneNumber}</span>
+                      : <span className="muted">none</span>}</td>
+                    <td>{one.emailAddress ?? <span className="muted">none</span>}</td>
+                    <td><span className="muted mono">{one.staffDocsId}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="muted">
+          <Info size={12} /> <b>This table is session-only.</b>{' '}
+          <span className="mono">GET /staff</span> is #7 and is not built, so there is nothing to
+          read the school's real list from. It shows what this tab created rather than an empty
+          table that looks like a school with no people.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>There is no status column, and there never will be on this
+          document.</b> A person is not employed by existing — no status, no department, no
+          joining date. All of that is <span className="mono">EmploymentRecord</span>, which #16
+          writes, and the separation is this package&apos;s whole design.
+        </p>
+      </Card>
+
+      <AddStaff
+        open={open}
+        onClose={() => setOpen(false)}
+        onAdded={(person) => setPeople((old) => [...old, person])}
+      />
+    </div>
+  )
+}
+
+/**
+ * Adding a person — #1.
+ *
+ * STAYS OPEN AFTER A SUCCESSFUL ADD, because a school enters its roll in one sitting. Only the
+ * identifying fields are cleared; the country, language and address usually repeat down a list of
+ * colleagues.
+ *
+ * NO employeeNo BOX, and that is not an omission. It is generated per school and atomically —
+ * sending one is ignored rather than refused, and offering a box would suggest otherwise. The
+ * response says what was allocated.
+ *
+ * THE ADDRESS IS FLAT HERE AND NESTED IN THE BODY. A form of nested fieldsets for two optional
+ * objects reads worse than four boxes; the preview shows the real shape, which is what a tester
+ * needs to see.
+ */
+function AddStaff({ open, onClose, onAdded }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(BLANK)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...old, [field]: event.target.value }))
+
+  // An empty optional box sends nothing rather than "", which the API would read as a value.
+  const body = (() => {
+    const out = { fullName: form.fullName, dateOfBirth: form.dateOfBirth, gender: form.gender }
+    for (const field of ['nationalityCode', 'preferredLanguage', 'phoneNumber', 'emailAddress']) {
+      if (form[field].trim() !== '') out[field] = form[field].trim()
+    }
+
+    const address = {}
+    if (form.addressLine1.trim() !== '') address.addressLine1 = form.addressLine1.trim()
+    if (form.city.trim() !== '') address.city = form.city.trim()
+    if (form.postalCode.trim() !== '') address.postalCode = form.postalCode.trim()
+    if (form.countryCode.trim() !== '') address.countryCode = form.countryCode.trim()
+    if (Object.keys(address).length > 0) out.currentAddress = address
+
+    const contact = {}
+    if (form.contactName.trim() !== '') contact.fullName = form.contactName.trim()
+    if (form.contactRelationship.trim() !== '') contact.relationship = form.contactRelationship.trim()
+    if (form.contactPhone.trim() !== '') contact.phoneNumber = form.contactPhone.trim()
+    if (Object.keys(contact).length > 0) out.emergencyContact = contact
+
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('create-staff', { label: 'Add a person', body })
+    setSaving(false)
+    if (result.ok) {
+      setMade(result.bodyJson)
+      onAdded(result.bodyJson)
+      setForm((old) => ({ ...old, fullName: '', dateOfBirth: '', emailAddress: '', phoneNumber: '' }))
+      return
+    }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title="Add a person"
+      description="A person, not an employee — #16 writes the job. The employee number is generated, so there is no box for it."
+      endpoint={<EndpointTag id="create-staff" name="Add" look="primary" />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Add</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              {/* The employee number, because it is what the school writes down. */}
+              <span className="resp-status" data-ok="true">{made.employeeNo}</span>
+            </div>
+            <pre className="resp-body">{made.nextStep}</pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Full name"
+            required
+            hint="The only field the module plan called mandatory."
+            error={errors.fullName}
+          >
+            <Input value={form.fullName} error={errors.fullName}
+              onChange={set('fullName')} placeholder="Anita Sharma" />
+          </Field>
+          <Field
+            label="Date of birth"
+            required
+            hint="Required because Staff.java declares it @NotNull — the plan said a name alone was enough, and the model won. Must be in the past."
+            error={errors.dateOfBirth}
+          >
+            <Input type="date" value={form.dateOfBirth} error={errors.dateOfBirth}
+              onChange={set('dateOfBirth')} />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Gender"
+            required
+            hint="The shared Gender, not a people-specific one. @NotNull on the model, same decision as the date of birth."
+            error={errors.gender}
+          >
+            <Select label="Gender" value={form.gender}
+              onChange={(value) => setForm((old) => ({ ...old, gender: value }))}
+              options={GENDERS} />
+          </Field>
+          <Field
+            label="Phone number"
+            hint="Spacing characters are stripped. A number without a + is stored AS GIVEN — no country code is invented, because a wrong guess looks right and cannot be called."
+            error={errors.phoneNumber}
+          >
+            <Input value={form.phoneNumber} error={errors.phoneNumber}
+              onChange={set('phoneNumber')} placeholder="+91 98765-43210" />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field
+            label="Email address"
+            hint="Trimmed and lower-cased. A DUPLICATE is allowed — two staff genuinely may share a family address, and nothing uses it as a key."
+            error={errors.emailAddress}
+          >
+            <Input value={form.emailAddress} error={errors.emailAddress}
+              onChange={set('emailAddress')} placeholder="anita.sharma@example.com" />
+          </Field>
+          <Field
+            label="Nationality code"
+            hint="ISO 3166-1 alpha-2, stored upper-cased."
+            error={errors.nationalityCode}
+          >
+            <Input value={form.nationalityCode} error={errors.nationalityCode}
+              onChange={set('nationalityCode')} placeholder="IN" />
+          </Field>
+        </div>
+
+        <Field
+          label="Preferred language"
+          hint="IETF language tag."
+          error={errors.preferredLanguage}
+        >
+          <Input value={form.preferredLanguage} error={errors.preferredLanguage}
+            onChange={set('preferredLanguage')} placeholder="en-IN" />
+        </Field>
+
+        <div className="field-grid">
+          <Field label="Address line" hint="Sent nested as currentAddress — see the preview.">
+            <Input value={form.addressLine1} onChange={set('addressLine1')}
+              placeholder="12 Park Road" />
+          </Field>
+          <Field label="City"><Input value={form.city} onChange={set('city')} placeholder="Pune" /></Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Postal code">
+            <Input value={form.postalCode} onChange={set('postalCode')} placeholder="411001" />
+          </Field>
+          <Field label="Address country code" hint="Upper-cased on the way in.">
+            <Input value={form.countryCode} onChange={set('countryCode')} placeholder="IN" />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Emergency contact name">
+            <Input value={form.contactName} onChange={set('contactName')}
+              placeholder="Rakesh Sharma" />
+          </Field>
+          <Field label="Relationship">
+            <Input value={form.contactRelationship} onChange={set('contactRelationship')}
+              placeholder="Spouse" />
+          </Field>
+        </div>
+        <Field
+          label="Emergency contact phone"
+          hint="Normalised the same way the person's own number is."
+        >
+          <Input value={form.contactPhone} onChange={set('contactPhone')}
+            placeholder="+91 98765 11111" />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>An address or contact with every box empty is sent as nothing at
+          all</b>, and stored as nothing — an empty address and no address are the same fact. A
+          partly filled one is kept: a city and nothing else is real.
+        </p>
+        <p className="muted">
+          <Info size={12} /> <b>There is no employee-number box.</b> It is generated per school and
+          atomically, so two simultaneous creates cannot share one and two schools can both hold{' '}
+          <span className="mono">EMP/2026/000001</span>. Send one in the body and it is{' '}
+          <b>ignored, not refused</b>.
+        </p>
+      </div>
+    </Modal>
+  )
+}

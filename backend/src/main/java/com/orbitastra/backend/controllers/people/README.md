@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Six of 52 are built — [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Seven of 52 are built — [#1](#t1) `POST /staff`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -232,7 +232,7 @@ relative to **`/schools/current`**.
 
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
-| <a id="t1"></a>1 | [`POST /staff`](#e1) | Create a person. `employeeNo` is generated, never sent. **The endpoint the other five modules are waiting for.** | [`staff`](../../models/people/staff/Staff.java) |
+| <a id="t1"></a>1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` is generated, never sent. **The endpoint the other five modules are waiting for.** | [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t2"></a>2 | [`PATCH /staff/{id}`](#e2) | Fix a name, a phone number, a date of birth. | [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t3"></a>3 | [`PUT /staff/{id}/addresses`](#e3) | Replace current and permanent address as a pair — the two are only meaningful together. | [`staff`](../../models/people/staff/Staff.java) |
 | <a id="t4"></a>4 | [`PUT /staff/{id}/emergency-contact`](#e4) | Replace it whole. A half-updated emergency contact is worse than none. | [`staff`](../../models/people/staff/Staff.java) |
@@ -340,7 +340,7 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 |---|---|---|---|
 | 1 | `organization` | ~~[`#9 POST /departments`](organization/README.md#e9)~~ — **built** | A position needs a department to sit in |
 | 2 | `organization` | ~~[`#13 POST /positions`](organization/README.md#e13)~~ — **built** | An employment record needs a position to point at |
-| 3 | `staff` | [`#1 POST /staff`](staff/README.md#e1) | The person |
+| 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person |
 | 4 | `staff` | [`#16 POST /staff/{id}/employment`](staff/README.md#e16) | The job — **this is what makes a staff list mean anything** |
 | 5 | `staff` | [`#7 GET /staff`](staff/README.md#e7) | The teacher picker |
 | 6 | `staff` | [`#8 GET /staff/{id}`](staff/README.md#e8) | One person in full |
@@ -349,7 +349,7 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 writes a `positionDocsId`, so there is nothing to test it against until a position exists — and
 they are two small endpoints over two small documents.
 
-**Rows 1 and 2 are done, and `organization` went further than phase 1 asked.**
+**Rows 1, 2 and 3 are done.** `organization` went further than phase 1 asked, and `#1` closed the other half of it.
 [`#12`](organization/README.md#e12), [`#52`](organization/README.md#e52),
 [`#10`](organization/README.md#e10) and [`#14`](organization/README.md#e14) are built too — the
 reads because a chart nobody can see is a chart nobody can check, and the edits because a code
@@ -357,6 +357,11 @@ typed wrong at create had no way back. **Row 3 is where this module resumes**, a
 [`#15`](organization/README.md#e15) is deliberately waiting on row 4: its whole point is
 `filledHeadcount`, which is counted from the employment records [`#16`](staff/README.md#e16)
 writes.
+
+**Row 4 — [`#16`](staff/README.md#e16) — is now the whole critical path.** A seat exists and a
+person exists; nothing joins them, so nobody is employed anywhere in this product. It is what
+`#7`, `#8`, `#15`, payroll and every teacher picker are waiting on, and it is what makes the two
+checks [`#14`](organization/README.md#e14) owes possible to write.
 
 **`#1` before `#16`, and both before `#7`.** A staff member with no employment record is a person
 the school has entered but not yet hired — a real state, and the one [`#1`](staff/README.md#e1)

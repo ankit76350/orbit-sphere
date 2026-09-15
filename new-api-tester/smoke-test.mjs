@@ -3524,6 +3524,10 @@ const orgEditEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('update-depar
 const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-department'),
   peopleCatalogue.indexOf('export const API_CATALOG'))
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
+const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
+const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
+  staffCatalogue.indexOf('export const API_CATALOG'))
+const staffScreen = readFileSync('src/pages/school/people/StaffList.jsx', 'utf8')
 const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
 const orgAddDept = readFileSync('src/pages/school/people/AddDepartment.jsx', 'utf8')
 const peopleChecks = [
@@ -3795,6 +3799,44 @@ const checks = [
     moduleNavSource.includes('readmeUrl(active)') && moduleNavSource.includes('target="_blank"')],
   ['it names the SUBMODULE\'s plan, not the module\'s — academics files two',
     moduleNavSource.includes('module.submodules.find(')],
+  // #1 — the person. The other half of the module's phase 1.
+  ['#1 is a POST to the staff surface',
+    /method: "POST"/.test(staffEntry) && /path: "\/schools\/current\/staff"/.test(staffEntry)],
+  ['it is documented as the write five other modules wait for',
+    staffEntry.includes('five other modules are waiting for')],
+  ['employeeNo is generated and never accepted',
+    staffEntry.includes('generated, never accepted') && staffEntry.includes('ignored, not refused')],
+  ['the number is atomic AND per school, with both reasons given',
+    staffEntry.includes('Atomic') && staffEntry.includes('per school')],
+  ['the model-over-plan decision on required fields is recorded, with the date',
+    staffEntry.includes('The model wins') && staffEntry.includes('2026-09-15')
+      && staffEntry.includes('approvedHeadcount')],
+  ['a person is not an employee, and the page says where the job lives',
+    staffEntry.includes('creates a person, not an employee') && staffEntry.includes('#16')],
+  ['no country code is invented, and it says why that is safer',
+    staffEntry.includes('No country code is invented')
+      && staffEntry.includes('looks right and cannot be called')],
+  ['a duplicate email is allowed, deliberately',
+    staffEntry.includes('duplicate email is not refused')],
+  ['an empty address is stored as no address',
+    staffEntry.includes('An empty address is no address')],
+  ['the create captures the staffDocsId five modules need',
+    staffEntry.includes('variable: "staffDocsId"')],
+
+  // The screen.
+  ['the staff screen creates through #1',
+    staffScreen.includes("call('create-staff'")],
+  ['employeeNo leads the row, because it is what a school writes down',
+    staffScreen.includes('<th>Employee no</th>')],
+  ['the table says it is session-only, because #7 is not built',
+    staffScreen.includes('This table is session-only')],
+  ['and says why there is no status column',
+    staffScreen.includes('There is no status column')],
+  ['there is no employee-number box, and the page says why',
+    !staffScreen.includes("set('employeeNo')")
+      && staffScreen.includes('no employee-number box')],
+  ['nothing on the staff screen is disabled', !/disabled/.test(staffScreen)],
+
   ['the navbar names the surface it acts as', html.includes('module-nav-surface')],
 ]
 for (const [label, ok] of checks) {

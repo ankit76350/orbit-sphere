@@ -12,6 +12,7 @@ import Profile from './pages/school/core/Profile.jsx'
 import Terms from './pages/school/academics/Terms.jsx'
 import Departments from './pages/school/people/Departments.jsx'
 import DepartmentDetail from './pages/school/people/DepartmentDetail.jsx'
+import StaffList from './pages/school/people/StaffList.jsx'
 import Classes from './pages/school/academics/Classes.jsx'
 import ClassDetail from './pages/school/academics/ClassDetail.jsx'
 import SectionDetail from './pages/school/academics/SectionDetail.jsx'
@@ -248,6 +249,18 @@ export const SURFACES = [
               param: 'id',
               screen: DepartmentDetail,
             },
+          },
+          {
+            // Second, because a position has to exist before #16 can employ anybody into one —
+            // and #1 is the other half of the module's phase 1.
+            id: 'staff',
+            readme: 'backend/src/main/java/com/orbitastra/backend/controllers/people/staff/README.md',
+            label: 'Staff',
+            group: 'People / Staff',
+            // One: #1 creates a person. #7 and #8 are the reads and are not built, which is why
+            // this screen shows what it created rather than what the school holds.
+            endpoints: 1,
+            screen: StaffList,
           },
         ],
       },

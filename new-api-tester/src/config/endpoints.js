@@ -13586,6 +13586,181 @@ A suspended or closed school still reads its own org chart.
   ],
 };
 
+const GROUP_PEOPLE_STAFF = {
+  id: "people-staff",
+  module: "People / Staff",
+  endpoints: [
+    {
+      id: "create-staff",
+      name: "Create Staff",
+      method: "POST",
+      path: "/schools/current/staff",
+      status: 'live',
+      summary: "Create a person. employeeNo generated, never sent.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/staff\` — endpoint #1.
+
+### The write five other modules are waiting for
+
+Payroll, leave, reviews, development and every teacher picker need a \`staffDocsId\`, and **nothing
+else in this product produces one.** Together with #9 and #13 this is the whole of the people
+module's phase 1.
+
+### employeeNo is generated, never accepted
+
+\`NumberSequenceService.next(schoolId, EMPLOYEE_NUMBER, "EMP/{YYYY}/")\` — the same allocator
+school creation and subscriptions use. **Atomic**, so two simultaneous creates cannot be handed the
+same number, and **per school**, so two schools both hold \`EMP/2026/000001\` without colliding.
+
+A caller-supplied number would let two conventions collide inside one tenant, and nobody should
+pick their own staff number. Sending one is **ignored, not refused** — the ordinary shape for a
+field the request record does not declare.
+
+The counter is created when the school is provisioned, with a padding width of 6 and no template;
+the first caller's template is written onto it, so every later number in that school's life reads
+the same shape.
+
+### Three required fields, and the plan said one
+
+The module plan says \`fullName\` is the only one: *"a school entering two hundred people at the
+start of term has a name and nothing else on day one."* \`Staff.java\` disagrees — it declares
+\`dateOfBirth\` and \`gender\` \`@NotNull\`.
+
+**The model wins**, decided 2026-09-15, the same way \`approvedHeadcount\` followed the model over
+the plan at #13. Nothing validates a document on save, so the plan's version would have stored rows
+violating their own declared constraints — invisible until something read them expecting a date.
+Relaxing it is a model change, and not this endpoint's to make.
+
+### This creates a person, not an employee
+
+**No \`active\`, no status, no department, no designation, no joining date** — there are none on the
+document. Every field on \`Staff\` is a fact about a *human being*; everything about the job lives
+on \`EmploymentRecord\`, which #16 writes.
+
+Somebody created here and not yet hired is **a real state**, not a half-finished one — it is a
+person the school has entered but not employed, and it is the state this endpoint leaves them in.
+
+### Normalisation
+
+\`\`\`
+emailAddress   trimmed and lower-cased      "  Anita@X.COM " -> "anita@x.com"
+phoneNumber    spacing characters stripped  "+91 98765-43210" -> "+919876543210"
+country codes  trimmed and upper-cased      "in" -> "IN"
+\`\`\`
+
+**No country code is invented.** "Normalised to international format" would mean guessing \`+91\`
+for a bare \`9876543210\` from the school's country — that needs a dialling-code table this project
+does not have, and a wrong guess writes a number that looks right and cannot be called. A number
+given without a \`+\` is stored as given.
+
+**The email is trimmed in the request record itself**, which is the one piece of normalisation that
+does not live in the service. \`@Email\` runs on the constructed record, so without it a paste from
+a spreadsheet is refused as malformed — and a paste from a spreadsheet is exactly how a school
+enters two hundred people.
+
+**A duplicate email is not refused.** Two staff genuinely may share a family address, and nothing
+in this product uses a staff email as a key.
+
+### An empty address is no address
+
+An address or emergency contact whose every field is blank is stored as **absent**, not as an
+object of nulls. They are the same fact, and a reader should not have to tell them apart. A
+*partly* filled one is kept — a city and nothing else is real.
+
+### The fourteen test cases are in the notes below
+`,
+      bodyNotes: `Needs X-School-Subdomain. fullName, dateOfBirth and gender are required.
+
+ THE WRITE FIVE OTHER MODULES ARE WAITING FOR. Payroll, leave, reviews,
+ development and every teacher picker need the staffDocsId this hands back.
+
+ employeeNo IS GENERATED, NEVER SENT. Atomic and per school, so two schools
+ both hold EMP/2026/000001 and no two people share one. Sending it is IGNORED.
+
+ THREE REQUIRED FIELDS, AND THE PLAN SAID ONE. Staff.java declares dateOfBirth
+ and gender @NotNull; the model won, the way approvedHeadcount did at #13.
+
+ THIS CREATES A PERSON, NOT AN EMPLOYEE. No status, no department, no joining
+ date — none are on the document. #16 writes the job.
+
+ NO COUNTRY CODE IS INVENTED. A number without a + is stored as given.
+
+ A DUPLICATE EMAIL IS ALLOWED. Two staff may share a family address.`,
+      requiredFields: ["fullName", "dateOfBirth", "gender"],
+      pathParams: [],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: {
+        fullName: "Anita Sharma",
+        dateOfBirth: "1990-08-14",
+        gender: "FEMALE",
+      },
+      successStatus: 201,
+      successNote: "The person, led by the employeeNo the school writes down.",
+      responseFields: ["employeeNo", "staffDocsId", "fullName", "dateOfBirth", "gender", "phoneNumber", "emailAddress", "currentAddress", "permanentAddress", "emergencyContact", "nextStep"],
+      captures: [
+        { variable: "staffDocsId", from: "staffDocsId", note: "What #16, leave, payroll and every review store." },
+        { variable: "employeeNo", from: "employeeNo", note: "What the school writes down." },
+      ],
+      errors: [
+        { status: 400, code: "VALIDATION_FAILED", when: "fullName blank, dateOfBirth absent or in the future, gender absent or not one of MALE / FEMALE / OTHER, or a malformed email." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 409, code: "SUBSCRIPTION_NOT_USABLE", when: "Gate 2 — the school is not paying." },
+      ],
+      examples: [
+        { id: "01", name: "A NAME, A BIRTHDAY AND A GENDER", expect: "201 Created",
+          notes: `The ordinary case, and the smallest legal body.\n    OUT: employeeNo EMP/{year}/000001, and a nextStep saying this person\n    is not employed yet.`,
+          body: { fullName: "Anita Sharma", dateOfBirth: "1990-08-14", gender: "FEMALE" } },
+        { id: "02", name: "THE NUMBER INCREMENTS", expect: "201 Created",
+          notes: `Send it twice. OUT: 000001 then 000002 — allocated atomically, so\n    two simultaneous creates cannot share one.`,
+          body: { fullName: "Bhavna Rao", dateOfBirth: "1988-02-02", gender: "FEMALE" } },
+        { id: "03", name: "A SECOND SCHOOL STARTS AT 1 AGAIN", expect: "201 Created",
+          notes: `Same body, a different X-School-Subdomain.\n    OUT: EMP/{year}/000001 again — the sequence is per school, which is\n    the whole reason a caller may not supply one.`,
+          body: { fullName: "Anita Sharma", dateOfBirth: "1990-08-14", gender: "FEMALE" } },
+        { id: "04", name: "SENDING AN employeeNo", expect: "201 Created",
+          notes: `IGNORED, not refused — it is not on the request record.\n    OUT: the generated number, not the one sent.`,
+          body: { fullName: "Chetan Iyer", dateOfBirth: "1985-05-05", gender: "MALE", employeeNo: "EMP/1900/000999" } },
+        { id: "05", name: "A NAME ALONE", expect: "400 Bad Request",
+          notes: `What the PLAN said should work, and the MODEL says should not.\n    OUT: fieldErrors naming dateOfBirth AND gender.`,
+          body: { fullName: "No Birthday" } },
+        { id: "06", name: "BORN TOMORROW", expect: "400 Bad Request",
+          notes: `OUT: fieldErrors naming dateOfBirth. @Past — a person born in the\n    future is a typo, and one stored is a payroll problem later.`,
+          body: { fullName: "Time Traveller", dateOfBirth: "2999-01-01", gender: "OTHER" } },
+        { id: "07", name: "A GENDER OUTSIDE THE ENUM", expect: "400 Bad Request",
+          notes: `MALE, FEMALE, OTHER — the shared Gender, not a people-specific one.`,
+          body: { fullName: "Bad Gender", dateOfBirth: "1990-01-01", gender: "ROBOT" } },
+        { id: "08", name: "JOB FIELDS IN THE BODY", expect: "201 Created",
+          notes: `IGNORED, every one — none is on the document. A person is not\n    employed by existing. OUT: no status, no department, no joining date.`,
+          body: { fullName: "Not An Employee", dateOfBirth: "1990-01-01", gender: "MALE", active: false, status: "ACTIVE", departmentDocsId: "x", joiningDate: "2020-01-01" } },
+        { id: "09", name: "AN EMAIL PASTED WITH WHITESPACE", expect: "201 Created",
+          notes: `OUT: "anita.sharma@example.com" — trimmed in the request record so\n    @Email judges the value that would be stored, then lower-cased.`,
+          body: { fullName: "Pasted Email", dateOfBirth: "1990-01-01", gender: "FEMALE", emailAddress: "  Anita.Sharma@Example.COM  " } },
+        { id: "10", name: "A DUPLICATE EMAIL", expect: "201 Created",
+          notes: `Send 09 twice. ALLOWED, deliberately: two staff genuinely may share\n    a family address, and nothing references a staff email as a key.`,
+          body: { fullName: "Same Address", dateOfBirth: "1992-01-01", gender: "MALE", emailAddress: "anita.sharma@example.com" } },
+        { id: "11", name: "PHONE NUMBERS", expect: "201 Created",
+          notes: `"+91 98765-43210" -> "+919876543210". "(022) 2345.6789" ->\n    "02223456789". A bare "9876543210" is stored AS GIVEN — no country\n    code is invented, because a wrong guess looks right and cannot be\n    called.`,
+          body: { fullName: "Phone Person", dateOfBirth: "1990-01-01", gender: "MALE", phoneNumber: "+91 98765-43210" } },
+        { id: "12", name: "AN ALL-BLANK ADDRESS", expect: "201 Created",
+          notes: `OUT: no currentAddress key at all — an empty address is no address,\n    not an object of six nulls.`,
+          body: { fullName: "Blank Address", dateOfBirth: "1990-01-01", gender: "MALE", currentAddress: { city: "   ", countryCode: "" } } },
+        { id: "13", name: "A PARTLY FILLED ADDRESS", expect: "201 Created",
+          notes: `KEPT — a city and nothing else is real, and holding the profile back\n    until somebody chases a postal code helps nobody.`,
+          body: { fullName: "Part Address", dateOfBirth: "1990-01-01", gender: "FEMALE", currentAddress: { city: "Pune", countryCode: "in" } } },
+        { id: "14", name: "EVERYTHING AT ONCE", expect: "201 Created",
+          notes: `Both addresses and the emergency contact. OUT: the contact's phone\n    normalised the same way the person's own is.`,
+          body: { fullName: "Full Profile", dateOfBirth: "1990-08-14", gender: "FEMALE", nationalityCode: "in", preferredLanguage: "en-IN", phoneNumber: "+91 98765 43210", emailAddress: "full@example.com", currentAddress: { addressLine1: "12 Park Road", city: "Pune", postalCode: "411001", countryCode: "IN" }, permanentAddress: { addressLine1: "Village Road", city: "Nashik", countryCode: "IN" }, emergencyContact: { fullName: "Rakesh Sharma", relationship: "Spouse", phoneNumber: "+91 98765 11111" } } },
+      ],
+    },
+  ],
+};
+
 export const API_CATALOG = [
   GROUP_CORE_ACADEMIC_YEAR,
   GROUP_CORE_SCHOOL_PROFILE,
@@ -13597,6 +13772,7 @@ export const API_CATALOG = [
   GROUP_ACADEMICS_CLASSES,
   GROUP_ACADEMICS_GRADING,
   GROUP_PEOPLE_ORGANIZATION,
+  GROUP_PEOPLE_STAFF,
 ];
 
 /** Flat list, handy for searching and for finding an endpoint by id from the history. */
