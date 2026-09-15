@@ -5,6 +5,7 @@ import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
 import { screenPath } from '../../../paths.js'
+import AddDepartment from './AddDepartment.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
@@ -27,6 +28,10 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * THE SEATS ARE #52'S, NOT #15'S. When GET /positions is built the two will return the same rows,
  * and #15 wins — it owns the question. That is what happened to #29 of academics.
  *
+ * A SUB-DEPARTMENT IS CREATED HERE TOO, for the same reason and with the same shape: #9's
+ * parentDepartmentDocsId is this unit's id, which is on screen here and nowhere else. The list
+ * page adds top-level units and does not draw the box at all.
+ *
  * A SEAT IS CREATED HERE, AND NOWHERE ELSE. #13 needs a departmentDocsId, and this page is one
  * department — so the list no longer offers it. Moved 2026-09-15: the list used to hold a
  * session-only table of what it had created, which showed seats the school held nowhere and
@@ -45,6 +50,7 @@ export default function DepartmentDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [seatOpen, setSeatOpen] = useState(false)
+  const [subOpen, setSubOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -98,6 +104,7 @@ export default function DepartmentDetail() {
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={Plus} onClick={() => setSubOpen(true)}>Add a sub-department</Button>
         <Button look="primary" icon={Plus} onClick={() => setSeatOpen(true)}>Add a seat</Button>
       </div>
 
@@ -150,10 +157,20 @@ export default function DepartmentDetail() {
       <Card
         title="Sub-departments"
         description="Only one level — the whole nesting is #12 with ?tree=true, built from one flat read."
-        action={<Badge>{data?.subDepartmentCount ?? 0} total</Badge>}
+        action={
+          <div className="btn-row">
+            <EndpointTag id="create-department" name="Add a sub-department" />
+            <Badge>{data?.subDepartmentCount ?? 0} total</Badge>
+            <Button icon={Plus} onClick={() => setSubOpen(true)}>Add</Button>
+          </div>
+        }
       >
         {(data?.subDepartments ?? []).length === 0 ? (
-          <Empty title="A leaf" description="Nothing sits under this unit." />
+          <Empty
+            title="A leaf"
+            description="Nothing sits under this unit. #9 nests one under it — the parent id is filled in for you."
+            action={<Button icon={Plus} onClick={() => setSubOpen(true)}>Add a sub-department</Button>}
+          />
         ) : (
           <div className="table-scroll">
             <table className="data-table">
@@ -186,6 +203,7 @@ export default function DepartmentDetail() {
             <Badge tone={data?.teachingPositionCount ? 'brand' : undefined}>
               {data?.teachingPositionCount ?? 0} teaching
             </Badge>
+            <Button icon={Plus} onClick={() => setSeatOpen(true)}>Add</Button>
           </div>
         }
       >
@@ -238,6 +256,15 @@ export default function DepartmentDetail() {
           computes it, and is not built.
         </p>
       </Card>
+
+      {/* The parent prop is what draws the parent box AND fills it — this unit's id. Editable,
+          so DEPARTMENT_NOT_FOUND and a top-level unit both stay reachable from here. */}
+      <AddDepartment
+        open={subOpen}
+        parent={data ?? { departmentDocsId: id }}
+        onClose={() => setSubOpen(false)}
+        onAdded={load}
+      />
 
       <AddPosition
         open={seatOpen}

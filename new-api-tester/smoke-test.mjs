@@ -3517,6 +3517,7 @@ const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-depart
   peopleCatalogue.indexOf('export const API_CATALOG'))
 const orgDetailScreen = readFileSync('src/pages/school/people/DepartmentDetail.jsx', 'utf8')
 const orgDeptScreen = readFileSync('src/pages/school/people/Departments.jsx', 'utf8')
+const orgAddDept = readFileSync('src/pages/school/people/AddDepartment.jsx', 'utf8')
 const peopleChecks = [
   // #9
   ['#9 posts to the school surface, with no year in the path',
@@ -3577,7 +3578,11 @@ const peopleChecks = [
   // The screen
   ['the page reads #12 for the list', orgDeptScreen.includes("call('list-departments'")],
   ['it creates through #9, and no longer through #13',
-    orgDeptScreen.includes("call('create-department'") && !orgDeptScreen.includes("call('create-position'")],
+    orgAddDept.includes("call('create-department'") && !orgDeptScreen.includes("call('create-position'")],
+  ['the list asks for a TOP-LEVEL unit, with no parent box to fill',
+    orgDeptScreen.includes('parent={null}')],
+  ['the parent box is drawn only when a unit asked, not hidden behind a disabled attribute',
+    orgAddDept.includes('{parent ? (') && !/disabled/.test(orgAddDept)],
   ['the list holds no session-only table of seats it wrote',
     !orgDeptScreen.includes('Positions created here')],
   ['and no seat button anywhere on it — a seat belongs to one unit, so it is added on that page',
@@ -3626,6 +3631,11 @@ const peopleChecks = [
     orgDetailScreen.includes("call('create-position'") && orgDetailScreen.includes('function AddPosition')],
   ['and the new seat appears by re-reading #52, not by being remembered',
     orgDetailScreen.includes('onAdded={load}')],
+  ['a sub-department is added from its parent\'s page, where #9\'s parent id is',
+    orgDetailScreen.includes('<AddDepartment') && orgDetailScreen.includes('parent={data ?? { departmentDocsId: id }}')],
+  ['the parent id is pre-filled but stays editable, so a 404 and a top-level unit are both reachable',
+    orgAddDept.includes("parent?.departmentDocsId ?? ''")
+      && orgAddDept.includes('blank makes it top level')],
   ['the detail page reads #52', orgDetailScreen.includes("call('get-department'")],
   ['it is the only screen that shows a resolved name',
     orgDetailScreen.includes('headStaff.fullName')],
@@ -3641,6 +3651,7 @@ const peopleChecks = [
   ['the tree node recurses on subDepartments',
     orgDeptScreen.includes('node.subDepartments.map') && !orgDeptScreen.includes('node.children')],
   ['nothing on the detail page is disabled', !/disabled/.test(orgDetailScreen)],
+  ['nothing in the department modal is disabled', !/disabled/.test(orgAddDept)],
   ['nothing on this screen is disabled', !/disabled/.test(orgDeptScreen)],
 ]
 for (const [label, ok] of peopleChecks) {

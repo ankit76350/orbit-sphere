@@ -4,8 +4,9 @@ import { ChevronRight, Info, Plus, RefreshCw, Search } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
-import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
+import { Badge, Button, Card, Empty, Field, Input } from '../../../components/ui/Kit.jsx'
 import { detailPath } from '../../../paths.js'
+import AddDepartment from './AddDepartment.jsx'
 import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
@@ -27,6 +28,10 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * page carried a session-only table of the positions it had created — which listed seats the
  * school held nowhere, and none of the ones it did.
  *
+ * WHAT IS ADDED HERE IS A TOP-LEVEL UNIT, and the modal does not draw a parent box at all: there
+ * is no id on this screen to nest under, so the only correct value would be empty. A sub-unit is
+ * added from its parent's page, where the id is already known.
+ *
  * THIS IS WHERE THE PEOPLE MODULE STARTS, which surprises people. POST /staff looks like the
  * first call, but the write that employs somebody needs a positionDocsId, and a position needs a
  * department.
@@ -41,13 +46,6 @@ const SORTS = ['', 'name', 'name,desc', 'departmentCode', 'departmentCode,desc',
   'createdAt,desc', 'updatedAt,desc']
 const SIZES = ['5', '20', '100']
 
-const BLANK = {
-  departmentCode: '',
-  name: '',
-  description: '',
-  parentDepartmentDocsId: '',
-  headStaffDocsId: '',
-}
 
 export default function Departments() {
   const { call } = useApi()
@@ -113,7 +111,7 @@ export default function Departments() {
           <h1 className="page-title">Departments</h1>
           <p className="muted">
             <span className="mono">{actingSubdomain}</span> · the org chart positions hang off ·
-            open a unit to add a seat
+            open a unit to add a seat or a sub-department
           </p>
         </div>
         <span className="toolbar-spacer" />
@@ -284,153 +282,15 @@ export default function Departments() {
         </p>
       </Card>
 
+      {/* No parent prop — from the list, a new unit is top-level. Nesting is done from the
+          parent's own page, where its id is already on screen. */}
       <AddDepartment
         open={open}
+        parent={null}
         onClose={() => setOpen(false)}
         onAdded={() => load()}
       />
     </div>
-  )
-}
-
-/**
- * Adding a department — #9.
- *
- * STAYS OPEN AFTER A SUCCESSFUL ADD, because a school enters its whole org chart in one sitting.
- * The code and name are cleared; the parent is kept, because the next unit is usually a sibling.
- *
- * EVERY BOX IS FREE TEXT AND NOTHING IS DISABLED, so every refusal stays reachable — a taken code,
- * an unknown parent, another school's staff id as the head.
- */
-function AddDepartment({ open, onClose, onAdded }) {
-  const { call } = useApi()
-  const [form, setForm] = useState(BLANK)
-  const [errors, setErrors] = useState({})
-  const [refused, setRefused] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [made, setMade] = useState(null)
-
-  const set = (field) => (event) =>
-    setForm((old) => ({ ...old, [field]: event.target.value }))
-
-  // An empty optional box sends nothing rather than "", which the API would read as a value.
-  const body = (() => {
-    const out = { departmentCode: form.departmentCode, name: form.name }
-    if (form.description.trim() !== '') out.description = form.description.trim()
-    if (form.parentDepartmentDocsId.trim() !== '') {
-      out.parentDepartmentDocsId = form.parentDepartmentDocsId.trim()
-    }
-    if (form.headStaffDocsId.trim() !== '') out.headStaffDocsId = form.headStaffDocsId.trim()
-    return out
-  })()
-
-  const submit = async () => {
-    setErrors({})
-    setRefused(null)
-    setSaving(true)
-    const result = await call('create-department', { label: 'Add a department', body })
-    setSaving(false)
-    if (result.ok) {
-      setMade(result.bodyJson)
-      onAdded(result.bodyJson)
-      setForm((old) => ({ ...old, departmentCode: '', name: '', description: '' }))
-      return
-    }
-    if (result.bodyJson?.fieldErrors) {
-      setErrors(Object.fromEntries(
-        Object.entries(result.bodyJson.fieldErrors)
-          .map(([field, messages]) => [field, [].concat(messages)[0]]),
-      ))
-    }
-    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      preview={body}
-      title="Add a department"
-      description="The code is given, never derived from the name — they move independently, and twenty positions may reference the code."
-      endpoint={<EndpointTag id="create-department" name="Add" look="primary" />}
-      footer={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} onClick={submit}>Add</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {refused ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refused.code}</span>
-            </div>
-            <pre className="resp-body">{refused.message}</pre>
-          </div>
-        ) : null}
-
-        {made ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="true">{made.departmentCode}</span>
-            </div>
-            <pre className="resp-body">{made.nextStep}</pre>
-          </div>
-        ) : null}
-
-        <div className="field-grid">
-          <Field
-            label="Department code"
-            required
-            hint="Given, never derived. Stored trimmed and UPPER-CASED, so 'admin' and 'ADMIN' are one code."
-            error={errors.departmentCode}
-          >
-            <Input value={form.departmentCode} error={errors.departmentCode}
-              onChange={set('departmentCode')} placeholder="ACADEMICS" />
-          </Field>
-          <Field
-            label="Name"
-            required
-            hint="What a person reads. Two units may share a name — only the code is unique."
-            error={errors.name}
-          >
-            <Input value={form.name} error={errors.name}
-              onChange={set('name')} placeholder="Academic Department" />
-          </Field>
-        </div>
-
-        <Field label="Description" hint="Optional free text." error={errors.description}>
-          <Input value={form.description} error={errors.description}
-            onChange={set('description')} placeholder="Curriculum and teaching operations." />
-        </Field>
-
-        <div className="field-grid">
-          <Field
-            label="Parent department id"
-            hint="Optional. A department of THIS school — another school's real id is a 404. Blank means top level."
-            error={errors.parentDepartmentDocsId}
-          >
-            <Input value={form.parentDepartmentDocsId} error={errors.parentDepartmentDocsId}
-              onChange={set('parentDepartmentDocsId')} placeholder="leave blank for top level" />
-          </Field>
-          <Field
-            label="Head staff id"
-            hint="Optional Staff.id. Checked to EXIST, not to be employed — a school enters its org chart before its employment records."
-            error={errors.headStaffDocsId}
-          >
-            <Input value={form.headStaffDocsId} error={errors.headStaffDocsId}
-              onChange={set('headStaffDocsId')} placeholder="67aa15d9dc3f7d0011111111" />
-          </Field>
-        </div>
-
-        <p className="muted">
-          <Info size={12} /> <span className="mono">active</span> is not accepted — a unit starts
-          active and retiring is #11. Sending it is ignored rather than refused, which is the
-          ordinary shape for a field the request record does not declare.
-        </p>
-      </div>
-    </Modal>
   )
 }
 
