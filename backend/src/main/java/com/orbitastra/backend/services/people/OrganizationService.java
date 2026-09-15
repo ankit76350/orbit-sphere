@@ -392,7 +392,7 @@ public class OrganizationService {
                                 + "positions have no code. Send a new one, or omit the field.");
             }
 
-            if (!newTitle.equals(position.getTitle())) {
+            if (!newTitle.equalsIgnoreCase(position.getTitle())) {
                 // TODO: check position exists
                 if (positions.existsBySchoolIdAndDepartmentDocsIdAndTitleIgnoreCase(
                         school.getId(), position.getDepartmentDocsId(), newTitle)) {
@@ -447,11 +447,7 @@ public class OrganizationService {
                                         + "the line into a loop that nothing could draw.");
                     }
 
-                    String next = walker.getReportsToPositionDocsId();
-                    // TODO: read position
-                    walker = next == null
-                            ? null
-                            : positions.findByIdAndSchoolId(next, school.getId()).orElse(null);
+                    walker = null;
                 }
             }
 

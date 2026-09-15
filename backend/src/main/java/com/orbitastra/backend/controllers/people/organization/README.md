@@ -98,17 +98,41 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 
 # Build order
 
+Ordered by **what it unblocks**, not by number. Nothing else in `people` can start until a
+`positionDocsId` exists, so the two creates come before everything that is merely useful.
+
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A seat exists, so somebody can be hired into it | 9, 13 |
-| **2** | The chart is maintainable and readable | 12, 15, 10, 14, 11 |
+| **0** | ~~`positionCode` removed, and the index that replaced it~~ — **done 2026-09-15** | *no endpoint; see [#13](#e13)* |
+| **1** | A seat exists, so somebody can be hired into it | ~~9~~, ~~13~~ — **complete** |
+| **2** | The chart is maintainable and readable | ~~12~~, ~~52~~, 15, ~~10~~, ~~14~~, ~~11~~ *(absorbed into [#10](#e10))* |
+
+**Only [#15](#e15) is left**, and it is the one endpoint here that cannot be written yet: its whole
+point is `filledHeadcount`, counted from `employment_records`, and nothing writes one. See the two
+checks [#14](#e14) owes for the same reason.
 
 **`#9` and `#13` are the first two endpoints of the entire people module.** Everything downstream —
 staff, employment, payroll, a teacher picker — waits on a `positionDocsId` existing.
 
 **`#12` and `#15` come before the edits**, unusually. A school that has created two departments
 needs to *see* them before it needs to rename one, and the reads are what make `#10` and `#14`
-testable at all.
+testable at all. That held in practice: [#52](#e52) was added mid-phase because rendering one
+unit's page took four requests, and it is what both edit screens are built on.
+
+**[#52](#e52) is not in the original plan** and sits in phase 2 with the other reads. It was added
+on 2026-09-15, numbered on the end because these numbers are referenced from the API catalogue and
+the Postman collection and none is ever reused.
+
+**[#11](#e11) was absorbed into [#10](#e10)**, not built and not dropped. `active` became a field
+on the department edit rather than an endpoint pair — and it carried its `DEPARTMENT_NOT_EMPTY`
+refusal with it, because the rule belongs to the transition and not to whichever endpoint performs
+it.
+
+**Phase 0 is a model change, and it earned a row the way a broken index did in
+[`academics/structure`](../../academics/structure/README.md#build-order).** Removing `positionCode`
+left nothing constraining a duplicate seat, so `school_department_title_uniq` had to replace it in
+the same change — a unique index on a field the model no longer declares is not inert, it is a
+collection that accepts exactly one row per key prefix.
 
 ---
 

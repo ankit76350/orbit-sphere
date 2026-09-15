@@ -338,8 +338,8 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 
 | Order | Package | Endpoint | Why here |
 |---|---|---|---|
-| 1 | `organization` | [`#9 POST /departments`](organization/README.md#e9) | A position needs a department to sit in |
-| 2 | `organization` | [`#13 POST /positions`](organization/README.md#e13) | An employment record needs a position to point at |
+| 1 | `organization` | ~~[`#9 POST /departments`](organization/README.md#e9)~~ — **built** | A position needs a department to sit in |
+| 2 | `organization` | ~~[`#13 POST /positions`](organization/README.md#e13)~~ — **built** | An employment record needs a position to point at |
 | 3 | `staff` | [`#1 POST /staff`](staff/README.md#e1) | The person |
 | 4 | `staff` | [`#16 POST /staff/{id}/employment`](staff/README.md#e16) | The job — **this is what makes a staff list mean anything** |
 | 5 | `staff` | [`#7 GET /staff`](staff/README.md#e7) | The teacher picker |
@@ -348,6 +348,15 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 **Finish `organization` `#9` and `#13` before opening `staff`.** [`#16`](staff/README.md#e16)
 writes a `positionDocsId`, so there is nothing to test it against until a position exists — and
 they are two small endpoints over two small documents.
+
+**Rows 1 and 2 are done, and `organization` went further than phase 1 asked.**
+[`#12`](organization/README.md#e12), [`#52`](organization/README.md#e52),
+[`#10`](organization/README.md#e10) and [`#14`](organization/README.md#e14) are built too — the
+reads because a chart nobody can see is a chart nobody can check, and the edits because a code
+typed wrong at create had no way back. **Row 3 is where this module resumes**, and
+[`#15`](organization/README.md#e15) is deliberately waiting on row 4: its whole point is
+`filledHeadcount`, which is counted from the employment records [`#16`](staff/README.md#e16)
+writes.
 
 **`#1` before `#16`, and both before `#7`.** A staff member with no employment record is a person
 the school has entered but not yet hired — a real state, and the one [`#1`](staff/README.md#e1)
