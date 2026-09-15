@@ -494,7 +494,7 @@ public class OrganizationService {
         Position saved = positions.save(position);
 
         return PositionResponse.fromPosition(saved,
-                null,
+                utils.teachingWarning(school, saved.getDepartmentDocsId(), saved),
                 Boolean.FALSE.equals(saved.getActive())
                         ? "Retired. It keeps its title, and records made against it still name it."
                         : "Updated. " + NO_AUTHORIZATION_YET);
