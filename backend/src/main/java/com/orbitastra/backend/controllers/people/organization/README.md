@@ -1,6 +1,6 @@
 # controllers/people/organization — API plan
 
-**#9, #12, #13 and #52 are built; the rest are not.** **#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **organization package** — the org chart a
+**#9, #10, #12, #13 and #52 are built; the rest are not. #11 was absorbed into #10 on 2026-09-15.** **#52 is not in the original plan** — it was added on 2026-09-15, numbered on the end because these numbers are referenced from the catalogue and the Postman collection and none is ever reused. This is the detailed plan for the **organization package** — the org chart a
 school is hiring into. It expands the group that [`controllers/people`](../README.md) lists.
 
 > **Numbers are the domain's, not this file's.** `#9` here is `#9` there. One endpoint keeps one
@@ -86,8 +86,8 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | # | Method and endpoint | What this API is for |
 |---|---|---|
 | <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. |
-| <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. |
-| <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire a unit without deleting it. Idempotent pair. |
+| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. |
+| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, refusal and all. |
 | <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, retire it. |
@@ -155,9 +155,18 @@ department reports to on that one line is a real and sensible structure.
 A department that is its own ancestor makes [#12](#e12)'s tree build loop forever. So does a
 position chain that closes on itself, the moment anything walks it.
 
-**Departments are cheap:** a school has tens, so [#10](#e10) walks up from the proposed parent in
-memory and refuses at `409 DEPARTMENT_CYCLE`. One read of the whole collection, which is what
-[#12](#e12) does anyway.
+**Departments are cheap:** a school has tens, so [#10](#e10) was to walk up from the proposed
+parent in memory and refuse at `409 DEPARTMENT_CYCLE`. One read of the whole collection, which is
+what [#12](#e12) does anyway.
+
+**That walk was never built, because the move it guarded was dropped.** On 2026-09-15 [#10](#e10)
+stopped accepting a parent at all, so **no endpoint in this product can write a department cycle**
+— [#9](#e9) cannot either, since a new unit has no children. `PeopleHelper` stays unearned.
+
+**[#12](#e12) keeps its visited set anyway, and that is the point of this item.** The sentence
+above is true of the API, not of the collection: a hand-edited document, a restored backup, or a
+later endpoint that does move units can all make it false without touching the tree builder. The
+guard is what turns "nothing writes a cycle" into "a cycle cannot crash the read".
 
 **Positions are cheaper still but nothing walks them yet.** No endpoint in this plan reads
 `reportsToPositionDocsId` — it is stored and never traversed. **Recommendation: check it anyway at
@@ -265,13 +274,14 @@ cannot express, which is what that class is for in every other module.
 |---|---|---|
 | `DEPARTMENT_NOT_FOUND` · `POSITION_NOT_FOUND` | 404 | not this school's |
 | `DEPARTMENT_CODE_TAKEN` | 409 | already this school's. **There is no `POSITION_CODE_TAKEN`** — `positionCode` was removed on 2026-09-15 |
-| `DEPARTMENT_CYCLE` | 409 | [#10](#e10) — a department cannot be its own ancestor |
+| ~~`DEPARTMENT_CYCLE`~~ | — | **never implemented.** [#10](#e10) does not accept a parent, so no endpoint can write one |
 | `POSITION_CYCLE` | 409 | [#13](#e13), [#14](#e14) — nor can a reporting line |
-| `DEPARTMENT_NOT_EMPTY` | 409 | [#11](#e11) — active positions remain. **Names how many** |
+| `DEPARTMENT_NOT_EMPTY` | 409 | [#10](#e10) `active:false` — active positions remain. **Names how many** |
 | `DEPARTMENT_NOT_ACTIVE` | 409 | [#13](#e13) — creating a seat in a retired unit |
 | `POSITION_STILL_FILLED` | 409 | [#14](#e14) — retiring a seat somebody currently holds |
 | `HEADCOUNT_BELOW_FILLED` | *warning* | [#14](#e14) — **reported, not refused** |
-| `NOTHING_TO_UPDATE` | 400 | reuses core's code |
+| `NOTHING_TO_UPDATE` | 400 | [#10](#e10) — reuses core's code. A body of only uneditable fields counts as empty |
+| `DEPARTMENT_NAME_REQUIRED` | 400 | [#10](#e10) — `name` sent blank. A name is replaced, never removed |
 
 ---
 
@@ -293,20 +303,25 @@ cannot express, which is what that class is for in every other module.
 - **The uniqueness check is the enforcement, not a nicety in front of the index.** `school_department_code_uniq` is declared on the model but built on demand (`app.mongo.sync-indexes`), so a database that has never synced carries no such constraint at all.
 
 <a id="e10"></a>
-**[10](#t10) · `PATCH /departments/{id}`**
+**[10](#t10) · `PATCH /departments/{id}`** — built
 
-- *updates*: `name`, `description`, `parentDepartmentDocsId`, `headStaffDocsId`
+- *updates*: `name`, `description`, `headStaffDocsId`, `active`
+- **Absent means "leave it alone", and an empty body is `400 NOTHING_TO_UPDATE`** rather than a no-op `200`. A PATCH that changes nothing and answers success lets a client with a broken form look healthy. A body of *only* uneditable fields is the same 400 — neither is on the request record, so the request is still empty.
 - **Never `departmentCode`.** Nothing joins on it, which is exactly what makes editing it dangerous: no query would break, and every export, filter and report naming the old code would quietly stop matching. The `termCode` reasoning, unchanged.
-- **A cycle is refused** — `409 DEPARTMENT_CYCLE` — by walking up from the proposed parent. One read of the collection, which [#12](#e12) does anyway, so the cost is a round trip and not a design problem.
-- **The parent may be cleared**, promoting a department to the top level. **It may not be set to itself**, which is the one-step case of the cycle check.
+- **Never the parent — a unit cannot be moved.** The plan had this endpoint moving one and refusing a cycle at `409 DEPARTMENT_CYCLE`; **that was dropped on 2026-09-15**. Where a unit sits is decided when it is created, under the parent whose page created it, and a move is the one edit here that changes what every *other* unit's page shows.
+- **So no endpoint in this product can write a cycle into the department chart.** [#9](#e9) cannot, because a new unit has no children; #10 cannot, because it does not accept a parent. [#12](#e12)'s tree builder **still carries its visited set** — that is what makes the sentence true of the *data* rather than of the code's current shape, and [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check) is why that distinction matters.
+- **`""` clears `description` and `headStaffDocsId`; `""` on `name` is `400 DEPARTMENT_NAME_REQUIRED`.** The model requires a name and it is the only thing on this document a person reads.
+- **The head is checked to EXIST, not to be employed** — the same rule [#9](#e9) follows. Another school's real staff id is a `404`, not a cross-tenant head. It is validated **before anything is saved**, so a request carrying a good name and a bad head changes neither.
+- **`active` lives here rather than on [#11](#e11)'s endpoint pair**, asked for on 2026-09-15. See below — it carries #11's refusal with it.
 
 <a id="e11"></a>
-**[11](#t11) · `POST /departments/{id}/deactivate` · `/reactivate`**
+**[11](#t11) · ~~`POST /departments/{id}/deactivate` · `/reactivate`~~** — superseded by [#10](#e10)
 
-- *updates*: `active`
-- **Idempotent pair, no body** — the shape every lifecycle flag in this project uses: `/results/lock` on a term, `/enrollment/enable` on a year, `/deactivate` on a grading scheme. Already retired is a `200` saying so.
-- **Deactivate is refused while active positions remain** — `409 DEPARTMENT_NOT_EMPTY`, **naming how many**, because "retire the four seats first" is actionable and "not empty" is not. See [open item 3](#3-deactivating-a-department-what-happens-to-its-positions).
-- **Reactivate has no such check**, and needs none: restoring a unit cannot invalidate anything.
+- *was*: `active`, as an idempotent endpoint pair with no body — the shape every lifecycle flag in this project uses: `/results/lock` on a term, `/enrollment/enable` on a year, `/deactivate` on a grading scheme.
+- **Absorbed into #10 as a field on 2026-09-15**, which is a real departure from that shape and is recorded here rather than quietly dropped.
+- **The refusal moved with it, and that was the whole point.** Retiring a unit that still holds active positions is `409 DEPARTMENT_NOT_EMPTY` **naming how many**, exactly as specified here — because "retire the four seats first" is actionable and "not empty" is not. The rule belongs to the transition, not to whichever endpoint performs it; a field reaching the same state without the check would have been a back door around a decision this module already made. See [open item 3](#3-deactivating-a-department-what-happens-to-its-positions).
+- **Reactivating still has no check**, and needs none: restoring a unit cannot invalidate anything.
+- **Sub-departments do not block a retire**, and that asymmetry is deliberate: [#12](#e12) already answers for a retired parent whose children are still active by lifting them to the top and marking them `liftedToTop`. That state is designed for. A live seat has no such answer.
 
 <a id="e12"></a>
 **[12](#t12) · `GET /departments`** — built

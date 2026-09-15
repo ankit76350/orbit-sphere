@@ -3511,7 +3511,12 @@ const orgDeptEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-depar
   peopleCatalogue.indexOf('create-position'))
 const orgPosEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('create-position'),
   peopleCatalogue.indexOf('list-departments'))
+// BOTH ENDS, ALWAYS. update-department was inserted between these two on 2026-09-15, and a slice
+// that still ran list-departments -> get-department would have swallowed it whole — every #12
+// check would then have passed on #10's text as well as its own.
 const orgListEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('list-departments'),
+  peopleCatalogue.indexOf('update-department'))
+const orgEditEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('update-department'),
   peopleCatalogue.indexOf('get-department'))
 const orgDetailEntry = peopleCatalogue.slice(peopleCatalogue.indexOf('get-department'),
   peopleCatalogue.indexOf('export const API_CATALOG'))
@@ -3607,6 +3612,53 @@ const peopleChecks = [
     orgDeptScreen.includes('TREE_CANNOT_BE_PAGED')],
   ['the department id stays editable when adding a seat, so its refusals are reachable',
     orgDetailScreen.includes('change it to reach DEPARTMENT_NOT_ACTIVE or NOT_FOUND')],
+
+  // #10 — the edit. Lives on the unit's page, and refuses two fields on purpose.
+  ['#10 is a PATCH on the id',
+    /method: "PATCH"/.test(orgEditEntry) && /path: "\/schools\/current\/departments\/{id}"/.test(orgEditEntry)],
+  ['absent means leave alone, and an empty body is refused rather than a quiet 200',
+    orgEditEntry.includes('NOTHING_TO_UPDATE') && orgEditEntry.includes('no-op')],
+  ['a body of ONLY uneditable fields counts as empty too',
+    orgEditEntry.includes('ONLY UNEDITABLE FIELDS')],
+  ['the code is never editable, and the reason is recorded',
+    orgEditEntry.includes('Nothing joins on it, which is exactly what makes editing it')],
+  ['the parent is never editable either — a unit cannot be moved',
+    orgEditEntry.includes('a unit cannot be moved')],
+  ['and the consequence is stated: nothing can write a cycle any more',
+    orgEditEntry.includes('can write a cycle')],
+  ['the name is replaced, never removed',
+    orgEditEntry.includes('DEPARTMENT_NAME_REQUIRED')],
+  ['"" clears the description and the head',
+    orgEditEntry.includes('clears it \u2014 the unit has no named head')
+      || orgEditEntry.includes('clears it — the unit has no named head')],
+  ['retiring carries #11\'s refusal, naming how many seats',
+    orgEditEntry.includes('DEPARTMENT_NOT_EMPTY') && orgEditEntry.includes('naming how many')],
+  ['sub-departments do NOT block a retire, because #12 lifts them',
+    orgEditEntry.includes('Sub-departments do not block it')
+      || orgEditEntry.includes('do NOT block it')],
+  ['restoring has no check at all',
+    orgEditEntry.includes('Restoring has no check')],
+  ['a refused head leaves the whole write unlanded',
+    orgEditEntry.includes('changes neither')],
+
+  // The edit modal on the screen.
+  ['the unit page is where a unit is edited',
+    orgDetailScreen.includes("call('update-department'") && orgDetailScreen.includes('function EditDepartment')],
+  ['it sends only what changed, so an untouched field never appears in the body',
+    orgDetailScreen.includes('if (current.name !== initial.name)')],
+  ['which makes the empty-body 400 reachable by saving without typing',
+    orgDetailScreen.includes('the body is `{}` and the API answers 400 NOTHING_TO_UPDATE')],
+  ['the code and parent are shown as TEXT, not as boxes that are greyed out',
+    orgDetailScreen.includes('Code, which #10 never accepts')
+      && orgDetailScreen.includes('Parent, which #10 never accepts')],
+  ['and the edit re-reads #52 rather than patching the page in place',
+    orgDetailScreen.includes('onSaved={load}')],
+  ['every sub-department row carries its own edit',
+    orgDetailScreen.includes('onClick={() => openEditor(one.departmentDocsId)}')],
+  ['which reads that row\'s full document first, because a row is only a summary',
+    orgDetailScreen.includes("call('get-department'") && orgDetailScreen.includes('setEditTarget(result.ok')],
+  ['and nothing about it is gated on a loading state',
+    !/busy=\{[^}]*\}\s*onClick=\{\(\) => openEditor/.test(orgDetailScreen)],
 
   // #52 — the detail PAGE. A row opens an address, not a modal.
   ['#52 reads one unit in full',

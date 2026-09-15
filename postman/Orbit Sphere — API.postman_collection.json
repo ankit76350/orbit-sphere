@@ -4756,6 +4756,64 @@
               "response": []
             },
             {
+              "name": "Update Department",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the unit came back', () => pm.expect(b).to.have.property('departmentDocsId'));",
+                      "// THE CODE IS NEVER EDITABLE. Nothing joins on it, which is what makes editing it dangerous.",
+                      "pm.test('a departmentCode still comes back', () => pm.expect(b.departmentCode).to.be.a('string'));",
+                      "pm.test('it says what happened', () => pm.expect(b).to.have.property('nextStep'));",
+                      "// \"\" CLEARS rather than storing an empty string \u2014 the key is absent, not present and blank.",
+                      "if ('description' in b) pm.test('a description that is present is not blank', () => pm.expect(b.description).to.not.equal(''));",
+                      "if ('headStaffDocsId' in b) pm.test('a head that is present is not blank', () => pm.expect(b.headStaffDocsId).to.not.equal(''));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/departments/{id}\n// Every field optional. Needs X-School-Subdomain and a department id.\n//\n//  ABSENT MEANS LEAVE IT ALONE, and an empty body is 400 NOTHING_TO_UPDATE\n//  rather than a no-op 200 — a PATCH that changes nothing and answers success\n//  lets a client with a broken form look healthy.\n//\n//  NEVER departmentCode. Nothing joins on it, which is exactly what makes\n//  editing it dangerous: no query would break, and every export, filter and\n//  report naming the old code would quietly stop matching.\n//\n//  NEVER THE PARENT — A UNIT CANNOT BE MOVED. The plan had #10 moving one and\n//  refusing a cycle at 409 DEPARTMENT_CYCLE; dropped 2026-09-15. Nothing in\n//  this API can write a cycle into the department chart any more.\n//\n//  active IS HERE RATHER THAN ON #11's ENDPOINT PAIR, and it carries #11's\n//  refusal with it: retiring a unit that still holds ACTIVE seats is a 409\n//  DEPARTMENT_NOT_EMPTY naming how many. Sub-departments do NOT block it —\n//  #12 lifts them and marks liftedToTop. Restoring has no check.\n//\n//  \"\" CLEARS description and headStaffDocsId. \"\" on name is refused.\n// =========================================================================\n//\n// -------------------------------------------------------------------------\n// 01  A RENAME                                            -> 200 OK\n//     { \"name\": \"Teaching & Learning\" }\n//     OUT: the new name, the code untouched.\n// -------------------------------------------------------------------------\n// 02  NOTHING AT ALL                                      -> 400 Bad Request\n//     {}   OUT: { \"code\": \"NOTHING_TO_UPDATE\" } — not a quiet 200.\n// -------------------------------------------------------------------------\n// 03  ONLY UNEDITABLE FIELDS                              -> 400 Bad Request\n//     { \"departmentCode\": \"NEWCODE\", \"parentDepartmentDocsId\": \"...\" }\n//     The same 400: neither is on the request record, so the request is\n//     empty. Both are IGNORED on the way in, never refused.\n// -------------------------------------------------------------------------\n// 04  THE NAME CANNOT BE REMOVED                          -> 400 Bad Request\n//     { \"name\": \"   \" }   OUT: { \"code\": \"DEPARTMENT_NAME_REQUIRED\" }\n// -------------------------------------------------------------------------\n// 05  CLEARING THE DESCRIPTION                            -> 200 OK\n//     { \"description\": \"\" }\n//     OUT: no description key at all — absent, not null or \"\".\n// -------------------------------------------------------------------------\n// 06  CLEARING THE HEAD                                   -> 200 OK\n//     { \"headStaffDocsId\": \"\" }\n//     OUT: no headStaffDocsId key. The unit has no named head.\n// -------------------------------------------------------------------------\n// 07  AN UNKNOWN HEAD                                     -> 404 Not Found\n//     { \"name\": \"Renamed\", \"headStaffDocsId\": \"deadbeefdeadbeefdeadbeef\" }\n//     OUT: { \"code\": \"STAFF_NOT_FOUND\" } — and the NAME does not land\n//     either. The whole write is rejected.\n// -------------------------------------------------------------------------\n// 08  RETIRING AN EMPTY UNIT                              -> 200 OK\n//     { \"active\": false }\n//     OUT: active false, and a nextStep saying it keeps its place in the tree.\n// -------------------------------------------------------------------------\n// 09  RETIRING ONE THAT STILL HOLDS SEATS                 -> 409 Conflict\n//     Create two seats in it first, then { \"active\": false }.\n//     OUT: { \"code\": \"DEPARTMENT_NOT_EMPTY\" } and \"2 seats are still\n//     active\" — the count is in the message because \"retire the two seats\n//     first\" is actionable and \"not empty\" is not.\n// -------------------------------------------------------------------------\n// 10  RETIRING A PARENT WHOSE CHILDREN ARE ACTIVE         -> 200 OK\n//     Allowed, and not an oversight: #12 lifts those children to the top and\n//     marks liftedToTop. That state is designed for; a live SEAT is not.\n// -------------------------------------------------------------------------\n// 11  RESTORING                                           -> 200 OK\n//     { \"active\": true } — no check at all, even with active seats under it.\n//     Putting a unit back cannot invalidate anything.\n// -------------------------------------------------------------------------\n// 12  ANOTHER SCHOOL'S UNIT                               -> 404 Not Found\n//     A REAL department id belonging to a different school.\n//     OUT: { \"code\": \"DEPARTMENT_NOT_FOUND\" } — the lookup carries schoolId.\n// -------------------------------------------------------------------------\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE                No editable field was sent.\n//     400 DEPARTMENT_NAME_REQUIRED         name sent blank.\n//     400 TENANT_NOT_RESOLVED              The X-School-Subdomain header is missing or blank.\n//     403 SCHOOL_NOT_ACTIVE                Gate 1 — suspended or closed. Reads still work.\n//     404 SCHOOL_NOT_FOUND                 No school has that subdomain.\n//     404 DEPARTMENT_NOT_FOUND             Not a department of this school.\n//     404 STAFF_NOT_FOUND                  headStaffDocsId names nobody here.\n//     409 DEPARTMENT_NOT_EMPTY             active:false while seats are active.\n\n{\n    \"name\": \"Teaching & Learning\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/departments/{{departmentDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "departments",
+                    "{{departmentDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #10 \u2014 rename a unit, describe it, name its head, retire it or restore it. Never its code, and never its parent."
+              },
+              "response": []
+            },
+            {
               "name": "Get Department",
               "event": [
                 {

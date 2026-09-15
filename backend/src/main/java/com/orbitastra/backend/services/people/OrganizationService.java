@@ -18,6 +18,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
+import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentNodeResponse;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into — endpoints #9 to #15 of the plan in
- * {@code controllers/people/organization/README.md}. #9, #12, #13 and #52 are built.
+ * {@code controllers/people/organization/README.md}. #9, #10, #12, #13 and #52 are built.
  *
  * <p><b>This is where the people module starts, which surprises people.</b> {@code POST /staff}
  * looks like the first call, but the write that actually employs somebody needs a
@@ -100,9 +101,10 @@ public class OrganizationService {
     /**
      * Endpoint #9 — create an org unit, optionally under another.
      *
-     * <p><b>No cycle walk here.</b> A brand-new department has no children, so it cannot be its
-     * own ancestor whatever parent it names. The walk belongs to #10, which can move an existing
-     * unit under its own descendant — and lives in {@code PeopleHelper} when that is built.
+     * <p><b>No cycle walk here, and none anywhere.</b> A brand-new department has no children, so
+     * it cannot be its own ancestor whatever parent it names. The walk was to belong to #10, which
+     * would have moved an existing unit under its own descendant — but #10 does not accept a
+     * parent, so nothing in this API can write a cycle and {@code PeopleHelper} is still unearned.
      */
     public DepartmentResponse createDepartment(DepartmentCreateRequest request) {
 
@@ -146,8 +148,8 @@ public class OrganizationService {
                             "No staff member with id '" + headId + "' in this school."));
         }
 
-        //! step 6 - insert. `active` takes its default: retiring is #11, an event with its own
-        //! endpoint rather than a field to set at create.
+        //! step 6 - insert. `active` takes its default: a unit created already retired is a state
+        //! nothing asked for, and retiring one is #10.
         // TODO: create department
         Department saved = departments.save(Department.builder()
                 .schoolId(school.getId())
@@ -160,6 +162,109 @@ public class OrganizationService {
 
         return DepartmentResponse.fromDepartment(saved,
                 "Positions hang off this unit — #13 creates one. " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #10 — rename a unit, describe it, name its head, retire it or restore it.
+     *
+     * <p><b>No cycle walk here either, and now there never will be one.</b> The plan had this
+     * endpoint moving a unit under another and refusing a cycle at {@code DEPARTMENT_CYCLE}; the
+     * parent was dropped from the request on 2026-09-15, so nothing in this API can write a cycle
+     * at all. #12's visited set stays — it is what makes that a property of the data rather than
+     * of this method's current shape.
+     *
+     * <p><b>{@code active} lives here rather than on #11's endpoint pair</b>, and it carries #11's
+     * refusal with it: retiring a unit that still holds active seats is a 409 naming how many. The
+     * rule belongs to the transition, not to whichever endpoint performs it.
+     */
+    public DepartmentResponse updateDepartment(String departmentDocsId,
+            DepartmentUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send name, description, headStaffDocsId or active. departmentCode and "
+                            + "parentDepartmentDocsId are not editable — a code is what exports "
+                            + "and filters are written against, and where a unit sits is decided "
+                            + "when it is created.");
+        }
+
+        //! step 3 - the unit, scoped to the school
+        Department department = utils.loadDepartment(school, departmentDocsId);
+
+        //! step 4 - the name. Blank is REFUSED rather than clearing, because the model requires
+        //! one and it is the only thing on this document a person reads.
+        if (request.name() != null) {
+            String newName = request.name().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("DEPARTMENT_NAME_REQUIRED",
+                        "A department name cannot be removed. Send a new one, or omit the field.");
+            }
+            department.setName(newName);
+        }
+
+        //! step 5 - the description. "" removes it; absent leaves it alone.
+        if (request.description() != null) {
+            department.setDescription(TextHelper.blankToNull(request.description()));
+        }
+
+        //! step 6 - the head. "" leaves the unit without one; a real id has to EXIST, and is
+        //! deliberately not checked to be employed - the same rule #9 follows, because a school
+        //! enters its org chart before its employment records.
+        if (request.headStaffDocsId() != null) {
+            String headId = TextHelper.blankToNull(request.headStaffDocsId());
+            if (headId != null) {
+                // TODO: read staff
+                staff.findByIdAndSchoolId(headId, school.getId())
+                        .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                                "No staff member with id '" + headId + "' in this school."));
+            }
+            department.setHeadStaffDocsId(headId);
+        }
+
+        //! step 7 - retiring, and the one refusal this endpoint has of its own.
+        //!
+        //! A RETIRED UNIT HOLDING ACTIVE SEATS IS A CHART NOTHING CAN DRAW, and possibly people
+        //! employed into a department that no longer exists. The count is in the message because
+        //! "retire the four seats first" is actionable and "not empty" is not.
+        //!
+        //! SUB-DEPARTMENTS ARE NOT CHECKED, and that asymmetry is deliberate: #12 already answers
+        //! for a retired parent whose children are still active by lifting them to the top and
+        //! marking them `liftedToTop`. That state is designed for. A seat has no such answer.
+        //!
+        //! Restoring has no check and needs none.
+        if (request.active() != null && !request.active().equals(department.getActive())) {
+            if (Boolean.FALSE.equals(request.active())) {
+                // TODO: count positions
+                long stillActive = positions.countBySchoolIdAndDepartmentDocsIdAndActiveIsTrue(
+                        school.getId(), department.getId());
+
+                if (stillActive > 0) {
+                    throw ApiException.conflict("DEPARTMENT_NOT_EMPTY",
+                            stillActive + " seat" + (stillActive == 1 ? " is" : "s are")
+                                    + " still active in '" + department.getName()
+                                    + "'. Retire them first — a retired unit holding live seats "
+                                    + "is an org chart nothing can draw, and people may be "
+                                    + "employed into them.");
+                }
+            }
+            department.setActive(request.active());
+        }
+
+        //! step 8 - save. The code and the parent are untouched: neither is on the request, so
+        //! neither can be reached from here even by a caller that sends them.
+        // TODO: update department
+        Department saved = departments.save(department);
+
+        return DepartmentResponse.fromDepartment(saved,
+                Boolean.FALSE.equals(saved.getActive())
+                        ? "Retired. It keeps its place in the tree and its seats keep naming it — "
+                                + "#12 with ?active=true is what hides it. " + NO_AUTHORIZATION_YET
+                        : "Updated. " + NO_AUTHORIZATION_YET);
     }
 
     /**
@@ -317,9 +422,14 @@ public class OrganizationService {
         //! step 4 - build downwards from each root, carrying a visited set.
         //!
         //! THE VISITED SET IS NOT DEFENSIVE PROGRAMMING, it is the only thing standing between a
-        //! cyclic parent chain and a stack overflow. Nothing can write a cycle today - #9 cannot,
-        //! because a new unit has no children - but #10 will be able to, and open item 2 says a
-        //! cycle written then is a crash in whatever first draws the chart. This is that thing.
+        //! cyclic parent chain and a stack overflow.
+        //!
+        //! NO ENDPOINT CAN WRITE A CYCLE as of 2026-09-15 - #9 cannot, because a new unit has no
+        //! children, and #10 cannot, because it does not accept a parent at all. That is exactly
+        //! why this stays: it is what makes "the chart has no cycles" true of the DATA, which a
+        //! hand-edited collection, a restored backup or a later #10 that moves units can all make
+        //! false without touching this file. Open item 2 says a cycle reaches this method as a
+        //! stack overflow in whatever first draws the chart.
         List<DepartmentNodeResponse> built = new ArrayList<>();
         for (Department root : roots) {
             built.add(buildNode(root, childrenOf, new LinkedHashSet<>(), false));

@@ -56,4 +56,17 @@ public interface PositionRepository extends MongoRepository<Position, String> {
      */
     List<Position> findBySchoolIdAndDepartmentDocsIdOrderByTitleAsc(String schoolId,
             String departmentDocsId);
+
+    /**
+     * How many seats in one department are still active.
+     *
+     * <p><b>A count, not an exists</b>, because the refusal it feeds names the number. #10 turns
+     * this into "four seats are still active here" — which tells a school what to do next, where
+     * "not empty" leaves it guessing how much work that is.
+     *
+     * <p>Retired seats are excluded on purpose: they are what a school is left with once it has
+     * closed a unit properly, so counting them would make the refusal impossible to satisfy.
+     */
+    long countBySchoolIdAndDepartmentDocsIdAndActiveIsTrue(String schoolId,
+            String departmentDocsId);
 }

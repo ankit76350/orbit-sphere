@@ -13151,6 +13151,156 @@ A suspended or closed school still reads its own org chart.
       ],
     },
     {
+      id: "update-department",
+      name: "Update Department",
+      method: "PATCH",
+      path: "/schools/current/departments/{id}",
+      status: 'live',
+      summary: "Rename it, describe it, name its head, retire it or restore it.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/departments/{id}\` — endpoint #10.
+
+### Absent means "leave it alone", and an empty body is refused
+
+Every field is optional. A request that sends nothing at all is a \`400 NOTHING_TO_UPDATE\` rather
+than a no-op \`200\` — a PATCH that changes nothing and answers success lets a client with a broken
+form look healthy.
+
+Sending **only** uneditable fields is the same 400: \`departmentCode\` and
+\`parentDepartmentDocsId\` are not on the request record, so they are ignored on the way in and the
+request is still empty.
+
+### Never departmentCode
+
+**Nothing joins on it, which is exactly what makes editing it dangerous.** No query would break,
+and every export, filter and report naming the old code would quietly stop matching. The
+\`termCode\` reasoning, unchanged.
+
+### Never the parent — a unit cannot be moved
+
+The plan had #10 moving one and refusing a cycle at \`409 DEPARTMENT_CYCLE\`. **Dropped
+2026-09-15.** Where a unit sits is decided when it is created, under the parent whose page created
+it; a move is the one edit here that changes what every *other* unit's page shows.
+
+The consequence is worth stating: **no endpoint in this product can write a cycle into the
+department chart.** #9 cannot, because a new unit has no children; #10 cannot, because it does not
+accept a parent. #12's tree builder still carries its visited set — that is what makes the
+sentence true of the *data* rather than of the code's current shape.
+
+### active is here, and #11 is why that needs saying
+
+The plan gave \`active\` its own endpoint pair — \`POST /departments/{id}/deactivate\` and
+\`/reactivate\`, #11 — the shape every lifecycle flag in this project uses. Putting the field here
+instead is a real departure, **and it carries #11's refusal with it**: retiring a unit that still
+holds active seats is a \`409 DEPARTMENT_NOT_EMPTY\` naming how many. The rule belongs to the
+transition, not to whichever endpoint performs it, and a field reaching that state without the
+check would be a back door around a decision this module already made.
+
+**Sub-departments do not block it**, and that asymmetry is deliberate: #12 already answers for a
+retired parent whose children are still active by lifting them to the top and marking
+\`liftedToTop\`. That state is designed for. A live seat has no such answer.
+
+**Restoring has no check and needs none** — putting a unit back cannot invalidate anything.
+
+### What clears, and what cannot
+
+\`\`\`
+"description": ""       clears it
+"headStaffDocsId": ""   clears it — the unit has no named head
+"name": ""              400 DEPARTMENT_NAME_REQUIRED
+any field: null         leaves it            (same as absent)
+\`\`\`
+
+### The head is checked to EXIST, not to be employed
+
+The same rule #9 follows: during setup a school enters its org chart before its employment
+records, and refusing this would force it to work backwards. Another school's real staff id is a
+\`404\`, not a cross-tenant head.
+
+### A refused write lands nothing
+
+The head is validated before anything is saved, so a request carrying a good name and a bad head
+changes neither.
+
+### The twelve test cases are in the notes below
+`,
+      bodyNotes: `Every field optional. Needs X-School-Subdomain and a department id.
+
+ ABSENT MEANS LEAVE IT ALONE. An empty body is 400 NOTHING_TO_UPDATE, not a
+ no-op 200 — a PATCH that changes nothing and says success hides a broken form.
+
+ NEVER departmentCode. Nothing joins on it, which is what makes editing it
+ dangerous: no query breaks and every export naming the old code stops matching.
+
+ NEVER the parent — a unit cannot be moved. Dropped from the plan 2026-09-15.
+ Nothing in this API can write a cycle any more.
+
+ active IS HERE, carrying #11's refusal: retiring a unit that still holds
+ ACTIVE seats is 409 DEPARTMENT_NOT_EMPTY, naming how many. Sub-departments do
+ NOT block it — #12 lifts them. Restoring has no check.
+
+ "" CLEARS description and headStaffDocsId. "" on name is refused.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{departmentDocsId}}", description: "The unit's MongoDB document id, from Create Department." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: {
+        name: "Teaching & Learning",
+      },
+      successStatus: 200,
+      successNote: "The unit as it now stands, with a nextStep saying what happened.",
+      responseFields: ["departmentDocsId", "departmentCode", "name", "description", "headStaffDocsId", "active", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No editable field was sent — including a body of only departmentCode or parentDepartmentDocsId." },
+        { status: 400, code: "DEPARTMENT_NAME_REQUIRED", when: "name was sent blank. A name cannot be removed, only replaced." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed. Reads still work." },
+        { status: 404, code: "SCHOOL_NOT_FOUND", when: "No school has that subdomain." },
+        { status: 404, code: "DEPARTMENT_NOT_FOUND", when: "No department with that id in this school — including another school's real id." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "headStaffDocsId names nobody in this school. The whole write is rejected." },
+        { status: 409, code: "DEPARTMENT_NOT_EMPTY", when: "active:false while seats are still active. The message names how many." },
+      ],
+      examples: [
+        { id: "01", name: "A RENAME", expect: "200 OK",
+          notes: `The ordinary case. OUT: the new name, the code untouched.`,
+          body: { name: "Teaching & Learning" } },
+        { id: "02", name: "NOTHING AT ALL", expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" } — not a quiet 200.`, body: {} },
+        { id: "03", name: "ONLY UNEDITABLE FIELDS", expect: "400 Bad Request",
+          notes: `The same 400: neither field is on the request record, so the\n    request is empty. OUT: the code and parent are unchanged.`,
+          body: { departmentCode: "NEWCODE", parentDepartmentDocsId: "6aa15d9dc3f7d0011111111" } },
+        { id: "04", name: "THE NAME CANNOT BE REMOVED", expect: "400 Bad Request",
+          notes: `OUT: { "code": "DEPARTMENT_NAME_REQUIRED" }.`, body: { name: "   " } },
+        { id: "05", name: "CLEARING THE DESCRIPTION", expect: "200 OK",
+          notes: `OUT: no description key at all — absent, not null or "".`, body: { description: "" } },
+        { id: "06", name: "CLEARING THE HEAD", expect: "200 OK",
+          notes: `OUT: no headStaffDocsId key. The unit has no named head.`, body: { headStaffDocsId: "" } },
+        { id: "07", name: "AN UNKNOWN HEAD", expect: "404 Not Found",
+          notes: `OUT: { "code": "STAFF_NOT_FOUND" }. Send a good name with it —\n    the whole write is rejected, so the name does not land either.`,
+          body: { name: "Renamed", headStaffDocsId: "deadbeefdeadbeefdeadbeef" } },
+        { id: "08", name: "RETIRING AN EMPTY UNIT", expect: "200 OK",
+          notes: `OUT: active false, and a nextStep saying it keeps its place in\n    the tree.`, body: { active: false } },
+        { id: "09", name: "RETIRING ONE THAT STILL HOLDS SEATS", expect: "409 Conflict",
+          notes: `Create two seats in it first.\n    OUT: { "code": "DEPARTMENT_NOT_EMPTY" } and "2 seats are still\n    active" — the count is in the message because "retire the two\n    seats first" is actionable and "not empty" is not.`,
+          body: { active: false } },
+        { id: "10", name: "RETIRING A PARENT WHOSE CHILDREN ARE ACTIVE", expect: "200 OK",
+          notes: `Allowed, and not an oversight: #12 lifts those children to the\n    top and marks liftedToTop. That state is designed for.`,
+          body: { active: false } },
+        { id: "11", name: "RESTORING", expect: "200 OK",
+          notes: `No check at all, even with active seats under it — putting a\n    unit back cannot invalidate anything.`, body: { active: true } },
+        { id: "12", name: "ANOTHER SCHOOL'S UNIT", expect: "404 Not Found",
+          notes: `A REAL department id belonging to a different school.\n    OUT: { "code": "DEPARTMENT_NOT_FOUND" } — the lookup carries schoolId.`,
+          body: { name: "Stolen" } },
+      ],
+    },
+    {
       id: "get-department",
       name: "Get Department",
       method: "GET",

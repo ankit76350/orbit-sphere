@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentCreateRequest;
 import com.orbitastra.backend.dto.people.organization.request.DepartmentSearchRequest;
+import com.orbitastra.backend.dto.people.organization.request.DepartmentUpdateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentDetailResponse;
 import com.orbitastra.backend.dto.people.organization.request.PositionCreateRequest;
 import com.orbitastra.backend.dto.people.organization.response.DepartmentResponse;
@@ -28,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The org chart a school hires into. Endpoints #9 to #15 of the plan in this package's README;
- * #9, #12, #13 and #52 are built.
+ * #9, #10, #12, #13 and #52 are built.
  *
  * <p><b>One controller for two documents</b>, because a position outside a department is not a
  * thing. They only exist in relation to each other, which makes them one subject.
@@ -42,8 +44,8 @@ import lombok.RequiredArgsConstructor;
  * working one, and no path here carries a year to ask it about. An org chart outlives any year —
  * a department exists before the first year opens and after the last one ends.
  *
- * <p><b>There is no {@code DELETE}</b>: a unit is deactivated (#11), and that is refused while
- * active positions remain. Positions reference a department by id and none of those references is
+ * <p><b>There is no {@code DELETE}</b>: a unit is retired through #10's {@code active} field,
+ * and that is refused while active positions remain. Positions reference a department by id and none of those references is
  * a foreign key, so "is this still used" is a query rather than a constraint.
  */
 @RestController
@@ -80,6 +82,33 @@ public class OrganizationController {
                 .created(URI.create("/schools/current/departments/"
                         + response.departmentDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #10 — rename a unit, describe it, name its head, retire it or restore it.
+     *
+     * <p><b>Not its code and not its parent.</b> Nothing joins on {@code departmentCode}, which is
+     * exactly what makes editing it dangerous — no query would break, and every export and filter
+     * naming the old code would quietly stop matching. The parent was dropped from this request on
+     * 2026-09-15: where a unit sits is decided when it is created.
+     *
+     * <p><b>{@code active} is here rather than on #11's endpoint pair</b>, and it carries #11's
+     * refusal with it — retiring a unit that still holds active seats is a 409 naming how many.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: no year in this path.
+     */
+    @PatchMapping("/departments/{id}")
+    public ResponseEntity<DepartmentResponse> updateDepartment(@PathVariable String id,
+            @Valid @RequestBody DepartmentUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(organizationService.updateDepartment(id, request));
     }
 
     /**

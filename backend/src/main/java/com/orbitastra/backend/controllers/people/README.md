@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Four of 52 are built — [#9](#t9) `POST /departments`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Five of 52 are built — [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -251,8 +251,8 @@ relative to **`/schools/current`**.
 | # | Method and endpoint | What this API is for | Collections it touches |
 |---|---|---|---|
 | <a id="t9"></a>9 — **built** | [`POST /departments`](#e9) | Create an org unit, optionally under another. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t10"></a>10 | [`PATCH /departments/{id}`](#e10) | Rename it, move it, or name its head. Never its code. | [`staff_departments`](../../models/people/organization/Department.java) |
-| <a id="t11"></a>11 | [`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11) | Retire an org unit without deleting it. Idempotent pair. | [`staff_departments`](../../models/people/organization/Department.java) |
+| <a id="t10"></a>10 — **built** | [`PATCH /departments/{id}`](#e10) | Rename it, describe it, name its head, retire it. Never its code, and **never its parent**. | [`staff_departments`](../../models/people/organization/Department.java) |
+| <a id="t11"></a>11 — **superseded** | ~~[`POST /departments/{id}/deactivate`](#e11) · [`/reactivate`](#e11)~~ | **Absorbed into [#10](#t10) on 2026-09-15** as its `active` field, carrying this endpoint's `DEPARTMENT_NOT_EMPTY` refusal unchanged. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t12"></a>12 — **built** | [`GET /departments`](#e12) | The tree, or one flat filtered page. | [`staff_departments`](../../models/people/organization/Department.java) |
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department, with a headcount. | [`staff_positions`](../../models/people/organization/Position.java) |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, or change the approved headcount. | [`staff_positions`](../../models/people/organization/Position.java) |

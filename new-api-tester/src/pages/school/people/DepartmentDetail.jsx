@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Info, Plus, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import { Badge, Button, Card, Empty, Field, Input, Modal } from '../../../components/ui/Kit.jsx'
@@ -28,6 +28,11 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * THE SEATS ARE #52'S, NOT #15'S. When GET /positions is built the two will return the same rows,
  * and #15 wins — it owns the question. That is what happened to #29 of academics.
  *
+ * AND IT IS WHERE A UNIT IS EDITED — #10, from the toolbar for this unit and from the row for
+ * each one under it. The list cannot: a rename is a thing you do to the unit you are looking at,
+ * and the two fields #10 refuses (the code and the parent) are shown in the modal as text beside
+ * the ones it accepts, so what cannot move is visible rather than merely absent.
+ *
  * A SUB-DEPARTMENT IS CREATED HERE TOO, for the same reason and with the same shape: #9's
  * parentDepartmentDocsId is this unit's id, which is on screen here and nowhere else. The list
  * page adds top-level units and does not draw the box at all.
@@ -51,6 +56,10 @@ export default function DepartmentDetail() {
   const [loading, setLoading] = useState(false)
   const [seatOpen, setSeatOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
+  // THE DOCUMENT BEING EDITED, not a boolean — because a sub-department row can open this too
+  // and #10 edits four fields, two of which a row does not carry. Opening on a summary would
+  // show an empty description box for a unit that has one.
+  const [editTarget, setEditTarget] = useState(null)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -65,6 +74,19 @@ export default function DepartmentDetail() {
   }, [call, environment.id, actingSubdomain, id])
 
   useEffect(() => { load() }, [load])
+
+  //! A ROW IS A SUMMARY — four fields. #10 edits description and head too, so the full document
+  //! is read first and the modal opens on that. One extra request, and the alternative is a form
+  //! that shows blanks for values the unit actually holds.
+  const openEditor = useCallback(async (departmentDocsId) => {
+    if (departmentDocsId === id) { setEditTarget(data); return }
+    const result = await call('get-department', {
+      label: 'Read a sub-department before editing it',
+      pathParams: { id: departmentDocsId },
+    })
+    setEditTarget(result.ok ? result.bodyJson : { departmentDocsId })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, environment.id, id, data])
 
   if (!actingSubdomain) return <NoSchoolChosen what="This department" />
 
@@ -104,6 +126,7 @@ export default function DepartmentDetail() {
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={Pencil} onClick={() => openEditor(id)}>Edit</Button>
         <Button icon={Plus} onClick={() => setSubOpen(true)}>Add a sub-department</Button>
         <Button look="primary" icon={Plus} onClick={() => setSeatOpen(true)}>Add a seat</Button>
       </div>
@@ -111,7 +134,13 @@ export default function DepartmentDetail() {
       <Card
         title="The unit"
         description="Everything #52 returns about it, in one read — with the unit above it and the head resolved."
-        action={<EndpointTag id="get-department" name="Read" pathParams={{ id }} />}
+        action={
+          <div className="btn-row">
+            <EndpointTag id="get-department" name="Read" pathParams={{ id }} />
+            <EndpointTag id="update-department" name="Edit" pathParams={{ id }} />
+            <Button icon={Pencil} onClick={() => openEditor(id)}>Edit</Button>
+          </div>
+        }
       >
         <div className="table-scroll">
           <table className="data-table">
@@ -183,6 +212,13 @@ export default function DepartmentDetail() {
                       <Badge tone={one.active ? 'good' : undefined}>
                         {one.active ? 'active' : 'retired'}
                       </Badge>
+                    </td>
+                    {/* #10 ON THE ROW. It reads the row's own document first — a summary carries
+                        four fields and #10 edits two more. */}
+                    <td>
+                      <Button icon={Pencil} onClick={() => openEditor(one.departmentDocsId)}>
+                        Edit
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -259,6 +295,14 @@ export default function DepartmentDetail() {
 
       {/* The parent prop is what draws the parent box AND fills it — this unit's id. Editable,
           so DEPARTMENT_NOT_FOUND and a top-level unit both stay reachable from here. */}
+      <EditDepartment
+        open={editTarget != null}
+        department={editTarget}
+        departmentDocsId={editTarget?.departmentDocsId ?? id}
+        onClose={() => setEditTarget(null)}
+        onSaved={load}
+      />
+
       <AddDepartment
         open={subOpen}
         parent={data ?? { departmentDocsId: id }}
@@ -454,6 +498,189 @@ function AddPosition({ open, department, onClose, onAdded }) {
           <Info size={12} /> A department whose seats are <b>all</b> non-teaching gets a warning on
           a successful create. That is legitimate for Finance — and it is also exactly what an
           empty teacher picker looks like, which nothing else would tell you.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Editing a unit — #10.
+ *
+ * IT SENDS WHAT YOU CHANGED, AND NOTHING ELSE. Every field on this endpoint is optional and
+ * absent means "leave it alone", so a body carrying fields nobody touched would be a write
+ * claiming more than the person asked for. The preview shows the exact body, always.
+ *
+ * WHICH MAKES THE EMPTY-BODY REFUSAL REACHABLE BY DOING NOTHING. Open this, change nothing, press
+ * Save: the body is `{}` and the API answers 400 NOTHING_TO_UPDATE. That is a documented refusal,
+ * and a modal that quietly refused to submit would have hidden it.
+ *
+ * THE CODE AND THE PARENT ARE SHOWN AS TEXT, NOT AS BOXES. They cannot be edited — and a unit's
+ * page is where somebody goes looking to try, so saying "this is the code, and it does not change"
+ * is more use than leaving them out and letting the reader wonder whether they were forgotten.
+ * They are not inputs at all rather than inputs that are greyed out.
+ *
+ * CLEARING IS EMPTYING A BOX. "" on description or headStaffDocsId removes what is there; "" on
+ * the name is refused by the API, which is why the box is still submittable empty.
+ */
+function EditDepartment({ open, department, departmentDocsId, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const initial = {
+    name: department?.name ?? '',
+    description: department?.description ?? '',
+    headStaffDocsId: department?.headStaff?.staffDocsId ?? '',
+    active: department?.active ?? true,
+  }
+
+  useEffect(() => {
+    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, department?.departmentDocsId, department?.name])
+
+  const current = form ?? initial
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
+  const toggle = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.checked }))
+
+  // ONLY WHAT MOVED. Absent means "leave it alone" on this endpoint, so an untouched field must
+  // not appear — and when nothing moved the body is {}, which is the 400 this endpoint documents.
+  const body = (() => {
+    const out = {}
+    if (current.name !== initial.name) out.name = current.name
+    if (current.description !== initial.description) out.description = current.description
+    if (current.headStaffDocsId !== initial.headStaffDocsId) {
+      out.headStaffDocsId = current.headStaffDocsId
+    }
+    if (current.active !== initial.active) out.active = current.active
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-department', {
+      label: 'Edit a department',
+      pathParams: { id: departmentDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) {
+      setMade(result.bodyJson)
+      onSaved()
+      return
+    }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title={department?.name ? `Edit ${department.name}` : 'Edit this department'}
+      description="Only what you change is sent — absent means leave it alone, so an untouched field never appears in the body."
+      endpoint={<EndpointTag id="update-department" name="Save" look="primary"
+        pathParams={{ id: departmentDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">{made.name}</span>
+            </div>
+            <pre className="resp-body">{made.nextStep}</pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field
+            label="Name"
+            hint="Empty is refused, not treated as a clear — DEPARTMENT_NAME_REQUIRED. Try it."
+            error={errors.name}
+          >
+            <Input value={current.name} error={errors.name} onChange={set('name')} />
+          </Field>
+          <Field
+            label="Head staff id"
+            hint="Empty removes the head. A real Staff.id is checked to EXIST, not to be employed — another school's is a 404."
+            error={errors.headStaffDocsId}
+          >
+            <Input value={current.headStaffDocsId} error={errors.headStaffDocsId}
+              onChange={set('headStaffDocsId')} placeholder="empty for no head" />
+          </Field>
+        </div>
+
+        <Field label="Description" hint="Empty removes it." error={errors.description}>
+          <Input value={current.description} error={errors.description}
+            onChange={set('description')} placeholder="empty to remove it" />
+        </Field>
+
+        <Field
+          label="Active"
+          hint="Retiring is refused while seats are still active — 409 DEPARTMENT_NOT_EMPTY, naming how many. Restoring has no check."
+        >
+          <label className="check">
+            <input type="checkbox" checked={current.active} onChange={toggle('active')} />
+            <span>This unit is in use</span>
+          </label>
+        </Field>
+
+        {/* TEXT, NOT BOXES. Neither can be edited, and this is the page somebody would come to
+            looking to try — so they are stated rather than left out. */}
+        <div className="table-scroll">
+          <table className="data-table">
+            <tbody>
+              <tr><td className="muted">Code, which #10 never accepts</td>
+                <td><span className="mono">{department?.departmentCode}</span>{' '}
+                  <span className="muted">
+                    nothing joins on it, which is what makes editing it dangerous — no query would
+                    break and every export naming the old code would quietly stop matching
+                  </span></td></tr>
+              <tr><td className="muted">Parent, which #10 never accepts</td>
+                <td>{department?.parentDepartment
+                  ? <span className="mono">{department.parentDepartment.departmentCode}</span>
+                  : <span className="muted">top level</span>}{' '}
+                  <span className="muted">
+                    a unit cannot be moved — where it sits is decided when it is created, and
+                    dropping the move is why nothing in this API can write a cycle any more
+                  </span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="muted">
+          <Info size={12} /> Send them anyway if you like — they are not on the request record, so
+          they are <b>ignored rather than refused</b>, and a body of only those two is the same{' '}
+          <span className="mono">400 NOTHING_TO_UPDATE</span> as an empty one.
         </p>
       </div>
     </Modal>
