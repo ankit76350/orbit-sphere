@@ -3576,8 +3576,12 @@ const peopleChecks = [
 
   // The screen
   ['the page reads #12 for the list', orgDeptScreen.includes("call('list-departments'")],
-  ['it creates through #9 and #13',
-    orgDeptScreen.includes("call('create-department'") && orgDeptScreen.includes("call('create-position'")],
+  ['it creates through #9, and no longer through #13',
+    orgDeptScreen.includes("call('create-department'") && !orgDeptScreen.includes("call('create-position'")],
+  ['the list holds no session-only table of seats it wrote',
+    !orgDeptScreen.includes('Positions created here')],
+  ['and no seat button anywhere on it — a seat belongs to one unit, so it is added on that page',
+    !orgDeptScreen.includes('Add a seat') && !orgDeptScreen.includes('Add a position')],
   ['the tree renders nested, not flattened', orgDeptScreen.includes('function TreeNode')],
   ['a lifted node is marked on screen, not shown as an ordinary root',
     orgDeptScreen.includes('lifted to top')],
@@ -3587,7 +3591,7 @@ const peopleChecks = [
   ['and the page explains that refusal rather than hiding it',
     orgDeptScreen.includes('TREE_CANNOT_BE_PAGED')],
   ['the department id stays editable when adding a seat, so its refusals are reachable',
-    orgDeptScreen.includes('Pre-filled from the row')],
+    orgDetailScreen.includes('change it to reach DEPARTMENT_NOT_ACTIVE or NOT_FOUND')],
 
   // #52 — the detail PAGE. A row opens an address, not a modal.
   ['#52 reads one unit in full',
@@ -3618,8 +3622,10 @@ const peopleChecks = [
     orgDeptScreen.includes('data-opens')],
   ['and the list no longer holds a detail modal',
     !orgDeptScreen.includes('function DepartmentDetail')],
-  ['adding a seat stops the click, or it would navigate away',
-    orgDeptScreen.includes('event.stopPropagation(); setSeatFor(one)')],
+  ['a seat is created from the unit\'s own page, where #13\'s departmentDocsId is',
+    orgDetailScreen.includes("call('create-position'") && orgDetailScreen.includes('function AddPosition')],
+  ['and the new seat appears by re-reading #52, not by being remembered',
+    orgDetailScreen.includes('onAdded={load}')],
   ['the detail page reads #52', orgDetailScreen.includes("call('get-department'")],
   ['it is the only screen that shows a resolved name',
     orgDetailScreen.includes('headStaff.fullName')],

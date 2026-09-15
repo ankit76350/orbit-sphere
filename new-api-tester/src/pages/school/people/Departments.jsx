@@ -11,22 +11,21 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * The org chart a school hires into: /school-people/departments
  *
- * FOUR ENDPOINTS — #12 lists the units, #9 creates one, #13 creates a seat. #52 opens one, and
- * it lives on its OWN PAGE rather than in a modal: a unit carries the one above it, the ones
- * under it and every seat in it, which is more than a modal's worth of screen — and a page has
- * an address, so it can be linked, reloaded and shared. The same call this project made for a class. The
- * department table is #12's answer, so it shows what the school HOLDS. The position table is
- * still session-only: #15 is GET /positions and is not built, and the page says so rather than
- * rendering an empty table that looks like a school with no seats.
+ * TWO ENDPOINTS — #12 lists the units and #9 creates one. #52 opens one, and it does so on its OWN
+ * PAGE rather than in a modal: a unit carries the one above it, the ones under it and every seat
+ * in it, which is more than a modal's worth of screen — and a page has an address, so it can be
+ * linked, reloaded and shared. The same call this project made for a class. The department table
+ * is #12's answer, so it shows what the school HOLDS.
  *
  * #12 HAS TWO SHAPES AND THE TOGGLE PICKS ONE. Flat is a page envelope; ?tree=true is nested
  * roots. Paging a tree is refused by the API, so the page-size and page controls are still shown
  * in tree mode — sending them is how that refusal is reached, and hiding them would make a
  * documented 400 untestable.
  *
- * A SEAT IS ADDED FROM ITS DEPARTMENT'S ROW, because #13 needs a departmentDocsId and the row is
- * where one is. Typing an id into a box would work too, and would be the only way to reach the
- * refusals — so the modal keeps the box, pre-filled from whichever row opened it.
+ * SEATS ARE NOT ADDED HERE, AND ARE NOT LISTED HERE. #13 needs a departmentDocsId, so it lives on
+ * the unit's own page, where the seats it creates show up in #52's answer. Until 2026-09-15 this
+ * page carried a session-only table of the positions it had created — which listed seats the
+ * school held nowhere, and none of the ones it did.
  *
  * THIS IS WHERE THE PEOPLE MODULE STARTS, which surprises people. POST /staff looks like the
  * first call, but the write that employs somebody needs a positionDocsId, and a position needs a
@@ -57,11 +56,7 @@ export default function Departments() {
   // leave it on in tree mode and the API answers TREE_CANNOT_BE_PAGED, which is the point.
   const [paging, setPaging] = useState(true)
   const [open, setOpen] = useState(false)
-  // Which department's row opened the seat modal. Null means the toolbar button did, and the
-  // box starts empty — every refusal stays reachable either way.
-  const [seatFor, setSeatFor] = useState(null)
   const navigate = useNavigate()
-  const [seats, setSeats] = useState([])
 
   const [tree, setTree] = useState('')
   const [active, setActive] = useState('')
@@ -117,13 +112,11 @@ export default function Departments() {
         <div>
           <h1 className="page-title">Departments</h1>
           <p className="muted">
-            <span className="mono">{actingSubdomain}</span> · the org chart positions hang off
+            <span className="mono">{actingSubdomain}</span> · the org chart positions hang off ·
+            open a unit to add a seat
           </p>
         </div>
         <span className="toolbar-spacer" />
-        <Button icon={Plus} onClick={() => setSeatFor({ departmentDocsId: '' })}>
-          Add a position
-        </Button>
         <Button look="primary" icon={Plus} onClick={() => setOpen(true)}>Add a department</Button>
       </div>
 
@@ -222,7 +215,6 @@ export default function Departments() {
             <div className="stack">
               {(data?.roots ?? []).map((root) => (
                 <TreeNode key={root.departmentDocsId} node={root} depth={0}
-                  onSeat={setSeatFor}
                   onOpen={(id) => navigate(detailPath('school', 'people', 'departments', id))} />
               ))}
             </div>
@@ -243,7 +235,6 @@ export default function Departments() {
                   <th>Parent</th>
                   <th>Head</th>
                   <th>Status</th>
-                  <th />
                   <th />
                 </tr>
               </thead>
@@ -273,13 +264,8 @@ export default function Departments() {
                         {one.active ? 'active' : 'retired'}
                       </Badge>
                     </td>
-                    <td>
-                      {/* Stops the click, or adding a seat would navigate away from the row. */}
-                      <Button icon={Plus}
-                        onClick={(event) => { event.stopPropagation(); setSeatFor(one) }}>
-                        Add a seat
-                      </Button>
-                    </td>
+                    {/* Seats are added from the unit's own page — #13 needs a departmentDocsId,
+                        and that page IS one department. */}
                     <td><span className="muted">Open <ChevronRight size={13} /></span></td>
                   </tr>
                 ))}
@@ -298,78 +284,10 @@ export default function Departments() {
         </p>
       </Card>
 
-      <Card
-        title="Positions created here"
-        description="From #13 — an approved seat inside a department. A position has no code: its title is unique within its unit, and it is addressed by its document id."
-        action={
-          <div className="btn-row">
-            <EndpointTag id="create-position" name="Add a seat" />
-            <Badge>{seats.length} this session</Badge>
-          </div>
-        }
-      >
-        {seats.length === 0 ? (
-          <Empty
-            title="No seats created here yet"
-            description="A seat needs an ACTIVE department. Add one above, then use its row."
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Department</th>
-                  <th>Reports to</th>
-                  <th>Approved</th>
-                  <th>Teaching</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seats.map((one) => (
-                  <tr key={one.positionDocsId}>
-                    {/* The title IS the identity now — positionCode was removed 2026-09-15. */}
-                    <td>{one.title}</td>
-                    <td><span className="mono">{one.departmentDocsId}</span></td>
-                    <td>{one.reportsToPositionDocsId
-                      ? <span className="mono">{one.reportsToPositionDocsId}</span>
-                      : <span className="muted">nobody</span>}</td>
-                    <td>{one.approvedHeadcount}</td>
-                    <td>
-                      {one.teachingPosition
-                        ? <Badge tone="brand">teaching</Badge>
-                        : <span className="muted">no</span>}
-                    </td>
-                    <td>
-                      <Badge tone={one.active ? 'good' : undefined}>
-                        {one.active ? 'active' : 'retired'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="muted">
-          <Info size={12} /> <b>The filled count is not here and never will be on a write.</b> It
-          comes from current employment records, so a number returned now would be stale the moment
-          somebody is hired. #15 computes it.
-        </p>
-      </Card>
-
       <AddDepartment
         open={open}
         onClose={() => setOpen(false)}
         onAdded={() => load()}
-      />
-
-      <AddPosition
-        open={seatFor != null}
-        department={seatFor}
-        onClose={() => setSeatFor(null)}
-        onAdded={(seat) => setSeats((old) => [...old, seat])}
       />
     </div>
   )
@@ -517,186 +435,6 @@ function AddDepartment({ open, onClose, onAdded }) {
 }
 
 /**
- * Adding a position — #13.
- *
- * THE DEPARTMENT BOX STAYS EVEN WHEN A ROW OPENED THIS. Pre-filled, not fixed: an id that is
- * retired, another school's, or nonsense is how DEPARTMENT_NOT_ACTIVE and DEPARTMENT_NOT_FOUND
- * are reached, and a modal that hid the field would make two documented refusals untestable.
- *
- * STAYS OPEN AFTER A SUCCESSFUL ADD, because a department gets its seats in one sitting. Only the
- * title is cleared — the department, the headcount and the teaching flag usually repeat.
- *
- * A WARNING IS NOT AN ERROR. A department whose seats are all non-teaching gets one on a 201, and
- * it renders beside the success rather than as a refusal — the seat exists.
- */
-function AddPosition({ open, department, onClose, onAdded }) {
-  const { call } = useApi()
-  const [form, setForm] = useState(null)
-  const [errors, setErrors] = useState({})
-  const [refused, setRefused] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [made, setMade] = useState(null)
-
-  const initial = {
-    title: '',
-    departmentDocsId: department?.departmentDocsId ?? '',
-    reportsToPositionDocsId: '',
-    approvedHeadcount: '',
-    teachingPosition: false,
-  }
-
-  useEffect(() => {
-    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, department?.departmentDocsId])
-
-  const current = form ?? initial
-  const set = (field) => (event) =>
-    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
-  const toggle = (field) => (event) =>
-    setForm((old) => ({ ...(old ?? initial), [field]: event.target.checked }))
-
-  // An empty optional box sends nothing rather than "", which the API would read as a value.
-  const body = (() => {
-    const out = { title: current.title, departmentDocsId: current.departmentDocsId }
-    if (current.reportsToPositionDocsId.trim() !== '') {
-      out.reportsToPositionDocsId = current.reportsToPositionDocsId.trim()
-    }
-    if (current.approvedHeadcount !== '') {
-      out.approvedHeadcount = Number(current.approvedHeadcount)
-    }
-    if (current.teachingPosition) out.teachingPosition = true
-    return out
-  })()
-
-  const submit = async () => {
-    setErrors({})
-    setRefused(null)
-    setSaving(true)
-    const result = await call('create-position', { label: 'Add a position', body })
-    setSaving(false)
-    if (result.ok) {
-      setMade(result.bodyJson)
-      onAdded(result.bodyJson)
-      setForm((old) => ({ ...(old ?? initial), title: '' }))
-      return
-    }
-    if (result.bodyJson?.fieldErrors) {
-      setErrors(Object.fromEntries(
-        Object.entries(result.bodyJson.fieldErrors)
-          .map(([field, messages]) => [field, [].concat(messages)[0]]),
-      ))
-    }
-    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      preview={body}
-      title={department?.name ? `Add a seat in ${department.name}` : 'Add a position'}
-      description="A seat has no code — its title is what names it, and must be unique inside its department."
-      endpoint={<EndpointTag id="create-position" name="Add" look="primary" />}
-      footer={
-        <>
-          <Button onClick={onClose}>Close</Button>
-          <Button look="primary" busy={saving} onClick={submit}>Add</Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {refused ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="false">{refused.code}</span>
-            </div>
-            <pre className="resp-body">{refused.message}</pre>
-          </div>
-        ) : null}
-
-        {made ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="true">{made.title}</span>
-            </div>
-            <pre className="resp-body">{made.nextStep}</pre>
-          </div>
-        ) : null}
-
-        {/* Rides on a SUCCESSFUL response. Kept apart from the refusal above so it never reads
-            as a failure — the seat was created. */}
-        {made?.warning ? (
-          <div className="resp">
-            <div className="resp-head">
-              <span className="resp-status" data-ok="true">created, with a warning</span>
-            </div>
-            <pre className="resp-body">{made.warning}</pre>
-          </div>
-        ) : null}
-
-        <div className="field-grid">
-          <Field
-            label="Title"
-            required
-            hint="What names the seat now that positions have no code. Unique within the department, case-folded — retired seats included."
-            error={errors.title}
-          >
-            <Input value={current.title} error={errors.title}
-              onChange={set('title')} placeholder="Mathematics Teacher" />
-          </Field>
-          <Field
-            label="Department id"
-            required
-            hint="Must be ACTIVE, not merely present. Pre-filled from the row you opened this from — change it to reach DEPARTMENT_NOT_ACTIVE or NOT_FOUND."
-            error={errors.departmentDocsId}
-          >
-            <Input value={current.departmentDocsId} error={errors.departmentDocsId}
-              onChange={set('departmentDocsId')} />
-          </Field>
-        </div>
-
-        <div className="field-grid">
-          <Field
-            label="Approved headcount"
-            hint="Blank becomes 1. Null is NOT uncapped — the model forbids it. 0 and below are refused."
-            error={errors.approvedHeadcount}
-          >
-            <Input type="number" value={current.approvedHeadcount} error={errors.approvedHeadcount}
-              onChange={set('approvedHeadcount')} placeholder="1" />
-          </Field>
-          <Field
-            label="Reports to (position id)"
-            hint="Optional, and may be in ANOTHER department — the org tree and the reporting line answer different questions."
-            error={errors.reportsToPositionDocsId}
-          >
-            <Input value={current.reportsToPositionDocsId} error={errors.reportsToPositionDocsId}
-              onChange={set('reportsToPositionDocsId')} placeholder="leave blank for nobody" />
-          </Field>
-        </div>
-
-        <Field
-          label="Teaching position"
-          hint="Defaults to false, and should almost always be sent. It is what a teacher picker filters on."
-        >
-          <label className="check">
-            <input type="checkbox" checked={current.teachingPosition}
-              onChange={toggle('teachingPosition')} />
-            <span>Somebody in this seat teaches</span>
-          </label>
-        </Field>
-
-        <p className="muted">
-          <Info size={12} /> A department whose seats are <b>all</b> non-teaching gets a warning on
-          a successful create. That is legitimate for Finance — and it is also exactly what an
-          empty teacher picker looks like, which nothing else would tell you.
-        </p>
-      </div>
-    </Modal>
-  )
-}
-
-/**
  * One unit in the chart, and whatever hangs off it.
  *
  * INDENTED RATHER THAN NESTED IN TABLES, because a table per level makes a three-deep chart into
@@ -706,7 +444,7 @@ function AddPosition({ open, department, onClose, onAdded }) {
  * filter excluded — it is a real unit the caller asked to see, and pretending it is top-level
  * would be a quieter lie than dropping it.
  */
-function TreeNode({ node, depth, onSeat, onOpen }) {
+function TreeNode({ node, depth, onOpen }) {
   return (
     <div className="stack" style={{ marginLeft: depth === 0 ? 0 : 20 }}>
       <div className="toolbar">
@@ -724,14 +462,12 @@ function TreeNode({ node, depth, onSeat, onOpen }) {
           ? <span className="muted mono">head {node.headStaffDocsId}</span>
           : null}
         <span className="toolbar-spacer" />
-        <Button icon={Plus} onClick={() => onSeat(node)}>Add a seat</Button>
         <Button onClick={() => onOpen(node.departmentDocsId)}>
           Open <ChevronRight size={13} />
         </Button>
       </div>
       {node.subDepartments.map((under) => (
-        <TreeNode key={under.departmentDocsId} node={under} depth={depth + 1}
-          onSeat={onSeat} onOpen={onOpen} />
+        <TreeNode key={under.departmentDocsId} node={under} depth={depth + 1} onOpen={onOpen} />
       ))}
     </div>
   )
