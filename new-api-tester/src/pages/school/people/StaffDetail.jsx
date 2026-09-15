@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Briefcase, Info, Plus, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Briefcase, Info, Pencil, Plus, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useApi, useApiState } from '../../../api/apiContext.js'
 import EndpointTag from '../../../components/EndpointTag.jsx'
 import Select from '../../../components/ui/Select.jsx'
@@ -10,6 +10,10 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 
 /**
  * One person, at their own address: /school-people/staff/{id}
+ *
+ * EVERYTHING ON THE PERSON IS EDITED FROM ONE MODAL — #2, which absorbed #3, #4 and #5. The
+ * address and the contact cards carry their own Edit button because that is where somebody looks
+ * for it, but all three open the same form: one endpoint, one write.
  *
  * THE PERSON COMES FIRST, THE EMPLOYMENT LAST. Who this is, then what they do here — the order a
  * reader asks them in, and the order #8 itself is documented in.
@@ -45,6 +49,7 @@ export default function StaffDetail() {
   const [problem, setProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [hireOpen, setHireOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!actingSubdomain) return
@@ -111,6 +116,7 @@ export default function StaffDetail() {
         </div>
         <span className="toolbar-spacer" />
         <Button icon={RefreshCw} onClick={load} busy={loading}>Refresh</Button>
+        <Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>
         <Button look="primary" icon={Plus} onClick={() => setHireOpen(true)}>
           {data?.employment ? 'Promote or transfer' : 'Employ'}
         </Button>
@@ -119,7 +125,13 @@ export default function StaffDetail() {
       <Card
         title="The person"
         description="Everything #8 returns, in one read. The list at #7 deliberately carries none of it."
-        action={<EndpointTag id="get-staff" name="Read" pathParams={{ id }} />}
+        action={
+          <div className="btn-row">
+            <EndpointTag id="get-staff" name="Read" pathParams={{ id }} />
+            <EndpointTag id="update-staff" name="Edit" pathParams={{ id }} />
+            <Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>
+          </div>
+        }
       >
         <div className="table-scroll">
           <table className="data-table">
@@ -149,7 +161,8 @@ export default function StaffDetail() {
 
       <Card
         title="Addresses"
-        description="Current and permanent, replaced as a pair by #3 — which is not built."
+        description="Replaced WHOLE by #2, never merged — what you leave out is gone. The plan gave this to #3; it was folded in."
+        action={<Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
       >
         <div className="table-scroll">
           <table className="data-table">
@@ -167,7 +180,8 @@ export default function StaffDetail() {
 
       <Card
         title="Emergency contact"
-        description="Replaced whole by #4 — which is not built. A new name beside an old number is worse than nothing."
+        description="Replaced WHOLE by #2. A new name beside an old number is worse than nothing, which is why it is never merged."
+        action={<Button icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
       >
         {data?.emergencyContact ? (
           <div className="table-scroll">
@@ -251,6 +265,14 @@ export default function StaffDetail() {
           yet hired, which is what #1 leaves them in and #17 returns them to.
         </p>
       </Card>
+
+      <EditStaff
+        open={editOpen}
+        staffDocsId={id}
+        person={data}
+        onClose={() => setEditOpen(false)}
+        onSaved={load}
+      />
 
       <EmployStaff
         open={hireOpen}
@@ -505,6 +527,261 @@ The end date was computed — the day before the new one starts — never sent.`
           <Info size={12} /> <b>Filling a position past its approved headcount is a warning on a
           201</b>, never a refusal — a twelfth teacher in eleven positions has already happened, and
           refusing it would stop the system recording the truth.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Editing a person — #2.
+ *
+ * ONE FORM FOR THE WHOLE PROFILE, because #2 absorbed #3, #4 and #5. Three modals would be three
+ * ways to describe one write.
+ *
+ * IT SENDS WHAT YOU CHANGED, so an untouched field never appears in the body — and saving without
+ * typing produces `{}`, which is the documented 400 NOTHING_TO_UPDATE.
+ *
+ * AN ADDRESS AND THE CONTACT ARE SENT WHOLE, and that is the one place "only what changed" does
+ * NOT apply. Touch any box in an address and the whole address goes, because the API replaces it
+ * rather than merging — sending only the changed field would delete the rest. The form says so.
+ *
+ * CLEARING IS EMPTYING EVERY BOX IN THE GROUP: that sends `{}`, which is how the API removes one.
+ *
+ * NO employeeNo BOX. It is generated and printed on things; sending it is ignored rather than
+ * refused, and offering a box would suggest otherwise.
+ */
+const EDIT_GENDERS = ['FEMALE', 'MALE', 'OTHER']
+
+function EditStaff({ open, staffDocsId, person, onClose, onSaved }) {
+  const { call } = useApi()
+  const [form, setForm] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [refused, setRefused] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [made, setMade] = useState(null)
+
+  const addr = (one) => ({
+    addressLine1: one?.addressLine1 ?? '',
+    city: one?.city ?? '',
+    postalCode: one?.postalCode ?? '',
+    countryCode: one?.countryCode ?? '',
+  })
+
+  const initial = {
+    fullName: person?.fullName ?? '',
+    dateOfBirth: person?.dateOfBirth ?? '',
+    gender: person?.gender ?? 'FEMALE',
+    nationalityCode: person?.nationalityCode ?? '',
+    preferredLanguage: person?.preferredLanguage ?? '',
+    phoneNumber: person?.phoneNumber ?? '',
+    emailAddress: person?.emailAddress ?? '',
+    profileImageDocsId: person?.profileImageDocsId ?? '',
+    current: addr(person?.currentAddress),
+    permanent: addr(person?.permanentAddress),
+    contactName: person?.emergencyContact?.fullName ?? '',
+    contactRelationship: person?.emergencyContact?.relationship ?? '',
+    contactPhone: person?.emergencyContact?.phoneNumber ?? '',
+  }
+
+  useEffect(() => {
+    if (open) { setForm(initial); setErrors({}); setRefused(null); setMade(null) }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, person?.staffDocsId, person?.fullName])
+
+  const current = form ?? initial
+  const set = (field) => (event) =>
+    setForm((old) => ({ ...(old ?? initial), [field]: event.target.value }))
+  const setAddr = (group, field) => (event) =>
+    setForm((old) => {
+      const base = old ?? initial
+      return { ...base, [group]: { ...base[group], [field]: event.target.value } }
+    })
+
+  const strip = (group) => {
+    const out = {}
+    for (const [k, v] of Object.entries(group)) if (v.trim() !== '') out[k] = v.trim()
+    return out
+  }
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
+  const body = (() => {
+    const out = {}
+    for (const f of ['fullName', 'dateOfBirth', 'gender', 'nationalityCode', 'preferredLanguage',
+      'phoneNumber', 'emailAddress', 'profileImageDocsId']) {
+      if (current[f] !== initial[f]) out[f] = current[f]
+    }
+    // WHOLE, not per-field. The API replaces an address; sending only the box you touched would
+    // delete every other line on it.
+    if (!same(current.current, initial.current)) out.currentAddress = strip(current.current)
+    if (!same(current.permanent, initial.permanent)) out.permanentAddress = strip(current.permanent)
+
+    const contactNow = { fullName: current.contactName, relationship: current.contactRelationship,
+      phoneNumber: current.contactPhone }
+    const contactWas = { fullName: initial.contactName, relationship: initial.contactRelationship,
+      phoneNumber: initial.contactPhone }
+    if (!same(contactNow, contactWas)) out.emergencyContact = strip(contactNow)
+    return out
+  })()
+
+  const submit = async () => {
+    setErrors({})
+    setRefused(null)
+    setSaving(true)
+    const result = await call('update-staff', {
+      label: 'Edit a person',
+      pathParams: { id: staffDocsId },
+      body,
+    })
+    setSaving(false)
+    if (result.ok) { setMade(result.bodyJson); onSaved(); return }
+    if (result.bodyJson?.fieldErrors) {
+      setErrors(Object.fromEntries(
+        Object.entries(result.bodyJson.fieldErrors)
+          .map(([field, messages]) => [field, [].concat(messages)[0]]),
+      ))
+    }
+    if (result.bodyJson?.code && !result.bodyJson?.fieldErrors) setRefused(result.bodyJson)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      preview={body}
+      title={person?.fullName ? `Edit ${person.fullName}` : 'Edit this person'}
+      description="Only what you change is sent — except an address or the contact, which go WHOLE because the API replaces them."
+      endpoint={<EndpointTag id="update-staff" name="Save" look="primary"
+        pathParams={{ id: staffDocsId }} />}
+      footer={
+        <>
+          <Button onClick={onClose}>Close</Button>
+          <Button look="primary" busy={saving} onClick={submit}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {refused ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="false">{refused.code}</span>
+            </div>
+            <pre className="resp-body">{refused.message}</pre>
+          </div>
+        ) : null}
+
+        {made ? (
+          <div className="resp">
+            <div className="resp-head">
+              <span className="resp-status" data-ok="true">{made.fullName}</span>
+            </div>
+            <pre className="resp-body">Saved. The page below was re-read from #8.</pre>
+          </div>
+        ) : null}
+
+        <div className="field-grid">
+          <Field label="Full name" hint="Empty is refused — STAFF_NAME_REQUIRED. Try it."
+            error={errors.fullName}>
+            <Input value={current.fullName} error={errors.fullName} onChange={set('fullName')} />
+          </Field>
+          <Field label="Date of birth" hint="Correctable, not removable — the model requires one. Must be in the past."
+            error={errors.dateOfBirth}>
+            <Input type="date" value={current.dateOfBirth} error={errors.dateOfBirth}
+              onChange={set('dateOfBirth')} />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Gender" error={errors.gender}>
+            <Select label="Gender" value={current.gender}
+              onChange={(value) => setForm((old) => ({ ...(old ?? initial), gender: value }))}
+              options={EDIT_GENDERS} />
+          </Field>
+          <Field label="Nationality code"
+            hint="A CountryCode — correctable but NOT clearable: '' is not a value an enum takes, and null already means leave it alone."
+            error={errors.nationalityCode}>
+            <Input value={current.nationalityCode} error={errors.nationalityCode}
+              onChange={set('nationalityCode')} placeholder="IN" />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Phone number"
+            hint="Required and unique per school. Their OWN number is not a duplicate. Empty or '---' is refused, not cleared."
+            error={errors.phoneNumber}>
+            <Input value={current.phoneNumber} error={errors.phoneNumber}
+              onChange={set('phoneNumber')} />
+          </Field>
+          <Field label="Email address"
+            hint="Required and unique per school. Their own address in another case is a correction, not a collision."
+            error={errors.emailAddress}>
+            <Input value={current.emailAddress} error={errors.emailAddress}
+              onChange={set('emailAddress')} />
+          </Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Preferred language" hint="A SchoolLocale. Correctable, not clearable."
+            error={errors.preferredLanguage}>
+            <Input value={current.preferredLanguage} error={errors.preferredLanguage}
+              onChange={set('preferredLanguage')} placeholder="en-IN" />
+          </Field>
+          <Field label="Photo document id" hint="Empty CLEARS it — the one id field here that can be removed."
+            error={errors.profileImageDocsId}>
+            <Input value={current.profileImageDocsId} error={errors.profileImageDocsId}
+              onChange={set('profileImageDocsId')} />
+          </Field>
+        </div>
+
+        {/* WHOLE, not per-field. Emptying every box sends {} and clears the address. */}
+        <p className="muted">
+          <Info size={12} /> <b>An address is replaced, not merged.</b> Change one box and the
+          whole address is sent — anything you empty is <b>gone</b>. Empty every box in a group to
+          send <span className="mono">{'{}'}</span>, which is how the API clears one.
+        </p>
+
+        <div className="field-grid">
+          <Field label="Current address line"><Input value={current.current.addressLine1}
+            onChange={setAddr('current', 'addressLine1')} /></Field>
+          <Field label="Current city"><Input value={current.current.city}
+            onChange={setAddr('current', 'city')} /></Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Current postal code"><Input value={current.current.postalCode}
+            onChange={setAddr('current', 'postalCode')} /></Field>
+          <Field label="Current country"><Input value={current.current.countryCode}
+            onChange={setAddr('current', 'countryCode')} placeholder="IN" /></Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Permanent address line"><Input value={current.permanent.addressLine1}
+            onChange={setAddr('permanent', 'addressLine1')} /></Field>
+          <Field label="Permanent city"><Input value={current.permanent.city}
+            onChange={setAddr('permanent', 'city')} /></Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Permanent postal code"><Input value={current.permanent.postalCode}
+            onChange={setAddr('permanent', 'postalCode')} /></Field>
+          <Field label="Permanent country"><Input value={current.permanent.countryCode}
+            onChange={setAddr('permanent', 'countryCode')} placeholder="IN" /></Field>
+        </div>
+
+        <div className="field-grid">
+          <Field label="Emergency contact name"><Input value={current.contactName}
+            onChange={set('contactName')} /></Field>
+          <Field label="Relationship"><Input value={current.contactRelationship}
+            onChange={set('contactRelationship')} /></Field>
+        </div>
+        <Field label="Emergency contact phone"
+          hint="Replaced whole with the rest of the contact — a new name beside an old number is worse than none.">
+          <Input value={current.contactPhone} onChange={set('contactPhone')} />
+        </Field>
+
+        <p className="muted">
+          <Info size={12} /> <b>There is no employee-number box, and nothing about the job.</b> The
+          number is generated and printed on things; the job is{' '}
+          <span className="mono">EmploymentRecord</span>, which #16 writes. Send{' '}
+          <span className="mono">employeeNo</span> anyway and it is <b>ignored, not refused</b>.
         </p>
       </div>
     </Modal>

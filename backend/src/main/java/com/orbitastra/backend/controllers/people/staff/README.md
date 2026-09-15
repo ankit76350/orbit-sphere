@@ -134,10 +134,10 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 | # | Method and endpoint | What this API is for |
 |---|---|---|
 | <a id="t1"></a>1 — **built** | [`POST /staff`](#e1) | Create a person. `employeeNo` generated, never sent. **The write five other modules are waiting for.** |
-| <a id="t2"></a>2 | [`PATCH /staff/{id}`](#e2) | Fix a name, a phone number, a date of birth. |
-| <a id="t3"></a>3 | [`PUT /staff/{id}/addresses`](#e3) | Replace current and permanent as a pair. |
-| <a id="t4"></a>4 | [`PUT /staff/{id}/emergency-contact`](#e4) | Replace it whole. |
-| <a id="t5"></a>5 | [`PUT /staff/{id}/photo`](#e5) | Point at a `DocumentRecord`, or clear it. |
+| <a id="t2"></a>2 — **built** | [`PATCH /staff/{id}`](#e2) | Fix anything on the person — **[#3](#t3), [#4](#t4) and [#5](#t5) are folded in**. |
+| <a id="t3"></a>3 — **absorbed** | ~~[`PUT /staff/{id}/addresses`](#e3)~~ | **Folded into [#2](#t2) on 2026-09-15**, replace-whole semantics and all. |
+| <a id="t4"></a>4 — **absorbed** | ~~[`PUT /staff/{id}/emergency-contact`](#e4)~~ | **Folded into [#2](#t2) on 2026-09-15**, still replaced whole. |
+| <a id="t5"></a>5 — **absorbed** | ~~[`PUT /staff/{id}/photo`](#e5)~~ | **Folded into [#2](#t2) on 2026-09-15.** The `DocumentRecord` check is owed. |
 | <a id="t6"></a>6 | [`POST /staff/{id}/archive`](#e6) | Remove a profile created by mistake. **Not** how somebody leaves. |
 | <a id="t7"></a>7 — **built** | [`GET /staff`](#e7) | The list behind every teacher picker — **minus the four filters that need [#16](#e16)**. |
 | <a id="t8"></a>8 — **built** | [`GET /staff/{id}`](#e8) | One person, with their current employment folded in — **the block is absent until [#16](#e16)**. |
@@ -170,13 +170,13 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1`, `#7`, `#8` and `#16` are built — **phase 1 is complete**.
+Ordered by **what it unblocks**, not by number. `#1`, `#2`, `#7`, `#8` and `#16` are built — **phase 1 is complete**, and `#2` took `#3`, `#4` and `#5` with it.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
 | **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
-| **2** | The profile and the history are maintainable | 2, 6, 17, 18, 19 |
-| **3** | The profile is complete, and compliance is reportable | 3, 4, 5, 21, 22, 23 |
+| **2** | The profile and the history are maintainable | ~~2~~, 6, 17, 18, 19 |
+| **3** | The profile is complete, and compliance is reportable | ~~3~~, ~~4~~, ~~5~~ *(all absorbed into [#2](#e2))*, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
 
 **Phase 1 depends on `organization` landing first.** [#16](#e16) writes a `positionDocsId`, so
@@ -460,12 +460,18 @@ project has already found.
 - **The response leads with `employeeNo`**, because it is the thing the school writes down.
 
 <a id="e2"></a>
-**[2](#t2) · `PATCH /staff/{id}`**
+**[2](#t2) · `PATCH /staff/{id}`** — built, and it **absorbed [#3](#e3), [#4](#e4) and [#5](#e5)**
 
-- *updates*: `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`
-- **Never `employeeNo`** — generated, and printed on things. A rename leaves a paper trail pointing at nobody.
-- **Not the addresses, the emergency contact or the photo** — [#3](#e3), [#4](#e4), [#5](#e5). Each is replaced whole, for the reason the school's own address is: half a changed address is a delivery to the wrong place.
-- `"fullName": ""` is `400 STAFF_NAME_REQUIRED`; an empty body is `400 NOTHING_TO_UPDATE`.
+- *updates*: everything on the person — `fullName`, `dateOfBirth`, `gender`, `nationalityCode`, `preferredLanguage`, `phoneNumber`, `emailAddress`, `currentAddress`, `permanentAddress`, `emergencyContact`, `profileImageDocsId`
+- **One endpoint instead of four, asked for on 2026-09-15** — the same call that folded [#11](../organization/README.md#e11) into [#10](../organization/README.md#e10).
+- ~~**Not the addresses, the emergency contact or the photo.**~~ **The reasoning behind that split is kept, not discarded.** An address and the emergency contact are **REPLACED WHOLE, never merged**: #3 existed because "same as current" is a real answer and two independent PATCHes leave a window where the pair disagree; #4 because a contact with a new name beside an old number is worse than no contact, since somebody will trust it in the one situation where it matters. Merging here would reintroduce exactly that, which is why it is the mutation this endpoint's suite cares most about.
+- **`{}` clears an address or the contact; `""` clears the photo.** `""` on the name, phone or email is refused — all three are required.
+- **`nationalityCode` and `preferredLanguage` are correctable but not clearable**, and that is a limitation rather than a decision: they are enums, `""` is not a value they take, and `null` already means "leave it alone", so nothing is left to mean "clear". `JsonNullable` would fix it; this project does not depend on it.
+- **Never `employeeNo`** — generated, and printed on things. A rename leaves a paper trail pointing at nobody, and unlike a department code there is not even a second key to find them by.
+- **Nothing about the job**, which is `EmploymentRecord` and [#16](#e16).
+- **The phone and email stay unique, and their own value is not a collision** — the check is skipped when the normalised value already belongs to the person being edited, the same shape [#14](../organization/README.md#e14) uses for a position's title.
+- **It answers with [#8](#e8)'s shape**, employment folded in, so an edit and a read are one thing to a caller.
+- **[#5](#e5) is folded in but its check is owed**: the plan validates `profileImageDocsId` against a real `DocumentRecord` of this school. Nothing does that here — the id is stored as given.
 
 <a id="e3"></a>
 **[3](#t3) · `PUT /staff/{id}/addresses`**

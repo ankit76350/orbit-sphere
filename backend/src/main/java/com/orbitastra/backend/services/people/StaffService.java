@@ -16,6 +16,7 @@ import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentResponse;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1, #7, #8 and #16 are built.
+ * {@code controllers/people/staff/README.md}. #1, #2, #7, #8 and #16 are built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -231,6 +232,146 @@ public class StaffService {
                 "This person exists but is not employed yet — #16 writes the job, and needs "
                         + "staffDocsId " + saved.getId() + " and a positionDocsId. "
                         + NO_AUTHORIZATION_YET);
+    }
+
+    /**
+     * Endpoint #2 — correct anything on a person.
+     *
+     * <p><b>It edits the whole profile, which absorbs #3, #4 and #5.</b> The plan split addresses,
+     * the emergency contact and the photo into their own endpoints; this was asked for as one on
+     * 2026-09-15, the same call that folded #11 into #10.
+     *
+     * <p><b>The reasoning behind that split is kept.</b> An address and the emergency contact are
+     * REPLACED WHOLE rather than merged field by field — #3 and #4 existed because half a changed
+     * address is a delivery to the wrong place, and a contact with a new name beside an old number
+     * is worse than no contact. Merging here would reintroduce exactly that.
+     */
+    public StaffDetailResponse updateStaff(String staffDocsId, StaffUpdateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - refuse a request that asks for nothing, BEFORE reading anything. A PATCH that
+        //! changes nothing and answers 200 lets a client with a broken form look healthy.
+        if (request.isEmpty()) {
+            throw ApiException.badRequest("NOTHING_TO_UPDATE",
+                    "Send a field to change. employeeNo is not editable — it is generated and "
+                            + "printed on things, so a rename leaves a paper trail pointing at "
+                            + "nobody. Nothing about the job is here either; that is #16.");
+        }
+
+        //! step 3 - the person, scoped to the school
+        String id = staffDocsId == null ? "" : staffDocsId.trim();
+        // TODO: read staff
+        Staff person = staff.findByIdAndSchoolId(id, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                        "No staff member with id '" + id + "' in this school."));
+
+        //! step 4 - the name. Blank is REFUSED rather than clearing: the model requires one, and
+        //! it is the only thing on this document a person is found by.
+        if (request.fullName() != null) {
+            String newName = request.fullName().trim();
+            if (newName.isEmpty()) {
+                throw ApiException.badRequest("STAFF_NAME_REQUIRED",
+                        "A name cannot be removed. Send a new one, or omit the field.");
+            }
+            person.setFullName(newName);
+        }
+
+        //! step 5 - the phone. NORMALISED BEFORE IT IS CHECKED, or the check is a lie: "+91
+        //! 98765-43210" and "+919876543210" are one number.
+        //!
+        //! THE DUPLICATE CHECK SKIPS THEIR OWN NUMBER. Re-sending somebody the number they already
+        //! have is not a collision, and existsBy... cannot exclude them.
+        if (request.phoneNumber() != null) {
+            String phone = utils.normalisePhone(request.phoneNumber());
+            if (phone == null) {
+                throw ApiException.badRequest("STAFF_PHONE_REQUIRED",
+                        "A phone number cannot be removed, and '" + request.phoneNumber()
+                                + "' has no digits in it.");
+            }
+
+            if (!phone.equals(person.getPhoneNumber())) {
+                // TODO: check staff exists
+                if (staff.existsBySchoolIdAndPhoneNumber(school.getId(), phone)) {
+                    throw ApiException.conflict("STAFF_PHONE_TAKEN",
+                            "Somebody else in this school already has the phone number " + phone
+                                    + ".");
+                }
+                person.setPhoneNumber(phone);
+            }
+        }
+
+        //! step 6 - the email, the same shape. Lower-cased before the check, so a different case
+        //! of their own address is a correction rather than a collision.
+        if (request.emailAddress() != null) {
+            String email = TextHelper.lowercaseOrNull(request.emailAddress());
+            if (email == null) {
+                throw ApiException.badRequest("STAFF_EMAIL_REQUIRED",
+                        "An email address cannot be removed. Send a new one, or omit the field.");
+            }
+
+            if (!email.equals(person.getEmailAddress())) {
+                // TODO: check staff exists
+                if (staff.existsBySchoolIdAndEmailAddress(school.getId(), email)) {
+                    throw ApiException.conflict("STAFF_EMAIL_TAKEN",
+                            "Somebody else in this school already has the email address " + email
+                                    + ".");
+                }
+                person.setEmailAddress(email);
+            }
+        }
+
+        //! step 7 - the fields that are simply set. The two enums cannot be CLEARED, only
+        //! corrected: "" is not a value an enum takes and null already means "leave it alone",
+        //! which leaves nothing to mean "remove it". See the request record.
+        if (request.dateOfBirth() != null) {
+            person.setDateOfBirth(request.dateOfBirth());
+        }
+        if (request.gender() != null) {
+            person.setGender(request.gender());
+        }
+        if (request.nationalityCode() != null) {
+            person.setNationalityCode(request.nationalityCode());
+        }
+        if (request.preferredLanguage() != null) {
+            person.setPreferredLanguage(request.preferredLanguage());
+        }
+
+        //! step 8 - the embedded objects, REPLACED WHOLE and never merged. #3 and #4 existed
+        //! because half a changed address is a delivery to the wrong place, and a contact with a
+        //! new name beside an old number is worse than no contact - somebody will trust it in the
+        //! one situation where it matters. An empty object clears, which is what toAddress and
+        //! toEmergencyContact already do with one.
+        if (request.currentAddress() != null) {
+            person.setCurrentAddress(utils.toAddress(request.currentAddress()));
+        }
+        if (request.permanentAddress() != null) {
+            person.setPermanentAddress(utils.toAddress(request.permanentAddress()));
+        }
+        if (request.emergencyContact() != null) {
+            person.setEmergencyContact(utils.toEmergencyContact(request.emergencyContact()));
+        }
+
+        //! step 9 - the photo. "" removes it; absent leaves it alone.
+        if (request.profileImageDocsId() != null) {
+            person.setProfileImageDocsId(TextHelper.blankToNull(request.profileImageDocsId()));
+        }
+
+        //! step 10 - save. employeeNo and schoolId are untouched: neither is on the request, so
+        //! neither can be reached from here even by a caller that sends them.
+        // TODO: update staff
+        Staff saved = staff.save(person);
+
+        //! The same shape #8 answers with, so an edit and a read are one thing to a caller.
+        // TODO: read employment
+        EmploymentResponse employment = employments
+                .findBySchoolIdAndStaffDocsIdAndCurrentIsTrue(school.getId(), saved.getId())
+                .map(EmploymentResponse::fromRecord)
+                .orElse(null);
+
+        return StaffDetailResponse.fromStaff(saved, employment,
+                employment == null ? NOT_EMPLOYED : null, NO_AUTHORIZATION_YET);
     }
 
     /**

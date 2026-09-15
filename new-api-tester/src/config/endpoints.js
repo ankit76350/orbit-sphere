@@ -13977,6 +13977,149 @@ A suspended or closed school still reads its own staff list.
       ],
     },
     {
+      id: "update-staff",
+      name: "Update Staff",
+      method: "PATCH",
+      path: "/schools/current/staff/{id}",
+      status: 'live',
+      summary: "Correct anything on a person — name, contact, addresses, photo.",
+      schoolSurface: true,
+      docs: `**PATCH** \`/schools/current/staff/{id}\` — endpoint #2.
+
+### It edits the whole profile, which absorbs #3, #4 and #5
+
+The plan split it across four endpoints: this one for the scalar fields, \`PUT /addresses\` (#3),
+\`PUT /emergency-contact\` (#4) and \`PUT /photo\` (#5). **Asked for as one on 2026-09-15**, the same
+call that folded #11 into #10.
+
+**The reasoning behind the split is kept, not discarded.** #3 existed because *"same as current"*
+is a real answer and two independent PATCHes leave a window where the pair disagree; #4 because a
+contact with a new name beside an old number is worse than no contact, since somebody will trust
+it in the one situation where it matters. So:
+
+### An address and the emergency contact are REPLACED WHOLE, never merged
+
+Send the object and it **becomes** the object. Send the fields you want, not the fields that
+changed — anything you leave out is gone, not kept.
+
+Merging would reintroduce exactly the half-updated address those separate endpoints were designed
+to prevent, which is the one thing this endpoint has to get right.
+
+### What clears, and what cannot
+
+\`\`\`
+"currentAddress": {}      clears it     — an empty object is no address
+"emergencyContact": {}    clears it
+"profileImageDocsId": ""  clears it
+"fullName": ""            400 STAFF_NAME_REQUIRED
+"phoneNumber": ""         400 — required since 2026-09-15
+"emailAddress": ""        400 — required since 2026-09-15
+any field: null           leaves it     (same as absent)
+\`\`\`
+
+**\`nationalityCode\` and \`preferredLanguage\` can be corrected but not removed**, and that is a
+limitation rather than a decision. They are enums, so \`""\` is not a value they take, and \`null\`
+already means "leave it alone" — with no way to tell an absent field from an explicit null, there
+is nothing left to mean "clear". Making them clearable needs \`JsonNullable\`, which this project
+does not depend on.
+
+### Never employeeNo, and nothing about the job
+
+It is generated and **printed on things** — an identity card, a payslip, a register signed at the
+gate. A rename leaves a paper trail pointing at nobody, and unlike a department code there is not
+even a second key to find them by.
+
+There is no status, department or joining date on this document to edit. That is
+\`EmploymentRecord\`, and #16 writes it.
+
+### The phone and email stay unique, and their own value is not a collision
+
+\`409 STAFF_PHONE_TAKEN\` / \`409 STAFF_EMAIL_TAKEN\`. Re-sending somebody the number they already
+have is a \`200\` — the check is skipped when the normalised value already belongs to them, the
+same shape #14 uses for a position's title. Both are compared **after** normalising.
+
+### It answers with #8's shape
+
+An edit and a read are one thing to a caller, employment folded in and all.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `Every field optional. Needs X-School-Subdomain and a staff id.
+
+ IT EDITS THE WHOLE PROFILE — #3 (addresses), #4 (emergency contact) and #5
+ (photo) are folded in. Asked for as one endpoint 2026-09-15.
+
+ AN ADDRESS AND THE EMERGENCY CONTACT REPLACE WHOLE, NEVER MERGE. Send the
+ object and it becomes the object; what you leave out is GONE. That is the
+ reasoning those separate endpoints existed for, kept.
+
+ {} CLEARS an address or the contact. "" clears the photo. "" on the name,
+ phone or email is REFUSED — all three are required.
+
+ nationalityCode and preferredLanguage are correctable, NOT clearable: they
+ are enums, "" is not one of their values, and null already means "leave it".
+
+ NEVER employeeNo. Nothing about the job either — that is #16.`,
+      requiredFields: [],
+      pathParams: [
+        { name: "id", value: "{{staffDocsId}}", description: "The person's document id, from Create Staff." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: { fullName: "Anita Verma" },
+      successStatus: 200,
+      successNote: "The person in full, in #8's shape — an edit and a read are one thing.",
+      responseFields: ["staffDocsId", "employeeNo", "fullName", "dateOfBirth", "gender", "phoneNumber", "emailAddress", "currentAddress", "permanentAddress", "emergencyContact", "employment", "note"],
+      captures: [],
+      errors: [
+        { status: 400, code: "NOTHING_TO_UPDATE", when: "No editable field was sent — including a body of only employeeNo." },
+        { status: 400, code: "STAFF_NAME_REQUIRED", when: "fullName sent blank. A name is replaced, never removed." },
+        { status: 400, code: "STAFF_PHONE_REQUIRED", when: "The phone was blank or had no digits. It cannot be cleared." },
+        { status: 400, code: "STAFF_EMAIL_REQUIRED", when: "The email was blank. It cannot be cleared." },
+        { status: 400, code: "INVALID_VALUE", when: "nationalityCode is not a country, or preferredLanguage is not a supported locale." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed. Reads still work." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No staff member with that id in this school." },
+        { status: 409, code: "STAFF_PHONE_TAKEN", when: "Somebody ELSE in this school holds that number. Their own is fine." },
+        { status: 409, code: "STAFF_EMAIL_TAKEN", when: "Somebody ELSE in this school holds that address." },
+      ],
+      examples: [
+        { id: "01", name: "A RENAME", expect: "200 OK",
+          notes: `The ordinary case. OUT: the whole person in #8's shape, employeeNo\n    untouched.`, body: { fullName: "Anita Verma" } },
+        { id: "02", name: "NOTHING AT ALL", expect: "400 Bad Request",
+          notes: `OUT: { "code": "NOTHING_TO_UPDATE" } — not a quiet 200. A body of\n    only employeeNo is the same 400.`, body: {} },
+        { id: "03", name: "THE NAME CANNOT BE REMOVED", expect: "400 Bad Request",
+          notes: `OUT: { "code": "STAFF_NAME_REQUIRED" }.`, body: { fullName: "   " } },
+        { id: "04", name: "AN ADDRESS REPLACES WHOLE", expect: "200 OK",
+          notes: `Set a full address first, then send only a city.\n    OUT: the city and NOTHING ELSE — addressLine1 and countryCode are\n    gone, not kept. That is the point: half a changed address is a\n    delivery to the wrong place.`,
+          body: { currentAddress: { city: "Pune" } } },
+        { id: "05", name: "AN EMPTY OBJECT CLEARS IT", expect: "200 OK",
+          notes: `OUT: no currentAddress key at all.`, body: { currentAddress: {} } },
+        { id: "06", name: "THE EMERGENCY CONTACT, WHOLE", expect: "200 OK",
+          notes: `Same rule. A new name beside an old number is worse than no\n    contact, so it is never merged.`,
+          body: { emergencyContact: { fullName: "Sunita", relationship: "Sister", phoneNumber: "+91 99999 00002" } } },
+        { id: "07", name: "THE PHOTO", expect: "200 OK",
+          notes: `Which the plan gave to #5. "" removes it.`, body: { profileImageDocsId: "67aa15d9dc3f7d0012345678" } },
+        { id: "08", name: "THEIR OWN NUMBER IS NOT A DUPLICATE", expect: "200 OK",
+          notes: `Send back the number they already have. 200, not 409 — the check\n    skips the value that already belongs to them.`,
+          body: { phoneNumber: "+919876543210" } },
+        { id: "09", name: "SOMEBODY ELSE'S NUMBER", expect: "409 Conflict",
+          notes: `OUT: { "code": "STAFF_PHONE_TAKEN" }. Send a good name with it —\n    the whole write is rejected, so the name does not land either.`,
+          body: { fullName: "Should Not Land", phoneNumber: "+911111111111" } },
+        { id: "10", name: "A NATIONALITY THAT IS NOT A COUNTRY", expect: "400 Bad Request",
+          notes: `OUT: INVALID_VALUE naming the value. It is a CountryCode enum.`,
+          body: { nationalityCode: "12" } },
+        { id: "11", name: "employeeNo IS IGNORED", expect: "200 OK",
+          notes: `Not on the request record, so ignored rather than refused — and\n    the number does not move.`, body: { employeeNo: "EMP/1900/000001", fullName: "Anita Sharma" } },
+        { id: "12", name: "ANOTHER SCHOOL'S PERSON", expect: "404 Not Found",
+          notes: `A REAL staff id belonging to a different school.`, body: { fullName: "Stolen" } },
+      ],
+    },
+    {
       id: "get-staff",
       name: "Get Staff",
       method: "GET",

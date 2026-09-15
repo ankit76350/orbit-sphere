@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
 import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
+import com.orbitastra.backend.dto.people.staff.request.StaffUpdateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
 import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
@@ -28,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1, #7, #8 and #16 are built.
+ * README; #1, #2, #7, #8 and #16 are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -82,6 +84,34 @@ public class StaffController {
         return ResponseEntity
                 .created(URI.create("/schools/current/staff/" + response.staffDocsId()))
                 .body(response);
+    }
+
+    /**
+     * Endpoint #2 — correct anything on a person.
+     *
+     * <p><b>It edits the whole profile, absorbing #3, #4 and #5.</b> Addresses, the emergency
+     * contact and the photo were their own endpoints in the plan; this was asked for as one.
+     *
+     * <p><b>An address and the emergency contact are replaced WHOLE, never merged</b> — which is
+     * the reasoning those separate endpoints existed for, kept rather than discarded.
+     *
+     * <p><b>Never {@code employeeNo}</b>, which is generated and printed on things, and nothing
+     * about the job — that is {@code EmploymentRecord} and #16.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: a person outlives any year.
+     */
+    @PatchMapping("/staff/{id}")
+    public ResponseEntity<StaffDetailResponse> updateStaff(@PathVariable String id,
+            @Valid @RequestBody StaffUpdateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        return ResponseEntity.ok(staffService.updateStaff(id, request));
     }
 
     /**

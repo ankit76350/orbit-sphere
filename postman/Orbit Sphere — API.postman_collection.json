@@ -4665,6 +4665,65 @@
               "response": []
             },
             {
+              "name": "Update Staff",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200 as documented', () => pm.response.to.have.status(200));",
+                      "const b = pm.response.json();",
+                      "pm.test('the person came back', () => pm.expect(b).to.have.property('staffDocsId'));",
+                      "// employeeNo IS NEVER EDITABLE \\u2014 generated, and printed on things.",
+                      "pm.test('an employeeNo still comes back', () => pm.expect(b.employeeNo).to.be.a('string'));",
+                      "// IT ANSWERS IN #8's SHAPE, so an edit and a read are one thing to a caller.",
+                      "pm.test('it answers in #8 shape', () => pm.expect(b).to.have.property('dateOfBirth'));",
+                      "// AN ADDRESS THAT IS PRESENT HAS SOMETHING IN IT \\u2014 {} clears rather than storing a shell.",
+                      "if ('currentAddress' in b) pm.test('a present address is not empty', () => pm.expect(Object.keys(b.currentAddress).length).to.be.above(0));",
+                      "if ('emergencyContact' in b) pm.test('a present contact is not empty', () => pm.expect(Object.keys(b.emergencyContact).length).to.be.above(0));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  PATCH /schools/current/staff/{id}\n// Every field optional. Needs X-School-Subdomain and a staff id.\n//\n//  IT EDITS THE WHOLE PROFILE. The plan split this across four endpoints —\n//  this one plus PUT /addresses (#3), /emergency-contact (#4) and /photo\n//  (#5). Folded into one on 2026-09-15.\n//\n//  AN ADDRESS AND THE EMERGENCY CONTACT ARE REPLACED WHOLE, NEVER MERGED.\n//  Send the object and it BECOMES the object; anything you leave out is gone.\n//  That is the reasoning #3 and #4 existed for, kept: half a changed address\n//  is a delivery to the wrong place, and a contact with a new name beside an\n//  old number is worse than no contact.\n//\n//  {} CLEARS an address or the contact. \"\" clears the photo. \"\" on the name,\n//  phone or email is REFUSED — all three are required.\n//\n//  nationalityCode and preferredLanguage are CORRECTABLE BUT NOT CLEARABLE:\n//  they are enums, \"\" is not one of their values, and null already means\n//  \"leave it alone\". JsonNullable would fix it; we do not depend on it.\n//\n//  NEVER employeeNo — generated and printed on things. Nothing about the job\n//  either; that is EmploymentRecord and #16.\n// =========================================================================\n//\n// 01  A RENAME                         -> 200  the whole person, in #8's shape\n// 02  {}                               -> 400  NOTHING_TO_UPDATE\n// 03  { \"fullName\": \"   \" }            -> 400  STAFF_NAME_REQUIRED\n// 04  AN ADDRESS REPLACES WHOLE        -> 200  send only a city after a full\n//                                             address: the rest is GONE\n// 05  { \"currentAddress\": {} }         -> 200  clears it\n// 06  THE EMERGENCY CONTACT, WHOLE     -> 200  same rule\n// 07  { \"profileImageDocsId\": \"\" }     -> 200  clears the photo\n// 08  THEIR OWN NUMBER                 -> 200  not a duplicate\n// 09  SOMEBODY ELSE'S NUMBER           -> 409  STAFF_PHONE_TAKEN, and a good\n//                                             name sent with it does NOT land\n// 10  { \"nationalityCode\": \"12\" }      -> 400  INVALID_VALUE\n// 11  { \"employeeNo\": \"...\" }          -> 200  IGNORED, the number stays\n// 12  ANOTHER SCHOOL'S PERSON          -> 404  STAFF_NOT_FOUND\n//\n//  EVERY REFUSAL\n//     400 NOTHING_TO_UPDATE / STAFF_NAME_REQUIRED\n//     400 STAFF_PHONE_REQUIRED / STAFF_EMAIL_REQUIRED   Neither can be cleared.\n//     400 INVALID_VALUE                Not a country, or not a supported locale.\n//     400 TENANT_NOT_RESOLVED          Header missing or blank.\n//     403 SCHOOL_NOT_ACTIVE            Gate 1. Reads still work.\n//     404 STAFF_NOT_FOUND              Not a staff member of this school.\n//     409 STAFF_PHONE_TAKEN / STAFF_EMAIL_TAKEN         Somebody ELSE holds it.\n\n{\n    \"fullName\": \"Anita Verma\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/staff/{{staffDocsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "staff",
+                    "{{staffDocsId}}"
+                  ]
+                },
+                "description": "Endpoint #2 \u2014 correct anything on a person. Absorbed #3, #4 and #5; an address and the emergency contact are replaced WHOLE, never merged."
+              },
+              "response": []
+            },
+            {
               "name": "Get Staff",
               "event": [
                 {

@@ -3528,6 +3528,8 @@ const staffCatalogue = catalogue.slice(catalogue.indexOf('GROUP_PEOPLE_STAFF'))
 const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
   staffCatalogue.indexOf('list-staff'))
 const staffListEntry = staffCatalogue.slice(staffCatalogue.indexOf('list-staff'),
+  staffCatalogue.indexOf('update-staff'))
+const staffEditEntry = staffCatalogue.slice(staffCatalogue.indexOf('update-staff'),
   staffCatalogue.indexOf('get-staff'))
 const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
   staffCatalogue.indexOf('employ-staff'))
@@ -3876,6 +3878,34 @@ const checks = [
     staffListEntry.includes('tiebroken by employeeNo')
       || staffListEntry.includes('Tiebroken by employeeNo')],
   ['no gate runs on it', staffListEntry.includes('### No gates')],
+
+  // #2 — the edit, which absorbed three endpoints.
+  ['#2 is a PATCH on the id',
+    /method: "PATCH"/.test(staffEditEntry)
+      && /path: "\/schools\/current\/staff\/{id}"/.test(staffEditEntry)],
+  ['it records absorbing #3, #4 and #5, with the date',
+    staffEditEntry.includes('absorbs #3, #4 and #5') && staffEditEntry.includes('2026-09-15')],
+  ['and keeps their reasoning rather than dropping it',
+    staffEditEntry.includes('REPLACED WHOLE, never merged')
+      && staffEditEntry.includes('worse than no contact')],
+  ['{} clears an address, "" clears the photo',
+    staffEditEntry.includes('an empty object is no address')],
+  ['the enums are named as correctable-not-clearable, with the reason and the fix',
+    staffEditEntry.includes('corrected but not removed') && staffEditEntry.includes('JsonNullable')],
+  ['employeeNo is never editable, and it says why that matters more here',
+    staffEditEntry.includes('printed on things')],
+  ['their own phone is not a collision',
+    staffEditEntry.includes('already belongs to them')],
+
+  // The edit modal.
+  ['the person page edits through #2',
+    staffDetailScreen.includes("call('update-staff'") && staffDetailScreen.includes('function EditStaff')],
+  ['the address is sent WHOLE, which is the one place "only what changed" does not apply',
+    staffDetailScreen.includes('out.currentAddress = strip(current.current)')],
+  ['and the form says so, because the rule is surprising',
+    staffDetailScreen.includes('An address is replaced, not merged')],
+  ['there is no employee-number box on the edit form either',
+    !staffDetailScreen.includes("set('employeeNo')")],
 
   // #8 — one person in full.
   ['#8 is a GET on the id',
