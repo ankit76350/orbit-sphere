@@ -14036,6 +14036,171 @@ A suspended or closed school still reads its own people.
           notes: `No gate runs on a read — it still sees its own people, in full.\n    Creating one is still refused.`, body: null },
       ],
     },
+    {
+      id: "employ-staff",
+      name: "Employ Staff",
+      method: "POST",
+      path: "/schools/current/staff/{id}/employment",
+      status: 'live',
+      summary: "Hire, promote or transfer — one write, because it is one event.",
+      schoolSurface: true,
+      docs: `**POST** \`/schools/current/staff/{id}/employment\` — endpoint #16.
+
+### The write the whole product was waiting on
+
+#9 and #13 built the seat, #1 built the person, and **nothing joined them** — so nobody was
+employed anywhere, #7 had no employment filters, #8 returned no employment block, and #14 owed two
+checks that could only ever count zero.
+
+### One endpoint, because it is one event
+
+Hiring, promoting and transferring are the same write: **close the record that was current, open a
+new one.** Three endpoints doing that would be three chances to leave two records current — or
+none, which is worse, because the person then reads as unemployed.
+
+The response carries **both halves**: the new record and the one it closed. \`closed\` is absent on
+a first hire, which is how a caller tells a hire from a promotion without comparing dates.
+
+### Two documents move together, and there IS a transaction
+
+The module plan says this project configures no Mongo transaction manager and that the close
+should therefore ride on the previous record's \`version\`. **That is out of date** —
+\`MongoTransactionConfig\` registers a \`MongoTransactionManager\` and Atlas is a replica set, so
+\`@Transactional\` does what it says. Both writes commit or neither does.
+
+**The order is forced by the index.** \`school_staff_current_employment_uniq\` is unique and partial
+on \`current: true\`, so a new current record cannot be inserted while the old one still is. Close
+first, insert second, both inside the transaction — and without it, a failure between them would
+leave the person with **no** current record at all.
+
+### The end date is computed, never sent
+
+The closed record ends **the day before** the new one starts. Two people typing two dates is how a
+gap or an overlap gets in, and there is no \`effectiveUntil\` on this request at all.
+
+### What this refuses, and what it only warns about
+
+\`\`\`
+POSITION_NOT_ACTIVE               409   a retired seat
+EMPLOYMENT_STATUS_TERMINAL        400   current and TERMINATED at once
+EMPLOYMENT_ALREADY_STARTS_THEN    409   two records starting the same day
+EMPLOYMENT_STARTS_BEFORE_CURRENT  409   the close would end a record before it began
+MANAGER_IS_SELF                   400   nobody manages themselves
+PROBATION_BEFORE_START            400
+POSITION_FULL                     warning, on a 201
+\`\`\`
+
+**\`POSITION_FULL\` is a warning and not a refusal.** A school hiring a twelfth teacher into eleven
+approved seats is recording something that has **already happened**, and refusing it stops the
+system describing the truth. The same call #14 makes about lowering an approved headcount.
+
+**\`TERMINATED\` is refused** because a record that is \`current\` and terminal at once is the
+contradiction the module plan's open item 2 warns about — nothing in the model stops it, so this
+endpoint does. \`OFFERED\` is allowed and is the case that matters: somebody who accepted an offer
+but has not started is a real row that must not appear in a teacher picker.
+
+### Overlap with non-current records is NOT checked
+
+Open item 1 settles on allowing it: a part-time music teacher who also runs the choir on a separate
+contract is real. \`current\` then means **the post the school considers primary**, which is what
+the unique index already enforces.
+
+### The filled headcount is counted, never stored
+
+A stored \`filledHeadcount\` on \`Position\` drifts the first time a writer forgets it — the
+objection that also keeps a weight total off \`AcademicTerm\`.
+
+### The test cases are in the notes below
+`,
+      bodyNotes: `Needs X-School-Subdomain and a staff id. positionDocsId, status,
+ employmentType and effectiveFrom are required.
+
+ ONE ENDPOINT BECAUSE IT IS ONE EVENT. Hire, promote and transfer all close
+ the current record and open a new one. Both halves come back.
+
+ @Transactional, AND THE MANAGER EXISTS. The plan says it does not — that is
+ out of date. Close then insert, inside one transaction; the unique partial
+ index on current:true forces that order.
+
+ THE END DATE IS COMPUTED, never sent: the day before the new one starts.
+ There is no effectiveUntil on this request.
+
+ POSITION_FULL IS A WARNING ON A 201. A twelfth teacher in eleven seats has
+ already happened. TERMINATED is REFUSED — current and terminal at once is a
+ contradiction nothing downstream can read. OFFERED is allowed.
+
+ current, effectiveUntil and separationReason are IGNORED if sent.`,
+      requiredFields: ["positionDocsId", "status", "employmentType", "effectiveFrom"],
+      pathParams: [
+        { name: "id", value: "{{staffDocsId}}", description: "The person's document id, from Create Staff." },
+      ],
+      queryParams: [],
+      headers: [
+        { key: "X-School-Subdomain", value: "{{createdSubdomain}}", enabled: true },
+        { key: "Content-Type", value: "application/json", enabled: true },
+      ],
+      bodyAllowed: true,
+      body: {
+        positionDocsId: "{{positionDocsId}}",
+        status: "ACTIVE",
+        employmentType: "FULL_TIME",
+        effectiveFrom: "2026-04-01",
+      },
+      successStatus: 201,
+      successNote: "The new employment, and whatever it closed.",
+      responseFields: ["employment", "closed", "warning", "nextStep"],
+      captures: [],
+      errors: [
+        { status: 400, code: "EMPLOYMENT_STATUS_TERMINAL", when: "status TERMINATED — a record cannot be current and finished at once. Leaving is #17." },
+        { status: 400, code: "MANAGER_IS_SELF", when: "managerDocsId is the person being employed." },
+        { status: 400, code: "PROBATION_BEFORE_START", when: "probationUntil is before effectiveFrom." },
+        { status: 400, code: "TENANT_NOT_RESOLVED", when: "The X-School-Subdomain header is missing or blank." },
+        { status: 403, code: "SCHOOL_NOT_ACTIVE", when: "Gate 1 — the school is suspended or closed." },
+        { status: 404, code: "STAFF_NOT_FOUND", when: "No staff member with that id in this school." },
+        { status: 404, code: "POSITION_NOT_FOUND", when: "No position with that id in this school." },
+        { status: 404, code: "MANAGER_NOT_FOUND", when: "managerDocsId names nobody in this school." },
+        { status: 409, code: "POSITION_NOT_ACTIVE", when: "The seat is retired — nobody can be employed into it." },
+        { status: 409, code: "EMPLOYMENT_ALREADY_STARTS_THEN", when: "This person already has a record beginning on that day, closed ones included." },
+        { status: 409, code: "EMPLOYMENT_STARTS_BEFORE_CURRENT", when: "The new record would start on or before the current one, so closing it would end it before it began." },
+      ],
+      examples: [
+        { id: "01", name: "THE HIRE", expect: "201 Created",
+          notes: `OUT: the new record, current:true, with NO effectiveUntil and NO\n    "closed" key — there was nothing to close. Read the person with #8\n    afterwards: the employment is now folded in.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+        { id: "02", name: "THE PROMOTION", expect: "201 Created",
+          notes: `Send 01, then this with a later date and another seat.\n    OUT: both halves — the new record current, and "closed" carrying the\n    old one with current:false and effectiveUntil the DAY BEFORE this\n    one starts. Computed, never sent.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2027-04-01", managerDocsId: "{{staffDocsId}}" } },
+        { id: "03", name: "EXACTLY ONE IS EVER CURRENT", expect: "200 OK",
+          notes: `After 02, read employment_records in Mongo: two rows, exactly one\n    with current:true. The unique partial index forbids a second, which\n    is also why the close must happen before the insert.`, body: null },
+        { id: "04", name: "A RECORD CANNOT BE BORN TERMINATED", expect: "400 Bad Request",
+          notes: `OUT: { "code": "EMPLOYMENT_STATUS_TERMINAL" } — current and finished\n    at once is a contradiction nothing downstream can read. OFFERED is\n    allowed and IS the interesting case.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "TERMINATED", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+        { id: "05", name: "A RETIRED SEAT", expect: "409 Conflict",
+          notes: `Retire the position with #14 first.\n    OUT: { "code": "POSITION_NOT_ACTIVE" }.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+        { id: "06", name: "MANAGING YOURSELF", expect: "400 Bad Request",
+          notes: `managerDocsId equal to the path id.\n    OUT: { "code": "MANAGER_IS_SELF" }. Another school's person is a 404\n    MANAGER_NOT_FOUND.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01", managerDocsId: "{{staffDocsId}}" } },
+        { id: "07", name: "TWO RECORDS STARTING THE SAME DAY", expect: "409 Conflict",
+          notes: `OUT: { "code": "EMPLOYMENT_ALREADY_STARTS_THEN" } — the check in\n    front of school_staff_employment_start_uniq. It counts CLOSED\n    records too.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+        { id: "08", name: "STARTING BEFORE THE CURRENT RECORD", expect: "409 Conflict",
+          notes: `OUT: { "code": "EMPLOYMENT_STARTS_BEFORE_CURRENT" } — closing the\n    old one would set an end date before its own start. The current\n    record is left untouched, which the suite checks.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2020-01-01" } },
+        { id: "09", name: "PROBATION BEFORE THE START", expect: "400 Bad Request",
+          notes: `OUT: { "code": "PROBATION_BEFORE_START" }.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "PROBATION", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01", probationUntil: "2026-01-01" } },
+        { id: "10", name: "OVERFILLING A SEAT", expect: "201 Created",
+          notes: `Employ three people into a seat with approvedHeadcount 2.\n    OUT: 201 WITH a warning naming both numbers. A warning is NOT a\n    refusal — it has already happened, and refusing it would stop the\n    system recording the truth. #14 raises the headcount.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+        { id: "11", name: "FIELDS THAT ARE IGNORED", expect: "201 Created",
+          notes: `current, effectiveUntil and separationReason are not on the request\n    record. OUT: current is true anyway and there is no end date.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2028-01-01", current: false, effectiveUntil: "2028-06-01", separationReason: "quit" } },
+        { id: "12", name: "A SUSPENDED SCHOOL", expect: "403 Forbidden",
+          notes: `Gate 1. OUT: { "code": "SCHOOL_NOT_ACTIVE" } — and reading the\n    person with #8 still works.`,
+          body: { positionDocsId: "{{positionDocsId}}", status: "ACTIVE", employmentType: "FULL_TIME", effectiveFrom: "2026-04-01" } },
+      ],
+    },
   ],
 };
 

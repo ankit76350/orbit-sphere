@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbitastra.backend.common.access.ActionGate;
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffDetailResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffRowResponse;
@@ -26,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs. Endpoints #1 to #8 and #16 to #21 of the plan in this package's
- * README; #1, #7 and #8 are built.
+ * README; #1, #7, #8 and #16 are built.
  *
  * <p><b>School surface only.</b> The tenant comes from {@link CurrentSchoolResolver} and never
  * from the URL. There is no platform surface anywhere in {@code people}: a school's staff are its
@@ -79,6 +81,43 @@ public class StaffController {
         //! /staff/{id}, so a Location built from the number would name a URL no route answers.
         return ResponseEntity
                 .created(URI.create("/schools/current/staff/" + response.staffDocsId()))
+                .body(response);
+    }
+
+    /**
+     * Endpoint #16 — hire, promote or transfer.
+     *
+     * <p><b>One endpoint because it is one event.</b> All three close whichever record was current
+     * and open a new one; three endpoints doing that would be three chances to leave two records
+     * current, or none — and none is worse, because the person then reads as unemployed.
+     *
+     * <p><b>This is the write the whole product was waiting on.</b> #9 and #13 built the seat, #1
+     * built the person, and until this ran nothing joined them — so nobody was employed anywhere,
+     * #7 had no employment filters, #8 returned no employment block, and #14 owed two checks that
+     * could only ever count zero.
+     *
+     * <p><b>{@code POSITION_FULL} is a warning, not a refusal.</b> A school hiring a twelfth
+     * teacher into eleven approved seats is recording something that has already happened.
+     *
+     * <p><b>Two gates, as every write here.</b> No gate 4: an employment outlives any year.
+     */
+    @PostMapping("/staff/{id}/employment")
+    public ResponseEntity<EmploymentWriteResponse> employStaff(@PathVariable String id,
+            @Valid @RequestBody EmploymentCreateRequest request) {
+
+        //! Gate 1 — is the school itself live ---------------------------------------------
+        //! Gate 2 — is the school paying --------------------------------------------------
+        //! No gate 4: there is no academic year in this path to ask it about.
+        School school = currentSchool.require();
+        gate.requireActiveSchool(school);
+        gate.requireUsableSubscription(school);
+
+        EmploymentWriteResponse response = staffService.employStaff(id, request);
+
+        //! The person's URL, not the record's: #8 is what a caller reads next, and #19 — the
+        //! history — is addressed by the staff id too.
+        return ResponseEntity
+                .created(URI.create("/schools/current/staff/" + id))
                 .body(response);
     }
 

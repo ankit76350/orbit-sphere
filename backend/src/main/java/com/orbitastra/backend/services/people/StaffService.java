@@ -1,5 +1,6 @@
 package com.orbitastra.backend.services.people;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -7,19 +8,28 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.orbitastra.backend.common.current.CurrentSchoolResolver;
 import com.orbitastra.backend.common.error.exception.ApiException;
 import com.orbitastra.backend.common.text.TextHelper;
 import com.orbitastra.backend.common.web.PageResponse;
+import com.orbitastra.backend.dto.people.staff.request.EmploymentCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffCreateRequest;
 import com.orbitastra.backend.dto.people.staff.request.StaffSearchRequest;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentResponse;
+import com.orbitastra.backend.dto.people.staff.response.EmploymentWriteResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffCreatedResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffDetailResponse;
 import com.orbitastra.backend.dto.people.staff.response.StaffRowResponse;
 import com.orbitastra.backend.models.core.School;
 import com.orbitastra.backend.models.institution.enums.NumberSequenceType;
+import com.orbitastra.backend.models.people.staff.EmploymentRecord;
 import com.orbitastra.backend.models.people.staff.Staff;
+import com.orbitastra.backend.models.people.staff.enums.EmploymentStatus;
+import com.orbitastra.backend.models.people.organization.Position;
+import com.orbitastra.backend.repositories.people.organization.PositionRepository;
+import com.orbitastra.backend.repositories.people.staff.EmploymentRecordRepository;
 import com.orbitastra.backend.repositories.people.staff.StaffRepository;
 import com.orbitastra.backend.services.institution.NumberSequenceService;
 import com.orbitastra.backend.services.people.utils.StaffServiceUtils;
@@ -28,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The people a school employs — endpoints #1 to #8 of the plan in
- * {@code controllers/people/staff/README.md}. #1, #7 and #8 are built.
+ * {@code controllers/people/staff/README.md}. #1, #7, #8 and #16 are built.
  *
  * <p><b>The person and the job are two documents, and that is the whole design.</b> {@code Staff}
  * has no status, no department, no designation and no joining date. Every field on it is a fact
@@ -47,6 +57,8 @@ public class StaffService {
 
     private final CurrentSchoolResolver currentSchool;
     private final StaffRepository staff;
+    private final EmploymentRecordRepository employments;
+    private final PositionRepository positions;
     private final NumberSequenceService numberSequences;
     private final StaffServiceUtils utils;
 
@@ -85,16 +97,19 @@ public class StaffService {
             Sort.by(Sort.Order.asc("fullName"), Sort.Order.asc("employeeNo"));
 
     /**
-     * Why every person comes back with no employment block.
+     * Why a person comes back with no employment block.
      *
      * <p>On the response rather than only in a README, because the absence is the kind of thing a
      * caller otherwise reads as a bug in their own code.
+     *
+     * <p>Rewritten 2026-09-15 when #16 was built: it used to say nobody in the product was
+     * employed anywhere, which stopped being true the moment #16 ran.
      */
-    private static final String EMPLOYMENT_NOT_BUILT =
-            "No employment record is folded in: #16 POST /staff/{id}/employment writes one and is "
-                    + "not built, so no staff member in this product is employed anywhere yet. "
-                    + "A person with no employment record stays a real state once it is — "
-                    + "somebody entered but not yet hired, which is what #1 leaves them in.";
+    private static final String NOT_EMPLOYED =
+            "This person has no current employment record, which is a real state rather than a "
+                    + "missing one — somebody the school has entered and not yet hired. #16 "
+                    + "POST /staff/{id}/employment is what employs them, and #17 is what returns "
+                    + "them here.";
 
     private static final String NO_AUTHORIZATION_YET =
             "This module has no authorization yet, so treat every field on it as readable by "
@@ -202,6 +217,175 @@ public class StaffService {
     }
 
     /**
+     * Endpoint #16 — hire, promote or transfer.
+     *
+     * <p><b>One endpoint because it is one event.</b> All three close whichever record was current
+     * and open a new one. Three endpoints doing that would be three chances to leave two records
+     * current — or none, which is worse, because the person then reads as unemployed.
+     *
+     * <p><b>{@code @Transactional}, and that is the whole reason this is safe.</b> Two documents
+     * move together: the old record is closed and the new one inserted. The module plan says this
+     * project configures no transaction manager and that the close should therefore ride on the
+     * previous record's {@code version} — <b>that is out of date</b>. {@code MongoTransactionConfig}
+     * registers a {@code MongoTransactionManager}, and Atlas is a replica set, so the two writes
+     * commit together or neither does.
+     *
+     * <p><b>The order is forced by the index.</b> {@code school_staff_current_employment_uniq} is
+     * unique and partial on {@code current: true}, so a new current record cannot be inserted
+     * while the old one still is. Close first, insert second, both inside the transaction.
+     *
+     * <p><b>Overlap with non-current records is not checked</b> — the module plan's open item 1
+     * settles on allowing it: a part-time music teacher who also runs the choir on a separate
+     * contract is real, and "current" then means the post the school considers primary.
+     */
+    @Transactional
+    public EmploymentWriteResponse employStaff(String staffDocsId,
+            EmploymentCreateRequest request) {
+
+        //! step 1 - who is asking
+        School school = currentSchool.requireUsable();
+
+        //! step 2 - a record that is current AND terminal is the contradiction open item 2 warns
+        //! about. Nothing in the model stops it, so this does. Leaving is #17.
+        if (request.status() == EmploymentStatus.TERMINATED) {
+            throw ApiException.badRequest("EMPLOYMENT_STATUS_TERMINAL",
+                    "A record cannot be created already TERMINATED — it would be current and "
+                            + "finished at the same time, which nothing downstream can read. "
+                            + "Ending an employment is #17 POST /staff/{id}/separate.");
+        }
+
+        //! step 3 - the person, scoped to the school
+        String personId = staffDocsId == null ? "" : staffDocsId.trim();
+        // TODO: read staff
+        Staff person = staff.findByIdAndSchoolId(personId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
+                        "No staff member with id '" + personId + "' in this school."));
+
+        //! step 4 - the seat, scoped the same way
+        String seatId = request.positionDocsId().trim();
+        // TODO: read position
+        Position seat = positions.findByIdAndSchoolId(seatId, school.getId())
+                .orElseThrow(() -> ApiException.notFound("POSITION_NOT_FOUND",
+                        "No position with id '" + seatId + "' in this school."));
+
+        //! step 5 - and it has to still be one. Employing somebody into a retired seat leaves a
+        //! person whose job does not appear on any chart.
+        if (!Boolean.TRUE.equals(seat.getActive())) {
+            throw ApiException.conflict("POSITION_NOT_ACTIVE",
+                    "'" + seat.getTitle() + "' is retired, so nobody can be employed into it. "
+                            + "Restore the seat first, or use the one that replaced it.");
+        }
+
+        //! step 6 - the manager, when one was named. A PERSON, not a seat: Position carries
+        //! reportsToPositionDocsId for the structural question, and this answers "who do I
+        //! actually report to", which is why both exist.
+        String managerId = TextHelper.blankToNull(request.managerDocsId());
+        if (managerId != null) {
+            if (managerId.equals(person.getId())) {
+                throw ApiException.badRequest("MANAGER_IS_SELF",
+                        "Somebody cannot be their own manager.");
+            }
+            // TODO: read staff
+            staff.findByIdAndSchoolId(managerId, school.getId())
+                    .orElseThrow(() -> ApiException.notFound("MANAGER_NOT_FOUND",
+                            "No staff member with id '" + managerId + "' in this school to "
+                                    + "manage them."));
+        }
+
+        //! step 7 - probation cannot end before the employment starts.
+        LocalDate from = request.effectiveFrom();
+        if (request.probationUntil() != null && request.probationUntil().isBefore(from)) {
+            throw ApiException.badRequest("PROBATION_BEFORE_START",
+                    "Probation ends " + request.probationUntil() + ", before the employment "
+                            + "starts on " + from + ".");
+        }
+
+        //! step 8 - two records cannot START on the same day. This is the check in front of
+        //! school_staff_employment_start_uniq, and it covers CLOSED records too - somebody rehired
+        //! on the exact day an old contract began is a real mistake, and the index refuses it
+        //! either way. This turns a duplicate-key 500 into a 409 that says what happened.
+        // TODO: check employment exists
+        if (employments.existsBySchoolIdAndStaffDocsIdAndEffectiveFrom(
+                school.getId(), person.getId(), from)) {
+
+            throw ApiException.conflict("EMPLOYMENT_ALREADY_STARTS_THEN",
+                    person.getFullName() + " already has an employment record beginning on "
+                            + from + ". Correcting a date on a record already written is #18.");
+        }
+
+        //! step 9 - the record being displaced, if any.
+        // TODO: read employment
+        EmploymentRecord previous = employments
+                .findBySchoolIdAndStaffDocsIdAndCurrentIsTrue(school.getId(), person.getId())
+                .orElse(null);
+
+        EmploymentResponse closed = null;
+        if (previous != null) {
+            //! THE NEW ONE MUST START AFTER THE OLD ONE DID, or the close below would set an end
+            //! date before its own start and the history would read backwards.
+            if (!from.isAfter(previous.getEffectiveFrom())) {
+                throw ApiException.conflict("EMPLOYMENT_STARTS_BEFORE_CURRENT",
+                        "This would start on " + from + ", on or before the current employment's "
+                                + "own start of " + previous.getEffectiveFrom()
+                                + " — which would end that record before it began. A correction "
+                                + "to an existing record is #18.");
+            }
+
+            //! step 10 - close it. THE END IS COMPUTED, not sent: the day before the new one
+            //! starts, so there is no gap and no overlap. Two people typing two dates is how
+            //! either gets in.
+            previous.setCurrent(false);
+            previous.setEffectiveUntil(from.minusDays(1));
+            // TODO: update employment
+            closed = EmploymentResponse.fromRecord(employments.save(previous));
+        }
+
+        //! step 11 - open the new one. INSIDE THE SAME TRANSACTION as the close above: the unique
+        //! partial index forbids two current records, so this order is the only one possible, and
+        //! without the transaction a failure here would leave the person with NONE.
+        // TODO: create employment
+        EmploymentRecord saved = employments.save(EmploymentRecord.builder()
+                .schoolId(school.getId())
+                .staffDocsId(person.getId())
+                .positionDocsId(seat.getId())
+                .managerDocsId(managerId)
+                .status(request.status())
+                .employmentType(request.employmentType())
+                .effectiveFrom(from)
+                .probationUntil(request.probationUntil())
+                .current(true)
+                .build());
+
+        //! step 12 - the headcount, COUNTED and never stored. A stored filledHeadcount drifts the
+        //! first time a writer forgets it - the objection that also keeps a weight total off
+        //! AcademicTerm.
+        //!
+        //! A WARNING, NOT A REFUSAL. A school hiring a twelfth teacher into eleven approved seats
+        //! is describing something that has already happened, and refusing it stops the system
+        //! recording the truth.
+        // TODO: count employments
+        long filled = employments.countBySchoolIdAndPositionDocsIdAndCurrentIsTrue(
+                school.getId(), seat.getId());
+
+        String warning = null;
+        if (seat.getApprovedHeadcount() != null && filled > seat.getApprovedHeadcount()) {
+            warning = "'" + seat.getTitle() + "' now holds " + filled + " people against an "
+                    + "approved headcount of " + seat.getApprovedHeadcount()
+                    + ". That is recorded, not refused — but the seat count or the hiring plan "
+                    + "is out of date. #14 raises the approved headcount.";
+        }
+
+        return new EmploymentWriteResponse(
+                EmploymentResponse.fromRecord(saved),
+                closed,
+                warning,
+                closed == null
+                        ? person.getFullName() + " is now employed. " + NO_AUTHORIZATION_YET
+                        : person.getFullName() + " moved seats; the previous record was closed on "
+                                + from.minusDays(1) + ". " + NO_AUTHORIZATION_YET);
+    }
+
+    /**
      * Endpoint #8 — one person in full.
      *
      * <p><b>The fullest thing this product returns about a human being</b> — a date of birth, two
@@ -234,12 +418,21 @@ public class StaffService {
                 .orElseThrow(() -> ApiException.notFound("STAFF_NOT_FOUND",
                         "No staff member with id '" + id + "' in this school."));
 
-        //! step 3 - the employment, which does not exist yet.
+        //! step 3 - what they do here now, folded in rather than linked: "who is this and what
+        //! do they do" is one question, and every caller would make the second call anyway.
         //!
-        //! NO SECOND READ HERE, and not because it would be empty - because there is nothing to
-        //! read from. #16 writes employment_records and is not built; the collection is absent.
-        //! When it arrives this becomes one findByStaffDocsIdAndCurrentIsTrue and the note goes.
-        return StaffDetailResponse.fromStaff(person, EMPLOYMENT_NOT_BUILT, NO_AUTHORIZATION_YET);
+        //! AT MOST ONE CAN COME BACK. school_staff_current_employment_uniq is unique and partial
+        //! on current:true, so the database itself forbids a second.
+        // TODO: read employment
+        EmploymentResponse employment = employments
+                .findBySchoolIdAndStaffDocsIdAndCurrentIsTrue(school.getId(), person.getId())
+                .map(EmploymentResponse::fromRecord)
+                .orElse(null);
+
+        //! The note appears ONLY when there is nothing to fold in - a person entered and not yet
+        //! hired, which is a real state and not a broken row.
+        return StaffDetailResponse.fromStaff(person, employment,
+                employment == null ? NOT_EMPLOYED : null, NO_AUTHORIZATION_YET);
     }
 
     /**

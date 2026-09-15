@@ -3530,6 +3530,8 @@ const staffEntry = staffCatalogue.slice(staffCatalogue.indexOf('create-staff'),
 const staffListEntry = staffCatalogue.slice(staffCatalogue.indexOf('list-staff'),
   staffCatalogue.indexOf('get-staff'))
 const staffGetEntry = staffCatalogue.slice(staffCatalogue.indexOf('get-staff'),
+  staffCatalogue.indexOf('employ-staff'))
+const employEntry = staffCatalogue.slice(staffCatalogue.indexOf('employ-staff'),
   staffCatalogue.indexOf('export const API_CATALOG'))
 const staffDetailScreen = readFileSync('src/pages/school/people/StaffDetail.jsx', 'utf8')
 const staffScreen = readFileSync('src/pages/school/people/StaffList.jsx', 'utf8')
@@ -3885,6 +3887,47 @@ const checks = [
   ['the lookup is school-scoped, and the leak it prevents is spelled out',
     staffGetEntry.includes('a date of birth, a home address and an emergency contact')],
 
+  // #16 — the write the product was waiting on.
+  ['#16 is a POST on the person',
+    /method: "POST"/.test(employEntry)
+      && /path: "\/schools\/current\/staff\/{id}\/employment"/.test(employEntry)],
+  ['it is one endpoint because it is one event, and says what three would cost',
+    employEntry.includes('one event') && employEntry.includes('leave two records current')],
+  ['both halves come back, and absent "closed" marks a first hire',
+    employEntry.includes('both halves') && employEntry.includes('tells a hire from a promotion')],
+  ['the transaction is real, and the plan being out of date is recorded',
+    employEntry.includes('@Transactional') && employEntry.includes('out of date')],
+  ['the index is named as what forces close-before-insert',
+    employEntry.includes('school_staff_current_employment_uniq')],
+  ['the end date is computed, never sent',
+    employEntry.includes('computed, never sent')],
+  ['POSITION_FULL warns rather than refusing, and says why',
+    employEntry.includes('warning and not a refusal')
+      && employEntry.includes('already happened')],
+  ['TERMINATED is refused, and OFFERED is named as the case that matters',
+    employEntry.includes('EMPLOYMENT_STATUS_TERMINAL') && employEntry.includes('OFFERED')],
+  ['overlap with non-current records is allowed, per open item 1',
+    employEntry.includes('Overlap with non-current records is NOT checked')],
+  ['the filled headcount is counted and never stored',
+    employEntry.includes('counted, never stored')],
+
+  // The employ modal.
+  ['the detail page employs through #16',
+    staffDetailScreen.includes("call('employ-staff'") && staffDetailScreen.includes('function EmployStaff')],
+  ['one form, not three — the button renames itself instead',
+    staffDetailScreen.includes("'Promote or transfer' : 'Employ'")],
+  ['there is no end-date box, and the page says why',
+    !staffDetailScreen.includes("set('effectiveUntil')")
+      && staffDetailScreen.includes('no end-date box')],
+  ['TERMINATED is still offered, so its refusal stays reachable',
+    staffDetailScreen.includes("'TERMINATED'")],
+  ['the closed record is shown, because it is what a caller could not know',
+    staffDetailScreen.includes('previous record closed')],
+  ['and a warning renders apart from the refusal',
+    staffDetailScreen.includes('saved, with a warning')],
+  ['the employment card shows a real record once there is one',
+    staffDetailScreen.includes('data.employment.effectiveFrom')],
+
   // The detail screen.
   ['a staff row opens its own page',
     staffScreen.includes("navigate(detailPath('school', 'people', 'staff'")
@@ -3894,8 +3937,11 @@ const checks = [
     staffDetailScreen.indexOf('title="Employment"') < staffDetailScreen.indexOf('title="The person"')],
   ['it shows the API\'s own words for why employment is empty',
     staffDetailScreen.includes('data?.employmentNote')],
-  ['and says the empty card is permanent for an unhired person, not a stub',
-    staffDetailScreen.includes('not scaffolding')],
+  // The card stopped being a permanent stub when #16 landed. It now says the EMPTY state is real
+  // — entered but not hired — rather than that the endpoint does not exist.
+  ['and says an unemployed person is a real state, not a broken row',
+    staffDetailScreen.includes('Entered, but not employed')
+      && staffDetailScreen.includes('#17 returns them to')],
   ['the page carries the authorization warning where the data is',
     staffDetailScreen.includes('nothing checks who is asking')],
   ['nothing on the detail page is disabled', !/disabled/.test(staffDetailScreen)],

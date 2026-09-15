@@ -146,7 +146,7 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 | # | Method and endpoint | What this API is for |
 |---|---|---|
-| <a id="t16"></a>16 | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** |
+| <a id="t16"></a>16 — **built** | [`POST /staff/{id}/employment`](#e16) | Hire, promote or transfer — **one write, because it is one event.** |
 | <a id="t17"></a>17 | [`POST /staff/{id}/separate`](#e17) | End employment. The one way somebody leaves. |
 | <a id="t18"></a>18 | [`PATCH /employment/{id}`](#e18) | Correct a date or a manager on a record already written. |
 | <a id="t19"></a>19 | [`GET /staff/{id}/employment`](#e19) | One person's history, newest first. |
@@ -170,11 +170,11 @@ birth, a home address and an emergency contact; [#29](#e29) returns where somebo
 
 # Build order
 
-Ordered by **what it unblocks**, not by number. `#1`, `#7` and `#8` are built; the rest of this package is not.
+Ordered by **what it unblocks**, not by number. `#1`, `#7`, `#8` and `#16` are built — **phase 1 is complete**.
 
 | Phase | What it gives you | Endpoints |
 |---|---|---|
-| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, 16, ~~7~~ *(partly)*, ~~8~~ *(partly)* |
+| **1** | A person exists and can be employed — **everything else in the product unblocks** | ~~1~~, ~~16~~, ~~7~~ *(partly)*, ~~8~~ — **complete** |
 | **2** | The profile and the history are maintainable | 2, 6, 17, 18, 19 |
 | **3** | The profile is complete, and compliance is reportable | 3, 4, 5, 21, 22, 23 |
 | **6** | *Blocked on encryption* | 20, 24, 25, 26, 27, 28, 29 |
@@ -187,12 +187,16 @@ Ordered by **what it unblocks**, not by number. `#1`, `#7` and `#8` are built; t
 **[#1](#e1) before [#16](#e16), and both before [#7](#e7).** A person with no employment record is
 a real state — entered but not yet hired — and it is what [#1](#e1) leaves them in.
 
-**[#16](#e16) is now the whole critical path of this product.** `organization` has built the seat
-([#9](../organization/README.md#e9), [#13](../organization/README.md#e13)) and this package has
-built the person — and **nothing joins them**, so nobody is employed anywhere. Waiting on it:
-[#7](#e7) and [#8](#e8) here, [#15](../organization/README.md#e15) there, every teacher picker, all
-of payroll, and the two checks [#14](../organization/README.md#e14) owes — `POSITION_STILL_FILLED`
-and `HEADCOUNT_BELOW_FILLED` — which cannot fire until an employment record exists to count.
+~~**#16 is now the whole critical path.**~~ **Built 2026-09-15.** The seat exists
+([#9](../organization/README.md#e9), [#13](../organization/README.md#e13)), the person exists
+([#1](#e1)), and employment joins them — so **phase 1 is complete and nothing in this product is
+blocked on `people` any more.**
+
+**What that unblocks, none of it built:** [#7](#e7)'s four employment filters;
+[#15](../organization/README.md#e15)'s `filledHeadcount`; the two checks
+[#14](../organization/README.md#e14) owes — `POSITION_STILL_FILLED` and
+`HEADCOUNT_BELOW_FILLED` — which can now count something; and [#17](#e17), which is the one way
+somebody leaves and the only thing that returns a person to having no current record.
 
 **[#20](#e20) is split across phases**, which is worth saying: a credential's *number* is encrypted
 and so blocked, but its title, authority, dates and expiry are not. Phase 3 can record
@@ -517,7 +521,7 @@ project has already found.
 ## The job · 16–19
 
 <a id="e16"></a>
-**[16](#t16) · `POST /staff/{id}/employment`**
+**[16](#t16) · `POST /staff/{id}/employment`** — built
 
 - [`staff_positions`](../../../models/people/organization/Position.java) — *reads*: the position, which must be **active**
 - [`employment_records`](../../../models/people/staff/EmploymentRecord.java) — *reads*: the current record, if any
@@ -527,7 +531,14 @@ project has already found.
 - **It closes the previous record in the same write** — `effectiveUntil` set to the day before the new `effectiveFrom`. The partial unique index is the backstop; this check is what turns a duplicate-key 500 into a readable 409.
 - **`409 POSITION_NOT_ACTIVE`** for a retired seat. **`POSITION_FULL` is a warning, not a refusal** — a school hiring a twelfth teacher into eleven approved seats is a budget conversation, and refusing it stops the system recording something that has already happened. The same call the term-weight sum made.
 - **Overlap with non-current records is not checked**, pending [open item 1](#1-may-two-employment-records-overlap--decide-before-16).
-- **Two documents must move together**, and this project configures no Mongo transaction manager. Either configure one or make the close conditional on the previous record's `version` — the optimistic-lock field is already there for exactly this.
+- ~~**this project configures no Mongo transaction manager**~~ — **out of date, corrected 2026-09-15.** [`MongoTransactionConfig`](../../../config/MongoTransactionConfig.java) registers a `MongoTransactionManager` and Atlas is a replica set, so `@Transactional` does what it says: the close and the insert commit together or neither does. No `version` check was needed.
+- **The order is forced by the index, not chosen.** `school_staff_current_employment_uniq` is unique and partial on `current: true`, so a new current record cannot be inserted while the old one still is — close first, insert second. **Without the transaction a failure between them would leave the person with no current record at all**, which reads as unemployed and is worse than the duplicate the index already prevents.
+- **The end date is computed, never sent.** The closed record ends the day before the new one begins, and there is no `effectiveUntil` on the request at all — two people typing two dates is how a gap or an overlap gets in.
+- **`400 EMPLOYMENT_STATUS_TERMINAL`.** A record cannot be created already `TERMINATED`: current and finished at once is the contradiction [open item 2](#2-employmentstatus-has-seven-values-and-current-is-a-separate-boolean) warns about, and nothing in the model stops it. `OFFERED` is allowed and is the case that matters.
+- **`409 EMPLOYMENT_ALREADY_STARTS_THEN`** in front of `school_staff_employment_start_uniq`, counting closed records too, and **`409 EMPLOYMENT_STARTS_BEFORE_CURRENT`** when the close would end a record before its own start.
+- **`400 MANAGER_IS_SELF`**, and the manager is validated to be this school's. A **person**, not a seat — `Position.reportsToPositionDocsId` answers the structural question and this answers "who do I actually report to", which is why both exist.
+- **Overlap with non-current records is not checked**, settling [open item 1](#1-may-two-employment-records-overlap--decide-before-16) on **(c)**: a part-time music teacher who also runs the choir on a separate contract is real, and `current` then means the post the school considers primary — which is exactly what the unique index already enforces.
+- **[#8](#e8) folds the record in from the moment this exists**, and its "nobody is employed anywhere" note was rewritten in the same change: leaving a note that had become false would be worse than having none.
 
 <a id="e17"></a>
 **[17](#t17) · `POST /staff/{id}/separate`**

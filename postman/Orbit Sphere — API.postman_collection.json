@@ -4718,6 +4718,68 @@
                 "description": "Endpoint #8 — one person in full. The fullest thing this product returns about a human being, and nothing checks who is asking. The employment block is absent until #16."
               },
               "response": []
+            },
+            {
+              "name": "Employ Staff",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201 as documented', () => pm.response.to.have.status(201));",
+                      "const b = pm.response.json();",
+                      "pm.test('the new record came back', () => pm.expect(b.employment).to.have.property('employmentDocsId'));",
+                      "pm.test('and it is current', () => pm.expect(b.employment.current).to.be.true);",
+                      "// A CURRENT RECORD HAS NOT ENDED.",
+                      "pm.test('it has no end date', () => pm.expect(b.employment).to.not.have.property('effectiveUntil'));",
+                      "// BOTH HALVES on a promotion. The end date is COMPUTED \\u2014 the day before the new one starts.",
+                      "if (b.closed) pm.test('the closed record is no longer current', () => pm.expect(b.closed.current).to.be.false);",
+                      "if (b.closed) pm.test('and ends before the new one begins', () => pm.expect(b.closed.effectiveUntil < b.employment.effectiveFrom).to.be.true);",
+                      "// A WARNING IS NOT A REFUSAL \\u2014 overfilling a seat is recorded, not rejected.",
+                      "if (b.warning) pm.test('a warning rides on a 201', () => pm.expect(pm.response.code).to.equal(201));",
+                      "if (b.employment) pm.collectionVariables.set('employmentDocsId', b.employment.employmentDocsId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-School-Subdomain",
+                    "value": "{{createdSubdomain}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// =========================================================================\n//  TEST CASES  —  POST /schools/current/staff/{id}/employment\n// Needs X-School-Subdomain and a staff id. positionDocsId, status,\n// employmentType and effectiveFrom are required.\n//\n//  THE WRITE THE WHOLE PRODUCT WAS WAITING ON. #9 and #13 built the seat, #1\n//  built the person, and nothing joined them — so nobody was employed\n//  anywhere, #7 had no employment filters and #8 returned no employment.\n//\n//  ONE ENDPOINT BECAUSE IT IS ONE EVENT. Hire, promote and transfer all close\n//  the record that was current and open a new one. Three endpoints doing that\n//  would be three chances to leave TWO current — or NONE, which is worse,\n//  because the person then reads as unemployed. Both halves come back.\n//\n//  @Transactional, AND THE MANAGER IS REGISTERED. The plan says this project\n//  has none — out of date. Close then insert, in one transaction; the unique\n//  partial index on current:true is what forces that order.\n//\n//  THE END DATE IS COMPUTED, NEVER SENT — the day before the new one starts.\n//  There is no effectiveUntil on this request at all.\n//\n//  POSITION_FULL IS A WARNING ON A 201, never a refusal: a twelfth teacher in\n//  eleven seats has already happened. TERMINATED is REFUSED — current and\n//  finished at once is a contradiction nothing downstream can read.\n// =========================================================================\n//\n// 01  THE HIRE                         -> 201  no \"closed\" key at all\n// 02  THE PROMOTION                    -> 201  both halves; old one ends the\n//                                             DAY BEFORE the new one starts\n// 03  EXACTLY ONE IS EVER CURRENT      -> check employment_records in Mongo\n// 04  status TERMINATED                -> 400  EMPLOYMENT_STATUS_TERMINAL\n// 05  a retired seat                   -> 409  POSITION_NOT_ACTIVE\n// 06  managerDocsId = the person       -> 400  MANAGER_IS_SELF\n// 07  two records starting one day     -> 409  EMPLOYMENT_ALREADY_STARTS_THEN\n// 08  starting before the current one  -> 409  EMPLOYMENT_STARTS_BEFORE_CURRENT\n// 09  probationUntil before the start  -> 400  PROBATION_BEFORE_START\n// 10  a third into a two-seat post     -> 201 WITH a warning\n// 11  current / effectiveUntil sent    -> 201  IGNORED, not refused\n// 12  a suspended school               -> 403  SCHOOL_NOT_ACTIVE\n//\n//  EVERY REFUSAL\n//     400 EMPLOYMENT_STATUS_TERMINAL       Current and finished at once. Leaving is #17.\n//     400 MANAGER_IS_SELF                  Nobody manages themselves.\n//     400 PROBATION_BEFORE_START           Probation ends before the job starts.\n//     400 TENANT_NOT_RESOLVED              Header missing or blank.\n//     403 SCHOOL_NOT_ACTIVE                Gate 1.\n//     404 STAFF_NOT_FOUND / POSITION_NOT_FOUND / MANAGER_NOT_FOUND\n//     409 POSITION_NOT_ACTIVE              A retired seat.\n//     409 EMPLOYMENT_ALREADY_STARTS_THEN   Closed records count too.\n//     409 EMPLOYMENT_STARTS_BEFORE_CURRENT The close would end it before it began.\n\n{\n    \"positionDocsId\": \"{{positionDocsId}}\",\n    \"status\": \"ACTIVE\",\n    \"employmentType\": \"FULL_TIME\",\n    \"effectiveFrom\": \"2026-04-01\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/schools/current/staff/{{staffDocsId}}/employment",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "schools",
+                    "current",
+                    "staff",
+                    "{{staffDocsId}}",
+                    "employment"
+                  ]
+                },
+                "description": "Endpoint #16 \u2014 hire, promote or transfer. One write because it is one event: the current record is closed and a new one opened, inside a transaction. POSITION_FULL is a warning, not a refusal."
+              },
+              "response": []
             }
           ]
         },

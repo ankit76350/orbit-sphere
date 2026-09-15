@@ -1,6 +1,6 @@
 # controllers/people — API plan
 
-**Nine of 52 are built — [#1](#t1) `POST /staff`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
+**Ten of 52 are built — [#1](#t1) `POST /staff`, [#7](#t7) `GET /staff`, [#8](#t8) `GET /staff/{id}`, [#16](#t16) `POST /staff/{id}/employment`, [#9](#t9) `POST /departments`, [#10](#t10) `PATCH /departments/{id}`, [#12](#t12) `GET /departments`, [#13](#t13) `POST /positions`, [#14](#t14) `PATCH /positions/{id}` and [#52](#t52) `GET /departments/{id}`.** **#52 was added on 2026-09-15**, after this plan was written: it has a list and a tree but no "tell me about this one". This file is the full set of endpoints
 the people feature needs, written
 before any of them, so they can be built and reviewed one at a time — the same way
 [`controllers/core`](../core/README.md), [`controllers/plans`](../plans/README.md),
@@ -341,7 +341,7 @@ development, credentials, the org-chart edits — needs only a `staffDocsId` to 
 | 1 | `organization` | ~~[`#9 POST /departments`](organization/README.md#e9)~~ — **built** | A position needs a department to sit in |
 | 2 | `organization` | ~~[`#13 POST /positions`](organization/README.md#e13)~~ — **built** | An employment record needs a position to point at |
 | 3 | `staff` | ~~[`#1 POST /staff`](staff/README.md#e1)~~ — **built** | The person |
-| 4 | `staff` | [`#16 POST /staff/{id}/employment`](staff/README.md#e16) | The job — **this is what makes a staff list mean anything** |
+| 4 | `staff` | ~~[`#16 POST /staff/{id}/employment`](staff/README.md#e16)~~ — **built** | The job — **this is what makes a staff list mean anything** |
 | 5 | `staff` | ~~[`#7 GET /staff`](staff/README.md#e7)~~ — **built**, minus the employment filters | The teacher picker |
 | 6 | `staff` | ~~[`#8 GET /staff/{id}`](staff/README.md#e8)~~ — **built**, minus the employment block | One person in full |
 
@@ -358,10 +358,17 @@ typed wrong at create had no way back. **Row 3 is where this module resumes**, a
 `filledHeadcount`, which is counted from the employment records [`#16`](staff/README.md#e16)
 writes.
 
-**Row 4 — [`#16`](staff/README.md#e16) — is now the whole critical path.** A seat exists and a
-person exists; nothing joins them, so nobody is employed anywhere in this product. It is what
-`#7`, `#8`, `#15`, payroll and every teacher picker are waiting on, and it is what makes the two
-checks [`#14`](organization/README.md#e14) owes possible to write.
+~~**Row 4 is now the whole critical path.**~~ **[`#16`](staff/README.md#e16) was built on
+2026-09-15, and phase 1 is complete.** A seat exists, a person exists, and employment joins them.
+
+**What that unblocks, and none of it is built yet:** [`#7`](staff/README.md#e7)'s four employment
+filters (`?employed=`, `?departmentDocsId=`, `?positionDocsId=`, `?employmentType=`), which the
+domain plan's [open item 3](#3-7s-filters-need-a-join-mongo-will-not-do) already settles — page on
+`employment_records`, then read `staff` by id; [`#15`](organization/README.md#e15)'s
+`filledHeadcount`; the two checks [`#14`](organization/README.md#e14) owes,
+`POSITION_STILL_FILLED` and `HEADCOUNT_BELOW_FILLED`, which can now count something; and
+[`#17`](staff/README.md#e17), which is the one way somebody leaves and the only thing that returns
+a person to having no current record.
 
 **`#1` before `#16`, and both before `#7`.** A staff member with no employment record is a person
 the school has entered but not yet hired — a real state, and the one [`#1`](staff/README.md#e1)

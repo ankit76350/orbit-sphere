@@ -262,7 +262,7 @@ export default function DepartmentDetail() {
       </Card>
 
       <Card
-        title="Seats"
+        title="Positions/Seats"
         description="Every position in this unit, retired ones included and marked — a record made against one still names it."
         action={
           <div className="btn-row">
