@@ -92,7 +92,7 @@ used in April, and gate 4 would refuse the one call a school actually makes.
 | <a id="t13"></a>13 — **built** | [`POST /positions`](#e13) | Create an approved seat inside a department. |
 | <a id="t14"></a>14 | [`PATCH /positions/{id}`](#e14) | Retitle it, move the headcount, retire it. |
 | <a id="t15"></a>15 | [`GET /positions`](#e15) | Seats, with **filled counts computed**. |
-| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent, its children, its head and its seats. **Added 2026-09-15**, after the plan. |
+| <a id="t52"></a>52 — **built** | [`GET /departments/{id}`](#e52) | One unit and everything it is made of — its parent department, its sub-departments, its head and its seats. **Added 2026-09-15**, after the plan. |
 
 ---
 
@@ -322,7 +322,7 @@ cannot express, which is what that class is for in every other module.
 - **Sorted by `name`, tiebroken by `departmentCode`.** Two units may share a name — this file says so — so `name` alone ties, and a tie with no tiebreaker puts one row on two pages while another appears on none. `departmentCode` is unique per school and settles it. [`PageResponse.pageableOf`](../../../common/web/PageResponse.java) appends whichever the caller did not name.
 - **A filter can orphan a node, and orphans are lifted rather than dropped.** `?tree=true&active=true` excludes a retired parent whose children are still active — those children are real units the caller asked to see, so they surface at the top marked `liftedToTop` instead of vanishing. The response carries the count. **Dropping them was the alternative and would have hidden active departments**; leaving a hole where the parent was is not a tree.
 - **The builder carries a visited set, and that is not defensive habit.** Nothing can write a cycle today — [#9](#e9) cannot, because a new unit has no children — but [#10](#e10) will be able to, and [open item 2](#2-both-hierarchies-can-cycle-and-only-one-is-cheap-to-check) says a cycle written then is a crash in whatever first draws the chart. This is that thing, so it is where the guard belongs.
-- **The two shapes are two records**, not one with a sometimes-populated `children`. A field present on some responses and absent on others is a field every client has to guard — the same call #28 and #29 of academics made.
+- **The two shapes are two records**, not one with a sometimes-populated `subDepartments`. A field present on some responses and absent on others is a field every client has to guard — the same call #28 and #29 of academics made.
 
 <a id="e13"></a>
 **[13](#t13) · `POST /positions`** — built
@@ -344,12 +344,12 @@ cannot express, which is what that class is for in every other module.
 <a id="e52"></a>
 **[52](#t52) · `GET /departments/{id}`** — built, and **not in the original plan**
 
-- *reads*: the unit; its parent and its head, **resolved**; its direct children; every seat in it
+- *reads*: the unit; its parent department and its head, **resolved**; its direct sub-departments; every seat in it
 - **Added 2026-09-15.** The plan has a list ([#12](#e12)) and a tree, and no "tell me about this one" — rendering a department's page meant four requests. Numbered on the end rather than beside #12 because these numbers are referenced from the API catalogue and the Postman collection, and none is ever reused.
 - **The one endpoint in this package that resolves an id to a name.** Everywhere else `parentDepartmentDocsId` and `headStaffDocsId` come back raw, because one place should decide how a unit and a person are presented and a write's response is not it. A detail view **is** that place — the whole question it answers is "tell me about this unit".
 - **The head resolves to a name and nothing else.** A `Staff` document carries an address, a date of birth and a national identity number. Returning the record would leak the most sensitive data this product holds through an endpoint nobody would think to check — and the module plan says authorization matters more here than anywhere and does not exist yet.
 - **A dangling reference leaves the page readable.** A parent or a head deleted out from under the unit is **omitted**, not a 404: the department the caller asked for still exists, and refusing to describe it because something it points at is gone would make the damage worse. Both directions are asserted.
-- **Direct children only.** The whole nesting is [#12](#e12) with `?tree=true`, which builds it from one flat read; repeating that walk here would be a second implementation of it.
+- **Direct sub-departments only.** The whole nesting is [#12](#e12) with `?tree=true`, which builds it from one flat read; repeating that walk here would be a second implementation of it.
 - **Retired seats are included and marked.** A retired seat is still part of what a unit is made of — records made against it still name it.
 - **The positions are here, and that is a boundary worth stating.** This answers "what is this unit made of"; [#15](#e15) will answer "find seats across the school", filtered and paged. When it arrives the two return the same rows in two shapes — the situation [#29 of academics](../../academics/structure/README.md#e29) ended up in and had to be trimmed out of. **If it becomes a problem, #15 wins and this trims**, for the same reason: the endpoint that owns the question keeps it.
 - **Not paged.** One document's composition is not a list.

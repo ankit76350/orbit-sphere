@@ -10,12 +10,12 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
 /**
  * One department, at its own address: /school-people/departments/{id}
  *
- * ITS OWN PAGE, NOT A MODAL. A unit carries its parent, its direct children and every seat in it —
+ * ITS OWN PAGE, NOT A MODAL. A unit carries the unit above it, the units under it and every seat —
  * more than a modal's worth of screen — and a page has an address, so it can be linked, reloaded
  * and shared. The same call this project made for a class.
  *
- * ONE ENDPOINT FILLS IT. #52 returns the unit, its parent and head RESOLVED, its direct children
- * and its seats, in one read. Without it this page was four requests.
+ * ONE ENDPOINT FILLS IT. #52 returns the unit, its parentDepartment and head RESOLVED, its
+ * sub-departments and its seats, in one read. Without it this page was four requests.
  *
  * THIS IS THE ONLY SCREEN IN THE MODULE THAT SHOWS A NAME WHERE THE OTHERS SHOW AN ID. #9, #12 and
  * #13 all return raw ids on purpose, so that one place decides how a unit and a person are
@@ -85,7 +85,7 @@ export default function DepartmentDetail() {
           <p className="muted">
             <span className="mono">{actingSubdomain}</span>
             {data ? <> · <span className="mono">{data.departmentCode}</span></> : null}
-            {data ? ` · ${data.childCount} child${data.childCount === 1 ? '' : 'ren'}` : ''}
+            {data ? ` · ${data.subDepartmentCount} sub-unit${data.subDepartmentCount === 1 ? '' : 's'}` : ''}
             {data ? ` · ${data.positionCount} seat${data.positionCount === 1 ? '' : 's'}` : ''}
           </p>
         </div>
@@ -95,7 +95,7 @@ export default function DepartmentDetail() {
 
       <Card
         title="The unit"
-        description="Everything #52 returns about it, in one read — with the parent and the head resolved."
+        description="Everything #52 returns about it, in one read — with the unit above it and the head resolved."
         action={<EndpointTag id="get-department" name="Read" pathParams={{ id }} />}
       >
         <div className="table-scroll">
@@ -114,14 +114,14 @@ export default function DepartmentDetail() {
                     </Badge>
                   : null}</td></tr>
               {/* RESOLVED — the one endpoint in this module that does. */}
-              <tr><td className="muted">Parent</td>
-                <td>{data?.parent
+              <tr><td className="muted">Parent department</td>
+                <td>{data?.parentDepartment
                   ? <>
-                      <span className="mono">{data.parent.departmentCode}</span>{' '}
-                      {data.parent.name}
-                      {data.parent.active ? null : <Badge>retired</Badge>}
+                      <span className="mono">{data.parentDepartment.departmentCode}</span>{' '}
+                      {data.parentDepartment.name}
+                      {data.parentDepartment.active ? null : <Badge>retired</Badge>}
                     </>
-                  : <span className="muted">top level, or the parent record was deleted</span>}</td></tr>
+                  : <span className="muted">top level, or that record was deleted</span>}</td></tr>
               <tr><td className="muted">Head</td>
                 <td>{data?.headStaff
                   ? <>{data.headStaff.fullName}{' '}
@@ -140,17 +140,17 @@ export default function DepartmentDetail() {
       </Card>
 
       <Card
-        title="Direct children"
+        title="Sub-departments"
         description="Only one level — the whole nesting is #12 with ?tree=true, built from one flat read."
-        action={<Badge>{data?.childCount ?? 0} total</Badge>}
+        action={<Badge>{data?.subDepartmentCount ?? 0} total</Badge>}
       >
-        {(data?.children ?? []).length === 0 ? (
+        {(data?.subDepartments ?? []).length === 0 ? (
           <Empty title="A leaf" description="Nothing sits under this unit." />
         ) : (
           <div className="table-scroll">
             <table className="data-table">
               <tbody>
-                {(data?.children ?? []).map((one) => (
+                {(data?.subDepartments ?? []).map((one) => (
                   <tr key={one.departmentDocsId}>
                     <td><span className="mono">{one.departmentCode}</span></td>
                     <td>{one.name}</td>

@@ -346,19 +346,19 @@ public class OrganizationService {
             return DepartmentNodeResponse.of(node, lifted, List.of());
         }
 
-        List<DepartmentNodeResponse> children = new ArrayList<>();
-        for (Department child : childrenOf.getOrDefault(node.getId(), List.of())) {
-            children.add(buildNode(child, childrenOf, new LinkedHashSet<>(seen), false));
+        List<DepartmentNodeResponse> below = new ArrayList<>();
+        for (Department under : childrenOf.getOrDefault(node.getId(), List.of())) {
+            below.add(buildNode(under, childrenOf, new LinkedHashSet<>(seen), false));
         }
 
-        return DepartmentNodeResponse.of(node, lifted, children);
+        return DepartmentNodeResponse.of(node, lifted, below);
     }
 
     /** How deep the answer goes. 0 for an empty tree, 1 for a flat school. */
     private int depthOf(List<DepartmentNodeResponse> nodes) {
         int deepest = 0;
         for (DepartmentNodeResponse node : nodes) {
-            deepest = Math.max(deepest, 1 + depthOf(node.children()));
+            deepest = Math.max(deepest, 1 + depthOf(node.subDepartments()));
         }
         return deepest;
     }
@@ -367,8 +367,8 @@ public class OrganizationService {
      * Endpoint #52 — one department and everything it is made of.
      *
      * <p><b>Four reads, and each answers a question the caller would otherwise have to ask
-     * itself.</b> The unit, its parent, its children and its seats — plus the head's name, which
-     * is the one place in this package an id is resolved to a person.
+     * itself.</b> The unit, the one above it, the ones under it and its seats — plus the head's
+     * name, which is the one place in this package an id is resolved to a person.
      *
      * <p><b>No gate runs on it.</b> A suspended or closed school still reads its own org chart.
      */
@@ -387,10 +387,10 @@ public class OrganizationService {
         //!
         //! Read directly rather than through loadDepartment, because a parent that has since been
         //! deleted must leave the page readable rather than 404 the unit the caller asked for.
-        DepartmentSummaryResponse parent = null;
+        DepartmentSummaryResponse parentDepartment = null;
         if (department.getParentDepartmentDocsId() != null) {
             // TODO: read department
-            parent = departments
+            parentDepartment = departments
                     .findByIdAndSchoolId(department.getParentDepartmentDocsId(), school.getId())
                     .map(DepartmentSummaryResponse::of)
                     .orElse(null);
@@ -410,7 +410,7 @@ public class OrganizationService {
         //! step 5 - the units directly under this one. DIRECT ONLY: the whole nesting is #12 with
         //! ?tree=true, and repeating that walk here would be a second implementation of it.
         // TODO: read departments
-        List<DepartmentSummaryResponse> children = departments
+        List<DepartmentSummaryResponse> subDepartments = departments
                 .findBySchoolIdAndParentDepartmentDocsIdOrderByNameAsc(
                         school.getId(), department.getId())
                 .stream()
@@ -429,11 +429,11 @@ public class OrganizationService {
                 department.getName(),
                 department.getDescription(),
                 department.getActive(),
-                parent,
+                parentDepartment,
                 headStaff,
-                children,
+                subDepartments,
                 seats.stream().map(PositionResponse::fromPosition).toList(),
-                children.size(),
+                subDepartments.size(),
                 seats.size(),
                 (int) seats.stream().filter(one -> Boolean.TRUE.equals(one.getActive())).count(),
                 (int) seats.stream()

@@ -20,11 +20,13 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * becomes a problem, #15 wins and this trims**, for the same reason: the endpoint that owns the
  * question keeps it.
  *
- * <p><b>Direct children only.</b> The whole nesting is #12 with {@code ?tree=true}, which builds
- * it from one flat read; repeating that here would be a second implementation of the same walk.
+ * <p><b>Direct sub-departments only.</b> The whole nesting is #12 with {@code ?tree=true},
+ * which builds it from one flat read; repeating that here would be a second implementation of
+ * the same walk.
  *
  * <p><b>Not paged.</b> This is one document's composition, not a list — a department has a handful
- * of seats and a handful of children, and a page cursor over either would be machinery nobody uses.
+ * of seats and a handful of sub-departments, and a page cursor over either would be machinery
+ * nobody uses.
  */
 public record DepartmentDetailResponse(
         String departmentDocsId,
@@ -38,19 +40,19 @@ public record DepartmentDetailResponse(
 
         /** The unit this one sits under, resolved. Absent for a top-level department. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        DepartmentSummaryResponse parent,
+        DepartmentSummaryResponse parentDepartment,
 
         /** Who runs it, resolved to a name and nothing more. Absent when none is named. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         StaffSummaryResponse headStaff,
 
         /** The units directly under this one, by name. Empty for a leaf, never null. */
-        List<DepartmentSummaryResponse> children,
+        List<DepartmentSummaryResponse> subDepartments,
 
         /** Every seat in this unit, by title, retired ones included and marked. */
         List<PositionResponse> positions,
 
-        int childCount,
+        int subDepartmentCount,
         int positionCount,
         int activePositionCount,
 

@@ -12,9 +12,9 @@ import NoSchoolChosen from '../NoSchoolChosen.jsx'
  * The org chart a school hires into: /school-people/departments
  *
  * FOUR ENDPOINTS — #12 lists the units, #9 creates one, #13 creates a seat. #52 opens one, and
- * it lives on its OWN PAGE rather than in a modal: a unit carries its parent, its children and
- * every seat in it, which is more than a modal's worth of screen — and a page has an address, so
- * it can be linked, reloaded and shared. The same call this project made for a class. The
+ * it lives on its OWN PAGE rather than in a modal: a unit carries the one above it, the ones
+ * under it and every seat in it, which is more than a modal's worth of screen — and a page has
+ * an address, so it can be linked, reloaded and shared. The same call this project made for a class. The
  * department table is #12's answer, so it shows what the school HOLDS. The position table is
  * still session-only: #15 is GET /positions and is not built, and the page says so rather than
  * rendering an empty table that looks like a school with no seats.
@@ -729,8 +729,8 @@ function TreeNode({ node, depth, onSeat, onOpen }) {
           Open <ChevronRight size={13} />
         </Button>
       </div>
-      {node.children.map((child) => (
-        <TreeNode key={child.departmentDocsId} node={child} depth={depth + 1}
+      {node.subDepartments.map((under) => (
+        <TreeNode key={under.departmentDocsId} node={under} depth={depth + 1}
           onSeat={onSeat} onOpen={onOpen} />
       ))}
     </div>

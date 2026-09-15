@@ -3601,8 +3601,13 @@ const peopleChecks = [
     orgDetailEntry.includes('omitted, not a 404')],
   ['and both directions are test cases',
     orgDetailEntry.includes('A DELETED HEAD') && orgDetailEntry.includes('A DELETED PARENT')],
-  ['direct children only, with #12 named as the subtree',
-    orgDetailEntry.includes('Direct children only')],
+  ['direct sub-departments only, with #12 named as the subtree',
+    orgDetailEntry.includes('Direct sub-departments only')],
+  ['the response names sub-departments, never children',
+    orgDetailEntry.includes('subDepartments') && orgDetailEntry.includes('subDepartmentCount')
+      && !/\bchildCount\b/.test(orgDetailEntry)],
+  ['and the unit above is parentDepartment, never parent',
+    orgDetailEntry.includes('parentDepartment')],
   ['the #15 boundary is stated, including who wins',
     orgDetailEntry.includes('#15 wins and this trims')],
 
@@ -3623,6 +3628,12 @@ const peopleChecks = [
   ['it links back to the list', orgDetailScreen.includes('All departments')],
   ['and says the filled count is deliberately absent',
     orgDetailScreen.includes('The filled count is not here')],
+  ['the page reads subDepartments, not children',
+    orgDetailScreen.includes('data?.subDepartments') && !orgDetailScreen.includes('data?.children')],
+  ['and parentDepartment, not parent',
+    orgDetailScreen.includes('data?.parentDepartment') && !/data\?\.parent\b/.test(orgDetailScreen)],
+  ['the tree node recurses on subDepartments',
+    orgDeptScreen.includes('node.subDepartments.map') && !orgDeptScreen.includes('node.children')],
   ['nothing on the detail page is disabled', !/disabled/.test(orgDetailScreen)],
   ['nothing on this screen is disabled', !/disabled/.test(orgDeptScreen)],
 ]

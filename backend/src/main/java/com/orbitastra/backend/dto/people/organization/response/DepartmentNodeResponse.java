@@ -8,13 +8,13 @@ import com.orbitastra.backend.models.people.organization.Department;
 /**
  * One unit in the tree, with whatever hangs off it.
  *
- * <p><b>The same fields as {@link DepartmentResponse}, plus {@code children}.</b> Two records
+ * <p><b>The same fields as {@link DepartmentResponse}, plus {@code subDepartments}.</b> Two records
  * rather than one with a sometimes-populated list: a field present on some responses and absent on
  * others is a field every client has to guard, which is the call this project already made for
  * #28 and #29 of academics.
  *
- * <p><b>{@code children} is always an array, never null</b>, so a client can recurse into a leaf
- * without checking first.
+ * <p><b>{@code subDepartments} is always an array, never null</b>, so a client can recurse into
+ * a leaf without checking first.
  */
 public record DepartmentNodeResponse(
         String departmentDocsId,
@@ -42,10 +42,10 @@ public record DepartmentNodeResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Boolean liftedToTop,
 
-        List<DepartmentNodeResponse> children) {
+        List<DepartmentNodeResponse> subDepartments) {
 
     public static DepartmentNodeResponse of(Department department, boolean lifted,
-            List<DepartmentNodeResponse> children) {
+            List<DepartmentNodeResponse> subDepartments) {
 
         return new DepartmentNodeResponse(
                 department.getId(),
@@ -56,6 +56,6 @@ public record DepartmentNodeResponse(
                 department.getHeadStaffDocsId(),
                 department.getActive(),
                 lifted ? Boolean.TRUE : null,
-                children);
+                subDepartments);
     }
 }
